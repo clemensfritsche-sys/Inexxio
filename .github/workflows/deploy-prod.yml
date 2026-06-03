@@ -1,0 +1,135 @@
+name: Deploy → Production
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: inexxio-prod
+  GCP_REGION: europe-west6
+  ARTIFACT_REGISTRY: europe-west6-docker.pkg.dev
+  ARTIFACT_REPO: inexxio-prod
+  CLOUD_RUN_SERVICE: inexxio-backend-prod
+  FIREBASE_PROJECT: inexxio-prod
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WIF_PROVIDER_PROD }}
+  SERVICE_ACCOUNT: ${{ secrets.WIF_SA_PROD }}
+
+jobs:
+  approve:
+    name: Await production approval
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - run: echo "Production deployment approved. Deploying ${{ github.sha }} by ${{ github.actor }}"
+
+  deploy-backend:
+    name: Backend → Cloud Run (prod)
+    runs-on: ubuntu-latest
+    needs: approve
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image: ${{ steps.build.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Build and push backend image
+        id: build
+        working-directory: backend
+        run: |
+          IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:${{ github.sha }}"
+          IMAGE_LATEST="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:latest"
+          docker build --tag "$IMAGE" --tag "$IMAGE_LATEST" \
+            --cache-from "$IMAGE_LATEST" --build-arg BUILDKIT_INLINE_CACHE=1 .
+          docker push "$IMAGE"
+          docker push "$IMAGE_LATEST"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --image "${{ steps.build.outputs.image }}" \
+            --project "${{ env.GCP_PROJECT }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
+            --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-prod-db" \
+            --set-env-vars "APP_ENV=production,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-prod" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
+            --min-instances 1 \
+            --max-instances 10 \
+            --memory 1Gi \
+            --cpu 2 \
+            --timeout 60s \
+            --concurrency 80 \
+            --quiet
+
+  deploy-frontend:
+    name: Frontend → Firebase Hosting (prod)
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend (prod config)
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyBD1xmJQSGrFQiDdQbND-bg2dxitc7DefQ
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio-prod.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: inexxio-prod
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: inexxio-prod.firebasestorage.app
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "203211679913"
+          NEXT_PUBLIC_FIREBASE_APP_ID: 1:203211679913:web:2ac20574d2e320039de1b8
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-FS0STKLEJC
+          NEXT_PUBLIC_API_URL: ${{ secrets.BACKEND_URL_PROD }}
+          NEXT_PUBLIC_APP_URL: https://inexxio-prod.web.app
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting (prod)
+        run: firebase deploy --only hosting --project inexxio-prod --non-interactive
+
+  notify-failure:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-frontend]
+    if: failure()
+    steps:
+      - run: echo "::error::PRODUCTION deployment failed for ${{ github.sha }} by ${{ github.actor }}"
