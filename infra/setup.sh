@@ -38,7 +38,7 @@ WI_PROVIDER="github-provider"
 case "$ENV" in
   dev)     SQL_TIER="db-f1-micro"      ;;
   staging) SQL_TIER="db-g1-small"      ;;
-  prod)    SQL_TIER="db-n1-standard-2" ;;
+  prod)    SQL_TIER="db-custom-2-7680"  ;;
 esac
 
 echo "============================================================"
