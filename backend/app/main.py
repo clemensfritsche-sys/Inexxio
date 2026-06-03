@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.auth import init_firebase
-from app.routers import health, items, auth as auth_router
+from app.routers import health, items, auth as auth_router, contact
 
 
 @asynccontextmanager
@@ -41,3 +41,4 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router)
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(items.router, prefix="/api/v1")
+app.include_router(contact.router, prefix="/api/v1")

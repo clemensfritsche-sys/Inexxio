@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 const navLinks = [
   { href: "/", label: "Start" },
@@ -12,6 +13,7 @@ const navLinks = [
 
 export default function PublicHeader() {
   const [open, setOpen] = useState(false);
+  const { firebaseUser } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
@@ -31,12 +33,15 @@ export default function PublicHeader() {
               {l.label}
             </Link>
           ))}
-          <Link
-            href="/app/dashboard"
-            className="btn-primary text-sm py-1.5 px-4"
-          >
-            ERP Login
-          </Link>
+          {firebaseUser ? (
+            <Link href="/app/dashboard" className="btn-primary text-sm py-1.5 px-4">
+              ERP öffnen
+            </Link>
+          ) : (
+            <Link href="/login" className="btn-primary text-sm py-1.5 px-4">
+              Anmelden
+            </Link>
+          )}
         </nav>
 
         {/* Mobile menu toggle */}
@@ -63,11 +68,11 @@ export default function PublicHeader() {
             </Link>
           ))}
           <Link
-            href="/app/dashboard"
+            href={firebaseUser ? "/app/dashboard" : "/login"}
             className="btn-primary block text-center text-sm"
             onClick={() => setOpen(false)}
           >
-            ERP Login
+            {firebaseUser ? "ERP öffnen" : "Anmelden"}
           </Link>
         </div>
       )}
