@@ -1,5 +1,7 @@
 import enum
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 from app.models.base_object import Object
@@ -29,7 +31,7 @@ class User(Base):
     avatar_url: Mapped[str] = mapped_column(Text, nullable=True)
     weekly_hours: Mapped[float] = mapped_column(Numeric(4, 1), nullable=True)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    terms_accepted_at = mapped_column(nullable=True)
+    terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     terms_version: Mapped[str] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

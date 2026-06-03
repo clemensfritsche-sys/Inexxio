@@ -1,5 +1,7 @@
 import enum
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -48,4 +50,4 @@ class Item(Base):
     # Approval
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     approved_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("objects.id"), nullable=True)
-    approved_at = mapped_column(nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

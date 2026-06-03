@@ -1,5 +1,7 @@
 import enum
-from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, Numeric, String, Text
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
@@ -19,7 +21,7 @@ class Company(Base):
     company_type: Mapped[CompanyType] = mapped_column(Enum(CompanyType), nullable=False, index=True)
     uid: Mapped[str] = mapped_column(String(50), nullable=True)
     vat_id: Mapped[str] = mapped_column(String(50), nullable=True)
-    vat_validated_at = mapped_column(nullable=True)
+    vat_validated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     address: Mapped[dict] = mapped_column(JSONB, nullable=True)
     country_code: Mapped[str] = mapped_column(String(2), default="CH", nullable=False)
     iban: Mapped[str] = mapped_column(String(34), nullable=True)
