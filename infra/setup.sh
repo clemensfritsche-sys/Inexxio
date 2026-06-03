@@ -66,10 +66,9 @@ log "Step 1/12 – GCP project"
 if gcloud projects describe "$GCP_PROJECT" &>/dev/null; then
   ok "Project $GCP_PROJECT already exists, skipping creation."
 else
-  # Fetch first available billing account
-  BILLING_ACCOUNT=$(gcloud billing accounts list --format="value(name)" --filter="open=true" | head -1)
+  BILLING_ACCOUNT="01864E-68EB87-B3A4DD"
   if [[ -z "$BILLING_ACCOUNT" ]]; then
-    echo "ERROR: No open billing account found. Create one at https://console.cloud.google.com/billing"
+    echo "ERROR: No billing account configured."
     exit 1
   fi
 
