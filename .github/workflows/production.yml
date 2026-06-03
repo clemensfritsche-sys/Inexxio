@@ -1,0 +1,71 @@
+name: Deploy to Production (inexxio.com)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend (Production)
+        working-directory: ./frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://api.inexxio.com
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: inexxio
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          NEXT_PUBLIC_PLAUSIBLE_DOMAIN: inexxio.com
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting (Production)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
+          projectId: inexxio
+          channelId: live
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and Deploy to Cloud Run
+        working-directory: ./backend
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/inexxio/backend:${{ github.sha }}
+          gcloud run deploy inexxio-backend \
+            --image gcr.io/inexxio/backend:${{ github.sha }} \
+            --region europe-west6 \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-secrets DATABASE_URL=database-url:latest,FIREBASE_SERVICE_ACCOUNT_PATH=firebase-sa:latest
