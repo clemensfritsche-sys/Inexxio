@@ -139,7 +139,8 @@ else
     --backup-start-time=02:00 \
     --maintenance-window-day=SUN \
     --maintenance-window-hour=3 \
-    --no-assign-ip \
+    --assign-ip \
+    --require-ssl \
     $DELETION_PROTECTION \
     --project="$GCP_PROJECT" \
     --quiet
