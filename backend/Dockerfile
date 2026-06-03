@@ -36,24 +36,7 @@ RUN useradd --system --uid 1001 --no-create-home appuser
 COPY . .
 
 # Startup script: run Alembic migrations, then start uvicorn
-RUN cat > /app/start.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "[startup] Running Alembic migrations..."
-alembic upgrade head
-
-echo "[startup] Starting uvicorn on port 8080..."
-exec uvicorn app.main:app \
-  --host 0.0.0.0 \
-  --port 8080 \
-  --workers 2 \
-  --loop uvloop \
-  --http httptools \
-  --log-level info \
-  --no-access-log
-EOF
-
+COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Cloud Run listens on 8080
