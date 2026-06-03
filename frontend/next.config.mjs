@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
@@ -15,15 +14,10 @@ const nextConfig: NextConfig = {
       ],
     },
     {
-      // Prevent search engine indexing of ERP
       source: "/(app|admin)(.*)",
       headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
     },
   ],
-
-  experimental: {
-    typedRoutes: true,
-  },
 };
 
 export default nextConfig;
