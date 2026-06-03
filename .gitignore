@@ -45,3 +45,4 @@ gcloud-credentials*.json
 # Build artifacts
 *.pyc
 *.log
+frontend/out/

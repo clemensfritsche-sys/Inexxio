@@ -116,9 +116,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Firebase Hosting (dev)
-        run: |
-          firebase experiments:enable webframeworks
-          firebase deploy --only hosting --project inexxio-dev --non-interactive
+        run: firebase deploy --only hosting --project inexxio-dev --non-interactive
 
   notify-failure:
     name: Notify on failure
