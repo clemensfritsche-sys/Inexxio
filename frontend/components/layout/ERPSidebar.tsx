@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Building2,
   Settings,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 

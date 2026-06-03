@@ -4,7 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Plus, Search, CheckCircle, XCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatObjectId, formatDate } from "@/lib/format";
+import { formatObjectId } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import type { Item, PaginatedResponse } from "@/types";
 import ItemDetail from "./ItemDetail";

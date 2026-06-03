@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import { X, CheckCircle, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatObjectId, formatDateTime, formatCurrency } from "@/lib/format";
+import { formatObjectId, formatDateTime } from "@/lib/format";
 import type { Item } from "@/types";
 
 interface Props {
@@ -18,7 +18,7 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 export default function ItemDetail({ itemId, onClose, onUpdate }: Props) {
   const { data: item, mutate } = useSWR<Item>(
     `/api/v1/items/${itemId}`,
-    (url) => api.get<Item>(url)
+    (url: string) => api.get<Item>(url)
   );
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
