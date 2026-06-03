@@ -63,19 +63,19 @@ confirm() {
 # ── 1. Create / link GCP project ─────────────────────────────────────────────
 log "Step 1/12 – GCP project"
 
-if gcloud projects describe "$GCP_PROJECT" &>/dev/null; then
-  ok "Project $GCP_PROJECT already exists, skipping creation."
-else
-  BILLING_ACCOUNT="01864E-68EB87-B3A4DD"
-  if [[ -z "$BILLING_ACCOUNT" ]]; then
-    echo "ERROR: No billing account configured."
-    exit 1
-  fi
+BILLING_ACCOUNT="01864E-68EB87-B3A4DD"
 
+if gcloud projects describe "$GCP_PROJECT" &>/dev/null; then
+  ok "Project $GCP_PROJECT already exists."
+else
   gcloud projects create "$GCP_PROJECT" --name="Inexxio ${ENV}" --quiet
-  gcloud billing projects link "$GCP_PROJECT" --billing-account="$BILLING_ACCOUNT" --quiet
-  ok "Project $GCP_PROJECT created and billing linked."
+  ok "Project $GCP_PROJECT created."
 fi
+
+# Always ensure billing is linked (project may exist without billing)
+gcloud billing projects link "$GCP_PROJECT" --billing-account="$BILLING_ACCOUNT" --quiet && \
+  ok "Billing account linked to $GCP_PROJECT." || \
+  warn "Billing may already be linked or requires manual setup."
 
 gcloud config set project "$GCP_PROJECT" --quiet
 
