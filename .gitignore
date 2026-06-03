@@ -1,0 +1,47 @@
+# Environment
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+.npm
+.yarn
+out/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic (don't ignore versions!)
+alembic/__pycache__/
+
+# Cloud credentials
+service-account*.json
+firebase-adminsdk*.json
+gcloud-credentials*.json
+
+# Build artifacts
+*.pyc
+*.log
