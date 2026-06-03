@@ -14,8 +14,8 @@ set -euo pipefail
 
 # ── Argument validation ──────────────────────────────────────────────────────
 ENV="${1:-}"
-if [[ "$ENV" != "dev" && "$ENV" != "staging" && "$ENV" != "prod" ]]; then
-  echo "Usage: $0 <dev|staging|prod>"
+if [[ "$ENV" != "dev" && "$ENV" != "prod" ]]; then
+  echo "Usage: $0 <dev|prod>"
   exit 1
 fi
 

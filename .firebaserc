@@ -2,7 +2,6 @@
   "projects": {
     "default": "inexxio-dev",
     "dev": "inexxio-dev",
-    "staging": "inexxio-staging",
     "prod": "inexxio-prod"
   },
   "targets": {},

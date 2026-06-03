@@ -16,27 +16,22 @@ env:
   ARTIFACT_REPO: inexxio-dev
   CLOUD_RUN_SERVICE: inexxio-backend-dev
   FIREBASE_PROJECT: inexxio-dev
-  WORKLOAD_IDENTITY_PROVIDER: projects/inexxio-dev/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-  SERVICE_ACCOUNT: github-actions@inexxio-dev.iam.gserviceaccount.com
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.WIF_PROVIDER_DEV }}
+  SERVICE_ACCOUNT: ${{ secrets.WIF_SA_DEV }}
 
 jobs:
-  # ── Backend: build & deploy to Cloud Run ────────────────────────────────────
   deploy-backend:
     name: Backend → Cloud Run (dev)
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # Required for Workload Identity Federation
-
+      id-token: write
     outputs:
       image: ${{ steps.build.outputs.image }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Google Cloud
-        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
@@ -51,17 +46,10 @@ jobs:
         run: |
           IMAGE="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:${{ github.sha }}"
           IMAGE_LATEST="${{ env.ARTIFACT_REGISTRY }}/${{ env.GCP_PROJECT }}/${{ env.ARTIFACT_REPO }}/backend:latest"
-
-          docker build \
-            --tag "$IMAGE" \
-            --tag "$IMAGE_LATEST" \
-            --cache-from "$IMAGE_LATEST" \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            .
-
+          docker build --tag "$IMAGE" --tag "$IMAGE_LATEST" \
+            --cache-from "$IMAGE_LATEST" --build-arg BUILDKIT_INLINE_CACHE=1 .
           docker push "$IMAGE"
           docker push "$IMAGE_LATEST"
-
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Cloud Run
@@ -74,8 +62,8 @@ jobs:
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
-            --set-env-vars "ENVIRONMENT=dev,GCP_PROJECT=${{ env.GCP_PROJECT }}" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET=GCS_BUCKET:latest" \
+            --set-env-vars "APP_ENV=development,GCP_PROJECT=${{ env.GCP_PROJECT }},FIREBASE_PROJECT_ID=inexxio-dev" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
             --min-instances 0 \
             --max-instances 3 \
             --memory 512Mi \
@@ -84,7 +72,6 @@ jobs:
             --concurrency 80 \
             --quiet
 
-  # ── Frontend: build & deploy to Firebase Hosting ────────────────────────────
   deploy-frontend:
     name: Frontend → Firebase Hosting (dev)
     runs-on: ubuntu-latest
@@ -92,13 +79,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -115,33 +99,29 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci --frozen-lockfile
+        run: npm ci
 
-      - name: Build frontend
+      - name: Build frontend (dev config)
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_URL: https://inexxio-backend-dev-ew6-run.app
+          NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio-dev.firebaseapp.com
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: inexxio-dev
-          NEXT_PUBLIC_ENVIRONMENT: dev
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: inexxio-dev.firebasestorage.app
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "395883203074"
+          NEXT_PUBLIC_FIREBASE_APP_ID: 1:395883203074:web:806fcb48ad21b90c88751b
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-9D74JS9VN8
+          NEXT_PUBLIC_API_URL: ${{ secrets.BACKEND_URL_DEV }}
+          NEXT_PUBLIC_APP_URL: https://inexxio-dev.web.app
         run: npm run build
 
-      - name: Deploy to Firebase Hosting
-        working-directory: .
-        run: |
-          firebase deploy \
-            --only hosting \
-            --project "${{ env.FIREBASE_PROJECT }}" \
-            --non-interactive
+      - name: Deploy to Firebase Hosting (dev)
+        run: firebase deploy --only hosting --project inexxio-dev --non-interactive
 
-  # ── Notify on failure ────────────────────────────────────────────────────────
   notify-failure:
     name: Notify on failure
     runs-on: ubuntu-latest
     needs: [deploy-backend, deploy-frontend]
     if: failure()
     steps:
-      - name: Deployment failed
-        run: |
-          echo "::error::Dev deployment failed for commit ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Author: ${{ github.actor }}"
+      - run: echo "::error::Dev deployment failed for ${{ github.sha }} by ${{ github.actor }}"
