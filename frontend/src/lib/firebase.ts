@@ -89,10 +89,18 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
   if (!auth) return null;
-  const result = await getRedirectResult(auth);
-  if (!result) return null;
-  const token = await result.user.getIdToken();
-  return { token, user: result.user };
+  try {
+    const result = await getRedirectResult(auth);
+    if (!result) return null;
+    const token = await result.user.getIdToken();
+    return { token, user: result.user };
+  } catch (err) {
+    // auth/internal-error means a stale or invalid pendingRedirect entry exists
+    // in IndexedDB from a previous incomplete redirect flow. Treat as no pending
+    // redirect — the next signInWithRedirect call will overwrite the stale entry.
+    if ((err as { code?: string }).code === 'auth/internal-error') return null;
+    throw err;
+  }
 }
 
 export async function logout(): Promise<void> {
