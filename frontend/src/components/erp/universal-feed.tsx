@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Loader2, InboxIcon, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Loader2, InboxIcon, ArrowLeft, Package, Building2, Wrench, GitBranch } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { ObjectRow } from './object-row';
@@ -43,12 +44,32 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'user', label: 'Benutzer' },
 ];
 
+const CREATE_MENU = [
+  { label: 'Artikel erstellen', href: '/erp/artikel', icon: Package },
+  { label: 'Firma erstellen', href: '/erp/firmen', icon: Building2 },
+  { label: 'Stückliste erstellen', href: '/erp/stuecklisten', icon: GitBranch },
+  { label: 'Arbeitsplan erstellen', href: '/erp/arbeitspläne', icon: Wrench },
+];
+
 export function UniversalFeed() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const isMobile = useIsMobile(768);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
+        setShowCreateMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
 
@@ -124,14 +145,32 @@ export function UniversalFeed() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
         <h1 className="text-lg font-bold text-slate-900">ERP</h1>
-        <button
-          type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-red-700 transition-colors"
-          style={{ background: '#E51A14' }}
-          aria-label="Neues Objekt erstellen"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <div className="relative" ref={createMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowCreateMenu((v) => !v)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-red-700 transition-colors"
+            style={{ background: '#E51A14' }}
+            aria-label="Neues Objekt erstellen"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          {showCreateMenu && (
+            <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+              {CREATE_MENU.map(({ label, href, icon: Icon }) => (
+                <button
+                  key={href}
+                  type="button"
+                  onClick={() => { setShowCreateMenu(false); router.push(href); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <Icon className="h-4 w-4 text-slate-400" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search */}

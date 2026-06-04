@@ -27,7 +27,7 @@ async def list_objects(
     if not object_type or object_type == "item":
         item_q = """
             SELECT o.id, 'item' AS object_type, i.name AS title,
-                   CASE WHEN i.is_approved THEN 'Freigegeben' ELSE 'Entwurf' END AS status,
+                   i.status AS status,
                    o.created_at, o.updated_at
             FROM objects o
             JOIN items i ON o.id = i.id
