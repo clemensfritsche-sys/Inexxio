@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /erp/
+Disallow: /admin/
+Disallow: /api/
+
+Sitemap: https://inexxio.com/sitemap.xml

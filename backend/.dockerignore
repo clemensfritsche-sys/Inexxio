@@ -1,0 +1,51 @@
+# Version control
+.git
+.gitignore
+
+# Python cache & compiled files
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+.venv
+venv
+env
+ENV
+
+# Test artifacts
+.pytest_cache
+.coverage
+htmlcov
+coverage.xml
+*.cover
+.tox
+
+# Development / IDE
+.env
+.env.local
+.env.*.local
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/
+*.md
+
+# Alembic generated files (keep alembic/ directory itself)
+alembic/__pycache__
+alembic/versions/__pycache__
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

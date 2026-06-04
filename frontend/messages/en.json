@@ -1,0 +1,339 @@
+{
+  "nav": {
+    "products": "Products",
+    "about": "About",
+    "contact": "Contact",
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "erp": "ERP"
+  },
+  "home": {
+    "hero": {
+      "eyebrow": "Swiss Made · ISO 9001 · Mechanical Engineering",
+      "title": "Precision for Demanding Industry",
+      "subtitle": "Inexxio AG develops and manufactures high-precision machine components and assemblies for industry. From design to delivery – everything from one source.",
+      "cta_primary": "Get in Touch",
+      "cta_secondary": "View Products",
+      "stat_items": "Articles",
+      "stat_iso": "ISO 9001",
+      "stat_swiss": "Swiss Made",
+      "stat_years": "Years Experience"
+    },
+    "features": {
+      "title": "Our Core Competencies",
+      "subtitle": "Precision, quality and reliability – the values that distinguish us.",
+      "manufacturing": {
+        "title": "Precision Manufacturing",
+        "desc": "CNC machining with tolerances down to 0.001 mm. Highest quality for the most demanding requirements."
+      },
+      "engineering": {
+        "title": "Engineering & Design",
+        "desc": "From concept to series production – we accompany you through the entire development process."
+      },
+      "solutions": {
+        "title": "Complete Solutions",
+        "desc": "Individual parts, assemblies and complete system solutions – all from one source, delivered on time."
+      }
+    },
+    "why": {
+      "title": "Why Inexxio?",
+      "quality": {
+        "title": "Swiss Quality Guarantee",
+        "desc": "ISO 9001-certified processes ensure consistently high quality with every delivery."
+      },
+      "flexibility": {
+        "title": "Flexible and Scalable",
+        "desc": "From one-off pieces to large series – we adapt to your requirements."
+      },
+      "reliability": {
+        "title": "Reliable Partnership",
+        "desc": "Transparent communication, clear deadlines and uncompromising quality."
+      },
+      "innovation": {
+        "title": "Modern Manufacturing Technology",
+        "desc": "Latest CNC technology combined with years of experience in mechanical engineering."
+      }
+    },
+    "cta": {
+      "title": "Ready for a Non-binding Conversation?",
+      "subtitle": "Contact us – we will find the optimal solution for your requirements.",
+      "button": "Get in Touch Now"
+    }
+  },
+  "about": {
+    "title": "About Us",
+    "subtitle": "Swiss Precision from Day One",
+    "mission": {
+      "title": "Our Mission",
+      "desc": "Inexxio AG stands for the highest precision in the manufacturing and development of machine components. As a Swiss company, we are committed to quality, reliability and sustainable partnerships with our customers."
+    },
+    "values": {
+      "title": "Our Values",
+      "quality": { "title": "Quality", "desc": "Uncompromising quality at every production step." },
+      "precision": { "title": "Precision", "desc": "Tolerances that make the difference." },
+      "reliability": { "title": "Reliability", "desc": "Meet deadlines. Keep promises." },
+      "innovation": { "title": "Innovation", "desc": "Continuous improvement and modernisation." }
+    }
+  },
+  "contact": {
+    "title": "Contact",
+    "subtitle": "We look forward to your enquiry. Our team usually responds within 24 hours.",
+    "form": {
+      "name": "Your Name",
+      "email": "Email Address",
+      "phone": "Phone (optional)",
+      "subject": "Subject",
+      "message": "Your Message",
+      "message_placeholder": "Describe your request...",
+      "privacy": "I have read the privacy policy and consent to the processing of my data.",
+      "submit": "Send Message",
+      "sending": "Sending...",
+      "success_title": "Message Received!",
+      "success_desc": "Thank you for your enquiry. We will get back to you as soon as possible.",
+      "error": "Error sending message. Please try again or contact us directly by email.",
+      "subjects": [
+        "General Enquiry",
+        "Request for Quote",
+        "Technical Question",
+        "Delivery & Logistics",
+        "Partnership",
+        "Other"
+      ]
+    },
+    "info": {
+      "title": "Contact Details",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "hours": "Business Hours",
+      "hours_value": "Mon–Fri 07:30–17:00"
+    }
+  },
+  "impressum": {
+    "title": "Legal Notice",
+    "subtitle": "Information pursuant to Art. 11 UCA and Art. 40 Data Protection Act",
+    "company_info": "Company Information",
+    "contact": "Contact",
+    "responsible": "Responsible for Content",
+    "disclaimer": "Disclaimer",
+    "links": "Liability for Links",
+    "copyright": "Copyright",
+    "privacy": "Data Protection",
+    "not_configured": "Company settings have not been configured yet. Please log in to the admin area.",
+    "go_to_admin": "Go to Settings"
+  },
+  "agb": {
+    "title": "Terms and Conditions",
+    "subtitle": "Valid from 01.01.2026 | Version 1.0",
+    "tab_b2b": "For Business Customers (B2B)",
+    "tab_b2c": "For End Customers (B2C)",
+    "print": "Print",
+    "last_updated": "Last Updated",
+    "version": "Version"
+  },
+  "datenschutz": {
+    "title": "Privacy Policy",
+    "subtitle": "In accordance with GDPR and Swiss DPA (01.09.2023)"
+  },
+  "login": {
+    "title": "Sign In",
+    "subtitle": "Welcome back",
+    "magic_link": {
+      "title": "Sign in with Magic Link",
+      "label": "Email Address",
+      "placeholder": "your@email.com",
+      "button": "Send Magic Link",
+      "sending": "Sending...",
+      "sent_title": "Link Sent!",
+      "sent_desc": "We sent a sign-in link to {email}. Please check your inbox (including spam folder).",
+      "change_email": "Use different email"
+    },
+    "google": "Sign in with Google",
+    "divider": "or",
+    "terms": "By signing in, you agree to our Terms & Conditions and Privacy Policy.",
+    "back_home": "Back to Homepage",
+    "error_generic": "Sign-in failed. Please try again.",
+    "error_popup": "Popup was blocked. Please allow popups and try again."
+  },
+  "erp": {
+    "feed": {
+      "title": "ERP",
+      "search": "Search… (Ctrl+K)",
+      "new": "New",
+      "empty_title": "No Object Selected",
+      "empty_desc": "Select an item from the list or create a new object.",
+      "loading": "Loading objects…",
+      "no_results": "No results found",
+      "no_results_desc": "Try a different search query or remove the filter.",
+      "filters": {
+        "all": "All",
+        "items": "Items",
+        "companies": "Companies",
+        "work_plans": "Work Plans",
+        "boms": "BOMs"
+      }
+    },
+    "object_types": {
+      "item": "Item",
+      "bom": "BOM",
+      "work_plan": "Work Plan",
+      "production_order": "Production Order",
+      "purchase_order": "Purchase Order",
+      "sales_order": "Sales Order",
+      "serialization": "Serialization",
+      "complaint": "Complaint",
+      "maintenance_order": "Maintenance Order",
+      "audit": "Audit",
+      "capa": "CAPA",
+      "risk": "Risk",
+      "document": "Document",
+      "company": "Company",
+      "contact": "Contact",
+      "invoice": "Invoice",
+      "credit_note": "Credit Note"
+    },
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "actions": {
+      "approve": "Approve",
+      "edit": "Edit",
+      "sign": "Sign",
+      "replace": "Replace",
+      "deactivate": "Deactivate"
+    },
+    "autosave": "Saved",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes"
+  },
+  "admin": {
+    "settings": {
+      "title": "Company Settings",
+      "subtitle": "Central management of all company and legal data",
+      "saved": "Saved",
+      "save": "Save",
+      "saving": "Saving…",
+      "unsaved_changes": "Unsaved changes",
+      "sections": {
+        "general": "General Information",
+        "legal": "Legal Identification",
+        "contact": "Contact & Web",
+        "banking": "Banking Details",
+        "vat": "VAT & Payment Terms",
+        "eu": "EU Extensions",
+        "integrations": "Integrations & API Keys"
+      },
+      "fields": {
+        "company_name": "Company Name",
+        "legal_form": "Legal Form",
+        "street": "Street",
+        "street_nr": "House Number",
+        "zip_code": "ZIP Code",
+        "city": "City",
+        "country": "Country",
+        "uid": "UID Number",
+        "uid_hint": "Format: CHE-xxx.xxx.xxx",
+        "vat_number": "VAT Number",
+        "vat_hint": "Format: CHE-xxx.xxx.xxx MWST",
+        "trade_register": "Trade Register No.",
+        "trade_register_canton": "Trade Register Canton",
+        "share_capital": "Share Capital",
+        "iban": "IBAN",
+        "qr_iban": "QR-IBAN",
+        "bank": "Bank",
+        "bic": "BIC/SWIFT",
+        "email": "Email",
+        "phone": "Phone",
+        "website": "Website",
+        "vat_method": "VAT Method",
+        "vat_period": "VAT Period",
+        "payment_days": "Default Payment Terms (Days)",
+        "skonto_pct": "Default Discount (%)",
+        "skonto_days": "Discount Period (Days)",
+        "oss_active": "OSS Registration Active",
+        "oss_number": "OSS Registration Number",
+        "vies_active": "VIES EU VAT Validation",
+        "logo": "Logo",
+        "stripe_key": "Stripe Publishable Key",
+        "plausible_domain": "Plausible Domain",
+        "hcaptcha_key": "hCaptcha Site Key"
+      },
+      "banking_notice": "Banking details are stored encrypted. Only administrators see the full value.",
+      "oss_info": "OSS becomes mandatory when EU B2C turnover exceeds CHF 100,000.",
+      "vies_info": "Enables automatic EU VAT number validation for B2B customers.",
+      "integrations_info": "Secret keys are managed in Google Secret Manager and are not visible here."
+    },
+    "users": {
+      "title": "User Management",
+      "subtitle": "All registered users and their permissions",
+      "search": "Search users…",
+      "roles": {
+        "admin": "Administrator",
+        "staff": "Staff",
+        "supplier": "Supplier",
+        "customer": "Customer"
+      },
+      "columns": {
+        "user": "User",
+        "role": "Role",
+        "last_login": "Last Login",
+        "status": "Status"
+      },
+      "actions": {
+        "change_role": "Change Role",
+        "deactivate": "Deactivate",
+        "deactivate_confirm": "Are you sure you want to deactivate this user?"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Inactive"
+      }
+    }
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "back": "Back",
+    "loading": "Loading…",
+    "error": "Error",
+    "success": "Success",
+    "yes": "Yes",
+    "no": "No",
+    "required": "Required",
+    "optional": "Optional",
+    "unknown": "Unknown",
+    "search": "Search",
+    "filter": "Filter",
+    "close": "Close",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "created_at": "Created",
+    "updated_at": "Updated",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "footer": {
+    "company": "Company",
+    "navigation": "Navigation",
+    "legal": "Legal",
+    "contact": "Contact",
+    "links": {
+      "imprint": "Legal Notice",
+      "privacy": "Privacy Policy",
+      "agb": "Terms & Conditions",
+      "about": "About",
+      "products": "Products",
+      "contact": "Contact"
+    },
+    "copyright": "All rights reserved.",
+    "tagline": "Precision Manufacturing. Swiss Made."
+  }
+}

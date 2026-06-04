@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "default": "inexxio-dev",
+    "dev": "inexxio-dev",
+    "prod": "inexxio-prod"
+  },
+  "targets": {},
+  "etags": {}
+}
