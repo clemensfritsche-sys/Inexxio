@@ -9,6 +9,8 @@ import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
 
+const REDIRECT_KEY = 'inexxio_login_redirect';
+
 function getGoogleErrorMessage(code: string): string {
   switch (code) {
     case 'auth/popup-closed-by-user':
@@ -42,6 +44,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     setVariation(Math.floor(Math.random() * 3) + 1);
+    // Store the ?from= param so verify page and Google login can redirect back
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('from');
+    if (from && from !== '/login' && !from.startsWith('/login/')) {
+      localStorage.setItem(REDIRECT_KEY, from);
+    }
   }, []);
 
   async function handleMagicLink(e: React.FormEvent) {
@@ -66,7 +74,9 @@ export default function LoginPage() {
       const { token } = await signInWithGoogle();
       api.setToken(token);
       localStorage.setItem('inexxio_token', token);
-      router.push('/erp');
+      const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
+      localStorage.removeItem(REDIRECT_KEY);
+      router.push(redirect);
     } catch (err: unknown) {
       setGoogleLoading(false);
       const code = (err as FirebaseError).code ?? '';

@@ -6,6 +6,14 @@ import { Settings2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
+const REDIRECT_KEY = 'inexxio_login_redirect';
+
+function getRedirectTarget(): string {
+  const saved = localStorage.getItem(REDIRECT_KEY);
+  localStorage.removeItem(REDIRECT_KEY);
+  return saved || '/';
+}
+
 export default function VerifyPage() {
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'needs-email'>('loading');
@@ -23,7 +31,8 @@ export default function VerifyPage() {
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
         setStatus('success');
-        setTimeout(() => router.replace('/erp'), 1500);
+        const target = getRedirectTarget();
+        setTimeout(() => router.replace(target), 1500);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : '';
         if (msg.includes('E-Mail-Adresse nicht gefunden')) {
@@ -47,7 +56,8 @@ export default function VerifyPage() {
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
         setStatus('success');
-        setTimeout(() => router.replace('/erp'), 1500);
+        const target = getRedirectTarget();
+        setTimeout(() => router.replace(target), 1500);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen.');

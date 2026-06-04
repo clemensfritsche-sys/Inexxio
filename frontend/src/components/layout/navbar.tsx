@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Menu, X, LogIn } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { onAuthChange, logout } from '@/lib/firebase';
+import type { User } from 'firebase/auth';
 
 const navLinks = [
   { href: '/ueber-uns', label: 'Über uns' },
@@ -14,7 +16,12 @@ const navLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -22,7 +29,45 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => {
+    setMobileOpen(false);
+    setUserMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthChange((firebaseUser) => {
+      setUser(firebaseUser);
+      setAuthLoaded(true);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  async function handleLogout() {
+    setUserMenuOpen(false);
+    setMobileOpen(false);
+    await logout();
+    router.push('/');
+  }
+
+  const loginHref = pathname.startsWith('/login')
+    ? '/login'
+    : `/login?from=${encodeURIComponent(pathname)}`;
+
+  const initials = user?.displayName
+    ? user.displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() || 'IX';
+
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
 
   return (
     <>
@@ -63,23 +108,140 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
+              {/* ERP nav link — shown when logged in */}
+              {authLoaded && user && (
+                <Link
+                  href="/erp"
+                  className={cn('ix-nav-link', pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'ix-nav-link-active' : '')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    ...(pathname.startsWith('/erp') || pathname.startsWith('/admin') ? { color: 'var(--ix-red)' } : {}),
+                  }}
+                >
+                  <LayoutGrid style={{ width: 13, height: 13 }} />
+                  ERP
+                </Link>
+              )}
             </nav>
 
             {/* Desktop right */}
-            <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {/* Language selector */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
                 <button style={{ color: 'var(--fg-1)', fontWeight: 600 }}>DE</button>
                 <span style={{ color: 'var(--border-2)' }}>|</span>
                 <button style={{ color: 'var(--fg-3)' }}>EN</button>
               </div>
-              <Link
-                href="/login"
-                className="ix-btn ix-btn-primary"
-                style={{ padding: '10px 20px', fontSize: 14 }}
-              >
-                <LogIn style={{ width: 15, height: 15 }} />
-                Anmelden
-              </Link>
+
+              {/* Auth state — show nothing while loading to prevent flash */}
+              {authLoaded && (
+                user ? (
+                  /* ── Logged in ── */
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {/* User avatar + dropdown */}
+                    <div ref={userMenuRef} style={{ position: 'relative' }}>
+                      <button
+                        onClick={() => setUserMenuOpen((o) => !o)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          background: 'none',
+                          border: '1px solid var(--border-1)',
+                          borderRadius: 40,
+                          padding: '5px 10px 5px 5px',
+                          cursor: 'pointer',
+                          transition: 'background 0.15s',
+                        }}
+                        className="hover:bg-slate-50"
+                      >
+                        {user.photoURL ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={user.photoURL}
+                            alt={initials}
+                            style={{ width: 28, height: 28, borderRadius: '50%', display: 'block' }}
+                          />
+                        ) : (
+                          <div style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: 'var(--ix-red, #E51A14)',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: '0.02em',
+                          }}>
+                            {initials}
+                          </div>
+                        )}
+                        <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-1)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {displayName}
+                        </span>
+                        <ChevronDown style={{ width: 13, height: 13, color: 'var(--fg-3)', transition: 'transform 0.2s', transform: userMenuOpen ? 'rotate(180deg)' : 'none' }} />
+                      </button>
+
+                      {/* Dropdown */}
+                      {userMenuOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: 'calc(100% + 8px)',
+                          background: '#fff',
+                          border: '1px solid var(--border-1)',
+                          borderRadius: 12,
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                          padding: '6px',
+                          minWidth: 220,
+                          zIndex: 100,
+                        }}>
+                          <div style={{ padding: '8px 10px 10px', borderBottom: '1px solid var(--border-1)', marginBottom: 4 }}>
+                            <p style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)', margin: 0 }}>{displayName}</p>
+                            <p style={{ font: '12px var(--font-body)', color: 'var(--fg-3)', margin: '2px 0 0' }}>{user.email}</p>
+                          </div>
+                          <button
+                            onClick={handleLogout}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              width: '100%',
+                              padding: '8px 10px',
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              font: '500 13px var(--font-body)',
+                              color: 'var(--fg-2)',
+                              textAlign: 'left',
+                            }}
+                            className="hover:bg-slate-50"
+                          >
+                            <LogOut style={{ width: 14, height: 14 }} />
+                            Abmelden
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Logged out ── */
+                  <Link
+                    href={loginHref}
+                    className="ix-btn ix-btn-primary"
+                    style={{ padding: '10px 20px', fontSize: 14 }}
+                  >
+                    <LogIn style={{ width: 15, height: 15 }} />
+                    Anmelden
+                  </Link>
+                )
+              )}
             </div>
 
             {/* Mobile hamburger */}
@@ -121,16 +283,78 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+
+            {/* ERP link in mobile menu — shown when logged in */}
+            {authLoaded && user && (
+              <Link
+                href="/erp"
+                style={{
+                  font: '600 19px/1 var(--font-display)',
+                  letterSpacing: '-0.02em',
+                  padding: '14px 0',
+                  borderBottom: '1px solid var(--border-1)',
+                  color: pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'var(--ix-red)' : 'var(--fg-1)',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <LayoutGrid style={{ width: 16, height: 16 }} />
+                ERP
+              </Link>
+            )}
+
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
                 <button style={{ color: 'var(--fg-1)', fontWeight: 600 }}>DE</button>
                 <span>|</span>
                 <button>EN</button>
               </div>
-              <Link href="/login" className="ix-btn ix-btn-primary" style={{ justifyContent: 'center' }}>
-                <LogIn style={{ width: 16, height: 16 }} />
-                Anmelden
-              </Link>
+
+              {authLoaded && (
+                user ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {user.photoURL ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={user.photoURL} alt={initials} style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                      ) : (
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--ix-red, #E51A14)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
+                          {initials}
+                        </div>
+                      )}
+                      <div>
+                        <p style={{ margin: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)' }}>{displayName}</p>
+                        <p style={{ margin: 0, font: '12px var(--font-body)', color: 'var(--fg-3)' }}>{user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        background: 'none',
+                        border: '1px solid var(--border-1)',
+                        borderRadius: 8,
+                        padding: '10px 16px',
+                        cursor: 'pointer',
+                        font: '500 14px var(--font-body)',
+                        color: 'var(--fg-2)',
+                      }}
+                    >
+                      <LogOut style={{ width: 15, height: 15 }} />
+                      Abmelden
+                    </button>
+                  </div>
+                ) : (
+                  <Link href={loginHref} className="ix-btn ix-btn-primary" style={{ justifyContent: 'center' }}>
+                    <LogIn style={{ width: 16, height: 16 }} />
+                    Anmelden
+                  </Link>
+                )
+              )}
             </div>
           </div>
         )}
