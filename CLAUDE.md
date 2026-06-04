@@ -1,5 +1,7 @@
 # INEXXIO – Enterprise Central System
 
+> **WICHTIG:** Vollständige und verbindliche Projekt-Anforderungen in `docs/Lastenheft_v1.0.md` – vor Entwicklungsarbeiten konsultieren.
+
 ## Was ist Inexxio?
 Zentrales Unternehmenssystem für ein produzierendes Schweizer KMU (AG, Maschinenbau).
 Kombination aus Website/Shop + ERP + Buchhaltung + HR + Qualitätsmanagement.
