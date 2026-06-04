@@ -22,6 +22,7 @@ export function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [roleFetched, setRoleFetched] = useState(false);
   const [authLoaded, setAuthLoaded] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -53,9 +54,12 @@ export function Navbar() {
           localStorage.setItem(ROLE_KEY, profile.role);
         } catch {
           // keep cached value
+        } finally {
+          setRoleFetched(true);
         }
       } else {
         setUserRole(null);
+        setRoleFetched(true);
         localStorage.removeItem(ROLE_KEY);
       }
     });
@@ -89,8 +93,9 @@ export function Navbar() {
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
 
-  // Show ERP when role allows, or when backend is unreachable (role unknown → fail open for employees)
-  const canAccessERP = userRole === null || userRole === 'employee' || userRole === 'admin';
+  // Show ERP while role is still loading (not yet fetched), or when role allows it.
+  // Once fetched: only employee/admin see the link. customer/supplier do not.
+  const canAccessERP = !roleFetched || userRole === 'employee' || userRole === 'admin';
 
   return (
     <>
