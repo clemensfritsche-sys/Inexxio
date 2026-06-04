@@ -13,6 +13,7 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  verifyBeforeUpdateEmail,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -102,4 +103,9 @@ export async function getIdToken(): Promise<string | null> {
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
   return onAuthStateChanged(auth, callback);
+}
+
+export async function updateEmailAddress(newEmail: string): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Nicht angemeldet');
+  await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
 }

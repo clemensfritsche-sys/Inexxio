@@ -80,6 +80,7 @@ class UserProfile(Base, TimestampMixin):
     company_billing_email: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Online shop / CRM
+    is_business: Mapped[bool] = mapped_column(Boolean, default=False)
     customer_group: Mapped[Optional[str]] = mapped_column(String(50))
     credit_limit: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
     accepts_marketing: Mapped[bool] = mapped_column(Boolean, default=False)

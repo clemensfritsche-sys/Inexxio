@@ -259,6 +259,7 @@ export interface UserProfile {
   company_website: string | null;
   company_billing_email: string | null;
 
+  is_business: boolean;
   customer_group: string | null;
   credit_limit: string | null;
   accepts_marketing: boolean;

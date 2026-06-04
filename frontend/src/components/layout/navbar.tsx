@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
@@ -228,6 +228,24 @@ export function Navbar() {
                             <p style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)', margin: 0 }}>{displayName}</p>
                             <p style={{ font: '12px var(--font-body)', color: 'var(--fg-3)', margin: '2px 0 0' }}>{user.email}</p>
                           </div>
+                          <Link
+                            href="/konto"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: 8,
+                              font: '500 13px var(--font-body)',
+                              color: 'var(--fg-2)',
+                              textDecoration: 'none',
+                            }}
+                            className="hover:bg-slate-50"
+                          >
+                            <Settings style={{ width: 14, height: 14 }} />
+                            Kontoeinstellungen
+                          </Link>
                           <button
                             onClick={handleLogout}
                             style={{
@@ -350,6 +368,23 @@ export function Navbar() {
                         <p style={{ margin: 0, font: '12px var(--font-body)', color: 'var(--fg-3)' }}>{user.email}</p>
                       </div>
                     </div>
+                    <Link
+                      href="/konto"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        border: '1px solid var(--border-1)',
+                        borderRadius: 8,
+                        padding: '10px 16px',
+                        font: '500 14px var(--font-body)',
+                        color: 'var(--fg-2)',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <Settings style={{ width: 15, height: 15 }} />
+                      Kontoeinstellungen
+                    </Link>
                     <button
                       onClick={handleLogout}
                       style={{

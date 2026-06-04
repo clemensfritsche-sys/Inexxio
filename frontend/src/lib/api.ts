@@ -162,6 +162,10 @@ class ApiClient {
     return this.get('/api/v1/auth/me');
   }
 
+  updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
+    return this.patch('/api/v1/auth/me', data);
+  }
+
   getUsers(): Promise<UserProfile[]> {
     return this.get('/api/v1/admin/users');
   }

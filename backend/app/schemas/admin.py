@@ -149,6 +149,7 @@ class UserProfileResponse(BaseModel):
     company_billing_email: Optional[str]
 
     # Online shop / CRM
+    is_business: bool
     customer_group: Optional[str]
     credit_limit: Optional[Decimal]
     accepts_marketing: bool
@@ -192,6 +193,7 @@ class UserProfileUpdate(BaseModel):
     trade_register_canton: Optional[str] = None
     company_website: Optional[str] = None
     company_billing_email: Optional[str] = None
+    is_business: Optional[bool] = None
     customer_group: Optional[str] = None
     credit_limit: Optional[Decimal] = None
     accepts_marketing: Optional[bool] = None

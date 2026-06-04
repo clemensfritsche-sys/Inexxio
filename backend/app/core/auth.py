@@ -81,6 +81,24 @@ def get_current_user(
         )
         if not user:
             user = _create_user_profile(db, uid, email, decoded)
+        else:
+            # Sync email/photo if changed in Firebase (e.g. after email change flow)
+            changed = False
+            if email and user.email != email:
+                collision = (
+                    db.query(UserProfile)
+                    .filter(UserProfile.email == email, UserProfile.id != user.id)
+                    .first()
+                )
+                if not collision:
+                    user.email = email
+                    changed = True
+            new_photo = decoded.get("picture")
+            if new_photo and user.photo_url != new_photo:
+                user.photo_url = new_photo
+                changed = True
+            if changed:
+                db.commit()
         return user
     except Exception as e:
         raise HTTPException(
