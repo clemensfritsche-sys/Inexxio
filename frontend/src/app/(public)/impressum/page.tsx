@@ -33,7 +33,7 @@ async function getCompanySettings(): Promise<PublicSettings | null> {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
-    return res.json();
+    return await res.json();
   } catch {
     return null;
   }
