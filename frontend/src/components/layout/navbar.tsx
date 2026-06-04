@@ -93,9 +93,9 @@ export function Navbar() {
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
 
-  // Show ERP while role is still loading (not yet fetched), or when role allows it.
-  // Once fetched: only employee/admin see the link. customer/supplier do not.
-  const canAccessERP = !roleFetched || userRole === 'employee' || userRole === 'admin';
+  // Show ERP when role allows, or when role is unknown (still loading / backend down).
+  // The ERP layout is the real security gate — it redirects customer/supplier away.
+  const canAccessERP = userRole === 'employee' || userRole === 'admin' || userRole === null;
 
   return (
     <>
