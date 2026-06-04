@@ -8,6 +8,7 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   signInWithPopup,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   type Auth,
@@ -26,9 +27,17 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 
+// Clears any stale redirect state left by previous signInWithRedirect calls.
+// Without this, Firebase throws auth/internal-error on signInWithPopup because
+// it finds a pending (but now unresolvable) redirect operation in IndexedDB.
+let _authReady: Promise<void> = Promise.resolve();
+
 if (typeof window !== 'undefined') {
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   auth = getAuth(app);
+  _authReady = getRedirectResult(auth)
+    .then(() => {})
+    .catch(() => {});
 }
 
 export { auth };
@@ -69,6 +78,7 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
 
 export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
   if (!auth) throw new Error('Firebase not initialized');
+  await _authReady; // wait for stale redirect state to be cleared
   const result = await signInWithPopup(auth, googleProvider);
   const token = await result.user.getIdToken();
   return { token, user: result.user };

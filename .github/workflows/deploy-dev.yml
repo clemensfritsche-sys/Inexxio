@@ -103,7 +103,7 @@ jobs:
         working-directory: frontend
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio-dev.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: inexxio-dev.web.app
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: inexxio-dev
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: inexxio-dev.firebasestorage.app
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "395883203074"
