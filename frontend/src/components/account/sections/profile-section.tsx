@@ -45,7 +45,7 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -57,7 +57,6 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
 
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
-      {/* Section header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #F1F5F9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <User style={{ width: 16, height: 16, color: '#64748b' }} />
@@ -67,10 +66,8 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
       </div>
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Benutzernummer (read-only) */}
         <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
 
-        {/* B2B / B2C toggle for customers */}
         {isCustomer && (
           <div>
             <p style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>Kontotyp</p>
@@ -99,7 +96,7 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <SelectField
             label="Anrede"
             value={form.salutation}
@@ -120,11 +117,10 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
               { value: 'en', label: 'English' },
             ]}
           />
-          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" />
-          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" />
+          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" onEnter={saveNow} />
+          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" onEnter={saveNow} />
         </div>
 
-        {/* Read-only employment block for employees */}
         {isEmployee && (
           <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
@@ -133,7 +129,7 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
                 Anstellungsdaten (nur lesbar)
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Abteilung" value={profile.department ?? ''} readOnly />
               <Field label="Funktion" value={profile.job_title ?? ''} readOnly />
               <Field

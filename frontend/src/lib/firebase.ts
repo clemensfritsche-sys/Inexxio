@@ -107,5 +107,9 @@ export function onAuthChange(callback: (user: User | null) => void) {
 
 export async function updateEmailAddress(newEmail: string): Promise<void> {
   if (!auth?.currentUser) throw new Error('Nicht angemeldet');
-  await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+  const actionCodeSettings = {
+    url: `${typeof window !== 'undefined' ? window.location.origin : 'https://inexxio-dev.web.app'}/konto`,
+    handleCodeInApp: false,
+  };
+  await verifyBeforeUpdateEmail(auth.currentUser, newEmail, actionCodeSettings);
 }

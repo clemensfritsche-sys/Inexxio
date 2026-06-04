@@ -484,6 +484,11 @@ export default function HomePage() {
         @media (max-width: 760px) {
           .features-grid { grid-template-columns: 1fr !important; }
           .why-grid { grid-template-columns: 1fr !important; }
+          .ix-section { padding: 64px 0 !important; }
+        }
+        @media (max-width: 480px) {
+          .hero-stats { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .hero-copy h1 { font-size: 40px !important; }
         }
         .why-card:hover {
           transform: translateY(-4px);

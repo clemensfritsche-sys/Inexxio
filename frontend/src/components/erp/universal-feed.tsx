@@ -2,15 +2,15 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Loader2, InboxIcon } from 'lucide-react';
+import { Search, Plus, Loader2, InboxIcon, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { ObjectRow } from './object-row';
 import { DetailPanel } from './detail-panel';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { UniversalObject, ObjectType, UserProfile, UserPlatformRole } from '@/types';
 
 const ROLE_KEY = 'inexxio_user_role';
-
 
 const ROLE_SUBTITLES: Record<UserPlatformRole, string> = {
   admin: 'Administrator',
@@ -49,6 +49,7 @@ export function UniversalFeed() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile(768);
 
   const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
 
@@ -115,108 +116,130 @@ export function UniversalFeed() {
     queryClient.invalidateQueries({ queryKey: ['objects'] });
   }, [queryClient]);
 
-  return (
-    <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 72px - 280px)', minHeight: 500 }}>
-      {/* Left panel */}
-      <div className="w-96 flex flex-col border-r border-slate-200 bg-white shrink-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <h1 className="text-lg font-bold text-slate-900">ERP</h1>
+  // Mobile: show list when nothing selected, detail when selected
+  const showList = !isMobile || selectedId === null;
+  const showDetail = !isMobile || selectedId !== null;
+
+  const listPanel = (
+    <div className={cn('flex flex-col border-r border-slate-200 bg-white shrink-0', isMobile ? 'w-full' : 'w-96')}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+        <h1 className="text-lg font-bold text-slate-900">ERP</h1>
+        <button
+          type="button"
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-red-700 transition-colors"
+          style={{ background: '#E51A14' }}
+          aria-label="Neues Objekt erstellen"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          <input
+            type="search"
+            placeholder="Suchen…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex px-4 gap-1 py-2 border-b border-slate-100 overflow-x-auto">
+        {filterTabs.map((tab) => (
           <button
-            type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
-            style={{ background: '#E51A14' }}
-            aria-label="Neues Objekt erstellen"
+            key={tab.value}
+            onClick={() => { setFilter(tab.value); setSelectedId(null); }}
+            className={cn(
+              'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
+              filter === tab.value
+                ? 'text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+            )}
+            style={filter === tab.value ? { background: '#E51A14' } : {}}
           >
-            <Plus className="h-4 w-4" />
+            {tab.label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {/* Search */}
-        <div className="px-4 py-3 border-b border-slate-100">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Suchen…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
-            />
+      {/* List */}
+      <div className="flex-1 overflow-y-auto">
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#E51A14' }} />
           </div>
-        </div>
+        )}
 
-        {/* Filter tabs */}
-        <div className="flex px-4 gap-1 py-2 border-b border-slate-100 overflow-x-auto">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => { setFilter(tab.value); setSelectedId(null); }}
-              className={cn(
-                'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
-                filter === tab.value
-                  ? 'text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-              )}
-              style={filter === tab.value ? { background: '#E51A14' } : {}}
-            >
-              {tab.label}
-            </button>
+        {!isLoading && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+            <InboxIcon className="h-10 w-10 text-slate-300 mb-3" />
+            <p className="text-sm font-medium text-slate-700">Keine Objekte gefunden</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {search ? 'Versuchen Sie einen anderen Suchbegriff.' : 'Erstellen Sie Ihr erstes Objekt mit dem + Button.'}
+            </p>
+          </div>
+        )}
+
+        {!isLoading &&
+          filtered.map((obj) => (
+            <ObjectRow
+              key={obj.id}
+              object={obj}
+              selected={obj.id === selectedId}
+              onClick={() => setSelectedId(obj.id === selectedId ? null : obj.id)}
+            />
           ))}
-        </div>
 
-        {/* List */}
-        <div className="flex-1 overflow-y-auto">
-          {isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#E51A14' }} />
-            </div>
-          )}
-
-          {!isLoading && filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <InboxIcon className="h-10 w-10 text-slate-300 mb-3" />
-              <p className="text-sm font-medium text-slate-700">Keine Objekte gefunden</p>
-              <p className="text-xs text-slate-500 mt-1">
-                {search ? 'Versuchen Sie einen anderen Suchbegriff.' : 'Erstellen Sie Ihr erstes Objekt mit dem + Button.'}
-              </p>
-            </div>
-          )}
-
-          {!isLoading &&
-            filtered.map((obj) => (
-              <ObjectRow
-                key={obj.id}
-                object={obj}
-                selected={obj.id === selectedId}
-                onClick={() => setSelectedId(obj.id === selectedId ? null : obj.id)}
-              />
-            ))}
-
-          {isError && (
-            <div className="px-4 py-2 bg-red-50 border-b border-red-100">
-              <p className="text-xs text-red-600">Daten konnten nicht geladen werden. Bitte Seite neu laden.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer: count */}
-        <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
-          <p className="text-xs text-slate-500">
-            {filtered.length} Objekt{filtered.length !== 1 ? 'e' : ''}
-            {!isUserFilter && objectsData && ` · ${objectsData.total} gesamt`}
-          </p>
-        </div>
+        {isError && (
+          <div className="px-4 py-2 bg-red-50 border-b border-red-100">
+            <p className="text-xs text-red-600">Daten konnten nicht geladen werden. Bitte Seite neu laden.</p>
+          </div>
+        )}
       </div>
 
-      {/* Detail panel */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        <DetailPanel
-          object={selectedObject}
-          currentUserRole={currentUserRole}
-          onRefresh={handleRefresh}
-        />
+      {/* Footer */}
+      <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
+        <p className="text-xs text-slate-500">
+          {filtered.length} Objekt{filtered.length !== 1 ? 'e' : ''}
+          {!isUserFilter && objectsData && ` · ${objectsData.total} gesamt`}
+        </p>
       </div>
+    </div>
+  );
+
+  const detailPanel = (
+    <div className={cn('flex flex-col overflow-hidden bg-white', isMobile ? 'w-full' : 'flex-1')}>
+      {isMobile && selectedId !== null && (
+        <button
+          onClick={() => setSelectedId(null)}
+          className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white"
+          style={{ background: 'none', border: 'none', borderBottom: '1px solid #E2E8F0', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Zurück zur Liste
+        </button>
+      )}
+      <DetailPanel
+        object={selectedObject}
+        currentUserRole={currentUserRole}
+        onRefresh={handleRefresh}
+      />
+    </div>
+  );
+
+  return (
+    <div
+      className="flex overflow-hidden"
+      style={{ height: isMobile ? 'calc(100vh - 72px)' : 'calc(100vh - 72px - 280px)', minHeight: isMobile ? 0 : 500 }}
+    >
+      {showList && listPanel}
+      {showDetail && detailPanel}
     </div>
   );
 }

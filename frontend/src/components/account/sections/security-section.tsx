@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Mail, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Shield, Mail, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { Field } from '../field';
 import { auth, updateEmailAddress } from '@/lib/firebase';
@@ -42,6 +42,8 @@ export function SecuritySection({ profile }: Props) {
       const code = (e as { code?: string }).code;
       if (code === 'auth/requires-recent-login') {
         setError('Aus Sicherheitsgründen ist eine erneute Anmeldung erforderlich. Bitte melde dich ab und anschliessend erneut an.');
+      } else if (code === 'auth/email-already-in-use') {
+        setError('Diese E-Mail-Adresse ist bereits mit einem anderen Konto verknüpft.');
       } else {
         setError(e instanceof Error ? e.message : 'Fehler beim Senden');
       }
@@ -65,11 +67,17 @@ export function SecuritySection({ profile }: Props) {
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
           {sent && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8 }}>
-              <CheckCircle2 style={{ width: 16, height: 16, color: '#16a34a', flexShrink: 0 }} />
-              <p style={{ fontSize: 13, color: '#15803d', margin: 0 }}>
-                Bestätigungslink gesendet. Klicke den Link in der neuen Adresse — danach melde dich erneut an.
-              </p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8 }}>
+              <CheckCircle2 style={{ width: 16, height: 16, color: '#16a34a', flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ fontSize: 13, color: '#15803d', margin: 0, fontWeight: 600 }}>
+                  Bestätigungslink gesendet
+                </p>
+                <p style={{ fontSize: 13, color: '#15803d', margin: '4px 0 0' }}>
+                  Bitte überprüfe deine neue E-Mail-Adresse und klicke auf den Bestätigungslink.
+                  Danach kannst du dich mit der neuen Adresse anmelden.
+                </p>
+              </div>
             </div>
           )}
 
@@ -111,8 +119,8 @@ export function SecuritySection({ profile }: Props) {
                     placeholder="neue@email.ch"
                   />
                   {error && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FCA5A5' }}>
-                      <AlertCircle style={{ width: 14, height: 14, color: '#dc2626', flexShrink: 0 }} />
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', background: '#FEF2F2', borderRadius: 8, border: '1px solid #FCA5A5' }}>
+                      <AlertCircle style={{ width: 14, height: 14, color: '#dc2626', flexShrink: 0, marginTop: 1 }} />
                       <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{error}</p>
                     </div>
                   )}
@@ -137,9 +145,13 @@ export function SecuritySection({ profile }: Props) {
                       Abbrechen
                     </button>
                   </div>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>
-                    Es wird ein Bestätigungslink an die neue Adresse gesendet. Die Änderung wird nach Klick auf den Link und erneutem Anmelden wirksam.
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 14px', background: '#F0F9FF', borderRadius: 8, border: '1px solid #BAE6FD' }}>
+                    <Info style={{ width: 14, height: 14, color: '#0284c7', flexShrink: 0, marginTop: 1 }} />
+                    <p style={{ fontSize: 12, color: '#0369a1', margin: 0 }}>
+                      Es wird ein Bestätigungslink an die <strong>neue</strong> Adresse gesendet.
+                      Nach dem Klick auf den Link und erneutem Anmelden ist die Änderung aktiv.
+                    </p>
+                  </div>
                 </form>
               )}
             </>

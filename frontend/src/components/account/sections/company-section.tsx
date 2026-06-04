@@ -51,7 +51,7 @@ export function CompanySection({ profile, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -68,15 +68,15 @@ export function CompanySection({ profile, onSave }: Props) {
       </div>
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" />
-          <Field label="Rechtsform" value={form.company_legal_form} onChange={(v) => set('company_legal_form', v)} placeholder="AG, GmbH, Einzelfirma…" />
-          <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" />
-          <Field label="MWST-Nummer" value={form.vat_number} onChange={(v) => set('vat_number', v)} placeholder="CHE-123.456.789 MWST" />
-          <Field label="Handelsregister-Nr." value={form.trade_register_nr} onChange={(v) => set('trade_register_nr', v)} placeholder="CH-020.3.000.000-0" />
-          <Field label="Kanton HR" value={form.trade_register_canton} onChange={(v) => set('trade_register_canton', v)} placeholder="ZH" />
-          <Field label="Website" value={form.company_website} onChange={(v) => set('company_website', v)} placeholder="https://www.firma.ch" type="url" />
-          <Field label="Rechnungs-E-Mail" value={form.company_billing_email} onChange={(v) => set('company_billing_email', v)} placeholder="buchhaltung@firma.ch" type="email" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" onEnter={saveNow} />
+          <Field label="Rechtsform" value={form.company_legal_form} onChange={(v) => set('company_legal_form', v)} placeholder="AG, GmbH, Einzelfirma…" onEnter={saveNow} />
+          <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" onEnter={saveNow} />
+          <Field label="MWST-Nummer" value={form.vat_number} onChange={(v) => set('vat_number', v)} placeholder="CHE-123.456.789 MWST" onEnter={saveNow} />
+          <Field label="Handelsregister-Nr." value={form.trade_register_nr} onChange={(v) => set('trade_register_nr', v)} placeholder="CH-020.3.000.000-0" onEnter={saveNow} />
+          <Field label="Kanton HR" value={form.trade_register_canton} onChange={(v) => set('trade_register_canton', v)} placeholder="ZH" onEnter={saveNow} />
+          <Field label="Website" value={form.company_website} onChange={(v) => set('company_website', v)} placeholder="https://www.firma.ch" type="url" onEnter={saveNow} />
+          <Field label="Rechnungs-E-Mail" value={form.company_billing_email} onChange={(v) => set('company_billing_email', v)} placeholder="buchhaltung@firma.ch" type="email" onEnter={saveNow} />
         </div>
 
         <div style={{ paddingTop: 4 }}>

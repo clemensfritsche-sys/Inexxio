@@ -302,7 +302,7 @@ export function Navbar() {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              padding: '8px 40px 28px',
+              padding: '8px 20px 28px',
               borderTop: '1px solid var(--border-1)',
               background: '#fff',
             }}

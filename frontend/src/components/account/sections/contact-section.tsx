@@ -56,7 +56,7 @@ export function ContactSection({ profile, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -73,22 +73,20 @@ export function ContactSection({ profile, onSave }: Props) {
       </div>
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" />
-        </div>
+        <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" onEnter={saveNow} />
 
         <div style={{ height: 1, background: '#F1F5F9' }} />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-          <Field label="Strasse und Hausnummer" value={form.address_line1} onChange={(v) => set('address_line1', v)} placeholder="Musterstrasse 12" />
-          <Field label="Adresszusatz" value={form.address_line2} onChange={(v) => set('address_line2', v)} placeholder="c/o, Postfach…" />
+        <div className="grid grid-cols-1 gap-4">
+          <Field label="Strasse und Hausnummer" value={form.address_line1} onChange={(v) => set('address_line1', v)} placeholder="Musterstrasse 12" onEnter={saveNow} />
+          <Field label="Adresszusatz" value={form.address_line2} onChange={(v) => set('address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 16 }}>
-          <Field label="PLZ" value={form.postal_code} onChange={(v) => set('postal_code', v)} placeholder="8000" />
-          <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="PLZ" value={form.postal_code} onChange={(v) => set('postal_code', v)} placeholder="8000" onEnter={saveNow} />
+          <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" onEnter={saveNow} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Field label="Kanton / Region" value={form.state_canton} onChange={(v) => set('state_canton', v)} placeholder="ZH" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Kanton / Region" value={form.state_canton} onChange={(v) => set('state_canton', v)} placeholder="ZH" onEnter={saveNow} />
           <SelectField label="Land" value={form.country} onChange={(v) => set('country', v)} options={COUNTRIES} />
         </div>
       </div>

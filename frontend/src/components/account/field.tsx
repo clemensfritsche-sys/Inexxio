@@ -6,9 +6,10 @@ interface FieldProps {
   readOnly?: boolean;
   placeholder?: string;
   hint?: string;
+  onEnter?: () => void;
 }
 
-export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint }: FieldProps) {
+export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint, onEnter }: FieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{label}</label>
@@ -18,6 +19,7 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         readOnly={readOnly}
         placeholder={placeholder}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !readOnly && onEnter) { e.preventDefault(); onEnter(); } }}
         style={{
           padding: '8px 12px',
           borderRadius: 8,
