@@ -11,138 +11,6 @@ import type { UniversalObject, ObjectType, UserProfile, UserPlatformRole } from 
 
 const ROLE_KEY = 'inexxio_user_role';
 
-// Mock data used as fallback when API is unavailable
-const MOCK_OBJECTS: UniversalObject[] = [
-  {
-    id: 100000001,
-    object_type: 'item',
-    title: 'Hydraulikzylinder HZ-200',
-    subtitle: 'Eigen · kg',
-    status: 'Freigegeben',
-    number: '100000001',
-    created_at: '2026-01-15T10:00:00Z',
-    updated_at: '2026-05-20T14:32:00Z',
-    data: {
-      id: 1,
-      number: '100000001',
-      name: 'Hydraulikzylinder HZ-200',
-      description: 'Doppeltwirkender Hydraulikzylinder für industrielle Anwendungen. Hub 200mm, Kolbendurchmesser 80mm, Betriebsdruck max. 250 bar.',
-      unit: 'Stk',
-      item_type: 'Eigen',
-      status: 'Freigegeben',
-      weight_kg: 4.8,
-      dimensions: '320 × 90 × 90 mm',
-      material: 'Stahl S355 / Chrom-Stahl',
-      surface_finish: 'Hartchrom',
-      tolerance_class: 'H7',
-      drawing_number: 'IX-HZ200-001',
-      manufacturer: null,
-      manufacturer_part_number: null,
-      lead_time_days: 14,
-      cost_price: '285.00',
-      sales_price: '420.00',
-      currency: 'CHF',
-      tags: ['hydraulik', 'zylinder'],
-      created_at: '2026-01-15T10:00:00Z',
-      updated_at: '2026-05-20T14:32:00Z',
-      created_by: 'admin@inexxio.com',
-    },
-  },
-  {
-    id: 100000002,
-    object_type: 'item',
-    title: 'Kolbenstange KS-150',
-    subtitle: 'Eigen · Stk',
-    status: 'Entwurf',
-    number: '100000002',
-    created_at: '2026-01-14T09:00:00Z',
-    updated_at: '2026-05-18T11:00:00Z',
-    data: {
-      id: 2,
-      number: '100000002',
-      name: 'Kolbenstange KS-150',
-      description: 'Präzisionskolbenstange aus Chrom-Stahl, geschliffen und hartverchromt.',
-      unit: 'Stk',
-      item_type: 'Eigen',
-      status: 'Entwurf',
-      weight_kg: 1.2,
-      dimensions: '200 × 40 mm',
-      material: 'Chrom-Stahl 42CrMo4',
-      surface_finish: 'Hartchrom 20µm',
-      tolerance_class: 'h6',
-      drawing_number: 'IX-KS150-001',
-      manufacturer: null,
-      manufacturer_part_number: null,
-      lead_time_days: 7,
-      cost_price: '95.00',
-      sales_price: '145.00',
-      currency: 'CHF',
-      tags: ['kolbenstange'],
-      created_at: '2026-01-14T09:00:00Z',
-      updated_at: '2026-05-18T11:00:00Z',
-      created_by: 'admin@inexxio.com',
-    },
-  },
-  {
-    id: 100000004,
-    object_type: 'company',
-    title: 'Hydraulik AG Zürich',
-    subtitle: 'Lieferant',
-    status: 'Lieferant',
-    number: '100000004',
-    created_at: '2026-01-12T14:00:00Z',
-    updated_at: '2026-04-02T10:00:00Z',
-    data: {
-      id: 4,
-      number: '100000004',
-      name: 'Hydraulik AG Zürich',
-      legal_form: 'AG',
-      role: 'Lieferant',
-      is_active: true,
-      address: {
-        street: 'Industriestrasse',
-        street_number: '45',
-        zip: '8152',
-        city: 'Glattbrugg',
-        country: 'Schweiz',
-        country_code: 'CH',
-      },
-      uid: 'CHE-123.456.789',
-      vat_number: 'CHE-123.456.789 MWST',
-      website: 'https://www.hydraulik-ag.ch',
-      email: 'info@hydraulik-ag.ch',
-      phone: '+41 44 800 10 20',
-      notes: 'Hauptlieferant für Hydraulikkomponenten',
-      payment_terms_days: 30,
-      discount_percent: '2.00',
-      created_at: '2026-01-12T14:00:00Z',
-      updated_at: '2026-04-02T10:00:00Z',
-    },
-  },
-  {
-    id: 100000005,
-    object_type: 'work_plan',
-    title: 'Montage HZ-200 Komplett',
-    subtitle: '5 Schritte',
-    status: 'Aktiv',
-    number: '100000005',
-    created_at: '2026-01-11T12:00:00Z',
-    updated_at: '2026-05-15T16:00:00Z',
-    data: {
-      id: 5,
-      number: '100000005',
-      name: 'Montage HZ-200 Komplett',
-      description: 'Kompletter Montagearbeitsplan für Hydraulikzylinder HZ-200 inklusive Funktionsprüfung.',
-      status: 'Aktiv',
-      item_id: 1,
-      steps: [],
-      version: 2,
-      created_at: '2026-01-11T12:00:00Z',
-      updated_at: '2026-05-15T16:00:00Z',
-      created_by: 'admin@inexxio.com',
-    },
-  },
-];
 
 const ROLE_SUBTITLES: Record<UserPlatformRole, string> = {
   admin: 'Administrator',
@@ -215,7 +83,7 @@ export function UniversalFeed() {
       const users = usersError || !usersData ? [] : usersData;
       return users.map(profileToObject);
     }
-    return objectsError || !objectsData ? MOCK_OBJECTS : objectsData.items;
+    return !objectsData ? [] : objectsData.items;
   }, [isUserFilter, usersData, usersError, objectsData, objectsError]);
 
   const filtered = useMemo(() => {
@@ -319,14 +187,9 @@ export function UniversalFeed() {
               />
             ))}
 
-          {isError && !isUserFilter && (
-            <div className="px-4 py-2 bg-amber-50 border-b border-amber-200">
-              <p className="text-xs text-amber-700">Demo-Modus: API nicht erreichbar. Demodaten werden angezeigt.</p>
-            </div>
-          )}
-          {isError && isUserFilter && (
+          {isError && (
             <div className="px-4 py-2 bg-red-50 border-b border-red-100">
-              <p className="text-xs text-red-600">Benutzer konnten nicht geladen werden.</p>
+              <p className="text-xs text-red-600">Daten konnten nicht geladen werden. Bitte Seite neu laden.</p>
             </div>
           )}
         </div>
