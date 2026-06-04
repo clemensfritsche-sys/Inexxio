@@ -1,21 +1,33 @@
 'use client';
 
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { AccountShell } from '@/components/account/account-shell';
+import type { UserProfile } from '@/types';
 
-export default function KontoPage() {
-  const queryClient = useQueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
+});
+
+function KontoInner() {
+  const qc = useQueryClient();
   const { data: profile, isLoading } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.getMe(),
-    staleTime: 60_000,
   });
 
-  async function handleSave(data: Record<string, unknown>) {
+  async function handleSave(data: Partial<UserProfile>) {
     await api.updateMe(data);
-    await queryClient.invalidateQueries({ queryKey: ['me'] });
+    await qc.invalidateQueries({ queryKey: ['me'] });
   }
 
   return <AccountShell profile={profile ?? null} isLoading={isLoading} onSave={handleSave} />;
+}
+
+export default function KontoPage() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <KontoInner />
+    </QueryClientProvider>
+  );
 }

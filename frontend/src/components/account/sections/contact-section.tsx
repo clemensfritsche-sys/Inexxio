@@ -42,7 +42,7 @@ const COUNTRIES = [
 
 interface Props {
   profile: UserProfile;
-  onSave: (data: Record<string, unknown>) => Promise<void>;
+  onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 export function ContactSection({ profile, onSave }: Props) {
@@ -58,7 +58,7 @@ export function ContactSection({ profile, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as unknown as Record<string, unknown>), 3000, resetKey);
+  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

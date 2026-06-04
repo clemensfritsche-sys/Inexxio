@@ -17,7 +17,7 @@ type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice' | 's
 interface Props {
   profile: UserProfile | null;
   isLoading: boolean;
-  onSave: (data: Record<string, unknown>) => Promise<void>;
+  onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 export function AccountShell({ profile, isLoading, onSave }: Props) {
@@ -56,19 +56,17 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : '??';
 
-  const save = onSave as (data: Record<string, unknown>) => Promise<void>;
-
   function renderSection() {
     if (!profile) return null;
     switch (activeSection) {
-      case 'profile': return <ProfileSection profile={profile} onSave={save} isEmployee={isEmployee} isCustomer={isCustomer} />;
-      case 'contact': return <ContactSection profile={profile} onSave={save} />;
-      case 'company': return <CompanySection profile={profile} onSave={save} />;
-      case 'shipping': return <ShippingSection profile={profile} onSave={save} isBusiness={isBusiness} />;
-      case 'invoice': return <InvoiceSection profile={profile} onSave={save} />;
+      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isCustomer={isCustomer} />;
+      case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
+      case 'company': return <CompanySection profile={profile} onSave={onSave} />;
+      case 'shipping': return <ShippingSection profile={profile} onSave={onSave} isBusiness={isBusiness} />;
+      case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} />;
       case 'security': return <SecuritySection profile={profile} />;
-      case 'notifications': return <NotificationsSection profile={profile} onSave={save} />;
-      case 'privacy': return <PrivacySection profile={profile} onSave={save} />;
+      case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
+      case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;
     }
   }
 

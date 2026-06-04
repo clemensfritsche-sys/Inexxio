@@ -18,7 +18,7 @@ function buildForm(p: UserProfile): Form {
 
 interface Props {
   profile: UserProfile;
-  onSave: (data: Record<string, unknown>) => Promise<void>;
+  onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 export function PrivacySection({ profile, onSave }: Props) {
@@ -34,7 +34,7 @@ export function PrivacySection({ profile, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as unknown as Record<string, unknown>), 1000, resetKey);
+  const { status, errorMsg } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 1000, resetKey);
 
   const termsDate = profile.terms_accepted_at
     ? new Date(profile.terms_accepted_at).toLocaleDateString('de-CH')
