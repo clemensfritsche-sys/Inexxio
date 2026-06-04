@@ -30,10 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (deploy SA)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_INEXXIO_DEV }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
@@ -60,8 +60,8 @@ jobs:
             --no-allow-unauthenticated \
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
-            --set-env-vars "APP_ENV=development,GCP_PROJECT=${{ env.GCP_PROJECT }}" \
-            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest,FIREBASE_SERVICE_ACCOUNT_KEY=FIREBASE_SERVICE_ACCOUNT_KEY:latest" \
+            --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,INITIAL_ADMIN_EMAIL=INITIAL_ADMIN_EMAIL:latest" \
+            --set-env-vars "APP_ENV=development,CORS_ORIGINS=[\"https://inexxio-dev.web.app\",\"http://localhost:3000\"]" \
             --min-instances 0 \
             --max-instances 3 \
             --memory 512Mi \
@@ -84,7 +84,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to Google Cloud (Firebase SA)
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_INEXXIO_DEV }}
@@ -96,7 +96,7 @@ jobs:
         working-directory: frontend
         run: npm install
 
-      - name: Build frontend (dev config)
+      - name: Build frontend
         working-directory: frontend
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyCl0x8TQUWX5XaECVF2luO9i9PNU8L7CWE

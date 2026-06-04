@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",
+        "https://inexxio-dev.web.app",
         "https://inexxio.web.app",
         "https://inexxio.com",
     ]
