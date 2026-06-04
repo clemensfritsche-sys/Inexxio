@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { formatObjectId, relativeTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/badge';
-import { Package, GitBranch, Wrench, Building2, User, FileText } from 'lucide-react';
+import { Package, GitBranch, Wrench, Building2, User, Users, FileText } from 'lucide-react';
 import type { UniversalObject, ObjectType } from '@/types';
 
 const typeIcons: Record<ObjectType, React.ReactNode> = {
@@ -10,6 +10,7 @@ const typeIcons: Record<ObjectType, React.ReactNode> = {
   work_plan: <Wrench className="h-4 w-4" />,
   company: <Building2 className="h-4 w-4" />,
   contact: <User className="h-4 w-4" />,
+  user: <Users className="h-4 w-4" />,
 };
 
 const typeLabels: Record<ObjectType, string> = {
@@ -18,6 +19,7 @@ const typeLabels: Record<ObjectType, string> = {
   work_plan: 'Arbeitsplan',
   company: 'Firma',
   contact: 'Kontakt',
+  user: 'Benutzer',
 };
 
 const typeBgColors: Record<ObjectType, string> = {
@@ -26,6 +28,7 @@ const typeBgColors: Record<ObjectType, string> = {
   work_plan: 'bg-amber-50 text-amber-600',
   company: 'bg-green-50 text-green-600',
   contact: 'bg-slate-100 text-slate-600',
+  user: 'bg-teal-50 text-teal-700',
 };
 
 interface ObjectRowProps {

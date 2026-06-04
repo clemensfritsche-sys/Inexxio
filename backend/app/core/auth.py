@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from .config import get_settings
 from .database import get_db
 from ..models.audit import UserProfile
+from ..models.objects import UniversalObject
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -35,6 +36,29 @@ def init_firebase():
         _firebase_initialized = True
 
 
+def _create_user_profile(db: Session, uid: str, email: str, decoded: dict) -> UserProfile:
+    role = "customer"
+    if settings.initial_admin_email and email.lower() == settings.initial_admin_email.lower():
+        role = "admin"
+
+    obj = UniversalObject(object_type="user")
+    db.add(obj)
+    db.flush()
+
+    user = UserProfile(
+        firebase_uid=uid,
+        email=email,
+        display_name=decoded.get("name", email.split("@")[0]),
+        photo_url=decoded.get("picture"),
+        role=role,
+        object_id=obj.id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def get_current_user(
     credentials_: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
@@ -56,17 +80,7 @@ def get_current_user(
             .first()
         )
         if not user:
-            # Auto-create profile on first login
-            user = UserProfile(
-                firebase_uid=uid,
-                email=email,
-                display_name=decoded.get("name", email.split("@")[0]),
-                photo_url=decoded.get("picture"),
-                role="customer",
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+            user = _create_user_profile(db, uid, email, decoded)
         return user
     except Exception as e:
         raise HTTPException(
@@ -88,4 +102,5 @@ def require_role(*roles: str):
 
 
 require_admin = require_role("admin")
-require_staff = require_role("admin", "staff")
+require_employee = require_role("admin", "employee")
+require_staff = require_employee

@@ -1,6 +1,6 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
-export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact';
+export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user';
 
 export type ItemStatus = 'Entwurf' | 'Freigegeben' | 'Ersetzt' | 'Gesperrt';
 export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
@@ -193,17 +193,78 @@ export interface CompanySettings {
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'manager' | 'user' | 'readonly';
+export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
 
 export interface UserProfile {
-  uid: string;
+  id: number;
+  object_id: number | null;
+  firebase_uid: string;
   email: string;
   display_name: string | null;
   photo_url: string | null;
-  role: UserRole;
+  role: UserPlatformRole;
   is_active: boolean;
-  last_login: string | null;
   created_at: string;
+  updated_at: string;
+
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  phone_mobile: string | null;
+
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  postal_code: string | null;
+  state_canton: string | null;
+  country: string;
+
+  ship_b2c_first_name: string | null;
+  ship_b2c_last_name: string | null;
+  ship_b2c_address_line1: string | null;
+  ship_b2c_address_line2: string | null;
+  ship_b2c_city: string | null;
+  ship_b2c_postal_code: string | null;
+  ship_b2c_country: string | null;
+
+  ship_b2b_company: string | null;
+  ship_b2b_contact: string | null;
+  ship_b2b_address_line1: string | null;
+  ship_b2b_address_line2: string | null;
+  ship_b2b_city: string | null;
+  ship_b2b_postal_code: string | null;
+  ship_b2b_country: string | null;
+
+  invoice_company: string | null;
+  invoice_first_name: string | null;
+  invoice_last_name: string | null;
+  invoice_address_line1: string | null;
+  invoice_address_line2: string | null;
+  invoice_city: string | null;
+  invoice_postal_code: string | null;
+  invoice_country: string | null;
+  invoice_vat_id: string | null;
+  invoice_email: string | null;
+
+  payment_terms: number;
+  stripe_customer_id: string | null;
+  preferred_currency: string;
+
+  department: string | null;
+  job_title: string | null;
+  employee_number: string | null;
+  employment_start_date: string | null;
+  weekly_hours: string | null;
+
+  language: string;
+  timezone: string;
+  notification_email: boolean;
+  notification_inapp: boolean;
+  newsletter_opt_in: boolean;
+
+  last_login_at: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
 }
 
 // ─── Universal ERP Object ─────────────────────────────────────────────────────
@@ -218,7 +279,7 @@ export interface UniversalObject {
   created_at: string;
   updated_at: string;
   // Polymorphic payload
-  data?: Item | BOM | WorkPlan | Company | Contact;
+  data?: Item | BOM | WorkPlan | Company | Contact | UserProfile;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

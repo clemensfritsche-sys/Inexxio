@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -78,16 +79,83 @@ class UserProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    object_id: Optional[int]
     firebase_uid: str
     email: str
     display_name: Optional[str]
     photo_url: Optional[str]
     role: str
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    # Personal identity
+    first_name: Optional[str]
+    last_name: Optional[str]
     phone: Optional[str]
+    phone_mobile: Optional[str]
+
+    # Contact address
+    address_line1: Optional[str]
+    address_line2: Optional[str]
+    city: Optional[str]
+    postal_code: Optional[str]
+    state_canton: Optional[str]
+    country: str
+
+    # Shipping B2C
+    ship_b2c_first_name: Optional[str]
+    ship_b2c_last_name: Optional[str]
+    ship_b2c_address_line1: Optional[str]
+    ship_b2c_address_line2: Optional[str]
+    ship_b2c_city: Optional[str]
+    ship_b2c_postal_code: Optional[str]
+    ship_b2c_country: Optional[str]
+
+    # Shipping B2B
+    ship_b2b_company: Optional[str]
+    ship_b2b_contact: Optional[str]
+    ship_b2b_address_line1: Optional[str]
+    ship_b2b_address_line2: Optional[str]
+    ship_b2b_city: Optional[str]
+    ship_b2b_postal_code: Optional[str]
+    ship_b2b_country: Optional[str]
+
+    # Invoice
+    invoice_company: Optional[str]
+    invoice_first_name: Optional[str]
+    invoice_last_name: Optional[str]
+    invoice_address_line1: Optional[str]
+    invoice_address_line2: Optional[str]
+    invoice_city: Optional[str]
+    invoice_postal_code: Optional[str]
+    invoice_country: Optional[str]
+    invoice_vat_id: Optional[str]
+    invoice_email: Optional[str]
+
+    # Payment
+    payment_terms: int
+    stripe_customer_id: Optional[str]
+    preferred_currency: str
+
+    # Employee
     department: Optional[str]
     job_title: Optional[str]
+    employee_number: Optional[str]
+    employment_start_date: Optional[date]
+    weekly_hours: Optional[Decimal]
+
+    # Preferences
     language: str
-    is_active: bool
+    timezone: str
+    notification_email: bool
+    notification_inapp: bool
+    newsletter_opt_in: bool
+
+    # Auth
+    last_login_at: Optional[datetime]
+    terms_accepted_at: Optional[datetime]
+    terms_version: Optional[str]
 
 
 class UserProfileUpdate(BaseModel):

@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 type Step = 'input' | 'loading' | 'sent';
 
 const REDIRECT_KEY = 'inexxio_login_redirect';
+const ROLE_KEY = 'inexxio_user_role';
 
 function getGoogleErrorMessage(code: string): string {
   switch (code) {
@@ -74,6 +75,12 @@ export default function LoginPage() {
       const { token } = await signInWithGoogle();
       api.setToken(token);
       localStorage.setItem('inexxio_token', token);
+      try {
+        const profile = await api.getMe();
+        localStorage.setItem(ROLE_KEY, profile.role);
+      } catch {
+        // role fetch failed — will be retried on next page load
+      }
       const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
       localStorage.removeItem(REDIRECT_KEY);
       router.push(redirect);

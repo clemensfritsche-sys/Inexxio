@@ -8,6 +8,7 @@ import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
 import { ProcessTracker, ITEM_STEPS, WORK_PLAN_STEPS, BOM_STEPS } from './process-tracker';
 import { typeIcons, typeLabels } from './object-row';
 import { Check, Clock, ExternalLink, FileText, Link as LinkIcon } from 'lucide-react';
+import { UserDetail } from './user-detail';
 import type { UniversalObject } from '@/types';
 
 interface DetailField {
@@ -43,6 +44,8 @@ function AutosaveIndicator({ savedAt }: { savedAt?: string }) {
 
 interface DetailPanelProps {
   object: UniversalObject | null;
+  currentUserRole?: string;
+  onRefresh?: () => void;
 }
 
 function getSteps(objectType: string) {
@@ -85,8 +88,12 @@ function getFields(object: UniversalObject): DetailField[] {
   return base;
 }
 
-export function DetailPanel({ object }: DetailPanelProps) {
+export function DetailPanel({ object, currentUserRole, onRefresh }: DetailPanelProps) {
   const [, setTab] = useState('details');
+
+  if (object?.object_type === 'user') {
+    return <UserDetail object={object} currentUserRole={currentUserRole} onRoleChanged={onRefresh} />;
+  }
 
   if (!object) {
     return (

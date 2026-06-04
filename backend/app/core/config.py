@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Email
     gmail_api_credentials: Optional[str] = None
 
+    # Bootstrap
+    initial_admin_email: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

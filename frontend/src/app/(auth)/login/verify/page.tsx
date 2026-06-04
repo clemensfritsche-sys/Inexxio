@@ -7,6 +7,7 @@ import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
 const REDIRECT_KEY = 'inexxio_login_redirect';
+const ROLE_KEY = 'inexxio_user_role';
 
 function getRedirectTarget(): string {
   const saved = localStorage.getItem(REDIRECT_KEY);
@@ -30,6 +31,12 @@ export default function VerifyPage() {
         }
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
+        try {
+          const profile = await api.getMe();
+          localStorage.setItem(ROLE_KEY, profile.role);
+        } catch {
+          // role fetch failed — will be retried on next page load
+        }
         setStatus('success');
         const target = getRedirectTarget();
         setTimeout(() => router.replace(target), 1500);
@@ -55,6 +62,12 @@ export default function VerifyPage() {
       if (result) {
         api.setToken(result.token);
         localStorage.setItem('inexxio_token', result.token);
+        try {
+          const profile = await api.getMe();
+          localStorage.setItem(ROLE_KEY, profile.role);
+        } catch {
+          // role fetch failed — will be retried on next page load
+        }
         setStatus('success');
         const target = getRedirectTarget();
         setTimeout(() => router.replace(target), 1500);

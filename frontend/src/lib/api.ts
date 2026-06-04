@@ -158,16 +158,20 @@ class ApiClient {
 
   // ─── Users ─────────────────────────────────────────────────────────────────
 
+  getMe(): Promise<UserProfile> {
+    return this.get('/api/v1/auth/me');
+  }
+
   getUsers(): Promise<UserProfile[]> {
     return this.get('/api/v1/admin/users');
   }
 
-  updateUserRole(uid: string, role: string): Promise<UserProfile> {
-    return this.patch(`/api/v1/admin/users/${uid}`, { role });
+  updateUserRole(userId: number, role: string): Promise<UserProfile> {
+    return this.patch(`/api/v1/admin/users/${userId}/role`, { role });
   }
 
-  deactivateUser(uid: string): Promise<UserProfile> {
-    return this.patch(`/api/v1/admin/users/${uid}`, { is_active: false });
+  deactivateUser(userId: number): Promise<{ deactivated: boolean }> {
+    return this.delete(`/api/v1/admin/users/${userId}`);
   }
 
   // ─── Settings ──────────────────────────────────────────────────────────────

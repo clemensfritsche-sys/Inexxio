@@ -6,7 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
+import { api } from '@/lib/api';
 import type { User } from 'firebase/auth';
+
+const ROLE_KEY = 'inexxio_user_role';
 
 const navLinks = [
   { href: '/ueber-uns', label: 'Über uns' },
@@ -18,6 +21,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -35,9 +39,25 @@ export function Navbar() {
   }, [pathname]);
 
   useEffect(() => {
-    const unsubscribe = onAuthChange((firebaseUser) => {
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
       setUser(firebaseUser);
       setAuthLoaded(true);
+      if (firebaseUser) {
+        const cached = localStorage.getItem(ROLE_KEY);
+        if (cached) setUserRole(cached);
+        try {
+          const token = await firebaseUser.getIdToken();
+          api.setToken(token);
+          const profile = await api.getMe();
+          setUserRole(profile.role);
+          localStorage.setItem(ROLE_KEY, profile.role);
+        } catch {
+          // keep cached value
+        }
+      } else {
+        setUserRole(null);
+        localStorage.removeItem(ROLE_KEY);
+      }
     });
     return unsubscribe;
   }, []);
@@ -68,6 +88,8 @@ export function Navbar() {
     : user?.email?.slice(0, 2).toUpperCase() || 'IX';
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
+
+  const canAccessERP = userRole === 'employee' || userRole === 'admin';
 
   return (
     <>
@@ -108,8 +130,7 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              {/* ERP nav link — shown when logged in */}
-              {authLoaded && user && (
+              {authLoaded && user && canAccessERP && (
                 <Link
                   href="/erp"
                   className={cn('ix-nav-link', pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'ix-nav-link-active' : '')}
@@ -135,12 +156,9 @@ export function Navbar() {
                 <button style={{ color: 'var(--fg-3)' }}>EN</button>
               </div>
 
-              {/* Auth state — show nothing while loading to prevent flash */}
               {authLoaded && (
                 user ? (
-                  /* ── Logged in ── */
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    {/* User avatar + dropdown */}
                     <div ref={userMenuRef} style={{ position: 'relative' }}>
                       <button
                         onClick={() => setUserMenuOpen((o) => !o)}
@@ -187,7 +205,6 @@ export function Navbar() {
                         <ChevronDown style={{ width: 13, height: 13, color: 'var(--fg-3)', transition: 'transform 0.2s', transform: userMenuOpen ? 'rotate(180deg)' : 'none' }} />
                       </button>
 
-                      {/* Dropdown */}
                       {userMenuOpen && (
                         <div style={{
                           position: 'absolute',
@@ -231,7 +248,6 @@ export function Navbar() {
                     </div>
                   </div>
                 ) : (
-                  /* ── Logged out ── */
                   <Link
                     href={loginHref}
                     className="ix-btn ix-btn-primary"
@@ -284,8 +300,7 @@ export function Navbar() {
               </Link>
             ))}
 
-            {/* ERP link in mobile menu — shown when logged in */}
-            {authLoaded && user && (
+            {authLoaded && user && canAccessERP && (
               <Link
                 href="/erp"
                 style={{
@@ -360,7 +375,6 @@ export function Navbar() {
         )}
       </header>
 
-      {/* Full-screen mobile overlay */}
       {mobileOpen && (
         <div
           style={{

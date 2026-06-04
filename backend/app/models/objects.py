@@ -26,6 +26,7 @@ class ObjectType(str, enum.Enum):
     CONTACT = "contact"
     INVOICE = "invoice"
     CREDIT_NOTE = "credit_note"
+    USER = "user"
 
 
 object_id_seq = Sequence("object_id_seq", start=100000001, increment=1)

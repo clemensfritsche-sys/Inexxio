@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, Camera, Loader2, InboxIcon } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus, Loader2, InboxIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { ObjectRow } from './object-row';
 import { DetailPanel } from './detail-panel';
-import type { UniversalObject, ObjectType } from '@/types';
+import type { UniversalObject, ObjectType, UserProfile, UserPlatformRole } from '@/types';
+
+const ROLE_KEY = 'inexxio_user_role';
 
 // Mock data used as fallback when API is unavailable
 const MOCK_OBJECTS: UniversalObject[] = [
@@ -82,41 +84,6 @@ const MOCK_OBJECTS: UniversalObject[] = [
     },
   },
   {
-    id: 100000003,
-    object_type: 'item',
-    title: 'Dichtungsset DS-10',
-    subtitle: 'Kauf · Set',
-    status: 'Freigegeben',
-    number: '100000003',
-    created_at: '2026-01-13T08:30:00Z',
-    updated_at: '2026-05-10T09:00:00Z',
-    data: {
-      id: 3,
-      number: '100000003',
-      name: 'Dichtungsset DS-10',
-      description: 'Komplettes Dichtungsset für Hydraulikzylinder HZ-200. Enthält alle O-Ringe, Abstreifer und Führungsbänder.',
-      unit: 'Set',
-      item_type: 'Kauf',
-      status: 'Freigegeben',
-      weight_kg: 0.08,
-      dimensions: null,
-      material: 'NBR / PTFE',
-      surface_finish: null,
-      tolerance_class: null,
-      drawing_number: null,
-      manufacturer: 'Parker Hannifin',
-      manufacturer_part_number: 'PH-DS-80-200',
-      lead_time_days: 5,
-      cost_price: '28.50',
-      sales_price: '48.00',
-      currency: 'CHF',
-      tags: ['dichtung', 'kauf'],
-      created_at: '2026-01-13T08:30:00Z',
-      updated_at: '2026-05-10T09:00:00Z',
-      created_by: 'admin@inexxio.com',
-    },
-  },
-  {
     id: 100000004,
     object_type: 'company',
     title: 'Hydraulik AG Zürich',
@@ -177,6 +144,28 @@ const MOCK_OBJECTS: UniversalObject[] = [
   },
 ];
 
+const ROLE_SUBTITLES: Record<UserPlatformRole, string> = {
+  admin: 'Administrator',
+  employee: 'Mitarbeiter',
+  supplier: 'Lieferant',
+  customer: 'Kunde',
+};
+
+function profileToObject(p: UserProfile): UniversalObject {
+  const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || p.email;
+  return {
+    id: p.object_id ?? p.id,
+    object_type: 'user',
+    title: fullName,
+    subtitle: ROLE_SUBTITLES[p.role] ?? p.role,
+    status: p.is_active ? 'Aktiv' : 'Inaktiv',
+    number: String(p.object_id ?? p.id),
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+    data: p,
+  };
+}
+
 type FilterType = 'all' | ObjectType;
 
 const filterTabs: { value: FilterType; label: string }[] = [
@@ -184,31 +173,56 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'item', label: 'Artikel' },
   { value: 'company', label: 'Firmen' },
   { value: 'work_plan', label: 'Arbeitspläne' },
+  { value: 'user', label: 'Benutzer' },
 ];
 
 export function UniversalFeed() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
+
+  const isUserFilter = filter === 'user';
+
+  const { data: objectsData, isLoading: objectsLoading, isError: objectsError } = useQuery({
     queryKey: ['objects', { q: search, type: filter }],
     queryFn: () =>
       api.getObjects({
         q: search || undefined,
-        object_type: filter === 'all' ? undefined : filter,
+        object_type: filter === 'all' || filter === 'user' ? undefined : filter,
         page_size: 50,
       }),
+    enabled: !isUserFilter,
     retry: 1,
     staleTime: 30_000,
   });
 
-  // Use mock data as fallback
-  const objects: UniversalObject[] = isError || !data ? MOCK_OBJECTS : data.items;
+  const { data: usersData, isLoading: usersLoading, isError: usersError } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => api.getUsers(),
+    enabled: isUserFilter,
+    retry: 1,
+    staleTime: 30_000,
+  });
+
+  const isLoading = isUserFilter ? usersLoading : objectsLoading;
+  const isError = isUserFilter ? usersError : objectsError;
+
+  const objects: UniversalObject[] = useMemo(() => {
+    if (isUserFilter) {
+      const users = usersError || !usersData ? [] : usersData;
+      return users.map(profileToObject);
+    }
+    return objectsError || !objectsData ? MOCK_OBJECTS : objectsData.items;
+  }, [isUserFilter, usersData, usersError, objectsData, objectsError]);
 
   const filtered = useMemo(() => {
     let list = objects;
-    if (filter !== 'all') list = list.filter((o) => o.object_type === filter);
+    if (!isUserFilter && filter !== 'all') {
+      list = list.filter((o) => o.object_type === filter);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -219,12 +233,16 @@ export function UniversalFeed() {
       );
     }
     return list;
-  }, [objects, filter, search]);
+  }, [objects, filter, search, isUserFilter]);
 
   const selectedObject = filtered.find((o) => o.id === selectedId) ?? null;
 
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['users'] });
+  }, [queryClient]);
+
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 72px - 280px)', minHeight: 500 }}>
       {/* Left panel */}
       <div className="w-96 flex flex-col border-r border-slate-200 bg-white shrink-0">
         {/* Header */}
@@ -232,7 +250,8 @@ export function UniversalFeed() {
           <h1 className="text-lg font-bold text-slate-900">ERP</h1>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
+            style={{ background: '#E51A14' }}
             aria-label="Neues Objekt erstellen"
           >
             <Plus className="h-4 w-4" />
@@ -245,14 +264,11 @@ export function UniversalFeed() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
             <input
               type="search"
-              placeholder="Suchen (Strg+K)..."
+              placeholder="Suchen…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none transition-all"
             />
-            <button className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <Camera className="h-4 w-4" />
-            </button>
           </div>
         </div>
 
@@ -261,13 +277,14 @@ export function UniversalFeed() {
           {filterTabs.map((tab) => (
             <button
               key={tab.value}
-              onClick={() => setFilter(tab.value)}
+              onClick={() => { setFilter(tab.value); setSelectedId(null); }}
               className={cn(
                 'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
                 filter === tab.value
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
               )}
+              style={filter === tab.value ? { background: '#E51A14' } : {}}
             >
               {tab.label}
             </button>
@@ -278,7 +295,7 @@ export function UniversalFeed() {
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#E51A14' }} />
             </div>
           )}
 
@@ -302,9 +319,14 @@ export function UniversalFeed() {
               />
             ))}
 
-          {isError && (
+          {isError && !isUserFilter && (
             <div className="px-4 py-2 bg-amber-50 border-b border-amber-200">
               <p className="text-xs text-amber-700">Demo-Modus: API nicht erreichbar. Demodaten werden angezeigt.</p>
+            </div>
+          )}
+          {isError && isUserFilter && (
+            <div className="px-4 py-2 bg-red-50 border-b border-red-100">
+              <p className="text-xs text-red-600">Benutzer konnten nicht geladen werden.</p>
             </div>
           )}
         </div>
@@ -313,14 +335,18 @@ export function UniversalFeed() {
         <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
           <p className="text-xs text-slate-500">
             {filtered.length} Objekt{filtered.length !== 1 ? 'e' : ''}
-            {data && ` · ${data.total} gesamt`}
+            {!isUserFilter && objectsData && ` · ${objectsData.total} gesamt`}
           </p>
         </div>
       </div>
 
       {/* Detail panel */}
       <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        <DetailPanel object={selectedObject} />
+        <DetailPanel
+          object={selectedObject}
+          currentUserRole={currentUserRole}
+          onRefresh={handleRefresh}
+        />
       </div>
     </div>
   );

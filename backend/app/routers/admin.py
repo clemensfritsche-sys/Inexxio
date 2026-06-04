@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..core.auth import require_admin, require_staff
+from ..core.auth import require_admin, require_employee, require_staff
 from ..core.database import get_db
 from ..models.admin import CompanySettings
 from ..models.audit import AuditLog, UserProfile
@@ -14,7 +14,7 @@ from ..schemas.admin import (
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-VALID_ROLES = {"admin", "staff", "supplier", "customer"}
+VALID_ROLES = {"admin", "employee", "supplier", "customer"}
 
 
 def _mask_iban(iban: str | None) -> str | None:
@@ -118,7 +118,7 @@ async def get_public_settings(db: Session = Depends(get_db)):
 @router.get("/users", response_model=list[UserProfileResponse])
 async def list_users(
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
+    current_user: UserProfile = Depends(require_employee),
 ):
     users = db.query(UserProfile).order_by(UserProfile.email).all()
     return [UserProfileResponse.model_validate(u) for u in users]
