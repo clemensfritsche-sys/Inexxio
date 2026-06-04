@@ -41,12 +41,27 @@ export default function LoginPage() {
       router.push('/erp');
     } catch (err: unknown) {
       const code = (err as FirebaseError).code ?? '';
-      if (code === 'auth/popup-blocked') {
-        setError('Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite.');
-      } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-        // Nutzer hat Popup geschlossen – kein Fehler anzeigen
-      } else {
-        setError('Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.');
+      switch (code) {
+        case 'auth/popup-blocked':
+          setError('Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite.');
+          break;
+        case 'auth/popup-closed-by-user':
+        case 'auth/cancelled-popup-request':
+          break;
+        case 'auth/operation-not-allowed':
+          setError('Google-Anmeldung ist derzeit nicht verfügbar. Bitte wenden Sie sich an den Administrator.');
+          break;
+        case 'auth/unauthorized-domain':
+          setError('Diese Domain ist nicht autorisiert. Bitte wenden Sie sich an den Administrator.');
+          break;
+        case 'auth/network-request-failed':
+          setError('Netzwerkfehler. Bitte prüfen Sie Ihre Internetverbindung.');
+          break;
+        case 'auth/web-storage-unavailable':
+          setError('Browser-Speicher nicht verfügbar. Bitte prüfen Sie Ihre Cookie-Einstellungen.');
+          break;
+        default:
+          setError('Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.');
       }
       setGoogleLoading(false);
     }
