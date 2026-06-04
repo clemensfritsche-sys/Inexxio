@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { formatDate, formatObjectId, relativeTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -89,8 +88,6 @@ function getFields(object: UniversalObject): DetailField[] {
 }
 
 export function DetailPanel({ object, currentUserRole, onRefresh }: DetailPanelProps) {
-  const [, setTab] = useState('details');
-
   if (object?.object_type === 'user') {
     return <UserDetail object={object} currentUserRole={currentUserRole} onRoleChanged={onRefresh} />;
   }
@@ -152,7 +149,7 @@ export function DetailPanel({ object, currentUserRole, onRefresh }: DetailPanelP
       </div>
 
       {/* Tabs */}
-      <Tabs defaultTab="details" onChange={setTab} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs defaultTab="details" className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 bg-white border-b border-slate-200">
           <TabList>
             <TabTrigger value="details">Details</TabTrigger>

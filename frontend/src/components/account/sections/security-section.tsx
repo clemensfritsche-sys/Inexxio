@@ -52,10 +52,6 @@ export function SecuritySection({ profile }: Props) {
     }
   }
 
-  const lastLogin = profile.last_login_at
-    ? new Date(profile.last_login_at).toLocaleString('de-CH')
-    : '—';
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Email */}
@@ -165,11 +161,7 @@ export function SecuritySection({ profile }: Props) {
           <Shield style={{ width: 16, height: 16, color: '#64748b' }} />
           <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Sitzungsinformationen</h2>
         </div>
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
-            <span style={{ fontSize: 14, color: '#374151' }}>Letzte Anmeldung</span>
-            <span style={{ fontSize: 14, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{lastLogin}</span>
-          </div>
+        <div style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0' }}>
             <span style={{ fontSize: 14, color: '#374151' }}>Konto erstellt</span>
             <span style={{ fontSize: 14, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>

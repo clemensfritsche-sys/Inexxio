@@ -63,6 +63,7 @@ class UserProfile(Base, TimestampMixin):
     invoice_country: Mapped[Optional[str]] = mapped_column(String(100))
     invoice_vat_id: Mapped[Optional[str]] = mapped_column(String(50))
     invoice_email: Mapped[Optional[str]] = mapped_column(String(255))
+    invoice_same_as_shipping: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Personal extras
     salutation: Mapped[Optional[str]] = mapped_column(String(20))  # Herr / Frau / Divers

@@ -40,7 +40,6 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'all', label: 'Alle' },
   { value: 'item', label: 'Artikel' },
   { value: 'company', label: 'Firmen' },
-  { value: 'work_plan', label: 'Arbeitspläne' },
   { value: 'user', label: 'Benutzer' },
 ];
 

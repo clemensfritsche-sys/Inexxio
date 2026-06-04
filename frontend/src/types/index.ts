@@ -245,6 +245,7 @@ export interface UserProfile {
   invoice_country: string | null;
   invoice_vat_id: string | null;
   invoice_email: string | null;
+  invoice_same_as_shipping: boolean;
 
   salutation: string | null;
   date_of_birth: string | null;

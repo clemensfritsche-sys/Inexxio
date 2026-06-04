@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
+const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
+
 export const metadata: Metadata = {
   title: { template: '%s | Inexxio AG', default: 'Inexxio AG – Präzisionsfertigung' },
   description:
     'Inexxio AG – Ihr Schweizer Spezialist für Präzisionsfertigung und Maschinenbau. Qualität made in Switzerland.',
   keywords: 'Präzisionsfertigung, Maschinenbau, Schweiz, Swiss Made, CNC, Qualität',
   authors: [{ name: 'Inexxio AG' }],
-  robots: { index: true, follow: true },
+  robots: isDev ? { index: false, follow: false } : { index: true, follow: true },
   openGraph: {
     type: 'website',
     locale: 'de_CH',

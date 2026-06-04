@@ -8,6 +8,7 @@ import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
 
 interface Form {
+  invoice_same_as_shipping: boolean;
   invoice_company: string;
   invoice_first_name: string;
   invoice_last_name: string;
@@ -22,6 +23,7 @@ interface Form {
 
 function buildForm(p: UserProfile): Form {
   return {
+    invoice_same_as_shipping: p.invoice_same_as_shipping ?? false,
     invoice_company: p.invoice_company ?? '',
     invoice_first_name: p.invoice_first_name ?? '',
     invoice_last_name: p.invoice_last_name ?? '',
@@ -79,14 +81,12 @@ interface Props {
 export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
-  const [sameAsShipping, setSameAsShipping] = useState(false);
   const prevId = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (profile.id !== prevId.current) {
       prevId.current = profile.id;
       setForm(buildForm(profile));
-      setSameAsShipping(false);
       setResetKey((k) => k + 1);
     }
   }, [profile.id, profile]);
@@ -98,12 +98,14 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
   }
 
   function handleSameAsShipping(on: boolean) {
-    setSameAsShipping(on);
-    if (on) {
-      setForm((prev) => ({ ...prev, ...copyFromShipping(profile, isBusiness) }));
-    }
+    setForm((prev) => ({
+      ...prev,
+      invoice_same_as_shipping: on,
+      ...(on ? copyFromShipping(profile, isBusiness) : {}),
+    }));
   }
 
+  const sameAsShipping = form.invoice_same_as_shipping;
   const disabled = sameAsShipping;
 
   return (

@@ -132,6 +132,7 @@ class UserProfileResponse(BaseModel):
     invoice_country: Optional[str]
     invoice_vat_id: Optional[str]
     invoice_email: Optional[str]
+    invoice_same_as_shipping: bool
 
     # Personal extras
     salutation: Optional[str]
@@ -222,6 +223,7 @@ class UserProfileUpdate(BaseModel):
     invoice_country: Optional[str] = None
     invoice_vat_id: Optional[str] = None
     invoice_email: Optional[str] = None
+    invoice_same_as_shipping: Optional[bool] = None
 
     # Business / company info
     company_name: Optional[str] = None
