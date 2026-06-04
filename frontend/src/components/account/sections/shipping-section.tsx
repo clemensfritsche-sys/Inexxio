@@ -94,16 +94,16 @@ export function ShippingSection({ profile, isBusiness, onSave }: Props) {
               Lieferadresse (Privat)
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Vorname" value={form.ship_b2c_first_name} onChange={(v) => set('ship_b2c_first_name', v)} onEnter={saveNow} />
-              <Field label="Nachname" value={form.ship_b2c_last_name} onChange={(v) => set('ship_b2c_last_name', v)} onEnter={saveNow} />
+              <Field label="Vorname" value={form.ship_b2c_first_name} onChange={(v) => set('ship_b2c_first_name', v)} required={!form.ship_b2c_first_name.trim()} onEnter={saveNow} />
+              <Field label="Nachname" value={form.ship_b2c_last_name} onChange={(v) => set('ship_b2c_last_name', v)} required={!form.ship_b2c_last_name.trim()} onEnter={saveNow} />
               <div className="col-span-2">
-                <Field label="Strasse und Hausnummer" value={form.ship_b2c_address_line1} onChange={(v) => set('ship_b2c_address_line1', v)} onEnter={saveNow} />
+                <Field label="Strasse und Hausnummer" value={form.ship_b2c_address_line1} onChange={(v) => set('ship_b2c_address_line1', v)} required={!form.ship_b2c_address_line1.trim()} onEnter={saveNow} />
               </div>
               <div className="col-span-2">
                 <Field label="Adresszusatz" value={form.ship_b2c_address_line2} onChange={(v) => set('ship_b2c_address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
               </div>
-              <Field label="PLZ" value={form.ship_b2c_postal_code} onChange={(v) => set('ship_b2c_postal_code', v)} onEnter={saveNow} />
-              <Field label="Ort" value={form.ship_b2c_city} onChange={(v) => set('ship_b2c_city', v)} onEnter={saveNow} />
+              <Field label="PLZ" value={form.ship_b2c_postal_code} onChange={(v) => set('ship_b2c_postal_code', v)} required={!form.ship_b2c_postal_code.trim()} onEnter={saveNow} />
+              <Field label="Ort" value={form.ship_b2c_city} onChange={(v) => set('ship_b2c_city', v)} required={!form.ship_b2c_city.trim()} onEnter={saveNow} />
               <SelectField label="Land" value={form.ship_b2c_country} onChange={(v) => set('ship_b2c_country', v)} options={COUNTRIES} />
             </div>
           </>
@@ -115,16 +115,16 @@ export function ShippingSection({ profile, isBusiness, onSave }: Props) {
               Lieferadresse (Firma)
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Firmenname" value={form.ship_b2b_company} onChange={(v) => set('ship_b2b_company', v)} onEnter={saveNow} />
+              <Field label="Firmenname" value={form.ship_b2b_company} onChange={(v) => set('ship_b2b_company', v)} required={!form.ship_b2b_company.trim()} onEnter={saveNow} />
               <Field label="Ansprechperson" value={form.ship_b2b_contact} onChange={(v) => set('ship_b2b_contact', v)} onEnter={saveNow} />
               <div className="col-span-2">
-                <Field label="Strasse und Hausnummer" value={form.ship_b2b_address_line1} onChange={(v) => set('ship_b2b_address_line1', v)} onEnter={saveNow} />
+                <Field label="Strasse und Hausnummer" value={form.ship_b2b_address_line1} onChange={(v) => set('ship_b2b_address_line1', v)} required={!form.ship_b2b_address_line1.trim()} onEnter={saveNow} />
               </div>
               <div className="col-span-2">
                 <Field label="Adresszusatz" value={form.ship_b2b_address_line2} onChange={(v) => set('ship_b2b_address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
               </div>
-              <Field label="PLZ" value={form.ship_b2b_postal_code} onChange={(v) => set('ship_b2b_postal_code', v)} onEnter={saveNow} />
-              <Field label="Ort" value={form.ship_b2b_city} onChange={(v) => set('ship_b2b_city', v)} onEnter={saveNow} />
+              <Field label="PLZ" value={form.ship_b2b_postal_code} onChange={(v) => set('ship_b2b_postal_code', v)} required={!form.ship_b2b_postal_code.trim()} onEnter={saveNow} />
+              <Field label="Ort" value={form.ship_b2b_city} onChange={(v) => set('ship_b2b_city', v)} required={!form.ship_b2b_city.trim()} onEnter={saveNow} />
               <SelectField label="Land" value={form.ship_b2b_country} onChange={(v) => set('ship_b2b_country', v)} options={COUNTRIES} />
             </div>
           </>

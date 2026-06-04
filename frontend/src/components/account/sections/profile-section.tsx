@@ -117,8 +117,8 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
               { value: 'en', label: 'English' },
             ]}
           />
-          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" onEnter={saveNow} />
-          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" onEnter={saveNow} />
+          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
+          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
         </div>
 
         {isEmployee && (

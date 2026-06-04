@@ -154,16 +154,16 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
               <Field label="Firmenname" value={form.invoice_company} onChange={(v) => set('invoice_company', v)} readOnly={disabled} onEnter={saveNow} />
             </div>
           )}
-          <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} readOnly={disabled} onEnter={saveNow} />
-          <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} readOnly={disabled} onEnter={saveNow} />
+          <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} readOnly={disabled} required={!disabled && !form.invoice_first_name.trim()} onEnter={saveNow} />
+          <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} readOnly={disabled} required={!disabled && !form.invoice_last_name.trim()} onEnter={saveNow} />
           <div className="col-span-2">
-            <Field label="Strasse und Hausnummer" value={form.invoice_address_line1} onChange={(v) => set('invoice_address_line1', v)} readOnly={disabled} onEnter={saveNow} />
+            <Field label="Strasse und Hausnummer" value={form.invoice_address_line1} onChange={(v) => set('invoice_address_line1', v)} readOnly={disabled} required={!disabled && !form.invoice_address_line1.trim()} onEnter={saveNow} />
           </div>
           <div className="col-span-2">
             <Field label="Adresszusatz" value={form.invoice_address_line2} onChange={(v) => set('invoice_address_line2', v)} placeholder="c/o, Postfach…" readOnly={disabled} onEnter={saveNow} />
           </div>
-          <Field label="PLZ" value={form.invoice_postal_code} onChange={(v) => set('invoice_postal_code', v)} readOnly={disabled} onEnter={saveNow} />
-          <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} readOnly={disabled} onEnter={saveNow} />
+          <Field label="PLZ" value={form.invoice_postal_code} onChange={(v) => set('invoice_postal_code', v)} readOnly={disabled} required={!disabled && !form.invoice_postal_code.trim()} onEnter={saveNow} />
+          <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} readOnly={disabled} required={!disabled && !form.invoice_city.trim()} onEnter={saveNow} />
           <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} />
           <Field label="Rechnungs-E-Mail" value={form.invoice_email} onChange={(v) => set('invoice_email', v)} type="email" placeholder="buchhaltung@firma.ch" onEnter={saveNow} />
           {isBusiness && (

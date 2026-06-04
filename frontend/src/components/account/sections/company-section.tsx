@@ -69,9 +69,9 @@ export function CompanySection({ profile, onSave }: Props) {
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" onEnter={saveNow} />
-          <Field label="Rechtsform" value={form.company_legal_form} onChange={(v) => set('company_legal_form', v)} placeholder="AG, GmbH, Einzelfirma…" onEnter={saveNow} />
-          <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" onEnter={saveNow} />
+          <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" required={!form.company_name.trim()} onEnter={saveNow} />
+          <Field label="Rechtsform" value={form.company_legal_form} onChange={(v) => set('company_legal_form', v)} placeholder="AG, GmbH, Einzelfirma…" required={!form.company_legal_form.trim()} onEnter={saveNow} />
+          <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" required={!form.uid_number.trim()} onEnter={saveNow} />
           <Field label="MWST-Nummer" value={form.vat_number} onChange={(v) => set('vat_number', v)} placeholder="CHE-123.456.789 MWST" onEnter={saveNow} />
           <Field label="Handelsregister-Nr." value={form.trade_register_nr} onChange={(v) => set('trade_register_nr', v)} placeholder="CH-020.3.000.000-0" onEnter={saveNow} />
           <Field label="Kanton HR" value={form.trade_register_canton} onChange={(v) => set('trade_register_canton', v)} placeholder="ZH" onEnter={saveNow} />

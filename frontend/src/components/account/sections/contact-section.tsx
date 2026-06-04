@@ -73,17 +73,17 @@ export function ContactSection({ profile, onSave }: Props) {
       </div>
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" onEnter={saveNow} />
+        <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" required={!form.phone.trim()} onEnter={saveNow} />
 
         <div style={{ height: 1, background: '#F1F5F9' }} />
 
         <div className="grid grid-cols-1 gap-4">
-          <Field label="Strasse und Hausnummer" value={form.address_line1} onChange={(v) => set('address_line1', v)} placeholder="Musterstrasse 12" onEnter={saveNow} />
+          <Field label="Strasse und Hausnummer" value={form.address_line1} onChange={(v) => set('address_line1', v)} placeholder="Musterstrasse 12" required={!form.address_line1.trim()} onEnter={saveNow} />
           <Field label="Adresszusatz" value={form.address_line2} onChange={(v) => set('address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="PLZ" value={form.postal_code} onChange={(v) => set('postal_code', v)} placeholder="8000" onEnter={saveNow} />
-          <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" onEnter={saveNow} />
+          <Field label="PLZ" value={form.postal_code} onChange={(v) => set('postal_code', v)} placeholder="8000" required={!form.postal_code.trim()} onEnter={saveNow} />
+          <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" required={!form.city.trim()} onEnter={saveNow} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Kanton / Region" value={form.state_canton} onChange={(v) => set('state_canton', v)} placeholder="ZH" onEnter={saveNow} />

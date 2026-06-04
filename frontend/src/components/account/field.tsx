@@ -7,12 +7,17 @@ interface FieldProps {
   placeholder?: string;
   hint?: string;
   onEnter?: () => void;
+  required?: boolean;
 }
 
-export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint, onEnter }: FieldProps) {
+export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint, onEnter, required }: FieldProps) {
+  const isEmpty = required && !value.trim();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{label}</label>
+      <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+        {label}
+        {isEmpty && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+      </label>
       <input
         type={type}
         value={value}
@@ -23,18 +28,18 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
         style={{
           padding: '8px 12px',
           borderRadius: 8,
-          border: '1px solid #E2E8F0',
+          border: isEmpty ? '1px solid #f59e0b' : '1px solid #E2E8F0',
           fontSize: 14,
           color: readOnly ? '#94a3b8' : '#0F172A',
-          background: readOnly ? '#F8FAFC' : '#fff',
+          background: isEmpty ? '#FFFBEB' : readOnly ? '#F8FAFC' : '#fff',
           outline: 'none',
           width: '100%',
           boxSizing: 'border-box',
           cursor: readOnly ? 'default' : 'text',
-          transition: 'border-color 0.15s',
+          transition: 'border-color 0.15s, background 0.15s',
         }}
-        onFocus={(e) => { if (!readOnly) e.target.style.borderColor = '#E51A14'; }}
-        onBlur={(e) => { e.target.style.borderColor = '#E2E8F0'; }}
+        onFocus={(e) => { if (!readOnly) e.target.style.borderColor = isEmpty ? '#d97706' : '#E51A14'; }}
+        onBlur={(e) => { e.target.style.borderColor = isEmpty ? '#f59e0b' : '#E2E8F0'; }}
       />
       {hint && <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>{hint}</p>}
     </div>

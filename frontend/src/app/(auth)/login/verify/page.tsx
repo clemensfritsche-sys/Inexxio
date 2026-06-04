@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Settings2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { completeMagicLink } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
@@ -79,57 +79,69 @@ export default function VerifyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white mx-auto mb-6">
-            <Settings2 className="h-6 w-6" />
-          </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: '100%', maxWidth: 360 }}>
+        <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #E2E8F0', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', padding: 40, textAlign: 'center' }}>
+          {/* Logo */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Inexxio" style={{ height: 28, margin: '0 auto 28px', display: 'block' }} />
 
           {status === 'loading' && (
             <>
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-              <h1 className="text-lg font-semibold text-slate-900">Anmeldung wird verarbeitet…</h1>
-              <p className="text-sm text-slate-500 mt-2">Bitte einen Moment warten.</p>
+              <Loader2 style={{ width: 36, height: 36, color: '#E51A14', margin: '0 auto 16px', animation: 'spin 0.7s linear infinite' }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Anmeldung wird verarbeitet…</h1>
+              <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Bitte einen Moment warten.</p>
             </>
           )}
 
           {status === 'success' && (
             <>
-              <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-4" />
-              <h1 className="text-lg font-semibold text-slate-900">Erfolgreich angemeldet!</h1>
-              <p className="text-sm text-slate-500 mt-2">Sie werden weitergeleitet…</p>
+              <CheckCircle2 style={{ width: 36, height: 36, color: '#16a34a', margin: '0 auto 16px' }} />
+              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Erfolgreich angemeldet!</h1>
+              <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>Sie werden weitergeleitet…</p>
             </>
           )}
 
           {status === 'error' && (
             <>
-              <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
-              <h1 className="text-lg font-semibold text-slate-900">Anmeldung fehlgeschlagen</h1>
-              <p className="text-sm text-red-600 mt-2">{error}</p>
-              <a href="/login" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
-                Zurück zur Anmeldung
+              <AlertCircle style={{ width: 36, height: 36, color: '#E51A14', margin: '0 auto 16px' }} />
+              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>Anmeldung fehlgeschlagen</h1>
+              <p style={{ fontSize: 14, color: '#E51A14', margin: '0 0 20px' }}>{error}</p>
+              <a href="/login" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none', fontWeight: 500 }}>
+                ← Zurück zur Anmeldung
               </a>
             </>
           )}
 
           {status === 'needs-email' && (
             <>
-              <h1 className="text-lg font-semibold text-slate-900 mb-2">E-Mail bestätigen</h1>
-              <p className="text-sm text-slate-600 mb-4">
+              <h1 style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', margin: '0 0 8px' }}>E-Mail bestätigen</h1>
+              <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 20px' }}>
                 Bitte geben Sie Ihre E-Mail-Adresse ein, um die Anmeldung abzuschliessen.
               </p>
-              <form onSubmit={handleEmailSubmit} className="text-left space-y-3">
+              <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ihre@email.com"
-                  className="form-input"
+                  placeholder="ihre@email.ch"
                   autoFocus
+                  style={{
+                    padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0',
+                    fontSize: 14, color: '#0F172A', outline: 'none', width: '100%',
+                    boxSizing: 'border-box',
+                  }}
                 />
-                <button type="submit" className="btn-primary w-full justify-center">
+                <button
+                  type="submit"
+                  style={{
+                    padding: '11px 20px', borderRadius: 8, border: 'none',
+                    background: '#E51A14', color: '#fff', fontSize: 14,
+                    fontWeight: 600, cursor: 'pointer', width: '100%',
+                  }}
+                >
                   Anmelden
                 </button>
               </form>

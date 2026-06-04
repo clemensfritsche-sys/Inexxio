@@ -10,7 +10,7 @@ export function Footer() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
+            gridTemplateColumns: '1.5fr 1fr 1fr',
             gap: 40,
             paddingBottom: 48,
             borderBottom: '1px solid var(--border-on-dark)',
@@ -47,6 +47,9 @@ export function Footer() {
                 <MapPin style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0, marginTop: 2 }} />
                 Schweiz
               </span>
+              <p style={{ font: '500 12px var(--font-body)', color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', margin: 0, marginTop: 4 }}>
+                MO – FR · 08:00 – 17:00
+              </p>
             </div>
           </div>
 
@@ -114,36 +117,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* ERP */}
-          <div>
-            <h5
-              style={{
-                font: '600 11px var(--font-body)',
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                color: 'rgba(255,255,255,0.45)',
-                margin: '0 0 18px',
-              }}
-            >
-              ERP-System
-            </h5>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <li>
-                <Link
-                  href="/login"
-                  style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
-                  className="footer-link"
-                >
-                  Anmelden
-                </Link>
-              </li>
-            </ul>
-            <div style={{ marginTop: 24 }}>
-              <p style={{ font: '500 11px var(--font-body)', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em' }}>
-                MO – FR · 08:00 – 17:00
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Bottom bar */}
