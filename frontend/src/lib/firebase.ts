@@ -82,22 +82,27 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
   return { token, user: result.user };
 }
 
+const GOOGLE_REDIRECT_KEY = 'inexxio_google_redirect_pending';
+
 export async function signInWithGoogle(): Promise<void> {
   if (!auth) throw new Error('Firebase not initialized');
+  // Set flag before navigating so we know to call getRedirectResult on return.
+  // This also prevents calling getRedirectResult on unrelated page loads, which
+  // would corrupt the auth instance via stale IndexedDB pendingRedirect entries.
+  localStorage.setItem(GOOGLE_REDIRECT_KEY, '1');
   await signInWithRedirect(auth, googleProvider);
 }
 
 export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
   if (!auth) return null;
+  if (!localStorage.getItem(GOOGLE_REDIRECT_KEY)) return null;
+  localStorage.removeItem(GOOGLE_REDIRECT_KEY);
   try {
     const result = await getRedirectResult(auth);
     if (!result) return null;
     const token = await result.user.getIdToken();
     return { token, user: result.user };
   } catch (err) {
-    // auth/internal-error means a stale or invalid pendingRedirect entry exists
-    // in IndexedDB from a previous incomplete redirect flow. Treat as no pending
-    // redirect — the next signInWithRedirect call will overwrite the stale entry.
     if ((err as { code?: string }).code === 'auth/internal-error') return null;
     throw err;
   }
