@@ -5,11 +5,20 @@ from ..core.auth import require_admin, require_employee, require_staff
 from ..core.database import get_db
 from ..models.admin import CompanySettings
 from ..models.audit import AuditLog, UserProfile
+from ..models.item_config import ItemCategory, ItemName, ItemSurface
 from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,
     UserProfileResponse,
     UserRoleUpdate,
+)
+from ..schemas.item_config import (
+    ItemCategoryCreate,
+    ItemCategoryResponse,
+    ItemNameCreate,
+    ItemNameResponse,
+    ItemSurfaceCreate,
+    ItemSurfaceResponse,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -245,6 +254,75 @@ async def get_notifications(
         }
         for n in notifications
     ]
+
+
+@router.get("/item-names", response_model=list[ItemNameResponse])
+async def list_item_names(
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    return [ItemNameResponse.model_validate(n) for n in db.query(ItemName).filter(ItemName.is_active == True).order_by(ItemName.label).all()]
+
+
+@router.post("/item-names", response_model=ItemNameResponse, status_code=201)
+async def create_item_name(
+    data: ItemNameCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    if db.query(ItemName).filter(ItemName.label == data.label).first():
+        raise HTTPException(status_code=400, detail="Label already exists")
+    obj = ItemName(label=data.label, created_by=current_user.id)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return ItemNameResponse.model_validate(obj)
+
+
+@router.get("/item-surfaces", response_model=list[ItemSurfaceResponse])
+async def list_item_surfaces(
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    return [ItemSurfaceResponse.model_validate(s) for s in db.query(ItemSurface).filter(ItemSurface.is_active == True).order_by(ItemSurface.label).all()]
+
+
+@router.post("/item-surfaces", response_model=ItemSurfaceResponse, status_code=201)
+async def create_item_surface(
+    data: ItemSurfaceCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    if db.query(ItemSurface).filter(ItemSurface.label == data.label).first():
+        raise HTTPException(status_code=400, detail="Label already exists")
+    obj = ItemSurface(label=data.label, created_by=current_user.id)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return ItemSurfaceResponse.model_validate(obj)
+
+
+@router.get("/item-categories", response_model=list[ItemCategoryResponse])
+async def list_item_categories(
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    return [ItemCategoryResponse.model_validate(c) for c in db.query(ItemCategory).filter(ItemCategory.is_active == True).order_by(ItemCategory.label).all()]
+
+
+@router.post("/item-categories", response_model=ItemCategoryResponse, status_code=201)
+async def create_item_category(
+    data: ItemCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    if db.query(ItemCategory).filter(ItemCategory.label == data.label).first():
+        raise HTTPException(status_code=400, detail="Label already exists")
+    obj = ItemCategory(label=data.label, created_by=current_user.id)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return ItemCategoryResponse.model_validate(obj)
 
 
 @router.post("/notifications/{notification_id}/read")

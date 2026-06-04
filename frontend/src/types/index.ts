@@ -2,37 +2,99 @@
 
 export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user';
 
-export type ItemStatus = 'Entwurf' | 'Freigegeben' | 'Ersetzt' | 'Gesperrt';
+export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
+export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
+export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';
 export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
 export type WorkPlanStatus = 'Entwurf' | 'Aktiv' | 'Archiviert';
 export type BOMStatus = 'Entwurf' | 'Freigegeben' | 'Archiviert';
+
+export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: string }> = {
+  ENTWURF: { label: 'Entwurf', color: 'bg-slate-100 text-slate-600' },
+  IN_FREIGABE: { label: 'In Freigabe', color: 'bg-amber-50 text-amber-700' },
+  FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
+  ERSETZT: { label: 'Ersetzt', color: 'bg-blue-50 text-blue-600' },
+  UNGUELTIG: { label: 'Ungültig', color: 'bg-red-50 text-red-600' },
+};
+
+export const VAT_RATE_LABELS: Record<VatRate, string> = {
+  '8.1': '8.1% (Standard)',
+  '2.6': '2.6% (Reduziert)',
+  '3.8': '3.8% (Beherbergung)',
+  '0.0': '0% (Export / Befreit)',
+};
+
+// ─── Item config lookup types ─────────────────────────────────────────────────
+
+export interface ItemName {
+  id: number;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ItemSurface {
+  id: number;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ItemCategory {
+  id: number;
+  label: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ItemSignature {
+  id: number;
+  item_id: number;
+  signed_by: number;
+  signed_at: string;
+}
 
 // ─── Item ─────────────────────────────────────────────────────────────────────
 
 export interface Item {
   id: number;
-  number: string; // 9-digit padded
   name: string;
-  description: string | null;
+  name_id: number | null;
   unit: string;
-  item_type: 'Kauf' | 'Eigen' | 'Phantom';
   status: ItemStatus;
-  weight_kg: number | null;
-  dimensions: string | null;
-  material: string | null;
-  surface_finish: string | null;
-  tolerance_class: string | null;
-  drawing_number: string | null;
-  manufacturer: string | null;
-  manufacturer_part_number: string | null;
+  batch_allowed: boolean;
+  order_number: string | null;
+  order_link: string | null;
+  onshape_link: string | null;
+  weight_g: string | null;
+  dim_1_mm: string | null;
+  dim_2_mm: string | null;
+  dim_3_mm: string | null;
+  surface_id: number | null;
+  purchase_price: string | null;
+  purchase_currency: string;
   lead_time_days: number | null;
-  cost_price: string | null; // Decimal as string
+  stock_total: string;
+  stock_reserved: string;
+  replaced_by_id: number | null;
+  replaces_id: number | null;
+  is_sales_product: boolean;
   sales_price: string | null;
-  currency: string;
-  tags: string[];
-  created_at: string; // ISO datetime
+  sales_currency: string;
+  category_id: number | null;
+  vat_rate: string | null;
+  shop_description_long: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  hs_code: string | null;
+  submitted_at: string | null;
+  submitted_by: number | null;
+  approved_at: string | null;
+  approved_by: number | null;
+  created_at: string;
   updated_at: string;
-  created_by: string | null;
+  is_active: boolean;
+  signatures: ItemSignature[];
 }
 
 // ─── BOM (Bill of Materials) ──────────────────────────────────────────────────

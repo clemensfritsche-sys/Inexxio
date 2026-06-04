@@ -10,15 +10,26 @@ from ..core.database import Base
 from .base import TimestampMixin, utcnow
 
 
-class SerialMode(str, enum.Enum):
-    UNIT = "unit"
-    BATCH = "batch"
+class ItemStatus(str, enum.Enum):
+    ENTWURF = "ENTWURF"
+    IN_FREIGABE = "IN_FREIGABE"
+    FREIGEGEBEN = "FREIGEGEBEN"
+    ERSETZT = "ERSETZT"
+    UNGUELTIG = "UNGUELTIG"
 
 
-class PurchaseType(str, enum.Enum):
-    ONE_TIME = "one_time"
-    SUBSCRIPTION = "subscription"
-    BOTH = "both"
+class ItemUnit(str, enum.Enum):
+    STK = "Stk"
+    MM = "mm"
+    G = "g"
+    MM2 = "mm²"
+
+
+class VatRate(str, enum.Enum):
+    STANDARD = "8.1"
+    REDUCED = "2.6"
+    ACCOMMODATION = "3.8"
+    ZERO = "0.0"
 
 
 class Item(Base, TimestampMixin):
@@ -29,14 +40,33 @@ class Item(Base, TimestampMixin):
         ForeignKey("objects.id", ondelete="RESTRICT"),
         primary_key=True,
     )
+    name_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("item_names.id", ondelete="RESTRICT"), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    size: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    unit: Mapped[str] = mapped_column(String(50), default="Stk", nullable=False)
-    category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
-    is_equipment: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    serial_mode: Mapped[str] = mapped_column(
-        String(20), default=SerialMode.UNIT, nullable=False
+    unit: Mapped[str] = mapped_column(String(10), default="Stk", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(20), default=ItemStatus.ENTWURF, nullable=False, index=True
+    )
+    batch_allowed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    order_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    order_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    onshape_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    weight_g: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    dim_1_mm: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    dim_2_mm: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    dim_3_mm: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+    surface_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("item_surfaces.id", ondelete="SET NULL"), nullable=True
+    )
+    purchase_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 4), nullable=True)
+    purchase_currency: Mapped[str] = mapped_column(String(3), default="CHF", nullable=False)
+    lead_time_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    stock_total: Mapped[Decimal] = mapped_column(
+        Numeric(15, 3), default=Decimal("0"), nullable=False
+    )
+    stock_reserved: Mapped[Decimal] = mapped_column(
+        Numeric(15, 3), default=Decimal("0"), nullable=False
     )
     replaced_by_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey("items.id"), nullable=True
@@ -45,22 +75,51 @@ class Item(Base, TimestampMixin):
         BigInteger, ForeignKey("items.id"), nullable=True
     )
     is_sales_product: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    shop_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    purchase_type: Mapped[str] = mapped_column(
-        String(20), default=PurchaseType.ONE_TIME, nullable=False
+    sales_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 4), nullable=True)
+    sales_currency: Mapped[str] = mapped_column(String(3), default="CHF", nullable=False)
+    category_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("item_categories.id", ondelete="SET NULL"), nullable=True
     )
-    list_price_chf: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 4), nullable=True)
+    vat_rate: Mapped[Optional[str]] = mapped_column(String(5), nullable=True)
+    shop_description_long: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    seo_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    seo_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     hs_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    min_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 3), nullable=True)
-    reorder_point: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 3), nullable=True)
-    max_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 3), nullable=True)
-    preferred_supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    lead_time_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    approved_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    submitted_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    current_stock: Mapped[Decimal] = mapped_column(
-        Numeric(15, 3), default=Decimal("0"), nullable=False
+    approved_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+    name_ref = relationship("ItemName", foreign_keys=[name_id])
+    surface = relationship("ItemSurface", foreign_keys=[surface_id])
+    category = relationship("ItemCategory", foreign_keys=[category_id])
+    signatures: Mapped[list["ItemSignature"]] = relationship(
+        "ItemSignature", back_populates="item", cascade="all, delete-orphan"
     )
+
+
+class ItemSignature(Base):
+    __tablename__ = "item_signatures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    item_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    signed_by: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("user_profiles.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    signed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )
+
+    item: Mapped["Item"] = relationship("Item", back_populates="signatures")
+    signer = relationship("UserProfile", foreign_keys=[signed_by])

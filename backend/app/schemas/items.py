@@ -2,46 +2,88 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ItemSignatureResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    item_id: int
+    signed_by: int
+    signed_at: datetime
 
 
 class ItemCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    size: Optional[str] = None
-    unit: str = "Stk"
-    category: Optional[str] = None
-    is_equipment: bool = False
-    serial_mode: str = "unit"
-    is_sales_product: bool = False
-    shop_description: Optional[str] = None
-    purchase_type: str = "one_time"
-    list_price_chf: Optional[Decimal] = None
-    hs_code: Optional[str] = None
-    min_stock: Optional[Decimal] = None
-    reorder_point: Optional[Decimal] = None
-    max_stock: Optional[Decimal] = None
-    preferred_supplier_id: Optional[int] = None
+    name_id: Optional[int] = None
+    unit: str = Field(default="Stk", max_length=10)
+    batch_allowed: bool = False
+    order_number: Optional[str] = Field(None, max_length=100)
+    order_link: Optional[str] = Field(None, max_length=500)
+    onshape_link: Optional[str] = Field(None, max_length=500)
+    weight_g: Optional[Decimal] = None
+    dim_1_mm: Optional[Decimal] = None
+    dim_2_mm: Optional[Decimal] = None
+    dim_3_mm: Optional[Decimal] = None
+    surface_id: Optional[int] = None
+    purchase_price: Optional[Decimal] = None
+    purchase_currency: str = Field(default="CHF", max_length=3)
     lead_time_days: Optional[int] = None
+    replaced_by_id: Optional[int] = None
+    replaces_id: Optional[int] = None
+    is_sales_product: bool = False
+    sales_price: Optional[Decimal] = None
+    sales_currency: str = Field(default="CHF", max_length=3)
+    category_id: Optional[int] = None
+    vat_rate: Optional[str] = Field(None, max_length=5)
+    shop_description_long: Optional[str] = None
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = None
+    hs_code: Optional[str] = Field(None, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "ItemCreate":
+        d1, d2, d3 = self.dim_1_mm, self.dim_2_mm, self.dim_3_mm
+        if d1 is not None and d2 is not None and d1 > d2:
+            raise ValueError("dim_1_mm must be <= dim_2_mm")
+        if d2 is not None and d3 is not None and d2 > d3:
+            raise ValueError("dim_2_mm must be <= dim_3_mm")
+        if self.is_sales_product:
+            if not self.sales_price:
+                raise ValueError("sales_price required when is_sales_product is true")
+            if not self.category_id:
+                raise ValueError("category_id required when is_sales_product is true")
+            if not self.vat_rate:
+                raise ValueError("vat_rate required when is_sales_product is true")
+        return self
 
 
 class ItemUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    size: Optional[str] = None
-    unit: Optional[str] = None
-    category: Optional[str] = None
-    is_equipment: Optional[bool] = None
-    is_sales_product: Optional[bool] = None
-    shop_description: Optional[str] = None
-    purchase_type: Optional[str] = None
-    list_price_chf: Optional[Decimal] = None
-    hs_code: Optional[str] = None
-    min_stock: Optional[Decimal] = None
-    reorder_point: Optional[Decimal] = None
-    max_stock: Optional[Decimal] = None
-    preferred_supplier_id: Optional[int] = None
+    name_id: Optional[int] = None
+    unit: Optional[str] = Field(None, max_length=10)
+    batch_allowed: Optional[bool] = None
+    order_number: Optional[str] = Field(None, max_length=100)
+    order_link: Optional[str] = Field(None, max_length=500)
+    onshape_link: Optional[str] = Field(None, max_length=500)
+    weight_g: Optional[Decimal] = None
+    dim_1_mm: Optional[Decimal] = None
+    dim_2_mm: Optional[Decimal] = None
+    dim_3_mm: Optional[Decimal] = None
+    surface_id: Optional[int] = None
+    purchase_price: Optional[Decimal] = None
+    purchase_currency: Optional[str] = Field(None, max_length=3)
     lead_time_days: Optional[int] = None
+    is_sales_product: Optional[bool] = None
+    sales_price: Optional[Decimal] = None
+    sales_currency: Optional[str] = Field(None, max_length=3)
+    category_id: Optional[int] = None
+    vat_rate: Optional[str] = Field(None, max_length=5)
+    shop_description_long: Optional[str] = None
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = None
+    hs_code: Optional[str] = Field(None, max_length=20)
 
 
 class ItemResponse(BaseModel):
@@ -49,31 +91,42 @@ class ItemResponse(BaseModel):
 
     id: int
     name: str
-    description: Optional[str]
-    size: Optional[str]
+    name_id: Optional[int]
     unit: str
-    category: Optional[str]
-    is_equipment: bool
-    serial_mode: str
+    status: str
+    batch_allowed: bool
+    order_number: Optional[str]
+    order_link: Optional[str]
+    onshape_link: Optional[str]
+    weight_g: Optional[Decimal]
+    dim_1_mm: Optional[Decimal]
+    dim_2_mm: Optional[Decimal]
+    dim_3_mm: Optional[Decimal]
+    surface_id: Optional[int]
+    purchase_price: Optional[Decimal]
+    purchase_currency: str
+    lead_time_days: Optional[int]
+    stock_total: Decimal
+    stock_reserved: Decimal
     replaced_by_id: Optional[int]
     replaces_id: Optional[int]
     is_sales_product: bool
-    shop_description: Optional[str]
-    purchase_type: str
-    list_price_chf: Optional[Decimal]
+    sales_price: Optional[Decimal]
+    sales_currency: str
+    category_id: Optional[int]
+    vat_rate: Optional[str]
+    shop_description_long: Optional[str]
+    seo_title: Optional[str]
+    seo_description: Optional[str]
     hs_code: Optional[str]
-    min_stock: Optional[Decimal]
-    reorder_point: Optional[Decimal]
-    max_stock: Optional[Decimal]
-    preferred_supplier_id: Optional[int]
-    lead_time_days: Optional[int]
-    is_approved: bool
-    approved_by: Optional[int]
+    submitted_at: Optional[datetime]
+    submitted_by: Optional[int]
     approved_at: Optional[datetime]
-    current_stock: Decimal
+    approved_by: Optional[int]
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    signatures: list[ItemSignatureResponse]
 
 
 class ItemListResponse(BaseModel):
@@ -82,10 +135,15 @@ class ItemListResponse(BaseModel):
     id: int
     name: str
     unit: str
-    category: Optional[str]
-    is_approved: bool
-    is_equipment: bool
-    current_stock: Decimal
-    list_price_chf: Optional[Decimal]
+    status: str
+    batch_allowed: bool
+    purchase_price: Optional[Decimal]
+    purchase_currency: str
+    sales_price: Optional[Decimal]
+    sales_currency: str
+    stock_total: Decimal
+    stock_reserved: Decimal
+    is_sales_product: bool
     created_at: datetime
+    updated_at: datetime
     is_active: bool

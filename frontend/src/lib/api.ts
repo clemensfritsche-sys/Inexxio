@@ -1,6 +1,9 @@
 import type {
   CompanySettings,
   Item,
+  ItemCategory,
+  ItemName,
+  ItemSurface,
   BOM,
   WorkPlan,
   Company,
@@ -85,8 +88,13 @@ class ApiClient {
 
   // ─── Items ─────────────────────────────────────────────────────────────────
 
-  getItems(page = 1, pageSize = 50): Promise<PaginatedResponse<Item>> {
-    return this.get(`/api/v1/items?page=${page}&page_size=${pageSize}`);
+  getItems(params?: { page?: number; pageSize?: number; q?: string; status?: string }): Promise<PaginatedResponse<Item>> {
+    const p = new URLSearchParams();
+    p.set('page', String(params?.page ?? 1));
+    p.set('page_size', String(params?.pageSize ?? 50));
+    if (params?.q) p.set('q', params.q);
+    if (params?.status) p.set('status', params.status);
+    return this.get(`/api/v1/items?${p.toString()}`);
   }
 
   getItem(id: number): Promise<Item> {
@@ -101,8 +109,48 @@ class ApiClient {
     return this.patch(`/api/v1/items/${id}`, data);
   }
 
+  submitItem(id: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/submit`, {});
+  }
+
   approveItem(id: number): Promise<Item> {
     return this.post(`/api/v1/items/${id}/approve`, {});
+  }
+
+  replaceItem(id: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/replace`, {});
+  }
+
+  invalidateItem(id: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/invalidate`, {});
+  }
+
+  deleteItem(id: number): Promise<void> {
+    return this.delete(`/api/v1/items/${id}`);
+  }
+
+  getItemNames(): Promise<ItemName[]> {
+    return this.get('/api/v1/admin/item-names');
+  }
+
+  createItemName(label: string): Promise<ItemName> {
+    return this.post('/api/v1/admin/item-names', { label });
+  }
+
+  getItemSurfaces(): Promise<ItemSurface[]> {
+    return this.get('/api/v1/admin/item-surfaces');
+  }
+
+  createItemSurface(label: string): Promise<ItemSurface> {
+    return this.post('/api/v1/admin/item-surfaces', { label });
+  }
+
+  getItemCategories(): Promise<ItemCategory[]> {
+    return this.get('/api/v1/admin/item-categories');
+  }
+
+  createItemCategory(label: string): Promise<ItemCategory> {
+    return this.post('/api/v1/admin/item-categories', { label });
   }
 
   // ─── BOMs ──────────────────────────────────────────────────────────────────

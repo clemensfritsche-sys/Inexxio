@@ -1,6 +1,7 @@
 from .base import TimestampMixin
 from .objects import UniversalObject, ObjectType
-from .items import Item, SerialMode, PurchaseType
+from .items import Item, ItemStatus, ItemUnit, VatRate, ItemSignature
+from .item_config import ItemCategory, ItemName, ItemSurface
 from .boms import BOM, BOMLine
 from .work_plans import WorkPlan, WorkPlanStep, StepType
 from .companies import Company, Contact, CompanyType
@@ -13,8 +14,13 @@ __all__ = [
     "UniversalObject",
     "ObjectType",
     "Item",
-    "SerialMode",
-    "PurchaseType",
+    "ItemStatus",
+    "ItemUnit",
+    "VatRate",
+    "ItemSignature",
+    "ItemName",
+    "ItemSurface",
+    "ItemCategory",
     "BOM",
     "BOMLine",
     "WorkPlan",
