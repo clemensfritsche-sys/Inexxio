@@ -10,7 +10,8 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   verifyBeforeUpdateEmail,
@@ -33,9 +34,8 @@ let auth: Auth;
 if (typeof window !== 'undefined') {
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   try {
-    // Use localStorage (not IndexedDB) to skip stale pendingRedirect entries
-    // left by previous signInWithRedirect calls, which cause auth/internal-error
-    // by poisoning _initializationPromise before signInWithPopup even opens.
+    // Use localStorage persistence to avoid IndexedDB initialization issues
+    // (stale pendingRedirect entries can cause auth/internal-error on init).
     auth = initializeAuth(app, {
       persistence: browserLocalPersistence,
       popupRedirectResolver: browserPopupRedirectResolver,
@@ -82,9 +82,15 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
   return { token, user: result.user };
 }
 
-export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
+export async function signInWithGoogle(): Promise<void> {
   if (!auth) throw new Error('Firebase not initialized');
-  const result = await signInWithPopup(auth, googleProvider);
+  await signInWithRedirect(auth, googleProvider);
+}
+
+export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
+  if (!auth) return null;
+  const result = await getRedirectResult(auth);
+  if (!result) return null;
   const token = await result.user.getIdToken();
   return { token, user: result.user };
 }

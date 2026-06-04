@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import type { User } from 'firebase/auth';
 
 const ROLE_KEY = 'inexxio_user_role';
+const NAME_KEY = 'inexxio_user_fullname';
 
 const navLinks = [
   { href: '/ueber-uns', label: 'Über uns' },
@@ -24,6 +25,7 @@ export function Navbar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [roleFetched, setRoleFetched] = useState(false);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [profileName, setProfileName] = useState('');
   const pathname = usePathname();
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -44,23 +46,32 @@ export function Navbar() {
       setUser(firebaseUser);
       setAuthLoaded(true);
       if (firebaseUser) {
-        const cached = localStorage.getItem(ROLE_KEY);
-        if (cached) setUserRole(cached);
+        const cachedRole = localStorage.getItem(ROLE_KEY);
+        if (cachedRole) setUserRole(cachedRole);
+        const cachedName = localStorage.getItem(NAME_KEY);
+        if (cachedName) setProfileName(cachedName);
         try {
           const token = await firebaseUser.getIdToken();
           api.setToken(token);
           const profile = await api.getMe();
           setUserRole(profile.role);
           localStorage.setItem(ROLE_KEY, profile.role);
+          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+          if (fullName) {
+            localStorage.setItem(NAME_KEY, fullName);
+            setProfileName(fullName);
+          }
         } catch {
-          // keep cached value
+          // keep cached values
         } finally {
           setRoleFetched(true);
         }
       } else {
         setUserRole(null);
         setRoleFetched(true);
+        setProfileName('');
         localStorage.removeItem(ROLE_KEY);
+        localStorage.removeItem(NAME_KEY);
       }
     });
     return unsubscribe;
@@ -76,6 +87,16 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    function onNameUpdate(e: Event) {
+      const name = (e as CustomEvent<string>).detail;
+      setProfileName(name);
+      localStorage.setItem(NAME_KEY, name);
+    }
+    window.addEventListener('inexxio:profile-name-updated', onNameUpdate);
+    return () => window.removeEventListener('inexxio:profile-name-updated', onNameUpdate);
+  }, []);
+
   async function handleLogout() {
     setUserMenuOpen(false);
     setMobileOpen(false);
@@ -87,11 +108,12 @@ export function Navbar() {
     ? '/login'
     : `/login?from=${encodeURIComponent(pathname)}`;
 
-  const initials = user?.displayName
-    ? user.displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+  const nameForDisplay = profileName || user?.displayName || '';
+  const initials = nameForDisplay
+    ? nameForDisplay.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : user?.email?.slice(0, 2).toUpperCase() || 'IX';
 
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
+  const displayName = nameForDisplay || user?.email?.split('@')[0] || 'Benutzer';
 
   // Show ERP when role allows, or when role is unknown (still loading / backend down).
   // The ERP layout is the real security gate — it redirects customer/supplier away.
