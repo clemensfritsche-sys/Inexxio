@@ -125,7 +125,7 @@ export function Navbar() {
             </Link>
 
             {/* Desktop nav */}
-            <nav style={{ display: 'flex', alignItems: 'center', gap: 28 }} className="hidden md:flex">
+            <nav style={{ alignItems: 'center', gap: 28 }} className="hidden md:flex">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
@@ -154,7 +154,7 @@ export function Navbar() {
             </nav>
 
             {/* Desktop right */}
-            <div className="hidden md:flex" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div className="hidden md:flex" style={{ alignItems: 'center', gap: 16 }}>
               {/* Language selector */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
                 <button style={{ color: 'var(--fg-1)', fontWeight: 600 }}>DE</button>

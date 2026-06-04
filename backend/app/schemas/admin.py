@@ -184,6 +184,46 @@ class UserProfileUpdate(BaseModel):
     date_of_birth: Optional[date] = None
     phone: Optional[str] = None
     phone_mobile: Optional[str] = None
+
+    # Contact address
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    postal_code: Optional[str] = None
+    state_canton: Optional[str] = None
+    country: Optional[str] = None
+
+    # Shipping B2C
+    ship_b2c_first_name: Optional[str] = None
+    ship_b2c_last_name: Optional[str] = None
+    ship_b2c_address_line1: Optional[str] = None
+    ship_b2c_address_line2: Optional[str] = None
+    ship_b2c_city: Optional[str] = None
+    ship_b2c_postal_code: Optional[str] = None
+    ship_b2c_country: Optional[str] = None
+
+    # Shipping B2B
+    ship_b2b_company: Optional[str] = None
+    ship_b2b_contact: Optional[str] = None
+    ship_b2b_address_line1: Optional[str] = None
+    ship_b2b_address_line2: Optional[str] = None
+    ship_b2b_city: Optional[str] = None
+    ship_b2b_postal_code: Optional[str] = None
+    ship_b2b_country: Optional[str] = None
+
+    # Invoice / billing address
+    invoice_company: Optional[str] = None
+    invoice_first_name: Optional[str] = None
+    invoice_last_name: Optional[str] = None
+    invoice_address_line1: Optional[str] = None
+    invoice_address_line2: Optional[str] = None
+    invoice_city: Optional[str] = None
+    invoice_postal_code: Optional[str] = None
+    invoice_country: Optional[str] = None
+    invoice_vat_id: Optional[str] = None
+    invoice_email: Optional[str] = None
+
+    # Business / company info
     company_name: Optional[str] = None
     company_legal_form: Optional[str] = None
     uid_number: Optional[str] = None
@@ -197,10 +237,15 @@ class UserProfileUpdate(BaseModel):
     customer_group: Optional[str] = None
     credit_limit: Optional[Decimal] = None
     accepts_marketing: Optional[bool] = None
+    newsletter_opt_in: Optional[bool] = None
+
+    # Employee
     department: Optional[str] = None
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None
     weekly_hours: Optional[Decimal] = None
+
+    # Preferences
     language: Optional[str] = None
     timezone: Optional[str] = None
     notification_email: Optional[bool] = None

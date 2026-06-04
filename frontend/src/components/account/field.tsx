@@ -65,6 +65,7 @@ export function SelectField({ label, value, onChange, options, hint }: SelectFie
           background: '#fff',
           outline: 'none',
           width: '100%',
+          boxSizing: 'border-box',
           cursor: 'pointer',
         }}
       >

@@ -87,7 +87,11 @@ def get_current_user(
             if email and user.email != email:
                 collision = (
                     db.query(UserProfile)
-                    .filter(UserProfile.email == email, UserProfile.id != user.id)
+                    .filter(
+                        UserProfile.email == email,
+                        UserProfile.id != user.id,
+                        UserProfile.is_active == True,
+                    )
                     .first()
                 )
                 if not collision:
