@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Settings2, Mail, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
@@ -39,9 +40,11 @@ export default function LoginPage() {
       localStorage.setItem('inexxio_token', token);
       router.push('/erp');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '';
-      if (message.includes('popup-blocked') || message.includes('popup_closed')) {
+      const code = (err as FirebaseError).code ?? '';
+      if (code === 'auth/popup-blocked') {
         setError('Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite.');
+      } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // Nutzer hat Popup geschlossen – kein Fehler anzeigen
       } else {
         setError('Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.');
       }
