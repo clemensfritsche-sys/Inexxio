@@ -156,7 +156,7 @@ gcloud run deploy "$CLOUD_RUN_SERVICE" \
   --service-account "${BACKEND_SA_EMAIL}" \
   --add-cloudsql-instances "${DB_CONNECTION_NAME}" \
   --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,INITIAL_ADMIN_EMAIL=INITIAL_ADMIN_EMAIL:latest" \
-  --set-env-vars "APP_ENV=development,CORS_ORIGINS=[\"https://inexxio-dev.web.app\",\"http://localhost:3000\"]" \
+  --set-env-vars "APP_ENV=development" \
   --min-instances 0 \
   --max-instances 3 \
   --memory 512Mi \
