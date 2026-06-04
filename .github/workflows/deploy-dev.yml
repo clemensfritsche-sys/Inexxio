@@ -84,10 +84,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Authenticate to Google Cloud (Firebase SA)
+      - name: Authenticate to Google Cloud (deploy SA)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_INEXXIO_DEV }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
