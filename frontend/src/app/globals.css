@@ -1,43 +1,340 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Inter+Tight:wght@500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Inexxio Design Tokens ───────────────────────────── */
+:root {
+  --ix-red:        #E51A14;
+  --ix-red-bright: #FA3030;
+  --ix-red-deep:   #B3120F;
+  --ix-black:      #0A0A0B;
+  --fg-1: #0A0A0B;
+  --fg-2: #3A3A3D;
+  --fg-3: #6E6E73;
+  --fg-4: #A7A7AC;
+  --bg-1: #FFFFFF;
+  --border-2: #D7D4CC;
+  --shadow-red: 0 8px 24px rgba(229,26,20,0.26);
+  --shadow-lg:  0 18px 44px rgba(16,14,12,0.12);
+  --font-display: 'Inter Tight', 'Inter', Arial, sans-serif;
+  --font-body:    'Inter', Arial, sans-serif;
+}
+
+/* ── Login Page ──────────────────────────────────────── */
+.ix-login-bg {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #f5ede4 0%, #e8ddd2 50%, #f0ebe3 100%);
+  z-index: 40;
+}
+.ix-login-bg::before {
+  content: "";
+  position: absolute;
+  width: 200%; height: 200%;
+  background:
+    radial-gradient(circle at 20% 50%, rgba(229,26,20,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(201,162,122,0.03) 0%, transparent 50%);
+  animation: ix-drift 20s ease-in-out infinite;
+}
+@keyframes ix-drift {
+  0%,100% { transform: translate(0,0); }
+  50%      { transform: translate(20px,-20px); }
+}
+
+.ix-login-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.ix-login-card {
+  background: var(--bg-1);
+  border-radius: 28px;
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0,0,0,0.06);
+  width: 100%;
+  max-width: 460px;
+  padding: 56px 48px;
+  animation: ix-slide-up 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+  position: relative;
+}
+@media (max-width: 480px) {
+  .ix-login-card { padding: 36px 24px; border-radius: 20px; }
+}
+
+@keyframes ix-slide-up {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ─────────────────────────────────────────── */
+.ix-login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.ix-login-logo {
+  height: 44px;
+  width: auto;
+  margin: 0 auto 20px;
+  display: block;
+  animation: ix-float 3s ease-in-out infinite;
+}
+@keyframes ix-float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+.ix-login-header h1 {
+  font: 700 22px/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+  margin-bottom: 6px;
+}
+.ix-login-header p {
+  font: 400 14px/1.5 var(--font-body);
+  color: var(--fg-3);
+}
+
+/* ── Form ────────────────────────────────────────────── */
+.ix-login-form { display: flex; flex-direction: column; gap: 16px; }
+
+.ix-form-group { display: flex; flex-direction: column; gap: 6px; }
+
+.ix-form-label {
+  font: 600 14px/1.2 var(--font-body);
+  color: var(--fg-1);
+}
+
+.ix-email-input {
+  font: 400 15px/1.5 var(--font-body);
+  padding: 12px 14px;
+  border: 1.5px solid var(--border-2);
+  border-radius: 12px;
+  background: var(--bg-1);
+  color: var(--fg-1);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  width: 100%;
+  outline: none;
+}
+.ix-email-input::placeholder { color: var(--fg-4); }
+.ix-email-input:focus {
+  border-color: var(--ix-red);
+  box-shadow: 0 0 0 3px rgba(229,26,20,0.1);
+}
+
+/* ── Submit Button ───────────────────────────────────── */
+.ix-submit-btn {
+  font: 600 15px/1.2 var(--font-body);
+  padding: 14px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--ix-red);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-red);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.ix-submit-btn:hover:not(:disabled) {
+  background: var(--ix-red-deep);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.ix-submit-btn:active:not(:disabled) { transform: scale(0.98); }
+.ix-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Spinner ─────────────────────────────────────────── */
+.ix-spinner {
+  width: 15px; height: 15px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ix-spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes ix-spin { to { transform: rotate(360deg); } }
+
+/* ── Google Button ───────────────────────────────────── */
+.ix-google-btn {
+  font: 500 14px/1.2 var(--font-body);
+  padding: 11px 16px;
+  border: 1.5px solid var(--border-2);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--fg-2);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.ix-google-btn:hover:not(:disabled) {
+  background: #fafafa;
+  border-color: #aaa;
+  transform: translateY(-1px);
+}
+.ix-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Divider ─────────────────────────────────────────── */
+.ix-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--fg-4);
+  font: 500 12px var(--font-body);
+}
+.ix-divider::before,
+.ix-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-2);
+}
+
+/* ── Error ───────────────────────────────────────────── */
+.ix-login-error {
+  padding: 10px 14px;
+  background: rgba(229,26,20,0.06);
+  border: 1px solid rgba(229,26,20,0.25);
+  border-radius: 10px;
+  color: var(--ix-red);
+  font: 400 13px/1.5 var(--font-body);
+  animation: ix-shake 0.4s ease;
+}
+@keyframes ix-shake {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(-7px); }
+  75%      { transform: translateX(7px); }
+}
+
+/* ── Success ─────────────────────────────────────────── */
+.ix-success {
+  text-align: center;
+  animation: ix-fade-in 0.5s ease 0.1s both;
+}
+@keyframes ix-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ix-success-icon {
+  width: 96px; height: 96px;
+  margin: 0 auto 28px;
+}
+.ix-success-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 6px 16px rgba(229,26,20,0.15)); }
+.ix-success-circle {
+  transform-origin: 60px 60px;
+  animation: ix-scale-in 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes ix-scale-in {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.ix-success-line-1 {
+  stroke-dasharray: 32;
+  stroke-dashoffset: 32;
+  animation: ix-draw 0.5s cubic-bezier(0.34,1.56,0.64,1) 0.2s forwards;
+}
+.ix-success-line-2 {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: ix-draw 0.6s cubic-bezier(0.34,1.56,0.64,1) 0.45s forwards;
+}
+@keyframes ix-draw {
+  to { stroke-dashoffset: 0; }
+}
+.ix-success h2 {
+  font: 700 20px/1.3 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--fg-1);
+  margin-bottom: 10px;
+}
+.ix-success p {
+  font: 400 14px/1.6 var(--font-body);
+  color: var(--fg-3);
+  margin-bottom: 20px;
+}
+.ix-success-reset {
+  font: 500 13px var(--font-body);
+  color: var(--ix-red);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Footer ──────────────────────────────────────────── */
+.ix-login-footer {
+  margin-top: 20px;
+  text-align: center;
+  font: 400 12px/1.6 var(--font-body);
+  color: var(--fg-4);
+}
+.ix-login-footer a { color: var(--fg-3); text-underline-offset: 3px; }
+.ix-login-footer a:hover { color: var(--ix-red); }
+
+/* ── Variations ──────────────────────────────────────── */
+/* Var 1 – Bouncy Pill */
+.ix-var-1 .ix-email-input:focus { transform: scale(1.015); }
+.ix-var-1 .ix-submit-btn:hover:not(:disabled) { animation: ix-bounce 0.55s cubic-bezier(0.34,1.56,0.64,1); }
+@keyframes ix-bounce {
+  0%,100% { transform: translateY(-2px); }
+  50%      { transform: translateY(-10px); }
+}
+
+/* Var 2 – Magnetic Ripple */
+.ix-var-2 .ix-submit-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  border-radius: 999px;
+  transition: background 0.4s;
+}
+.ix-var-2 .ix-submit-btn:hover:not(:disabled)::before { background: rgba(255,255,255,0.18); }
+
+/* Var 3 – Twist & Glow */
+.ix-var-3 .ix-email-input:focus {
+  transform: perspective(800px) rotateX(1.5deg);
+}
+.ix-var-3 .ix-submit-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.35), transparent);
+  border-radius: 999px;
+  transform: scale(0);
+  transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+}
+.ix-var-3 .ix-submit-btn:hover:not(:disabled)::after { transform: scale(1); }
+
 @layer base {
-  * {
-    @apply border-slate-200;
-  }
-  body {
-    @apply bg-white text-slate-900 antialiased;
-  }
-  h1 {
-    @apply text-4xl font-bold tracking-tight;
-  }
-  h2 {
-    @apply text-3xl font-bold;
-  }
-  h3 {
-    @apply text-xl font-semibold;
-  }
+  * { @apply border-slate-200; }
+  body { @apply bg-white text-slate-900 antialiased; }
+  h1 { @apply text-4xl font-bold tracking-tight; }
+  h2 { @apply text-3xl font-bold; }
+  h3 { @apply text-xl font-semibold; }
 }
 
 @layer components {
-  .container {
-    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
-  .section {
-    @apply py-16 sm:py-24;
-  }
-  .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2;
-  }
-  .btn-secondary {
-    @apply bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2;
-  }
-  .form-input {
-    @apply w-full border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow;
-  }
-  .card {
-    @apply bg-white rounded-xl border border-slate-200 shadow-sm;
-  }
+  .container { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
+  .section { @apply py-16 sm:py-24; }
+  .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2; }
+  .btn-secondary { @apply bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-lg font-medium transition-colors inline-flex items-center gap-2; }
+  .form-input { @apply w-full border border-slate-300 rounded-lg px-3 py-2.5 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow; }
+  .card { @apply bg-white rounded-xl border border-slate-200 shadow-sm; }
 }
+

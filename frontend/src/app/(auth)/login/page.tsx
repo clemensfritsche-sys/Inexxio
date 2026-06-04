@@ -3,12 +3,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Settings2, Mail, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle, getGoogleSignInResult } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
-type Step = 'input' | 'sent' | 'loading';
+type Step = 'input' | 'loading' | 'sent';
 
 function getGoogleErrorMessage(code: string): string {
   switch (code) {
@@ -16,17 +15,17 @@ function getGoogleErrorMessage(code: string): string {
     case 'auth/cancelled-popup-request':
       return '';
     case 'auth/operation-not-allowed':
-      return 'Google-Anmeldung ist nicht aktiviert. Bitte wenden Sie sich an den Administrator.';
+      return 'Google-Anmeldung ist nicht aktiviert.';
     case 'auth/unauthorized-domain':
-      return 'Diese Domain ist nicht für die Anmeldung autorisiert.';
+      return 'Diese Domain ist nicht autorisiert.';
     case 'auth/network-request-failed':
-      return 'Netzwerkfehler. Bitte prüfen Sie Ihre Internetverbindung.';
+      return 'Netzwerkfehler. Bitte Internetverbindung prüfen.';
     case 'auth/web-storage-unavailable':
-      return 'Browser-Speicher nicht verfügbar. Bitte prüfen Sie Ihre Cookie-Einstellungen.';
-    case 'auth/user-disabled':
-      return 'Dieses Konto wurde deaktiviert.';
+      return 'Browser-Speicher nicht verfügbar. Cookie-Einstellungen prüfen.';
     default:
-      return `Anmeldung fehlgeschlagen${code ? ` (${code})` : ''}. Bitte versuchen Sie es erneut.`;
+      return code
+        ? `Anmeldung fehlgeschlagen (${code}). Bitte erneut versuchen.`
+        : 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
   }
 }
 
@@ -36,8 +35,12 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>('input');
   const [error, setError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [sentEmail, setSentEmail] = useState('');
+  const [variation, setVariation] = useState(1);
 
   useEffect(() => {
+    setVariation(Math.floor(Math.random() * 3) + 1);
+
     const hasPendingRedirect = sessionStorage.getItem('google_redirect') === '1';
     if (hasPendingRedirect) setGoogleLoading(true);
 
@@ -69,9 +72,10 @@ export default function LoginPage() {
     setStep('loading');
     try {
       await sendMagicLink(email.trim());
+      setSentEmail(email.trim());
       setStep('sent');
     } catch {
-      setError('Fehler beim Senden des Links. Bitte versuchen Sie es erneut.');
+      setError('Fehler beim Senden. Bitte versuchen Sie es erneut.');
       setStep('input');
     }
   }
@@ -91,137 +95,145 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-md">
-      {/* Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white mb-4">
-            <Settings2 className="h-6 w-6" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Willkommen zurück</h1>
-          <p className="mt-1 text-sm text-slate-500">Melden Sie sich bei Inexxio an</p>
-        </div>
+    <>
+      <div className="ix-login-bg" />
 
-        {/* Error */}
-        {error && (
-          <div className="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+      <div className="ix-login-lightbox">
+        <div className={`ix-login-card ix-var-${variation}`}>
 
-        {/* Sent state */}
-        {step === 'sent' ? (
-          <div className="text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
-              <CheckCircle2 className="h-8 w-8 text-green-600" />
+          {step === 'sent' ? (
+            /* ── Success State ── */
+            <div className="ix-success">
+              <div className="ix-success-icon">
+                <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                  <circle
+                    className="ix-success-circle"
+                    cx="60" cy="60" r="58"
+                    fill="none" stroke="#E51A14" strokeWidth="1.5" opacity="0.2"
+                  />
+                  <polyline
+                    className="ix-success-line-1"
+                    points="38,65 52,78"
+                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                  />
+                  <polyline
+                    className="ix-success-line-2"
+                    points="52,78 88,42"
+                    fill="none" stroke="#E51A14" strokeWidth="5"
+                    strokeLinecap="round" strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <h2>Überprüfen Sie Ihre E-Mail!</h2>
+              <p>
+                Wir haben einen Anmeldungslink an{' '}
+                <strong style={{ color: 'var(--fg-2)' }}>{sentEmail}</strong>{' '}
+                gesendet. Bitte prüfen Sie Ihren Posteingang.
+              </p>
+              <button
+                className="ix-success-reset"
+                onClick={() => { setStep('input'); setEmail(''); }}
+              >
+                Andere E-Mail verwenden
+              </button>
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Link gesendet!</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Wir haben einen Anmeldelink an{' '}
-              <span className="font-medium text-slate-900">{email}</span> gesendet.
-              Bitte prüfen Sie Ihren Posteingang.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Kein E-Mail erhalten? Prüfen Sie auch den Spam-Ordner.
-            </p>
-            <button
-              onClick={() => { setStep('input'); setEmail(''); }}
-              className="mt-4 text-sm text-blue-600 hover:underline"
-            >
-              Andere E-Mail verwenden
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Magic Link Form */}
-            <form onSubmit={handleMagicLink} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
-                  E-Mail-Adresse
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          ) : (
+            <>
+              {/* ── Header ── */}
+              <div className="ix-login-header">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Inexxio" className="ix-login-logo" />
+                <h1>Anmelden</h1>
+                <p>Geben Sie Ihre E-Mail-Adresse ein</p>
+              </div>
+
+              {/* ── Error ── */}
+              {error && (
+                <div key={error} className="ix-login-error" style={{ marginBottom: 16 }}>
+                  {error}
+                </div>
+              )}
+
+              {/* ── Magic Link Form ── */}
+              <form onSubmit={handleMagicLink} className="ix-login-form">
+                <div className="ix-form-group">
+                  <label className="ix-form-label" htmlFor="email">
+                    E-Mail-Adresse
+                  </label>
                   <input
                     id="email"
                     type="email"
-                    required
+                    className="ix-email-input"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="ihre@email.com"
-                    className="form-input pl-10"
-                    disabled={step === 'loading'}
+                    placeholder="sie@unternehmen.ch"
+                    required
                     autoComplete="email"
                     autoFocus
+                    disabled={step === 'loading'}
                   />
                 </div>
+
+                <button
+                  type="submit"
+                  className="ix-submit-btn"
+                  disabled={step === 'loading' || !email.trim()}
+                >
+                  {step === 'loading' ? (
+                    <>
+                      <span className="ix-spinner" />
+                      Wird gesendet…
+                    </>
+                  ) : (
+                    'Magic Link senden'
+                  )}
+                </button>
+              </form>
+
+              {/* ── Google Divider ── */}
+              <div className="ix-divider" style={{ marginTop: 20, marginBottom: 12 }}>
+                <span>oder</span>
               </div>
+
+              {/* ── Google Button ── */}
               <button
-                type="submit"
-                disabled={step === 'loading' || !email.trim()}
-                className="btn-primary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleGoogleLogin}
+                disabled={googleLoading}
+                className="ix-google-btn"
               >
-                {step === 'loading' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Wird gesendet…
-                  </>
+                {googleLoading ? (
+                  <span
+                    className="ix-spinner"
+                    style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
+                  />
                 ) : (
-                  <>
-                    Magic Link senden
-                    <ArrowRight className="h-4 w-4" />
-                  </>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
                 )}
+                Mit Google anmelden
               </button>
-            </form>
 
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="flex-1 border-t border-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">oder</span>
-              <div className="flex-1 border-t border-slate-200" />
-            </div>
-
-            {/* Google Sign-In */}
-            <button
-              onClick={handleGoogleLogin}
-              disabled={googleLoading}
-              className="btn-secondary w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {googleLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <svg className="h-4 w-4" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-              )}
-              Mit Google anmelden
-            </button>
-          </>
-        )}
+              {/* ── Footer ── */}
+              <p className="ix-login-footer">
+                Mit der Anmeldung stimmen Sie unseren{' '}
+                <Link href="/agb">AGB</Link>{' '}
+                und der{' '}
+                <Link href="/datenschutz">Datenschutzerklärung</Link>{' '}
+                zu.
+                <br />
+                <Link href="/" style={{ display: 'inline-block', marginTop: 6 }}>
+                  ← Zurück zur Startseite
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
       </div>
-
-      {/* Terms notice */}
-      <p className="mt-4 text-center text-xs text-slate-500">
-        Mit der Anmeldung stimmen Sie unseren{' '}
-        <Link href="/agb" className="text-blue-600 hover:underline">
-          AGB
-        </Link>{' '}
-        und der{' '}
-        <Link href="/datenschutz" className="text-blue-600 hover:underline">
-          Datenschutzerklärung
-        </Link>{' '}
-        zu.
-      </p>
-      <p className="mt-2 text-center text-xs text-slate-500">
-        <Link href="/" className="text-slate-600 hover:text-slate-900 hover:underline">
-          ← Zurück zur Startseite
-        </Link>
-      </p>
-    </div>
+    </>
   );
 }
