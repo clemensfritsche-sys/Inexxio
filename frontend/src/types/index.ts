@@ -246,13 +246,27 @@ export interface UserProfile {
   invoice_vat_id: string | null;
   invoice_email: string | null;
 
-  payment_terms: number;
+  salutation: string | null;
+  date_of_birth: string | null;
+
+  company_name: string | null;
+  company_legal_form: string | null;
+  uid_number: string | null;
+  vat_number: string | null;
+  vat_registered: boolean;
+  trade_register_nr: string | null;
+  trade_register_canton: string | null;
+  company_website: string | null;
+  company_billing_email: string | null;
+
+  customer_group: string | null;
+  credit_limit: string | null;
+  accepts_marketing: boolean;
+
   stripe_customer_id: string | null;
-  preferred_currency: string;
 
   department: string | null;
   job_title: string | null;
-  employee_number: string | null;
   employment_start_date: string | null;
   weekly_hours: string | null;
 

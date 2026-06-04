@@ -64,15 +64,32 @@ class UserProfile(Base, TimestampMixin):
     invoice_vat_id: Mapped[Optional[str]] = mapped_column(String(50))
     invoice_email: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Payment & billing
-    payment_terms: Mapped[int] = mapped_column(Integer, default=30)
+    # Personal extras
+    salutation: Mapped[Optional[str]] = mapped_column(String(20))  # Herr / Frau / Divers
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    # Business / company info (for B2B users)
+    company_name: Mapped[Optional[str]] = mapped_column(String(255))
+    company_legal_form: Mapped[Optional[str]] = mapped_column(String(50))
+    uid_number: Mapped[Optional[str]] = mapped_column(String(20))
+    vat_number: Mapped[Optional[str]] = mapped_column(String(20))
+    vat_registered: Mapped[bool] = mapped_column(Boolean, default=False)
+    trade_register_nr: Mapped[Optional[str]] = mapped_column(String(50))
+    trade_register_canton: Mapped[Optional[str]] = mapped_column(String(50))
+    company_website: Mapped[Optional[str]] = mapped_column(String(255))
+    company_billing_email: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Online shop / CRM
+    customer_group: Mapped[Optional[str]] = mapped_column(String(50))
+    credit_limit: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    accepts_marketing: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Payment
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255))
-    preferred_currency: Mapped[str] = mapped_column(String(10), default="CHF")
 
     # Employee info
     department: Mapped[Optional[str]] = mapped_column(String(100))
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
-    employee_number: Mapped[Optional[str]] = mapped_column(String(50))
     employment_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     weekly_hours: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
 

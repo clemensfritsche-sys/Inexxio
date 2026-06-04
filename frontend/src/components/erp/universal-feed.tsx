@@ -53,6 +53,7 @@ export function UniversalFeed() {
   const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
 
   const isUserFilter = filter === 'user';
+  const needsUsers = filter === 'all' || filter === 'user';
 
   const { data: objectsData, isLoading: objectsLoading, isError: objectsError } = useQuery({
     queryKey: ['objects', { q: search, type: filter }],
@@ -70,21 +71,25 @@ export function UniversalFeed() {
   const { data: usersData, isLoading: usersLoading, isError: usersError } = useQuery({
     queryKey: ['users'],
     queryFn: () => api.getUsers(),
-    enabled: isUserFilter,
+    enabled: needsUsers,
     retry: 1,
     staleTime: 30_000,
   });
 
-  const isLoading = isUserFilter ? usersLoading : objectsLoading;
+  const isLoading = isUserFilter ? usersLoading : (objectsLoading || (filter === 'all' && usersLoading));
   const isError = isUserFilter ? usersError : objectsError;
 
   const objects: UniversalObject[] = useMemo(() => {
     if (isUserFilter) {
-      const users = usersError || !usersData ? [] : usersData;
-      return users.map(profileToObject);
+      return (usersData ?? []).map(profileToObject);
     }
-    return !objectsData ? [] : objectsData.items;
-  }, [isUserFilter, usersData, usersError, objectsData, objectsError]);
+    const objs = objectsData?.items ?? [];
+    if (filter === 'all') {
+      const users = (usersData ?? []).map(profileToObject);
+      return [...objs, ...users];
+    }
+    return objs;
+  }, [isUserFilter, filter, usersData, objectsData]);
 
   const filtered = useMemo(() => {
     let list = objects;
@@ -107,6 +112,7 @@ export function UniversalFeed() {
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['users'] });
+    queryClient.invalidateQueries({ queryKey: ['objects'] });
   }, [queryClient]);
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Users, Shield, Mail, Phone, MapPin, Briefcase, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Shield, Mail, Phone, MapPin, Briefcase, Calendar, Building2, ShoppingBag } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { UniversalObject, UserProfile, UserPlatformRole } from '@/types';
 
@@ -56,7 +56,6 @@ interface UserDetailProps {
 
 export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetailProps) {
   const [tab, setTab] = useState<'profil' | 'rolle'>('profil');
-  const [roleValue, setRoleValue] = useState<UserPlatformRole>((object.data as UserProfile)?.role ?? 'customer');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -64,8 +63,20 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
   const profile = object.data as UserProfile;
   const isAdmin = currentUserRole === 'admin';
 
+  const [roleValue, setRoleValue] = useState<UserPlatformRole>(profile?.role ?? 'customer');
+
+  // Sync role when a different user is selected
+  useEffect(() => {
+    setRoleValue(profile?.role ?? 'customer');
+    setSaveError('');
+    setSaved(false);
+  }, [profile?.id, profile?.role]);
+
   const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.display_name || profile?.email || '—';
   const roleColors = ROLE_COLORS[roleValue] ?? ROLE_COLORS.customer;
+
+  const hasCompanyInfo = !!(profile?.company_name || profile?.uid_number || profile?.vat_number || profile?.trade_register_nr);
+  const hasShopInfo = !!(profile?.customer_group || profile?.credit_limit || profile?.date_of_birth);
 
   async function handleRoleSave() {
     if (!profile?.id) return;
@@ -122,7 +133,7 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
             color: roleColors.color,
             flexShrink: 0,
           }}>
-            {ROLE_LABELS[roleValue]}
+            {ROLE_LABELS[profile?.role ?? 'customer']}
           </div>
         </div>
 
@@ -156,10 +167,14 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
         {tab === 'profil' && (
           <>
             <Section title="Kontakt" icon={Mail}>
+              <Field label="Vorname" value={profile?.first_name} />
+              <Field label="Nachname" value={profile?.last_name} />
               <Field label="E-Mail" value={profile?.email} />
+              <Field label="Anrede" value={profile?.salutation} />
               <Field label="Telefon" value={profile?.phone} />
               <Field label="Mobiltelefon" value={profile?.phone_mobile} />
               <Field label="Sprache" value={profile?.language?.toUpperCase()} />
+              <Field label="Objektnummer" value={profile?.object_id != null ? String(profile.object_id) : null} />
             </Section>
 
             {(profile?.address_line1 || profile?.city) && (
@@ -171,16 +186,36 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
               </Section>
             )}
 
+            {hasCompanyInfo && (
+              <Section title="Firma / Geschäft" icon={Building2}>
+                <Field label="Firmenname" value={profile?.company_name} />
+                <Field label="Rechtsform" value={profile?.company_legal_form} />
+                <Field label="UID-Nummer" value={profile?.uid_number} />
+                <Field label="MWST-Nummer" value={profile?.vat_number} />
+                <Field label="Handelsregister-Nr." value={profile?.trade_register_nr} />
+                <Field label="Kanton HR" value={profile?.trade_register_canton} />
+                <Field label="Website" value={profile?.company_website} />
+                <Field label="Rechnungs-E-Mail" value={profile?.company_billing_email} />
+              </Section>
+            )}
+
+            {hasShopInfo && (
+              <Section title="Online Shop / CRM" icon={ShoppingBag}>
+                <Field label="Kundengruppe" value={profile?.customer_group} />
+                <Field label="Kreditlimit (CHF)" value={profile?.credit_limit ? String(profile.credit_limit) : null} />
+                <Field label="Geburtsdatum" value={profile?.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString('de-CH') : null} />
+                <Field label="Marketing" value={profile?.accepts_marketing ? 'Einverstanden' : 'Nicht einverstanden'} />
+              </Section>
+            )}
+
             <Section title="Anstellung" icon={Briefcase}>
               <Field label="Abteilung" value={profile?.department} />
               <Field label="Funktion" value={profile?.job_title} />
-              <Field label="Mitarbeiternummer" value={profile?.employee_number} />
+              <Field label="Eintrittsdatum" value={profile?.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : null} />
               <Field label="Pensum" value={profile?.weekly_hours ? `${profile.weekly_hours}h/Woche` : null} />
             </Section>
 
             <Section title="Rechnungsstellung" icon={Calendar}>
-              <Field label="Zahlungsziel" value={profile?.payment_terms ? `${profile.payment_terms} Tage` : null} />
-              <Field label="Währung" value={profile?.preferred_currency} />
               <Field label="MwSt-Nummer" value={profile?.invoice_vat_id} />
               <Field label="Rechnungs-E-Mail" value={profile?.invoice_email} />
             </Section>
@@ -250,10 +285,10 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
                       borderRadius: 20,
                       fontSize: 12,
                       fontWeight: 600,
-                      background: roleColors.bg,
-                      color: roleColors.color,
+                      background: ROLE_COLORS[profile?.role ?? 'customer'].bg,
+                      color: ROLE_COLORS[profile?.role ?? 'customer'].color,
                     }}>
-                      {ROLE_LABELS[roleValue]}
+                      {ROLE_LABELS[profile?.role ?? 'customer']}
                     </div>
                     <span style={{ fontSize: 13, color: '#64748b' }}>
                       Rollenänderungen sind nur Admins vorbehalten.

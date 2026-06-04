@@ -133,15 +133,32 @@ class UserProfileResponse(BaseModel):
     invoice_vat_id: Optional[str]
     invoice_email: Optional[str]
 
+    # Personal extras
+    salutation: Optional[str]
+    date_of_birth: Optional[date]
+
+    # Business / company info
+    company_name: Optional[str]
+    company_legal_form: Optional[str]
+    uid_number: Optional[str]
+    vat_number: Optional[str]
+    vat_registered: bool
+    trade_register_nr: Optional[str]
+    trade_register_canton: Optional[str]
+    company_website: Optional[str]
+    company_billing_email: Optional[str]
+
+    # Online shop / CRM
+    customer_group: Optional[str]
+    credit_limit: Optional[Decimal]
+    accepts_marketing: bool
+
     # Payment
-    payment_terms: int
     stripe_customer_id: Optional[str]
-    preferred_currency: str
 
     # Employee
     department: Optional[str]
     job_title: Optional[str]
-    employee_number: Optional[str]
     employment_start_date: Optional[date]
     weekly_hours: Optional[Decimal]
 
@@ -160,9 +177,28 @@ class UserProfileResponse(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    salutation: Optional[str] = None
+    date_of_birth: Optional[date] = None
     phone: Optional[str] = None
+    phone_mobile: Optional[str] = None
+    company_name: Optional[str] = None
+    company_legal_form: Optional[str] = None
+    uid_number: Optional[str] = None
+    vat_number: Optional[str] = None
+    vat_registered: Optional[bool] = None
+    trade_register_nr: Optional[str] = None
+    trade_register_canton: Optional[str] = None
+    company_website: Optional[str] = None
+    company_billing_email: Optional[str] = None
+    customer_group: Optional[str] = None
+    credit_limit: Optional[Decimal] = None
+    accepts_marketing: Optional[bool] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
+    employment_start_date: Optional[date] = None
+    weekly_hours: Optional[Decimal] = None
     language: Optional[str] = None
     timezone: Optional[str] = None
     notification_email: Optional[bool] = None
