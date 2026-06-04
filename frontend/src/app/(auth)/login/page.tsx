@@ -1,14 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Settings2, Mail, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
-import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
+import { sendMagicLink, signInWithGoogle, getGoogleSignInResult } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
 type Step = 'input' | 'sent' | 'loading';
+
+function getGoogleErrorMessage(code: string): string {
+  switch (code) {
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return '';
+    case 'auth/operation-not-allowed':
+      return 'Google-Anmeldung ist nicht aktiviert. Bitte wenden Sie sich an den Administrator.';
+    case 'auth/unauthorized-domain':
+      return 'Diese Domain ist nicht für die Anmeldung autorisiert.';
+    case 'auth/network-request-failed':
+      return 'Netzwerkfehler. Bitte prüfen Sie Ihre Internetverbindung.';
+    case 'auth/web-storage-unavailable':
+      return 'Browser-Speicher nicht verfügbar. Bitte prüfen Sie Ihre Cookie-Einstellungen.';
+    case 'auth/user-disabled':
+      return 'Dieses Konto wurde deaktiviert.';
+    default:
+      return `Anmeldung fehlgeschlagen${code ? ` (${code})` : ''}. Bitte versuchen Sie es erneut.`;
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +36,31 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>('input');
   const [error, setError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    const hasPendingRedirect = sessionStorage.getItem('google_redirect') === '1';
+    if (hasPendingRedirect) setGoogleLoading(true);
+
+    void (async () => {
+      try {
+        const result = await getGoogleSignInResult();
+        sessionStorage.removeItem('google_redirect');
+        if (result) {
+          api.setToken(result.token);
+          localStorage.setItem('inexxio_token', result.token);
+          router.push('/erp');
+        } else {
+          setGoogleLoading(false);
+        }
+      } catch (err: unknown) {
+        sessionStorage.removeItem('google_redirect');
+        setGoogleLoading(false);
+        const code = (err as FirebaseError).code ?? '';
+        const msg = getGoogleErrorMessage(code);
+        if (msg) setError(msg);
+      }
+    })();
+  }, [router]);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -25,7 +70,7 @@ export default function LoginPage() {
     try {
       await sendMagicLink(email.trim());
       setStep('sent');
-    } catch (err) {
+    } catch {
       setError('Fehler beim Senden des Links. Bitte versuchen Sie es erneut.');
       setStep('input');
     }
@@ -35,35 +80,13 @@ export default function LoginPage() {
     setError('');
     setGoogleLoading(true);
     try {
-      const { token } = await signInWithGoogle();
-      api.setToken(token);
-      localStorage.setItem('inexxio_token', token);
-      router.push('/erp');
+      await signInWithGoogle();
     } catch (err: unknown) {
-      const code = (err as FirebaseError).code ?? '';
-      switch (code) {
-        case 'auth/popup-blocked':
-          setError('Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite.');
-          break;
-        case 'auth/popup-closed-by-user':
-        case 'auth/cancelled-popup-request':
-          break;
-        case 'auth/operation-not-allowed':
-          setError('Google-Anmeldung ist derzeit nicht verfügbar. Bitte wenden Sie sich an den Administrator.');
-          break;
-        case 'auth/unauthorized-domain':
-          setError('Diese Domain ist nicht autorisiert. Bitte wenden Sie sich an den Administrator.');
-          break;
-        case 'auth/network-request-failed':
-          setError('Netzwerkfehler. Bitte prüfen Sie Ihre Internetverbindung.');
-          break;
-        case 'auth/web-storage-unavailable':
-          setError('Browser-Speicher nicht verfügbar. Bitte prüfen Sie Ihre Cookie-Einstellungen.');
-          break;
-        default:
-          setError('Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.');
-      }
+      sessionStorage.removeItem('google_redirect');
       setGoogleLoading(false);
+      const code = (err as FirebaseError).code ?? '';
+      const msg = getGoogleErrorMessage(code);
+      if (msg) setError(msg);
     }
   }
 

@@ -7,7 +7,8 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   onAuthStateChanged,
   type Auth,
@@ -67,9 +68,16 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
   return { token, user: result.user };
 }
 
-export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
+export async function signInWithGoogle(): Promise<void> {
   if (!auth) throw new Error('Firebase not initialized');
-  const result = await signInWithPopup(auth, googleProvider);
+  sessionStorage.setItem('google_redirect', '1');
+  await signInWithRedirect(auth, googleProvider);
+}
+
+export async function getGoogleSignInResult(): Promise<{ token: string; user: User } | null> {
+  if (!auth) return null;
+  const result = await getRedirectResult(auth);
+  if (!result) return null;
   const token = await result.user.getIdToken();
   return { token, user: result.user };
 }
