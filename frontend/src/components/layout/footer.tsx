@@ -1,140 +1,181 @@
 import Link from 'next/link';
-import { Settings2, Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, Phone, MapPin } from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
 export function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-300">
-      <div className="container py-16">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+    <footer style={{ background: 'var(--bg-dark)', color: 'var(--fg-on-dark)' }}>
+      <div className="ix-wrap" style={{ paddingTop: 80, paddingBottom: 0 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.5fr 1fr 1fr 1fr',
+            gap: 40,
+            paddingBottom: 48,
+            borderBottom: '1px solid var(--border-on-dark)',
+          }}
+          className="footer-grid"
+        >
           {/* Brand column */}
-          <div className="md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 group mb-4">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 group-hover:bg-blue-500 transition-colors">
-                <Settings2 className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-bold text-lg text-white">Inexxio AG</span>
-            </Link>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Ihr Schweizer Spezialist für Präzisionsfertigung und Maschinenbau. Qualität
-              made in Switzerland.
+          <div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="Inexxio AG"
+              style={{ height: 26, filter: 'brightness(0) invert(1)', marginBottom: 20 }}
+            />
+            <p style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.6)', maxWidth: 280, lineHeight: 1.65 }}>
+              Präzisionsfertigung und Maschinenbau. Qualität made in Switzerland.
             </p>
-            <div className="mt-4 flex items-center gap-2">
-              <span className="inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300">
-                Swiss Made
-              </span>
-              <span className="inline-flex items-center rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-300">
-                ISO 9001
+            <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <a
+                href="mailto:info.inexxio@gmail.com"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)', textDecoration: 'none' }}
+              >
+                <Mail style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0 }} />
+                info.inexxio@gmail.com
+              </a>
+              <a
+                href="tel:+41795058302"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)', textDecoration: 'none' }}
+              >
+                <Phone style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0 }} />
+                +41 79 505 83 02
+              </a>
+              <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, font: 'var(--body-sm)', color: 'rgba(255,255,255,0.8)' }}>
+                <MapPin style={{ width: 14, height: 14, color: 'var(--ix-red-bright)', flexShrink: 0, marginTop: 2 }} />
+                Schweiz
               </span>
             </div>
           </div>
 
-          {/* Unternehmen */}
+          {/* Rechtliches */}
           <div>
-            <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
+            <h5
+              style={{
+                font: '600 11px var(--font-body)',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'rgba(255,255,255,0.45)',
+                margin: '0 0 18px',
+              }}
+            >
               Rechtliches
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <Link href="/agb" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  AGB
-                </Link>
-              </li>
-              <li>
-                <Link href="/datenschutz" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Datenschutz
-                </Link>
-              </li>
-              <li>
-                <Link href="/impressum" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Impressum
-                </Link>
-              </li>
+            </h5>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { href: '/agb', label: 'AGB' },
+                { href: '/datenschutz', label: 'Datenschutz' },
+                { href: '/impressum', label: 'Impressum' },
+              ].map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
+                    className="footer-link"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           {/* Navigation */}
           <div>
-            <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
+            <h5
+              style={{
+                font: '600 11px var(--font-body)',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'rgba(255,255,255,0.45)',
+                margin: '0 0 18px',
+              }}
+            >
               Navigation
-            </h4>
-            <ul className="space-y-2.5">
-              <li>
-                <Link href="/" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Startseite
-                </Link>
-              </li>
-              <li>
-                <Link href="/ueber-uns" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Über uns
-                </Link>
-              </li>
-              <li>
-                <Link href="/kontakt" className="text-sm text-slate-400 hover:text-white transition-colors">
-                  Kontakt
-                </Link>
-              </li>
+            </h5>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { href: '/', label: 'Startseite' },
+                { href: '/ueber-uns', label: 'Über uns' },
+                { href: '/kontakt', label: 'Kontakt' },
+              ].map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
+                    className="footer-link"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
-          {/* Kontakt */}
+          {/* ERP */}
           <div>
-            <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
-              Kontakt
-            </h4>
-            <ul className="space-y-3">
-              <li className="flex items-start gap-2.5">
-                <MapPin className="h-4 w-4 text-slate-500 mt-0.5 shrink-0" />
-                <span className="text-sm text-slate-400">
-                  Inexxio AG
-                  <br />
-                  Musterstrasse 1
-                  <br />
-                  8001 Zürich, Schweiz
-                </span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <Mail className="h-4 w-4 text-slate-500 shrink-0" />
-                <a
-                  href="mailto:info@inexxio.com"
-                  className="text-sm text-slate-400 hover:text-white transition-colors"
+            <h5
+              style={{
+                font: '600 11px var(--font-body)',
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: 'rgba(255,255,255,0.45)',
+                margin: '0 0 18px',
+              }}
+            >
+              ERP-System
+            </h5>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <li>
+                <Link
+                  href="/login"
+                  style={{ font: 'var(--body-sm)', color: 'rgba(255,255,255,0.78)', textDecoration: 'none' }}
+                  className="footer-link"
                 >
-                  info@inexxio.com
-                </a>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <Phone className="h-4 w-4 text-slate-500 shrink-0" />
-                <a
-                  href="tel:+41441234567"
-                  className="text-sm text-slate-400 hover:text-white transition-colors"
-                >
-                  +41 44 123 45 67
-                </a>
+                  Anmelden
+                </Link>
               </li>
             </ul>
-            <div className="mt-4">
-              <p className="text-xs text-slate-500">
-                Mo–Fr: 08:00–17:00 Uhr
-                <br />
-                Sa–So: Geschlossen
+            <div style={{ marginTop: 24 }}>
+              <p style={{ font: '500 11px var(--font-body)', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.06em' }}>
+                MO – FR · 08:00 – 17:00
               </p>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-slate-800">
-        <div className="container py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-slate-500">
+        {/* Bottom bar */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingTop: 24,
+            paddingBottom: 32,
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <p style={{ font: 'var(--caption)', color: 'rgba(255,255,255,0.4)', margin: 0 }}>
             © {currentYear} Inexxio AG. Alle Rechte vorbehalten.
           </p>
-          <p className="text-xs text-slate-600">
+          <p style={{ font: 'var(--caption)', color: 'rgba(255,255,255,0.3)', margin: 0 }}>
             Eingetragen im Handelsregister des Kantons Zürich
           </p>
         </div>
       </div>
+
+      <style>{`
+        .footer-link:hover { color: #fff !important; }
+        @media (max-width: 760px) {
+          .footer-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 480px) {
+          .footer-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </footer>
   );
 }

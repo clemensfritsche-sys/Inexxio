@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { FirebaseError } from 'firebase/app';
-import { sendMagicLink, signInWithGoogle, getGoogleSignInResult } from '@/lib/firebase';
+import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
@@ -14,6 +14,8 @@ function getGoogleErrorMessage(code: string): string {
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
       return '';
+    case 'auth/popup-blocked':
+      return 'Popup wurde blockiert. Bitte erlauben Sie Popups für diese Seite und versuchen Sie es erneut.';
     case 'auth/operation-not-allowed':
       return 'Google-Anmeldung ist nicht aktiviert.';
     case 'auth/unauthorized-domain':
@@ -40,30 +42,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     setVariation(Math.floor(Math.random() * 3) + 1);
-
-    const hasPendingRedirect = sessionStorage.getItem('google_redirect') === '1';
-    if (hasPendingRedirect) setGoogleLoading(true);
-
-    void (async () => {
-      try {
-        const result = await getGoogleSignInResult();
-        sessionStorage.removeItem('google_redirect');
-        if (result) {
-          api.setToken(result.token);
-          localStorage.setItem('inexxio_token', result.token);
-          router.push('/erp');
-        } else {
-          setGoogleLoading(false);
-        }
-      } catch (err: unknown) {
-        sessionStorage.removeItem('google_redirect');
-        setGoogleLoading(false);
-        const code = (err as FirebaseError).code ?? '';
-        const msg = getGoogleErrorMessage(code);
-        if (msg) setError(msg);
-      }
-    })();
-  }, [router]);
+  }, []);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -84,9 +63,11 @@ export default function LoginPage() {
     setError('');
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
+      const { token } = await signInWithGoogle();
+      api.setToken(token);
+      localStorage.setItem('inexxio_token', token);
+      router.push('/erp');
     } catch (err: unknown) {
-      sessionStorage.removeItem('google_redirect');
       setGoogleLoading(false);
       const code = (err as FirebaseError).code ?? '';
       const msg = getGoogleErrorMessage(code);
