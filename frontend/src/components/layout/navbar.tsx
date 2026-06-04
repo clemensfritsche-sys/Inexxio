@@ -89,7 +89,8 @@ export function Navbar() {
 
   const displayName = user?.displayName || user?.email?.split('@')[0] || 'Benutzer';
 
-  const canAccessERP = userRole === 'employee' || userRole === 'admin';
+  // Show ERP when role allows, or when backend is unreachable (role unknown → fail open for employees)
+  const canAccessERP = userRole === null || userRole === 'employee' || userRole === 'admin';
 
   return (
     <>
