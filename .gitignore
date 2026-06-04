@@ -60,3 +60,6 @@ backend/**/__pycache__/
 
 # Alembic (keep versions, ignore __pycache__)
 backend/alembic/versions/__pycache__/
+
+# Firebase CLI cache
+.firebase/
