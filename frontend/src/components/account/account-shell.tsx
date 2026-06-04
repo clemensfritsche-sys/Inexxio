@@ -63,7 +63,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
       case 'company': return <CompanySection profile={profile} onSave={onSave} />;
       case 'shipping': return <ShippingSection profile={profile} onSave={onSave} isBusiness={isBusiness} />;
-      case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} />;
+      case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={!!isBusiness} />;
       case 'security': return <SecuritySection profile={profile} />;
       case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
       case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;

@@ -46,10 +46,11 @@ const COUNTRIES = [
 
 interface Props {
   profile: UserProfile;
+  isBusiness: boolean;
   onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-export function InvoiceSection({ profile, onSave }: Props) {
+export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
@@ -80,9 +81,11 @@ export function InvoiceSection({ profile, onSave }: Props) {
 
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <Field label="Firmenname (optional)" value={form.invoice_company} onChange={(v) => set('invoice_company', v)} placeholder="Für B2B-Rechnungen" />
-          </div>
+          {isBusiness && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="Firmenname" value={form.invoice_company} onChange={(v) => set('invoice_company', v)} />
+            </div>
+          )}
           <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} />
           <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} />
           <div style={{ gridColumn: '1 / -1' }}>
@@ -95,7 +98,9 @@ export function InvoiceSection({ profile, onSave }: Props) {
           <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} />
           <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} />
           <Field label="Rechnungs-E-Mail" value={form.invoice_email} onChange={(v) => set('invoice_email', v)} type="email" placeholder="buchhaltung@firma.ch" />
-          <Field label="USt-ID / MWST-Nr." value={form.invoice_vat_id} onChange={(v) => set('invoice_vat_id', v)} placeholder="CHE-xxx.xxx.xxx MWST" />
+          {isBusiness && (
+            <Field label="USt-ID / MWST-Nr." value={form.invoice_vat_id} onChange={(v) => set('invoice_vat_id', v)} placeholder="CHE-xxx.xxx.xxx MWST" />
+          )}
         </div>
       </div>
     </div>

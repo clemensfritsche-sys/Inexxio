@@ -9,7 +9,6 @@ import { SaveStatusIndicator } from '../save-status';
 
 interface Form {
   phone: string;
-  phone_mobile: string;
   address_line1: string;
   address_line2: string;
   postal_code: string;
@@ -21,7 +20,6 @@ interface Form {
 function buildForm(p: UserProfile): Form {
   return {
     phone: p.phone ?? '',
-    phone_mobile: p.phone_mobile ?? '',
     address_line1: p.address_line1 ?? '',
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
@@ -77,7 +75,6 @@ export function ContactSection({ profile, onSave }: Props) {
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <Field label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} placeholder="+41 44 000 00 00" type="tel" />
-          <Field label="Mobiltelefon" value={form.phone_mobile} onChange={(v) => set('phone_mobile', v)} placeholder="+41 79 000 00 00" type="tel" />
         </div>
 
         <div style={{ height: 1, background: '#F1F5F9' }} />

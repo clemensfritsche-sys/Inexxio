@@ -67,12 +67,15 @@ export function PrivacySection({ profile, onSave }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
             <span style={{ fontSize: 14, color: '#374151' }}>AGB akzeptiert</span>
-            <span style={{ fontSize: 14, color: termsDate ? '#16a34a' : '#94a3b8' }}>
-              {termsDate ?? 'Noch nicht akzeptiert'}
+            <span style={{ fontSize: 14, color: '#16a34a' }}>
+              {termsDate ?? 'Automatisch beim ersten Login'}
               {profile.terms_version ? ` (v${profile.terms_version})` : ''}
             </span>
           </div>
-          <div style={{ display: 'flex', gap: 16, paddingTop: 8 }}>
+          <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px' }}>
+            Die AGB werden automatisch mit der ersten Anmeldung akzeptiert und können nicht abgelehnt werden.
+          </p>
+          <div style={{ display: 'flex', gap: 16 }}>
             <Link href="/agb" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none' }}>AGB ansehen →</Link>
             <Link href="/datenschutz" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none' }}>Datenschutzerklärung →</Link>
           </div>

@@ -39,7 +39,12 @@ export function SecuritySection({ profile }: Props) {
       setNewEmail('');
       setConfirmEmail('');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Senden');
+      const code = (e as { code?: string }).code;
+      if (code === 'auth/requires-recent-login') {
+        setError('Aus Sicherheitsgründen ist eine erneute Anmeldung erforderlich. Bitte melde dich ab und anschliessend erneut an.');
+      } else {
+        setError(e instanceof Error ? e.message : 'Fehler beim Senden');
+      }
     } finally {
       setSending(false);
     }

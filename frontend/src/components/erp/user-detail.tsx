@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Shield, Mail, Phone, MapPin, Briefcase, Calendar, Building2, ShoppingBag } from 'lucide-react';
+import { Users, Shield, Mail, MapPin, Briefcase, Building2, ShoppingBag, Truck, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { UniversalObject, UserProfile, UserPlatformRole } from '@/types';
 
@@ -65,7 +65,6 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
 
   const [roleValue, setRoleValue] = useState<UserPlatformRole>(profile?.role ?? 'customer');
 
-  // Sync role when a different user is selected
   useEffect(() => {
     setRoleValue(profile?.role ?? 'customer');
     setSaveError('');
@@ -75,8 +74,17 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
   const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || profile?.display_name || profile?.email || '—';
   const roleColors = ROLE_COLORS[roleValue] ?? ROLE_COLORS.customer;
 
+  const role = profile?.role ?? 'customer';
+  const isBusiness = profile?.is_business || role === 'supplier';
+  const isEmployee = role === 'employee' || role === 'admin';
+  const isCustomerOrSupplier = role === 'customer' || role === 'supplier';
+
+  const hasAddress = !!(profile?.address_line1 || profile?.city);
   const hasCompanyInfo = !!(profile?.company_name || profile?.uid_number || profile?.vat_number || profile?.trade_register_nr);
-  const hasShopInfo = !!(profile?.customer_group || profile?.credit_limit || profile?.date_of_birth);
+  const hasB2cShipping = !!(profile?.ship_b2c_address_line1 || profile?.ship_b2c_city);
+  const hasB2bShipping = !!(profile?.ship_b2b_address_line1 || profile?.ship_b2b_city);
+  const hasInvoice = !!(profile?.invoice_address_line1 || profile?.invoice_city || profile?.invoice_email || profile?.invoice_vat_id);
+  const hasShopInfo = !!(profile?.customer_group || profile?.credit_limit != null || profile?.accepts_marketing != null);
 
   async function handleRoleSave() {
     if (!profile?.id) return;
@@ -166,18 +174,21 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
         {tab === 'profil' && (
           <>
+            {/* Kontakt */}
             <Section title="Kontakt" icon={Mail}>
               <Field label="Vorname" value={profile?.first_name} />
               <Field label="Nachname" value={profile?.last_name} />
               <Field label="E-Mail" value={profile?.email} />
               <Field label="Anrede" value={profile?.salutation} />
               <Field label="Telefon" value={profile?.phone} />
-              <Field label="Mobiltelefon" value={profile?.phone_mobile} />
               <Field label="Sprache" value={profile?.language?.toUpperCase()} />
-              <Field label="Objektnummer" value={profile?.object_id != null ? String(profile.object_id) : null} />
+              {role === 'customer' && (
+                <Field label="Kontotyp" value={isBusiness ? 'Geschäftskunde (B2B)' : 'Privatkunde (B2C)'} />
+              )}
             </Section>
 
-            {(profile?.address_line1 || profile?.city) && (
+            {/* Adresse */}
+            {hasAddress && (
               <Section title="Adresse" icon={MapPin}>
                 <Field label="Strasse" value={[profile?.address_line1, profile?.address_line2].filter(Boolean).join(', ')} />
                 <Field label="Ort" value={[profile?.postal_code, profile?.city].filter(Boolean).join(' ')} />
@@ -186,7 +197,8 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
               </Section>
             )}
 
-            {hasCompanyInfo && (
+            {/* Firmendaten (B2B customers & suppliers) */}
+            {(isBusiness || hasCompanyInfo) && (
               <Section title="Firma / Geschäft" icon={Building2}>
                 <Field label="Firmenname" value={profile?.company_name} />
                 <Field label="Rechtsform" value={profile?.company_legal_form} />
@@ -195,30 +207,66 @@ export function UserDetail({ object, currentUserRole, onRoleChanged }: UserDetai
                 <Field label="Handelsregister-Nr." value={profile?.trade_register_nr} />
                 <Field label="Kanton HR" value={profile?.trade_register_canton} />
                 <Field label="Website" value={profile?.company_website} />
-                <Field label="Rechnungs-E-Mail" value={profile?.company_billing_email} />
+                <Field label="Rechnungs-E-Mail Firma" value={profile?.company_billing_email} />
               </Section>
             )}
 
-            {hasShopInfo && (
+            {/* Anstellung (employees & admins only) */}
+            {isEmployee && (
+              <Section title="Anstellung" icon={Briefcase}>
+                <Field label="Abteilung" value={profile?.department} />
+                <Field label="Funktion" value={profile?.job_title} />
+                <Field label="Eintrittsdatum" value={profile?.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : null} />
+                <Field label="Pensum" value={profile?.weekly_hours ? `${profile.weekly_hours}h/Woche` : null} />
+              </Section>
+            )}
+
+            {/* Lieferadressen (customers & suppliers) */}
+            {isCustomerOrSupplier && (isBusiness ? hasB2bShipping : hasB2cShipping) && (
+              <Section title={isBusiness ? 'Lieferadresse (Firma)' : 'Lieferadresse (Privat)'} icon={Truck}>
+                {isBusiness ? (
+                  <>
+                    <Field label="Firmenname" value={profile?.ship_b2b_company} />
+                    <Field label="Ansprechperson" value={profile?.ship_b2b_contact} />
+                    <Field label="Strasse" value={[profile?.ship_b2b_address_line1, profile?.ship_b2b_address_line2].filter(Boolean).join(', ')} />
+                    <Field label="Ort" value={[profile?.ship_b2b_postal_code, profile?.ship_b2b_city].filter(Boolean).join(' ')} />
+                    <Field label="Land" value={profile?.ship_b2b_country} />
+                  </>
+                ) : (
+                  <>
+                    <Field label="Vorname" value={profile?.ship_b2c_first_name} />
+                    <Field label="Nachname" value={profile?.ship_b2c_last_name} />
+                    <Field label="Strasse" value={[profile?.ship_b2c_address_line1, profile?.ship_b2c_address_line2].filter(Boolean).join(', ')} />
+                    <Field label="Ort" value={[profile?.ship_b2c_postal_code, profile?.ship_b2c_city].filter(Boolean).join(' ')} />
+                    <Field label="Land" value={profile?.ship_b2c_country} />
+                  </>
+                )}
+              </Section>
+            )}
+
+            {/* Rechnungsadresse (customers & suppliers) */}
+            {isCustomerOrSupplier && hasInvoice && (
+              <Section title="Rechnungsadresse" icon={FileText}>
+                {isBusiness && <Field label="Firmenname" value={profile?.invoice_company} />}
+                <Field label="Name" value={[profile?.invoice_first_name, profile?.invoice_last_name].filter(Boolean).join(' ') || null} />
+                <Field label="Strasse" value={[profile?.invoice_address_line1, profile?.invoice_address_line2].filter(Boolean).join(', ')} />
+                <Field label="Ort" value={[profile?.invoice_postal_code, profile?.invoice_city].filter(Boolean).join(' ')} />
+                <Field label="Land" value={profile?.invoice_country} />
+                <Field label="Rechnungs-E-Mail" value={profile?.invoice_email} />
+                {isBusiness && <Field label="USt-ID / MWST-Nr." value={profile?.invoice_vat_id} />}
+              </Section>
+            )}
+
+            {/* Online Shop / CRM (customers) */}
+            {role === 'customer' && hasShopInfo && (
               <Section title="Online Shop / CRM" icon={ShoppingBag}>
                 <Field label="Kundengruppe" value={profile?.customer_group} />
-                <Field label="Kreditlimit (CHF)" value={profile?.credit_limit ? String(profile.credit_limit) : null} />
-                <Field label="Geburtsdatum" value={profile?.date_of_birth ? new Date(profile.date_of_birth).toLocaleDateString('de-CH') : null} />
+                <Field label="Kreditlimit (CHF)" value={profile?.credit_limit != null ? String(profile.credit_limit) : null} />
                 <Field label="Marketing" value={profile?.accepts_marketing ? 'Einverstanden' : 'Nicht einverstanden'} />
+                <Field label="AGB akzeptiert" value={profile?.terms_accepted_at ? new Date(profile.terms_accepted_at).toLocaleDateString('de-CH') : 'Automatisch beim Login'} />
               </Section>
             )}
 
-            <Section title="Anstellung" icon={Briefcase}>
-              <Field label="Abteilung" value={profile?.department} />
-              <Field label="Funktion" value={profile?.job_title} />
-              <Field label="Eintrittsdatum" value={profile?.employment_start_date ? new Date(profile.employment_start_date).toLocaleDateString('de-CH') : null} />
-              <Field label="Pensum" value={profile?.weekly_hours ? `${profile.weekly_hours}h/Woche` : null} />
-            </Section>
-
-            <Section title="Rechnungsstellung" icon={Calendar}>
-              <Field label="MwSt-Nummer" value={profile?.invoice_vat_id} />
-              <Field label="Rechnungs-E-Mail" value={profile?.invoice_email} />
-            </Section>
           </>
         )}
 

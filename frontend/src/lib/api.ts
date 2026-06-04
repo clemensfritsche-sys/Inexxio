@@ -37,7 +37,13 @@ class ApiClient {
       const error = await response
         .json()
         .catch(() => ({ error: 'Netzwerkfehler', code: 'NETWORK_ERROR' }));
-      throw new Error(error.detail || error.error || `HTTP ${response.status}`);
+      const detail = error.detail;
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ')
+          : error.error || `HTTP ${response.status}`;
+      throw new Error(msg);
     }
 
     if (response.status === 204) return {} as T;

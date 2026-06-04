@@ -11,7 +11,6 @@ interface Form {
   salutation: string;
   first_name: string;
   last_name: string;
-  date_of_birth: string;
   language: string;
   is_business: boolean;
 }
@@ -21,7 +20,6 @@ function buildForm(p: UserProfile): Form {
     salutation: p.salutation ?? '',
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
-    date_of_birth: p.date_of_birth ?? '',
     language: p.language ?? 'de',
     is_business: p.is_business ?? false,
   };
@@ -124,9 +122,6 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
           />
           <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" />
           <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" />
-          {isCustomer && (
-            <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" />
-          )}
         </div>
 
         {/* Read-only employment block for employees */}
