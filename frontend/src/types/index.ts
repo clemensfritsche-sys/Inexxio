@@ -398,6 +398,17 @@ export interface ApiError {
   detail?: string;
 }
 
+// ─── Item history (audit log per item) ───────────────────────────────────────
+
+export interface ItemHistoryEntry {
+  id: number;
+  field_name: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  user_name: string | null;
+  changed_at: string;
+}
+
 // ─── Audit log ────────────────────────────────────────────────────────────────
 
 export interface AuditEntry {

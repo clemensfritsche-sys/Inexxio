@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Loader2, InboxIcon, ArrowLeft,
-  Package, Building2, GitBranch, Wrench,
+  Package, Building2, Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -49,7 +49,6 @@ const filterTabs: { value: FilterType; label: string }[] = [
 const TYPE_MENU = [
   { key: 'item' as const, label: 'Artikel', icon: Package, available: true },
   { key: 'company' as const, label: 'Firma', icon: Building2, available: false },
-  { key: 'bom' as const, label: 'Stückliste', icon: GitBranch, available: false },
   { key: 'work_plan' as const, label: 'Arbeitsplan', icon: Wrench, available: false },
 ];
 

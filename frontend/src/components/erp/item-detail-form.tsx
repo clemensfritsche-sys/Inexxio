@@ -4,14 +4,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
-  Plus, Trash2, GripVertical, GitBranch, ArrowRight, ExternalLink, RotateCcw,
+  Plus, Trash2, GripVertical, GitBranch, ArrowRight, ExternalLink, RotateCcw, Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
 import { formatObjectId, formatDate } from '@/lib/utils';
 import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS, SERIALIZATION_TYPE_LABELS } from '@/types';
-import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry } from '@/types';
+import type { Item, ItemHistoryEntry, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry } from '@/types';
 
 // ─── Simple field input ──────────────────────────────────────────────────────
 
@@ -716,6 +716,144 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   );
 }
 
+// ─── Protokoll Tab ───────────────────────────────────────────────────────────
+
+const HISTORY_FIELD_LABELS: Record<string, string> = {
+  status: 'Status',
+  name: 'Artikelname',
+  name_id: 'Artikelname',
+  unit: 'Mengeneinheit',
+  weight_g: 'Gewicht (g)',
+  is_active: 'Aktiv',
+  is_sales_product: 'Verkaufsartikel',
+  replaced_by_id: 'Ersatz-Artikel',
+  order_number: 'Bestellnummer',
+  order_link: 'Bestelllink',
+  onshape_link: 'Onshape-Link',
+  purchase_price: 'EK-Preis',
+  sales_price: 'VK-Preis',
+  lead_time_days: 'Lieferzeit (Tage)',
+  surface_id: 'Oberfläche',
+  category_id: 'Produktkategorie',
+  vat_rate: 'MwSt-Satz',
+  serialization_type: 'Serialisierung',
+};
+
+const HISTORY_STATUS_LABELS: Record<string, string> = {
+  ENTWURF: 'Entwurf',
+  IN_FREIGABE: 'In Freigabe',
+  FREIGEGEBEN: 'Freigegeben',
+  ERSETZT: 'Inaktiv',
+  UNGUELTIG: 'Inaktiv',
+};
+
+function ProtokollTab({ itemId, item }: { itemId: number; item: Item }) {
+  const { data: history = [], isLoading } = useQuery<ItemHistoryEntry[]>({
+    queryKey: ['item-history', itemId],
+    queryFn: () => api.getItemHistory(itemId),
+    staleTime: 30_000,
+  });
+
+  function renderEntry(e: ItemHistoryEntry) {
+    const field = e.field_name ?? '';
+    const isStatus = field === 'status';
+    const newStatus = e.new_value ?? '';
+
+    let icon: React.ReactNode;
+    let iconBg: string;
+    let label: string;
+
+    if (isStatus) {
+      if (newStatus === 'FREIGEGEBEN') {
+        icon = <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />;
+        iconBg = 'bg-green-100';
+        label = 'Freigegeben';
+      } else if (newStatus === 'IN_FREIGABE') {
+        icon = <Send className="h-3.5 w-3.5 text-amber-600" />;
+        iconBg = 'bg-amber-100';
+        label = 'Zur Freigabe eingereicht';
+      } else if (newStatus === 'UNGUELTIG' || newStatus === 'ERSETZT') {
+        icon = <XCircle className="h-3.5 w-3.5 text-red-600" />;
+        iconBg = 'bg-red-100';
+        label = 'Inaktiv gesetzt';
+      } else if (newStatus === 'ENTWURF') {
+        icon = <RotateCcw className="h-3.5 w-3.5 text-slate-600" />;
+        iconBg = 'bg-slate-100';
+        label = 'Zurück zu Entwurf';
+      } else {
+        icon = <Clock className="h-3.5 w-3.5 text-slate-500" />;
+        iconBg = 'bg-slate-100';
+        label = `Status: ${HISTORY_STATUS_LABELS[newStatus] ?? newStatus}`;
+      }
+    } else {
+      icon = <Pencil className="h-3.5 w-3.5 text-slate-500" />;
+      iconBg = 'bg-slate-100';
+      const fieldLabel = HISTORY_FIELD_LABELS[field] ?? field;
+      const oldLabel = isStatus ? (HISTORY_STATUS_LABELS[e.old_value ?? ''] ?? e.old_value) : e.old_value;
+      const newLabel = isStatus ? (HISTORY_STATUS_LABELS[e.new_value ?? ''] ?? e.new_value) : e.new_value;
+      label = `${fieldLabel}${oldLabel ? `: ${oldLabel} → ${newLabel}` : ` → ${newLabel}`}`;
+    }
+
+    return (
+      <div key={e.id} className="flex items-start gap-3">
+        <div className={cn('flex h-7 w-7 items-center justify-center rounded-full shrink-0', iconBg)}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-900">{label}</p>
+          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+            <Clock className="h-3 w-3 shrink-0" />
+            {formatDate(e.changed_at)}
+            {e.user_name && <span className="ml-1 font-medium">{e.user_name}</span>}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-5 space-y-4">
+      {/* Creation entry (not in audit log) */}
+      <div className="flex items-start gap-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
+          <Check className="h-3.5 w-3.5 text-green-600" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
+          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+            <Clock className="h-3 w-3" />{formatDate(item.created_at)}
+            {item.created_by_name && <span className="ml-1 font-medium">{item.created_by_name}</span>}
+          </p>
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 py-2">
+          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+          <span className="text-xs text-slate-500">Lade Verlauf…</span>
+        </div>
+      )}
+
+      {history.map((e) => renderEntry(e))}
+
+      {/* Signatures */}
+      {item.signatures && item.signatures.length > 0 && (
+        <div className="mt-2 pt-3 border-t border-slate-100">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Digitale Signaturen</p>
+          {item.signatures.map((sig) => (
+            <div key={sig.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0">
+              <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
+              <span className="text-xs text-slate-600">
+                {sig.signed_by_name ?? `Benutzer #${sig.signed_by}`} · {formatDate(sig.signed_at)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Invalidate Dialog ────────────────────────────────────────────────────────
 
 function InvalidateDialog({
@@ -1157,6 +1295,17 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     submitItem();
   }, [form, item, submitItem]);
 
+  const handleDirectApprove = useCallback(() => {
+    if (!form) return;
+    const errors = validateForSubmit(form);
+    if (!item?.bom_has_lines && !form.weight_g) {
+      errors.push('Gewicht (g) ist erforderlich');
+    }
+    if (errors.length > 0) { setValidationErrors(errors); return; }
+    setValidationErrors([]);
+    approveItem();
+  }, [form, item, approveItem]);
+
   if (isLoading || !form) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -1221,34 +1370,34 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
 
       {/* Replacement / replaced info banners */}
       {item?.replaces_id && (
-        <div className="mx-6 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
-          <ArrowRight className="h-4 w-4 text-blue-500 shrink-0" />
-          <p className="text-xs text-blue-700 min-w-0">
+        <div className="mx-6 mt-3 p-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-slate-500 shrink-0" />
+          <p className="text-xs text-slate-700 min-w-0">
             <span className="font-medium">Ersatzartikel für: </span>
             <button
               type="button"
               onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')}
-              className="font-mono font-semibold hover:underline"
+              className="font-mono font-semibold hover:underline text-slate-900"
             >
               {formatObjectId(item.replaces_id)}
             </button>
-            {item.replaces_item_name && <span className="ml-1 text-blue-600">{item.replaces_item_name}</span>}
+            {item.replaces_item_name && <span className="ml-1 text-slate-600">{item.replaces_item_name}</span>}
           </p>
         </div>
       )}
       {item?.replaced_by_id && (
-        <div className="mx-6 mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
-          <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
-          <p className="text-xs text-slate-600 min-w-0">
+        <div className="mx-6 mt-3 p-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-slate-500 shrink-0" />
+          <p className="text-xs text-slate-700 min-w-0">
             <span className="font-medium">Ersetzt durch: </span>
             <button
               type="button"
               onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')}
-              className="font-mono font-semibold hover:underline text-blue-600"
+              className="font-mono font-semibold hover:underline text-slate-900"
             >
               {formatObjectId(item.replaced_by_id)}
             </button>
-            {item.replaced_by_name && <span className="ml-1">{item.replaced_by_name}</span>}
+            {item.replaced_by_name && <span className="ml-1 text-slate-600">{item.replaced_by_name}</span>}
           </p>
         </div>
       )}
@@ -1258,7 +1407,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         <div className="px-6 bg-white border-b border-slate-200">
           <TabList>
             <TabTrigger value="stammdaten">Artikelstamm</TabTrigger>
-            <TabTrigger value="sales">Sales & Shop</TabTrigger>
+            {form?.is_sales_product && <TabTrigger value="sales">Sales & Shop</TabTrigger>}
             <TabTrigger value="bom">Stückliste</TabTrigger>
             <TabTrigger value="verwendung">Verwendung</TabTrigger>
             <TabTrigger value="protokoll">Protokoll</TabTrigger>
@@ -1455,14 +1604,12 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_reserved ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
               </div>
             </div>
-          </TabPanel>
 
-          {/* ── Sales & Shop ── */}
-          <TabPanel value="sales" className="px-6 py-5 space-y-5">
-            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+            {/* Sales product toggle */}
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
               <div>
                 <p className="text-sm font-medium text-slate-900">Verkaufsartikel</p>
-                <p className="text-xs text-slate-500 mt-0.5">Artikel im Online-Shop anbieten</p>
+                <p className="text-xs text-slate-500 mt-0.5">Im Online-Shop anbieten</p>
               </div>
               {isEditable ? (
                 <button
@@ -1479,12 +1626,20 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                   )} />
                 </button>
               ) : (
-                <span className="text-sm text-slate-900 font-medium">{form.is_sales_product ? 'Ja' : 'Nein'}</span>
+                <span className={cn(
+                  'text-xs font-medium px-2.5 py-1 rounded-full',
+                  form.is_sales_product ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500',
+                )}>
+                  {form.is_sales_product ? 'Ja' : 'Nein'}
+                </span>
               )}
             </div>
+          </TabPanel>
 
-            {form.is_sales_product && (
-              <>
+          {/* ── Sales & Shop ── */}
+          {form?.is_sales_product && (
+          <TabPanel value="sales" className="px-6 py-5 space-y-5">
+            <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -1598,8 +1753,8 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                   </div>
                 </div>
               </>
-            )}
           </TabPanel>
+          )}
 
           {/* ── Stückliste ── */}
           <TabPanel value="bom">
@@ -1612,62 +1767,8 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           </TabPanel>
 
           {/* ── Protokoll ── */}
-          <TabPanel value="protokoll" className="px-6 py-5">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
-                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                    <Clock className="h-3 w-3" />{formatDate(item?.created_at ?? '')}
-                    {item?.created_by_name && <span className="ml-1 font-medium">{item.created_by_name}</span>}
-                  </p>
-                </div>
-              </div>
-              {item?.submitted_at && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 shrink-0">
-                    <Send className="h-3.5 w-3.5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Zur Freigabe eingereicht</p>
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />{formatDate(item.submitted_at)}
-                      {item.submitted_by_name && <span className="ml-1 font-medium">{item.submitted_by_name}</span>}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {item?.approved_at && (
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 shrink-0">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Freigegeben</p>
-                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />{formatDate(item.approved_at)}
-                      {item.approved_by_name && <span className="ml-1 font-medium">{item.approved_by_name}</span>}
-                    </p>
-                  </div>
-                </div>
-              )}
-              {item?.signatures && item.signatures.length > 0 && (
-                <div className="mt-2 pt-3 border-t border-slate-100">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Digitale Signaturen</p>
-                  {item.signatures.map((sig) => (
-                    <div key={sig.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0">
-                      <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                      <span className="text-xs text-slate-600">
-                        {sig.signed_by_name ?? `Benutzer #${sig.signed_by}`} · {formatDate(sig.signed_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          <TabPanel value="protokoll">
+            {item && <ProtokollTab itemId={itemId} item={item} />}
           </TabPanel>
         </div>
       </Tabs>
@@ -1676,17 +1777,45 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
         {statusKey === 'ENTWURF' && (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">Alle Pflichtfelder ausfüllen, dann zur Freigabe einreichen.</p>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !!sizeError}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
-              style={{ background: '#E51A14' }}
-            >
-              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-              Zur Freigabe einreichen
-            </button>
+            {isAdmin ? (
+              <>
+                <p className="text-xs text-slate-500 shrink-0">Direkt freigeben oder zur Freigabe einreichen.</p>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={submitting || approving || !!sizeError}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    Einreichen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDirectApprove}
+                    disabled={approving || submitting || !!sizeError}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    Freigeben
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-slate-500">Alle Pflichtfelder ausfüllen, dann zur Freigabe einreichen.</p>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting || !!sizeError}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                  style={{ background: '#E51A14' }}
+                >
+                  {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Zur Freigabe einreichen
+                </button>
+              </>
+            )}
           </div>
         )}
         {statusKey === 'IN_FREIGABE' && (
@@ -1728,7 +1857,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         {(statusKey === 'ERSETZT' || statusKey === 'UNGUELTIG') && (
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-500 py-1">
-              Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'inaktiv'} und kann nicht mehr bearbeitet werden.
+              Dieser Artikel ist inaktiv und kann nicht mehr bearbeitet werden.
             </p>
             {isAdmin && !item?.replaced_by_id && (
               <button

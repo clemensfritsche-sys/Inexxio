@@ -287,18 +287,25 @@ async def approve_item(
     item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    if item.status != ItemStatus.IN_FREIGABE:
-        raise HTTPException(status_code=400, detail="Only IN_FREIGABE items can be approved")
+    if item.status not in (ItemStatus.ENTWURF, ItemStatus.IN_FREIGABE):
+        raise HTTPException(status_code=400, detail="Only ENTWURF or IN_FREIGABE items can be approved")
+
+    now = datetime.now(timezone.utc)
+    old_status = item.status
+
+    if item.status == ItemStatus.ENTWURF:
+        item.submitted_at = now
+        item.submitted_by = current_user.id
 
     item.status = ItemStatus.FREIGEGEBEN
-    item.approved_at = datetime.now(timezone.utc)
+    item.approved_at = now
     item.approved_by = current_user.id
     db.add(ItemSignature(item_id=item_id, signed_by=current_user.id))
     db.add(AuditLog(
         object_id=item_id,
         table_name="items",
         field_name="status",
-        old_value=ItemStatus.IN_FREIGABE,
+        old_value=old_status,
         new_value=ItemStatus.FREIGEGEBEN,
         user_id=current_user.id,
     ))
@@ -378,9 +385,10 @@ async def invalidate_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     if item.status in (ItemStatus.UNGUELTIG, ItemStatus.ERSETZT):
-        raise HTTPException(status_code=400, detail="Item is already inactive or replaced")
+        raise HTTPException(status_code=400, detail="Item is already inactive")
 
     old_status = item.status
+    item.status = ItemStatus.UNGUELTIG  # Always UNGUELTIG
 
     if data.replaced_by_id is not None:
         replacement = db.query(Item).filter(
@@ -390,17 +398,8 @@ async def invalidate_item(
         ).first()
         if not replacement:
             raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
-        item.status = ItemStatus.ERSETZT
         item.replaced_by_id = data.replaced_by_id
         replacement.replaces_id = item_id
-        db.add(AuditLog(
-            object_id=item_id,
-            table_name="items",
-            field_name="status",
-            old_value=old_status,
-            new_value=ItemStatus.ERSETZT,
-            user_id=current_user.id,
-        ))
         db.add(AuditLog(
             object_id=item_id,
             table_name="items",
@@ -409,16 +408,15 @@ async def invalidate_item(
             new_value=str(data.replaced_by_id),
             user_id=current_user.id,
         ))
-    else:
-        item.status = ItemStatus.UNGUELTIG
-        db.add(AuditLog(
-            object_id=item_id,
-            table_name="items",
-            field_name="status",
-            old_value=old_status,
-            new_value=ItemStatus.UNGUELTIG,
-            user_id=current_user.id,
-        ))
+
+    db.add(AuditLog(
+        object_id=item_id,
+        table_name="items",
+        field_name="status",
+        old_value=old_status,
+        new_value=ItemStatus.UNGUELTIG,
+        user_id=current_user.id,
+    ))
 
     _cascade_invalidate(db, item_id, current_user.id, set())
     db.commit()
@@ -449,11 +447,9 @@ async def set_replacement(
     if not replacement:
         raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
 
-    old_status = item.status
     item.replaced_by_id = data.replaced_by_id
-    if item.status == ItemStatus.UNGUELTIG:
-        item.status = ItemStatus.ERSETZT
     replacement.replaces_id = item_id
+    # Status stays unchanged (UNGUELTIG or ERSETZT)
 
     db.add(AuditLog(
         object_id=item_id,
@@ -463,19 +459,45 @@ async def set_replacement(
         new_value=str(data.replaced_by_id),
         user_id=current_user.id,
     ))
-    if old_status != item.status:
-        db.add(AuditLog(
-            object_id=item_id,
-            table_name="items",
-            field_name="status",
-            old_value=old_status,
-            new_value=item.status,
-            user_id=current_user.id,
-        ))
 
     db.commit()
     db.refresh(item)
     return ItemResponse.model_validate(item)
+
+
+@router.get("/{item_id}/history")
+async def get_item_history(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    entries = (
+        db.query(AuditLog)
+        .filter(AuditLog.object_id == item_id, AuditLog.table_name == "items")
+        .order_by(AuditLog.changed_at_utc.asc())
+        .all()
+    )
+
+    user_ids = {e.user_id for e in entries if e.user_id}
+    user_map: dict[int, str] = {}
+    if user_ids:
+        profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
+        for p in profiles:
+            parts = [p.first_name, p.last_name]
+            name = " ".join(x for x in parts if x) or p.display_name or p.email
+            user_map[p.id] = name
+
+    return [
+        {
+            "id": e.id,
+            "field_name": e.field_name,
+            "old_value": e.old_value,
+            "new_value": e.new_value,
+            "user_name": user_map.get(e.user_id) if e.user_id else None,
+            "changed_at": e.changed_at_utc.isoformat() if e.changed_at_utc else None,
+        }
+        for e in entries
+    ]
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
