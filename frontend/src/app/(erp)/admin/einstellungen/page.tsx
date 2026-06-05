@@ -434,11 +434,17 @@ function SettingsCard({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} onChange={scheduleAutoSave} className="card p-6">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-          {icon}
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            {icon}
+          </div>
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
         </div>
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /><span className="text-slate-400">Speichert…</span></>}
+          {saved && !saving && <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /><span className="text-green-600">Gespeichert</span></>}
+        </div>
       </div>
 
       {children}

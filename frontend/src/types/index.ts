@@ -20,7 +20,7 @@ export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: stri
 
 export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
   'none': 'Einzelteil',
-  'batch': 'Charge (Losnummer)',
+  'batch': 'Charge',
 };
 
 export const VAT_RATE_LABELS: Record<VatRate, string> = {
@@ -94,6 +94,7 @@ export interface Item {
   seo_title: string | null;
   seo_description: string | null;
   hs_code: string | null;
+  bom_weight_g?: string | null;
   submitted_at: string | null;
   submitted_by: number | null;
   approved_at: string | null;

@@ -275,7 +275,6 @@ function BOMTab({
   const [newItemId, setNewItemId] = useState<number | null>(null);
   const [newQty, setNewQty] = useState('1');
   const [newUnit, setNewUnit] = useState('Stk');
-  const [newNote, setNewNote] = useState('');
   const [itemSearch, setItemSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -287,7 +286,7 @@ function BOMTab({
 
   const { data: freigItems } = useQuery({
     queryKey: ['items-freigegeben'],
-    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 200 }),
+    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
     staleTime: 60_000,
     enabled: isEditable,
   });
@@ -376,13 +375,12 @@ function BOMTab({
         item_name: found?.name ?? String(newItemId),
         quantity: newQty || '1',
         unit: newUnit,
-        note: newNote,
+        note: '',
       },
     ]);
     setNewItemId(null);
     setNewQty('1');
     setNewUnit('Stk');
-    setNewNote('');
     setItemSearch('');
     setShowAddForm(false);
     scheduleAutoSave();
@@ -603,10 +601,6 @@ function BOMTab({
                   {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Notiz (optional)</label>
-              <input className={`${inputCls} w-full`} value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Optional" />
             </div>
             <div className="flex gap-2">
               <button
@@ -1026,7 +1020,14 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Gewicht (g)</label>
-                <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />
+                {item?.bom_weight_g != null ? (
+                  <p className="text-sm text-slate-900 py-1">
+                    {fmtNum(item.bom_weight_g)}
+                    <span className="ml-1.5 text-xs text-slate-400">(aus Stückliste)</span>
+                  </p>
+                ) : (
+                  <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Abmessungen (mm)</label>

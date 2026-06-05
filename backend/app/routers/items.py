@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -55,7 +56,7 @@ async def list_items(
     status_filter: Optional[str] = Query(None, alias="status"),
     is_sales_product: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
@@ -126,6 +127,22 @@ async def get_item(
             name = " ".join(x for x in parts if x) or p.display_name or p.email
             user_map[p.id] = name
 
+    # Calculate BOM weight (sum of component weights × quantity, only if all have weight_g)
+    bom_weight_g: Optional[Decimal] = None
+    bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
+    if bom and bom.lines:
+        total = Decimal("0")
+        all_have_weight = True
+        for line in bom.lines:
+            comp = db.query(Item).filter(Item.id == line.component_item_id, Item.is_active == True).first()
+            if comp and comp.weight_g is not None:
+                total += comp.weight_g * Decimal(str(line.quantity))
+            else:
+                all_have_weight = False
+                break
+        if all_have_weight:
+            bom_weight_g = total
+
     # Build response with names
     resp = ItemResponse.model_validate(item)
     updated_sigs = []
@@ -138,6 +155,7 @@ async def get_item(
         "submitted_by_name": user_map.get(item.submitted_by) if item.submitted_by else None,
         "approved_by_name": user_map.get(item.approved_by) if item.approved_by else None,
         "signatures": updated_sigs,
+        "bom_weight_g": bom_weight_g,
     })
 
 

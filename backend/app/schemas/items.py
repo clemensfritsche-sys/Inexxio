@@ -129,6 +129,7 @@ class ItemResponse(BaseModel):
     submitted_by_name: Optional[str] = None
     approved_by_name: Optional[str] = None
     created_by_name: Optional[str] = None
+    bom_weight_g: Optional[Decimal] = None
     serialization_type: str
     created_at: datetime
     updated_at: datetime
