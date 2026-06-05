@@ -57,6 +57,8 @@ export function UniversalFeed() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [navItemId, setNavItemId] = useState<number | null>(null);
+  const [navTab, setNavTab] = useState<string>('stammdaten');
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const typeMenuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -130,7 +132,9 @@ export function UniversalFeed() {
     return list;
   }, [objects, filter, search, isUserFilter]);
 
-  const selectedObject = filtered.find((o) => o.id === selectedId) ?? null;
+  const selectedObject = navItemId
+    ? ({ id: navItemId, object_type: 'item', title: '', subtitle: null, status: '', number: String(navItemId), created_at: '', updated_at: '' } as UniversalObject)
+    : filtered.find((o) => o.id === selectedId) ?? null;
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -138,7 +142,15 @@ export function UniversalFeed() {
   }, [queryClient]);
 
   const handleSelectRow = useCallback((id: number) => {
+    setNavItemId(null);
+    setNavTab('stammdaten');
     setSelectedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  const handleNavigate = useCallback((itemId: number, tab: string) => {
+    setNavItemId(itemId);
+    setNavTab(tab);
+    setSelectedId(itemId);
   }, []);
 
   const showList = !isMobile || selectedId === null;
@@ -280,6 +292,8 @@ export function UniversalFeed() {
         object={selectedObject}
         currentUserRole={currentUserRole}
         onRefresh={handleRefresh}
+        initialTab={navTab}
+        onNavigate={handleNavigate}
       />
     </div>
   );

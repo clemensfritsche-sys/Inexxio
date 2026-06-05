@@ -256,9 +256,11 @@ interface BOMLineInput {
 function BOMTab({
   itemId,
   isEditable,
+  onNavigate,
 }: {
   itemId: number;
   isEditable: boolean;
+  onNavigate?: (itemId: number, tab: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [lines, setLines] = useState<BOMLineInput[]>([]);
@@ -497,8 +499,21 @@ function BOMTab({
                   >
                     <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
                     <td className="px-3 py-2">
-                      <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(line.component_item_id)}</p>
-                      <p className="text-xs text-slate-500">{line.item_name}</p>
+                      {onNavigate ? (
+                        <button
+                          type="button"
+                          onClick={() => onNavigate(line.component_item_id, 'bom')}
+                          className="text-left hover:text-blue-600 group transition-colors"
+                        >
+                          <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600">{formatObjectId(line.component_item_id)}</p>
+                          <p className="text-xs text-slate-500 group-hover:text-blue-500">{line.item_name}</p>
+                        </button>
+                      ) : (
+                        <>
+                          <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(line.component_item_id)}</p>
+                          <p className="text-xs text-slate-500">{line.item_name}</p>
+                        </>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {isEditable ? (
@@ -511,7 +526,7 @@ function BOMTab({
                           onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: v } : l)); scheduleAutoSave(); }}
                         />
                       ) : (
-                        <span className="text-sm text-slate-900">{line.quantity}</span>
+                        <span className="text-sm text-slate-900">{fmtNum(line.quantity)}</span>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -623,7 +638,7 @@ function BOMTab({
 
 // ─── Where-Used Tab ──────────────────────────────────────────────────────────
 
-function WhereUsedTab({ itemId }: { itemId: number }) {
+function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (itemId: number, tab: string) => void }) {
   const { data: entries, isLoading, isError } = useQuery<WhereUsedEntry[]>({
     queryKey: ['where-used', itemId],
     queryFn: () => api.getItemWhereUsed(itemId),
@@ -672,7 +687,11 @@ function WhereUsedTab({ itemId }: { itemId: number }) {
           </thead>
           <tbody>
             {entries.map((e) => (
-              <tr key={`${e.bom_id}-${e.parent_item_id}`} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr
+                key={`${e.bom_id}-${e.parent_item_id}`}
+                onClick={() => onNavigate?.(e.parent_item_id, 'bom')}
+                className={cn('border-t border-slate-100 transition-colors', onNavigate ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-slate-50')}
+              >
                 <td className="px-3 py-2.5">
                   <p className="text-sm font-medium text-slate-900">{e.parent_item_name}</p>
                   <p className="text-xs font-mono text-slate-400">{formatObjectId(e.parent_item_id)}</p>
@@ -682,10 +701,10 @@ function WhereUsedTab({ itemId }: { itemId: number }) {
                     {ITEM_STATUS_CONFIG[e.parent_item_status]?.label ?? e.parent_item_status}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{e.quantity} {e.unit}</td>
+                <td className="px-3 py-2.5 text-sm text-slate-700">{fmtNum(e.quantity)} {e.unit}</td>
                 <td className="px-3 py-2.5 text-xs text-slate-400">{e.position}</td>
                 <td className="px-3 py-2.5">
-                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                  <ArrowRight className={cn('h-4 w-4', onNavigate ? 'text-blue-400' : 'text-slate-400')} />
                 </td>
               </tr>
             ))}
@@ -702,9 +721,11 @@ interface ItemDetailFormProps {
   itemId: number;
   currentUserRole?: string;
   onRefresh?: () => void;
+  initialTab?: string;
+  onNavigate?: (itemId: number, tab: string) => void;
 }
 
-export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetailFormProps) {
+export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab, onNavigate }: ItemDetailFormProps) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
@@ -899,7 +920,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
       )}
 
       {/* Tabs */}
-      <Tabs defaultTab="stammdaten" className="flex-1 flex flex-col overflow-hidden">
+      <Tabs key={`${itemId}-${initialTab ?? 'stammdaten'}`} defaultTab={initialTab ?? 'stammdaten'} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-6 bg-white border-b border-slate-200">
           <TabList>
             <TabTrigger value="stammdaten">Artikelstamm</TabTrigger>
@@ -1016,10 +1037,11 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Gewicht (g)</label>
-                {item?.bom_weight_g != null ? (
+                {item?.bom_has_lines ? (
                   <p className="text-sm text-slate-900 py-1">
-                    {fmtNum(item.bom_weight_g)}
-                    <span className="ml-1.5 text-xs text-slate-400">(aus Stückliste)</span>
+                    {item.bom_weight_g != null
+                      ? <>{fmtNum(item.bom_weight_g)}<span className="ml-1.5 text-xs text-slate-400">(aus Stückliste)</span></>
+                      : <><span className="text-slate-400 italic">—</span><span className="ml-1.5 text-xs text-slate-400">(Gewicht fehlt bei einer Komponente)</span></>}
                   </p>
                 ) : (
                   <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />
@@ -1244,12 +1266,12 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
 
           {/* ── Stückliste ── */}
           <TabPanel value="bom">
-            <BOMTab itemId={itemId} isEditable={isEditable} />
+            <BOMTab itemId={itemId} isEditable={isEditable} onNavigate={onNavigate} />
           </TabPanel>
 
           {/* ── Verwendungsnachweise ── */}
           <TabPanel value="verwendung">
-            <WhereUsedTab itemId={itemId} />
+            <WhereUsedTab itemId={itemId} onNavigate={onNavigate} />
           </TabPanel>
 
           {/* ── Protokoll ── */}

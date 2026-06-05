@@ -95,6 +95,7 @@ export interface Item {
   seo_description: string | null;
   hs_code: string | null;
   bom_weight_g?: string | null;
+  bom_has_lines?: boolean;
   submitted_at: string | null;
   submitted_by: number | null;
   approved_at: string | null;

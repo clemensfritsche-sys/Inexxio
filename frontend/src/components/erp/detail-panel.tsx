@@ -36,6 +36,8 @@ interface DetailPanelProps {
   object: UniversalObject | null;
   currentUserRole?: string;
   onRefresh?: () => void;
+  initialTab?: string;
+  onNavigate?: (itemId: number, tab: string) => void;
 }
 
 function getSteps(objectType: string) {
@@ -71,7 +73,7 @@ function getFields(object: UniversalObject): DetailField[] {
   return base;
 }
 
-export function DetailPanel({ object, currentUserRole, onRefresh }: DetailPanelProps) {
+export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, onNavigate }: DetailPanelProps) {
   // Items get the full editable form
   if (object?.object_type === 'item') {
     return (
@@ -79,6 +81,8 @@ export function DetailPanel({ object, currentUserRole, onRefresh }: DetailPanelP
         itemId={object.id}
         currentUserRole={currentUserRole}
         onRefresh={onRefresh}
+        initialTab={initialTab}
+        onNavigate={onNavigate}
       />
     );
   }

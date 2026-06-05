@@ -129,8 +129,10 @@ async def get_item(
 
     # Calculate BOM weight (sum of component weights × quantity, only if all have weight_g)
     bom_weight_g: Optional[Decimal] = None
+    bom_has_lines: bool = False
     bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
     if bom and bom.lines:
+        bom_has_lines = True
         total = Decimal("0")
         all_have_weight = True
         for line in bom.lines:
@@ -156,6 +158,7 @@ async def get_item(
         "approved_by_name": user_map.get(item.approved_by) if item.approved_by else None,
         "signatures": updated_sigs,
         "bom_weight_g": bom_weight_g,
+        "bom_has_lines": bom_has_lines,
     })
 
 
