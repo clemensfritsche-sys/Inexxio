@@ -78,6 +78,7 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
   if (object?.object_type === 'item') {
     return (
       <ItemDetailForm
+        key={object.id}
         itemId={object.id}
         currentUserRole={currentUserRole}
         onRefresh={onRefresh}

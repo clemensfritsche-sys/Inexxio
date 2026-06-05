@@ -421,6 +421,7 @@ function BOMTab({
         bomIdRef.current = newBom.id;
       }
       queryClient.invalidateQueries({ queryKey: ['bom', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['item', itemId] });
       setSaveOk(true);
       setTimeout(() => setSaveOk(false), 2000);
     } catch (e: unknown) {
