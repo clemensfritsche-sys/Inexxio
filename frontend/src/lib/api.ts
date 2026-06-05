@@ -2,6 +2,7 @@ import type {
   CompanySettings,
   Item,
   ItemCategory,
+  ItemHistoryEntry,
   ItemName,
   ItemSurface,
   BOM,
@@ -198,6 +199,10 @@ class ApiClient {
 
   getItemWhereUsed(itemId: number): Promise<WhereUsedEntry[]> {
     return this.get(`/api/v1/items/${itemId}/where-used`);
+  }
+
+  getItemHistory(itemId: number): Promise<ItemHistoryEntry[]> {
+    return this.get(`/api/v1/items/${itemId}/history`);
   }
 
   // ─── Work Plans ────────────────────────────────────────────────────────────
