@@ -511,8 +511,9 @@ function BOMTab({
                       {onNavigate ? (
                         <button
                           type="button"
-                          onClick={() => onNavigate(line.component_item_id, 'stammdaten')}
-                          className="text-left hover:text-blue-600 group transition-colors"
+                          draggable={false}
+                          onClick={(e) => { e.stopPropagation(); onNavigate(line.component_item_id, 'stammdaten'); }}
+                          className="text-left hover:text-blue-600 group transition-colors cursor-pointer"
                         >
                           <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600">{formatObjectId(line.component_item_id)}</p>
                           <p className="text-xs text-slate-500 group-hover:text-blue-500">{line.item_name}</p>
@@ -1048,12 +1049,15 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Gewicht (g)</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                  Gewicht (g)
+                  {!item?.bom_has_lines && isEditable && <span className="text-red-500 ml-0.5">*</span>}
+                </label>
                 {item?.bom_has_lines ? (
                   <p className="text-sm text-slate-900 py-1">
                     {item.bom_weight_g != null
                       ? <>{fmtNum(item.bom_weight_g)}<span className="ml-1.5 text-xs text-slate-400">(aus Stückliste)</span></>
-                      : <><span className="text-slate-400 italic">—</span><span className="ml-1.5 text-xs text-slate-400">(Gewicht fehlt bei einer Komponente)</span></>}
+                      : <><span className="text-slate-400 italic">—</span><span className="ml-1.5 text-xs text-amber-600">(Gewicht fehlt bei mind. einer Komponente)</span></>}
                   </p>
                 ) : (
                   <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />

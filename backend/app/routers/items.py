@@ -30,17 +30,19 @@ def _get_item_weight(db: Session, item_id: int, visited: set) -> Optional[Decima
         return None  # cycle protection
     visited.add(item_id)
     bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
-    if bom and bom.lines:
-        total = Decimal("0")
-        for line in bom.lines:
-            child_weight = _get_item_weight(db, line.component_item_id, set(visited))
-            if child_weight is None:
-                return None
-            total += child_weight * Decimal(str(line.quantity))
-        return total
-    else:
-        item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
-        return item.weight_g if item else None
+    if bom:
+        # Use explicit query to avoid lazy-loading issues in recursive calls
+        lines = db.query(BOMLine).filter(BOMLine.bom_id == bom.id).all()
+        if lines:
+            total = Decimal("0")
+            for line in lines:
+                child_weight = _get_item_weight(db, line.component_item_id, set(visited))
+                if child_weight is None:
+                    return None
+                total += child_weight * Decimal(str(line.quantity))
+            return total
+    item = db.query(Item).filter(Item.id == item_id).first()
+    return item.weight_g if item else None
 
 
 def _cascade_invalidate(db: Session, item_id: int, user_id: int, visited: set) -> None:
@@ -150,9 +152,11 @@ async def get_item(
     bom_has_lines: bool = False
     bom_weight_g: Optional[Decimal] = None
     bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
-    if bom and bom.lines:
-        bom_has_lines = True
-        bom_weight_g = _get_item_weight(db, item_id, set())
+    if bom:
+        bom_lines = db.query(BOMLine).filter(BOMLine.bom_id == bom.id).all()
+        if bom_lines:
+            bom_has_lines = True
+            bom_weight_g = _get_item_weight(db, item_id, set())
 
     # Build response with names
     resp = ItemResponse.model_validate(item)
