@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { FirebaseError } from 'firebase/app';
-import { sendMagicLink, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase';
+import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
 import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
@@ -45,7 +45,6 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
   const [variation, setVariation] = useState(1);
-  const [redirectChecked, setRedirectChecked] = useState(false);
 
   useEffect(() => {
     setVariation(Math.floor(Math.random() * 3) + 1);
@@ -56,36 +55,6 @@ export default function LoginPage() {
       localStorage.setItem(REDIRECT_KEY, from);
     }
   }, []);
-
-  useEffect(() => {
-    async function checkGoogleRedirect() {
-      try {
-        const result = await getGoogleRedirectResult();
-        if (result) {
-          const { token } = result;
-          api.setToken(token);
-          localStorage.setItem('inexxio_token', token);
-          try {
-            const profile = await api.getMe();
-            localStorage.setItem(ROLE_KEY, profile.role);
-            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-            if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
-          } catch {
-            // role/name fetch failed — will retry on next page load
-          }
-          const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
-          localStorage.removeItem(REDIRECT_KEY);
-          router.push(redirect);
-          return;
-        }
-      } catch (err: unknown) {
-        const code = (err as FirebaseError).code ?? '';
-        setError(getGoogleErrorMessage(code));
-      }
-      setRedirectChecked(true);
-    }
-    checkGoogleRedirect();
-  }, [router]);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -106,26 +75,25 @@ export default function LoginPage() {
     setError('');
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      // Page navigates to Google — loading state remains until navigation
+      const { token } = await signInWithGoogle();
+      api.setToken(token);
+      localStorage.setItem('inexxio_token', token);
+      try {
+        const profile = await api.getMe();
+        localStorage.setItem(ROLE_KEY, profile.role);
+        const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+        if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
+      } catch {
+        // role/name fetch failed — will retry on next page load
+      }
+      const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
+      localStorage.removeItem(REDIRECT_KEY);
+      router.push(redirect);
     } catch (err: unknown) {
       setGoogleLoading(false);
       const code = (err as FirebaseError).code ?? '';
       setError(getGoogleErrorMessage(code));
     }
-  }
-
-  if (!redirectChecked) {
-    return (
-      <>
-        <div className="ix-login-bg" />
-        <div className="ix-login-lightbox">
-          <div className="ix-login-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-            <span className="ix-spinner" />
-          </div>
-        </div>
-      </>
-    );
   }
 
   return (
