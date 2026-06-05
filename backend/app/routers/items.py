@@ -201,6 +201,34 @@ async def submit_item(
     return ItemResponse.model_validate(item)
 
 
+@router.post("/{item_id}/recall", response_model=ItemResponse)
+async def recall_item(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status != ItemStatus.IN_FREIGABE:
+        raise HTTPException(status_code=400, detail="Only IN_FREIGABE items can be recalled")
+
+    item.status = ItemStatus.ENTWURF
+    item.submitted_at = None
+    item.submitted_by = None
+    db.add(AuditLog(
+        object_id=item_id,
+        table_name="items",
+        field_name="status",
+        old_value=ItemStatus.IN_FREIGABE,
+        new_value=ItemStatus.ENTWURF,
+        user_id=current_user.id,
+    ))
+    db.commit()
+    db.refresh(item)
+    return ItemResponse.model_validate(item)
+
+
 @router.post("/{item_id}/approve", response_model=ItemResponse)
 async def approve_item(
     item_id: int,

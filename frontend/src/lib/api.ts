@@ -154,6 +154,22 @@ class ApiClient {
     return this.post('/api/v1/admin/item-categories', { label });
   }
 
+  deleteItemName(id: number): Promise<void> {
+    return this.delete(`/api/v1/admin/item-names/${id}`);
+  }
+
+  deleteItemSurface(id: number): Promise<void> {
+    return this.delete(`/api/v1/admin/item-surfaces/${id}`);
+  }
+
+  deleteItemCategory(id: number): Promise<void> {
+    return this.delete(`/api/v1/admin/item-categories/${id}`);
+  }
+
+  recallItem(id: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/recall`, {});
+  }
+
   // ─── BOMs ──────────────────────────────────────────────────────────────────
 
   getBOMs(page = 1, pageSize = 50): Promise<BOM[]> {

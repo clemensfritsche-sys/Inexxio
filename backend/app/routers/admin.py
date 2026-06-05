@@ -270,8 +270,14 @@ async def create_item_name(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
-    if db.query(ItemName).filter(ItemName.label == data.label).first():
-        raise HTTPException(status_code=400, detail="Label already exists")
+    existing = db.query(ItemName).filter(ItemName.label == data.label).first()
+    if existing:
+        if existing.is_active:
+            raise HTTPException(status_code=400, detail="Label already exists")
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+        return ItemNameResponse.model_validate(existing)
     obj = ItemName(label=data.label, created_by=current_user.id)
     db.add(obj)
     db.commit()
@@ -293,8 +299,14 @@ async def create_item_surface(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
-    if db.query(ItemSurface).filter(ItemSurface.label == data.label).first():
-        raise HTTPException(status_code=400, detail="Label already exists")
+    existing = db.query(ItemSurface).filter(ItemSurface.label == data.label).first()
+    if existing:
+        if existing.is_active:
+            raise HTTPException(status_code=400, detail="Label already exists")
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+        return ItemSurfaceResponse.model_validate(existing)
     obj = ItemSurface(label=data.label, created_by=current_user.id)
     db.add(obj)
     db.commit()
@@ -316,13 +328,58 @@ async def create_item_category(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
-    if db.query(ItemCategory).filter(ItemCategory.label == data.label).first():
-        raise HTTPException(status_code=400, detail="Label already exists")
+    existing = db.query(ItemCategory).filter(ItemCategory.label == data.label).first()
+    if existing:
+        if existing.is_active:
+            raise HTTPException(status_code=400, detail="Label already exists")
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+        return ItemCategoryResponse.model_validate(existing)
     obj = ItemCategory(label=data.label, created_by=current_user.id)
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return ItemCategoryResponse.model_validate(obj)
+
+
+@router.delete("/item-names/{item_id}", status_code=204)
+async def delete_item_name(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    obj = db.query(ItemName).filter(ItemName.id == item_id, ItemName.is_active == True).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Not found")
+    obj.is_active = False
+    db.commit()
+
+
+@router.delete("/item-surfaces/{item_id}", status_code=204)
+async def delete_item_surface(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    obj = db.query(ItemSurface).filter(ItemSurface.id == item_id, ItemSurface.is_active == True).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Not found")
+    obj.is_active = False
+    db.commit()
+
+
+@router.delete("/item-categories/{item_id}", status_code=204)
+async def delete_item_category(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    obj = db.query(ItemCategory).filter(ItemCategory.id == item_id, ItemCategory.is_active == True).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Not found")
+    obj.is_active = False
+    db.commit()
 
 
 @router.post("/notifications/{notification_id}/read")

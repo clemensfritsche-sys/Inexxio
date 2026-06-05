@@ -107,6 +107,19 @@ export default function EinstellungenPage() {
     setItemCategories((prev) => [...prev, item]);
   }
 
+  async function deleteItemName(id: number) {
+    await api.deleteItemName(id);
+    setItemNames((prev) => prev.filter((i) => i.id !== id));
+  }
+  async function deleteItemSurface(id: number) {
+    await api.deleteItemSurface(id);
+    setItemSurfaces((prev) => prev.filter((i) => i.id !== id));
+  }
+  async function deleteItemCategory(id: number) {
+    await api.deleteItemCategory(id);
+    setItemCategories((prev) => prev.filter((i) => i.id !== id));
+  }
+
   async function saveSection(section: SectionKey, data: Partial<CompanySettings>) {
     setSaving(section);
     setError('');
@@ -356,6 +369,7 @@ export default function EinstellungenPage() {
             items={itemNames}
             loading={configLoading}
             onAdd={addItemName}
+            onDelete={deleteItemName}
           />
           <ListManager
             title="Oberflächen"
@@ -363,6 +377,7 @@ export default function EinstellungenPage() {
             items={itemSurfaces}
             loading={configLoading}
             onAdd={addItemSurface}
+            onDelete={deleteItemSurface}
           />
           <ListManager
             title="Produktkategorien"
@@ -370,6 +385,7 @@ export default function EinstellungenPage() {
             items={itemCategories}
             loading={configLoading}
             onAdd={addItemCategory}
+            onDelete={deleteItemCategory}
           />
         </div>
       </div>
@@ -406,7 +422,7 @@ function SettingsCard({
   function scheduleAutoSave() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      if (formRef.current) onSave(collectData(formRef.current));
+      if (formRef.current && formRef.current.checkValidity()) onSave(collectData(formRef.current));
     }, 3000);
   }
 
@@ -426,27 +442,6 @@ function SettingsCard({
       </div>
 
       {children}
-
-      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-        <div className="flex items-center gap-2">
-          {saved && (
-            <span className="flex items-center gap-1.5 text-sm text-green-600">
-              <CheckCircle2 className="h-4 w-4" />
-              Gespeichert
-            </span>
-          )}
-        </div>
-        <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Speichert…
-            </>
-          ) : (
-            'Speichern'
-          )}
-        </button>
-      </div>
     </form>
   );
 }
@@ -532,12 +527,14 @@ function ListManager({
   items,
   loading,
   onAdd,
+  onDelete,
 }: {
   title: string;
   description: string;
   items: ListEntry[];
   loading: boolean;
   onAdd: (label: string) => Promise<void>;
+  onDelete?: (id: number) => Promise<void>;
 }) {
   const [newLabel, setNewLabel] = useState('');
   const [adding, setAdding] = useState(false);
@@ -581,9 +578,19 @@ function ListManager({
             activeItems.map((item) => (
               <span
                 key={item.id}
-                className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-full border border-slate-200"
+                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-full border border-slate-200"
               >
                 {item.label}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item.id)}
+                    className="ml-0.5 text-slate-400 hover:text-red-500 transition-colors"
+                    title="Löschen"
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             ))
           )}

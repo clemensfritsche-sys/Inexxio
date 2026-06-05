@@ -19,7 +19,7 @@ export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: stri
 };
 
 export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
-  'none': 'Keine',
+  'none': 'Einzelteil',
   'batch': 'Charge (Losnummer)',
   'serial': 'Seriennummer',
 };

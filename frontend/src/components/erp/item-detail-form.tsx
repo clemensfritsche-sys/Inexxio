@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
-  Plus, Trash2, ChevronUp, ChevronDown, GitBranch, ArrowRight, ExternalLink,
+  Plus, Trash2, ChevronUp, ChevronDown, GitBranch, ArrowRight, ExternalLink, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -241,7 +241,6 @@ function BOMTab({
   isEditable: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [bomNote, setBomNote] = useState('');
   const [lines, setLines] = useState<BOMLineInput[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -272,7 +271,6 @@ function BOMTab({
   useEffect(() => {
     if (bomData && !initialized) {
       const bom: BOM | undefined = bomData[0];
-      setBomNote(bom?.note ?? '');
       setLines(
         (bom?.lines ?? [])
           .sort((a, b) => a.position - b.position)
@@ -357,7 +355,7 @@ function BOMTab({
     setSaveOk(false);
     try {
       const payload = {
-        note: bomNote || null,
+        note: null,
         lines: lines.map((l, idx) => ({
           component_item_id: l.component_item_id,
           quantity: parseInt(l.quantity) || 1,
@@ -396,21 +394,6 @@ function BOMTab({
 
   return (
     <div className="px-6 py-5 space-y-5">
-      {/* Note */}
-      <div>
-        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notiz zur Stückliste</label>
-        {isEditable ? (
-          <input
-            className={`${inputCls} w-full`}
-            value={bomNote}
-            onChange={(e) => setBomNote(e.target.value)}
-            placeholder="Optionale Notiz…"
-          />
-        ) : (
-          <p className="text-sm text-slate-900 py-1">{bomNote || <span className="text-slate-400 italic">—</span>}</p>
-        )}
-      </div>
-
       {/* Lines table */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -812,6 +795,15 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
 
   const { mutate: invalidateItem, isPending: invalidating } = useMutation({
     mutationFn: () => api.invalidateItem(itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['objects'] });
+      onRefresh?.();
+    },
+  });
+
+  const { mutate: recallItem, isPending: recalling } = useMutation({
+    mutationFn: () => api.recallItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', itemId] });
       queryClient.invalidateQueries({ queryKey: ['objects'] });
@@ -1304,24 +1296,29 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             </button>
           </div>
         )}
-        {statusKey === 'IN_FREIGABE' && isAdmin && (
+        {statusKey === 'IN_FREIGABE' && (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">Artikel prüfen und freigeben.</p>
             <button
               type="button"
-              onClick={() => approveItem()}
-              disabled={approving}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+              onClick={() => recallItem()}
+              disabled={recalling}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
             >
-              {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Freigeben
+              {recalling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              Zurück zu Entwurf
             </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => approveItem()}
+                disabled={approving}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Freigeben
+              </button>
+            )}
           </div>
-        )}
-        {statusKey === 'IN_FREIGABE' && !isAdmin && (
-          <p className="text-xs text-slate-500 text-center py-1">
-            Warte auf Freigabe durch einen Administrator.
-          </p>
         )}
         {statusKey === 'FREIGEGEBEN' && isAdmin && (
           <div className="flex items-center justify-end gap-2">
