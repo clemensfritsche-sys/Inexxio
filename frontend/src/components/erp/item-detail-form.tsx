@@ -360,7 +360,7 @@ function BOMTab({
         note: bomNote || null,
         lines: lines.map((l, idx) => ({
           component_item_id: l.component_item_id,
-          quantity: parseFloat(l.quantity) || 1,
+          quantity: parseInt(l.quantity) || 1,
           unit: l.unit,
           position: idx + 1,
           note: l.note || null,
@@ -469,8 +469,8 @@ function BOMTab({
                       {isEditable ? (
                         <input
                           type="number"
-                          min="0.001"
-                          step="0.001"
+                          min="1"
+                          step="1"
                           className={`${inputCls} w-full`}
                           value={line.quantity}
                           onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))}
@@ -566,7 +566,7 @@ function BOMTab({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Menge</label>
-                <input type="number" min="0.001" step="0.001" className={`${inputCls} w-full`} value={newQty} onChange={(e) => setNewQty(e.target.value)} />
+                <input type="number" min="1" step="1" className={`${inputCls} w-full`} value={newQty} onChange={(e) => setNewQty(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Einheit</label>
@@ -1152,68 +1152,68 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                     </p>
                   )}
                 </div>
-              </>
-            )}
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 pt-2 border-t border-slate-100">SEO & Beschreibung</p>
-              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Langbeschreibung</label>
-                  {isEditable ? (
-                    <textarea
-                      value={form.shop_description_long}
-                      onChange={(e) => updateField('shop_description_long', e.target.value)}
-                      rows={4}
-                      placeholder="Detaillierte Produktbeschreibung für den Online-Shop…"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900 whitespace-pre-wrap py-1">{form.shop_description_long || <span className="text-slate-400 italic">—</span>}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SEO-Titel</label>
-                  <FieldInput readOnly={!isEditable} value={form.seo_title} onChange={(v) => updateField('seo_title', v)} placeholder="Seitentitel für Suchmaschinen" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SEO-Beschreibung</label>
-                  {isEditable ? (
-                    <textarea
-                      value={form.seo_description}
-                      onChange={(e) => updateField('seo_description', e.target.value)}
-                      rows={2}
-                      maxLength={200}
-                      placeholder="Meta-Beschreibung (max. 160 Zeichen)"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all"
-                    />
-                  ) : (
-                    <p className="text-sm text-slate-900 py-1">{form.seo_description || <span className="text-slate-400 italic">—</span>}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                    HS-Code
-                  </label>
-                  <div className="space-y-1">
-                    <FieldInput readOnly={!isEditable} value={form.hs_code} onChange={(v) => updateField('hs_code', v)} placeholder="z.B. 8479.89.97" />
-                    {isEditable && (
-                      <p className="text-xs text-slate-400">
-                        Harmonisierter System-Code für Zollanmeldungen.{' '}
-                        <a
-                          href="https://xtares.admin.ch/tares/login/loginFormFiller.do"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:text-blue-700 inline-flex items-center gap-0.5"
-                        >
-                          Zolltarif CH (XTARES) <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </p>
-                    )}
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 pt-2 border-t border-slate-100">SEO & Beschreibung</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Langbeschreibung</label>
+                      {isEditable ? (
+                        <textarea
+                          value={form.shop_description_long}
+                          onChange={(e) => updateField('shop_description_long', e.target.value)}
+                          rows={4}
+                          placeholder="Detaillierte Produktbeschreibung für den Online-Shop…"
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all"
+                        />
+                      ) : (
+                        <p className="text-sm text-slate-900 whitespace-pre-wrap py-1">{form.shop_description_long || <span className="text-slate-400 italic">—</span>}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SEO-Titel</label>
+                      <FieldInput readOnly={!isEditable} value={form.seo_title} onChange={(v) => updateField('seo_title', v)} placeholder="Seitentitel für Suchmaschinen" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">SEO-Beschreibung</label>
+                      {isEditable ? (
+                        <textarea
+                          value={form.seo_description}
+                          onChange={(e) => updateField('seo_description', e.target.value)}
+                          rows={2}
+                          maxLength={200}
+                          placeholder="Meta-Beschreibung (max. 160 Zeichen)"
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all"
+                        />
+                      ) : (
+                        <p className="text-sm text-slate-900 py-1">{form.seo_description || <span className="text-slate-400 italic">—</span>}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                        HS-Code
+                      </label>
+                      <div className="space-y-1">
+                        <FieldInput readOnly={!isEditable} value={form.hs_code} onChange={(v) => updateField('hs_code', v)} placeholder="z.B. 8479.89.97" />
+                        {isEditable && (
+                          <p className="text-xs text-slate-400">
+                            Harmonisierter System-Code für Zollanmeldungen.{' '}
+                            <a
+                              href="https://xtares.admin.ch/tares/login/loginFormFiller.do"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-700 inline-flex items-center gap-0.5"
+                            >
+                              Zolltarif CH (XTARES) <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </TabPanel>
 
           {/* ── Stückliste ── */}
@@ -1237,6 +1237,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
                   <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                     <Clock className="h-3 w-3" />{formatDate(item?.created_at ?? '')}
+                    {item?.created_by_name && <span className="ml-1 font-medium">{item.created_by_name}</span>}
                   </p>
                 </div>
               </div>
@@ -1249,6 +1250,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                     <p className="text-sm font-medium text-slate-900">Zur Freigabe eingereicht</p>
                     <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                       <Clock className="h-3 w-3" />{formatDate(item.submitted_at)}
+                      {item.submitted_by_name && <span className="ml-1 font-medium">{item.submitted_by_name}</span>}
                     </p>
                   </div>
                 </div>
@@ -1262,6 +1264,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                     <p className="text-sm font-medium text-slate-900">Freigegeben</p>
                     <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                       <Clock className="h-3 w-3" />{formatDate(item.approved_at)}
+                      {item.approved_by_name && <span className="ml-1 font-medium">{item.approved_by_name}</span>}
                     </p>
                   </div>
                 </div>
@@ -1273,7 +1276,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                     <div key={sig.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0">
                       <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
                       <span className="text-xs text-slate-600">
-                        Benutzer #{sig.signed_by} · {formatDate(sig.signed_at)}
+                        {sig.signed_by_name ?? `Benutzer #${sig.signed_by}`} · {formatDate(sig.signed_at)}
                       </span>
                     </div>
                   ))}
