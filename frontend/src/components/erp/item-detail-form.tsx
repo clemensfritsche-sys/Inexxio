@@ -472,7 +472,6 @@ function BOMTab({
                   <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Artikel</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-20">Menge</th>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-16">Einheit</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Notiz</th>
                   {isEditable && <th className="w-20" />}
                 </tr>
               </thead>
@@ -481,16 +480,8 @@ function BOMTab({
                   <tr key={line.tempId} className="border-t border-slate-100 hover:bg-slate-50">
                     <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
                     <td className="px-3 py-2">
-                      {isEditable ? (
-                        <input
-                          className={`${inputCls} w-full`}
-                          value={line.item_name}
-                          readOnly
-                          placeholder="Artikel"
-                        />
-                      ) : (
-                        <span className="text-sm text-slate-900">{line.item_name}</span>
-                      )}
+                      <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(line.component_item_id)}</p>
+                      <p className="text-xs text-slate-500">{line.item_name}</p>
                     </td>
                     <td className="px-3 py-2">
                       {isEditable ? (
@@ -507,31 +498,7 @@ function BOMTab({
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      {isEditable ? (
-                        <select
-                          className={selectCls}
-                          value={line.unit}
-                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, unit: v } : l)); scheduleAutoSave(); }}
-                        >
-                          {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => (
-                            <option key={u} value={u}>{u}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-sm text-slate-900">{line.unit}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {isEditable ? (
-                        <input
-                          className={`${inputCls} w-full`}
-                          value={line.note}
-                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, note: v } : l)); scheduleAutoSave(); }}
-                          placeholder="Optional"
-                        />
-                      ) : (
-                        <span className="text-sm text-slate-500">{line.note || '—'}</span>
-                      )}
+                      <span className="text-sm text-slate-900">{line.unit}</span>
                     </td>
                     {isEditable && (
                       <td className="px-3 py-2">
@@ -561,33 +528,52 @@ function BOMTab({
             <p className="text-xs font-semibold text-blue-700">Neue Position</p>
             <div>
               <label className="block text-xs text-slate-600 mb-1">Artikel suchen (nur FREIGEGEBEN)</label>
-              <input
-                className={`${inputCls} w-full mb-2`}
-                placeholder="Name oder ID eingeben…"
-                value={itemSearch}
-                onChange={(e) => { setItemSearch(e.target.value); setNewItemId(null); }}
-              />
-              {itemSearch.length > 0 && (
-                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
-                  {filteredItems.length === 0 ? (
-                    <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
-                  ) : (
-                    filteredItems.slice(0, 20).map((i) => (
-                      <button
-                        key={i.id}
-                        type="button"
-                        onClick={() => { setNewItemId(i.id); setItemSearch(i.name); }}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors',
-                          newItemId === i.id && 'bg-blue-50',
-                        )}
-                      >
-                        <span className="font-mono text-slate-400">{formatObjectId(i.id)}</span>
-                        <span className="text-slate-800 truncate">{i.name}</span>
-                      </button>
-                    ))
-                  )}
+              {newItemId ? (
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-300 rounded-lg mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-mono font-semibold text-slate-900">
+                      {formatObjectId(newItemId)}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {freigItems?.items.find((i) => i.id === newItemId)?.name ?? ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setNewItemId(null); setNewUnit('Stk'); }}
+                    className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
                 </div>
+              ) : (
+                <>
+                  <input
+                    className={`${inputCls} w-full mb-2`}
+                    placeholder="Name oder ID eingeben…"
+                    value={itemSearch}
+                    onChange={(e) => setItemSearch(e.target.value)}
+                  />
+                  {itemSearch.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                      {filteredItems.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
+                      ) : (
+                        filteredItems.slice(0, 20).map((i) => (
+                          <button
+                            key={i.id}
+                            type="button"
+                            onClick={() => { setNewItemId(i.id); setNewUnit(i.unit || 'Stk'); setItemSearch(''); }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors"
+                          >
+                            <span className="font-mono font-semibold text-slate-900">{formatObjectId(i.id)}</span>
+                            <span className="text-slate-600 truncate">{i.name}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -597,9 +583,7 @@ function BOMTab({
               </div>
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Einheit</label>
-                <select className={`${selectCls}`} value={newUnit} onChange={(e) => setNewUnit(e.target.value)}>
-                  {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => <option key={u} value={u}>{u}</option>)}
-                </select>
+                <p className="py-2 text-sm text-slate-900">{newUnit}</p>
               </div>
             </div>
             <div className="flex gap-2">
