@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Loader2, InboxIcon, ArrowLeft, Package, Building2, Wrench, GitBranch } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus, Loader2, InboxIcon, ArrowLeft, X, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { ObjectRow } from './object-row';
@@ -44,32 +43,164 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'user', label: 'Benutzer' },
 ];
 
-const CREATE_MENU = [
-  { label: 'Artikel erstellen', href: '/erp/artikel', icon: Package },
-  { label: 'Firma erstellen', href: '/erp/firmen', icon: Building2 },
-  { label: 'Stückliste erstellen', href: '/erp/stuecklisten', icon: GitBranch },
-  { label: 'Arbeitsplan erstellen', href: '/erp/arbeitspläne', icon: Wrench },
-];
+// ─── New Item Quick Form ─────────────────────────────────────────────────────
+
+interface NewItemPanelProps {
+  onCreated: (itemId: number) => void;
+  onCancel: () => void;
+}
+
+function NewItemPanel({ onCreated, onCancel }: NewItemPanelProps) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [nameId, setNameId] = useState<number | null>(null);
+  const [unit, setUnit] = useState('Stk');
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: itemNames = [], isLoading: namesLoading } = useQuery({
+    queryKey: ['item-names'],
+    queryFn: () => api.getItemNames(),
+    staleTime: 120_000,
+  });
+
+  const { mutate: createItem, isPending } = useMutation({
+    mutationFn: () => api.createItem({ name: name.trim(), name_id: nameId ?? undefined, unit }),
+    onSuccess: (item) => {
+      queryClient.invalidateQueries({ queryKey: ['objects'] });
+      queryClient.invalidateQueries({ queryKey: ['item-names'] });
+      onCreated(item.id);
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen');
+    },
+  });
+
+  const handleCreate = () => {
+    if (!name.trim()) { setError('Artikelname ist erforderlich'); return; }
+    setError(null);
+    createItem();
+  };
+
+  const activeNames = (itemNames as { id: number; label: string; is_active: boolean }[]).filter((n) => n.is_active);
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <Package className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Neuer Artikel</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Stammdaten werden nach dem Erstellen befüllt</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="flex-1 px-6 py-6 space-y-5">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+            Artikelname <span className="text-red-500">*</span>
+          </label>
+          {namesLoading ? (
+            <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />Lädt…
+            </div>
+          ) : activeNames.length > 0 ? (
+            <select
+              value={nameId ?? ''}
+              onChange={(e) => {
+                const id = e.target.value ? Number(e.target.value) : null;
+                setNameId(id);
+                const found = activeNames.find((n) => n.id === id);
+                setName(found?.label ?? '');
+              }}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+            >
+              <option value="">— Wählen oder unten eingeben —</option>
+              {activeNames.map((n) => (
+                <option key={n.id} value={n.id}>{n.label}</option>
+              ))}
+            </select>
+          ) : null}
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setNameId(null); }}
+            placeholder={activeNames.length > 0 ? 'Oder neuen Namen eingeben…' : 'Artikelname eingeben…'}
+            className={cn(
+              'w-full px-3 py-2 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all',
+              activeNames.length > 0 ? 'mt-2' : '',
+              error ? 'border-red-300' : 'border-slate-200',
+            )}
+          />
+          {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+            Mengeneinheit <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          >
+            {['Stk', 'mm', 'g', 'mm²'].map((u) => (
+              <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+        </div>
+
+        <p className="text-xs text-slate-400 bg-slate-50 rounded-lg p-3 border border-slate-100">
+          Nach dem Erstellen können alle weiteren Felder (Gewicht, Abmessungen, EK-Preis, etc.) direkt im Detailbereich ausgefüllt werden.
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={isPending || !name.trim()}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50"
+          style={{ background: '#E51A14' }}
+        >
+          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          Artikel erstellen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Universal Feed ───────────────────────────────────────────────────────────
 
 export function UniversalFeed() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [showCreateMenu, setShowCreateMenu] = useState(false);
-  const createMenuRef = useRef<HTMLDivElement>(null);
+  const [isCreatingItem, setIsCreatingItem] = useState(false);
   const queryClient = useQueryClient();
-  const router = useRouter();
   const isMobile = useIsMobile(768);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
-        setShowCreateMenu(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
 
@@ -101,29 +232,19 @@ export function UniversalFeed() {
   const isError = isUserFilter ? usersError : objectsError;
 
   const objects: UniversalObject[] = useMemo(() => {
-    if (isUserFilter) {
-      return (usersData ?? []).map(profileToObject);
-    }
+    if (isUserFilter) return (usersData ?? []).map(profileToObject);
     const objs = objectsData?.items ?? [];
-    if (filter === 'all') {
-      const users = (usersData ?? []).map(profileToObject);
-      return [...objs, ...users];
-    }
+    if (filter === 'all') return [...objs, ...(usersData ?? []).map(profileToObject)];
     return objs;
   }, [isUserFilter, filter, usersData, objectsData]);
 
   const filtered = useMemo(() => {
     let list = objects;
-    if (!isUserFilter && filter !== 'all') {
-      list = list.filter((o) => o.object_type === filter);
-    }
+    if (!isUserFilter && filter !== 'all') list = list.filter((o) => o.object_type === filter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (o) =>
-          o.title.toLowerCase().includes(q) ||
-          o.number.includes(q) ||
-          o.id.toString().includes(q),
+        (o) => o.title.toLowerCase().includes(q) || o.number.includes(q) || o.id.toString().includes(q),
       );
     }
     return list;
@@ -136,41 +257,37 @@ export function UniversalFeed() {
     queryClient.invalidateQueries({ queryKey: ['objects'] });
   }, [queryClient]);
 
-  // Mobile: show list when nothing selected, detail when selected
-  const showList = !isMobile || selectedId === null;
-  const showDetail = !isMobile || selectedId !== null;
+  const handleItemCreated = useCallback((itemId: number) => {
+    setIsCreatingItem(false);
+    setFilter('item');
+    setSelectedId(itemId);
+    queryClient.invalidateQueries({ queryKey: ['objects'] });
+  }, [queryClient]);
+
+  const handleSelectRow = useCallback((id: number) => {
+    setIsCreatingItem(false);
+    setSelectedId((prev) => (prev === id ? null : id));
+  }, []);
+
+  // Mobile: show list when nothing selected, detail when selected or creating
+  const showList = !isMobile || (selectedId === null && !isCreatingItem);
+  const showDetail = !isMobile || selectedId !== null || isCreatingItem;
 
   const listPanel = (
     <div className={cn('flex flex-col border-r border-slate-200 bg-white shrink-0', isMobile ? 'w-full' : 'w-96')}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
         <h1 className="text-lg font-bold text-slate-900">ERP</h1>
-        <div className="relative" ref={createMenuRef}>
-          <button
-            type="button"
-            onClick={() => setShowCreateMenu((v) => !v)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:bg-red-700 transition-colors"
-            style={{ background: '#E51A14' }}
-            aria-label="Neues Objekt erstellen"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          {showCreateMenu && (
-            <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
-              {CREATE_MENU.map(({ label, href, icon: Icon }) => (
-                <button
-                  key={href}
-                  type="button"
-                  onClick={() => { setShowCreateMenu(false); router.push(href); }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <Icon className="h-4 w-4 text-slate-400" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => { setIsCreatingItem(true); setSelectedId(null); }}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:opacity-90 transition-opacity"
+          style={{ background: '#E51A14' }}
+          aria-label="Neuen Artikel erstellen"
+          title="Neuen Artikel erstellen"
+        >
+          <Plus className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Search */}
@@ -192,12 +309,10 @@ export function UniversalFeed() {
         {filterTabs.map((tab) => (
           <button
             key={tab.value}
-            onClick={() => { setFilter(tab.value); setSelectedId(null); }}
+            onClick={() => { setFilter(tab.value); setSelectedId(null); setIsCreatingItem(false); }}
             className={cn(
               'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
-              filter === tab.value
-                ? 'text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+              filter === tab.value ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
             )}
             style={filter === tab.value ? { background: '#E51A14' } : {}}
           >
@@ -219,7 +334,7 @@ export function UniversalFeed() {
             <InboxIcon className="h-10 w-10 text-slate-300 mb-3" />
             <p className="text-sm font-medium text-slate-700">Keine Objekte gefunden</p>
             <p className="text-xs text-slate-500 mt-1">
-              {search ? 'Versuchen Sie einen anderen Suchbegriff.' : 'Erstellen Sie Ihr erstes Objekt mit dem + Button.'}
+              {search ? 'Versuchen Sie einen anderen Suchbegriff.' : 'Erstellen Sie Ihren ersten Artikel mit dem + Button.'}
             </p>
           </div>
         )}
@@ -230,7 +345,7 @@ export function UniversalFeed() {
               key={obj.id}
               object={obj}
               selected={obj.id === selectedId}
-              onClick={() => setSelectedId(obj.id === selectedId ? null : obj.id)}
+              onClick={() => handleSelectRow(obj.id)}
             />
           ))}
 
@@ -253,21 +368,27 @@ export function UniversalFeed() {
 
   const detailPanel = (
     <div className={cn('flex flex-col overflow-hidden bg-white', isMobile ? 'w-full' : 'flex-1')}>
-      {isMobile && selectedId !== null && (
+      {isMobile && (selectedId !== null || isCreatingItem) && (
         <button
-          onClick={() => setSelectedId(null)}
-          className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white"
-          style={{ background: 'none', border: 'none', borderBottom: '1px solid #E2E8F0', cursor: 'pointer', textAlign: 'left' }}
+          onClick={() => { setSelectedId(null); setIsCreatingItem(false); }}
+          className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Zurück zur Liste
         </button>
       )}
-      <DetailPanel
-        object={selectedObject}
-        currentUserRole={currentUserRole}
-        onRefresh={handleRefresh}
-      />
+      {isCreatingItem ? (
+        <NewItemPanel
+          onCreated={handleItemCreated}
+          onCancel={() => setIsCreatingItem(false)}
+        />
+      ) : (
+        <DetailPanel
+          object={selectedObject}
+          currentUserRole={currentUserRole}
+          onRefresh={handleRefresh}
+        />
+      )}
     </div>
   );
 
