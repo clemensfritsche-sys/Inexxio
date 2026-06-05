@@ -59,6 +59,7 @@ export interface ItemSignature {
   item_id: number;
   signed_by: number;
   signed_at: string;
+  signed_by_name?: string | null;
 }
 
 // ─── Item ─────────────────────────────────────────────────────────────────────
@@ -98,6 +99,9 @@ export interface Item {
   submitted_by: number | null;
   approved_at: string | null;
   approved_by: number | null;
+  submitted_by_name?: string | null;
+  approved_by_name?: string | null;
+  created_by_name?: string | null;
   created_at: string;
   updated_at: string;
   is_active: boolean;

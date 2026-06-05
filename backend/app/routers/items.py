@@ -11,7 +11,7 @@ from ..models.boms import BOM, BOMLine
 from ..models.item_config import ItemCategory, ItemName, ItemSurface
 from ..models.items import Item, ItemSignature, ItemStatus
 from ..models.objects import ObjectType, UniversalObject
-from ..schemas.items import ItemCreate, ItemListResponse, ItemResponse, ItemUpdate
+from ..schemas.items import ItemCreate, ItemListResponse, ItemResponse, ItemSignatureResponse, ItemUpdate
 
 router = APIRouter(prefix="/api/v1/items", tags=["items"])
 
@@ -106,7 +106,39 @@ async def get_item(
     item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    return ItemResponse.model_validate(item)
+
+    # Collect user IDs to resolve names
+    user_ids: set[int] = {uid for uid in [item.submitted_by, item.approved_by] if uid}
+    user_ids |= {sig.signed_by for sig in item.signatures}
+
+    # Also get creator from UniversalObject
+    obj = db.query(UniversalObject).filter(UniversalObject.id == item_id).first()
+    created_by_id: int | None = obj.created_by if obj else None
+    if created_by_id:
+        user_ids.add(created_by_id)
+
+    # Fetch user profiles and build name map
+    user_map: dict[int, str] = {}
+    if user_ids:
+        profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
+        for p in profiles:
+            parts = [p.first_name, p.last_name]
+            name = " ".join(x for x in parts if x) or p.display_name or p.email
+            user_map[p.id] = name
+
+    # Build response with names
+    resp = ItemResponse.model_validate(item)
+    updated_sigs = []
+    for sig in item.signatures:
+        sig_resp = ItemSignatureResponse.model_validate(sig)
+        updated_sigs.append(sig_resp.model_copy(update={"signed_by_name": user_map.get(sig.signed_by)}))
+
+    return resp.model_copy(update={
+        "created_by_name": user_map.get(created_by_id) if created_by_id else None,
+        "submitted_by_name": user_map.get(item.submitted_by) if item.submitted_by else None,
+        "approved_by_name": user_map.get(item.approved_by) if item.approved_by else None,
+        "signatures": updated_sigs,
+    })
 
 
 @router.patch("/{item_id}", response_model=ItemResponse)

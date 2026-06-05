@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
   Key, CheckCircle2, AlertCircle, Loader2, Lock, Package,
@@ -135,7 +135,7 @@ export default function EinstellungenPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Firmeneinstellungen</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Systemkonfiguration</h1>
         <p className="mt-1 text-sm text-slate-500">
           Firmen- und Rechtsdaten werden auf Rechnungen, im Impressum und in den AGB verwendet.
         </p>
@@ -394,16 +394,30 @@ function SettingsCard({
   saving: boolean;
   saved: boolean;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function collectData(form: HTMLFormElement): Record<string, string> {
+    const data: Record<string, string> = {};
+    new FormData(form).forEach((value, key) => { data[key] = value as string; });
+    return data;
+  }
+
+  function scheduleAutoSave() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (formRef.current) onSave(collectData(formRef.current));
+    }, 3000);
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data: Record<string, string> = {};
-    formData.forEach((value, key) => { data[key] = value as string; });
-    onSave(data);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    onSave(collectData(e.currentTarget));
   }
 
   return (
-    <form onSubmit={handleSubmit} className="card p-6">
+    <form ref={formRef} onSubmit={handleSubmit} onChange={scheduleAutoSave} className="card p-6">
       <div className="mb-5 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
           {icon}

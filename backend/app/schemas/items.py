@@ -12,6 +12,7 @@ class ItemSignatureResponse(BaseModel):
     item_id: int
     signed_by: int
     signed_at: datetime
+    signed_by_name: Optional[str] = None
 
 
 class ItemCreate(BaseModel):
@@ -125,6 +126,9 @@ class ItemResponse(BaseModel):
     submitted_by: Optional[int]
     approved_at: Optional[datetime]
     approved_by: Optional[int]
+    submitted_by_name: Optional[str] = None
+    approved_by_name: Optional[str] = None
+    created_by_name: Optional[str] = None
     serialization_type: str
     created_at: datetime
     updated_at: datetime

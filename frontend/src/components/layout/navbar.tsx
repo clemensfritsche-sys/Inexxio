@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown, Settings, Users, Package } from 'lucide-react';
+import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown, Settings, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
@@ -278,15 +278,7 @@ export function Navbar() {
                                 className="hover:bg-slate-50"
                               >
                                 <Package style={{ width: 14, height: 14 }} />
-                                ERP-Konfiguration
-                              </Link>
-                              <Link
-                                href="/admin/benutzer"
-                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', borderRadius: 8, font: '500 13px var(--font-body)', color: 'var(--fg-2)', textDecoration: 'none' }}
-                                className="hover:bg-slate-50"
-                              >
-                                <Users style={{ width: 14, height: 14 }} />
-                                Benutzerverwaltung
+                                Systemkonfiguration
                               </Link>
                             </>
                           )}

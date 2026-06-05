@@ -126,7 +126,7 @@ interface FormState {
 
 function itemToFormState(item: Item): FormState {
   const d1 = item.dim_1_mm, d2 = item.dim_2_mm, d3 = item.dim_3_mm;
-  const size = d1 != null && d2 != null && d3 != null ? `${d1}x${d2}x${d3}` : '';
+  const size = d1 != null && d2 != null && d3 != null ? `${fmtNum(d1)}x${fmtNum(d2)}x${fmtNum(d3)}` : '';
   return {
     name: item.name ?? '',
     name_id: item.name_id ?? null,
@@ -135,7 +135,7 @@ function itemToFormState(item: Item): FormState {
     order_number: item.order_number ?? '',
     order_link: item.order_link ?? '',
     onshape_link: item.onshape_link ?? '',
-    weight_g: item.weight_g != null ? String(item.weight_g) : '',
+    weight_g: fmtNum(item.weight_g),
     size_input: size,
     surface_id: item.surface_id ?? null,
     purchase_price: item.purchase_price != null ? String(item.purchase_price) : '',
@@ -160,6 +160,12 @@ function parseSizeInput(input: string): { valid: boolean; dims?: { dim_1_mm: num
   const [a, b, c] = parts;
   if (a > b || b > c) return { valid: false };
   return { valid: true, dims: { dim_1_mm: a, dim_2_mm: b, dim_3_mm: c } };
+}
+
+function fmtNum(v: string | null | undefined): string {
+  if (v == null || v === '') return '';
+  const n = parseFloat(String(v));
+  return isNaN(n) ? String(v) : String(n);
 }
 
 function buildPayload(form: FormState): Partial<Item> {
@@ -1057,11 +1063,11 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lagerbestand</label>
-                <p className="text-sm text-slate-900 py-1">{item?.stock_total ?? '0'} <span className="text-slate-500">{form.unit}</span></p>
+                <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_total ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Reserviert</label>
-                <p className="text-sm text-slate-900 py-1">{item?.stock_reserved ?? '0'} <span className="text-slate-500">{form.unit}</span></p>
+                <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_reserved ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
               </div>
             </div>
           </TabPanel>

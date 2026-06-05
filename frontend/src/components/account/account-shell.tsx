@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package, Users } from 'lucide-react';
+import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
@@ -284,11 +284,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
             <p style={{ padding: '10px 14px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Admin</p>
             <Link href="/admin/einstellungen" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid #F1F5F9', color: '#374151', textDecoration: 'none', fontSize: 13 }} className="hover:bg-slate-50 transition-colors">
               <Package style={{ width: 15, height: 15, flexShrink: 0 }} />
-              ERP-Konfiguration
-            </Link>
-            <Link href="/admin/benutzer" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid #F1F5F9', color: '#374151', textDecoration: 'none', fontSize: 13 }} className="hover:bg-slate-50 transition-colors">
-              <Users style={{ width: 15, height: 15, flexShrink: 0 }} />
-              Benutzerverwaltung
+              Systemkonfiguration
             </Link>
           </nav>
         )}
