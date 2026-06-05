@@ -112,16 +112,34 @@ cd backend && alembic upgrade head
 ```
 
 ## Status (aktuell halten)
-Phase: 1 | Branch: claude/festive-davinci-TIgeM
+Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 Aktuell gebaut:
 - Monorepo-Struktur vollständig
 - Backend: FastAPI mit allen Phase-1-Modellen und Endpunkten
 - Frontend: Öffentliche Website (Homepage, Über uns, Kontakt, Impressum, AGB, Datenschutz)
-- Frontend: ERP Universal Feed (Master-Detail)
-- Frontend: Admin Einstellungen
+- Frontend: ERP Universal Feed (Master-Detail) mit Artikelstamm, Stückliste, Verwendungsnachweise
+- Frontend: Admin Einstellungen + Benutzerverwaltung
 - i18n: DE + EN
 
+ERP Artikelstamm – fertiger Stand:
+- Status-Workflow: ENTWURF → IN_FREIGABE → FREIGEGEBEN → ERSETZT/UNGUELTIG
+- Stückliste (BOM): Drag-and-Drop Sortierung, Autosave (3s), Artikelsuche nur nach ID, nur FREIGEGEBEN hinzufügbar
+- Gewicht: Pflichtfeld bei Submit (außer wenn Stückliste vorhanden → dann automatisch berechnet, read-only)
+- Gewichtsberechnung: rekursiv über alle BOM-Ebenen (Backend: _get_item_weight)
+- Verwendungsnachweise (Where-Used): zeigt alle übergeordneten Baugruppen
+- Navigation: Klick auf BOM-Position → öffnet Artikel auf Tab "Artikelstamm"; Klick auf Verwendungsnachweis → öffnet Artikel auf Tab "Stückliste"
+- Firebase Hosting: HTML-Seiten mit Cache-Control: no-cache (JS/CSS weiterhin immutable)
+- Mein Profil: AGB + Datenschutz read-only mit Akzeptierungsdatum
+
 Nächste Aufgabe: Phase 2 – Purchase Orders + Lieferantenportal + Stripe Payments
+
+## Deployment
+- Trigger: Push auf Branch `develop`
+- Workflow: .github/workflows/deploy-dev.yml
+- Backend: Cloud Run (inexxio-dev, europe-west6)
+- Frontend: Firebase Hosting (inexxio-dev → https://inexxio-dev.web.app)
+- Nach Änderungen: git push → develop mergen → git push develop
+- Erster Besuch nach Deploy: einmal Hard-Refresh (Ctrl+Shift+R) nötig
 
 ## Phasenplan
 | Phase | Zeitraum | Inhalt |
