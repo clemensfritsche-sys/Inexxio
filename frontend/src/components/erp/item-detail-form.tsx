@@ -497,30 +497,19 @@ function BOMTab({
                     onDragOver={(e) => isEditable && handleDragOver(e, idx)}
                     onDragLeave={() => isEditable && setDragOverIdx(null)}
                     onDrop={() => isEditable && handleDrop(idx)}
+                    onClick={() => onNavigate?.(line.component_item_id, 'stammdaten')}
                     className={cn(
-                      'border-t border-slate-100 hover:bg-slate-50 transition-colors',
+                      'border-t border-slate-100 transition-colors group',
+                      onNavigate ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-slate-50',
                       dragOverIdx === idx && 'bg-blue-50',
                     )}
                   >
                     <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
                     <td className="px-3 py-2">
-                      {onNavigate ? (
-                        <button
-                          type="button"
-                          onClick={() => onNavigate(line.component_item_id, 'stammdaten')}
-                          className="text-left hover:text-blue-600 group transition-colors cursor-pointer"
-                        >
-                          <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600">{formatObjectId(line.component_item_id)}</p>
-                          <p className="text-xs text-slate-500 group-hover:text-blue-500">{line.item_name}</p>
-                        </button>
-                      ) : (
-                        <>
-                          <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(line.component_item_id)}</p>
-                          <p className="text-xs text-slate-500">{line.item_name}</p>
-                        </>
-                      )}
+                      <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">{formatObjectId(line.component_item_id)}</p>
+                      <p className="text-xs text-slate-500 group-hover:text-blue-500 transition-colors">{line.item_name}</p>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                       {isEditable ? (
                         <input
                           type="number"
@@ -538,7 +527,7 @@ function BOMTab({
                       <span className="text-sm text-slate-900">{line.unit}</span>
                     </td>
                     {isEditable && (
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1 justify-end">
                           <span
                             draggable
@@ -843,7 +832,7 @@ function InvalidateDialog({
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
               <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                {activeParents.length} übergeordnete Baugruppe{activeParents.length !== 1 ? 'n' : ''} werden auf UNGÜLTIG gesetzt:
+                {activeParents.length} übergeordnete Baugruppe{activeParents.length !== 1 ? 'n' : ''} werden auf Inaktiv gesetzt:
               </p>
               <ul className="space-y-1">
                 {activeParents.map((e) => (
@@ -1739,7 +1728,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         {(statusKey === 'ERSETZT' || statusKey === 'UNGUELTIG') && (
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-500 py-1">
-              Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'ungültig'} und kann nicht mehr bearbeitet werden.
+              Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'inaktiv'} und kann nicht mehr bearbeitet werden.
             </p>
             {isAdmin && !item?.replaced_by_id && (
               <button

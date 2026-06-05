@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 from fastapi import Depends, HTTPException, status
@@ -52,6 +53,8 @@ def _create_user_profile(db: Session, uid: str, email: str, decoded: dict) -> Us
         photo_url=decoded.get("picture"),
         role=role,
         object_id=obj.id,
+        terms_accepted_at=datetime.now(timezone.utc),
+        terms_version="1.0",
     )
     db.add(user)
     db.commit()
@@ -103,6 +106,10 @@ def get_current_user(
                 changed = True
             if changed:
                 db.commit()
+        if not user.terms_accepted_at:
+            user.terms_accepted_at = datetime.now(timezone.utc)
+            user.terms_version = "1.0"
+            db.commit()
         return user
     except Exception as e:
         raise HTTPException(
