@@ -292,7 +292,6 @@ function BOMTab({
     queryKey: ['items-freigegeben'],
     queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
     staleTime: 60_000,
-    enabled: isEditable,
   });
 
   useEffect(() => {
@@ -502,7 +501,7 @@ function BOMTab({
                       {onNavigate ? (
                         <button
                           type="button"
-                          onClick={() => onNavigate(line.component_item_id, 'bom')}
+                          onClick={() => onNavigate(line.component_item_id, 'stammdaten')}
                           className="text-left hover:text-blue-600 group transition-colors"
                         >
                           <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600">{formatObjectId(line.component_item_id)}</p>
@@ -852,10 +851,13 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
   const handleSubmit = useCallback(() => {
     if (!form) return;
     const errors = validateForSubmit(form);
+    if (!item?.bom_has_lines && !form.weight_g) {
+      errors.push('Gewicht (g) ist erforderlich');
+    }
     if (errors.length > 0) { setValidationErrors(errors); return; }
     setValidationErrors([]);
     submitItem();
-  }, [form, submitItem]);
+  }, [form, item, submitItem]);
 
   if (isLoading || !form) {
     return (

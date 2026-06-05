@@ -24,6 +24,25 @@ def _create_object(db: Session, user_id: int) -> UniversalObject:
     return obj
 
 
+def _get_item_weight(db: Session, item_id: int, visited: set) -> Optional[Decimal]:
+    """Recursively calculate weight, following BOM hierarchy at any depth."""
+    if item_id in visited:
+        return None  # cycle protection
+    visited.add(item_id)
+    bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
+    if bom and bom.lines:
+        total = Decimal("0")
+        for line in bom.lines:
+            child_weight = _get_item_weight(db, line.component_item_id, set(visited))
+            if child_weight is None:
+                return None
+            total += child_weight * Decimal(str(line.quantity))
+        return total
+    else:
+        item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+        return item.weight_g if item else None
+
+
 def _cascade_invalidate(db: Session, item_id: int, user_id: int, visited: set) -> None:
     if item_id in visited:
         return
@@ -127,23 +146,13 @@ async def get_item(
             name = " ".join(x for x in parts if x) or p.display_name or p.email
             user_map[p.id] = name
 
-    # Calculate BOM weight (sum of component weights × quantity, only if all have weight_g)
-    bom_weight_g: Optional[Decimal] = None
+    # Calculate BOM weight recursively across all BOM levels
     bom_has_lines: bool = False
+    bom_weight_g: Optional[Decimal] = None
     bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
     if bom and bom.lines:
         bom_has_lines = True
-        total = Decimal("0")
-        all_have_weight = True
-        for line in bom.lines:
-            comp = db.query(Item).filter(Item.id == line.component_item_id, Item.is_active == True).first()
-            if comp and comp.weight_g is not None:
-                total += comp.weight_g * Decimal(str(line.quantity))
-            else:
-                all_have_weight = False
-                break
-        if all_have_weight:
-            bom_weight_g = total
+        bom_weight_g = _get_item_weight(db, item_id, set())
 
     # Build response with names
     resp = ItemResponse.model_validate(item)
