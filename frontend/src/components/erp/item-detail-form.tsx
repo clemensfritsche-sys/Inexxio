@@ -42,6 +42,26 @@ function FieldInput({
   );
 }
 
+// ─── Link display ────────────────────────────────────────────────────────────
+
+function LinkDisplay({ value }: { value: string }) {
+  if (!value) return <p className="text-sm text-slate-900 py-1"><span className="text-slate-400 italic">—</span></p>;
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <span className="text-sm text-slate-500 truncate max-w-[160px]" title={value}>{value.replace(/^https?:\/\//, '').split('/')[0]}</span>
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors shrink-0"
+      >
+        <ExternalLink className="h-3 w-3" />
+        Öffnen
+      </a>
+    </div>
+  );
+}
+
 // ─── Status stepper ─────────────────────────────────────────────────────────
 
 function StatusStepper({ status }: { status: ItemStatus }) {
@@ -983,13 +1003,17 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Bestelllink</label>
-                <FieldInput readOnly={!isEditable} value={form.order_link} onChange={(v) => updateField('order_link', v)} placeholder="https://…" type="url" />
+                {isEditable
+                  ? <FieldInput readOnly={false} value={form.order_link} onChange={(v) => updateField('order_link', v)} placeholder="https://…" type="url" />
+                  : <LinkDisplay value={form.order_link} />}
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Onshape-Link</label>
-              <FieldInput readOnly={!isEditable} value={form.onshape_link} onChange={(v) => updateField('onshape_link', v)} placeholder="https://cad.onshape.com/…" type="url" />
+              {isEditable
+                ? <FieldInput readOnly={false} value={form.onshape_link} onChange={(v) => updateField('onshape_link', v)} placeholder="https://cad.onshape.com/…" type="url" />
+                : <LinkDisplay value={form.onshape_link} />}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1044,11 +1068,17 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">EK-Preis (CHF)</label>
-                <FieldInput readOnly={!isEditable} value={form.purchase_price} onChange={(v) => updateField('purchase_price', v)} placeholder="0.00" type="number" min="0" step="0.01" />
+                <p className="text-sm text-slate-900 py-1">
+                  {item?.purchase_price != null ? fmtNum(String(item.purchase_price)) : <span className="text-slate-400 italic">—</span>}
+                  {item?.purchase_price != null && <span className="ml-1 text-slate-500 text-xs">{form.purchase_currency}</span>}
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lieferzeit (Tage)</label>
-                <FieldInput readOnly={!isEditable} value={form.lead_time_days} onChange={(v) => updateField('lead_time_days', v)} placeholder="z.B. 14" type="number" min="0" />
+                <p className="text-sm text-slate-900 py-1">
+                  {item?.lead_time_days != null ? item.lead_time_days : <span className="text-slate-400 italic">—</span>}
+                  {item?.lead_time_days != null && <span className="ml-1 text-slate-500 text-xs">Tage</span>}
+                </p>
               </div>
             </div>
 
