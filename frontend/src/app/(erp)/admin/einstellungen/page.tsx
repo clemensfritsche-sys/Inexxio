@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CompanySettings } from '@/types';
+import type { CompanySettings, ItemName, ItemSurface, ItemCategory } from '@/types';
 
 type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations';
+
+type ListEntry = { id: number; label: string; is_active: boolean };
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '',
@@ -53,13 +55,17 @@ export default function EinstellungenPage() {
   const [saved, setSaved] = useState<SectionKey | null>(null);
   const [error, setError] = useState('');
 
+  const [itemNames, setItemNames] = useState<ItemName[]>([]);
+  const [itemSurfaces, setItemSurfaces] = useState<ItemSurface[]>([]);
+  const [itemCategories, setItemCategories] = useState<ItemCategory[]>([]);
+  const [configLoading, setConfigLoading] = useState(true);
+
   useEffect(() => {
     async function load() {
       try {
         const data = await api.getSettings();
         setSettings(data);
       } catch {
-        // Use empty defaults in demo mode
         setSettings(EMPTY_SETTINGS);
       } finally {
         setLoading(false);
@@ -67,6 +73,39 @@ export default function EinstellungenPage() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const [names, surfaces, cats] = await Promise.all([
+          api.getItemNames(),
+          api.getItemSurfaces(),
+          api.getItemCategories(),
+        ]);
+        setItemNames(names);
+        setItemSurfaces(surfaces);
+        setItemCategories(cats);
+      } catch {
+        // silently ignore if API not yet available
+      } finally {
+        setConfigLoading(false);
+      }
+    }
+    loadConfig();
+  }, []);
+
+  async function addItemName(label: string) {
+    const item = await api.createItemName(label);
+    setItemNames((prev) => [...prev, item]);
+  }
+  async function addItemSurface(label: string) {
+    const item = await api.createItemSurface(label);
+    setItemSurfaces((prev) => [...prev, item]);
+  }
+  async function addItemCategory(label: string) {
+    const item = await api.createItemCategory(label);
+    setItemCategories((prev) => [...prev, item]);
+  }
 
   async function saveSection(section: SectionKey, data: Partial<CompanySettings>) {
     setSaving(section);
@@ -296,6 +335,44 @@ export default function EinstellungenPage() {
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
         </div>
       </SettingsCard>
+
+      {/* Section 8: ERP Konfiguration */}
+      <div className="card p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
+            <Package className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">ERP Artikelkonfiguration</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Vordefinierte Auswahllisten für Artikel im ERP-System
+            </p>
+          </div>
+        </div>
+        <div className="divide-y divide-slate-100">
+          <ListManager
+            title="Artikelnamen"
+            description="Namen, die beim Erstellen eines Artikels ausgewählt werden können"
+            items={itemNames}
+            loading={configLoading}
+            onAdd={addItemName}
+          />
+          <ListManager
+            title="Oberflächen"
+            description="Oberflächenbehandlungen / Beschichtungen"
+            items={itemSurfaces}
+            loading={configLoading}
+            onAdd={addItemSurface}
+          />
+          <ListManager
+            title="Produktkategorien"
+            description="Kategorien für Verkaufsartikel im Shop"
+            items={itemCategories}
+            loading={configLoading}
+            onAdd={addItemCategory}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -431,6 +508,93 @@ function ToggleField({
           }`}
         />
       </button>
+    </div>
+  );
+}
+
+function ListManager({
+  title,
+  description,
+  items,
+  loading,
+  onAdd,
+}: {
+  title: string;
+  description: string;
+  items: ListEntry[];
+  loading: boolean;
+  onAdd: (label: string) => Promise<void>;
+}) {
+  const [newLabel, setNewLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
+
+  const handleAdd = async () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const duplicate = items.some((i) => i.label.toLowerCase() === label.toLowerCase());
+    if (duplicate) { setAddError('Dieser Eintrag existiert bereits.'); return; }
+    setAdding(true);
+    setAddError('');
+    try {
+      await onAdd(label);
+      setNewLabel('');
+    } catch {
+      setAddError('Fehler beim Hinzufügen.');
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const activeItems = items.filter((i) => i.is_active);
+
+  return (
+    <div className="py-5 first:pt-0">
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />Lädt…
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-3 min-h-[1.75rem]">
+          {activeItems.length === 0 ? (
+            <span className="text-xs text-slate-400 italic">Noch keine Einträge vorhanden</span>
+          ) : (
+            activeItems.map((item) => (
+              <span
+                key={item.id}
+                className="px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-full border border-slate-200"
+              >
+                {item.label}
+              </span>
+            ))
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={newLabel}
+          onChange={(e) => { setNewLabel(e.target.value); setAddError(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+          placeholder={`Neuer ${title.replace(/en$/, '').replace(/en$/, '')}…`}
+          className="form-input flex-1 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={adding || !newLabel.trim()}
+          className="btn-primary text-sm px-4 disabled:opacity-50 shrink-0"
+        >
+          {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Hinzufügen'}
+        </button>
+      </div>
+      {addError && <p className="mt-1 text-xs text-red-500">{addError}</p>}
     </div>
   );
 }

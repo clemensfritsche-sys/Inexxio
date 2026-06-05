@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Loader2, InboxIcon, ArrowLeft, X, Package } from 'lucide-react';
+import {
+  Search, Plus, Loader2, InboxIcon, ArrowLeft,
+  Package, Building2, GitBranch, Wrench,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { ObjectRow } from './object-row';
@@ -43,164 +46,31 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'user', label: 'Benutzer' },
 ];
 
-// ─── New Item Quick Form ─────────────────────────────────────────────────────
-
-interface NewItemPanelProps {
-  onCreated: (itemId: number) => void;
-  onCancel: () => void;
-}
-
-function NewItemPanel({ onCreated, onCancel }: NewItemPanelProps) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [nameId, setNameId] = useState<number | null>(null);
-  const [unit, setUnit] = useState('Stk');
-  const [error, setError] = useState<string | null>(null);
-
-  const { data: itemNames = [], isLoading: namesLoading } = useQuery({
-    queryKey: ['item-names'],
-    queryFn: () => api.getItemNames(),
-    staleTime: 120_000,
-  });
-
-  const { mutate: createItem, isPending } = useMutation({
-    mutationFn: () => api.createItem({ name: name.trim(), name_id: nameId ?? undefined, unit }),
-    onSuccess: (item) => {
-      queryClient.invalidateQueries({ queryKey: ['objects'] });
-      queryClient.invalidateQueries({ queryKey: ['item-names'] });
-      onCreated(item.id);
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'Fehler beim Erstellen');
-    },
-  });
-
-  const handleCreate = () => {
-    if (!name.trim()) { setError('Artikelname ist erforderlich'); return; }
-    setError(null);
-    createItem();
-  };
-
-  const activeNames = (itemNames as { id: number; label: string; is_active: boolean }[]).filter((n) => n.is_active);
-
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-              <Package className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">Neuer Artikel</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Stammdaten werden nach dem Erstellen befüllt</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Form */}
-      <div className="flex-1 px-6 py-6 space-y-5">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-            Artikelname <span className="text-red-500">*</span>
-          </label>
-          {namesLoading ? (
-            <div className="flex items-center gap-2 py-2 text-xs text-slate-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />Lädt…
-            </div>
-          ) : activeNames.length > 0 ? (
-            <select
-              value={nameId ?? ''}
-              onChange={(e) => {
-                const id = e.target.value ? Number(e.target.value) : null;
-                setNameId(id);
-                const found = activeNames.find((n) => n.id === id);
-                setName(found?.label ?? '');
-              }}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            >
-              <option value="">— Wählen oder unten eingeben —</option>
-              {activeNames.map((n) => (
-                <option key={n.id} value={n.id}>{n.label}</option>
-              ))}
-            </select>
-          ) : null}
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => { setName(e.target.value); setNameId(null); }}
-            placeholder={activeNames.length > 0 ? 'Oder neuen Namen eingeben…' : 'Artikelname eingeben…'}
-            className={cn(
-              'w-full px-3 py-2 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all',
-              activeNames.length > 0 ? 'mt-2' : '',
-              error ? 'border-red-300' : 'border-slate-200',
-            )}
-          />
-          {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-            Mengeneinheit <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-          >
-            {['Stk', 'mm', 'g', 'mm²'].map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
-          </select>
-        </div>
-
-        <p className="text-xs text-slate-400 bg-slate-50 rounded-lg p-3 border border-slate-100">
-          Nach dem Erstellen können alle weiteren Felder (Gewicht, Abmessungen, EK-Preis, etc.) direkt im Detailbereich ausgefüllt werden.
-        </p>
-      </div>
-
-      {/* Actions */}
-      <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
-        >
-          Abbrechen
-        </button>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={isPending || !name.trim()}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50"
-          style={{ background: '#E51A14' }}
-        >
-          {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          Artikel erstellen
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Universal Feed ───────────────────────────────────────────────────────────
+const TYPE_MENU = [
+  { key: 'item' as const, label: 'Artikel', icon: Package, available: true },
+  { key: 'company' as const, label: 'Firma', icon: Building2, available: false },
+  { key: 'bom' as const, label: 'Stückliste', icon: GitBranch, available: false },
+  { key: 'work_plan' as const, label: 'Arbeitsplan', icon: Wrench, available: false },
+];
 
 export function UniversalFeed() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [isCreatingItem, setIsCreatingItem] = useState(false);
+  const [showTypeMenu, setShowTypeMenu] = useState(false);
+  const typeMenuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const isMobile = useIsMobile(768);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (typeMenuRef.current && !typeMenuRef.current.contains(e.target as Node)) {
+        setShowTypeMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const currentUserRole = typeof window !== 'undefined' ? localStorage.getItem(ROLE_KEY) ?? undefined : undefined;
 
@@ -226,6 +96,16 @@ export function UniversalFeed() {
     enabled: needsUsers,
     retry: 1,
     staleTime: 30_000,
+  });
+
+  const { mutate: createItem, isPending: creatingItem } = useMutation({
+    mutationFn: () => api.createItem({ name: 'Neuer Artikel', unit: 'Stk' }),
+    onSuccess: (item) => {
+      setShowTypeMenu(false);
+      setFilter('item');
+      setSelectedId(item.id);
+      queryClient.invalidateQueries({ queryKey: ['objects'] });
+    },
   });
 
   const isLoading = isUserFilter ? usersLoading : (objectsLoading || (filter === 'all' && usersLoading));
@@ -257,37 +137,56 @@ export function UniversalFeed() {
     queryClient.invalidateQueries({ queryKey: ['objects'] });
   }, [queryClient]);
 
-  const handleItemCreated = useCallback((itemId: number) => {
-    setIsCreatingItem(false);
-    setFilter('item');
-    setSelectedId(itemId);
-    queryClient.invalidateQueries({ queryKey: ['objects'] });
-  }, [queryClient]);
-
   const handleSelectRow = useCallback((id: number) => {
-    setIsCreatingItem(false);
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  // Mobile: show list when nothing selected, detail when selected or creating
-  const showList = !isMobile || (selectedId === null && !isCreatingItem);
-  const showDetail = !isMobile || selectedId !== null || isCreatingItem;
+  const showList = !isMobile || selectedId === null;
+  const showDetail = !isMobile || selectedId !== null;
 
   const listPanel = (
     <div className={cn('flex flex-col border-r border-slate-200 bg-white shrink-0', isMobile ? 'w-full' : 'w-96')}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
         <h1 className="text-lg font-bold text-slate-900">ERP</h1>
-        <button
-          type="button"
-          onClick={() => { setIsCreatingItem(true); setSelectedId(null); }}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:opacity-90 transition-opacity"
-          style={{ background: '#E51A14' }}
-          aria-label="Neuen Artikel erstellen"
-          title="Neuen Artikel erstellen"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
+        <div className="relative" ref={typeMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowTypeMenu((v) => !v)}
+            disabled={creatingItem}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:opacity-90 transition-opacity disabled:opacity-60"
+            style={{ background: '#E51A14' }}
+            aria-label="Neues Objekt erstellen"
+          >
+            {creatingItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          </button>
+
+          {showTypeMenu && (
+            <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1.5">
+              <p className="px-3 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Neues Objekt</p>
+              {TYPE_MENU.map(({ key, label, icon: Icon, available }) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={!available}
+                  onClick={() => { if (key === 'item') createItem(); }}
+                  className={cn(
+                    'flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors',
+                    available
+                      ? 'text-slate-700 hover:bg-slate-50 cursor-pointer'
+                      : 'text-slate-400 cursor-not-allowed',
+                  )}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-left">{label}</span>
+                  {!available && (
+                    <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">Bald</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -309,7 +208,7 @@ export function UniversalFeed() {
         {filterTabs.map((tab) => (
           <button
             key={tab.value}
-            onClick={() => { setFilter(tab.value); setSelectedId(null); setIsCreatingItem(false); }}
+            onClick={() => { setFilter(tab.value); setSelectedId(null); }}
             className={cn(
               'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
               filter === tab.value ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
@@ -368,27 +267,20 @@ export function UniversalFeed() {
 
   const detailPanel = (
     <div className={cn('flex flex-col overflow-hidden bg-white', isMobile ? 'w-full' : 'flex-1')}>
-      {isMobile && (selectedId !== null || isCreatingItem) && (
+      {isMobile && selectedId !== null && (
         <button
-          onClick={() => { setSelectedId(null); setIsCreatingItem(false); }}
+          onClick={() => setSelectedId(null)}
           className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 text-sm font-medium text-slate-600 hover:text-slate-900 bg-white transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Zurück zur Liste
         </button>
       )}
-      {isCreatingItem ? (
-        <NewItemPanel
-          onCreated={handleItemCreated}
-          onCancel={() => setIsCreatingItem(false)}
-        />
-      ) : (
-        <DetailPanel
-          object={selectedObject}
-          currentUserRole={currentUserRole}
-          onRefresh={handleRefresh}
-        />
-      )}
+      <DetailPanel
+        object={selectedObject}
+        currentUserRole={currentUserRole}
+        onRefresh={handleRefresh}
+      />
     </div>
   );
 

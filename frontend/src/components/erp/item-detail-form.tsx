@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Loader2, Check, AlertCircle, Plus, Send, CheckCircle2, XCircle, Clock,
+  Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -15,13 +15,7 @@ import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate } f
 // ─── Simple field input ──────────────────────────────────────────────────────
 
 function FieldInput({
-  readOnly,
-  value,
-  onChange,
-  placeholder,
-  type = 'text',
-  min,
-  step,
+  readOnly, value, onChange, placeholder, type = 'text', min, step,
 }: {
   readOnly?: boolean;
   value: string;
@@ -85,7 +79,10 @@ function StatusStepper({ status }: { status: ItemStatus }) {
               )}>
                 {isDone ? <Check className="h-3 w-3" /> : index + 1}
               </div>
-              <span className={cn('mt-1 text-xs whitespace-nowrap', isDone ? 'text-green-600' : isCurrent ? 'text-blue-600 font-medium' : 'text-slate-400')}>
+              <span className={cn(
+                'mt-1 text-xs whitespace-nowrap',
+                isDone ? 'text-green-600' : isCurrent ? 'text-blue-600 font-medium' : 'text-slate-400',
+              )}>
                 {step.label}
               </span>
             </div>
@@ -95,81 +92,6 @@ function StatusStepper({ status }: { status: ItemStatus }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-// ─── Name combobox ───────────────────────────────────────────────────────────
-
-interface NameComboboxProps {
-  value: { id: number | null; label: string };
-  onChange: (v: { id: number | null; label: string }) => void;
-  names: ItemName[];
-  onCreateName: (label: string) => Promise<ItemName>;
-}
-
-function NameCombobox({ value, onChange, names, onCreateName }: NameComboboxProps) {
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState(value.label);
-  const [creating, setCreating] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setInput(value.label); }, [value.label]);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filtered = useMemo(() => {
-    if (!input.trim()) return names.filter((n) => n.is_active);
-    return names.filter((n) => n.is_active && n.label.toLowerCase().includes(input.toLowerCase()));
-  }, [names, input]);
-
-  const exactMatch = names.some((n) => n.label.toLowerCase() === input.toLowerCase().trim());
-
-  return (
-    <div className="relative" ref={ref}>
-      <input
-        type="text"
-        value={input}
-        onChange={(e) => { setInput(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        placeholder="Artikelname wählen oder neu eingeben…"
-        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-      />
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg py-1">
-          {filtered.map((n) => (
-            <button key={n.id} type="button"
-              onClick={() => { onChange({ id: n.id, label: n.label }); setInput(n.label); setOpen(false); }}
-              className="flex w-full items-center px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left">
-              {n.label}
-            </button>
-          ))}
-          {!exactMatch && input.trim() && (
-            <button type="button" disabled={creating}
-              onClick={async () => {
-                setCreating(true);
-                try {
-                  const newName = await onCreateName(input.trim());
-                  onChange({ id: newName.id, label: newName.label });
-                  setOpen(false);
-                } finally { setCreating(false); }
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50">
-              {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-              &ldquo;{input.trim()}&rdquo; neu hinzufügen
-            </button>
-          )}
-          {filtered.length === 0 && !input.trim() && (
-            <p className="px-3 py-2 text-xs text-slate-400 italic">Noch keine Artikelnamen vorhanden</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -278,7 +200,7 @@ function buildPayload(form: FormState): Partial<Item> {
 
 function validateForSubmit(form: FormState): string[] {
   const errors: string[] = [];
-  if (!form.name.trim()) errors.push('Artikelname ist erforderlich');
+  if (!form.name_id) errors.push('Artikelname muss aus der Namensliste ausgewählt werden');
   if (!form.unit) errors.push('Mengeneinheit ist erforderlich');
   if (form.size_input && !parseSizeInput(form.size_input).valid) {
     errors.push('Abmessungen: Format muss NxNxN (aufsteigend) sein, z.B. 23x45x2003');
@@ -342,7 +264,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
     }
   }, [item, itemId]);
 
-  // Reset when switching items
   useEffect(() => {
     if (initializedForRef.current !== null && initializedForRef.current !== itemId) {
       setForm(null);
@@ -361,10 +282,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
     setSaveStatus('pending');
     saveTimerRef.current = setTimeout(async () => {
       const sizeResult = parseSizeInput(updatedForm.size_input);
-      if (updatedForm.size_input && !sizeResult.valid) {
-        setSaveStatus('error');
-        return;
-      }
+      if (updatedForm.size_input && !sizeResult.valid) { setSaveStatus('error'); return; }
       try {
         await api.updateItem(itemId, buildPayload(updatedForm));
         setSaveStatus('saved');
@@ -426,12 +344,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
     submitItem();
   }, [form, submitItem]);
 
-  const handleCreateName = async (label: string): Promise<ItemName> => {
-    const newName = await api.createItemName(label);
-    queryClient.invalidateQueries({ queryKey: ['item-names'] });
-    return newName;
-  };
-
   if (isLoading || !form) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -441,6 +353,9 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
   }
 
   const statusKey = (item?.status ?? 'ENTWURF') as ItemStatus;
+  const activeNames = (itemNames as ItemName[]).filter((n) => n.is_active);
+  const activeSurfaces = (itemSurfaces as ItemSurface[]).filter((s) => s.is_active);
+  const activeCategories = (itemCategories as ItemCategory[]).filter((c) => c.is_active);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -469,7 +384,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             )}
             {saveStatus === 'error' && (
               <span className="flex items-center gap-1 text-xs text-red-500">
-                <AlertCircle className="h-3 w-3" />Speicherfehler
+                <AlertCircle className="h-3 w-3" />Fehler
               </span>
             )}
           </div>
@@ -504,26 +419,44 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
         <div className="flex-1 overflow-y-auto">
           {/* ── Artikelstamm ── */}
           <TabPanel value="stammdaten" className="px-6 py-5 space-y-5">
+
+            {/* Artikelname – predefined list only */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                 Artikelname <span className="text-red-500">*</span>
               </label>
               {isEditable ? (
-                <NameCombobox
-                  value={{ id: form.name_id, label: form.name }}
-                  onChange={({ id, label }) => {
+                <select
+                  value={form.name_id ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : null;
+                    const found = activeNames.find((n) => n.id === id);
                     setForm((prev) => {
                       if (!prev) return prev;
-                      const next = { ...prev, name_id: id, name: label };
+                      const next = { ...prev, name_id: id, name: found?.label ?? prev.name };
                       scheduleSave(next);
                       return next;
                     });
                   }}
-                  names={itemNames}
-                  onCreateName={handleCreateName}
-                />
+                  className={cn(
+                    'w-full px-3 py-2 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all',
+                    !form.name_id ? 'border-amber-300' : 'border-slate-200',
+                  )}
+                >
+                  <option value="">— Artikelname auswählen —</option>
+                  {activeNames.map((n) => (
+                    <option key={n.id} value={n.id}>{n.label}</option>
+                  ))}
+                </select>
               ) : (
-                <p className="text-sm text-slate-900 py-1">{form.name || <span className="text-slate-400 italic">—</span>}</p>
+                <p className="text-sm text-slate-900 py-1">
+                  {activeNames.find((n) => n.id === form.name_id)?.label || form.name || <span className="text-slate-400 italic">—</span>}
+                </p>
+              )}
+              {isEditable && activeNames.length === 0 && (
+                <p className="mt-1 text-xs text-amber-600">
+                  Noch keine Artikelnamen definiert. Bitte zuerst unter Admin → Einstellungen → ERP-Konfiguration Namen anlegen.
+                </p>
               )}
             </div>
 
@@ -610,6 +543,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
               </div>
             </div>
 
+            {/* Oberfläche – predefined list only */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Oberfläche</label>
               {isEditable ? (
@@ -619,13 +553,13 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 >
                   <option value="">— Keine Angabe —</option>
-                  {(itemSurfaces as ItemSurface[]).filter((s) => s.is_active).map((s) => (
+                  {activeSurfaces.map((s) => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
               ) : (
                 <p className="text-sm text-slate-900 py-1">
-                  {(itemSurfaces as ItemSurface[]).find((s) => s.id === form.surface_id)?.label || <span className="text-slate-400 italic">—</span>}
+                  {activeSurfaces.find((s) => s.id === form.surface_id)?.label || <span className="text-slate-400 italic">—</span>}
                 </p>
               )}
             </div>
@@ -711,6 +645,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   </div>
                 </div>
 
+                {/* Produktkategorie – predefined list only */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                     Produktkategorie <span className="text-red-500">*</span>
@@ -721,14 +656,14 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                       onChange={(e) => updateField('category_id', e.target.value ? Number(e.target.value) : null)}
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     >
-                      <option value="">— Wählen —</option>
-                      {(itemCategories as ItemCategory[]).filter((c) => c.is_active).map((c) => (
+                      <option value="">— Kategorie auswählen —</option>
+                      {activeCategories.map((c) => (
                         <option key={c.id} value={c.id}>{c.label}</option>
                       ))}
                     </select>
                   ) : (
                     <p className="text-sm text-slate-900 py-1">
-                      {(itemCategories as ItemCategory[]).find((c) => c.id === form.category_id)?.label || <span className="text-slate-400 italic">—</span>}
+                      {activeCategories.find((c) => c.id === form.category_id)?.label || <span className="text-slate-400 italic">—</span>}
                     </p>
                   )}
                 </div>
@@ -764,7 +699,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                       onChange={(e) => updateField('seo_description', e.target.value)}
                       rows={2}
                       maxLength={200}
-                      placeholder="Meta-Beschreibung für Suchmaschinen (max. 160 Zeichen)"
+                      placeholder="Meta-Beschreibung (max. 160 Zeichen)"
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all"
                     />
                   ) : (
@@ -793,7 +728,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   </p>
                 </div>
               </div>
-
               {item?.submitted_at && (
                 <div className="flex items-start gap-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 shrink-0">
@@ -807,7 +741,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   </div>
                 </div>
               )}
-
               {item?.approved_at && (
                 <div className="flex items-start gap-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 shrink-0">
@@ -821,7 +754,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   </div>
                 </div>
               )}
-
               {item?.signatures && item.signatures.length > 0 && (
                 <div className="mt-2 pt-3 border-t border-slate-100">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Digitale Signaturen</p>
@@ -857,7 +789,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             </button>
           </div>
         )}
-
         {statusKey === 'IN_FREIGABE' && isAdmin && (
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-500">Artikel prüfen und freigeben.</p>
@@ -872,13 +803,11 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             </button>
           </div>
         )}
-
         {statusKey === 'IN_FREIGABE' && !isAdmin && (
           <p className="text-xs text-slate-500 text-center py-1">
             Warte auf Freigabe durch einen Administrator.
           </p>
         )}
-
         {statusKey === 'FREIGEGEBEN' && isAdmin && (
           <div className="flex items-center justify-end gap-2">
             <button
@@ -892,7 +821,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             </button>
           </div>
         )}
-
         {(statusKey === 'ERSETZT' || statusKey === 'UNGUELTIG') && (
           <p className="text-xs text-slate-500 text-center py-1">
             Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'ungültig'} und kann nicht mehr bearbeitet werden.
