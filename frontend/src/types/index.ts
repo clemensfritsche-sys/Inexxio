@@ -14,7 +14,7 @@ export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: stri
   ENTWURF: { label: 'Entwurf', color: 'bg-slate-100 text-slate-600' },
   IN_FREIGABE: { label: 'In Freigabe', color: 'bg-amber-50 text-amber-700' },
   FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
-  ERSETZT: { label: 'Ersetzt', color: 'bg-red-50 text-red-600' },
+  ERSETZT: { label: 'Inaktiv', color: 'bg-red-50 text-red-600' },
   UNGUELTIG: { label: 'Inaktiv', color: 'bg-red-50 text-red-600' },
 };
 

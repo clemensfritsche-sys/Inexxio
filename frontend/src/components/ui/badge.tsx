@@ -35,7 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
   ENTWURF: 'Entwurf',
   IN_FREIGABE: 'In Freigabe',
   FREIGEGEBEN: 'Freigegeben',
-  ERSETZT: 'Ersetzt',
+  ERSETZT: 'Inaktiv',
   UNGUELTIG: 'Inaktiv',
 };
 
