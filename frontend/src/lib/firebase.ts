@@ -83,7 +83,7 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
 
 export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
   if (!auth) throw new Error('Firebase not initialized');
-  const result = await signInWithPopup(auth, googleProvider);
+  const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
   const token = await result.user.getIdToken();
   return { token, user: result.user };
 }
