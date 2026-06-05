@@ -10,6 +10,12 @@ from ..core.database import Base
 from .base import TimestampMixin, utcnow
 
 
+class SerializationType(str, enum.Enum):
+    NONE = "none"
+    BATCH = "batch"
+    SERIAL = "serial"
+
+
 class ItemStatus(str, enum.Enum):
     ENTWURF = "ENTWURF"
     IN_FREIGABE = "IN_FREIGABE"
@@ -93,6 +99,9 @@ class Item(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     approved_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    serialization_type: Mapped[str] = mapped_column(
+        String(20), default="none", server_default="none", nullable=False
+    )
 
     name_ref = relationship("ItemName", foreign_keys=[name_id])
     surface = relationship("ItemSurface", foreign_keys=[surface_id])

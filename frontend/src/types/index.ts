@@ -5,6 +5,7 @@ export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 
 export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
 export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
 export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';
+export type SerializationType = 'none' | 'batch' | 'serial';
 export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
 export type WorkPlanStatus = 'Entwurf' | 'Aktiv' | 'Archiviert';
 export type BOMStatus = 'Entwurf' | 'Freigegeben' | 'Archiviert';
@@ -15,6 +16,12 @@ export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: stri
   FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
   ERSETZT: { label: 'Ersetzt', color: 'bg-blue-50 text-blue-600' },
   UNGUELTIG: { label: 'Ungültig', color: 'bg-red-50 text-red-600' },
+};
+
+export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
+  'none': 'Keine',
+  'batch': 'Charge (Losnummer)',
+  'serial': 'Seriennummer',
 };
 
 export const VAT_RATE_LABELS: Record<VatRate, string> = {
@@ -62,7 +69,7 @@ export interface Item {
   name_id: number | null;
   unit: string;
   status: ItemStatus;
-  batch_allowed: boolean;
+  serialization_type: SerializationType;
   order_number: string | null;
   order_link: string | null;
   onshape_link: string | null;
@@ -101,30 +108,33 @@ export interface Item {
 
 export interface BOMLine {
   id: number;
-  bom_id: number;
+  bom_id?: number;
   position: number;
-  item_id: number;
-  item?: Item;
+  component_item_id: number;
+  component_item?: Item;
   quantity: string; // Decimal as string
   unit: string;
-  notes: string | null;
+  note: string | null;
 }
 
 export interface BOM {
   id: number;
-  number: string;
-  name: string;
-  description: string | null;
-  status: BOMStatus;
-  parent_item_id: number | null;
-  parent_item?: Item;
+  parent_item_id: number;
+  note: string | null;
   lines: BOMLine[];
-  version: number;
-  valid_from: string | null;
-  valid_until: string | null;
   created_at: string;
   updated_at: string;
-  created_by: string | null;
+  is_active: boolean;
+}
+
+export interface WhereUsedEntry {
+  bom_id: number;
+  parent_item_id: number;
+  parent_item_name: string;
+  parent_item_status: ItemStatus;
+  position: number;
+  quantity: string;
+  unit: string;
 }
 
 // ─── Work Plan ────────────────────────────────────────────────────────────────

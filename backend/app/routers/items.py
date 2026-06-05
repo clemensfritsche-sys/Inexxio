@@ -198,6 +198,39 @@ async def approve_item(
     return ItemResponse.model_validate(item)
 
 
+@router.get("/{item_id}/where-used")
+async def get_item_where_used(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    """Returns all assemblies (parent items) that include this item as a BOM component."""
+    rows = (
+        db.query(BOMLine, BOM, Item)
+        .join(BOM, BOM.id == BOMLine.bom_id)
+        .join(Item, Item.id == BOM.parent_item_id)
+        .filter(
+            BOMLine.component_item_id == item_id,
+            BOM.is_active == True,
+            Item.is_active == True,
+        )
+        .order_by(Item.name)
+        .all()
+    )
+    return [
+        {
+            "bom_id": bom.id,
+            "parent_item_id": item.id,
+            "parent_item_name": item.name,
+            "parent_item_status": item.status,
+            "position": line.position,
+            "quantity": str(line.quantity),
+            "unit": line.unit,
+        }
+        for line, bom, item in rows
+    ]
+
+
 @router.post("/{item_id}/replace", response_model=ItemResponse)
 async def replace_item(
     item_id: int,

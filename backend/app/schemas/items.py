@@ -41,6 +41,7 @@ class ItemCreate(BaseModel):
     seo_title: Optional[str] = Field(None, max_length=200)
     seo_description: Optional[str] = None
     hs_code: Optional[str] = Field(None, max_length=20)
+    serialization_type: str = Field(default="none")
 
     @model_validator(mode="after")
     def validate_fields(self) -> "ItemCreate":
@@ -84,6 +85,7 @@ class ItemUpdate(BaseModel):
     seo_title: Optional[str] = Field(None, max_length=200)
     seo_description: Optional[str] = None
     hs_code: Optional[str] = Field(None, max_length=20)
+    serialization_type: Optional[str] = None
 
 
 class ItemResponse(BaseModel):
@@ -123,6 +125,7 @@ class ItemResponse(BaseModel):
     submitted_by: Optional[int]
     approved_at: Optional[datetime]
     approved_by: Optional[int]
+    serialization_type: str
     created_at: datetime
     updated_at: datetime
     is_active: bool
@@ -144,6 +147,7 @@ class ItemListResponse(BaseModel):
     stock_total: Decimal
     stock_reserved: Decimal
     is_sales_product: bool
+    serialization_type: str
     created_at: datetime
     updated_at: datetime
     is_active: bool

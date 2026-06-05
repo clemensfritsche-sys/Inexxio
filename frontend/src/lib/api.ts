@@ -12,6 +12,7 @@ import type {
   UniversalObject,
   PaginatedResponse,
   ObjectFilter,
+  WhereUsedEntry,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -155,7 +156,7 @@ class ApiClient {
 
   // ─── BOMs ──────────────────────────────────────────────────────────────────
 
-  getBOMs(page = 1, pageSize = 50): Promise<PaginatedResponse<BOM>> {
+  getBOMs(page = 1, pageSize = 50): Promise<BOM[]> {
     return this.get(`/api/v1/boms?page=${page}&page_size=${pageSize}`);
   }
 
@@ -163,12 +164,20 @@ class ApiClient {
     return this.get(`/api/v1/boms/${id}`);
   }
 
-  createBOM(data: Partial<BOM>): Promise<BOM> {
+  getBOMsForItem(itemId: number): Promise<BOM[]> {
+    return this.get(`/api/v1/boms/by-item/${itemId}`);
+  }
+
+  createBOM(data: { parent_item_id: number; note?: string | null; lines: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
     return this.post('/api/v1/boms', data);
   }
 
-  updateBOM(id: number, data: Partial<BOM>): Promise<BOM> {
+  updateBOM(id: number, data: { note?: string | null; lines?: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
     return this.patch(`/api/v1/boms/${id}`, data);
+  }
+
+  getItemWhereUsed(itemId: number): Promise<WhereUsedEntry[]> {
+    return this.get(`/api/v1/items/${itemId}/where-used`);
   }
 
   // ─── Work Plans ────────────────────────────────────────────────────────────

@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
+  Plus, Trash2, ChevronUp, ChevronDown, GitBranch, ArrowRight, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
 import { formatObjectId, formatDate } from '@/lib/utils';
-import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS } from '@/types';
-import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate } from '@/types';
+import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS, SERIALIZATION_TYPE_LABELS } from '@/types';
+import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry } from '@/types';
 
 // ─── Simple field input ──────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ interface FormState {
   name: string;
   name_id: number | null;
   unit: string;
-  batch_allowed: boolean;
+  serialization_type: SerializationType;
   order_number: string;
   order_link: string;
   onshape_link: string;
@@ -130,7 +131,7 @@ function itemToFormState(item: Item): FormState {
     name: item.name ?? '',
     name_id: item.name_id ?? null,
     unit: item.unit ?? 'Stk',
-    batch_allowed: item.batch_allowed ?? false,
+    serialization_type: (item.serialization_type as SerializationType) ?? 'none',
     order_number: item.order_number ?? '',
     order_link: item.order_link ?? '',
     onshape_link: item.onshape_link ?? '',
@@ -167,7 +168,7 @@ function buildPayload(form: FormState): Partial<Item> {
     name: form.name || undefined,
     name_id: form.name_id,
     unit: form.unit,
-    batch_allowed: form.batch_allowed,
+    serialization_type: form.serialization_type,
     order_number: form.order_number || null,
     order_link: form.order_link || null,
     onshape_link: form.onshape_link || null,
@@ -211,6 +212,482 @@ function validateForSubmit(form: FormState): string[] {
     if (!form.vat_rate) errors.push('MwSt-Satz ist erforderlich (Verkaufsartikel)');
   }
   return errors;
+}
+
+// ─── BOM line editing types ──────────────────────────────────────────────────
+
+interface BOMLineInput {
+  tempId: string;
+  component_item_id: number;
+  item_name: string;
+  quantity: string;
+  unit: string;
+  note: string;
+}
+
+// ─── BOM Tab ─────────────────────────────────────────────────────────────────
+
+function BOMTab({
+  itemId,
+  isEditable,
+}: {
+  itemId: number;
+  isEditable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [bomNote, setBomNote] = useState('');
+  const [lines, setLines] = useState<BOMLineInput[]>([]);
+  const [initialized, setInitialized] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveOk, setSaveOk] = useState(false);
+
+  // New line form state
+  const [newItemId, setNewItemId] = useState<number | null>(null);
+  const [newQty, setNewQty] = useState('1');
+  const [newUnit, setNewUnit] = useState('Stk');
+  const [newNote, setNewNote] = useState('');
+  const [itemSearch, setItemSearch] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const { data: bomData, isLoading: bomLoading } = useQuery({
+    queryKey: ['bom', itemId],
+    queryFn: () => api.getBOMsForItem(itemId),
+    staleTime: 30_000,
+  });
+
+  const { data: freigItems } = useQuery({
+    queryKey: ['items-freigegeben'],
+    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 200 }),
+    staleTime: 60_000,
+    enabled: isEditable,
+  });
+
+  useEffect(() => {
+    if (bomData && !initialized) {
+      const bom: BOM | undefined = bomData[0];
+      setBomNote(bom?.note ?? '');
+      setLines(
+        (bom?.lines ?? [])
+          .sort((a, b) => a.position - b.position)
+          .map((l) => ({
+            tempId: String(l.id),
+            component_item_id: l.component_item_id,
+            item_name: String(l.component_item_id),
+            quantity: String(l.quantity),
+            unit: l.unit,
+            note: l.note ?? '',
+          })),
+      );
+      setInitialized(true);
+    }
+  }, [bomData, initialized]);
+
+  // Resolve item names from freigItems once available
+  useEffect(() => {
+    if (!freigItems?.items) return;
+    setLines((prev) =>
+      prev.map((l) => {
+        const found = freigItems.items.find((i) => i.id === l.component_item_id);
+        return found ? { ...l, item_name: found.name } : l;
+      }),
+    );
+  }, [freigItems]);
+
+  const filteredItems = (freigItems?.items ?? []).filter((i) => {
+    if (i.id === itemId) return false;
+    if (!itemSearch.trim()) return true;
+    const q = itemSearch.toLowerCase();
+    return i.name.toLowerCase().includes(q) || String(i.id).includes(q);
+  });
+
+  function moveUp(idx: number) {
+    if (idx === 0) return;
+    setLines((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+      return next;
+    });
+  }
+
+  function moveDown(idx: number) {
+    setLines((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      return next;
+    });
+  }
+
+  function removeLine(idx: number) {
+    setLines((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function addLine() {
+    if (!newItemId) return;
+    const found = freigItems?.items.find((i) => i.id === newItemId);
+    setLines((prev) => [
+      ...prev,
+      {
+        tempId: `new-${Date.now()}`,
+        component_item_id: newItemId,
+        item_name: found?.name ?? String(newItemId),
+        quantity: newQty || '1',
+        unit: newUnit,
+        note: newNote,
+      },
+    ]);
+    setNewItemId(null);
+    setNewQty('1');
+    setNewUnit('Stk');
+    setNewNote('');
+    setItemSearch('');
+    setShowAddForm(false);
+  }
+
+  async function saveBOM() {
+    setSaving(true);
+    setSaveError('');
+    setSaveOk(false);
+    try {
+      const payload = {
+        note: bomNote || null,
+        lines: lines.map((l, idx) => ({
+          component_item_id: l.component_item_id,
+          quantity: parseFloat(l.quantity) || 1,
+          unit: l.unit,
+          position: idx + 1,
+          note: l.note || null,
+        })),
+      };
+      const existing = bomData?.[0];
+      if (existing) {
+        await api.updateBOM(existing.id, payload);
+      } else {
+        await api.createBOM({ parent_item_id: itemId, ...payload });
+      }
+      queryClient.invalidateQueries({ queryKey: ['bom', itemId] });
+      setInitialized(false);
+      setSaveOk(true);
+      setTimeout(() => setSaveOk(false), 3000);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (bomLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  const selectCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
+  const inputCls = 'px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
+
+  return (
+    <div className="px-6 py-5 space-y-5">
+      {/* Note */}
+      <div>
+        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notiz zur Stückliste</label>
+        {isEditable ? (
+          <input
+            className={`${inputCls} w-full`}
+            value={bomNote}
+            onChange={(e) => setBomNote(e.target.value)}
+            placeholder="Optionale Notiz…"
+          />
+        ) : (
+          <p className="text-sm text-slate-900 py-1">{bomNote || <span className="text-slate-400 italic">—</span>}</p>
+        )}
+      </div>
+
+      {/* Lines table */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Positionen</h3>
+          {isEditable && (
+            <button
+              type="button"
+              onClick={() => setShowAddForm((v) => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg text-white transition-colors"
+              style={{ background: '#E51A14' }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Position hinzufügen
+            </button>
+          )}
+        </div>
+
+        {lines.length === 0 && !showAddForm && (
+          <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-200 rounded-xl">
+            <GitBranch className="h-8 w-8 text-slate-300 mb-2" />
+            <p className="text-sm text-slate-600 font-medium">Keine Positionen</p>
+            {isEditable && <p className="text-xs text-slate-400 mt-1">Klicken Sie auf &quot;Position hinzufügen&quot;</p>}
+          </div>
+        )}
+
+        {lines.length > 0 && (
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">#</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Artikel</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-20">Menge</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-16">Einheit</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Notiz</th>
+                  {isEditable && <th className="w-20" />}
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, idx) => (
+                  <tr key={line.tempId} className="border-t border-slate-100 hover:bg-slate-50">
+                    <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
+                    <td className="px-3 py-2">
+                      {isEditable ? (
+                        <input
+                          className={`${inputCls} w-full`}
+                          value={line.item_name}
+                          readOnly
+                          placeholder="Artikel"
+                        />
+                      ) : (
+                        <span className="text-sm text-slate-900">{line.item_name}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditable ? (
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          className={`${inputCls} w-full`}
+                          value={line.quantity}
+                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))}
+                        />
+                      ) : (
+                        <span className="text-sm text-slate-900">{line.quantity}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditable ? (
+                        <select
+                          className={selectCls}
+                          value={line.unit}
+                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, unit: e.target.value } : l))}
+                        >
+                          {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => (
+                            <option key={u} value={u}>{u}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-slate-900">{line.unit}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditable ? (
+                        <input
+                          className={`${inputCls} w-full`}
+                          value={line.note}
+                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, note: e.target.value } : l))}
+                          placeholder="Optional"
+                        />
+                      ) : (
+                        <span className="text-sm text-slate-500">{line.note || '—'}</span>
+                      )}
+                    </td>
+                    {isEditable && (
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors">
+                            <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
+                          </button>
+                          <button type="button" onClick={() => moveDown(idx)} disabled={idx === lines.length - 1} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors">
+                            <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                          </button>
+                          <button type="button" onClick={() => removeLine(idx)} className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Add line form */}
+        {isEditable && showAddForm && (
+          <div className="mt-3 p-4 border border-blue-200 bg-blue-50 rounded-xl space-y-3">
+            <p className="text-xs font-semibold text-blue-700">Neue Position</p>
+            <div>
+              <label className="block text-xs text-slate-600 mb-1">Artikel suchen (nur FREIGEGEBEN)</label>
+              <input
+                className={`${inputCls} w-full mb-2`}
+                placeholder="Name oder ID eingeben…"
+                value={itemSearch}
+                onChange={(e) => { setItemSearch(e.target.value); setNewItemId(null); }}
+              />
+              {itemSearch.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
+                  {filteredItems.length === 0 ? (
+                    <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
+                  ) : (
+                    filteredItems.slice(0, 20).map((i) => (
+                      <button
+                        key={i.id}
+                        type="button"
+                        onClick={() => { setNewItemId(i.id); setItemSearch(i.name); }}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors',
+                          newItemId === i.id && 'bg-blue-50',
+                        )}
+                      >
+                        <span className="font-mono text-slate-400">{formatObjectId(i.id)}</span>
+                        <span className="text-slate-800 truncate">{i.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Menge</label>
+                <input type="number" min="0.001" step="0.001" className={`${inputCls} w-full`} value={newQty} onChange={(e) => setNewQty(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-600 mb-1">Einheit</label>
+                <select className={`${selectCls}`} value={newUnit} onChange={(e) => setNewUnit(e.target.value)}>
+                  {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-600 mb-1">Notiz (optional)</label>
+              <input className={`${inputCls} w-full`} value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Optional" />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={addLine}
+                disabled={!newItemId}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+                style={{ background: '#E51A14' }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Hinzufügen
+              </button>
+              <button type="button" onClick={() => { setShowAddForm(false); setItemSearch(''); setNewItemId(null); }} className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Save / status */}
+      {isEditable && (
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+          <div>
+            {saveError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{saveError}</p>}
+            {saveOk && <p className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />Stückliste gespeichert</p>}
+          </div>
+          <button
+            type="button"
+            onClick={saveBOM}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+            style={{ background: '#E51A14' }}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Stückliste speichern
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Where-Used Tab ──────────────────────────────────────────────────────────
+
+function WhereUsedTab({ itemId }: { itemId: number }) {
+  const { data: entries, isLoading, isError } = useQuery<WhereUsedEntry[]>({
+    queryKey: ['where-used', itemId],
+    queryFn: () => api.getItemWhereUsed(itemId),
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="px-6 py-5">
+        <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle className="h-4 w-4" />Daten konnten nicht geladen werden.</p>
+      </div>
+    );
+  }
+
+  if (!entries || entries.length === 0) {
+    return (
+      <div className="px-6 py-12 flex flex-col items-center justify-center text-center">
+        <GitBranch className="h-8 w-8 text-slate-300 mb-2" />
+        <p className="text-sm font-medium text-slate-700">Keine Verwendungen gefunden</p>
+        <p className="text-xs text-slate-400 mt-1">Dieser Artikel ist in keiner Stückliste als Komponente eingesetzt.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-6 py-5">
+      <p className="text-xs text-slate-500 mb-3">Dieser Artikel ist in {entries.length} Baugruppe{entries.length !== 1 ? 'n' : ''} verbaut:</p>
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Baugruppe</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Status</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-24">Menge</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">Pos</th>
+              <th className="w-10" />
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => (
+              <tr key={`${e.bom_id}-${e.parent_item_id}`} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2.5">
+                  <p className="text-sm font-medium text-slate-900">{e.parent_item_name}</p>
+                  <p className="text-xs font-mono text-slate-400">{formatObjectId(e.parent_item_id)}</p>
+                </td>
+                <td className="px-3 py-2.5">
+                  <span className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', ITEM_STATUS_CONFIG[e.parent_item_status]?.color ?? 'bg-slate-100 text-slate-600')}>
+                    {ITEM_STATUS_CONFIG[e.parent_item_status]?.label ?? e.parent_item_status}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5 text-sm text-slate-700">{e.quantity} {e.unit}</td>
+                <td className="px-3 py-2.5 text-xs text-slate-400">{e.position}</td>
+                <td className="px-3 py-2.5">
+                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
@@ -412,6 +889,8 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
           <TabList>
             <TabTrigger value="stammdaten">Artikelstamm</TabTrigger>
             <TabTrigger value="sales">Sales & Shop</TabTrigger>
+            <TabTrigger value="bom">Stückliste</TabTrigger>
+            <TabTrigger value="verwendung">Verwendung</TabTrigger>
             <TabTrigger value="protokoll">Protokoll</TabTrigger>
           </TabList>
         </div>
@@ -481,20 +960,20 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-                  Chargenproduktion
+                  Serialisierung
                 </label>
                 {isEditable ? (
-                  <label className="flex items-center gap-2 mt-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.batch_allowed}
-                      onChange={(e) => updateField('batch_allowed', e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                    />
-                    <span className="text-sm text-slate-700">Erlaubt</span>
-                  </label>
+                  <select
+                    value={form.serialization_type}
+                    onChange={(e) => updateField('serialization_type', e.target.value as SerializationType)}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  >
+                    {(Object.entries(SERIALIZATION_TYPE_LABELS) as [SerializationType, string][]).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
                 ) : (
-                  <p className="text-sm text-slate-900 py-1">{form.batch_allowed ? 'Ja' : 'Nein'}</p>
+                  <p className="text-sm text-slate-900 py-1">{SERIALIZATION_TYPE_LABELS[form.serialization_type] ?? form.serialization_type}</p>
                 )}
               </div>
             </div>
@@ -578,11 +1057,11 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lagerbestand</label>
-                <p className="text-sm text-slate-900 py-1">{item?.stock_total ?? '0'}</p>
+                <p className="text-sm text-slate-900 py-1">{item?.stock_total ?? '0'} <span className="text-slate-500">{form.unit}</span></p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Reserviert</label>
-                <p className="text-sm text-slate-900 py-1">{item?.stock_reserved ?? '0'}</p>
+                <p className="text-sm text-slate-900 py-1">{item?.stock_reserved ?? '0'} <span className="text-slate-500">{form.unit}</span></p>
               </div>
             </div>
           </TabPanel>
@@ -707,11 +1186,38 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh }: ItemDetai
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">HS-Code</label>
-                  <FieldInput readOnly={!isEditable} value={form.hs_code} onChange={(v) => updateField('hs_code', v)} placeholder="z.B. 8479.89" />
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    HS-Code
+                  </label>
+                  <div className="space-y-1">
+                    <FieldInput readOnly={!isEditable} value={form.hs_code} onChange={(v) => updateField('hs_code', v)} placeholder="z.B. 8479.89.97" />
+                    {isEditable && (
+                      <p className="text-xs text-slate-400">
+                        Harmonisierter System-Code für Zollanmeldungen.{' '}
+                        <a
+                          href="https://xtares.admin.ch/tares/login/loginFormFiller.do"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-700 inline-flex items-center gap-0.5"
+                        >
+                          Zolltarif CH (XTARES) <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+          </TabPanel>
+
+          {/* ── Stückliste ── */}
+          <TabPanel value="bom">
+            <BOMTab itemId={itemId} isEditable={isEditable} />
+          </TabPanel>
+
+          {/* ── Verwendungsnachweise ── */}
+          <TabPanel value="verwendung">
+            <WhereUsedTab itemId={itemId} />
           </TabPanel>
 
           {/* ── Protokoll ── */}

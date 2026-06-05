@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
 type CreateForm = {
   name: string;
   unit: string;
-  batch_allowed: boolean;
+  serialization_type: 'none' | 'batch' | 'serial';
   order_number: string;
   purchase_price: string;
   purchase_currency: string;
@@ -190,9 +190,9 @@ function ArtikelPageInner() {
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-medium text-slate-900">{item.name}</p>
-                        {item.batch_allowed && (
+                        {item.serialization_type !== 'none' && (
                           <span className="text-xs text-blue-600 flex items-center gap-0.5 mt-0.5">
-                            <Layers className="h-3 w-3" /> Batch
+                            <Layers className="h-3 w-3" /> {item.serialization_type === 'batch' ? 'Charge' : 'Seriennummer'}
                           </span>
                         )}
                       </td>
@@ -287,7 +287,7 @@ function ItemDetailPanel({ item, onClose, onSubmit, onApprove, onReplace, onInva
         <div className="p-6 space-y-5">
           <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <Field label="Einheit" value={item.unit} />
-            <Field label="Batch erlaubt" value={item.batch_allowed ? 'Ja' : 'Nein'} />
+            <Field label="Serialisierung" value={item.serialization_type === 'none' ? 'Keine' : item.serialization_type === 'batch' ? 'Charge (Losnummer)' : 'Seriennummer'} />
             {item.order_number && <Field label="Bestellnummer" value={item.order_number} />}
             {item.lead_time_days && <Field label="Lieferzeit" value={`${item.lead_time_days} Tage`} />}
             {item.weight_g && <Field label="Gewicht" value={`${item.weight_g} g`} />}
@@ -441,7 +441,7 @@ function CreateItemModal({
   const [form, setForm] = useState<CreateForm>({
     name: '',
     unit: 'Stk',
-    batch_allowed: false,
+    serialization_type: 'none' as const,
     order_number: '',
     purchase_price: '',
     purchase_currency: 'CHF',
@@ -459,7 +459,7 @@ function CreateItemModal({
     const payload: Partial<Item> = {
       name: form.name,
       unit: form.unit,
-      batch_allowed: form.batch_allowed,
+      serialization_type: form.serialization_type,
       order_number: form.order_number || null,
       purchase_price: form.purchase_price || null,
       purchase_currency: form.purchase_currency,
@@ -563,14 +563,17 @@ function CreateItemModal({
               ))}
             </div>
 
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox" id="batch"
-                checked={form.batch_allowed}
-                onChange={(e) => setForm({ ...form, batch_allowed: e.target.checked })}
-                className="rounded border-slate-300"
-              />
-              <label htmlFor="batch" className="text-sm text-slate-700">Batch-Fertigung erlaubt</label>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Serialisierung</label>
+              <select
+                value={form.serialization_type}
+                onChange={(e) => setForm({ ...form, serialization_type: e.target.value as 'none' | 'batch' | 'serial' })}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value="none">Keine</option>
+                <option value="batch">Charge (Losnummer)</option>
+                <option value="serial">Seriennummer</option>
+              </select>
             </div>
 
             <div className="flex items-center gap-3">
