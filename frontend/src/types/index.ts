@@ -96,6 +96,8 @@ export interface Item {
   hs_code: string | null;
   bom_weight_g?: string | null;
   bom_has_lines?: boolean;
+  replaced_by_name?: string | null;
+  replaces_item_name?: string | null;
   submitted_at: string | null;
   submitted_by: number | null;
   approved_at: string | null;

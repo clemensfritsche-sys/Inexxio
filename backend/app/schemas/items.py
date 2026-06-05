@@ -15,6 +15,14 @@ class ItemSignatureResponse(BaseModel):
     signed_by_name: Optional[str] = None
 
 
+class InvalidateRequest(BaseModel):
+    replaced_by_id: Optional[int] = None
+
+
+class SetReplacementRequest(BaseModel):
+    replaced_by_id: int
+
+
 class ItemCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     name_id: Optional[int] = None
@@ -136,6 +144,8 @@ class ItemResponse(BaseModel):
     updated_at: datetime
     is_active: bool
     signatures: list[ItemSignatureResponse]
+    replaced_by_name: Optional[str] = None
+    replaces_item_name: Optional[str] = None
 
 
 class ItemListResponse(BaseModel):

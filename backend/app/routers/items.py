@@ -12,7 +12,10 @@ from ..models.boms import BOM, BOMLine
 from ..models.item_config import ItemCategory, ItemName, ItemSurface
 from ..models.items import Item, ItemSignature, ItemStatus
 from ..models.objects import ObjectType, UniversalObject
-from ..schemas.items import ItemCreate, ItemListResponse, ItemResponse, ItemSignatureResponse, ItemUpdate
+from ..schemas.items import (
+    InvalidateRequest, ItemCreate, ItemListResponse, ItemResponse,
+    ItemSignatureResponse, ItemUpdate, SetReplacementRequest,
+)
 
 router = APIRouter(prefix="/api/v1/items", tags=["items"])
 
@@ -158,6 +161,16 @@ async def get_item(
             bom_has_lines = True
             bom_weight_g = _get_item_weight(db, item_id, set())
 
+    # Resolve replacement item names
+    replaced_by_name: Optional[str] = None
+    replaces_item_name: Optional[str] = None
+    if item.replaced_by_id:
+        rep = db.query(Item).filter(Item.id == item.replaced_by_id).first()
+        replaced_by_name = rep.name if rep else None
+    if item.replaces_id:
+        orig = db.query(Item).filter(Item.id == item.replaces_id).first()
+        replaces_item_name = orig.name if orig else None
+
     # Build response with names
     resp = ItemResponse.model_validate(item)
     updated_sigs = []
@@ -172,6 +185,8 @@ async def get_item(
         "signatures": updated_sigs,
         "bom_weight_g": bom_weight_g,
         "bom_has_lines": bom_has_lines,
+        "replaced_by_name": replaced_by_name,
+        "replaces_item_name": replaces_item_name,
     })
 
 
@@ -355,26 +370,109 @@ async def replace_item(
 @router.post("/{item_id}/invalidate", response_model=ItemResponse)
 async def invalidate_item(
     item_id: int,
+    data: InvalidateRequest,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
     item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    if item.status == ItemStatus.UNGUELTIG:
-        raise HTTPException(status_code=400, detail="Item is already invalid")
+    if item.status in (ItemStatus.UNGUELTIG, ItemStatus.ERSETZT):
+        raise HTTPException(status_code=400, detail="Item is already inactive or replaced")
 
     old_status = item.status
-    item.status = ItemStatus.UNGUELTIG
+
+    if data.replaced_by_id is not None:
+        replacement = db.query(Item).filter(
+            Item.id == data.replaced_by_id,
+            Item.is_active == True,
+            Item.status == ItemStatus.FREIGEGEBEN,
+        ).first()
+        if not replacement:
+            raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
+        item.status = ItemStatus.ERSETZT
+        item.replaced_by_id = data.replaced_by_id
+        replacement.replaces_id = item_id
+        db.add(AuditLog(
+            object_id=item_id,
+            table_name="items",
+            field_name="status",
+            old_value=old_status,
+            new_value=ItemStatus.ERSETZT,
+            user_id=current_user.id,
+        ))
+        db.add(AuditLog(
+            object_id=item_id,
+            table_name="items",
+            field_name="replaced_by_id",
+            old_value=None,
+            new_value=str(data.replaced_by_id),
+            user_id=current_user.id,
+        ))
+    else:
+        item.status = ItemStatus.UNGUELTIG
+        db.add(AuditLog(
+            object_id=item_id,
+            table_name="items",
+            field_name="status",
+            old_value=old_status,
+            new_value=ItemStatus.UNGUELTIG,
+            user_id=current_user.id,
+        ))
+
+    _cascade_invalidate(db, item_id, current_user.id, set())
+    db.commit()
+    db.refresh(item)
+    return ItemResponse.model_validate(item)
+
+
+@router.post("/{item_id}/set-replacement", response_model=ItemResponse)
+async def set_replacement(
+    item_id: int,
+    data: SetReplacementRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status not in (ItemStatus.UNGUELTIG, ItemStatus.ERSETZT):
+        raise HTTPException(status_code=400, detail="Only UNGUELTIG or ERSETZT items can have replacement added")
+    if item.replaced_by_id is not None:
+        raise HTTPException(status_code=400, detail="Replacement already set")
+
+    replacement = db.query(Item).filter(
+        Item.id == data.replaced_by_id,
+        Item.is_active == True,
+        Item.status == ItemStatus.FREIGEGEBEN,
+    ).first()
+    if not replacement:
+        raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
+
+    old_status = item.status
+    item.replaced_by_id = data.replaced_by_id
+    if item.status == ItemStatus.UNGUELTIG:
+        item.status = ItemStatus.ERSETZT
+    replacement.replaces_id = item_id
+
     db.add(AuditLog(
         object_id=item_id,
         table_name="items",
-        field_name="status",
-        old_value=old_status,
-        new_value=ItemStatus.UNGUELTIG,
+        field_name="replaced_by_id",
+        old_value=None,
+        new_value=str(data.replaced_by_id),
         user_id=current_user.id,
     ))
-    _cascade_invalidate(db, item_id, current_user.id, set())
+    if old_status != item.status:
+        db.add(AuditLog(
+            object_id=item_id,
+            table_name="items",
+            field_name="status",
+            old_value=old_status,
+            new_value=item.status,
+            user_id=current_user.id,
+        ))
+
     db.commit()
     db.refresh(item)
     return ItemResponse.model_validate(item)

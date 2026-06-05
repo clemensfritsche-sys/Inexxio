@@ -122,8 +122,12 @@ class ApiClient {
     return this.post(`/api/v1/items/${id}/replace`, {});
   }
 
-  invalidateItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/invalidate`, {});
+  invalidateItem(id: number, replacedById?: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/invalidate`, { replaced_by_id: replacedById ?? null });
+  }
+
+  setItemReplacement(id: number, replacedById: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/set-replacement`, { replaced_by_id: replacedById });
   }
 
   deleteItem(id: number): Promise<void> {

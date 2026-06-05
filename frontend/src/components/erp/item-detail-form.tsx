@@ -494,15 +494,11 @@ function BOMTab({
                 {lines.map((line, idx) => (
                   <tr
                     key={line.tempId}
-                    draggable={isEditable}
-                    onDragStart={() => handleDragStart(idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDragLeave={() => setDragOverIdx(null)}
-                    onDrop={() => handleDrop(idx)}
-                    onDragEnd={() => { setDragOverIdx(null); dragIndexRef.current = null; }}
+                    onDragOver={(e) => isEditable && handleDragOver(e, idx)}
+                    onDragLeave={() => isEditable && setDragOverIdx(null)}
+                    onDrop={() => isEditable && handleDrop(idx)}
                     className={cn(
                       'border-t border-slate-100 hover:bg-slate-50 transition-colors',
-                      isEditable && 'cursor-grab',
                       dragOverIdx === idx && 'bg-blue-50',
                     )}
                   >
@@ -511,8 +507,7 @@ function BOMTab({
                       {onNavigate ? (
                         <button
                           type="button"
-                          draggable={false}
-                          onClick={(e) => { e.stopPropagation(); onNavigate(line.component_item_id, 'stammdaten'); }}
+                          onClick={() => onNavigate(line.component_item_id, 'stammdaten')}
                           className="text-left hover:text-blue-600 group transition-colors cursor-pointer"
                         >
                           <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600">{formatObjectId(line.component_item_id)}</p>
@@ -545,7 +540,14 @@ function BOMTab({
                     {isEditable && (
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1 justify-end">
-                          <GripVertical className="h-4 w-4 text-slate-300 hover:text-slate-500 cursor-grab shrink-0" />
+                          <span
+                            draggable
+                            onDragStart={() => handleDragStart(idx)}
+                            onDragEnd={() => { setDragOverIdx(null); dragIndexRef.current = null; }}
+                            className="cursor-grab p-0.5 rounded hover:bg-slate-100"
+                          >
+                            <GripVertical className="h-4 w-4 text-slate-300 hover:text-slate-500 shrink-0" />
+                          </span>
                           <button type="button" onClick={() => removeLine(idx)} className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -725,6 +727,309 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   );
 }
 
+// ─── Invalidate Dialog ────────────────────────────────────────────────────────
+
+function InvalidateDialog({
+  item,
+  onClose,
+  onSuccess,
+}: {
+  item: Item;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [replacedByItem, setReplacedByItem] = useState<{ id: number; name: string } | null>(null);
+  const [itemSearch, setItemSearch] = useState('');
+  const [invalidating, setInvalidating] = useState(false);
+  const [error, setError] = useState('');
+
+  const { data: freigItems } = useQuery({
+    queryKey: ['items-freigegeben'],
+    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
+    staleTime: 60_000,
+  });
+
+  const { data: whereUsed = [] } = useQuery<WhereUsedEntry[]>({
+    queryKey: ['where-used', item.id],
+    queryFn: () => api.getItemWhereUsed(item.id),
+    staleTime: 30_000,
+  });
+
+  const activeParents = (whereUsed as WhereUsedEntry[]).filter(
+    (e) => e.parent_item_status !== 'UNGUELTIG' && e.parent_item_status !== 'ERSETZT',
+  );
+
+  const filteredItems = (freigItems?.items ?? []).filter((i) => {
+    if (i.id === item.id) return false;
+    if (!itemSearch.trim()) return false;
+    const q = itemSearch.trim().toLowerCase();
+    return String(i.id).includes(q) || i.name.toLowerCase().includes(q);
+  });
+
+  async function doInvalidate(withReplacement: boolean) {
+    setError('');
+    setInvalidating(true);
+    try {
+      await api.invalidateItem(item.id, withReplacement && replacedByItem ? replacedByItem.id : undefined);
+      onSuccess();
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+    } finally {
+      setInvalidating(false);
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">Inaktiv / Ersetzen</h2>
+          <p className="text-sm text-slate-500 mt-0.5">{item.name}</p>
+        </div>
+        <div className="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">
+              Ersatzartikel <span className="text-slate-400 font-normal">(optional, nur FREIGEGEBEN)</span>
+            </label>
+            {replacedByItem ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(replacedByItem.id)}</p>
+                  <p className="text-xs text-slate-500 truncate">{replacedByItem.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplacedByItem(null)}
+                  className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  className={inputCls}
+                  placeholder="Artikelnummer oder Name suchen…"
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                />
+                {itemSearch.length > 0 && (
+                  <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg bg-white mt-1">
+                    {filteredItems.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
+                    ) : (
+                      filteredItems.slice(0, 10).map((i) => (
+                        <button
+                          key={i.id}
+                          type="button"
+                          onClick={() => { setReplacedByItem({ id: i.id, name: i.name }); setItemSearch(''); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="font-mono font-semibold text-slate-900 shrink-0">{formatObjectId(i.id)}</span>
+                          <span className="text-slate-600 truncate">{i.name}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {activeParents.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {activeParents.length} übergeordnete Baugruppe{activeParents.length !== 1 ? 'n' : ''} werden auf UNGÜLTIG gesetzt:
+              </p>
+              <ul className="space-y-1">
+                {activeParents.map((e) => (
+                  <li key={e.bom_id} className="flex items-center gap-2 text-xs text-amber-700">
+                    <span className="font-mono font-semibold shrink-0">{formatObjectId(e.parent_item_id)}</span>
+                    <span className="truncate">{e.parent_item_name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-600 flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
+            </p>
+          )}
+        </div>
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={invalidating}
+            className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => doInvalidate(false)}
+              disabled={invalidating}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              {invalidating && !replacedByItem && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Nur inaktiv setzen
+            </button>
+            <button
+              type="button"
+              onClick={() => doInvalidate(true)}
+              disabled={invalidating || !replacedByItem}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+            >
+              {invalidating && !!replacedByItem && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Mit Ersatz ersetzen
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Set Replacement Dialog ───────────────────────────────────────────────────
+
+function SetReplacementDialog({
+  item,
+  onClose,
+  onSuccess,
+}: {
+  item: Item;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [replacedByItem, setReplacedByItem] = useState<{ id: number; name: string } | null>(null);
+  const [itemSearch, setItemSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const { data: freigItems } = useQuery({
+    queryKey: ['items-freigegeben'],
+    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
+    staleTime: 60_000,
+  });
+
+  const filteredItems = (freigItems?.items ?? []).filter((i) => {
+    if (i.id === item.id) return false;
+    if (!itemSearch.trim()) return false;
+    const q = itemSearch.trim().toLowerCase();
+    return String(i.id).includes(q) || i.name.toLowerCase().includes(q);
+  });
+
+  async function doSetReplacement() {
+    if (!replacedByItem) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.setItemReplacement(item.id, replacedByItem.id);
+      onSuccess();
+      onClose();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-900">Ersatzartikel nachtragen</h2>
+          <p className="text-sm text-slate-500 mt-0.5">{item.name}</p>
+        </div>
+        <div className="px-6 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-2">
+              Ersatzartikel <span className="text-red-500">*</span>
+              <span className="text-slate-400 font-normal ml-1">(nur FREIGEGEBEN)</span>
+            </label>
+            {replacedByItem ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(replacedByItem.id)}</p>
+                  <p className="text-xs text-slate-500 truncate">{replacedByItem.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplacedByItem(null)}
+                  className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  className={inputCls}
+                  placeholder="Artikelnummer oder Name suchen…"
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                />
+                {itemSearch.length > 0 && (
+                  <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-lg bg-white mt-1">
+                    {filteredItems.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
+                    ) : (
+                      filteredItems.slice(0, 10).map((i) => (
+                        <button
+                          key={i.id}
+                          type="button"
+                          onClick={() => { setReplacedByItem({ id: i.id, name: i.name }); setItemSearch(''); }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors"
+                        >
+                          <span className="font-mono font-semibold text-slate-900 shrink-0">{formatObjectId(i.id)}</span>
+                          <span className="text-slate-600 truncate">{i.name}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          {error && (
+            <p className="text-xs text-red-600 flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
+            </p>
+          )}
+        </div>
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={doSetReplacement}
+            disabled={saving || !replacedByItem}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors"
+          >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Ersatz speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 interface ItemDetailFormProps {
@@ -741,6 +1046,8 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
   const [sizeError, setSizeError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'pending' | 'saved' | 'error'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [showInvalidateDialog, setShowInvalidateDialog] = useState(false);
+  const [showSetReplacementDialog, setShowSetReplacementDialog] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedForRef = useRef<number | null>(null);
 
@@ -841,15 +1148,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     },
   });
 
-  const { mutate: invalidateItem, isPending: invalidating } = useMutation({
-    mutationFn: () => api.invalidateItem(itemId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-      queryClient.invalidateQueries({ queryKey: ['objects'] });
-      onRefresh?.();
-    },
-  });
-
   const { mutate: recallItem, isPending: recalling } = useMutation({
     mutationFn: () => api.recallItem(itemId),
     onSuccess: () => {
@@ -929,6 +1227,40 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               <li key={e} className="text-xs text-red-600">{e}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Replacement / replaced info banners */}
+      {item?.replaces_id && (
+        <div className="mx-6 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-blue-500 shrink-0" />
+          <p className="text-xs text-blue-700 min-w-0">
+            <span className="font-medium">Ersatzartikel für: </span>
+            <button
+              type="button"
+              onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')}
+              className="font-mono font-semibold hover:underline"
+            >
+              {formatObjectId(item.replaces_id)}
+            </button>
+            {item.replaces_item_name && <span className="ml-1 text-blue-600">{item.replaces_item_name}</span>}
+          </p>
+        </div>
+      )}
+      {item?.replaced_by_id && (
+        <div className="mx-6 mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
+          <p className="text-xs text-slate-600 min-w-0">
+            <span className="font-medium">Ersetzt durch: </span>
+            <button
+              type="button"
+              onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')}
+              className="font-mono font-semibold hover:underline text-blue-600"
+            >
+              {formatObjectId(item.replaced_by_id)}
+            </button>
+            {item.replaced_by_name && <span className="ml-1">{item.replaced_by_name}</span>}
+          </p>
         </div>
       )}
 
@@ -1396,21 +1728,56 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={() => { if (confirm('Artikel wirklich ungültig setzen?')) invalidateItem(); }}
-              disabled={invalidating}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+              onClick={() => setShowInvalidateDialog(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
-              {invalidating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
-              Ungültig setzen
+              <XCircle className="h-3.5 w-3.5" />
+              Inaktiv / Ersetzen
             </button>
           </div>
         )}
         {(statusKey === 'ERSETZT' || statusKey === 'UNGUELTIG') && (
-          <p className="text-xs text-slate-500 text-center py-1">
-            Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'ungültig'} und kann nicht mehr bearbeitet werden.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500 py-1">
+              Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'ungültig'} und kann nicht mehr bearbeitet werden.
+            </p>
+            {isAdmin && !item?.replaced_by_id && (
+              <button
+                type="button"
+                onClick={() => setShowSetReplacementDialog(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Ersatzartikel nachtragen
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Dialogs */}
+      {showInvalidateDialog && item && (
+        <InvalidateDialog
+          item={item}
+          onClose={() => setShowInvalidateDialog(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+            queryClient.invalidateQueries({ queryKey: ['objects'] });
+            onRefresh?.();
+          }}
+        />
+      )}
+      {showSetReplacementDialog && item && (
+        <SetReplacementDialog
+          item={item}
+          onClose={() => setShowSetReplacementDialog(false)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+            queryClient.invalidateQueries({ queryKey: ['objects'] });
+            onRefresh?.();
+          }}
+        />
+      )}
     </div>
   );
 }
