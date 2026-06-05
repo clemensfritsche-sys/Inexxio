@@ -288,10 +288,19 @@ function BOMTab({
     staleTime: 30_000,
   });
 
+  // All items for name resolution (any status)
+  const { data: allItems } = useQuery({
+    queryKey: ['items-all'],
+    queryFn: () => api.getItems({ pageSize: 500 }),
+    staleTime: 60_000,
+  });
+
+  // FREIGEGEBEN items for the add-component search dropdown
   const { data: freigItems } = useQuery({
     queryKey: ['items-freigegeben'],
     queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
     staleTime: 60_000,
+    enabled: isEditable,
   });
 
   useEffect(() => {
@@ -313,16 +322,16 @@ function BOMTab({
     }
   }, [bomData, initialized]);
 
-  // Resolve item names from freigItems once available
+  // Resolve item names from allItems once available
   useEffect(() => {
-    if (!freigItems?.items) return;
+    if (!allItems?.items) return;
     setLines((prev) =>
       prev.map((l) => {
-        const found = freigItems.items.find((i) => i.id === l.component_item_id);
+        const found = allItems.items.find((i) => i.id === l.component_item_id);
         return found ? { ...l, item_name: found.name } : l;
       }),
     );
-  }, [freigItems]);
+  }, [allItems]);
 
   useEffect(() => {
     if (bomData?.[0]) bomIdRef.current = bomData[0].id;
