@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +18,17 @@ from ..schemas.items import (
 )
 
 router = APIRouter(prefix="/api/v1/items", tags=["items"])
+
+
+def _values_equal(old_val, new_val) -> bool:
+    if old_val == new_val:
+        return True
+    if old_val is None or new_val is None:
+        return False
+    try:
+        return Decimal(str(old_val)) == Decimal(str(new_val))
+    except (InvalidOperation, TypeError):
+        return str(old_val) == str(new_val)
 
 
 def _create_object(db: Session, user_id: int) -> UniversalObject:
@@ -205,16 +216,17 @@ async def update_item(
 
     updates = data.model_dump(exclude_unset=True)
     for key, value in updates.items():
-        old_value = str(getattr(item, key, None))
+        old_val = getattr(item, key, None)
         setattr(item, key, value)
-        db.add(AuditLog(
-            object_id=item_id,
-            table_name="items",
-            field_name=key,
-            old_value=old_value,
-            new_value=str(value),
-            user_id=current_user.id,
-        ))
+        if not _values_equal(old_val, value):
+            db.add(AuditLog(
+                object_id=item_id,
+                table_name="items",
+                field_name=key,
+                old_value=str(old_val) if old_val is not None else None,
+                new_value=str(value) if value is not None else None,
+                user_id=current_user.id,
+            ))
 
     db.commit()
     db.refresh(item)

@@ -1777,45 +1777,27 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
         {statusKey === 'ENTWURF' && (
           <div className="flex items-center justify-between gap-3">
-            {isAdmin ? (
-              <>
-                <p className="text-xs text-slate-500 shrink-0">Direkt freigeben oder zur Freigabe einreichen.</p>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={submitting || approving || !!sizeError}
-                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Einreichen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDirectApprove}
-                    disabled={approving || submitting || !!sizeError}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                    Freigeben
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="text-xs text-slate-500">Alle Pflichtfelder ausfüllen, dann zur Freigabe einreichen.</p>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={submitting || !!sizeError}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
-                  style={{ background: '#E51A14' }}
-                >
-                  {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                  Zur Freigabe einreichen
-                </button>
-              </>
-            )}
+            <p className="text-xs text-slate-500 shrink-0">Direkt freigeben oder zur Freigabe einreichen.</p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || approving || !!sizeError}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Einreichen
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectApprove}
+                disabled={approving || submitting || !!sizeError}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                Freigeben
+              </button>
+            </div>
           </div>
         )}
         {statusKey === 'IN_FREIGABE' && (
