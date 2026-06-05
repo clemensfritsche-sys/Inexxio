@@ -189,6 +189,19 @@ async def get_item(
         sig_resp = ItemSignatureResponse.model_validate(sig)
         updated_sigs.append(sig_resp.model_copy(update={"signed_by_name": user_map.get(sig.signed_by)}))
 
+    # Count where-used
+    where_used_count = (
+        db.query(BOMLine)
+        .join(BOM, BOM.id == BOMLine.bom_id)
+        .join(Item, Item.id == BOM.parent_item_id)
+        .filter(
+            BOMLine.component_item_id == item_id,
+            BOM.is_active == True,
+            Item.is_active == True,
+        )
+        .count()
+    )
+
     return resp.model_copy(update={
         "created_by_name": user_map.get(created_by_id) if created_by_id else None,
         "submitted_by_name": user_map.get(item.submitted_by) if item.submitted_by else None,
@@ -196,6 +209,7 @@ async def get_item(
         "signatures": updated_sigs,
         "bom_weight_g": bom_weight_g,
         "bom_has_lines": bom_has_lines,
+        "where_used_count": where_used_count,
         "replaced_by_name": replaced_by_name,
         "replaces_item_name": replaces_item_name,
     })
@@ -356,6 +370,38 @@ async def get_item_where_used(
             "unit": line.unit,
         }
         for line, bom, item in rows
+    ]
+
+
+@router.get("/{item_id}/history")
+async def get_item_history(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    entries = (
+        db.query(AuditLog)
+        .filter(AuditLog.object_id == item_id, AuditLog.table_name == "items")
+        .order_by(AuditLog.changed_at_utc.desc())
+        .all()
+    )
+    user_ids = {e.user_id for e in entries if e.user_id}
+    user_map: dict[int, str] = {}
+    if user_ids:
+        profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
+        for p in profiles:
+            parts = [p.first_name, p.last_name]
+            user_map[p.id] = " ".join(x for x in parts if x) or p.display_name or p.email
+    return [
+        {
+            "id": e.id,
+            "field_name": e.field_name,
+            "old_value": e.old_value,
+            "new_value": e.new_value,
+            "user_name": user_map.get(e.user_id) if e.user_id else None,
+            "changed_at": e.changed_at_utc.isoformat(),
+        }
+        for e in entries
     ]
 
 

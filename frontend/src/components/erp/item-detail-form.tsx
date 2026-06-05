@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
 import { formatObjectId, formatDate } from '@/lib/utils';
 import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS, SERIALIZATION_TYPE_LABELS } from '@/types';
-import type { Item, ItemHistoryEntry, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry } from '@/types';
+import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry, ItemHistoryEntry } from '@/types';
 
 // ─── Simple field input ──────────────────────────────────────────────────────
 
@@ -443,7 +443,7 @@ function BOMTab({
   const inputCls = 'px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
 
   return (
-    <div className="px-4 sm:px-6 py-5 space-y-5">
+    <div className="px-6 py-5 space-y-5">
       {/* Lines table */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -479,8 +479,8 @@ function BOMTab({
         )}
 
         {lines.length > 0 && (
-          <div className="border border-slate-200 rounded-xl overflow-x-auto">
-            <table className="w-full text-sm min-w-[360px]">
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">#</th>
@@ -656,7 +656,7 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
 
   if (isError) {
     return (
-      <div className="px-4 sm:px-6 py-5">
+      <div className="px-6 py-5">
         <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle className="h-4 w-4" />Daten konnten nicht geladen werden.</p>
       </div>
     );
@@ -675,8 +675,8 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   return (
     <div className="px-6 py-5">
       <p className="text-xs text-slate-500 mb-3">Dieser Artikel ist in {entries.length} Baugruppe{entries.length !== 1 ? 'n' : ''} verbaut:</p>
-      <div className="border border-slate-200 rounded-xl overflow-x-auto">
-        <table className="w-full text-sm min-w-[360px]">
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Baugruppe</th>
@@ -716,140 +716,119 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   );
 }
 
-// ─── Protokoll Tab ───────────────────────────────────────────────────────────
+// ─── Protokoll Tab ────────────────────────────────────────────────────────────
 
-const HISTORY_FIELD_LABELS: Record<string, string> = {
-  status: 'Status',
-  name: 'Artikelname',
-  name_id: 'Artikelname',
-  unit: 'Mengeneinheit',
-  weight_g: 'Gewicht (g)',
-  is_active: 'Aktiv',
-  is_sales_product: 'Verkaufsartikel',
-  replaced_by_id: 'Ersatz-Artikel',
-  order_number: 'Bestellnummer',
-  order_link: 'Bestelllink',
-  onshape_link: 'Onshape-Link',
-  purchase_price: 'EK-Preis',
-  sales_price: 'VK-Preis',
-  lead_time_days: 'Lieferzeit (Tage)',
-  surface_id: 'Oberfläche',
-  category_id: 'Produktkategorie',
-  vat_rate: 'MwSt-Satz',
-  serialization_type: 'Serialisierung',
+const FIELD_LABELS: Record<string, string> = {
+  status: 'Status', name: 'Artikelname', unit: 'Einheit', weight_g: 'Gewicht (g)',
+  order_number: 'Bestellnummer', purchase_price: 'Einkaufspreis',
+  is_sales_product: 'Verkaufsartikel', sales_price: 'Verkaufspreis',
+  surface_id: 'Oberfläche', category_id: 'Kategorie', lead_time_days: 'Lieferzeit',
 };
 
-const HISTORY_STATUS_LABELS: Record<string, string> = {
-  ENTWURF: 'Entwurf',
-  IN_FREIGABE: 'In Freigabe',
-  FREIGEGEBEN: 'Freigegeben',
-  ERSETZT: 'Inaktiv',
-  UNGUELTIG: 'Inaktiv',
-};
+function statusEventLabel(newVal: string | null): string {
+  switch (newVal) {
+    case 'IN_FREIGABE': return 'Zur Freigabe eingereicht';
+    case 'FREIGEGEBEN': return 'Freigegeben';
+    case 'UNGUELTIG': return 'Als inaktiv markiert';
+    case 'ERSETZT': return 'Als ersetzt markiert';
+    case 'ENTWURF': return 'Zurückgesetzt auf Entwurf';
+    default: return `Status → ${newVal ?? '?'}`;
+  }
+}
+
+function statusEventIcon(newVal: string | null) {
+  switch (newVal) {
+    case 'IN_FREIGABE': return { icon: Send, bg: 'bg-amber-100', color: 'text-amber-600' };
+    case 'FREIGEGEBEN': return { icon: CheckCircle2, bg: 'bg-green-100', color: 'text-green-600' };
+    case 'UNGUELTIG':
+    case 'ERSETZT': return { icon: XCircle, bg: 'bg-red-100', color: 'text-red-500' };
+    case 'ENTWURF': return { icon: RotateCcw, bg: 'bg-slate-100', color: 'text-slate-500' };
+    default: return { icon: Pencil, bg: 'bg-slate-100', color: 'text-slate-400' };
+  }
+}
 
 function ProtokollTab({ itemId, item }: { itemId: number; item: Item }) {
   const { data: history = [], isLoading } = useQuery<ItemHistoryEntry[]>({
     queryKey: ['item-history', itemId],
     queryFn: () => api.getItemHistory(itemId),
-    staleTime: 30_000,
+    staleTime: 10_000,
   });
 
-  function renderEntry(e: ItemHistoryEntry) {
-    const field = e.field_name ?? '';
-    const isStatus = field === 'status';
-    const newStatus = e.new_value ?? '';
-
-    let icon: React.ReactNode;
-    let iconBg: string;
-    let label: string;
-
-    if (isStatus) {
-      if (newStatus === 'FREIGEGEBEN') {
-        icon = <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />;
-        iconBg = 'bg-green-100';
-        label = 'Freigegeben';
-      } else if (newStatus === 'IN_FREIGABE') {
-        icon = <Send className="h-3.5 w-3.5 text-amber-600" />;
-        iconBg = 'bg-amber-100';
-        label = 'Zur Freigabe eingereicht';
-      } else if (newStatus === 'UNGUELTIG' || newStatus === 'ERSETZT') {
-        icon = <XCircle className="h-3.5 w-3.5 text-red-600" />;
-        iconBg = 'bg-red-100';
-        label = 'Inaktiv gesetzt';
-      } else if (newStatus === 'ENTWURF') {
-        icon = <RotateCcw className="h-3.5 w-3.5 text-slate-600" />;
-        iconBg = 'bg-slate-100';
-        label = 'Zurück zu Entwurf';
-      } else {
-        icon = <Clock className="h-3.5 w-3.5 text-slate-500" />;
-        iconBg = 'bg-slate-100';
-        label = `Status: ${HISTORY_STATUS_LABELS[newStatus] ?? newStatus}`;
-      }
-    } else {
-      icon = <Pencil className="h-3.5 w-3.5 text-slate-500" />;
-      iconBg = 'bg-slate-100';
-      const fieldLabel = HISTORY_FIELD_LABELS[field] ?? field;
-      const oldLabel = isStatus ? (HISTORY_STATUS_LABELS[e.old_value ?? ''] ?? e.old_value) : e.old_value;
-      const newLabel = isStatus ? (HISTORY_STATUS_LABELS[e.new_value ?? ''] ?? e.new_value) : e.new_value;
-      label = `${fieldLabel}${oldLabel ? `: ${oldLabel} → ${newLabel}` : ` → ${newLabel}`}`;
-    }
-
+  if (isLoading) {
     return (
-      <div key={e.id} className="flex items-start gap-3">
-        <div className={cn('flex h-7 w-7 items-center justify-center rounded-full shrink-0', iconBg)}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-900">{label}</p>
-          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-            <Clock className="h-3 w-3 shrink-0" />
-            {formatDate(e.changed_at)}
-            {e.user_name && <span className="ml-1 font-medium">{e.user_name}</span>}
-          </p>
-        </div>
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
       </div>
     );
   }
 
   return (
-    <div className="px-4 sm:px-6 py-5 space-y-4">
-      {/* Creation entry (not in audit log) */}
-      <div className="flex items-start gap-3">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
-          <Check className="h-3.5 w-3.5 text-green-600" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
-          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-            <Clock className="h-3 w-3" />{formatDate(item.created_at)}
-            {item.created_by_name && <span className="ml-1 font-medium">{item.created_by_name}</span>}
-          </p>
+    <div className="px-4 sm:px-6 py-5">
+      <div className="space-y-0.5">
+        {/* Audit log entries (newest first from API) */}
+        {history.map((entry) => {
+          const isStatus = entry.field_name === 'status';
+          const { icon: Icon, bg, color } = isStatus
+            ? statusEventIcon(entry.new_value)
+            : { icon: Pencil, bg: 'bg-slate-100', color: 'text-slate-400' };
+          return (
+            <div key={entry.id} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+              <div className={`flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${bg}`}>
+                <Icon className={`h-3.5 w-3.5 ${color}`} />
+              </div>
+              <div className="flex-1 min-w-0 pt-0.5">
+                {isStatus ? (
+                  <p className="text-sm font-medium text-slate-900">{statusEventLabel(entry.new_value)}</p>
+                ) : (
+                  <p className="text-sm font-medium text-slate-900">
+                    {FIELD_LABELS[entry.field_name ?? ''] ?? entry.field_name} geändert
+                    {entry.old_value !== null && entry.new_value !== null && (
+                      <span className="font-normal text-slate-500 ml-1 text-xs">{entry.old_value} → {entry.new_value}</span>
+                    )}
+                  </p>
+                )}
+                <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  {formatDate(entry.changed_at)}
+                  {entry.user_name && <span className="ml-1 font-medium text-slate-600">{entry.user_name}</span>}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Digital signatures */}
+        {item.signatures?.map((sig) => (
+          <div key={sig.id} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 shrink-0">
+              <Check className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <div className="flex-1 pt-0.5">
+              <p className="text-sm font-medium text-slate-900">Digital signiert</p>
+              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                <Clock className="h-3 w-3 shrink-0" />
+                {formatDate(sig.signed_at)}
+                {sig.signed_by_name && <span className="ml-1 font-medium text-slate-600">{sig.signed_by_name}</span>}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {/* Created — always last (oldest) */}
+        <div className="flex items-start gap-3 py-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
+            <Check className="h-3.5 w-3.5 text-green-600" />
+          </div>
+          <div className="pt-0.5">
+            <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
+            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+              <Clock className="h-3 w-3 shrink-0" />
+              {formatDate(item.created_at)}
+              {item.created_by_name && <span className="ml-1 font-medium text-slate-600">{item.created_by_name}</span>}
+            </p>
+          </div>
         </div>
       </div>
-
-      {isLoading && (
-        <div className="flex items-center gap-2 py-2">
-          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-          <span className="text-xs text-slate-500">Lade Verlauf…</span>
-        </div>
-      )}
-
-      {history.map((e) => renderEntry(e))}
-
-      {/* Signatures */}
-      {item.signatures && item.signatures.length > 0 && (
-        <div className="mt-2 pt-3 border-t border-slate-100">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Digitale Signaturen</p>
-          {item.signatures.map((sig) => (
-            <div key={sig.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0">
-              <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
-              <span className="text-xs text-slate-600">
-                {sig.signed_by_name ?? `Benutzer #${sig.signed_by}`} · {formatDate(sig.signed_at)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1235,6 +1214,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         await api.updateItem(itemId, buildPayload(updatedForm));
         setSaveStatus('saved');
         queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+        queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
         queryClient.invalidateQueries({ queryKey: ['objects'] });
         onRefresh?.();
       } catch {
@@ -1270,6 +1250,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     mutationFn: () => api.approveItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
       queryClient.invalidateQueries({ queryKey: ['objects'] });
       onRefresh?.();
     },
@@ -1279,6 +1260,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     mutationFn: () => api.recallItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+      queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
       queryClient.invalidateQueries({ queryKey: ['objects'] });
       onRefresh?.();
     },
@@ -1322,7 +1304,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-white">
+      <div className="px-6 py-4 border-b border-slate-200 bg-white">
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1 mr-3">
             <p className="text-xs font-mono text-slate-400 mb-0.5">{formatObjectId(itemId)}</p>
@@ -1369,54 +1351,46 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       )}
 
       {/* Replacement / replaced info banners */}
-      {item?.replaces_id && (
-        <div className="mx-6 mt-3 p-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-2">
-          <ArrowRight className="h-4 w-4 text-slate-500 shrink-0" />
-          <p className="text-xs text-slate-700 min-w-0">
-            <span className="font-medium">Ersatzartikel für: </span>
-            <button
-              type="button"
-              onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')}
-              className="font-mono font-semibold hover:underline text-slate-900"
-            >
-              {formatObjectId(item.replaces_id)}
-            </button>
-            {item.replaces_item_name && <span className="ml-1 text-slate-600">{item.replaces_item_name}</span>}
-          </p>
-        </div>
-      )}
-      {item?.replaced_by_id && (
-        <div className="mx-6 mt-3 p-3 bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-2">
-          <ArrowRight className="h-4 w-4 text-slate-500 shrink-0" />
-          <p className="text-xs text-slate-700 min-w-0">
-            <span className="font-medium">Ersetzt durch: </span>
-            <button
-              type="button"
-              onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')}
-              className="font-mono font-semibold hover:underline text-slate-900"
-            >
-              {formatObjectId(item.replaced_by_id)}
-            </button>
-            {item.replaced_by_name && <span className="ml-1 text-slate-600">{item.replaced_by_name}</span>}
-          </p>
+      {(item?.replaces_id || item?.replaced_by_id) && (
+        <div className="mx-4 sm:mx-6 mt-2 flex flex-col gap-1">
+          {item?.replaces_id && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
+              <span className="text-slate-500">Ersatzartikel für</span>
+              <button type="button" onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')} className="font-mono font-medium text-blue-600 hover:underline">
+                {formatObjectId(item.replaces_id)}
+              </button>
+              {item.replaces_item_name && <span className="text-slate-500 truncate">{item.replaces_item_name}</span>}
+            </div>
+          )}
+          {item?.replaced_by_id && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
+              <span className="text-slate-500">Ersetzt durch</span>
+              <button type="button" onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')} className="font-mono font-medium text-blue-600 hover:underline">
+                {formatObjectId(item.replaced_by_id)}
+              </button>
+              {item.replaced_by_name && <span className="text-slate-500 truncate">{item.replaced_by_name}</span>}
+            </div>
+          )}
         </div>
       )}
 
       {/* Tabs */}
       <Tabs key={`${itemId}-${initialTab ?? 'stammdaten'}`} defaultTab={initialTab ?? 'stammdaten'} className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-6 bg-white border-b border-slate-200">
-          <TabList>
+        <div className="bg-white border-b border-slate-200 overflow-x-auto">
+          <TabList className="px-4 sm:px-6 flex-nowrap">
             <TabTrigger value="stammdaten">Artikelstamm</TabTrigger>
             {form?.is_sales_product && <TabTrigger value="sales">Sales & Shop</TabTrigger>}
-            <TabTrigger value="bom">Stückliste</TabTrigger>
-            <TabTrigger value="verwendung">Verwendung</TabTrigger>
+            {(item?.bom_has_lines || isEditable) && <TabTrigger value="bom">Stückliste</TabTrigger>}
+            {(item?.where_used_count ?? 0) > 0 && <TabTrigger value="verwendung">Verwendung</TabTrigger>}
             <TabTrigger value="protokoll">Protokoll</TabTrigger>
           </TabList>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {/* ── Artikelstamm ── */}
-          <TabPanel value="stammdaten" className="px-4 sm:px-6 py-5 space-y-5">
+          <TabPanel value="stammdaten" className="px-6 py-5 space-y-5">
 
             {/* Artikelname – predefined list only */}
             <div>
@@ -1458,7 +1432,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Mengeneinheit <span className="text-red-500">*</span>
@@ -1497,7 +1471,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Bestellnummer</label>
                 <FieldInput readOnly={!isEditable} value={form.order_number} onChange={(v) => updateField('order_number', v)} placeholder="z.B. SC-4521" />
@@ -1517,7 +1491,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 : <LinkDisplay value={form.onshape_link} />}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Gewicht (g)
@@ -1577,7 +1551,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">EK-Preis (CHF)</label>
                 <p className="text-sm text-slate-900 py-1">
@@ -1594,7 +1568,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lagerbestand</label>
                 <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_total ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
@@ -1604,12 +1578,14 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_reserved ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
               </div>
             </div>
+          </TabPanel>
 
-            {/* Sales product toggle */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          {/* ── Sales & Shop ── */}
+          <TabPanel value="sales" className="px-6 py-5 space-y-5">
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div>
                 <p className="text-sm font-medium text-slate-900">Verkaufsartikel</p>
-                <p className="text-xs text-slate-500 mt-0.5">Im Online-Shop anbieten</p>
+                <p className="text-xs text-slate-500 mt-0.5">Artikel im Online-Shop anbieten</p>
               </div>
               {isEditable ? (
                 <button
@@ -1626,21 +1602,13 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                   )} />
                 </button>
               ) : (
-                <span className={cn(
-                  'text-xs font-medium px-2.5 py-1 rounded-full',
-                  form.is_sales_product ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500',
-                )}>
-                  {form.is_sales_product ? 'Ja' : 'Nein'}
-                </span>
+                <span className="text-sm text-slate-900 font-medium">{form.is_sales_product ? 'Ja' : 'Nein'}</span>
               )}
             </div>
-          </TabPanel>
 
-          {/* ── Sales & Shop ── */}
-          {form?.is_sales_product && (
-          <TabPanel value="sales" className="px-4 sm:px-6 py-5 space-y-5">
-            <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {form.is_sales_product && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                       Verkaufspreis (CHF) <span className="text-red-500">*</span>
@@ -1753,8 +1721,8 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                   </div>
                 </div>
               </>
+            )}
           </TabPanel>
-          )}
 
           {/* ── Stückliste ── */}
           <TabPanel value="bom">
@@ -1776,28 +1744,17 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       {/* Action bar */}
       <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
         {statusKey === 'ENTWURF' && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-xs text-slate-500">Direkt freigeben oder zur Freigabe einreichen.</p>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={submitting || approving || !!sizeError}
-                className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                Einreichen
-              </button>
-              <button
-                type="button"
-                onClick={handleDirectApprove}
-                disabled={approving || submitting || !!sizeError}
-                className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
-              >
-                {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                Freigeben
-              </button>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">Pflichtfelder ausfüllen, dann Artikel freigeben.</p>
+            <button
+              type="button"
+              onClick={handleDirectApprove}
+              disabled={approving || !!sizeError}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+            >
+              {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+              Freigeben
+            </button>
           </div>
         )}
         {statusKey === 'IN_FREIGABE' && (
@@ -1839,7 +1796,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         {(statusKey === 'ERSETZT' || statusKey === 'UNGUELTIG') && (
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-slate-500 py-1">
-              Dieser Artikel ist inaktiv und kann nicht mehr bearbeitet werden.
+              Dieser Artikel ist {statusKey === 'ERSETZT' ? 'ersetzt' : 'inaktiv'} und kann nicht mehr bearbeitet werden.
             </p>
             {isAdmin && !item?.replaced_by_id && (
               <button
@@ -1862,6 +1819,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           onClose={() => setShowInvalidateDialog(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+            queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
             queryClient.invalidateQueries({ queryKey: ['objects'] });
             onRefresh?.();
           }}
@@ -1873,6 +1831,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           onClose={() => setShowSetReplacementDialog(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['item', itemId] });
+            queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
             queryClient.invalidateQueries({ queryKey: ['objects'] });
             onRefresh?.();
           }}

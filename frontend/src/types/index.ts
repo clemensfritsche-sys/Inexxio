@@ -96,6 +96,7 @@ export interface Item {
   hs_code: string | null;
   bom_weight_g?: string | null;
   bom_has_lines?: boolean;
+  where_used_count?: number;
   replaced_by_name?: string | null;
   replaces_item_name?: string | null;
   submitted_at: string | null;
@@ -109,6 +110,17 @@ export interface Item {
   updated_at: string;
   is_active: boolean;
   signatures: ItemSignature[];
+}
+
+// ─── Item History ─────────────────────────────────────────────────────────────
+
+export interface ItemHistoryEntry {
+  id: number;
+  field_name: string | null;
+  old_value: string | null;
+  new_value: string | null;
+  user_name: string | null;
+  changed_at: string;
 }
 
 // ─── BOM (Bill of Materials) ──────────────────────────────────────────────────
