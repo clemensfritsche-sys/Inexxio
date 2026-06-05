@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import type { UserProfile } from '@/types';
 import { ToggleField } from '../field';
@@ -61,24 +61,47 @@ export function PrivacySection({ profile, onSave }: Props) {
         </div>
       </div>
 
-      {/* AGB info */}
+      {/* Nutzungsbedingungen */}
       <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#0F172A', margin: '0 0 12px' }}>Nutzungsbedingungen</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9' }}>
-            <span style={{ fontSize: 14, color: '#374151' }}>AGB akzeptiert</span>
-            <span style={{ fontSize: 14, color: '#16a34a' }}>
-              {termsDate ?? 'Automatisch beim ersten Login'}
-              {profile.terms_version ? ` (v${profile.terms_version})` : ''}
-            </span>
-          </div>
-          <p style={{ fontSize: 12, color: '#94a3b8', margin: '4px 0 8px' }}>
-            Die AGB werden automatisch mit der ersten Anmeldung akzeptiert und können nicht abgelehnt werden.
-          </p>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <Link href="/agb" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none' }}>AGB ansehen →</Link>
-            <Link href="/datenschutz" style={{ fontSize: 13, color: '#E51A14', textDecoration: 'none' }}>Datenschutzerklärung →</Link>
-          </div>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#0F172A', margin: '0 0 4px' }}>Nutzungsbedingungen</h3>
+        <p style={{ fontSize: 12, color: '#94a3b8', margin: '0 0 16px' }}>
+          Werden automatisch mit der ersten Anmeldung akzeptiert und können nicht abgelehnt werden.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {([
+            { label: 'Allgemeine Geschäftsbedingungen (AGB)', href: '/agb' },
+            { label: 'Datenschutzerklärung', href: '/datenschutz' },
+          ] as const).map(({ label, href }, i, arr) => (
+            <div key={href} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+              padding: '12px 0',
+              borderBottom: i < arr.length - 1 ? '1px solid #F1F5F9' : 'none',
+            }}>
+              <div>
+                <Link href={href} style={{ fontSize: 14, color: '#374151', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  {label}
+                  <ExternalLink style={{ width: 12, height: 12, color: '#94a3b8', flexShrink: 0 }} />
+                </Link>
+                <p style={{ fontSize: 12, color: '#94a3b8', margin: '2px 0 0' }}>
+                  {termsDate
+                    ? `Akzeptiert am ${termsDate}${profile.terms_version ? ` · v${profile.terms_version}` : ''}`
+                    : 'Noch nicht akzeptiert'}
+                </p>
+              </div>
+              <div style={{
+                width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+                background: termsDate ? '#16a34a' : '#cbd5e1',
+                position: 'relative', opacity: 0.6, cursor: 'default', pointerEvents: 'none',
+              }}>
+                <span style={{
+                  position: 'absolute', top: 3,
+                  left: termsDate ? 23 : 3,
+                  width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }} />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

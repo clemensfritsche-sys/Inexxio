@@ -149,29 +149,6 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
           </div>
         )}
 
-        {/* AGB – read-only */}
-        <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 16, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#0F172A', margin: 0 }}>AGB akzeptiert</p>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: '2px 0 0' }}>
-              {profile.terms_accepted_at
-                ? `Akzeptiert am ${new Date(profile.terms_accepted_at).toLocaleDateString('de-CH')}${profile.terms_version ? ` · Version ${profile.terms_version}` : ''}`
-                : 'Noch nicht akzeptiert'}
-            </p>
-          </div>
-          <div style={{
-            width: 44, height: 24, borderRadius: 12, flexShrink: 0,
-            background: profile.terms_accepted_at ? '#16a34a' : '#cbd5e1',
-            position: 'relative', opacity: 0.5, cursor: 'default', pointerEvents: 'none',
-          }}>
-            <span style={{
-              position: 'absolute', top: 3,
-              left: profile.terms_accepted_at ? 23 : 3,
-              width: 18, height: 18, borderRadius: '50%', background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            }} />
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -38,21 +38,6 @@ async def list_objects(
             params["search"] = f"%{q}%"
         queries.append(item_q)
 
-    if not object_type or object_type == "bom":
-        bom_q = """
-            SELECT o.id, 'bom' AS object_type,
-                   CONCAT('BOM: ', i.name) AS title,
-                   'Aktiv' AS status,
-                   o.created_at, o.updated_at
-            FROM objects o
-            JOIN boms b ON o.id = b.id
-            JOIN items i ON b.parent_item_id = i.id
-            WHERE o.is_active = true AND b.is_active = true
-        """
-        if q:
-            bom_q += " AND (i.name ILIKE :search OR CAST(o.id AS TEXT) ILIKE :search)"
-        queries.append(bom_q)
-
     if not object_type or object_type == "work_plan":
         wp_q = """
             SELECT o.id, 'work_plan' AS object_type, wp.name AS title,

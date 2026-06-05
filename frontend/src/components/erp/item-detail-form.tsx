@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
-  Plus, Trash2, ChevronUp, ChevronDown, GitBranch, ArrowRight, ExternalLink, RotateCcw,
+  Plus, Trash2, GripVertical, GitBranch, ArrowRight, ExternalLink, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -269,6 +269,8 @@ function BOMTab({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linesRef = useRef<BOMLineInput[]>([]);
   const bomIdRef = useRef<number | null>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   linesRef.current = lines;
 
   // New line form state
@@ -327,9 +329,8 @@ function BOMTab({
 
   const filteredItems = (freigItems?.items ?? []).filter((i) => {
     if (i.id === itemId) return false;
-    if (!itemSearch.trim()) return true;
-    const q = itemSearch.toLowerCase();
-    return i.name.toLowerCase().includes(q) || String(i.id).includes(q);
+    if (!itemSearch.trim()) return false;
+    return String(i.id).includes(itemSearch.trim());
   });
 
   function scheduleAutoSave() {
@@ -339,23 +340,26 @@ function BOMTab({
     saveTimerRef.current = setTimeout(() => doSaveBOM(linesRef.current), 3000);
   }
 
-  function moveUp(idx: number) {
-    if (idx === 0) return;
-    setLines((prev) => {
-      const next = [...prev];
-      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-      return next;
-    });
-    scheduleAutoSave();
+  function handleDragStart(idx: number) {
+    dragIndexRef.current = idx;
   }
 
-  function moveDown(idx: number) {
+  function handleDragOver(e: React.DragEvent, idx: number) {
+    e.preventDefault();
+    setDragOverIdx(idx);
+  }
+
+  function handleDrop(idx: number) {
+    setDragOverIdx(null);
+    const from = dragIndexRef.current;
+    if (from === null || from === idx) return;
     setLines((prev) => {
-      if (idx >= prev.length - 1) return prev;
       const next = [...prev];
-      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+      const [moved] = next.splice(from, 1);
+      next.splice(idx, 0, moved);
       return next;
     });
+    dragIndexRef.current = null;
     scheduleAutoSave();
   }
 
@@ -477,7 +481,20 @@ function BOMTab({
               </thead>
               <tbody>
                 {lines.map((line, idx) => (
-                  <tr key={line.tempId} className="border-t border-slate-100 hover:bg-slate-50">
+                  <tr
+                    key={line.tempId}
+                    draggable={isEditable}
+                    onDragStart={() => handleDragStart(idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDragLeave={() => setDragOverIdx(null)}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={() => { setDragOverIdx(null); dragIndexRef.current = null; }}
+                    className={cn(
+                      'border-t border-slate-100 hover:bg-slate-50 transition-colors',
+                      isEditable && 'cursor-grab',
+                      dragOverIdx === idx && 'bg-blue-50',
+                    )}
+                  >
                     <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
                     <td className="px-3 py-2">
                       <p className="text-xs font-mono font-semibold text-slate-900">{formatObjectId(line.component_item_id)}</p>
@@ -502,13 +519,8 @@ function BOMTab({
                     </td>
                     {isEditable && (
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-1">
-                          <button type="button" onClick={() => moveUp(idx)} disabled={idx === 0} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors">
-                            <ChevronUp className="h-3.5 w-3.5 text-slate-500" />
-                          </button>
-                          <button type="button" onClick={() => moveDown(idx)} disabled={idx === lines.length - 1} className="p-1 rounded hover:bg-slate-200 disabled:opacity-30 transition-colors">
-                            <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
-                          </button>
+                        <div className="flex items-center gap-1 justify-end">
+                          <GripVertical className="h-4 w-4 text-slate-300 hover:text-slate-500 cursor-grab shrink-0" />
                           <button type="button" onClick={() => removeLine(idx)} className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -527,7 +539,7 @@ function BOMTab({
           <div className="mt-3 p-4 border border-blue-200 bg-blue-50 rounded-xl space-y-3">
             <p className="text-xs font-semibold text-blue-700">Neue Position</p>
             <div>
-              <label className="block text-xs text-slate-600 mb-1">Artikel suchen (nur FREIGEGEBEN)</label>
+              <label className="block text-xs text-slate-600 mb-1">Artikelnummer (nur FREIGEGEBEN)</label>
               {newItemId ? (
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-300 rounded-lg mb-2">
                   <div className="flex-1 min-w-0">
@@ -550,14 +562,14 @@ function BOMTab({
                 <>
                   <input
                     className={`${inputCls} w-full mb-2`}
-                    placeholder="Name oder ID eingeben…"
+                    placeholder="Artikelnummer eingeben…"
                     value={itemSearch}
                     onChange={(e) => setItemSearch(e.target.value)}
                   />
                   {itemSearch.length > 0 && (
                     <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
                       {filteredItems.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-slate-400">Keine FREIGEGEBEN Artikel gefunden</p>
+                        <p className="px-3 py-2 text-xs text-slate-400">Keine Artikel mit dieser Nummer gefunden</p>
                       ) : (
                         filteredItems.slice(0, 20).map((i) => (
                           <button
