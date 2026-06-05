@@ -1,0 +1,65 @@
+# Environment variables - NEVER commit
+.env.local
+.env.production
+*.env
+firebase-service-account.json
+*-service-account.json
+gcp-credentials.json
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.Python
+backend/venv/
+backend/.venv/
+backend/env/
+backend/.env
+backend/dist/
+backend/build/
+backend/*.egg-info/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+*.log
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Uploads (local only)
+uploads/
+storage/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Python pycache (all locations)
+backend/**/__pycache__/
+
+# Alembic (keep versions, ignore __pycache__)
+backend/alembic/versions/__pycache__/
+
+# Firebase CLI cache
+.firebase/

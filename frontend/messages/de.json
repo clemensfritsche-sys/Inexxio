@@ -1,0 +1,339 @@
+{
+  "nav": {
+    "products": "Produkte",
+    "about": "Über uns",
+    "contact": "Kontakt",
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "erp": "ERP"
+  },
+  "home": {
+    "hero": {
+      "eyebrow": "Swiss Made · ISO 9001 · Maschinenbau",
+      "title": "Präzision für anspruchsvolle Industrie",
+      "subtitle": "Inexxio AG entwickelt und fertigt hochpräzise Maschinenkomponenten und Baugruppen für die Industrie. Von der Konstruktion bis zur Auslieferung – alles aus einer Hand.",
+      "cta_primary": "Kontakt aufnehmen",
+      "cta_secondary": "Produkte ansehen",
+      "stat_items": "Artikel",
+      "stat_iso": "ISO 9001",
+      "stat_swiss": "Swiss Made",
+      "stat_years": "Jahre Erfahrung"
+    },
+    "features": {
+      "title": "Unsere Kernkompetenzen",
+      "subtitle": "Präzision, Qualität und Zuverlässigkeit – das sind die Werte, die uns auszeichnen.",
+      "manufacturing": {
+        "title": "Präzisionsfertigung",
+        "desc": "CNC-Bearbeitung mit Toleranzen bis 0,001 mm. Höchste Qualität für anspruchsvollste Anforderungen."
+      },
+      "engineering": {
+        "title": "Entwicklung & Konstruktion",
+        "desc": "Von der Idee bis zum Serienteil – wir begleiten Sie durch den gesamten Entwicklungsprozess."
+      },
+      "solutions": {
+        "title": "Komplettlösungen",
+        "desc": "Einzelteile, Baugruppen und komplette Systemlösungen – alles aus einer Hand, termingerecht geliefert."
+      }
+    },
+    "why": {
+      "title": "Warum Inexxio?",
+      "quality": {
+        "title": "Schweizer Qualitätsgarantie",
+        "desc": "ISO 9001-zertifizierte Prozesse gewährleisten gleichbleibend hohe Qualität bei jeder Lieferung."
+      },
+      "flexibility": {
+        "title": "Flexibel und skalierbar",
+        "desc": "Von Einzelstücken bis zur Grossserie – wir passen uns Ihren Anforderungen an."
+      },
+      "reliability": {
+        "title": "Verlässliche Partnerschaft",
+        "desc": "Transparente Kommunikation, klare Termine und kompromisslose Qualität."
+      },
+      "innovation": {
+        "title": "Moderne Fertigungstechnologie",
+        "desc": "Neueste CNC-Technologie kombiniert mit jahrelanger Erfahrung im Maschinenbau."
+      }
+    },
+    "cta": {
+      "title": "Bereit für ein unverbindliches Gespräch?",
+      "subtitle": "Kontaktieren Sie uns – wir finden die optimale Lösung für Ihre Anforderungen.",
+      "button": "Jetzt anfragen"
+    }
+  },
+  "about": {
+    "title": "Über uns",
+    "subtitle": "Schweizer Präzision seit der ersten Stunde",
+    "mission": {
+      "title": "Unsere Mission",
+      "desc": "Inexxio AG steht für höchste Präzision in der Fertigung und Entwicklung von Maschinenkomponenten. Als Schweizer Unternehmen verpflichten wir uns zu Qualität, Verlässlichkeit und nachhaltiger Partnerschaft mit unseren Kunden."
+    },
+    "values": {
+      "title": "Unsere Werte",
+      "quality": { "title": "Qualität", "desc": "Kompromisslose Qualität in jedem Produktionsschritt." },
+      "precision": { "title": "Präzision", "desc": "Toleranzen, die den Unterschied machen." },
+      "reliability": { "title": "Verlässlichkeit", "desc": "Termine einhalten. Versprechen halten." },
+      "innovation": { "title": "Innovation", "desc": "Kontinuierliche Verbesserung und Modernisierung." }
+    }
+  },
+  "contact": {
+    "title": "Kontakt",
+    "subtitle": "Wir freuen uns auf Ihre Anfrage. Unser Team antwortet in der Regel innert 24 Stunden.",
+    "form": {
+      "name": "Ihr Name",
+      "email": "E-Mail-Adresse",
+      "phone": "Telefon (optional)",
+      "subject": "Betreff",
+      "message": "Ihre Nachricht",
+      "message_placeholder": "Beschreiben Sie Ihr Anliegen...",
+      "privacy": "Ich habe die Datenschutzerklärung gelesen und stimme der Verarbeitung meiner Daten zu.",
+      "submit": "Nachricht senden",
+      "sending": "Wird gesendet...",
+      "success_title": "Nachricht erhalten!",
+      "success_desc": "Vielen Dank für Ihre Anfrage. Wir melden uns baldmöglichst bei Ihnen.",
+      "error": "Fehler beim Senden. Bitte versuchen Sie es erneut oder kontaktieren Sie uns direkt per E-Mail.",
+      "subjects": [
+        "Allgemeine Anfrage",
+        "Angebotsanfrage",
+        "Technische Frage",
+        "Lieferung & Logistik",
+        "Partnerschaft",
+        "Sonstiges"
+      ]
+    },
+    "info": {
+      "title": "Kontaktdaten",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "address": "Adresse",
+      "hours": "Öffnungszeiten",
+      "hours_value": "Mo–Fr 07:30–17:00 Uhr"
+    }
+  },
+  "impressum": {
+    "title": "Impressum",
+    "subtitle": "Angaben gemäss Art. 11 UWG und Art. 40 Datenschutzgesetz",
+    "company_info": "Unternehmensangaben",
+    "contact": "Kontakt",
+    "responsible": "Verantwortlich für den Inhalt",
+    "disclaimer": "Haftungsausschluss",
+    "links": "Haftung für Links",
+    "copyright": "Urheberrecht",
+    "privacy": "Datenschutz",
+    "not_configured": "Die Firmeneinstellungen sind noch nicht konfiguriert. Bitte melden Sie sich im Admin-Bereich an.",
+    "go_to_admin": "Zu den Einstellungen"
+  },
+  "agb": {
+    "title": "Allgemeine Geschäftsbedingungen",
+    "subtitle": "Gültig ab 01.01.2026 | Version 1.0",
+    "tab_b2b": "Für Geschäftskunden (B2B)",
+    "tab_b2c": "Für Endkunden (B2C)",
+    "print": "Drucken",
+    "last_updated": "Letzte Aktualisierung",
+    "version": "Version"
+  },
+  "datenschutz": {
+    "title": "Datenschutzerklärung",
+    "subtitle": "Gemäss DSGVO und Schweizer DSG (01.09.2023)"
+  },
+  "login": {
+    "title": "Anmelden",
+    "subtitle": "Willkommen zurück",
+    "magic_link": {
+      "title": "Mit Magic Link anmelden",
+      "label": "E-Mail-Adresse",
+      "placeholder": "ihre@email.com",
+      "button": "Magic Link senden",
+      "sending": "Wird gesendet...",
+      "sent_title": "Link gesendet!",
+      "sent_desc": "Wir haben einen Anmeldelink an {email} gesendet. Bitte prüfen Sie Ihren Posteingang (auch Spam-Ordner).",
+      "change_email": "Andere E-Mail verwenden"
+    },
+    "google": "Mit Google anmelden",
+    "divider": "oder",
+    "terms": "Mit der Anmeldung stimmen Sie unseren AGB und der Datenschutzerklärung zu.",
+    "back_home": "Zurück zur Startseite",
+    "error_generic": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    "error_popup": "Popup wurde blockiert. Bitte erlauben Sie Popups und versuchen Sie es erneut."
+  },
+  "erp": {
+    "feed": {
+      "title": "ERP",
+      "search": "Suchen… (Strg+K)",
+      "new": "Neu",
+      "empty_title": "Kein Objekt ausgewählt",
+      "empty_desc": "Wählen Sie ein Element aus der Liste oder erstellen Sie ein neues Objekt.",
+      "loading": "Lade Objekte…",
+      "no_results": "Keine Ergebnisse gefunden",
+      "no_results_desc": "Versuchen Sie eine andere Suchanfrage oder entfernen Sie den Filter.",
+      "filters": {
+        "all": "Alle",
+        "items": "Artikel",
+        "companies": "Firmen",
+        "work_plans": "Arbeitspläne",
+        "boms": "Stücklisten"
+      }
+    },
+    "object_types": {
+      "item": "Artikel",
+      "bom": "Stückliste",
+      "work_plan": "Arbeitsplan",
+      "production_order": "Produktionsauftrag",
+      "purchase_order": "Bestellung",
+      "sales_order": "Kundenauftrag",
+      "serialization": "Serialisierung",
+      "complaint": "Reklamation",
+      "maintenance_order": "Wartungsauftrag",
+      "audit": "Audit",
+      "capa": "CAPA",
+      "risk": "Risiko",
+      "document": "Dokument",
+      "company": "Firma",
+      "contact": "Kontakt",
+      "invoice": "Rechnung",
+      "credit_note": "Gutschrift"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "approved": "Freigegeben",
+      "active": "Aktiv",
+      "inactive": "Inaktiv",
+      "pending": "Ausstehend",
+      "completed": "Abgeschlossen",
+      "cancelled": "Storniert"
+    },
+    "actions": {
+      "approve": "Freigeben",
+      "edit": "Bearbeiten",
+      "sign": "Signieren",
+      "replace": "Ersetzen",
+      "deactivate": "Deaktivieren"
+    },
+    "autosave": "Gespeichert",
+    "saving": "Speichert…",
+    "unsaved": "Nicht gespeichert"
+  },
+  "admin": {
+    "settings": {
+      "title": "Firmeneinstellungen",
+      "subtitle": "Zentrale Verwaltung aller Firmen- und Rechtsdaten",
+      "saved": "Gespeichert",
+      "save": "Speichern",
+      "saving": "Speichert…",
+      "unsaved_changes": "Nicht gespeicherte Änderungen",
+      "sections": {
+        "general": "Allgemeine Angaben",
+        "legal": "Rechtliche Identifikation",
+        "contact": "Kontakt & Web",
+        "banking": "Bankdaten",
+        "vat": "MWST & Zahlungskonditionen",
+        "eu": "EU-Erweiterungen",
+        "integrations": "Integrationen & API-Keys"
+      },
+      "fields": {
+        "company_name": "Firmenname",
+        "legal_form": "Rechtsform",
+        "street": "Strasse",
+        "street_nr": "Hausnummer",
+        "zip_code": "PLZ",
+        "city": "Ort",
+        "country": "Land",
+        "uid": "UID-Nummer",
+        "uid_hint": "Format: CHE-xxx.xxx.xxx",
+        "vat_number": "MWST-Nummer",
+        "vat_hint": "Format: CHE-xxx.xxx.xxx MWST",
+        "trade_register": "Handelsregister-Nr.",
+        "trade_register_canton": "Handelsregister Kanton",
+        "share_capital": "Aktienkapital",
+        "iban": "IBAN",
+        "qr_iban": "QR-IBAN",
+        "bank": "Bank",
+        "bic": "BIC/SWIFT",
+        "email": "E-Mail",
+        "phone": "Telefon",
+        "website": "Website",
+        "vat_method": "MWST-Methode",
+        "vat_period": "MWST-Periode",
+        "payment_days": "Standard-Zahlungsfrist (Tage)",
+        "skonto_pct": "Standard-Skonto (%)",
+        "skonto_days": "Skonto-Frist (Tage)",
+        "oss_active": "OSS-Registrierung aktiv",
+        "oss_number": "OSS-Registrierungsnummer",
+        "vies_active": "VIES EU VAT-Validierung",
+        "logo": "Logo",
+        "stripe_key": "Stripe Publishable Key",
+        "plausible_domain": "Plausible Domain",
+        "hcaptcha_key": "hCaptcha Site Key"
+      },
+      "banking_notice": "Bankdaten werden verschlüsselt gespeichert. Nur Administratoren sehen den vollständigen Wert.",
+      "oss_info": "OSS wird aktiv, sobald EU B2C-Umsatz CHF 100'000 überschreitet (Pflicht dann).",
+      "vies_info": "Aktiviert automatische EU-Mehrwertsteuernummer-Validierung für B2B-Kunden.",
+      "integrations_info": "Secret Keys werden im Google Secret Manager verwaltet und sind hier nicht sichtbar."
+    },
+    "users": {
+      "title": "Benutzerverwaltung",
+      "subtitle": "Alle registrierten Benutzer und ihre Berechtigungen",
+      "search": "Benutzer suchen…",
+      "roles": {
+        "admin": "Administrator",
+        "staff": "Mitarbeiter",
+        "supplier": "Lieferant",
+        "customer": "Kunde"
+      },
+      "columns": {
+        "user": "Benutzer",
+        "role": "Rolle",
+        "last_login": "Letzter Login",
+        "status": "Status"
+      },
+      "actions": {
+        "change_role": "Rolle ändern",
+        "deactivate": "Deaktivieren",
+        "deactivate_confirm": "Möchten Sie diesen Benutzer wirklich deaktivieren?"
+      },
+      "status": {
+        "active": "Aktiv",
+        "inactive": "Inaktiv"
+      }
+    }
+  },
+  "common": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "back": "Zurück",
+    "loading": "Lädt…",
+    "error": "Fehler",
+    "success": "Erfolgreich",
+    "yes": "Ja",
+    "no": "Nein",
+    "required": "Pflichtfeld",
+    "optional": "Optional",
+    "unknown": "Unbekannt",
+    "search": "Suchen",
+    "filter": "Filtern",
+    "close": "Schliessen",
+    "confirm": "Bestätigen",
+    "actions": "Aktionen",
+    "created_at": "Erstellt",
+    "updated_at": "Aktualisiert",
+    "active": "Aktiv",
+    "inactive": "Inaktiv"
+  },
+  "footer": {
+    "company": "Unternehmen",
+    "navigation": "Navigation",
+    "legal": "Rechtliches",
+    "contact": "Kontakt",
+    "links": {
+      "imprint": "Impressum",
+      "privacy": "Datenschutz",
+      "agb": "AGB",
+      "about": "Über uns",
+      "products": "Produkte",
+      "contact": "Kontakt"
+    },
+    "copyright": "Alle Rechte vorbehalten.",
+    "tagline": "Präzisionsfertigung. Swiss Made."
+  }
+}

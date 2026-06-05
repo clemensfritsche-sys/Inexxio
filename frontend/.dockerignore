@@ -1,0 +1,38 @@
+# Version control
+.git
+.gitignore
+
+# Next.js build output (rebuilt during Docker build)
+.next
+out
+
+# Dependencies (reinstalled during Docker build)
+node_modules
+
+# Environment files (injected at runtime via Secret Manager / Cloud Run env vars)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+
+# Development / IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Test artifacts
+coverage/
+.nyc_output
+
+# Storybook
+storybook-static/
