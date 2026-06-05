@@ -78,7 +78,7 @@ export default function BenutzerPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
@@ -105,12 +105,12 @@ export default function BenutzerPage() {
           placeholder="Benutzer suchen…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="form-input pl-10 max-w-sm"
+          className="form-input pl-10 w-full sm:max-w-sm"
         />
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[480px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="px-4 py-3 text-left font-medium text-slate-600">Benutzer</th>
