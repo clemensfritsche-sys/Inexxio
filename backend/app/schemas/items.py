@@ -139,6 +139,7 @@ class ItemResponse(BaseModel):
     created_by_name: Optional[str] = None
     bom_weight_g: Optional[Decimal] = None
     bom_has_lines: bool = False
+    where_used_count: int = 0
     serialization_type: str
     created_at: datetime
     updated_at: datetime

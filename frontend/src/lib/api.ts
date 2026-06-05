@@ -14,6 +14,7 @@ import type {
   PaginatedResponse,
   ObjectFilter,
   WhereUsedEntry,
+  ItemHistoryEntry,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
