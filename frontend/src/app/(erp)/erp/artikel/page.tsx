@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
 type CreateForm = {
   name: string;
   unit: string;
-  serialization_type: 'none' | 'batch' | 'serial';
+  serialization_type: 'none' | 'batch';
   order_number: string;
   purchase_price: string;
   purchase_currency: string;
@@ -567,12 +567,11 @@ function CreateItemModal({
               <label className="block text-xs font-medium text-slate-600 mb-1">Serialisierung</label>
               <select
                 value={form.serialization_type}
-                onChange={(e) => setForm({ ...form, serialization_type: e.target.value as 'none' | 'batch' | 'serial' })}
+                onChange={(e) => setForm({ ...form, serialization_type: e.target.value as 'none' | 'batch' })}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="none">Keine</option>
+                <option value="none">Einzelteil</option>
                 <option value="batch">Charge (Losnummer)</option>
-                <option value="serial">Seriennummer</option>
               </select>
             </div>
 

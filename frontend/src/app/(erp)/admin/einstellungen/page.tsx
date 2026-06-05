@@ -422,7 +422,7 @@ function SettingsCard({
   function scheduleAutoSave() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      if (formRef.current && formRef.current.checkValidity()) onSave(collectData(formRef.current));
+      if (formRef.current) onSave(collectData(formRef.current));
     }, 3000);
   }
 

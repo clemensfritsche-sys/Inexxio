@@ -266,6 +266,10 @@ function BOMTab({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [saveOk, setSaveOk] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linesRef = useRef<BOMLineInput[]>([]);
+  const bomIdRef = useRef<number | null>(null);
+  linesRef.current = lines;
 
   // New line form state
   const [newItemId, setNewItemId] = useState<number | null>(null);
@@ -318,12 +322,23 @@ function BOMTab({
     );
   }, [freigItems]);
 
+  useEffect(() => {
+    if (bomData?.[0]) bomIdRef.current = bomData[0].id;
+  }, [bomData]);
+
   const filteredItems = (freigItems?.items ?? []).filter((i) => {
     if (i.id === itemId) return false;
     if (!itemSearch.trim()) return true;
     const q = itemSearch.toLowerCase();
     return i.name.toLowerCase().includes(q) || String(i.id).includes(q);
   });
+
+  function scheduleAutoSave() {
+    if (!isEditable) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveOk(false);
+    saveTimerRef.current = setTimeout(() => doSaveBOM(linesRef.current), 3000);
+  }
 
   function moveUp(idx: number) {
     if (idx === 0) return;
@@ -332,6 +347,7 @@ function BOMTab({
       [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
       return next;
     });
+    scheduleAutoSave();
   }
 
   function moveDown(idx: number) {
@@ -341,10 +357,12 @@ function BOMTab({
       [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
       return next;
     });
+    scheduleAutoSave();
   }
 
   function removeLine(idx: number) {
     setLines((prev) => prev.filter((_, i) => i !== idx));
+    scheduleAutoSave();
   }
 
   function addLine() {
@@ -367,16 +385,16 @@ function BOMTab({
     setNewNote('');
     setItemSearch('');
     setShowAddForm(false);
+    scheduleAutoSave();
   }
 
-  async function saveBOM() {
+  async function doSaveBOM(currentLines: BOMLineInput[]) {
     setSaving(true);
     setSaveError('');
-    setSaveOk(false);
     try {
       const payload = {
         note: null,
-        lines: lines.map((l, idx) => ({
+        lines: currentLines.map((l, idx) => ({
           component_item_id: l.component_item_id,
           quantity: parseInt(l.quantity) || 1,
           unit: l.unit,
@@ -384,16 +402,15 @@ function BOMTab({
           note: l.note || null,
         })),
       };
-      const existing = bomData?.[0];
-      if (existing) {
-        await api.updateBOM(existing.id, payload);
+      if (bomIdRef.current) {
+        await api.updateBOM(bomIdRef.current, payload);
       } else {
-        await api.createBOM({ parent_item_id: itemId, ...payload });
+        const newBom = await api.createBOM({ parent_item_id: itemId, ...payload });
+        bomIdRef.current = newBom.id;
       }
       queryClient.invalidateQueries({ queryKey: ['bom', itemId] });
-      setInitialized(false);
       setSaveOk(true);
-      setTimeout(() => setSaveOk(false), 3000);
+      setTimeout(() => setSaveOk(false), 2000);
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
     } finally {
@@ -417,7 +434,11 @@ function BOMTab({
       {/* Lines table */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Positionen</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Positionen</h3>
+            {saving && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+            {saveOk && <Check className="h-3 w-3 text-green-500" />}
+          </div>
           {isEditable && (
             <button
               type="button"
@@ -430,6 +451,11 @@ function BOMTab({
             </button>
           )}
         </div>
+        {saveError && (
+          <p className="mb-2 text-xs text-red-600 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />{saveError}
+          </p>
+        )}
 
         {lines.length === 0 && !showAddForm && (
           <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-200 rounded-xl">
@@ -476,7 +502,7 @@ function BOMTab({
                           step="1"
                           className={`${inputCls} w-full`}
                           value={line.quantity}
-                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))}
+                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: v } : l)); scheduleAutoSave(); }}
                         />
                       ) : (
                         <span className="text-sm text-slate-900">{line.quantity}</span>
@@ -487,7 +513,7 @@ function BOMTab({
                         <select
                           className={selectCls}
                           value={line.unit}
-                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, unit: e.target.value } : l))}
+                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, unit: v } : l)); scheduleAutoSave(); }}
                         >
                           {['Stk', 'mm', 'g', 'mm²', 'cm', 'm', 'kg', 'l'].map((u) => (
                             <option key={u} value={u}>{u}</option>
@@ -502,7 +528,7 @@ function BOMTab({
                         <input
                           className={`${inputCls} w-full`}
                           value={line.note}
-                          onChange={(e) => setLines((prev) => prev.map((l, i) => i === idx ? { ...l, note: e.target.value } : l))}
+                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, note: v } : l)); scheduleAutoSave(); }}
                           placeholder="Optional"
                         />
                       ) : (
@@ -601,25 +627,6 @@ function BOMTab({
         )}
       </div>
 
-      {/* Save / status */}
-      {isEditable && (
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-          <div>
-            {saveError && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3 w-3" />{saveError}</p>}
-            {saveOk && <p className="text-xs text-green-600 flex items-center gap-1"><Check className="h-3 w-3" />Stückliste gespeichert</p>}
-          </div>
-          <button
-            type="button"
-            onClick={saveBOM}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-            style={{ background: '#E51A14' }}
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-            Stückliste speichern
-          </button>
-        </div>
-      )}
     </div>
   );
 }

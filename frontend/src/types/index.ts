@@ -5,7 +5,7 @@ export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 
 export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
 export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
 export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';
-export type SerializationType = 'none' | 'batch' | 'serial';
+export type SerializationType = 'none' | 'batch';
 export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
 export type WorkPlanStatus = 'Entwurf' | 'Aktiv' | 'Archiviert';
 export type BOMStatus = 'Entwurf' | 'Freigegeben' | 'Archiviert';
@@ -21,7 +21,6 @@ export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: stri
 export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
   'none': 'Einzelteil',
   'batch': 'Charge (Losnummer)',
-  'serial': 'Seriennummer',
 };
 
 export const VAT_RATE_LABELS: Record<VatRate, string> = {

@@ -260,15 +260,15 @@ class ApiClient {
   // ─── Settings ──────────────────────────────────────────────────────────────
 
   getSettings(): Promise<CompanySettings> {
-    return this.get('/api/v1/admin/settings');
+    return this.get<Record<string, unknown>>('/api/v1/admin/settings').then(mapSettingsFromBackend);
   }
 
   getPublicSettings(): Promise<Partial<CompanySettings>> {
-    return this.get('/api/v1/admin/settings/public');
+    return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
   }
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
-    return this.patch('/api/v1/admin/settings', data);
+    return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────
@@ -282,6 +282,68 @@ class ApiClient {
   }): Promise<{ ok: boolean }> {
     return this.post('/api/v1/contact', data);
   }
+}
+
+// ─── CompanySettings field mapping (frontend ↔ backend) ──────────────────────
+
+function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
+  return {
+    company_name: (s.company_name as string) ?? '',
+    legal_form: (s.legal_form as string | null) ?? null,
+    street: (s.street as string) ?? '',
+    street_number: (s.street_nr as string | null) ?? null,
+    zip: (s.zip_code as string) ?? '',
+    city: (s.city as string) ?? '',
+    country: (s.country as string) ?? '',
+    uid: (s.uid_number as string | null) ?? null,
+    vat_number: (s.vat_number as string | null) ?? null,
+    trade_register_number: (s.trade_register_nr as string | null) ?? null,
+    trade_register_canton: (s.trade_register_canton as string | null) ?? null,
+    share_capital: (s.share_capital as string | null) ?? null,
+    email: (s.email as string) ?? '',
+    phone: (s.phone as string | null) ?? null,
+    website: (s.website as string) ?? '',
+    logo_url: (s.logo_path as string | null) ?? null,
+    iban: null,
+    iban_masked: (s.iban_masked as string | null) ?? null,
+    qr_iban: null,
+    qr_iban_masked: (s.qr_iban_masked as string | null) ?? null,
+    bank_name: (s.bank as string | null) ?? null,
+    bic: (s.bic_swift as string | null) ?? null,
+    vat_method: (s.vat_method as 'effektiv' | 'saldosteuersatz' | null) ?? 'effektiv',
+    vat_period: (s.vat_period as 'quartal' | 'semester' | 'jahr' | null) ?? 'quartal',
+    default_payment_days: (s.default_payment_days as number) ?? 30,
+    default_discount_percent: s.default_skonto_pct != null ? String(s.default_skonto_pct) : null,
+    default_discount_days: (s.default_skonto_days as number | null) ?? null,
+    oss_active: (s.oss_active as boolean) ?? false,
+    oss_number: (s.oss_reg_number as string | null) ?? null,
+    vies_validation: (s.vies_active as boolean) ?? false,
+    stripe_publishable_key: (s.stripe_publishable_key as string | null) ?? null,
+    plausible_domain: (s.plausible_domain as string | null) ?? null,
+    hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
+  };
+}
+
+function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unknown> {
+  const fieldMap: Record<string, string> = {
+    street_number: 'street_nr',
+    zip: 'zip_code',
+    uid: 'uid_number',
+    trade_register_number: 'trade_register_nr',
+    bank_name: 'bank',
+    bic: 'bic_swift',
+    oss_number: 'oss_reg_number',
+    vies_validation: 'vies_active',
+    default_discount_percent: 'default_skonto_pct',
+    default_discount_days: 'default_skonto_days',
+  };
+  const skip = new Set(['iban_masked', 'qr_iban_masked', 'logo_url']);
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(s)) {
+    if (skip.has(k)) continue;
+    result[fieldMap[k] ?? k] = v;
+  }
+  return result;
 }
 
 export const api = new ApiClient();

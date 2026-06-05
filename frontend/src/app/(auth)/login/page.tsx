@@ -9,6 +9,16 @@ import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
 
+function getMailUrl(email: string): string {
+  const domain = email.split('@')[1]?.toLowerCase() ?? '';
+  if (['gmail.com', 'googlemail.com'].includes(domain)) return 'https://mail.google.com';
+  if (['outlook.com', 'hotmail.com', 'live.com', 'hotmail.de', 'outlook.de', 'msn.com'].includes(domain)) return 'https://outlook.live.com';
+  if (domain.startsWith('yahoo.')) return 'https://mail.yahoo.com';
+  if (['icloud.com', 'me.com', 'mac.com'].includes(domain)) return 'https://www.icloud.com/mail';
+  if (domain === 'bluewin.ch') return 'https://mail.bluewin.ch';
+  return `mailto:${email}`;
+}
+
 const REDIRECT_KEY = 'inexxio_login_redirect';
 const ROLE_KEY = 'inexxio_user_role';
 
@@ -155,6 +165,15 @@ export default function LoginPage() {
                 <strong style={{ color: 'var(--fg-2)' }}>{sentEmail}</strong>{' '}
                 gesendet. Bitte prüfen Sie Ihren Posteingang.
               </p>
+              <a
+                href={getMailUrl(sentEmail)}
+                target={getMailUrl(sentEmail).startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                className="ix-submit-btn"
+                style={{ marginBottom: 12 }}
+              >
+                Posteingang öffnen
+              </a>
               <button
                 className="ix-success-reset"
                 onClick={() => { setStep('input'); setEmail(''); }}
