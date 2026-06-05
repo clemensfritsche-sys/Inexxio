@@ -443,7 +443,7 @@ function BOMTab({
   const inputCls = 'px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
 
   return (
-    <div className="px-6 py-5 space-y-5">
+    <div className="px-4 sm:px-6 py-5 space-y-5">
       {/* Lines table */}
       <div>
         <div className="flex items-center justify-between mb-2">
@@ -479,8 +479,8 @@ function BOMTab({
         )}
 
         {lines.length > 0 && (
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm min-w-[360px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">#</th>
@@ -656,7 +656,7 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
 
   if (isError) {
     return (
-      <div className="px-6 py-5">
+      <div className="px-4 sm:px-6 py-5">
         <p className="text-sm text-red-600 flex items-center gap-2"><AlertCircle className="h-4 w-4" />Daten konnten nicht geladen werden.</p>
       </div>
     );
@@ -675,8 +675,8 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   return (
     <div className="px-6 py-5">
       <p className="text-xs text-slate-500 mb-3">Dieser Artikel ist in {entries.length} Baugruppe{entries.length !== 1 ? 'n' : ''} verbaut:</p>
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-slate-200 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[360px]">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Baugruppe</th>
@@ -812,7 +812,7 @@ function ProtokollTab({ itemId, item }: { itemId: number; item: Item }) {
   }
 
   return (
-    <div className="px-6 py-5 space-y-4">
+    <div className="px-4 sm:px-6 py-5 space-y-4">
       {/* Creation entry (not in audit log) */}
       <div className="flex items-start gap-3">
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
@@ -1322,7 +1322,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-white">
+      <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-white">
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1 mr-3">
             <p className="text-xs font-mono text-slate-400 mb-0.5">{formatObjectId(itemId)}</p>
@@ -1416,7 +1416,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
 
         <div className="flex-1 overflow-y-auto">
           {/* ── Artikelstamm ── */}
-          <TabPanel value="stammdaten" className="px-6 py-5 space-y-5">
+          <TabPanel value="stammdaten" className="px-4 sm:px-6 py-5 space-y-5">
 
             {/* Artikelname – predefined list only */}
             <div>
@@ -1458,7 +1458,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Mengeneinheit <span className="text-red-500">*</span>
@@ -1497,7 +1497,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Bestellnummer</label>
                 <FieldInput readOnly={!isEditable} value={form.order_number} onChange={(v) => updateField('order_number', v)} placeholder="z.B. SC-4521" />
@@ -1517,7 +1517,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 : <LinkDisplay value={form.onshape_link} />}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Gewicht (g)
@@ -1577,7 +1577,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">EK-Preis (CHF)</label>
                 <p className="text-sm text-slate-900 py-1">
@@ -1594,7 +1594,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Lagerbestand</label>
                 <p className="text-sm text-slate-900 py-1">{fmtNum(item?.stock_total ?? '0')} <span className="text-slate-500">{form.unit}</span></p>
@@ -1638,9 +1638,9 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
 
           {/* ── Sales & Shop ── */}
           {form?.is_sales_product && (
-          <TabPanel value="sales" className="px-6 py-5 space-y-5">
+          <TabPanel value="sales" className="px-4 sm:px-6 py-5 space-y-5">
             <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                       Verkaufspreis (CHF) <span className="text-red-500">*</span>
@@ -1776,14 +1776,14 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       {/* Action bar */}
       <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
         {statusKey === 'ENTWURF' && (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500 shrink-0">Direkt freigeben oder zur Freigabe einreichen.</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <p className="text-xs text-slate-500">Direkt freigeben oder zur Freigabe einreichen.</p>
             <div className="flex gap-2 shrink-0">
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || approving || !!sizeError}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
+                className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 Einreichen
@@ -1792,7 +1792,7 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 type="button"
                 onClick={handleDirectApprove}
                 disabled={approving || submitting || !!sizeError}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
+                className="flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50"
               >
                 {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                 Freigeben

@@ -173,7 +173,7 @@ export function UniversalFeed() {
           </button>
 
           {showTypeMenu && (
-            <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1.5">
+            <div className="absolute right-0 top-10 z-50 w-48 sm:w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-lg py-1.5">
               <p className="px-3 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Neues Objekt</p>
               {TYPE_MENU.map(({ key, label, icon: Icon, available }) => (
                 <button

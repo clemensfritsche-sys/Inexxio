@@ -17,7 +17,7 @@ interface DetailField {
 
 function FieldGrid({ fields }: { fields: DetailField[] }) {
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
       {fields.map((field) => (
         <div key={field.label}>
           <dt className="text-xs font-medium text-slate-500 uppercase tracking-wide">

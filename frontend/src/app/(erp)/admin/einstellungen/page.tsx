@@ -146,7 +146,7 @@ export default function EinstellungenPage() {
   const s = settings ?? EMPTY_SETTINGS;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Systemkonfiguration</h1>
         <p className="mt-1 text-sm text-slate-500">
@@ -350,7 +350,7 @@ export default function EinstellungenPage() {
       </SettingsCard>
 
       {/* Section 8: ERP Konfiguration */}
-      <div className="card p-6">
+      <div className="card p-4 sm:p-6">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
             <Package className="h-5 w-5" />
@@ -433,7 +433,7 @@ function SettingsCard({
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} onChange={scheduleAutoSave} className="card p-6">
+    <form ref={formRef} onSubmit={handleSubmit} onChange={scheduleAutoSave} className="card p-4 sm:p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
