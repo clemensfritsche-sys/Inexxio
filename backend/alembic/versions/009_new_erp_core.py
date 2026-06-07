@@ -48,6 +48,7 @@ def upgrade():
         sa.Column('intervall_wert', sa.String(100), nullable=True),
         sa.Column('naechste_faelligkeit', sa.Date(), nullable=True),
         sa.Column('created_by', sa.BigInteger(), nullable=True),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint('id'),

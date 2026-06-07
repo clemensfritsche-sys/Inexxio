@@ -20,15 +20,16 @@ if database_url:
 from app.core.database import Base  # noqa: E402 — must come after path setup
 from app.models import (  # noqa: F401
     AuditLog,
-    BOM,
-    BOMLine,
     Attachment,
+    Auftrag,
+    AuftragStatus,
     Company,
     CompanySettings,
     CompanyType,
     Contact,
     Document,
     DocumentStatus,
+    IntervallTyp,
     Item,
     ItemCategory,
     ItemName,
@@ -37,13 +38,14 @@ from app.models import (  # noqa: F401
     ItemSurface,
     Notification,
     ObjectType,
+    Objekt,
+    ObjektStatus,
+    ObjektTyp,
+    ProzessSchritt,
     Signature,
-    StepType,
     TimestampMixin,
     UniversalObject,
     UserProfile,
-    WorkPlan,
-    WorkPlanStep,
 )
 
 target_metadata = Base.metadata
