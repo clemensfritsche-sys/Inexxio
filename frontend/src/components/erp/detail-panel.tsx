@@ -3,7 +3,6 @@
 import { formatDate, formatObjectId, relativeTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/badge';
 import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
-import { ProcessTracker, WORK_PLAN_STEPS, BOM_STEPS } from './process-tracker';
 import { typeIcons, typeLabels } from './object-row';
 import { Check, Clock, ExternalLink, FileText, Link as LinkIcon } from 'lucide-react';
 import { UserDetail } from './user-detail';
@@ -40,13 +39,6 @@ interface DetailPanelProps {
   onNavigate?: (itemId: number, tab: string) => void;
 }
 
-function getSteps(objectType: string) {
-  switch (objectType) {
-    case 'work_plan': return WORK_PLAN_STEPS;
-    case 'bom': return BOM_STEPS;
-    default: return BOM_STEPS;
-  }
-}
 
 function getFields(object: UniversalObject): DetailField[] {
   const base: DetailField[] = [
@@ -108,7 +100,6 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
     );
   }
 
-  const steps = getSteps(object.object_type);
   const fields = getFields(object);
   const savedAt = new Date(object.updated_at).toLocaleTimeString('de-CH', {
     hour: '2-digit', minute: '2-digit',
@@ -140,11 +131,6 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
           </div>
         </div>
 
-        {(object.object_type === 'work_plan' || object.object_type === 'bom') && (
-          <div className="mt-4">
-            <ProcessTracker steps={steps} currentStep={object.status} />
-          </div>
-        )}
       </div>
 
       {/* Tabs */}

@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Loader2, InboxIcon, ArrowLeft,
-  Package, Building2, Wrench,
+  Package, Building2, ClipboardList, Archive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -42,14 +42,16 @@ type FilterType = 'all' | ObjectType;
 const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'all', label: 'Alle' },
   { value: 'item', label: 'Artikel' },
+  { value: 'auftrag', label: 'Aufträge' },
   { value: 'company', label: 'Firmen' },
   { value: 'user', label: 'Benutzer' },
 ];
 
 const TYPE_MENU = [
   { key: 'item' as const, label: 'Artikel', icon: Package, available: true },
+  { key: 'auftrag' as const, label: 'Auftrag', icon: ClipboardList, available: false },
+  { key: 'objekt' as const, label: 'Objekt', icon: Archive, available: false },
   { key: 'company' as const, label: 'Firma', icon: Building2, available: false },
-  { key: 'work_plan' as const, label: 'Arbeitsplan', icon: Wrench, available: false },
 ];
 
 export function UniversalFeed() {
@@ -173,7 +175,7 @@ export function UniversalFeed() {
           </button>
 
           {showTypeMenu && (
-            <div className="absolute right-0 top-10 z-50 w-48 sm:w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-lg py-1.5">
+            <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-slate-200 bg-white shadow-lg py-1.5">
               <p className="px-3 pb-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wide">Neues Objekt</p>
               {TYPE_MENU.map(({ key, label, icon: Icon, available }) => (
                 <button

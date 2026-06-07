@@ -1,19 +1,19 @@
 import type {
+  Auftrag,
   CompanySettings,
   Item,
   ItemCategory,
-  ItemHistoryEntry,
   ItemName,
   ItemSurface,
-  BOM,
-  WorkPlan,
+  Objekt,
+  ProzessSchritt,
   Company,
   Contact,
   UserProfile,
   UniversalObject,
+  WhereUsedEntry,
   PaginatedResponse,
   ObjectFilter,
-  WhereUsedEntry,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -135,6 +135,14 @@ class ApiClient {
     return this.delete(`/api/v1/items/${id}`);
   }
 
+  recallItem(id: number): Promise<Item> {
+    return this.post(`/api/v1/items/${id}/recall`, {});
+  }
+
+  getItemWhereUsed(itemId: number): Promise<WhereUsedEntry[]> {
+    return this.get(`/api/v1/items/${itemId}/where-used`);
+  }
+
   getItemNames(): Promise<ItemName[]> {
     return this.get('/api/v1/admin/item-names');
   }
@@ -171,52 +179,79 @@ class ApiClient {
     return this.delete(`/api/v1/admin/item-categories/${id}`);
   }
 
-  recallItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/recall`, {});
+  // ─── Prozess-Schritte ──────────────────────────────────────────────────────
+
+  getProzessSchritte(itemId: number): Promise<ProzessSchritt[]> {
+    return this.get(`/api/v1/items/${itemId}/prozess-schritte`);
   }
 
-  // ─── BOMs ──────────────────────────────────────────────────────────────────
-
-  getBOMs(page = 1, pageSize = 50): Promise<BOM[]> {
-    return this.get(`/api/v1/boms?page=${page}&page_size=${pageSize}`);
+  createProzessSchritt(itemId: number, data: Omit<ProzessSchritt, 'id' | 'item_id' | 'is_active' | 'created_at' | 'updated_at'>): Promise<ProzessSchritt> {
+    return this.post(`/api/v1/items/${itemId}/prozess-schritte`, data);
   }
 
-  getBOM(id: number): Promise<BOM> {
-    return this.get(`/api/v1/boms/${id}`);
+  updateProzessSchritt(itemId: number, schrittId: number, data: Partial<ProzessSchritt>): Promise<ProzessSchritt> {
+    return this.patch(`/api/v1/items/${itemId}/prozess-schritte/${schrittId}`, data);
   }
 
-  getBOMsForItem(itemId: number): Promise<BOM[]> {
-    return this.get(`/api/v1/boms/by-item/${itemId}`);
+  deleteProzessSchritt(itemId: number, schrittId: number): Promise<void> {
+    return this.delete(`/api/v1/items/${itemId}/prozess-schritte/${schrittId}`);
   }
 
-  createBOM(data: { parent_item_id: number; note?: string | null; lines: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
-    return this.post('/api/v1/boms', data);
+  reorderProzessSchritte(itemId: number, order: number[]): Promise<ProzessSchritt[]> {
+    return this.post(`/api/v1/items/${itemId}/prozess-schritte/reorder`, order);
   }
 
-  updateBOM(id: number, data: { note?: string | null; lines?: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
-    return this.patch(`/api/v1/boms/${id}`, data);
+  // ─── Aufträge ──────────────────────────────────────────────────────────────
+
+  getAuftraege(params?: { page?: number; pageSize?: number; q?: string; status?: string; item_id?: number }): Promise<PaginatedResponse<Auftrag>> {
+    const p = new URLSearchParams();
+    p.set('page', String(params?.page ?? 1));
+    p.set('page_size', String(params?.pageSize ?? 20));
+    if (params?.q) p.set('q', params.q);
+    if (params?.status) p.set('status', params.status);
+    if (params?.item_id) p.set('item_id', String(params.item_id));
+    return this.get(`/api/v1/auftraege?${p.toString()}`);
   }
 
-  getItemWhereUsed(itemId: number): Promise<WhereUsedEntry[]> {
-    return this.get(`/api/v1/items/${itemId}/where-used`);
+  getAuftrag(id: number): Promise<Auftrag> {
+    return this.get(`/api/v1/auftraege/${id}`);
   }
 
-  getItemHistory(itemId: number): Promise<ItemHistoryEntry[]> {
-    return this.get(`/api/v1/items/${itemId}/history`);
+  createAuftrag(data: Partial<Auftrag>): Promise<Auftrag> {
+    return this.post('/api/v1/auftraege', data);
   }
 
-  // ─── Work Plans ────────────────────────────────────────────────────────────
-
-  getWorkPlans(page = 1, pageSize = 50): Promise<PaginatedResponse<WorkPlan>> {
-    return this.get(`/api/v1/work-plans?page=${page}&page_size=${pageSize}`);
+  updateAuftrag(id: number, data: Partial<Auftrag>): Promise<Auftrag> {
+    return this.patch(`/api/v1/auftraege/${id}`, data);
   }
 
-  getWorkPlan(id: number): Promise<WorkPlan> {
-    return this.get(`/api/v1/work-plans/${id}`);
+  deleteAuftrag(id: number): Promise<void> {
+    return this.delete(`/api/v1/auftraege/${id}`);
   }
 
-  createWorkPlan(data: Partial<WorkPlan>): Promise<WorkPlan> {
-    return this.post('/api/v1/work-plans', data);
+  // ─── Objekte ───────────────────────────────────────────────────────────────
+
+  getObjekte(params?: { page?: number; pageSize?: number; item_id?: number; auftrag_id?: number; status?: string; typ?: string }): Promise<PaginatedResponse<Objekt>> {
+    const p = new URLSearchParams();
+    p.set('page', String(params?.page ?? 1));
+    p.set('page_size', String(params?.pageSize ?? 20));
+    if (params?.item_id) p.set('item_id', String(params.item_id));
+    if (params?.auftrag_id) p.set('auftrag_id', String(params.auftrag_id));
+    if (params?.status) p.set('status', params.status);
+    if (params?.typ) p.set('typ', params.typ);
+    return this.get(`/api/v1/objekte?${p.toString()}`);
+  }
+
+  getObjekt(id: number): Promise<Objekt> {
+    return this.get(`/api/v1/objekte/${id}`);
+  }
+
+  createObjekt(data: Partial<Objekt>): Promise<Objekt> {
+    return this.post('/api/v1/objekte', data);
+  }
+
+  updateObjekt(id: number, data: Partial<Objekt>): Promise<Objekt> {
+    return this.patch(`/api/v1/objekte/${id}`, data);
   }
 
   // ─── Companies ─────────────────────────────────────────────────────────────

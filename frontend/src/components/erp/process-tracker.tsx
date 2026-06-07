@@ -74,14 +74,3 @@ export const ITEM_STEPS: ProcessStep[] = [
   { key: 'Ersetzt', label: 'Ersetzt' },
 ];
 
-export const WORK_PLAN_STEPS: ProcessStep[] = [
-  { key: 'Entwurf', label: 'Entwurf' },
-  { key: 'Aktiv', label: 'Aktiv' },
-  { key: 'Archiviert', label: 'Archiviert' },
-];
-
-export const BOM_STEPS: ProcessStep[] = [
-  { key: 'Entwurf', label: 'Entwurf' },
-  { key: 'Freigegeben', label: 'Freigegeben' },
-  { key: 'Archiviert', label: 'Archiviert' },
-];

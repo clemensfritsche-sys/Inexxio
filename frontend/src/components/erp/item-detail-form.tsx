@@ -4,14 +4,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, Check, AlertCircle, Send, CheckCircle2, XCircle, Clock,
-  Plus, Trash2, GripVertical, GitBranch, ArrowRight, ExternalLink, RotateCcw, Pencil,
+  Plus, Trash2, GripVertical, ArrowRight, ExternalLink, RotateCcw,
+  ListChecks, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Tabs, TabList, TabTrigger, TabPanel } from '@/components/ui/tabs';
 import { formatObjectId, formatDate } from '@/lib/utils';
-import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS, SERIALIZATION_TYPE_LABELS } from '@/types';
-import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, SerializationType, BOM, WhereUsedEntry, ItemHistoryEntry } from '@/types';
+import { ITEM_STATUS_CONFIG, VAT_RATE_LABELS } from '@/types';
+import type { Item, ItemName, ItemSurface, ItemCategory, ItemStatus, VatRate, ProzessSchritt, WhereUsedEntry } from '@/types';
 
 // ─── Simple field input ──────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ interface FormState {
   name: string;
   name_id: number | null;
   unit: string;
-  serialization_type: SerializationType;
+  serialization_type: string;
   order_number: string;
   order_link: string;
   onshape_link: string;
@@ -151,7 +152,7 @@ function itemToFormState(item: Item): FormState {
     name: item.name ?? '',
     name_id: item.name_id ?? null,
     unit: item.unit ?? 'Stk',
-    serialization_type: (item.serialization_type as SerializationType) ?? 'none',
+    serialization_type: item.serialization_type ?? 'none',
     order_number: item.order_number ?? '',
     order_link: item.order_link ?? '',
     onshape_link: item.onshape_link ?? '',
@@ -240,198 +241,90 @@ function validateForSubmit(form: FormState): string[] {
   return errors;
 }
 
-// ─── BOM line editing types ──────────────────────────────────────────────────
+// ─── Prozess Tab ─────────────────────────────────────────────────────────────
 
-interface BOMLineInput {
-  tempId: string;
-  component_item_id: number;
-  item_name: string;
-  quantity: string;
-  unit: string;
-  note: string;
-}
+const MODUS_LABELS: Record<string, string> = {
+  konsumieren: 'Verbraucht',
+  bereitstellen: 'Bereitstellen',
+  erzeugen: 'Erzeugt',
+  pruefen: 'Prüfen',
+};
 
-// ─── BOM Tab ─────────────────────────────────────────────────────────────────
+const AKTION_LABELS: Record<string, string> = {
+  lager_abbuchen: 'Lager abbuchen',
+  benachrichtigen: 'Benachrichtigen',
+  dokument_erzeugen: 'Dokument erzeugen',
+  objekt_erzeugen: 'Objekt erzeugen',
+  gueltig_bis_setzen: 'Gültig-bis setzen',
+};
 
-function BOMTab({
+function ProzessTab({
   itemId,
   isEditable,
-  onNavigate,
 }: {
   itemId: number;
   isEditable: boolean;
-  onNavigate?: (itemId: number, tab: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [lines, setLines] = useState<BOMLineInput[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newBeschreibung, setNewBeschreibung] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const [saveOk, setSaveOk] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const linesRef = useRef<BOMLineInput[]>([]);
-  const bomIdRef = useRef<number | null>(null);
+  const [error, setError] = useState('');
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  linesRef.current = lines;
 
-  // New line form state
-  const [newItemId, setNewItemId] = useState<number | null>(null);
-  const [newQty, setNewQty] = useState('1');
-  const [newUnit, setNewUnit] = useState('Stk');
-  const [itemSearch, setItemSearch] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  const { data: bomData, isLoading: bomLoading } = useQuery({
-    queryKey: ['bom', itemId],
-    queryFn: () => api.getBOMsForItem(itemId),
+  const { data: schritte = [], isLoading } = useQuery<ProzessSchritt[]>({
+    queryKey: ['prozess-schritte', itemId],
+    queryFn: () => api.getProzessSchritte(itemId),
     staleTime: 30_000,
   });
 
-  // All items for name resolution (any status)
-  const { data: allItems } = useQuery({
-    queryKey: ['items-all'],
-    queryFn: () => api.getItems({ pageSize: 500 }),
-    staleTime: 60_000,
-  });
-
-  // FREIGEGEBEN items for the add-component search dropdown
-  const { data: freigItems } = useQuery({
-    queryKey: ['items-freigegeben'],
-    queryFn: () => api.getItems({ status: 'FREIGEGEBEN', pageSize: 500 }),
-    staleTime: 60_000,
-    enabled: isEditable,
-  });
-
-  useEffect(() => {
-    if (bomData && !initialized) {
-      const bom: BOM | undefined = bomData[0];
-      setLines(
-        (bom?.lines ?? [])
-          .sort((a, b) => a.position - b.position)
-          .map((l) => ({
-            tempId: String(l.id),
-            component_item_id: l.component_item_id,
-            item_name: String(l.component_item_id),
-            quantity: String(l.quantity),
-            unit: l.unit,
-            note: l.note ?? '',
-          })),
-      );
-      setInitialized(true);
-    }
-  }, [bomData, initialized]);
-
-  // Resolve item names from allItems once available
-  useEffect(() => {
-    if (!allItems?.items) return;
-    setLines((prev) =>
-      prev.map((l) => {
-        const found = allItems.items.find((i) => i.id === l.component_item_id);
-        return found ? { ...l, item_name: found.name } : l;
-      }),
-    );
-  }, [allItems]);
-
-  useEffect(() => {
-    if (bomData?.[0]) bomIdRef.current = bomData[0].id;
-  }, [bomData]);
-
-  const filteredItems = (freigItems?.items ?? []).filter((i) => {
-    if (i.id === itemId) return false;
-    if (!itemSearch.trim()) return false;
-    return String(i.id).includes(itemSearch.trim());
-  });
-
-  function scheduleAutoSave() {
-    if (!isEditable) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    setSaveOk(false);
-    saveTimerRef.current = setTimeout(() => doSaveBOM(linesRef.current), 3000);
-  }
-
-  function handleDragStart(idx: number) {
-    dragIndexRef.current = idx;
-  }
-
-  function handleDragOver(e: React.DragEvent, idx: number) {
-    e.preventDefault();
-    setDragOverIdx(idx);
-  }
-
-  function handleDrop(idx: number) {
-    setDragOverIdx(null);
-    const from = dragIndexRef.current;
-    if (from === null || from === idx) return;
-    setLines((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(idx, 0, moved);
-      return next;
-    });
-    dragIndexRef.current = null;
-    scheduleAutoSave();
-  }
-
-  function removeLine(idx: number) {
-    setLines((prev) => prev.filter((_, i) => i !== idx));
-    scheduleAutoSave();
-  }
-
-  function addLine() {
-    if (!newItemId) return;
-    const found = freigItems?.items.find((i) => i.id === newItemId);
-    setLines((prev) => [
-      ...prev,
-      {
-        tempId: `new-${Date.now()}`,
-        component_item_id: newItemId,
-        item_name: found?.name ?? String(newItemId),
-        quantity: newQty || '1',
-        unit: newUnit,
-        note: '',
-      },
-    ]);
-    setNewItemId(null);
-    setNewQty('1');
-    setNewUnit('Stk');
-    setItemSearch('');
-    setShowAddForm(false);
-    scheduleAutoSave();
-  }
-
-  async function doSaveBOM(currentLines: BOMLineInput[]) {
+  async function handleAdd() {
+    if (!newBeschreibung.trim()) return;
     setSaving(true);
-    setSaveError('');
+    setError('');
     try {
-      const payload = {
-        note: null,
-        lines: currentLines.map((l, idx) => ({
-          component_item_id: l.component_item_id,
-          quantity: parseInt(l.quantity) || 1,
-          unit: l.unit,
-          position: idx + 1,
-          note: l.note || null,
-        })),
-      };
-      if (bomIdRef.current) {
-        await api.updateBOM(bomIdRef.current, payload);
-      } else {
-        const newBom = await api.createBOM({ parent_item_id: itemId, ...payload });
-        bomIdRef.current = newBom.id;
-      }
-      queryClient.invalidateQueries({ queryKey: ['bom', itemId] });
-      queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-      setSaveOk(true);
-      setTimeout(() => setSaveOk(false), 2000);
+      await api.createProzessSchritt(itemId, {
+        position: schritte.length + 1,
+        beschreibung: newBeschreibung.trim(),
+      });
+      queryClient.invalidateQueries({ queryKey: ['prozess-schritte', itemId] });
+      setNewBeschreibung('');
+      setAdding(false);
     } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen');
+      setError(e instanceof Error ? e.message : 'Fehler');
     } finally {
       setSaving(false);
     }
   }
 
-  if (bomLoading) {
+  async function handleDelete(id: number) {
+    try {
+      await api.deleteProzessSchritt(itemId, id);
+      queryClient.invalidateQueries({ queryKey: ['prozess-schritte', itemId] });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  }
+
+  async function handleDrop(toIdx: number) {
+    setDragOverIdx(null);
+    const fromIdx = dragIndexRef.current;
+    if (fromIdx === null || fromIdx === toIdx) return;
+    dragIndexRef.current = null;
+    const newOrder = [...schritte];
+    const [moved] = newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, moved);
+    try {
+      await api.reorderProzessSchritte(itemId, newOrder.map((s) => s.id));
+      queryClient.invalidateQueries({ queryKey: ['prozess-schritte', itemId] });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
@@ -439,200 +332,198 @@ function BOMTab({
     );
   }
 
-  const selectCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
-  const inputCls = 'px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
+  const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none';
 
   return (
-    <div className="px-6 py-5 space-y-5">
-      {/* Lines table */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Positionen</h3>
-            {saving && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
-            {saveOk && <Check className="h-3 w-3 text-green-500" />}
-          </div>
-          {isEditable && (
-            <button
-              type="button"
-              onClick={() => setShowAddForm((v) => !v)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg text-white transition-colors"
-              style={{ background: '#E51A14' }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Position hinzufügen
-            </button>
-          )}
-        </div>
-        {saveError && (
-          <p className="mb-2 text-xs text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />{saveError}
-          </p>
-        )}
-
-        {lines.length === 0 && !showAddForm && (
-          <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-200 rounded-xl">
-            <GitBranch className="h-8 w-8 text-slate-300 mb-2" />
-            <p className="text-sm text-slate-600 font-medium">Keine Positionen</p>
-            {isEditable && <p className="text-xs text-slate-400 mt-1">Klicken Sie auf &quot;Position hinzufügen&quot;</p>}
-          </div>
-        )}
-
-        {lines.length > 0 && (
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">#</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Artikel</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-20">Menge</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-16">Einheit</th>
-                  {isEditable && <th className="w-20" />}
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, idx) => (
-                  <tr
-                    key={line.tempId}
-                    onDragOver={(e) => isEditable && handleDragOver(e, idx)}
-                    onDragLeave={() => isEditable && setDragOverIdx(null)}
-                    onDrop={() => isEditable && handleDrop(idx)}
-                    onClick={() => onNavigate?.(line.component_item_id, 'stammdaten')}
-                    className={cn(
-                      'border-t border-slate-100 transition-colors group',
-                      onNavigate ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-slate-50',
-                      dragOverIdx === idx && 'bg-blue-50',
-                    )}
-                  >
-                    <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="px-3 py-2">
-                      <p className="text-xs font-mono font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">{formatObjectId(line.component_item_id)}</p>
-                      <p className="text-xs text-slate-500 group-hover:text-blue-500 transition-colors">{line.item_name}</p>
-                    </td>
-                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      {isEditable ? (
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          className={`${inputCls} w-full`}
-                          value={line.quantity}
-                          onChange={(e) => { const v = e.target.value; setLines((prev) => prev.map((l, i) => i === idx ? { ...l, quantity: v } : l)); scheduleAutoSave(); }}
-                        />
-                      ) : (
-                        <span className="text-sm text-slate-900">{fmtNum(line.quantity)}</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className="text-sm text-slate-900">{line.unit}</span>
-                    </td>
-                    {isEditable && (
-                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1 justify-end">
-                          <span
-                            draggable
-                            onDragStart={() => handleDragStart(idx)}
-                            onDragEnd={() => { setDragOverIdx(null); dragIndexRef.current = null; }}
-                            className="cursor-grab p-0.5 rounded hover:bg-slate-100"
-                          >
-                            <GripVertical className="h-4 w-4 text-slate-300 hover:text-slate-500 shrink-0" />
-                          </span>
-                          <button type="button" onClick={() => removeLine(idx)} className="p-1 rounded hover:bg-red-50 text-red-500 transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Add line form */}
-        {isEditable && showAddForm && (
-          <div className="mt-3 p-4 border border-blue-200 bg-blue-50 rounded-xl space-y-3">
-            <p className="text-xs font-semibold text-blue-700">Neue Position</p>
-            <div>
-              <label className="block text-xs text-slate-600 mb-1">Artikelnummer (nur FREIGEGEBEN)</label>
-              {newItemId ? (
-                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-300 rounded-lg mb-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono font-semibold text-slate-900">
-                      {formatObjectId(newItemId)}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {freigItems?.items.find((i) => i.id === newItemId)?.name ?? ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setNewItemId(null); setNewUnit('Stk'); }}
-                    className="shrink-0 p-0.5 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <input
-                    className={`${inputCls} w-full mb-2`}
-                    placeholder="Artikelnummer eingeben…"
-                    value={itemSearch}
-                    onChange={(e) => setItemSearch(e.target.value)}
-                  />
-                  {itemSearch.length > 0 && (
-                    <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg bg-white">
-                      {filteredItems.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-slate-400">Keine Artikel mit dieser Nummer gefunden</p>
-                      ) : (
-                        filteredItems.slice(0, 20).map((i) => (
-                          <button
-                            key={i.id}
-                            type="button"
-                            onClick={() => { setNewItemId(i.id); setNewUnit(i.unit || 'Stk'); setItemSearch(''); }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-slate-50 transition-colors"
-                          >
-                            <span className="font-mono font-semibold text-slate-900">{formatObjectId(i.id)}</span>
-                            <span className="text-slate-600 truncate">{i.name}</span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Menge</label>
-                <input type="number" min="1" step="1" className={`${inputCls} w-full`} value={newQty} onChange={(e) => setNewQty(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Einheit</label>
-                <p className="py-2 text-sm text-slate-900">{newUnit}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={addLine}
-                disabled={!newItemId}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-                style={{ background: '#E51A14' }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Hinzufügen
-              </button>
-              <button type="button" onClick={() => { setShowAddForm(false); setItemSearch(''); setNewItemId(null); }} className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
-            </div>
-          </div>
+    <div className="px-6 py-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          Prozessschritte ({schritte.length})
+        </h3>
+        {isEditable && (
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg text-white transition-colors"
+            style={{ background: '#E51A14' }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Schritt hinzufügen
+          </button>
         )}
       </div>
 
+      {error && (
+        <p className="text-xs text-red-600 flex items-center gap-1.5">
+          <AlertCircle className="h-3.5 w-3.5" />{error}
+        </p>
+      )}
+
+      {schritte.length === 0 && !adding && (
+        <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-200 rounded-xl">
+          <ListChecks className="h-8 w-8 text-slate-300 mb-2" />
+          <p className="text-sm text-slate-600 font-medium">Keine Prozessschritte</p>
+          {isEditable && (
+            <p className="text-xs text-slate-400 mt-1">Klicken Sie auf &quot;Schritt hinzufügen&quot;</p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {schritte.map((schritt, idx) => (
+          <div
+            key={schritt.id}
+            draggable={isEditable}
+            onDragStart={() => { dragIndexRef.current = idx; }}
+            onDragEnd={() => { setDragOverIdx(null); dragIndexRef.current = null; }}
+            onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+            onDragLeave={() => setDragOverIdx(null)}
+            onDrop={() => handleDrop(idx)}
+            className={cn(
+              'border rounded-xl overflow-hidden transition-colors',
+              dragOverIdx === idx ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white',
+            )}
+          >
+            <div
+              className="flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none hover:bg-slate-50 transition-colors"
+              onClick={() => setExpanded(expanded === schritt.id ? null : schritt.id)}
+            >
+              {isEditable && (
+                <GripVertical className="h-4 w-4 text-slate-300 shrink-0 cursor-grab" />
+              )}
+              <span className="text-xs font-mono font-semibold text-slate-400 shrink-0 w-5 text-center">
+                {idx + 1}
+              </span>
+              <p className="flex-1 text-sm font-medium text-slate-900 truncate">
+                {schritt.beschreibung}
+              </p>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {schritt.ressourcen && schritt.ressourcen.length > 0 && (
+                  <span className="px-1.5 py-0.5 text-xs rounded bg-slate-100 text-slate-600">
+                    {schritt.ressourcen.length} Res.
+                  </span>
+                )}
+                {schritt.aktion && (
+                  <span className="px-1.5 py-0.5 text-xs rounded bg-amber-50 text-amber-700">
+                    {AKTION_LABELS[schritt.aktion.typ] ?? schritt.aktion.typ}
+                  </span>
+                )}
+                {expanded === schritt.id
+                  ? <ChevronDown className="h-4 w-4 text-slate-400" />
+                  : <ChevronRight className="h-4 w-4 text-slate-400" />}
+              </div>
+            </div>
+
+            {expanded === schritt.id && (
+              <div className="px-4 pb-4 pt-1 border-t border-slate-100 space-y-3">
+                {schritt.ressourcen && schritt.ressourcen.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Ressourcen</p>
+                    <div className="space-y-1">
+                      {schritt.ressourcen.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium shrink-0">
+                            {MODUS_LABELS[r.modus] ?? r.modus}
+                          </span>
+                          <span className="font-mono text-slate-700">{formatObjectId(r.objekt_id)}</span>
+                          {r.menge != null && <span className="text-slate-500">× {r.menge}</span>}
+                          {r.serial_pflicht && <span className="text-amber-600">S/N</span>}
+                          {r.batch_pflicht && <span className="text-amber-600">Charge</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {schritt.daten_felder && schritt.daten_felder.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Datenfelder</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {schritt.daten_felder.map((f, i) => (
+                        <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                          {f.bezeichnung}{f.pflicht ? ' *' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Ergebnisoptionen</p>
+                    <div className="flex gap-1.5">
+                      {schritt.ergebnis_optionen.map((e, i) => (
+                        <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-green-50 text-green-700 border border-green-100">
+                          {e.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(schritt.onshape_link || schritt.dokument_link) && (
+                  <div className="flex gap-2">
+                    {schritt.onshape_link && (
+                      <a href={schritt.onshape_link} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                        <ExternalLink className="h-3 w-3" />Onshape
+                      </a>
+                    )}
+                    {schritt.dokument_link && (
+                      <a href={schritt.dokument_link} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                        <ExternalLink className="h-3 w-3" />Dokument
+                      </a>
+                    )}
+                  </div>
+                )}
+                {isEditable && (
+                  <div className="flex justify-end pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(schritt.id)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="h-3 w-3" />Löschen
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {adding && (
+        <div className="p-4 border border-blue-200 bg-blue-50 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-blue-700">Neuer Schritt</p>
+          <input
+            type="text"
+            className={inputCls}
+            placeholder="Beschreibung des Schritts…"
+            value={newBeschreibung}
+            onChange={(e) => setNewBeschreibung(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={!newBeschreibung.trim() || saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+              style={{ background: '#E51A14' }}
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              Hinzufügen
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAdding(false); setNewBeschreibung(''); }}
+              className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -665,32 +556,34 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
   if (!entries || entries.length === 0) {
     return (
       <div className="px-6 py-12 flex flex-col items-center justify-center text-center">
-        <GitBranch className="h-8 w-8 text-slate-300 mb-2" />
+        <ListChecks className="h-8 w-8 text-slate-300 mb-2" />
         <p className="text-sm font-medium text-slate-700">Keine Verwendungen gefunden</p>
-        <p className="text-xs text-slate-400 mt-1">Dieser Artikel ist in keiner Stückliste als Komponente eingesetzt.</p>
+        <p className="text-xs text-slate-400 mt-1">Dieser Artikel wird in keinem Prozessschritt als Komponente eingesetzt.</p>
       </div>
     );
   }
 
   return (
     <div className="px-6 py-5">
-      <p className="text-xs text-slate-500 mb-3">Dieser Artikel ist in {entries.length} Baugruppe{entries.length !== 1 ? 'n' : ''} verbaut:</p>
+      <p className="text-xs text-slate-500 mb-3">
+        Dieser Artikel wird in {entries.length} Prozessschritt{entries.length !== 1 ? 'en' : ''} verwendet:
+      </p>
       <div className="border border-slate-200 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Baugruppe</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Item</th>
               <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Status</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-24">Menge</th>
-              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-10">Pos</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500">Schritt</th>
+              <th className="text-left px-3 py-2 text-xs font-semibold text-slate-500 w-20">Menge</th>
               <th className="w-10" />
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => (
+            {entries.map((e, i) => (
               <tr
-                key={`${e.bom_id}-${e.parent_item_id}`}
-                onClick={() => onNavigate?.(e.parent_item_id, 'bom')}
+                key={`${e.parent_item_id}-${i}`}
+                onClick={() => onNavigate?.(e.parent_item_id, 'prozess')}
                 className={cn('border-t border-slate-100 transition-colors', onNavigate ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-slate-50')}
               >
                 <td className="px-3 py-2.5">
@@ -702,8 +595,11 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
                     {ITEM_STATUS_CONFIG[e.parent_item_status]?.label ?? e.parent_item_status}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{fmtNum(e.quantity)} {e.unit}</td>
-                <td className="px-3 py-2.5 text-xs text-slate-400">{e.position}</td>
+                <td className="px-3 py-2.5">
+                  <p className="text-xs text-slate-700 truncate max-w-[180px]">{e.schritt_beschreibung}</p>
+                  <p className="text-xs text-slate-400">Pos. {e.schritt_position}</p>
+                </td>
+                <td className="px-3 py-2.5 text-sm text-slate-700">{e.menge ?? '—'}</td>
                 <td className="px-3 py-2.5">
                   <ArrowRight className={cn('h-4 w-4', onNavigate ? 'text-blue-400' : 'text-slate-400')} />
                 </td>
@@ -711,123 +607,6 @@ function WhereUsedTab({ itemId, onNavigate }: { itemId: number; onNavigate?: (it
             ))}
           </tbody>
         </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Protokoll Tab ────────────────────────────────────────────────────────────
-
-const FIELD_LABELS: Record<string, string> = {
-  status: 'Status', name: 'Artikelname', unit: 'Einheit', weight_g: 'Gewicht (g)',
-  order_number: 'Bestellnummer', purchase_price: 'Einkaufspreis',
-  is_sales_product: 'Verkaufsartikel', sales_price: 'Verkaufspreis',
-  surface_id: 'Oberfläche', category_id: 'Kategorie', lead_time_days: 'Lieferzeit',
-};
-
-function statusEventLabel(newVal: string | null): string {
-  switch (newVal) {
-    case 'IN_FREIGABE': return 'Zur Freigabe eingereicht';
-    case 'FREIGEGEBEN': return 'Freigegeben';
-    case 'UNGUELTIG': return 'Als inaktiv markiert';
-    case 'ERSETZT': return 'Als ersetzt markiert';
-    case 'ENTWURF': return 'Zurückgesetzt auf Entwurf';
-    default: return `Status → ${newVal ?? '?'}`;
-  }
-}
-
-function statusEventIcon(newVal: string | null) {
-  switch (newVal) {
-    case 'IN_FREIGABE': return { icon: Send, bg: 'bg-amber-100', color: 'text-amber-600' };
-    case 'FREIGEGEBEN': return { icon: CheckCircle2, bg: 'bg-green-100', color: 'text-green-600' };
-    case 'UNGUELTIG':
-    case 'ERSETZT': return { icon: XCircle, bg: 'bg-red-100', color: 'text-red-500' };
-    case 'ENTWURF': return { icon: RotateCcw, bg: 'bg-slate-100', color: 'text-slate-500' };
-    default: return { icon: Pencil, bg: 'bg-slate-100', color: 'text-slate-400' };
-  }
-}
-
-function ProtokollTab({ itemId, item }: { itemId: number; item: Item }) {
-  const { data: history = [], isLoading } = useQuery<ItemHistoryEntry[]>({
-    queryKey: ['item-history', itemId],
-    queryFn: () => api.getItemHistory(itemId),
-    staleTime: 10_000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-4 sm:px-6 py-5">
-      <div className="space-y-0.5">
-        {/* Audit log entries (newest first from API) */}
-        {history.map((entry) => {
-          const isStatus = entry.field_name === 'status';
-          const { icon: Icon, bg, color } = isStatus
-            ? statusEventIcon(entry.new_value)
-            : { icon: Pencil, bg: 'bg-slate-100', color: 'text-slate-400' };
-          return (
-            <div key={entry.id} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${bg}`}>
-                <Icon className={`h-3.5 w-3.5 ${color}`} />
-              </div>
-              <div className="flex-1 min-w-0 pt-0.5">
-                {isStatus ? (
-                  <p className="text-sm font-medium text-slate-900">{statusEventLabel(entry.new_value)}</p>
-                ) : (
-                  <p className="text-sm font-medium text-slate-900">
-                    {FIELD_LABELS[entry.field_name ?? ''] ?? entry.field_name} geändert
-                    {entry.old_value !== null && entry.new_value !== null && (
-                      <span className="font-normal text-slate-500 ml-1 text-xs">{entry.old_value} → {entry.new_value}</span>
-                    )}
-                  </p>
-                )}
-                <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  {formatDate(entry.changed_at)}
-                  {entry.user_name && <span className="ml-1 font-medium text-slate-600">{entry.user_name}</span>}
-                </p>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Digital signatures */}
-        {item.signatures?.map((sig) => (
-          <div key={sig.id} className="flex items-start gap-3 py-2 border-b border-slate-50 last:border-0">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 shrink-0">
-              <Check className="h-3.5 w-3.5 text-blue-600" />
-            </div>
-            <div className="flex-1 pt-0.5">
-              <p className="text-sm font-medium text-slate-900">Digital signiert</p>
-              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3 shrink-0" />
-                {formatDate(sig.signed_at)}
-                {sig.signed_by_name && <span className="ml-1 font-medium text-slate-600">{sig.signed_by_name}</span>}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {/* Created — always last (oldest) */}
-        <div className="flex items-start gap-3 py-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
-            <Check className="h-3.5 w-3.5 text-green-600" />
-          </div>
-          <div className="pt-0.5">
-            <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
-            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-              <Clock className="h-3 w-3 shrink-0" />
-              {formatDate(item.created_at)}
-              {item.created_by_name && <span className="ml-1 font-medium text-slate-600">{item.created_by_name}</span>}
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -953,7 +732,7 @@ function InvalidateDialog({
               </p>
               <ul className="space-y-1">
                 {activeParents.map((e) => (
-                  <li key={e.bom_id} className="flex items-center gap-2 text-xs text-amber-700">
+                  <li key={`${e.parent_item_id}-${e.schritt_position}`} className="flex items-center gap-2 text-xs text-amber-700">
                     <span className="font-mono font-semibold shrink-0">{formatObjectId(e.parent_item_id)}</span>
                     <span className="truncate">{e.parent_item_name}</span>
                   </li>
@@ -1214,7 +993,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
         await api.updateItem(itemId, buildPayload(updatedForm));
         setSaveStatus('saved');
         queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-        queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
         queryClient.invalidateQueries({ queryKey: ['objects'] });
         onRefresh?.();
       } catch {
@@ -1250,7 +1028,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     mutationFn: () => api.approveItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-      queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
       queryClient.invalidateQueries({ queryKey: ['objects'] });
       onRefresh?.();
     },
@@ -1260,7 +1037,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
     mutationFn: () => api.recallItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-      queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
       queryClient.invalidateQueries({ queryKey: ['objects'] });
       onRefresh?.();
     },
@@ -1269,24 +1045,13 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
   const handleSubmit = useCallback(() => {
     if (!form) return;
     const errors = validateForSubmit(form);
-    if (!item?.bom_has_lines && !form.weight_g) {
+    if (!form.weight_g) {
       errors.push('Gewicht (g) ist erforderlich');
     }
     if (errors.length > 0) { setValidationErrors(errors); return; }
     setValidationErrors([]);
     submitItem();
-  }, [form, item, submitItem]);
-
-  const handleDirectApprove = useCallback(() => {
-    if (!form) return;
-    const errors = validateForSubmit(form);
-    if (!item?.bom_has_lines && !form.weight_g) {
-      errors.push('Gewicht (g) ist erforderlich');
-    }
-    if (errors.length > 0) { setValidationErrors(errors); return; }
-    setValidationErrors([]);
-    approveItem();
-  }, [form, item, approveItem]);
+  }, [form, submitItem]);
 
   if (isLoading || !form) {
     return (
@@ -1351,39 +1116,47 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       )}
 
       {/* Replacement / replaced info banners */}
-      {(item?.replaces_id || item?.replaced_by_id) && (
-        <div className="mx-4 sm:mx-6 mt-2 flex flex-col gap-1">
-          {item?.replaces_id && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-              <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
-              <span className="text-slate-500">Ersatzartikel für</span>
-              <button type="button" onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')} className="font-mono font-medium text-blue-600 hover:underline">
-                {formatObjectId(item.replaces_id)}
-              </button>
-              {item.replaces_item_name && <span className="text-slate-500 truncate">{item.replaces_item_name}</span>}
-            </div>
-          )}
-          {item?.replaced_by_id && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-              <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
-              <span className="text-slate-500">Ersetzt durch</span>
-              <button type="button" onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')} className="font-mono font-medium text-blue-600 hover:underline">
-                {formatObjectId(item.replaced_by_id)}
-              </button>
-              {item.replaced_by_name && <span className="text-slate-500 truncate">{item.replaced_by_name}</span>}
-            </div>
-          )}
+      {item?.replaces_id && (
+        <div className="mx-6 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-blue-500 shrink-0" />
+          <p className="text-xs text-blue-700 min-w-0">
+            <span className="font-medium">Ersatzartikel für: </span>
+            <button
+              type="button"
+              onClick={() => onNavigate?.(item.replaces_id!, 'stammdaten')}
+              className="font-mono font-semibold hover:underline"
+            >
+              {formatObjectId(item.replaces_id)}
+            </button>
+            {item.replaces_item_name && <span className="ml-1 text-blue-600">{item.replaces_item_name}</span>}
+          </p>
+        </div>
+      )}
+      {item?.replaced_by_id && (
+        <div className="mx-6 mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2">
+          <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
+          <p className="text-xs text-slate-600 min-w-0">
+            <span className="font-medium">Ersetzt durch: </span>
+            <button
+              type="button"
+              onClick={() => onNavigate?.(item.replaced_by_id!, 'stammdaten')}
+              className="font-mono font-semibold hover:underline text-blue-600"
+            >
+              {formatObjectId(item.replaced_by_id)}
+            </button>
+            {item.replaced_by_name && <span className="ml-1">{item.replaced_by_name}</span>}
+          </p>
         </div>
       )}
 
       {/* Tabs */}
       <Tabs key={`${itemId}-${initialTab ?? 'stammdaten'}`} defaultTab={initialTab ?? 'stammdaten'} className="flex-1 flex flex-col overflow-hidden">
-        <div className="bg-white border-b border-slate-200 overflow-x-auto">
-          <TabList className="px-4 sm:px-6 flex-nowrap">
+        <div className="px-6 bg-white border-b border-slate-200">
+          <TabList>
             <TabTrigger value="stammdaten">Artikelstamm</TabTrigger>
-            {form?.is_sales_product && <TabTrigger value="sales">Sales & Shop</TabTrigger>}
-            {(item?.bom_has_lines || isEditable) && <TabTrigger value="bom">Stückliste</TabTrigger>}
-            {(item?.where_used_count ?? 0) > 0 && <TabTrigger value="verwendung">Verwendung</TabTrigger>}
+            <TabTrigger value="sales">Sales & Shop</TabTrigger>
+            <TabTrigger value="prozess">Prozess</TabTrigger>
+            <TabTrigger value="verwendung">Verwendung</TabTrigger>
             <TabTrigger value="protokoll">Protokoll</TabTrigger>
           </TabList>
         </div>
@@ -1458,15 +1231,20 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
                 {isEditable ? (
                   <select
                     value={form.serialization_type}
-                    onChange={(e) => updateField('serialization_type', e.target.value as SerializationType)}
+                    onChange={(e) => updateField('serialization_type', e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   >
-                    {(Object.entries(SERIALIZATION_TYPE_LABELS) as [SerializationType, string][]).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
+                    <option value="none">Einzelteil</option>
+                    <option value="batch">Charge</option>
+                    <option value="serial">Seriennummer</option>
                   </select>
                 ) : (
-                  <p className="text-sm text-slate-900 py-1">{SERIALIZATION_TYPE_LABELS[form.serialization_type] ?? form.serialization_type}</p>
+                  <p className="text-sm text-slate-900 py-1">
+                    {form.serialization_type === 'none' ? 'Einzelteil'
+                      : form.serialization_type === 'batch' ? 'Charge'
+                      : form.serialization_type === 'serial' ? 'Seriennummer'
+                      : form.serialization_type}
+                  </p>
                 )}
               </div>
             </div>
@@ -1495,17 +1273,9 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
                   Gewicht (g)
-                  {!item?.bom_has_lines && isEditable && <span className="text-red-500 ml-0.5">*</span>}
+                  {isEditable && <span className="text-red-500 ml-0.5">*</span>}
                 </label>
-                {item?.bom_has_lines ? (
-                  <p className="text-sm text-slate-900 py-1">
-                    {item.bom_weight_g != null
-                      ? <>{fmtNum(item.bom_weight_g)}<span className="ml-1.5 text-xs text-slate-400">(aus Stückliste)</span></>
-                      : <><span className="text-slate-400 italic">—</span><span className="ml-1.5 text-xs text-amber-600">(Gewicht fehlt bei mind. einer Komponente)</span></>}
-                  </p>
-                ) : (
-                  <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />
-                )}
+                <FieldInput readOnly={!isEditable} value={form.weight_g} onChange={(v) => updateField('weight_g', v)} placeholder="z.B. 125" type="number" min="0" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Abmessungen (mm)</label>
@@ -1724,9 +1494,9 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
             )}
           </TabPanel>
 
-          {/* ── Stückliste ── */}
-          <TabPanel value="bom">
-            <BOMTab itemId={itemId} isEditable={isEditable} onNavigate={onNavigate} />
+          {/* ── Prozess ── */}
+          <TabPanel value="prozess">
+            <ProzessTab itemId={itemId} isEditable={isEditable} />
           </TabPanel>
 
           {/* ── Verwendungsnachweise ── */}
@@ -1735,8 +1505,62 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           </TabPanel>
 
           {/* ── Protokoll ── */}
-          <TabPanel value="protokoll">
-            {item && <ProtokollTab itemId={itemId} item={item} />}
+          <TabPanel value="protokoll" className="px-6 py-5">
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-green-100 shrink-0">
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Artikel erstellt</p>
+                  <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />{formatDate(item?.created_at ?? '')}
+                    {item?.created_by_name && <span className="ml-1 font-medium">{item.created_by_name}</span>}
+                  </p>
+                </div>
+              </div>
+              {item?.submitted_at && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 shrink-0">
+                    <Send className="h-3.5 w-3.5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Zur Freigabe eingereicht</p>
+                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />{formatDate(item.submitted_at)}
+                      {item.submitted_by_name && <span className="ml-1 font-medium">{item.submitted_by_name}</span>}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {item?.approved_at && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 shrink-0">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Freigegeben</p>
+                    <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />{formatDate(item.approved_at)}
+                      {item.approved_by_name && <span className="ml-1 font-medium">{item.approved_by_name}</span>}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {item?.signatures && item.signatures.length > 0 && (
+                <div className="mt-2 pt-3 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Digitale Signaturen</p>
+                  {item.signatures.map((sig) => (
+                    <div key={sig.id} className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0">
+                      <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                      <span className="text-xs text-slate-600">
+                        {sig.signed_by_name ?? `Benutzer #${sig.signed_by}`} · {formatDate(sig.signed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </TabPanel>
         </div>
       </Tabs>
@@ -1745,15 +1569,16 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
       <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 shrink-0">
         {statusKey === 'ENTWURF' && (
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">Pflichtfelder ausfüllen, dann Artikel freigeben.</p>
+            <p className="text-xs text-slate-500">Alle Pflichtfelder ausfüllen, dann zur Freigabe einreichen.</p>
             <button
               type="button"
-              onClick={handleDirectApprove}
-              disabled={approving || !!sizeError}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 shrink-0"
+              onClick={handleSubmit}
+              disabled={submitting || !!sizeError}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
+              style={{ background: '#E51A14' }}
             >
-              {approving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              Freigeben
+              {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Zur Freigabe einreichen
             </button>
           </div>
         )}
@@ -1819,7 +1644,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           onClose={() => setShowInvalidateDialog(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-            queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
             queryClient.invalidateQueries({ queryKey: ['objects'] });
             onRefresh?.();
           }}
@@ -1831,7 +1655,6 @@ export function ItemDetailForm({ itemId, currentUserRole, onRefresh, initialTab,
           onClose={() => setShowSetReplacementDialog(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['item', itemId] });
-            queryClient.invalidateQueries({ queryKey: ['item-history', itemId] });
             queryClient.invalidateQueries({ queryKey: ['objects'] });
             onRefresh?.();
           }}

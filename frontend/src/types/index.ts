@@ -1,26 +1,35 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
-export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user';
+export type ObjectType = 'item' | 'auftrag' | 'objekt' | 'company' | 'contact' | 'user';
 
 export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
 export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
 export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';
-export type SerializationType = 'none' | 'batch';
+export type AuftragStatus = 'OFFEN' | 'IN_ARBEIT' | 'ABGESCHLOSSEN' | 'ABGEBROCHEN';
+export type ObjektStatus = 'VERFUEGBAR' | 'VERBAUT' | 'GESPERRT' | 'AUSGEMUSTERT';
+export type ObjektTyp = 'serial' | 'batch';
 export type CompanyRole = 'Kunde' | 'Lieferant' | 'Interessent' | 'Partner';
-export type WorkPlanStatus = 'Entwurf' | 'Aktiv' | 'Archiviert';
-export type BOMStatus = 'Entwurf' | 'Freigegeben' | 'Archiviert';
 
 export const ITEM_STATUS_CONFIG: Record<ItemStatus, { label: string; color: string }> = {
   ENTWURF: { label: 'Entwurf', color: 'bg-slate-100 text-slate-600' },
   IN_FREIGABE: { label: 'In Freigabe', color: 'bg-amber-50 text-amber-700' },
   FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
-  ERSETZT: { label: 'Inaktiv', color: 'bg-red-50 text-red-600' },
+  ERSETZT: { label: 'Ersetzt', color: 'bg-red-50 text-red-600' },
   UNGUELTIG: { label: 'Inaktiv', color: 'bg-red-50 text-red-600' },
 };
 
-export const SERIALIZATION_TYPE_LABELS: Record<SerializationType, string> = {
-  'none': 'Einzelteil',
-  'batch': 'Charge',
+export const AUFTRAG_STATUS_CONFIG: Record<AuftragStatus, { label: string; color: string }> = {
+  OFFEN: { label: 'Offen', color: 'bg-blue-50 text-blue-700' },
+  IN_ARBEIT: { label: 'In Arbeit', color: 'bg-amber-50 text-amber-700' },
+  ABGESCHLOSSEN: { label: 'Abgeschlossen', color: 'bg-green-50 text-green-700' },
+  ABGEBROCHEN: { label: 'Abgebrochen', color: 'bg-slate-100 text-slate-500' },
+};
+
+export const OBJEKT_STATUS_CONFIG: Record<ObjektStatus, { label: string; color: string }> = {
+  VERFUEGBAR: { label: 'Verfügbar', color: 'bg-green-50 text-green-700' },
+  VERBAUT: { label: 'Verbaut', color: 'bg-blue-50 text-blue-700' },
+  GESPERRT: { label: 'Gesperrt', color: 'bg-amber-50 text-amber-700' },
+  AUSGEMUSTERT: { label: 'Ausgemustert', color: 'bg-red-50 text-red-600' },
 };
 
 export const VAT_RATE_LABELS: Record<VatRate, string> = {
@@ -69,7 +78,7 @@ export interface Item {
   name_id: number | null;
   unit: string;
   status: ItemStatus;
-  serialization_type: SerializationType;
+  serialization_type: string;
   order_number: string | null;
   order_link: string | null;
   onshape_link: string | null;
@@ -96,7 +105,6 @@ export interface Item {
   hs_code: string | null;
   bom_weight_g?: string | null;
   bom_has_lines?: boolean;
-  where_used_count?: number;
   replaced_by_name?: string | null;
   replaces_item_name?: string | null;
   submitted_at: string | null;
@@ -112,79 +120,107 @@ export interface Item {
   signatures: ItemSignature[];
 }
 
-// ─── Item History ─────────────────────────────────────────────────────────────
+// ─── ProzessSchritt ───────────────────────────────────────────────────────────
 
-export interface ItemHistoryEntry {
-  id: number;
-  field_name: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  user_name: string | null;
-  changed_at: string;
+export type RessourceModus = 'konsumieren' | 'bereitstellen' | 'erzeugen' | 'pruefen';
+
+export interface ProzessRessource {
+  objekt_id: number;
+  modus: RessourceModus;
+  menge?: number;
+  serial_pflicht?: boolean;
+  batch_pflicht?: boolean;
 }
 
-// ─── BOM (Bill of Materials) ──────────────────────────────────────────────────
+export interface DatenFeldTyp {
+  bezeichnung: string;
+  typ: 'zahl' | 'text' | 'datum' | 'boolean' | 'auswahl' | 'signatur' | 'foto' | 'datei' | 'richtext';
+  pflicht?: boolean;
+  sichtbar?: boolean;
+  toleranz_min?: number;
+  toleranz_max?: number;
+  optionen?: string[];
+}
 
-export interface BOMLine {
+export type AktionTyp =
+  | 'lager_abbuchen'
+  | 'benachrichtigen'
+  | 'dokument_erzeugen'
+  | 'objekt_erzeugen'
+  | 'gueltig_bis_setzen';
+
+export interface SchrittAktion {
+  typ: AktionTyp;
+  parameter?: Record<string, unknown>;
+}
+
+export interface ErgebnisOption {
+  label: string;
+  naechster_schritt_nr?: number | null;
+  aktion_bei_ergebnis?: string;
+}
+
+export interface ProzessSchritt {
   id: number;
-  bom_id?: number;
+  item_id: number;
   position: number;
-  component_item_id: number;
-  component_item?: Item;
-  quantity: string; // Decimal as string
-  unit: string;
-  note: string | null;
+  beschreibung: string;
+  ressourcen?: ProzessRessource[] | null;
+  daten_felder?: DatenFeldTyp[] | null;
+  ergebnis_optionen?: ErgebnisOption[] | null;
+  aktion?: SchrittAktion | null;
+  onshape_link?: string | null;
+  dokument_link?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at?: string | null;
 }
 
-export interface BOM {
-  id: number;
-  parent_item_id: number;
-  note: string | null;
-  lines: BOMLine[];
-  created_at: string;
-  updated_at: string;
-  is_active: boolean;
-}
+// ─── WhereUsed ────────────────────────────────────────────────────────────────
 
 export interface WhereUsedEntry {
-  bom_id: number;
   parent_item_id: number;
   parent_item_name: string;
   parent_item_status: ItemStatus;
-  position: number;
-  quantity: string;
-  unit: string;
+  schritt_position: number;
+  schritt_beschreibung: string;
+  menge: string | null;
 }
 
-// ─── Work Plan ────────────────────────────────────────────────────────────────
+// ─── Auftrag ──────────────────────────────────────────────────────────────────
 
-export interface WorkPlanStep {
+export interface Auftrag {
   id: number;
-  work_plan_id: number;
-  step_number: number;
-  name: string;
-  description: string | null;
-  work_center: string | null;
-  machine: string | null;
-  setup_time_min: number | null;
-  run_time_min: number | null;
-  tools: string[];
-  notes: string | null;
-}
-
-export interface WorkPlan {
-  id: number;
-  number: string;
-  name: string;
-  description: string | null;
-  status: WorkPlanStatus;
-  item_id: number | null;
-  item?: Item;
-  steps: WorkPlanStep[];
-  version: number;
+  item_id: number;
+  item_name?: string | null;
+  menge: string;
+  datum_faellig?: string | null;
+  status: AuftragStatus;
+  notiz?: string | null;
+  wiederkehrend: boolean;
+  intervall_typ?: string | null;
+  intervall_wert?: string | null;
+  naechste_faelligkeit?: string | null;
+  created_by?: number | null;
   created_at: string;
-  updated_at: string;
-  created_by: string | null;
+  updated_at?: string | null;
+}
+
+// ─── Objekt ───────────────────────────────────────────────────────────────────
+
+export interface Objekt {
+  id: number;
+  item_id: number;
+  item_name?: string | null;
+  auftrag_id?: number | null;
+  typ: ObjektTyp;
+  batch_menge?: string | null;
+  batch_verbleibend?: string | null;
+  status: ObjektStatus;
+  lagerort?: string | null;
+  gueltig_bis?: string | null;
+  schritt_protokoll?: Record<string, unknown>[] | null;
+  created_at: string;
 }
 
 // ─── Company / Contact ────────────────────────────────────────────────────────
@@ -240,7 +276,6 @@ export interface Contact {
 // ─── Company Settings ─────────────────────────────────────────────────────────
 
 export interface CompanySettings {
-  // General
   company_name: string;
   legal_form: string | null;
   street: string;
@@ -248,35 +283,29 @@ export interface CompanySettings {
   zip: string;
   city: string;
   country: string;
-  // Legal IDs
   uid: string | null;
   vat_number: string | null;
   trade_register_number: string | null;
   trade_register_canton: string | null;
   share_capital: string | null;
-  // Contact & web
   email: string;
   phone: string | null;
   website: string;
   logo_url: string | null;
-  // Banking (masked for non-admins)
   iban: string | null;
   iban_masked: string | null;
   qr_iban: string | null;
   qr_iban_masked: string | null;
   bank_name: string | null;
   bic: string | null;
-  // VAT
   vat_method: 'effektiv' | 'saldosteuersatz' | null;
   vat_period: 'quartal' | 'semester' | 'jahr' | null;
   default_payment_days: number;
   default_discount_percent: string | null;
   default_discount_days: number | null;
-  // EU
   oss_active: boolean;
   oss_number: string | null;
   vies_validation: boolean;
-  // Integrations
   stripe_publishable_key: string | null;
   plausible_domain: string | null;
   hcaptcha_site_key: string | null;
@@ -385,8 +414,7 @@ export interface UniversalObject {
   number: string;
   created_at: string;
   updated_at: string;
-  // Polymorphic payload
-  data?: Item | BOM | WorkPlan | Company | Contact | UserProfile;
+  data?: Item | Auftrag | Objekt | Company | Contact | UserProfile;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────
@@ -408,17 +436,6 @@ export interface ApiError {
   error: string;
   code: string;
   detail?: string;
-}
-
-// ─── Item history (audit log per item) ───────────────────────────────────────
-
-export interface ItemHistoryEntry {
-  id: number;
-  field_name: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  user_name: string | null;
-  changed_at: string;
 }
 
 // ─── Audit log ────────────────────────────────────────────────────────────────
