@@ -109,6 +109,12 @@ class Item(Base, TimestampMixin):
     signatures: Mapped[list["ItemSignature"]] = relationship(
         "ItemSignature", back_populates="item", cascade="all, delete-orphan"
     )
+    prozess_schritte: Mapped[list["ProzessSchritt"]] = relationship(
+        "ProzessSchritt", back_populates="item", cascade="all, delete-orphan",
+        order_by="ProzessSchritt.position",
+    )
+    auftraege: Mapped[list["Auftrag"]] = relationship("Auftrag", back_populates="item")
+    objekte: Mapped[list["Objekt"]] = relationship("Objekt", back_populates="item")
 
 
 class ItemSignature(Base):

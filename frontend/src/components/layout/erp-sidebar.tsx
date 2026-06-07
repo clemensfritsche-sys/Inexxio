@@ -5,8 +5,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
-  GitBranch,
-  Wrench,
   Building2,
   Settings,
   Users,
@@ -26,8 +24,6 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: '/erp', label: 'ERP Feed', icon: <LayoutDashboard className="h-5 w-5" /> },
   { href: '/artikel', label: 'Artikel', icon: <Package className="h-5 w-5" /> },
-  { href: '/stuecklisten', label: 'Stücklisten', icon: <GitBranch className="h-5 w-5" /> },
-  { href: '/arbeitsplaene', label: 'Arbeitspläne', icon: <Wrench className="h-5 w-5" /> },
   { href: '/firmen', label: 'Kunden & Lieferanten', icon: <Building2 className="h-5 w-5" /> },
 ];
 

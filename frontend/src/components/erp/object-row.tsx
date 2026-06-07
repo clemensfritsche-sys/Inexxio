@@ -1,13 +1,13 @@
 import { cn } from '@/lib/utils';
 import { formatObjectId, relativeTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/badge';
-import { Package, GitBranch, Wrench, Building2, User, Users, FileText } from 'lucide-react';
+import { Package, ClipboardList, Archive, Building2, User, Users, FileText } from 'lucide-react';
 import type { UniversalObject, ObjectType } from '@/types';
 
 const typeIcons: Record<ObjectType, React.ReactNode> = {
   item: <Package className="h-4 w-4" />,
-  bom: <GitBranch className="h-4 w-4" />,
-  work_plan: <Wrench className="h-4 w-4" />,
+  auftrag: <ClipboardList className="h-4 w-4" />,
+  objekt: <Archive className="h-4 w-4" />,
   company: <Building2 className="h-4 w-4" />,
   contact: <User className="h-4 w-4" />,
   user: <Users className="h-4 w-4" />,
@@ -15,8 +15,8 @@ const typeIcons: Record<ObjectType, React.ReactNode> = {
 
 const typeLabels: Record<ObjectType, string> = {
   item: 'Artikel',
-  bom: 'Stückliste',
-  work_plan: 'Arbeitsplan',
+  auftrag: 'Auftrag',
+  objekt: 'Objekt',
   company: 'Firma',
   contact: 'Kontakt',
   user: 'Benutzer',
@@ -24,8 +24,8 @@ const typeLabels: Record<ObjectType, string> = {
 
 const typeBgColors: Record<ObjectType, string> = {
   item: 'bg-blue-50 text-blue-600',
-  bom: 'bg-violet-50 text-violet-600',
-  work_plan: 'bg-amber-50 text-amber-600',
+  auftrag: 'bg-amber-50 text-amber-600',
+  objekt: 'bg-violet-50 text-violet-600',
   company: 'bg-green-50 text-green-600',
   contact: 'bg-slate-100 text-slate-600',
   user: 'bg-teal-50 text-teal-700',
@@ -51,7 +51,7 @@ export function ObjectRow({ object, selected, onClick }: ObjectRowProps) {
       <div
         className={cn(
           'shrink-0 flex h-9 w-9 items-center justify-center rounded-lg mt-0.5',
-          typeBgColors[object.object_type],
+          typeBgColors[object.object_type] ?? 'bg-slate-100 text-slate-600',
         )}
       >
         {typeIcons[object.object_type] ?? <FileText className="h-4 w-4" />}
