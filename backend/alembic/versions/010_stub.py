@@ -1,4 +1,4 @@
-"""Stub: unified objekte table (already applied to DB, no-op here)
+"""Stub: bridge migration 009→010 (DB already at this revision, no-op)
 
 Revision ID: 010
 Revises: 009

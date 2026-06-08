@@ -1,4 +1,4 @@
-"""Stub: bridge migration 008→010 (was lost in force-push)
+"""Stub: bridge migration 008→009 (gap created by overhaul)
 
 Revision ID: 009
 Revises: 008
