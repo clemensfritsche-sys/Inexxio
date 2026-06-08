@@ -6,14 +6,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import get_settings
 from .core.database import Base, engine
-from .routers import admin, auth, boms, companies, health, items, objects, work_plans
+from .routers import admin, auth, auftraege, companies, health, items, objekte, objects
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables if they don't exist (dev only — prod uses Alembic)
     if settings.debug:
         Base.metadata.create_all(bind=engine)
     yield
@@ -40,8 +39,8 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(objects.router)
 app.include_router(items.router)
-app.include_router(boms.router)
-app.include_router(work_plans.router)
+app.include_router(auftraege.router)
+app.include_router(objekte.router)
 app.include_router(companies.router)
 app.include_router(admin.router)
 

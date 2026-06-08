@@ -1,4 +1,4 @@
-"""Restore items/boms/work_plans tables (dropped by migration 010 overhaul)
+"""Restore items/boms/work_plans/prozess_schritte/auftraege/objekte tables
 
 Revision ID: 011
 Revises: 010
@@ -13,6 +13,11 @@ import sqlalchemy as sa
 
 
 def upgrade():
+    # Drop the unified objekte table created by the overhaul (wrong schema)
+    op.execute("DROP TABLE IF EXISTS objekte CASCADE")
+    op.execute("DROP TABLE IF EXISTS auftraege CASCADE")
+    op.execute("DROP TABLE IF EXISTS prozess_schritte CASCADE")
+
     op.execute("""
         CREATE TABLE IF NOT EXISTS items (
             id BIGINT PRIMARY KEY REFERENCES objects(id) ON DELETE RESTRICT,
@@ -68,6 +73,7 @@ def upgrade():
     """)
     op.execute("CREATE INDEX IF NOT EXISTS ix_item_signatures_item_id ON item_signatures(item_id)")
 
+    # Keep boms/work_plans tables for legacy compatibility (objects.py queries work_plans)
     op.execute("""
         CREATE TABLE IF NOT EXISTS boms (
             id BIGINT PRIMARY KEY REFERENCES objects(id),
@@ -124,8 +130,68 @@ def upgrade():
     """)
     op.execute("CREATE INDEX IF NOT EXISTS ix_work_plan_steps_work_plan_id ON work_plan_steps(work_plan_id)")
 
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS prozess_schritte (
+            id SERIAL PRIMARY KEY,
+            item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL,
+            beschreibung TEXT NOT NULL,
+            ressourcen JSONB,
+            daten_felder JSONB,
+            ergebnis_optionen JSONB,
+            aktion JSONB,
+            onshape_link VARCHAR(500),
+            dokument_link VARCHAR(500),
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_prozess_schritte_item_id ON prozess_schritte(item_id)")
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS auftraege (
+            id BIGINT PRIMARY KEY REFERENCES objects(id) ON DELETE RESTRICT,
+            item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+            menge NUMERIC(15,4) NOT NULL DEFAULT 1,
+            datum_faellig DATE,
+            status VARCHAR(20) NOT NULL DEFAULT 'OFFEN',
+            notiz TEXT,
+            wiederkehrend BOOLEAN NOT NULL DEFAULT false,
+            intervall_typ VARCHAR(20),
+            intervall_wert VARCHAR(100),
+            naechste_faelligkeit DATE,
+            created_by BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auftraege_item_id ON auftraege(item_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_auftraege_status ON auftraege(status)")
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS objekte (
+            id BIGINT PRIMARY KEY REFERENCES objects(id) ON DELETE RESTRICT,
+            item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+            auftrag_id BIGINT REFERENCES auftraege(id) ON DELETE SET NULL,
+            typ VARCHAR(10) NOT NULL,
+            batch_menge NUMERIC(15,4),
+            batch_verbleibend NUMERIC(15,4),
+            status VARCHAR(20) NOT NULL DEFAULT 'VERFUEGBAR',
+            lagerort VARCHAR(200),
+            gueltig_bis DATE,
+            schritt_protokoll JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_objekte_item_id ON objekte(item_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_objekte_status ON objekte(status)")
+
 
 def downgrade():
+    op.execute("DROP TABLE IF EXISTS objekte CASCADE")
+    op.execute("DROP TABLE IF EXISTS auftraege CASCADE")
+    op.execute("DROP TABLE IF EXISTS prozess_schritte CASCADE")
     op.execute("DROP TABLE IF EXISTS work_plan_steps CASCADE")
     op.execute("DROP TABLE IF EXISTS work_plans CASCADE")
     op.execute("DROP TABLE IF EXISTS bom_lines CASCADE")

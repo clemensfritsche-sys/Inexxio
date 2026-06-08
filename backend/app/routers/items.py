@@ -1,34 +1,28 @@
+import json
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_staff
 from ..core.database import get_db
 from ..models.audit import AuditLog, UserProfile
-from ..models.boms import BOM, BOMLine
 from ..models.item_config import ItemCategory, ItemName, ItemSurface
 from ..models.items import Item, ItemSignature, ItemStatus
 from ..models.objects import ObjectType, UniversalObject
+from ..models.prozess_schritte import ProzessSchritt
 from ..schemas.items import (
     InvalidateRequest, ItemCreate, ItemListResponse, ItemResponse,
     ItemSignatureResponse, ItemUpdate, SetReplacementRequest,
 )
+from ..schemas.prozess_schritte import (
+    ProzessSchrittCreate, ProzessSchrittResponse, ProzessSchrittUpdate,
+)
 
 router = APIRouter(prefix="/api/v1/items", tags=["items"])
-
-
-def _values_equal(old_val, new_val) -> bool:
-    if old_val == new_val:
-        return True
-    if old_val is None or new_val is None:
-        return False
-    try:
-        return Decimal(str(old_val)) == Decimal(str(new_val))
-    except (InvalidOperation, TypeError):
-        return str(old_val) == str(new_val)
 
 
 def _create_object(db: Session, user_id: int) -> UniversalObject:
@@ -38,51 +32,34 @@ def _create_object(db: Session, user_id: int) -> UniversalObject:
     return obj
 
 
-def _get_item_weight(db: Session, item_id: int, visited: set) -> Optional[Decimal]:
-    """Recursively calculate weight, following BOM hierarchy at any depth."""
-    if item_id in visited:
-        return None  # cycle protection
-    visited.add(item_id)
-    bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
-    if bom:
-        # Use explicit query to avoid lazy-loading issues in recursive calls
-        lines = db.query(BOMLine).filter(BOMLine.bom_id == bom.id).all()
-        if lines:
-            total = Decimal("0")
-            for line in lines:
-                child_weight = _get_item_weight(db, line.component_item_id, set(visited))
-                if child_weight is None:
-                    return None
-                total += child_weight * Decimal(str(line.quantity))
-            return total
-    item = db.query(Item).filter(Item.id == item_id).first()
-    return item.weight_g if item else None
-
-
 def _cascade_invalidate(db: Session, item_id: int, user_id: int, visited: set) -> None:
     if item_id in visited:
         return
     visited.add(item_id)
 
-    bom_lines = db.query(BOMLine).filter(BOMLine.component_item_id == item_id).all()
-    bom_ids = {line.bom_id for line in bom_lines}
-    if not bom_ids:
-        return
+    rows = db.execute(
+        text(
+            "SELECT DISTINCT item_id FROM prozess_schritte "
+            "WHERE is_active = true "
+            "AND ressourcen @> :filter::jsonb"
+        ),
+        {"filter": json.dumps([{"objekt_id": item_id, "modus": "konsumieren"}])},
+    ).fetchall()
 
-    for bom in db.query(BOM).filter(BOM.id.in_(bom_ids)).all():
-        parent = db.query(Item).filter(Item.id == bom.parent_item_id, Item.is_active == True).first()
+    for (parent_id,) in rows:
+        parent = db.query(Item).filter(Item.id == parent_id, Item.is_active == True).first()
         if parent and parent.status not in (ItemStatus.UNGUELTIG, ItemStatus.ERSETZT):
             old = parent.status
             parent.status = ItemStatus.UNGUELTIG
             db.add(AuditLog(
-                object_id=parent.id,
+                object_id=parent_id,
                 table_name="items",
                 field_name="status",
                 old_value=old,
                 new_value=ItemStatus.UNGUELTIG,
                 user_id=user_id,
             ))
-            _cascade_invalidate(db, parent.id, user_id, visited)
+            _cascade_invalidate(db, parent_id, user_id, visited)
 
 
 @router.get("")
@@ -143,17 +120,14 @@ async def get_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    # Collect user IDs to resolve names
     user_ids: set[int] = {uid for uid in [item.submitted_by, item.approved_by] if uid}
     user_ids |= {sig.signed_by for sig in item.signatures}
 
-    # Also get creator from UniversalObject
     obj = db.query(UniversalObject).filter(UniversalObject.id == item_id).first()
     created_by_id: int | None = obj.created_by if obj else None
     if created_by_id:
         user_ids.add(created_by_id)
 
-    # Fetch user profiles and build name map
     user_map: dict[int, str] = {}
     if user_ids:
         profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
@@ -162,17 +136,6 @@ async def get_item(
             name = " ".join(x for x in parts if x) or p.display_name or p.email
             user_map[p.id] = name
 
-    # Calculate BOM weight recursively across all BOM levels
-    bom_has_lines: bool = False
-    bom_weight_g: Optional[Decimal] = None
-    bom = db.query(BOM).filter(BOM.parent_item_id == item_id, BOM.is_active == True).first()
-    if bom:
-        bom_lines = db.query(BOMLine).filter(BOMLine.bom_id == bom.id).all()
-        if bom_lines:
-            bom_has_lines = True
-            bom_weight_g = _get_item_weight(db, item_id, set())
-
-    # Resolve replacement item names
     replaced_by_name: Optional[str] = None
     replaces_item_name: Optional[str] = None
     if item.replaced_by_id:
@@ -182,34 +145,19 @@ async def get_item(
         orig = db.query(Item).filter(Item.id == item.replaces_id).first()
         replaces_item_name = orig.name if orig else None
 
-    # Build response with names
     resp = ItemResponse.model_validate(item)
     updated_sigs = []
     for sig in item.signatures:
         sig_resp = ItemSignatureResponse.model_validate(sig)
         updated_sigs.append(sig_resp.model_copy(update={"signed_by_name": user_map.get(sig.signed_by)}))
 
-    # Count where-used
-    where_used_count = (
-        db.query(BOMLine)
-        .join(BOM, BOM.id == BOMLine.bom_id)
-        .join(Item, Item.id == BOM.parent_item_id)
-        .filter(
-            BOMLine.component_item_id == item_id,
-            BOM.is_active == True,
-            Item.is_active == True,
-        )
-        .count()
-    )
-
     return resp.model_copy(update={
         "created_by_name": user_map.get(created_by_id) if created_by_id else None,
         "submitted_by_name": user_map.get(item.submitted_by) if item.submitted_by else None,
         "approved_by_name": user_map.get(item.approved_by) if item.approved_by else None,
         "signatures": updated_sigs,
-        "bom_weight_g": bom_weight_g,
-        "bom_has_lines": bom_has_lines,
-        "where_used_count": where_used_count,
+        "bom_weight_g": None,
+        "bom_has_lines": False,
         "replaced_by_name": replaced_by_name,
         "replaces_item_name": replaces_item_name,
     })
@@ -230,17 +178,16 @@ async def update_item(
 
     updates = data.model_dump(exclude_unset=True)
     for key, value in updates.items():
-        old_val = getattr(item, key, None)
+        old_value = str(getattr(item, key, None))
         setattr(item, key, value)
-        if not _values_equal(old_val, value):
-            db.add(AuditLog(
-                object_id=item_id,
-                table_name="items",
-                field_name=key,
-                old_value=str(old_val) if old_val is not None else None,
-                new_value=str(value) if value is not None else None,
-                user_id=current_user.id,
-            ))
+        db.add(AuditLog(
+            object_id=item_id,
+            table_name="items",
+            field_name=key,
+            old_value=old_value,
+            new_value=str(value),
+            user_id=current_user.id,
+        ))
 
     db.commit()
     db.refresh(item)
@@ -313,25 +260,18 @@ async def approve_item(
     item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    if item.status not in (ItemStatus.ENTWURF, ItemStatus.IN_FREIGABE):
-        raise HTTPException(status_code=400, detail="Only ENTWURF or IN_FREIGABE items can be approved")
-
-    now = datetime.now(timezone.utc)
-    old_status = item.status
-
-    if item.status == ItemStatus.ENTWURF:
-        item.submitted_at = now
-        item.submitted_by = current_user.id
+    if item.status != ItemStatus.IN_FREIGABE:
+        raise HTTPException(status_code=400, detail="Only IN_FREIGABE items can be approved")
 
     item.status = ItemStatus.FREIGEGEBEN
-    item.approved_at = now
+    item.approved_at = datetime.now(timezone.utc)
     item.approved_by = current_user.id
     db.add(ItemSignature(item_id=item_id, signed_by=current_user.id))
     db.add(AuditLog(
         object_id=item_id,
         table_name="items",
         field_name="status",
-        old_value=old_status,
+        old_value=ItemStatus.IN_FREIGABE,
         new_value=ItemStatus.FREIGEGEBEN,
         user_id=current_user.id,
     ))
@@ -346,62 +286,34 @@ async def get_item_where_used(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_staff),
 ):
-    """Returns all assemblies (parent items) that include this item as a BOM component."""
-    rows = (
-        db.query(BOMLine, BOM, Item)
-        .join(BOM, BOM.id == BOMLine.bom_id)
-        .join(Item, Item.id == BOM.parent_item_id)
-        .filter(
-            BOMLine.component_item_id == item_id,
-            BOM.is_active == True,
-            Item.is_active == True,
-        )
-        .order_by(Item.name)
-        .all()
-    )
+    """Returns all items whose process steps consume this item."""
+    rows = db.execute(
+        text(
+            "SELECT ps.item_id, ps.position, ps.beschreibung, "
+            "       i.name AS parent_name, i.status AS parent_status, "
+            "       res.value->>'menge' AS menge "
+            "FROM prozess_schritte ps "
+            "JOIN items i ON i.id = ps.item_id "
+            "JOIN jsonb_array_elements(ps.ressourcen) AS res(value) ON true "
+            "WHERE ps.is_active = true "
+            "  AND i.is_active = true "
+            "  AND (res.value->>'objekt_id')::bigint = :item_id "
+            "  AND res.value->>'modus' = 'konsumieren' "
+            "ORDER BY i.name"
+        ),
+        {"item_id": item_id},
+    ).fetchall()
+
     return [
         {
-            "bom_id": bom.id,
-            "parent_item_id": item.id,
-            "parent_item_name": item.name,
-            "parent_item_status": item.status,
-            "position": line.position,
-            "quantity": str(line.quantity),
-            "unit": line.unit,
+            "parent_item_id": r.item_id,
+            "parent_item_name": r.parent_name,
+            "parent_item_status": r.parent_status,
+            "schritt_position": r.position,
+            "schritt_beschreibung": r.beschreibung,
+            "menge": r.menge,
         }
-        for line, bom, item in rows
-    ]
-
-
-@router.get("/{item_id}/history")
-async def get_item_history(
-    item_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_staff),
-):
-    entries = (
-        db.query(AuditLog)
-        .filter(AuditLog.object_id == item_id, AuditLog.table_name == "items")
-        .order_by(AuditLog.changed_at_utc.desc())
-        .all()
-    )
-    user_ids = {e.user_id for e in entries if e.user_id}
-    user_map: dict[int, str] = {}
-    if user_ids:
-        profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
-        for p in profiles:
-            parts = [p.first_name, p.last_name]
-            user_map[p.id] = " ".join(x for x in parts if x) or p.display_name or p.email
-    return [
-        {
-            "id": e.id,
-            "field_name": e.field_name,
-            "old_value": e.old_value,
-            "new_value": e.new_value,
-            "user_name": user_map.get(e.user_id) if e.user_id else None,
-            "changed_at": e.changed_at_utc.isoformat(),
-        }
-        for e in entries
+        for r in rows
     ]
 
 
@@ -443,10 +355,9 @@ async def invalidate_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     if item.status in (ItemStatus.UNGUELTIG, ItemStatus.ERSETZT):
-        raise HTTPException(status_code=400, detail="Item is already inactive")
+        raise HTTPException(status_code=400, detail="Item is already inactive or replaced")
 
     old_status = item.status
-    item.status = ItemStatus.UNGUELTIG  # Always UNGUELTIG
 
     if data.replaced_by_id is not None:
         replacement = db.query(Item).filter(
@@ -456,25 +367,23 @@ async def invalidate_item(
         ).first()
         if not replacement:
             raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
+        item.status = ItemStatus.ERSETZT
         item.replaced_by_id = data.replaced_by_id
         replacement.replaces_id = item_id
         db.add(AuditLog(
-            object_id=item_id,
-            table_name="items",
-            field_name="replaced_by_id",
-            old_value=None,
-            new_value=str(data.replaced_by_id),
-            user_id=current_user.id,
+            object_id=item_id, table_name="items", field_name="status",
+            old_value=old_status, new_value=ItemStatus.ERSETZT, user_id=current_user.id,
         ))
-
-    db.add(AuditLog(
-        object_id=item_id,
-        table_name="items",
-        field_name="status",
-        old_value=old_status,
-        new_value=ItemStatus.UNGUELTIG,
-        user_id=current_user.id,
-    ))
+        db.add(AuditLog(
+            object_id=item_id, table_name="items", field_name="replaced_by_id",
+            old_value=None, new_value=str(data.replaced_by_id), user_id=current_user.id,
+        ))
+    else:
+        item.status = ItemStatus.UNGUELTIG
+        db.add(AuditLog(
+            object_id=item_id, table_name="items", field_name="status",
+            old_value=old_status, new_value=ItemStatus.UNGUELTIG, user_id=current_user.id,
+        ))
 
     _cascade_invalidate(db, item_id, current_user.id, set())
     db.commit()
@@ -505,57 +414,25 @@ async def set_replacement(
     if not replacement:
         raise HTTPException(status_code=400, detail="Replacement item not found or not FREIGEGEBEN")
 
+    old_status = item.status
     item.replaced_by_id = data.replaced_by_id
+    if item.status == ItemStatus.UNGUELTIG:
+        item.status = ItemStatus.ERSETZT
     replacement.replaces_id = item_id
-    # Status stays unchanged (UNGUELTIG or ERSETZT)
 
     db.add(AuditLog(
-        object_id=item_id,
-        table_name="items",
-        field_name="replaced_by_id",
-        old_value=None,
-        new_value=str(data.replaced_by_id),
-        user_id=current_user.id,
+        object_id=item_id, table_name="items", field_name="replaced_by_id",
+        old_value=None, new_value=str(data.replaced_by_id), user_id=current_user.id,
     ))
+    if old_status != item.status:
+        db.add(AuditLog(
+            object_id=item_id, table_name="items", field_name="status",
+            old_value=old_status, new_value=item.status, user_id=current_user.id,
+        ))
 
     db.commit()
     db.refresh(item)
     return ItemResponse.model_validate(item)
-
-
-@router.get("/{item_id}/history")
-async def get_item_history(
-    item_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_staff),
-):
-    entries = (
-        db.query(AuditLog)
-        .filter(AuditLog.object_id == item_id, AuditLog.table_name == "items")
-        .order_by(AuditLog.changed_at_utc.asc())
-        .all()
-    )
-
-    user_ids = {e.user_id for e in entries if e.user_id}
-    user_map: dict[int, str] = {}
-    if user_ids:
-        profiles = db.query(UserProfile).filter(UserProfile.id.in_(user_ids)).all()
-        for p in profiles:
-            parts = [p.first_name, p.last_name]
-            name = " ".join(x for x in parts if x) or p.display_name or p.email
-            user_map[p.id] = name
-
-    return [
-        {
-            "id": e.id,
-            "field_name": e.field_name,
-            "old_value": e.old_value,
-            "new_value": e.new_value,
-            "user_name": user_map.get(e.user_id) if e.user_id else None,
-            "changed_at": e.changed_at_utc.isoformat() if e.changed_at_utc else None,
-        }
-        for e in entries
-    ]
 
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -572,11 +449,148 @@ async def delete_item(
 
     item.is_active = False
     db.add(AuditLog(
-        object_id=item_id,
-        table_name="items",
-        field_name="is_active",
-        old_value="true",
-        new_value="false",
-        user_id=current_user.id,
+        object_id=item_id, table_name="items", field_name="is_active",
+        old_value="true", new_value="false", user_id=current_user.id,
     ))
     db.commit()
+
+
+# ── Prozess-Schritte sub-resource ─────────────────────────────────────────────
+
+@router.get("/{item_id}/prozess-schritte", response_model=list[ProzessSchrittResponse])
+async def list_prozess_schritte(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    schritte = (
+        db.query(ProzessSchritt)
+        .filter(ProzessSchritt.item_id == item_id, ProzessSchritt.is_active == True)
+        .order_by(ProzessSchritt.position)
+        .all()
+    )
+    return [ProzessSchrittResponse.model_validate(s) for s in schritte]
+
+
+@router.post(
+    "/{item_id}/prozess-schritte",
+    response_model=ProzessSchrittResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_prozess_schritt(
+    item_id: int,
+    data: ProzessSchrittCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status != ItemStatus.ENTWURF:
+        raise HTTPException(status_code=400, detail="Prozessschritte können nur bei ENTWURF Items bearbeitet werden")
+
+    schritt = ProzessSchritt(item_id=item_id, **data.model_dump())
+    db.add(schritt)
+    db.commit()
+    db.refresh(schritt)
+    return ProzessSchrittResponse.model_validate(schritt)
+
+
+@router.patch(
+    "/{item_id}/prozess-schritte/{schritt_id}",
+    response_model=ProzessSchrittResponse,
+)
+async def update_prozess_schritt(
+    item_id: int,
+    schritt_id: int,
+    data: ProzessSchrittUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status != ItemStatus.ENTWURF:
+        raise HTTPException(status_code=400, detail="Prozessschritte können nur bei ENTWURF Items bearbeitet werden")
+
+    schritt = db.query(ProzessSchritt).filter(
+        ProzessSchritt.id == schritt_id,
+        ProzessSchritt.item_id == item_id,
+        ProzessSchritt.is_active == True,
+    ).first()
+    if not schritt:
+        raise HTTPException(status_code=404, detail="Prozessschritt not found")
+
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(schritt, key, value)
+
+    db.commit()
+    db.refresh(schritt)
+    return ProzessSchrittResponse.model_validate(schritt)
+
+
+@router.delete(
+    "/{item_id}/prozess-schritte/{schritt_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_prozess_schritt(
+    item_id: int,
+    schritt_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status != ItemStatus.ENTWURF:
+        raise HTTPException(status_code=400, detail="Prozessschritte können nur bei ENTWURF Items bearbeitet werden")
+
+    schritt = db.query(ProzessSchritt).filter(
+        ProzessSchritt.id == schritt_id,
+        ProzessSchritt.item_id == item_id,
+        ProzessSchritt.is_active == True,
+    ).first()
+    if not schritt:
+        raise HTTPException(status_code=404, detail="Prozessschritt not found")
+
+    schritt.is_active = False
+    db.commit()
+
+
+@router.post(
+    "/{item_id}/prozess-schritte/reorder",
+    response_model=list[ProzessSchrittResponse],
+)
+async def reorder_prozess_schritte(
+    item_id: int,
+    order: list[int],
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    """Accepts an ordered list of step IDs, updates their positions."""
+    item = db.query(Item).filter(Item.id == item_id, Item.is_active == True).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if item.status != ItemStatus.ENTWURF:
+        raise HTTPException(status_code=400, detail="Prozessschritte können nur bei ENTWURF Items bearbeitet werden")
+
+    schritte = {
+        s.id: s
+        for s in db.query(ProzessSchritt).filter(
+            ProzessSchritt.item_id == item_id, ProzessSchritt.is_active == True
+        ).all()
+    }
+    for pos, step_id in enumerate(order, start=1):
+        if step_id in schritte:
+            schritte[step_id].position = pos
+
+    db.commit()
+    return [
+        ProzessSchrittResponse.model_validate(schritte[sid])
+        for sid in order
+        if sid in schritte
+    ]

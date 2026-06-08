@@ -10,6 +10,14 @@ from .base import TimestampMixin, utcnow
 
 class ObjectType(str, enum.Enum):
     ITEM = "item"
+    AUFTRAG = "auftrag"
+    OBJEKT = "objekt"
+    COMPANY = "company"
+    CONTACT = "contact"
+    INVOICE = "invoice"
+    CREDIT_NOTE = "credit_note"
+    USER = "user"
+    # Legacy (DB data preserved, no new entries)
     BOM = "bom"
     WORK_PLAN = "work_plan"
     PRODUCTION_ORDER = "production_order"
@@ -22,11 +30,6 @@ class ObjectType(str, enum.Enum):
     CAPA = "capa"
     RISK = "risk"
     DOCUMENT = "document"
-    COMPANY = "company"
-    CONTACT = "contact"
-    INVOICE = "invoice"
-    CREDIT_NOTE = "credit_note"
-    USER = "user"
 
 
 object_id_seq = Sequence("object_id_seq", start=100000001, increment=1)
