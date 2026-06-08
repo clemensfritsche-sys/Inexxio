@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { formatObjectId, relativeTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/ui/badge';
-import { Package, GitBranch, Wrench, Building2, User, Users, FileText } from 'lucide-react';
+import { Package, GitBranch, Wrench, Building2, User, Users, FileText, Layers } from 'lucide-react';
 import type { UniversalObject, ObjectType } from '@/types';
 
 const typeIcons: Record<ObjectType, React.ReactNode> = {
@@ -11,6 +11,7 @@ const typeIcons: Record<ObjectType, React.ReactNode> = {
   company: <Building2 className="h-4 w-4" />,
   contact: <User className="h-4 w-4" />,
   user: <Users className="h-4 w-4" />,
+  objekt: <Layers className="h-4 w-4" />,
 };
 
 const typeLabels: Record<ObjectType, string> = {
@@ -20,6 +21,7 @@ const typeLabels: Record<ObjectType, string> = {
   company: 'Firma',
   contact: 'Kontakt',
   user: 'Benutzer',
+  objekt: 'Objekt',
 };
 
 const typeBgColors: Record<ObjectType, string> = {
@@ -29,6 +31,7 @@ const typeBgColors: Record<ObjectType, string> = {
   company: 'bg-green-50 text-green-600',
   contact: 'bg-slate-100 text-slate-600',
   user: 'bg-teal-50 text-teal-700',
+  objekt: 'bg-orange-50 text-orange-600',
 };
 
 interface ObjectRowProps {
@@ -51,7 +54,7 @@ export function ObjectRow({ object, selected, onClick }: ObjectRowProps) {
       <div
         className={cn(
           'shrink-0 flex h-9 w-9 items-center justify-center rounded-lg mt-0.5',
-          typeBgColors[object.object_type],
+          typeBgColors[object.object_type] ?? 'bg-slate-100 text-slate-600',
         )}
       >
         {typeIcons[object.object_type] ?? <FileText className="h-4 w-4" />}

@@ -42,8 +42,23 @@ type FilterType = 'all' | ObjectType;
 const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'all', label: 'Alle' },
   { value: 'item', label: 'Artikel' },
+  { value: 'objekt', label: 'Objekte' },
   { value: 'company', label: 'Firmen' },
   { value: 'user', label: 'Benutzer' },
+];
+
+// Demo Objekte für Prototyp-Validierung
+const DEMO_OBJEKTE: UniversalObject[] = [
+  {
+    id: 100000235,
+    object_type: 'objekt',
+    title: 'Kaffeemaschine Typ A',
+    subtitle: 'Fertigungsauftrag #001 · Schritt 2/4',
+    status: 'IN_PRODUKTION',
+    number: '100000235',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
 ];
 
 const TYPE_MENU = [
@@ -115,7 +130,8 @@ export function UniversalFeed() {
   const objects: UniversalObject[] = useMemo(() => {
     if (isUserFilter) return (usersData ?? []).map(profileToObject);
     const objs = objectsData?.items ?? [];
-    if (filter === 'all') return [...objs, ...(usersData ?? []).map(profileToObject)];
+    if (filter === 'objekt') return DEMO_OBJEKTE;
+    if (filter === 'all') return [...objs, ...DEMO_OBJEKTE, ...(usersData ?? []).map(profileToObject)];
     return objs;
   }, [isUserFilter, filter, usersData, objectsData]);
 

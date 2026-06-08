@@ -1,6 +1,6 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
-export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user';
+export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user' | 'objekt';
 
 export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
 export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
