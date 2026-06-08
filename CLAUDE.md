@@ -96,6 +96,34 @@ Tabelle: objects(id, object_type, created_at, updated_at, created_by, updated_by
 - AGB-Akzeptanz: Zeitstempel + Version in DB
 - 10-Jahres-Archivierung Buchungsbelege (unveränderlich)
 
+## Pflichtregeln für Claude – vor jeder Änderung
+
+> Diese Regeln sind VERBINDLICH und müssen bei jeder Arbeitssitzung eingehalten werden.
+
+### 1. Immer zuerst mit Remote synchronisieren
+Vor der ERSTEN Code-Änderung einer Sitzung zwingend ausführen:
+```bash
+git fetch origin develop
+git pull origin develop
+git log --oneline -5
+git status
+```
+Erst danach dürfen Dateien gelesen oder editiert werden.
+
+### 2. Dateien immer frisch lesen – niemals Zusammenfassungen vertrauen
+Kontext-Komprimierungen (Context Summaries) beschreiben Dateien so, wie sie *waren*, nicht so, wie sie *aktuell* auf `develop` liegen. Vor jedem Edit die Datei mit dem Read-Tool neu laden.
+
+### 3. Änderungen nur auf Basis des aktuellen `develop`-Stands
+Niemals auf Basis von:
+- gespeicherten Kontext-Beschreibungen aus einer früheren Session
+- eigenen früheren Edits, die noch nicht gepusht/gemerged wurden
+- Annahmen über den Dateiinhalt
+
+### 4. Branch-Workflow
+- Entwicklung auf Feature-Branch (z.B. `claude/...`)
+- Merge nach `develop` erst nach expliziter Freigabe durch den User
+- Direktes Pushen auf `develop` nur wenn ausdrücklich angewiesen
+
 ## Lokale Entwicklung
 ```bash
 # Backend starten

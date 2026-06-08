@@ -3,6 +3,15 @@
 ## Technologie
 Python 3.12, FastAPI 0.109, SQLAlchemy 2.0, Pydantic v2, Alembic, PostgreSQL 15
 
+## Pflichtregeln – vor jeder Änderung
+
+Vor der ersten Änderung in einer Sitzung:
+```bash
+git fetch origin develop && git pull origin develop
+git log --oneline -5 && git status
+```
+Dann: Betroffene Datei mit Read-Tool frisch laden – niemals Kontext-Zusammenfassungen als Dateiinhalt behandeln.
+
 ## Starten
 ```bash
 cd backend
