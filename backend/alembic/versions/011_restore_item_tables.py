@@ -13,7 +13,41 @@ import sqlalchemy as sa
 
 
 def upgrade():
-    # Drop the unified objekte table created by the overhaul (wrong schema)
+    # Ensure lookup tables exist (created by migration 007, but may have been dropped by overhaul)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS item_names (
+            id SERIAL PRIMARY KEY,
+            label VARCHAR(255) NOT NULL UNIQUE,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_by BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_item_names_label ON item_names(label)")
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS item_surfaces (
+            id SERIAL PRIMARY KEY,
+            label VARCHAR(255) NOT NULL UNIQUE,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_by BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_item_surfaces_label ON item_surfaces(label)")
+
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS item_categories (
+            id SERIAL PRIMARY KEY,
+            label VARCHAR(255) NOT NULL UNIQUE,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_by BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_item_categories_label ON item_categories(label)")
+
+    # Drop the unified objekte/auftraege/prozess_schritte tables created by the overhaul
     op.execute("DROP TABLE IF EXISTS objekte CASCADE")
     op.execute("DROP TABLE IF EXISTS auftraege CASCADE")
     op.execute("DROP TABLE IF EXISTS prozess_schritte CASCADE")
@@ -73,7 +107,6 @@ def upgrade():
     """)
     op.execute("CREATE INDEX IF NOT EXISTS ix_item_signatures_item_id ON item_signatures(item_id)")
 
-    # Keep boms/work_plans tables for legacy compatibility (objects.py queries work_plans)
     op.execute("""
         CREATE TABLE IF NOT EXISTS boms (
             id BIGINT PRIMARY KEY REFERENCES objects(id),
