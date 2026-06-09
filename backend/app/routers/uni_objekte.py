@@ -148,6 +148,26 @@ async def create_uni_objekt(
     return _build_detail(db, obj)
 
 
+# ─── Lookup FREIGEGEBEN template by number ───────────────────────────────────
+
+@router.get("/lookup/{objekt_nr}", response_model=UniObjektDetail)
+async def lookup_by_nummer(
+    objekt_nr: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    obj = db.query(UniversalObject).filter(
+        UniversalObject.id == objekt_nr,
+        UniversalObject.object_type == ObjectType.OBJEKT,
+        UniversalObject.obj_status == "FREIGEGEBEN",
+        UniversalObject.stamm_id == None,  # noqa: E711
+        UniversalObject.is_active == True,
+    ).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Kein freigegebenes Objekt mit dieser Nummer gefunden")
+    return _build_detail(db, obj)
+
+
 # ─── Get ──────────────────────────────────────────────────────────────────────
 
 @router.get("/{objekt_id}", response_model=UniObjektDetail)

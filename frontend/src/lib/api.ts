@@ -315,6 +315,10 @@ class ApiClient {
     return this.post(`/api/v1/uni-objekte/${id}/freigeben`, {});
   }
 
+  lookupObjektByNummer(nummer: number): Promise<UniObjekt> {
+    return this.get(`/api/v1/uni-objekte/lookup/${nummer}`);
+  }
+
   addSchritt(id: number, data: { position: number; beschreibung: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[] }): Promise<ProzessSchrittDef> {
     return this.post(`/api/v1/uni-objekte/${id}/schritte`, data);
   }
