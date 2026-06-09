@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Loader2, InboxIcon, ArrowLeft,
-  Package, Building2, Wrench, Layers, Star,
+  Building2, Wrench, Layers, Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -41,14 +41,12 @@ type FilterType = 'all' | ObjectType;
 
 const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'all', label: 'Alle' },
-  { value: 'item', label: 'Artikel' },
   { value: 'objekt', label: 'Objekte' },
   { value: 'company', label: 'Firmen' },
   { value: 'user', label: 'Benutzer' },
 ];
 
 const TYPE_MENU = [
-  { key: 'item' as const, label: 'Artikel', icon: Package, available: true },
   { key: 'objekt' as const, label: 'Objekt', icon: Layers, available: true },
   { key: 'company' as const, label: 'Firma', icon: Building2, available: false },
   { key: 'work_plan' as const, label: 'Arbeitsplan', icon: Wrench, available: false },
@@ -99,16 +97,6 @@ export function UniversalFeed() {
     enabled: needsUsers,
     retry: 1,
     staleTime: 30_000,
-  });
-
-  const { mutate: createItem, isPending: creatingItem } = useMutation({
-    mutationFn: () => api.createItem({ name: 'Neuer Artikel', unit: 'Stk' }),
-    onSuccess: (item) => {
-      setShowTypeMenu(false);
-      setFilter('item');
-      setSelectedId(item.id);
-      queryClient.invalidateQueries({ queryKey: ['objects'] });
-    },
   });
 
   const { mutate: createObjekt, isPending: creatingObjekt } = useMutation({
@@ -181,7 +169,7 @@ export function UniversalFeed() {
     },
   });
 
-  const isCreating = creatingItem || creatingObjekt || creatingDemo;
+  const isCreating = creatingObjekt || creatingDemo;
   const isLoading = isUserFilter ? usersLoading : (objectsLoading || (filter === 'all' && usersLoading));
   const isError = isUserFilter ? usersError : objectsError;
 
@@ -254,8 +242,7 @@ export function UniversalFeed() {
                   type="button"
                   disabled={!available}
                   onClick={() => {
-                    if (key === 'item') createItem();
-                    else if (key === 'objekt') createObjekt();
+                    if (key === 'objekt') createObjekt();
                   }}
                   className={cn(
                     'flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors',

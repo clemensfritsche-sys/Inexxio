@@ -11,6 +11,8 @@ class SchrittCreate(BaseModel):
     ressourcen: Optional[list[dict]] = None
     daten_felder: Optional[list[dict]] = None
     ergebnis_optionen: Optional[list[dict]] = None
+    referenz_objekt_id: Optional[int] = None
+    referenz_menge: int = 1
     onshape_link: Optional[str] = None
     dokument_link: Optional[str] = None
 
@@ -21,6 +23,8 @@ class SchrittUpdate(BaseModel):
     ressourcen: Optional[list[dict]] = None
     daten_felder: Optional[list[dict]] = None
     ergebnis_optionen: Optional[list[dict]] = None
+    referenz_objekt_id: Optional[int] = None
+    referenz_menge: Optional[int] = None
     onshape_link: Optional[str] = None
     dokument_link: Optional[str] = None
 
@@ -35,6 +39,8 @@ class SchrittResponse(BaseModel):
     ressourcen: Optional[list[dict]]
     daten_felder: Optional[list[dict]]
     ergebnis_optionen: Optional[list[dict]]
+    referenz_objekt_id: Optional[int]
+    referenz_menge: int
     onshape_link: Optional[str]
     dokument_link: Optional[str]
 

@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import get_settings
 from .core.database import Base, engine
-from .routers import admin, auth, auftraege, boms, companies, health, items, objekte, objects, uni_objekte, work_plans
+from .routers import admin, auth, auftraege, boms, companies, health, items, objekte, objekttypen, objects, uni_objekte, work_plans
 
 settings = get_settings()
 
@@ -46,6 +46,7 @@ app.include_router(objekte.router)
 app.include_router(uni_objekte.router)
 app.include_router(companies.router)
 app.include_router(admin.router)
+app.include_router(objekttypen.router)
 
 
 @app.get("/")

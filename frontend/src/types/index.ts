@@ -43,6 +43,13 @@ export interface ErgebnisOption {
   farbe: 'gruen' | 'rot' | 'gelb';
 }
 
+export interface ObjektTyp {
+  id: number;
+  name: string;
+  farbe: string;
+  created_at: string;
+}
+
 export interface ProzessSchrittDef {
   id: number;
   objekt_id: number | null;
@@ -51,6 +58,8 @@ export interface ProzessSchrittDef {
   ressourcen: RessourceDef[] | null;
   daten_felder: DatenFeldDef[] | null;
   ergebnis_optionen: ErgebnisOption[] | null;
+  referenz_objekt_id: number | null;
+  referenz_menge: number;
   onshape_link: string | null;
   dokument_link: string | null;
 }
@@ -62,6 +71,8 @@ export interface SchrittProtokollEintrag {
   ressourcen: RessourceDef[] | null;
   daten_felder: DatenFeldDef[] | null;
   ergebnis_optionen: ErgebnisOption[] | null;
+  referenz_objekt_id: number | null;
+  referenz_menge: number;
   ausgefuehrt_von: string | null;
   ausgefuehrt_am: string | null;
   ergebnis: string | null;

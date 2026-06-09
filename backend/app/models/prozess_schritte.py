@@ -30,6 +30,11 @@ class ProzessSchritt(Base, TimestampMixin):
     ergebnis_optionen: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
     aktion: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
+    referenz_objekt_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("objects.id", ondelete="SET NULL"), nullable=True
+    )
+    referenz_menge: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
     onshape_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     dokument_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

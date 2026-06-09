@@ -41,13 +41,8 @@ function SchrittModal({
 
   const pflichtErfuellt =
     !schritt.daten_felder ||
-    schritt.daten_felder
-      .filter(f => f.pflicht)
-      .every(f => (daten[f.name] ?? '').trim() !== '');
-  const ergebnisErfuellt =
-    !schritt.ergebnis_optionen ||
-    schritt.ergebnis_optionen.length === 0 ||
-    ergebnis !== null;
+    schritt.daten_felder.every(f => (daten[f.name] ?? '').trim() !== '');
+  const ergebnisErfuellt = ergebnis !== null;
   const canComplete = pflichtErfuellt && ergebnisErfuellt;
 
   return (
@@ -101,7 +96,7 @@ function SchrittModal({
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
                     {feld.name}
                     {feld.einheit && <span className="text-slate-400 font-normal ml-1">({feld.einheit})</span>}
-                    {feld.pflicht && <span className="text-red-500 ml-0.5">*</span>}
+                    <span className="text-red-500 ml-0.5">*</span>
                   </label>
                   {feld.typ === 'auswahl' && feld.optionen ? (
                     <select
@@ -126,41 +121,42 @@ function SchrittModal({
             </div>
           )}
 
-          {schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Ergebnis wählen
-              </p>
-              <div className="space-y-2">
-                {schritt.ergebnis_optionen.map(opt => {
-                  const selected = ergebnis === opt.label;
-                  const colorMap = {
-                    gruen: selected ? 'border-green-500 bg-green-50 text-green-800' : 'border-slate-200 hover:border-green-300 hover:bg-green-50/50',
-                    rot: selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 hover:border-red-300 hover:bg-red-50/50',
-                    gelb: selected ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50/50',
-                  };
-                  return (
-                    <button
-                      key={opt.label}
-                      onClick={() => setErgebnis(opt.label)}
-                      className={cn(
-                        'w-full text-left rounded-lg border px-3 py-2.5 text-sm font-medium transition-all flex items-center gap-2',
-                        colorMap[opt.farbe],
-                      )}
-                    >
-                      <div className={cn(
-                        'h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
-                        selected ? 'border-current bg-current' : 'border-slate-300',
-                      )}>
-                        {selected && <Check className="h-2.5 w-2.5 text-white" />}
-                      </div>
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Ergebnis wählen <span className="text-red-500 ml-0.5">*</span>
+            </p>
+            <div className="space-y-2">
+              {(schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0
+                ? schritt.ergebnis_optionen
+                : [{ label: 'Erledigt', farbe: 'gruen' as const }, { label: 'Problem', farbe: 'rot' as const }]
+              ).map(opt => {
+                const selected = ergebnis === opt.label;
+                const colorMap: Record<string, string> = {
+                  gruen: selected ? 'border-green-500 bg-green-50 text-green-800' : 'border-slate-200 hover:border-green-300 hover:bg-green-50/50',
+                  rot: selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 hover:border-red-300 hover:bg-red-50/50',
+                  gelb: selected ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50/50',
+                };
+                return (
+                  <button
+                    key={opt.label}
+                    onClick={() => setErgebnis(opt.label)}
+                    className={cn(
+                      'w-full text-left rounded-lg border px-3 py-2.5 text-sm font-medium transition-all flex items-center gap-2',
+                      colorMap[opt.farbe] ?? colorMap.gruen,
+                    )}
+                  >
+                    <div className={cn(
+                      'h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
+                      selected ? 'border-current bg-current' : 'border-slate-300',
+                    )}>
+                      {selected && <Check className="h-2.5 w-2.5 text-white" />}
+                    </div>
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
 
           {error && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2.5">

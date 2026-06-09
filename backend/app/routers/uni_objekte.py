@@ -84,12 +84,42 @@ def _build_protokoll(schritte: list[ProzessSchritt]) -> list[dict]:
             "ressourcen": s.ressourcen,
             "daten_felder": s.daten_felder,
             "ergebnis_optionen": s.ergebnis_optionen,
+            "referenz_objekt_id": s.referenz_objekt_id,
+            "referenz_menge": s.referenz_menge or 1,
             "ausgefuehrt_von": None,
             "ausgefuehrt_am": None,
             "ergebnis": None,
             "erfasste_daten": None,
         })
     return result
+
+
+def _create_referenz_instanzen(
+    db: Session, referenz_objekt_id: int, menge: int, created_by: int
+) -> None:
+    stamm = db.query(UniversalObject).filter(
+        UniversalObject.id == referenz_objekt_id,
+        UniversalObject.object_type == ObjectType.OBJEKT,
+        UniversalObject.obj_status == "FREIGEGEBEN",
+        UniversalObject.stamm_id == None,  # noqa: E711
+        UniversalObject.is_active == True,
+    ).first()
+    if not stamm:
+        return
+    ref_schritte = _get_schritte(db, stamm.id)
+    ref_protokoll = _build_protokoll(ref_schritte)
+    for _ in range(menge):
+        inst = UniversalObject(
+            object_type=ObjectType.OBJEKT,
+            created_by=created_by,
+            updated_by=created_by,
+            stamm_id=stamm.id,
+            name=stamm.name,
+            obj_status="IN_PRODUKTION",
+            einheit=stamm.einheit,
+            schritt_protokoll=list(ref_protokoll),
+        )
+        db.add(inst)
 
 
 # ─── List ─────────────────────────────────────────────────────────────────────
@@ -468,6 +498,12 @@ async def schritt_erledigen(
     step["erfasste_daten"] = data.erfasste_daten
     step["ausgefuehrt_von"] = data.ausgefuehrt_von or current_user.email
     step["ausgefuehrt_am"] = _now().isoformat()
+
+    # Trigger referenced object instances if configured
+    ref_id = step.get("referenz_objekt_id")
+    ref_menge = step.get("referenz_menge") or 1
+    if ref_id:
+        _create_referenz_instanzen(db, ref_id, ref_menge, current_user.id)
 
     # Activate next step or mark complete
     positions = sorted(s["position"] for s in protokoll if s["status"] != "erledigt")

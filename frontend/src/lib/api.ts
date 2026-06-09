@@ -17,6 +17,7 @@ import type {
   UniObjekt,
   UniObjektSummary,
   ProzessSchrittDef,
+  ObjektTyp,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -315,11 +316,11 @@ class ApiClient {
     return this.post(`/api/v1/uni-objekte/${id}/freigeben`, {});
   }
 
-  addSchritt(id: number, data: { position: number; beschreibung: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[] }): Promise<ProzessSchrittDef> {
+  addSchritt(id: number, data: { position: number; beschreibung: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[]; referenz_objekt_id?: number; referenz_menge?: number }): Promise<ProzessSchrittDef> {
     return this.post(`/api/v1/uni-objekte/${id}/schritte`, data);
   }
 
-  updateSchritt(id: number, schrittId: number, data: Partial<{ position: number; beschreibung: string; ressourcen: object[]; daten_felder: object[]; ergebnis_optionen: object[] }>): Promise<ProzessSchrittDef> {
+  updateSchritt(id: number, schrittId: number, data: Partial<{ position: number; beschreibung: string; ressourcen: object[]; daten_felder: object[]; ergebnis_optionen: object[]; referenz_objekt_id: number | null; referenz_menge: number }>): Promise<ProzessSchrittDef> {
     return this.patch(`/api/v1/uni-objekte/${id}/schritte/${schrittId}`, data);
   }
 
@@ -337,6 +338,20 @@ class ApiClient {
 
   schrittErledigen(instanceId: number, position: number, data: { ergebnis: string; erfasste_daten?: Record<string, string>; ausgefuehrt_von?: string }): Promise<UniObjekt> {
     return this.post(`/api/v1/uni-objekte/${instanceId}/protokoll/${position}/erledigen`, data);
+  }
+
+  // ─── Objekttypen (admin) ──────────────────────────────────────────────────
+
+  listObjektTypen(): Promise<ObjektTyp[]> {
+    return this.get('/api/v1/admin/objekttypen');
+  }
+
+  createObjektTyp(data: { name: string; farbe?: string }): Promise<ObjektTyp> {
+    return this.post('/api/v1/admin/objekttypen', data);
+  }
+
+  deleteObjektTyp(id: number): Promise<void> {
+    return this.delete(`/api/v1/admin/objekttypen/${id}`);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────
