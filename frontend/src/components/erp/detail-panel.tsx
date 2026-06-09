@@ -8,7 +8,7 @@ import { typeIcons, typeLabels } from './object-row';
 import { Check, Clock, ExternalLink, FileText, Link as LinkIcon } from 'lucide-react';
 import { UserDetail } from './user-detail';
 import { ItemDetailForm } from './item-detail-form';
-import { ObjektProzessPanel } from './objekt-prozess-panel';
+import { ObjektDetailLoader } from './objekt-detail-loader';
 import type { UniversalObject } from '@/types';
 
 interface DetailField {
@@ -94,9 +94,16 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
     return <UserDetail object={object} currentUserRole={currentUserRole} onRoleChanged={onRefresh} />;
   }
 
-  // Objekte get process execution panel
+  // Objekte get the unified detail/process panel
   if (object?.object_type === 'objekt') {
-    return <ObjektProzessPanel />;
+    return (
+      <ObjektDetailLoader
+        key={object.id}
+        id={object.id}
+        currentUserRole={currentUserRole}
+        onRefresh={onRefresh}
+      />
+    );
   }
 
   // Empty state

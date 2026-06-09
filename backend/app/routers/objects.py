@@ -23,6 +23,8 @@ async def list_objects(
     offset = (page - 1) * page_size
     queries = []
     params: dict = {"offset": offset, "limit": page_size}
+    if q:
+        params["search"] = f"%{q}%"
 
     if not object_type or object_type == "item":
         item_q = """
@@ -35,7 +37,6 @@ async def list_objects(
         """
         if q:
             item_q += " AND (i.name ILIKE :search OR CAST(o.id AS TEXT) ILIKE :search)"
-            params["search"] = f"%{q}%"
         queries.append(item_q)
 
     if not object_type or object_type == "work_plan":
@@ -63,6 +64,19 @@ async def list_objects(
         if q:
             co_q += " AND (c.name ILIKE :search OR CAST(o.id AS TEXT) ILIKE :search)"
         queries.append(co_q)
+
+    if not object_type or object_type == "objekt":
+        obj_q = """
+            SELECT o.id, 'objekt' AS object_type,
+                   COALESCE(o.name, 'Kein Name') AS title,
+                   COALESCE(o.obj_status, 'ENTWURF') AS status,
+                   o.created_at, o.updated_at
+            FROM objects o
+            WHERE o.object_type = 'objekt' AND o.is_active = true AND o.stamm_id IS NULL
+        """
+        if q:
+            obj_q += " AND (o.name ILIKE :search OR CAST(o.id AS TEXT) ILIKE :search)"
+        queries.append(obj_q)
 
     if not queries:
         return {"total": 0, "page": page, "page_size": page_size, "items": []}

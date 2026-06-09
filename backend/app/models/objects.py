@@ -1,7 +1,9 @@
 import enum
+from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Sequence, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Numeric, Sequence, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -47,3 +49,15 @@ class UniversalObject(Base, TimestampMixin):
     object_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     updated_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+    # ── Unified Objekt+Prozess fields (object_type='objekt') ──────────────────
+    stamm_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("objects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    obj_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, default="ENTWURF")
+    menge: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 4), nullable=True)
+    einheit: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    lagerort: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    notiz: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    schritt_protokoll: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)

@@ -14,6 +14,9 @@ import type {
   PaginatedResponse,
   ObjectFilter,
   WhereUsedEntry,
+  UniObjekt,
+  UniObjektSummary,
+  ProzessSchrittDef,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -278,6 +281,62 @@ class ApiClient {
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
+  }
+
+  // ─── Unified Objekte ───────────────────────────────────────────────────────
+
+  listUniObjekte(params?: { q?: string; stamm?: boolean; page?: number; page_size?: number }): Promise<PaginatedResponse<UniObjektSummary>> {
+    const p = new URLSearchParams();
+    if (params?.q) p.set('q', params.q);
+    if (params?.stamm !== undefined) p.set('stamm', String(params.stamm));
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.page_size) p.set('page_size', String(params.page_size));
+    const qs = p.toString();
+    return this.get(`/api/v1/uni-objekte${qs ? `?${qs}` : ''}`);
+  }
+
+  createUniObjekt(data: { name: string; notiz?: string; einheit?: string }): Promise<UniObjekt> {
+    return this.post('/api/v1/uni-objekte', data);
+  }
+
+  getUniObjekt(id: number): Promise<UniObjekt> {
+    return this.get(`/api/v1/uni-objekte/${id}`);
+  }
+
+  updateUniObjekt(id: number, data: { name?: string; notiz?: string; einheit?: string; lagerort?: string }): Promise<UniObjekt> {
+    return this.patch(`/api/v1/uni-objekte/${id}`, data);
+  }
+
+  deleteUniObjekt(id: number): Promise<void> {
+    return this.delete(`/api/v1/uni-objekte/${id}`);
+  }
+
+  freigeben(id: number): Promise<UniObjekt> {
+    return this.post(`/api/v1/uni-objekte/${id}/freigeben`, {});
+  }
+
+  addSchritt(id: number, data: { position: number; beschreibung: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[] }): Promise<ProzessSchrittDef> {
+    return this.post(`/api/v1/uni-objekte/${id}/schritte`, data);
+  }
+
+  updateSchritt(id: number, schrittId: number, data: Partial<{ position: number; beschreibung: string; ressourcen: object[]; daten_felder: object[]; ergebnis_optionen: object[] }>): Promise<ProzessSchrittDef> {
+    return this.patch(`/api/v1/uni-objekte/${id}/schritte/${schrittId}`, data);
+  }
+
+  deleteSchritt(id: number, schrittId: number): Promise<void> {
+    return this.delete(`/api/v1/uni-objekte/${id}/schritte/${schrittId}`);
+  }
+
+  ausfuehren(id: number, data: { menge: number; lagerort?: string }): Promise<UniObjektSummary[]> {
+    return this.post(`/api/v1/uni-objekte/${id}/ausfuehren`, data);
+  }
+
+  listInstanzen(id: number, page = 1, page_size = 20): Promise<PaginatedResponse<UniObjektSummary>> {
+    return this.get(`/api/v1/uni-objekte/${id}/instanzen?page=${page}&page_size=${page_size}`);
+  }
+
+  schrittErledigen(instanceId: number, position: number, data: { ergebnis: string; erfasste_daten?: Record<string, string>; ausgefuehrt_von?: string }): Promise<UniObjekt> {
+    return this.post(`/api/v1/uni-objekte/${instanceId}/protokoll/${position}/erledigen`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

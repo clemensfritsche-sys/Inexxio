@@ -2,6 +2,101 @@
 
 export type ObjectType = 'item' | 'bom' | 'work_plan' | 'company' | 'contact' | 'user' | 'objekt';
 
+// ─── Unified Objekt+Prozess ───────────────────────────────────────────────────
+
+export type ObjStatus =
+  | 'ENTWURF'
+  | 'FREIGEGEBEN'
+  | 'IN_PRODUKTION'
+  | 'VERFUEGBAR'
+  | 'VERBAUT'
+  | 'GESPERRT'
+  | 'VERSCHROTTET';
+
+export const OBJ_STATUS_CONFIG: Record<ObjStatus, { label: string; color: string }> = {
+  ENTWURF: { label: 'Entwurf', color: 'bg-slate-100 text-slate-600' },
+  FREIGEGEBEN: { label: 'Freigegeben', color: 'bg-green-50 text-green-700' },
+  IN_PRODUKTION: { label: 'In Produktion', color: 'bg-blue-50 text-blue-700' },
+  VERFUEGBAR: { label: 'Verfügbar', color: 'bg-emerald-50 text-emerald-700' },
+  VERBAUT: { label: 'Verbaut', color: 'bg-violet-50 text-violet-700' },
+  GESPERRT: { label: 'Gesperrt', color: 'bg-red-50 text-red-600' },
+  VERSCHROTTET: { label: 'Verschrottet', color: 'bg-slate-200 text-slate-500' },
+};
+
+export interface RessourceDef {
+  name: string;
+  menge: number;
+  einheit: string;
+  ref_id?: number;
+}
+
+export interface DatenFeldDef {
+  name: string;
+  typ: 'text' | 'number' | 'datum' | 'auswahl';
+  pflicht: boolean;
+  optionen?: string[];
+  einheit?: string;
+}
+
+export interface ErgebnisOption {
+  label: string;
+  farbe: 'gruen' | 'rot' | 'gelb';
+}
+
+export interface ProzessSchrittDef {
+  id: number;
+  objekt_id: number | null;
+  position: number;
+  beschreibung: string;
+  ressourcen: RessourceDef[] | null;
+  daten_felder: DatenFeldDef[] | null;
+  ergebnis_optionen: ErgebnisOption[] | null;
+  onshape_link: string | null;
+  dokument_link: string | null;
+}
+
+export interface SchrittProtokollEintrag {
+  position: number;
+  beschreibung: string;
+  status: 'ausstehend' | 'aktiv' | 'erledigt' | 'problem';
+  ressourcen: RessourceDef[] | null;
+  daten_felder: DatenFeldDef[] | null;
+  ergebnis_optionen: ErgebnisOption[] | null;
+  ausgefuehrt_von: string | null;
+  ausgefuehrt_am: string | null;
+  ergebnis: string | null;
+  erfasste_daten: Record<string, string> | null;
+}
+
+export interface UniObjektSummary {
+  id: number;
+  stamm_id: number | null;
+  name: string | null;
+  obj_status: ObjStatus | null;
+  menge: string | null;
+  einheit: string | null;
+  lagerort: string | null;
+  instanzen_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UniObjekt {
+  id: number;
+  stamm_id: number | null;
+  name: string | null;
+  obj_status: ObjStatus | null;
+  menge: string | null;
+  einheit: string | null;
+  lagerort: string | null;
+  notiz: string | null;
+  schritt_protokoll: SchrittProtokollEintrag[] | null;
+  schritte: ProzessSchrittDef[];
+  instanzen_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ItemStatus = 'ENTWURF' | 'IN_FREIGABE' | 'FREIGEGEBEN' | 'ERSETZT' | 'UNGUELTIG';
 export type ItemUnit = 'Stk' | 'mm' | 'g' | 'mm²';
 export type VatRate = '8.1' | '2.6' | '3.8' | '0.0';

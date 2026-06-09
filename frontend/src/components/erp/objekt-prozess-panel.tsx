@@ -1,163 +1,58 @@
 'use client';
 
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Check, ChevronRight, X, Loader2, Zap,
-  Package, AlertTriangle, MapPin, Clock,
+  Check, ChevronRight, X, Loader2,
+  Package, MapPin, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
-import { ProcessTracker } from './process-tracker';
-import type { ProcessStep } from './process-tracker';
+import { api } from '@/lib/api';
+import { OBJ_STATUS_CONFIG } from '@/types';
+import type { UniObjekt, SchrittProtokollEintrag } from '@/types';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Ressource {
-  name: string;
-  menge: number;
-  einheit: string;
-  ref_id?: number;
-}
-
-interface DatenFeld {
-  name: string;
-  typ: 'text' | 'number' | 'datum' | 'auswahl';
-  pflicht: boolean;
-  optionen?: string[];
-  einheit?: string;
-}
-
-interface ErgebnisOption {
-  label: string;
-  farbe: 'gruen' | 'rot' | 'gelb';
-}
-
-export interface ProzessSchritt {
-  id: number;
-  position: number;
-  beschreibung: string;
-  status: 'ausstehend' | 'aktiv' | 'erledigt' | 'problem';
-  ressourcen?: Ressource[];
-  daten_felder?: DatenFeld[];
-  ergebnis_optionen?: ErgebnisOption[];
-  system_aktion?: string;
-  ausgefuehrt_von?: string;
-  ausgefuehrt_am?: string;
-  ergebnis?: string;
-  erfasste_daten?: Record<string, string>;
-}
-
-export interface DemoObjekt {
-  id: number;
-  name: string;
-  stamm_name: string;
-  auftrag_ref?: string;
-  schritte: ProzessSchritt[];
-}
-
-// ─── Demo Data ────────────────────────────────────────────────────────────────
-
-export const DEMO_KAFFEEMASCHINE: DemoObjekt = {
-  id: 100000235,
-  name: 'Kaffeemaschine Typ A',
-  stamm_name: 'Kaffeemaschine Typ A',
-  auftrag_ref: 'Fertigungsauftrag #001 · Los 5 Stk',
-  schritte: [
-    {
-      id: 1,
-      position: 1,
-      beschreibung: 'Rüsten & Material bereitlegen',
-      status: 'erledigt',
-      ressourcen: [
-        { name: 'Gehäuse Typ A', menge: 1, einheit: 'Stk', ref_id: 100000010 },
-        { name: 'Schraube M5 DIN912', menge: 10, einheit: 'Stk', ref_id: 100000003 },
-        { name: 'Motor EC-42', menge: 1, einheit: 'Stk', ref_id: 100000015 },
-        { name: 'Steuerplatine v2', menge: 1, einheit: 'Stk', ref_id: 100000021 },
-      ],
-      ausgefuehrt_von: 'Max Muster',
-      ausgefuehrt_am: '08:12',
-      ergebnis: 'Material OK',
-    },
-    {
-      id: 2,
-      position: 2,
-      beschreibung: 'Montage',
-      status: 'aktiv',
-      ressourcen: [
-        { name: 'Schraube M5 DIN912', menge: 10, einheit: 'Stk', ref_id: 100000003 },
-      ],
-      daten_felder: [
-        { name: 'Seriennummer', typ: 'text', pflicht: true },
-        { name: 'Anzugsmoment Schrauben', typ: 'number', pflicht: true, einheit: 'Nm' },
-      ],
-      ergebnis_optionen: [
-        { label: 'Montage OK — weiter zu Test', farbe: 'gruen' },
-        { label: 'Problem — NCR auslösen', farbe: 'rot' },
-      ],
-    },
-    {
-      id: 3,
-      position: 3,
-      beschreibung: 'Funktionstest',
-      status: 'ausstehend',
-      daten_felder: [
-        { name: 'Testprotokoll Nr.', typ: 'text', pflicht: true },
-        { name: 'Leistung gemessen', typ: 'number', pflicht: true, einheit: 'W' },
-        { name: 'Temperatur gemessen', typ: 'number', pflicht: true, einheit: '°C' },
-      ],
-      ergebnis_optionen: [
-        { label: 'Test bestanden', farbe: 'gruen' },
-        { label: 'Nacharbeit nötig', farbe: 'gelb' },
-        { label: 'Verschrotten', farbe: 'rot' },
-      ],
-    },
-    {
-      id: 4,
-      position: 4,
-      beschreibung: 'Einlagern',
-      status: 'ausstehend',
-      daten_felder: [
-        { name: 'Lagerort', typ: 'text', pflicht: true },
-      ],
-      system_aktion: 'lager_verbuchen → Status VERFÜGBAR',
-      ergebnis_optionen: [
-        { label: 'Eingelagert', farbe: 'gruen' },
-      ],
-    },
-  ],
-};
-
-// ─── Step Execution Modal ─────────────────────────────────────────────────────
+// ─── Step execution modal ─────────────────────────────────────────────────────
 
 function SchrittModal({
   schritt,
+  instanzId,
   onClose,
-  onComplete,
 }: {
-  schritt: ProzessSchritt;
+  schritt: SchrittProtokollEintrag;
+  instanzId: number;
   onClose: () => void;
-  onComplete: (ergebnis: string, daten: Record<string, string>) => void;
 }) {
+  const qc = useQueryClient();
   const [daten, setDaten] = useState<Record<string, string>>({});
   const [ergebnis, setErgebnis] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  const pflichtErfuellt = !schritt.daten_felder ||
-    schritt.daten_felder.filter(f => f.pflicht).every(f => (daten[f.name] ?? '').trim() !== '');
-  const ergebnisErfuellt = !schritt.ergebnis_optionen || schritt.ergebnis_optionen.length === 0 || ergebnis !== null;
+  const { mutate, isPending, error } = useMutation({
+    mutationFn: () =>
+      api.schrittErledigen(instanzId, schritt.position, {
+        ergebnis: ergebnis ?? 'Erledigt',
+        erfasste_daten: Object.keys(daten).length > 0 ? daten : undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['uni-objekt', instanzId] });
+      onClose();
+    },
+  });
+
+  const pflichtErfuellt =
+    !schritt.daten_felder ||
+    schritt.daten_felder
+      .filter(f => f.pflicht)
+      .every(f => (daten[f.name] ?? '').trim() !== '');
+  const ergebnisErfuellt =
+    !schritt.ergebnis_optionen ||
+    schritt.ergebnis_optionen.length === 0 ||
+    ergebnis !== null;
   const canComplete = pflichtErfuellt && ergebnisErfuellt;
-
-  async function handleComplete() {
-    if (!canComplete) return;
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 700));
-    onComplete(ergebnis ?? 'Erledigt', daten);
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white w-full sm:rounded-xl sm:shadow-2xl sm:max-w-lg max-h-[90vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-200 shrink-0">
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
@@ -173,10 +68,7 @@ function SchrittModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-
-          {/* Ressourcen */}
           {schritt.ressourcen && schritt.ressourcen.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
@@ -199,18 +91,6 @@ function SchrittModal({
             </div>
           )}
 
-          {/* System-Aktion */}
-          {schritt.system_aktion && (
-            <div className="flex items-center gap-2.5 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5">
-              <Zap className="h-4 w-4 text-blue-600 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-blue-700">Automatische System-Aktion</p>
-                <p className="text-xs text-blue-600 mt-0.5">{schritt.system_aktion}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Datenfelder */}
           {schritt.daten_felder && schritt.daten_felder.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -246,7 +126,6 @@ function SchrittModal({
             </div>
           )}
 
-          {/* Ergebnis */}
           {schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
@@ -282,9 +161,15 @@ function SchrittModal({
               </div>
             </div>
           )}
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+              <p className="text-sm text-red-700">{(error as Error).message}</p>
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
         <div className="px-5 py-4 border-t border-slate-200 shrink-0 flex gap-3">
           <button
             onClick={onClose}
@@ -293,16 +178,16 @@ function SchrittModal({
             Abbrechen
           </button>
           <button
-            onClick={handleComplete}
-            disabled={!canComplete || saving}
+            onClick={() => mutate()}
+            disabled={!canComplete || isPending}
             className={cn(
               'flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition-colors',
-              canComplete && !saving
+              canComplete && !isPending
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-slate-100 text-slate-400 cursor-not-allowed',
             )}
           >
-            {saving
+            {isPending
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Wird gespeichert…</>
               : <><Check className="h-4 w-4" /> Abschliessen</>
             }
@@ -313,44 +198,24 @@ function SchrittModal({
   );
 }
 
-// ─── Main Panel ───────────────────────────────────────────────────────────────
+// ─── Main panel ───────────────────────────────────────────────────────────────
 
-export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { initialData?: DemoObjekt }) {
-  const [objekt, setObjekt] = useState<DemoObjekt>(initialData);
-  const [activeModal, setActiveModal] = useState<ProzessSchritt | null>(null);
+interface Props {
+  objekt: UniObjekt;
+  onRefresh?: () => void;
+}
 
-  const doneCount = objekt.schritte.filter(s => s.status === 'erledigt').length;
-  const totalCount = objekt.schritte.length;
-  const allDone = doneCount === totalCount;
+export function ObjektProzessPanel({ objekt }: Props) {
+  const [activeModal, setActiveModal] = useState<SchrittProtokollEintrag | null>(null);
 
-  const trackerSteps: ProcessStep[] = objekt.schritte.map(s => ({
-    key: String(s.id),
-    label: s.beschreibung.split(' ')[0],
-  }));
+  const protokoll = objekt.schritt_protokoll ?? [];
+  const doneCount = protokoll.filter(s => s.status === 'erledigt').length;
+  const totalCount = protokoll.length;
+  const allDone = totalCount > 0 && doneCount === totalCount;
 
-  const activeSchritt = objekt.schritte.find(s => s.status === 'aktiv');
-  const currentTrackerKey = activeSchritt
-    ? String(activeSchritt.id)
-    : allDone
-      ? String(objekt.schritte[totalCount - 1].id + 1) // past last = all done
-      : String(objekt.schritte[0].id);
-
-  function handleComplete(schritt: ProzessSchritt, ergebnis: string, daten: Record<string, string>) {
-    const now = new Date().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
-    setObjekt(prev => {
-      const schritte = prev.schritte.map((s, i) => {
-        if (s.id === schritt.id) {
-          return { ...s, status: 'erledigt' as const, ausgefuehrt_von: 'Du', ausgefuehrt_am: now, ergebnis, erfasste_daten: daten };
-        }
-        if (s.status === 'ausstehend' && prev.schritte[i - 1]?.id === schritt.id) {
-          return { ...s, status: 'aktiv' as const };
-        }
-        return s;
-      });
-      return { ...prev, schritte };
-    });
-    setActiveModal(null);
-  }
+  const statusCfg = objekt.obj_status && objekt.obj_status in OBJ_STATUS_CONFIG
+    ? OBJ_STATUS_CONFIG[objekt.obj_status as keyof typeof OBJ_STATUS_CONFIG]
+    : { label: objekt.obj_status ?? '—', color: 'bg-slate-100 text-slate-600' };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -360,41 +225,35 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
           <div className="min-w-0">
             <p className="text-xs font-mono text-slate-400">{formatObjectId(objekt.id)}</p>
             <h2 className="text-lg font-semibold text-slate-900 leading-tight">{objekt.name}</h2>
-            {objekt.auftrag_ref && (
+            {objekt.lagerort && (
               <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3" />{objekt.auftrag_ref}
+                <MapPin className="h-3 w-3" />{objekt.lagerort}
               </p>
             )}
           </div>
-          <span className={cn(
-            'shrink-0 ml-3 rounded-full px-2.5 py-1 text-xs font-semibold',
-            allDone ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700',
-          )}>
-            {allDone ? 'VERFÜGBAR' : 'IN PRODUKTION'}
+          <span className={cn('shrink-0 ml-3 rounded-full px-2.5 py-1 text-xs font-semibold', statusCfg.color)}>
+            {statusCfg.label}
           </span>
         </div>
 
-        {/* Progress bar */}
-        <div className="mt-3 mb-1 flex items-center justify-between">
-          <span className="text-xs text-slate-500">Fortschritt</span>
-          <span className="text-xs font-semibold text-slate-700">{doneCount} / {totalCount}</span>
-        </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className={cn('h-full rounded-full transition-all duration-700', allDone ? 'bg-green-500' : 'bg-blue-500')}
-            style={{ width: `${(doneCount / totalCount) * 100}%` }}
-          />
-        </div>
-
-        {/* ProcessTracker */}
-        <div className="mt-4 overflow-x-auto pb-1">
-          <ProcessTracker steps={trackerSteps} currentStep={currentTrackerKey} />
-        </div>
+        {totalCount > 0 && (
+          <>
+            <div className="mt-3 mb-1 flex items-center justify-between">
+              <span className="text-xs text-slate-500">Fortschritt</span>
+              <span className="text-xs font-semibold text-slate-700">{doneCount} / {totalCount}</span>
+            </div>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all duration-700', allDone ? 'bg-green-500' : 'bg-blue-500')}
+                style={{ width: `${(doneCount / totalCount) * 100}%` }}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Step list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
-
         {allDone && (
           <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 flex items-center gap-3 mb-2">
             <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center shrink-0">
@@ -403,36 +262,40 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
             <div>
               <p className="text-sm font-semibold text-green-800">Alle Schritte abgeschlossen</p>
               <p className="text-xs text-green-600 mt-0.5 flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> Objekt ist jetzt VERFÜGBAR im Lager
+                <MapPin className="h-3 w-3" /> Objekt ist jetzt VERFÜGBAR
               </p>
             </div>
           </div>
         )}
 
-        {objekt.schritte.map(schritt => (
+        {protokoll.length === 0 && (
+          <p className="text-sm text-slate-500 text-center py-8">Kein Prozessprotokoll vorhanden.</p>
+        )}
+
+        {protokoll.map(schritt => (
           <div
-            key={schritt.id}
+            key={schritt.position}
             className={cn(
               'rounded-xl border transition-all',
               schritt.status === 'erledigt' && 'border-green-100 bg-green-50/60',
               schritt.status === 'aktiv' && 'border-blue-200 bg-blue-50 shadow-sm ring-1 ring-blue-100',
               schritt.status === 'ausstehend' && 'border-slate-100 bg-white opacity-60',
+              schritt.status === 'problem' && 'border-red-200 bg-red-50',
             )}
           >
             <div className="flex items-start gap-3 px-4 py-3">
-              {/* Status dot */}
               <div className={cn(
                 'mt-0.5 flex h-7 w-7 items-center justify-center rounded-full shrink-0 text-xs font-bold',
                 schritt.status === 'erledigt' && 'bg-green-500 text-white',
                 schritt.status === 'aktiv' && 'bg-blue-600 text-white',
                 schritt.status === 'ausstehend' && 'bg-slate-100 text-slate-400',
+                schritt.status === 'problem' && 'bg-red-500 text-white',
               )}>
                 {schritt.status === 'erledigt'
                   ? <Check className="h-3.5 w-3.5" />
                   : schritt.position}
               </div>
 
-              {/* Content */}
               <div className="flex-1 min-w-0">
                 <p className={cn(
                   'text-sm font-medium',
@@ -446,7 +309,7 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
                 {schritt.status === 'erledigt' && (
                   <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
                     <span className="text-xs text-green-600">
-                      ✓ {schritt.ausgefuehrt_von} · {schritt.ausgefuehrt_am}
+                      ✓ {schritt.ausgefuehrt_von} · {schritt.ausgefuehrt_am ? new Date(schritt.ausgefuehrt_am).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                     {schritt.ergebnis && (
                       <span className="text-xs font-medium text-green-700">{schritt.ergebnis}</span>
@@ -456,29 +319,8 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
                     ))}
                   </div>
                 )}
-
-                {schritt.status === 'aktiv' && (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {schritt.ressourcen && schritt.ressourcen.length > 0 && (
-                      <span className="text-xs bg-amber-100 text-amber-700 rounded-md px-1.5 py-0.5">
-                        {schritt.ressourcen.length} Ressource{schritt.ressourcen.length !== 1 ? 'n' : ''}
-                      </span>
-                    )}
-                    {schritt.daten_felder && schritt.daten_felder.length > 0 && (
-                      <span className="text-xs bg-blue-100 text-blue-700 rounded-md px-1.5 py-0.5">
-                        {schritt.daten_felder.length} Datenfeld{schritt.daten_felder.length !== 1 ? 'er' : ''}
-                      </span>
-                    )}
-                    {schritt.system_aktion && (
-                      <span className="text-xs bg-violet-100 text-violet-700 rounded-md px-1.5 py-0.5 flex items-center gap-1">
-                        <Zap className="h-3 w-3" /> System-Aktion
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* Execute button */}
               {schritt.status === 'aktiv' && (
                 <button
                   onClick={() => setActiveModal(schritt)}
@@ -489,9 +331,8 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
               )}
             </div>
 
-            {/* Expanded detail for active step */}
             {schritt.status === 'aktiv' && schritt.ressourcen && schritt.ressourcen.length > 0 && (
-              <div className="px-4 pb-3 border-t border-blue-100 mt-0 pt-2.5 space-y-1.5">
+              <div className="px-4 pb-3 border-t border-blue-100 pt-2.5 space-y-1.5">
                 <p className="text-xs font-medium text-blue-700 mb-1.5">Benötigte Materialien:</p>
                 {schritt.ressourcen.map(r => (
                   <div key={r.name} className="flex items-center justify-between text-xs">
@@ -505,12 +346,11 @@ export function ObjektProzessPanel({ initialData = DEMO_KAFFEEMASCHINE }: { init
         ))}
       </div>
 
-      {/* Modal */}
       {activeModal && (
         <SchrittModal
           schritt={activeModal}
+          instanzId={objekt.id}
           onClose={() => setActiveModal(null)}
-          onComplete={(ergebnis, daten) => handleComplete(activeModal, ergebnis, daten)}
         />
       )}
     </div>

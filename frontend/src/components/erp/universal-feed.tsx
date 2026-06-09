@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Loader2, InboxIcon, ArrowLeft,
-  Package, Building2, Wrench,
+  Package, Building2, Wrench, Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -47,22 +47,9 @@ const filterTabs: { value: FilterType; label: string }[] = [
   { value: 'user', label: 'Benutzer' },
 ];
 
-// Demo Objekte für Prototyp-Validierung
-const DEMO_OBJEKTE: UniversalObject[] = [
-  {
-    id: 100000235,
-    object_type: 'objekt',
-    title: 'Kaffeemaschine Typ A',
-    subtitle: 'Fertigungsauftrag #001 · Schritt 2/4',
-    status: 'IN_PRODUKTION',
-    number: '100000235',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-];
-
 const TYPE_MENU = [
   { key: 'item' as const, label: 'Artikel', icon: Package, available: true },
+  { key: 'objekt' as const, label: 'Objekt', icon: Layers, available: true },
   { key: 'company' as const, label: 'Firma', icon: Building2, available: false },
   { key: 'work_plan' as const, label: 'Arbeitsplan', icon: Wrench, available: false },
 ];
@@ -124,14 +111,24 @@ export function UniversalFeed() {
     },
   });
 
+  const { mutate: createObjekt, isPending: creatingObjekt } = useMutation({
+    mutationFn: () => api.createUniObjekt({ name: 'Neues Objekt' }),
+    onSuccess: (obj) => {
+      setShowTypeMenu(false);
+      setFilter('objekt');
+      setSelectedId(obj.id);
+      queryClient.invalidateQueries({ queryKey: ['objects'] });
+    },
+  });
+
+  const isCreating = creatingItem || creatingObjekt;
   const isLoading = isUserFilter ? usersLoading : (objectsLoading || (filter === 'all' && usersLoading));
   const isError = isUserFilter ? usersError : objectsError;
 
   const objects: UniversalObject[] = useMemo(() => {
     if (isUserFilter) return (usersData ?? []).map(profileToObject);
     const objs = objectsData?.items ?? [];
-    if (filter === 'objekt') return DEMO_OBJEKTE;
-    if (filter === 'all') return [...objs, ...DEMO_OBJEKTE, ...(usersData ?? []).map(profileToObject)];
+    if (filter === 'all') return [...objs, ...(usersData ?? []).map(profileToObject)];
     return objs;
   }, [isUserFilter, filter, usersData, objectsData]);
 
@@ -141,7 +138,7 @@ export function UniversalFeed() {
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (o) => o.title.toLowerCase().includes(q) || o.number.includes(q) || o.id.toString().includes(q),
+        (o) => o.title.toLowerCase().includes(q) || (o.number ?? '').includes(q) || o.id.toString().includes(q),
       );
     }
     return list;
@@ -180,12 +177,12 @@ export function UniversalFeed() {
           <button
             type="button"
             onClick={() => setShowTypeMenu((v) => !v)}
-            disabled={creatingItem}
+            disabled={isCreating}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-white hover:opacity-90 transition-opacity disabled:opacity-60"
             style={{ background: '#E51A14' }}
             aria-label="Neues Objekt erstellen"
           >
-            {creatingItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
           </button>
 
           {showTypeMenu && (
@@ -196,7 +193,10 @@ export function UniversalFeed() {
                   key={key}
                   type="button"
                   disabled={!available}
-                  onClick={() => { if (key === 'item') createItem(); }}
+                  onClick={() => {
+                    if (key === 'item') createItem();
+                    else if (key === 'objekt') createObjekt();
+                  }}
                   className={cn(
                     'flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors',
                     available
