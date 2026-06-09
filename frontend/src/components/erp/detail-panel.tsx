@@ -102,6 +102,7 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
         id={object.id}
         currentUserRole={currentUserRole}
         onRefresh={onRefresh}
+        onNavigate={(id) => onNavigate?.(id, 'prozess')}
       />
     );
   }

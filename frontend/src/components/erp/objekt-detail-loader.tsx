@@ -10,9 +10,10 @@ interface Props {
   id: number;
   currentUserRole?: string;
   onRefresh?: () => void;
+  onNavigate?: (id: number) => void;
 }
 
-export function ObjektDetailLoader({ id, currentUserRole, onRefresh }: Props) {
+export function ObjektDetailLoader({ id, currentUserRole, onRefresh, onNavigate }: Props) {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['uni-objekt', id],
     queryFn: () => api.getUniObjekt(id),
@@ -49,6 +50,7 @@ export function ObjektDetailLoader({ id, currentUserRole, onRefresh }: Props) {
         objekt={data}
         currentUserRole={currentUserRole}
         onRefresh={handleRefresh}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -58,6 +60,7 @@ export function ObjektDetailLoader({ id, currentUserRole, onRefresh }: Props) {
       key={data.id}
       objekt={data}
       onRefresh={handleRefresh}
+      onNavigate={onNavigate}
     />
   );
 }
