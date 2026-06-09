@@ -351,10 +351,6 @@ class ApiClient {
     return this.post(`/api/v1/uni-objekte/${instanceId}/protokoll/${position}/erledigen`, data);
   }
 
-  unterprozessStarten(instanzId: number, position: number): Promise<UniObjekt> {
-    return this.post(`/api/v1/uni-objekte/${instanzId}/protokoll/${position}/unterprozess-starten`, {});
-  }
-
   // ─── Contact form ──────────────────────────────────────────────────────────
 
   sendContactForm(data: {

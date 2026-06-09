@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Loader2, CheckCircle2,
   Lock, AlertCircle, Package, ClipboardList, Wrench,
-  GitBranch, ArrowDown, ThumbsUp, ThumbsDown, X, Network, Play,
+  GitBranch, ArrowDown, ThumbsUp, ThumbsDown, X, Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
@@ -53,10 +53,6 @@ const SCHRITT_TYP_CONFIG: Record<SchrittTyp, {
   gate: {
     label: 'Gate', icon: GitBranch, iconColor: 'text-violet-600', headerBg: 'bg-violet-50',
   },
-  unterprozess: {
-    label: 'Unterprozess', icon: Network, iconColor: 'text-teal-600', headerBg: 'bg-teal-50',
-    badge: 'auto-start', badgeColor: 'bg-teal-100 text-teal-700',
-  },
 };
 
 // ─── Type Chooser ─────────────────────────────────────────────────────────────
@@ -66,7 +62,6 @@ const TYPE_OPTIONS: { typ: SchrittTyp; desc: string }[] = [
   { typ: 'daten', desc: 'Einen Messwert oder Wert erfassen' },
   { typ: 'hilfsmittel', desc: 'Werkzeug/Messgerät referenzieren' },
   { typ: 'gate', desc: '👍 OK weiter  ·  👎 Problem → MRA' },
-  { typ: 'unterprozess', desc: 'Anderen Objektprozess anstoßen (N Instanzen)' },
 ];
 
 function TypeChooser({ onSelect, onClose }: { onSelect: (t: SchrittTyp) => void; onClose: () => void }) {
@@ -298,42 +293,6 @@ function GateContent() {
   );
 }
 
-function UnterprozessContent({ schritt, canEdit, onSave }: {
-  schritt: ProzessSchrittDef; canEdit: boolean;
-  onSave: (d: Parameters<typeof api.updateSchritt>[2]) => void;
-}) {
-  const [menge, setMenge] = useState(schritt.referenz_menge ?? 1);
-  const [objName, setObjName] = useState<string | null>(schritt.ressourcen?.[0]?.name ?? null);
-
-  useEffect(() => {
-    setMenge(schritt.referenz_menge ?? 1);
-    setObjName(schritt.ressourcen?.[0]?.name ?? null);
-  }, [schritt.id]);
-
-  function saveAll(id: number | null, name: string | null, m: number) {
-    onSave({ referenz_objekt_id: id, referenz_menge: m, ressourcen: id ? [{ ref_id: id, name: name ?? String(id), menge: m, einheit: 'Stk' }] : [] });
-  }
-
-  return (
-    <div className="space-y-2">
-      <ObjektSearchField
-        selectedId={schritt.referenz_objekt_id} selectedName={objName} canEdit={canEdit}
-        placeholder="Prozess-Objekt suchen…"
-        onSelect={(id, name) => { setObjName(name); saveAll(id, name, menge); }}
-        onClear={() => { setObjName(null); saveAll(null, null, menge); }}
-      />
-      <div className="flex items-center gap-2">
-        <span className="text-[11px] text-slate-500 shrink-0">Anzahl</span>
-        <input type="number" value={menge} disabled={!canEdit} min={1} step={1} max={1000}
-          onChange={(e) => { const m = Math.max(1, parseInt(e.target.value) || 1); setMenge(m); if (schritt.referenz_objekt_id) saveAll(schritt.referenz_objekt_id, objName, m); }}
-          className="form-input text-xs w-16 disabled:bg-slate-50"
-        />
-        <span className="text-[11px] text-slate-400">Instanz(en) → warten bis alle fertig</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Flowchart step card ──────────────────────────────────────────────────────
 
 function FlowCard({
@@ -402,7 +361,6 @@ function FlowCard({
         {typ === 'daten' && <DatenContent schritt={schritt} canEdit={canEdit} onSave={saveImm} />}
         {typ === 'hilfsmittel' && <HilfsmittelContent schritt={schritt} canEdit={canEdit} onSave={saveImm} />}
         {typ === 'gate' && <GateContent />}
-        {typ === 'unterprozess' && <UnterprozessContent schritt={schritt} canEdit={canEdit} onSave={saveImm} />}
       </div>
     </div>
   );

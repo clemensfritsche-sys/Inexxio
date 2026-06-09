@@ -101,116 +101,11 @@ def _build_protokoll(schritte: list[ProzessSchritt]) -> list[dict]:
     return result
 
 
-def _create_referenz_instanzen(
-    db: Session, referenz_objekt_id: int, menge: int, created_by: int
-) -> None:
-    stamm = db.query(UniversalObject).filter(
-        UniversalObject.id == referenz_objekt_id,
-        UniversalObject.object_type == ObjectType.OBJEKT,
-        UniversalObject.obj_status == "FREIGEGEBEN",
-        UniversalObject.stamm_id == None,  # noqa: E711
-        UniversalObject.is_active == True,
-    ).first()
-    if not stamm:
-        return
-    ref_schritte = _get_schritte(db, stamm.id)
-    ref_protokoll = _build_protokoll(ref_schritte)
-    for _ in range(menge):
-        inst = UniversalObject(
-            object_type=ObjectType.OBJEKT,
-            created_by=created_by,
-            updated_by=created_by,
-            stamm_id=stamm.id,
-            name=stamm.name,
-            obj_status="IN_PRODUKTION",
-            einheit=stamm.einheit,
-            schritt_protokoll=list(ref_protokoll),
-        )
-        db.add(inst)
-
-
-def _create_sub_instanzen(
-    db: Session, parent_instanz: UniversalObject, step_position: int,
-    stamm_id: int, menge: int, user_id: int
-) -> list[int]:
-    stamm = db.query(UniversalObject).filter(
-        UniversalObject.id == stamm_id,
-        UniversalObject.obj_status == "FREIGEGEBEN",
-        UniversalObject.stamm_id == None,  # noqa: E711
-        UniversalObject.is_active == True,
-    ).first()
-    if not stamm:
-        return []
-    schritte = _get_schritte(db, stamm.id)
-    proto = _build_protokoll(schritte)
-    subs = []
-    for _ in range(menge):
-        sub = UniversalObject(
-            object_type=ObjectType.OBJEKT,
-            created_by=user_id,
-            updated_by=user_id,
-            stamm_id=stamm.id,
-            name=stamm.name,
-            obj_status="IN_PRODUKTION",
-            einheit=stamm.einheit,
-            parent_instanz_id=parent_instanz.id,
-            parent_schritt_position=step_position,
-            schritt_protokoll=deepcopy(proto),
-        )
-        db.add(sub)
-        subs.append(sub)
-    db.flush()  # single flush after all adds — prevents N sequence gaps on rollback
-    return [sub.id for sub in subs]
-
-
-def _activate_step(
-    db: Session, instanz: UniversalObject, protokoll: list[dict],
-    position: int, user_id: int
-) -> None:
+def _activate_step(protokoll: list[dict], position: int) -> None:
     step = next((s for s in protokoll if s["position"] == position), None)
     if not step:
         return
     step["status"] = "aktiv"
-    if step.get("schritt_typ") == "unterprozess":
-        ref_id = step.get("referenz_objekt_id")
-        ref_menge = int(step.get("referenz_menge") or 1)
-        if ref_id:
-            sub_ids = _create_sub_instanzen(db, instanz, position, ref_id, ref_menge, user_id)
-            step["sub_instanzen"] = sub_ids
-
-
-def _check_advance_parent(db: Session, instanz: UniversalObject) -> None:
-    if not instanz.parent_instanz_id:
-        return
-    parent = db.query(UniversalObject).filter(
-        UniversalObject.id == instanz.parent_instanz_id,
-        UniversalObject.is_active == True,
-    ).first()
-    if not parent or parent.obj_status in _TERMINAL_STATUSES:
-        return
-    protokoll: list[dict] = deepcopy(parent.schritt_protokoll or [])
-    step = next((s for s in protokoll if s["position"] == instanz.parent_schritt_position), None)
-    if not step or step.get("schritt_typ") != "unterprozess":
-        return
-    sub_ids: list[int] = step.get("sub_instanzen") or []
-    if not sub_ids:
-        return
-    subs = db.query(UniversalObject).filter(UniversalObject.id.in_(sub_ids)).all()
-    if not all(s.obj_status == "VERFUEGBAR" for s in subs):
-        return
-    step["status"] = "erledigt"
-    step["ausgefuehrt_am"] = _now().isoformat()
-    step["ergebnis"] = "Alle Unterprozesse abgeschlossen"
-    remaining = sorted(s["position"] for s in protokoll if s["status"] != "erledigt")
-    if remaining:
-        _activate_step(db, parent, protokoll, remaining[0], parent.created_by or 0)
-    else:
-        parent.obj_status = "VERFUEGBAR"
-    parent.schritt_protokoll = protokoll
-    flag_modified(parent, 'schritt_protokoll')
-    parent.updated_at = _now()
-    db.flush()
-    _check_advance_parent(db, parent)
 
 
 # ─── List ─────────────────────────────────────────────────────────────────────
@@ -526,6 +421,8 @@ async def ausfuehren(
     created = []
 
     for _ in range(data.menge):
+        proto = deepcopy(protokoll_template)
+        _activate_step(proto, proto[0]["position"] if proto else 1)
         instanz = UniversalObject(
             object_type=ObjectType.OBJEKT,
             created_by=current_user.id,
@@ -535,19 +432,10 @@ async def ausfuehren(
             obj_status="IN_PRODUKTION",
             einheit=stamm.einheit,
             lagerort=data.lagerort,
-            schritt_protokoll=deepcopy(protokoll_template),
+            schritt_protokoll=proto,
         )
         db.add(instanz)
         created.append(instanz)
-
-    # Single flush after all adds — _activate_step needs instanz.id for sub-instances
-    db.flush()
-
-    for instanz in created:
-        proto = deepcopy(instanz.schritt_protokoll or [])
-        _activate_step(db, instanz, proto, proto[0]["position"] if proto else 1, current_user.id)
-        instanz.schritt_protokoll = proto
-        flag_modified(instanz, 'schritt_protokoll')
 
     db.commit()
     for inst in created:
@@ -593,55 +481,6 @@ async def list_instanzen(
     }
 
 
-# ─── Protokoll: start sub-process ────────────────────────────────────────────
-
-@router.post("/{instanz_id}/protokoll/{position}/unterprozess-starten", response_model=UniObjektDetail)
-async def unterprozess_starten(
-    instanz_id: int,
-    position: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_staff),
-):
-    instanz = db.query(UniversalObject).filter(
-        UniversalObject.id == instanz_id,
-        UniversalObject.object_type == ObjectType.OBJEKT,
-        UniversalObject.is_active == True,
-        UniversalObject.stamm_id != None,  # noqa: E711
-    ).first()
-    if not instanz:
-        raise HTTPException(status_code=404, detail="Instanz nicht gefunden")
-
-    protokoll: list[dict] = deepcopy(instanz.schritt_protokoll or [])
-    step = next((s for s in protokoll if s["position"] == position), None)
-    if not step:
-        raise HTTPException(status_code=404, detail="Schritt nicht gefunden")
-    if step.get("schritt_typ") != "unterprozess":
-        raise HTTPException(status_code=400, detail="Schritt ist kein Unterprozess")
-    if step["status"] != "aktiv":
-        raise HTTPException(status_code=400, detail="Schritt ist nicht aktiv")
-    if step.get("sub_instanzen"):
-        raise HTTPException(status_code=400, detail="Unterprozesse wurden bereits gestartet")
-
-    ref_id = step.get("referenz_objekt_id")
-    ref_menge = int(step.get("referenz_menge") or 1)
-    if not ref_id:
-        raise HTTPException(status_code=400, detail="Kein Referenz-Objekt hinterlegt")
-
-    sub_ids = _create_sub_instanzen(db, instanz, position, ref_id, ref_menge, current_user.id)
-    if not sub_ids:
-        raise HTTPException(status_code=404, detail="Referenz-Objekt nicht gefunden oder nicht freigegeben")
-
-    step["status"] = "wartend"
-    step["sub_instanzen"] = sub_ids
-    instanz.schritt_protokoll = protokoll
-    flag_modified(instanz, 'schritt_protokoll')
-    instanz.updated_at = _now()
-    instanz.updated_by = current_user.id
-    db.commit()
-    db.refresh(instanz)
-    return _build_detail(db, instanz)
-
-
 # ─── Protokoll: execute step ──────────────────────────────────────────────────
 
 @router.post("/{instanz_id}/protokoll/{position}/erledigen", response_model=UniObjektDetail)
@@ -679,7 +518,7 @@ async def schritt_erledigen(
     # Activate next step or mark complete
     positions = sorted(s["position"] for s in protokoll if s["status"] != "erledigt")
     if positions:
-        _activate_step(db, instanz, protokoll, positions[0], current_user.id)
+        _activate_step(protokoll, positions[0])
     else:
         instanz.obj_status = "VERFUEGBAR"
 
@@ -688,8 +527,5 @@ async def schritt_erledigen(
     instanz.updated_at = _now()
     instanz.updated_by = current_user.id
     db.commit()
-    if instanz.obj_status == "VERFUEGBAR":
-        _check_advance_parent(db, instanz)
-        db.commit()
     db.refresh(instanz)
     return _build_detail(db, instanz)

@@ -50,7 +50,7 @@ export interface ObjektTyp {
   created_at: string;
 }
 
-export type SchrittTyp = 'ressource' | 'daten' | 'hilfsmittel' | 'gate' | 'unterprozess';
+export type SchrittTyp = 'ressource' | 'daten' | 'hilfsmittel' | 'gate';
 
 export interface ProzessSchrittDef {
   id: number;
@@ -81,7 +81,6 @@ export interface SchrittProtokollEintrag {
   ausgefuehrt_am: string | null;
   ergebnis: string | null;
   erfasste_daten: Record<string, string> | null;
-  sub_instanzen?: number[] | null;
 }
 
 export interface UniObjektSummary {
