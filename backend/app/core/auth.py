@@ -32,13 +32,18 @@ def _init_firebase() -> None:
         _firebase_initialized = True
 
 
+def _no_admin_exists(db: Session) -> bool:
+    return not db.query(UserProfile).filter(
+        UserProfile.role == "admin", UserProfile.is_active == True
+    ).first()
+
+
 def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfile:
-    no_users_yet = not db.query(UserProfile).filter(UserProfile.is_active == True).first()
     email_is_admin = (
         settings.initial_admin_email
         and email.lower() == settings.initial_admin_email.lower()
     )
-    role = "admin" if (no_users_yet or email_is_admin) else "customer"
+    role = "admin" if (email_is_admin or _no_admin_exists(db)) else "customer"
     user = UserProfile(
         firebase_uid=uid,
         email=email,
@@ -72,11 +77,11 @@ def get_current_user(
             return _create_user(db, uid, email, decoded)
 
         changed = False
-        if (
+        email_is_admin = (
             settings.initial_admin_email
             and email.lower() == settings.initial_admin_email.lower()
-            and user.role != "admin"
-        ):
+        )
+        if user.role != "admin" and (email_is_admin or _no_admin_exists(db)):
             user.role = "admin"
             changed = True
         if email and user.email != email:
