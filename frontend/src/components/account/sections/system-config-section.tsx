@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock,
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CompanySettings, ItemName, ItemSurface, ItemCategory } from '@/types';
+import type { CompanySettings } from '@/types';
 
 type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations';
-type ListEntry = { id: number; label: string; is_active: boolean };
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -24,38 +24,34 @@ const EMPTY_SETTINGS: CompanySettings = {
 };
 
 export function SystemConfigSection() {
-  const [settings, setSettings] = useState<CompanySettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState<SectionKey | null>(null);
   const [saved, setSaved] = useState<SectionKey | null>(null);
   const [error, setError] = useState('');
-  const [itemNames, setItemNames] = useState<ItemName[]>([]);
-  const [itemSurfaces, setItemSurfaces] = useState<ItemSurface[]>([]);
-  const [itemCategories, setItemCategories] = useState<ItemCategory[]>([]);
-  const [configLoading, setConfigLoading] = useState(true);
 
-  useEffect(() => {
-    api.getSettings().then(setSettings).catch(() => setSettings(EMPTY_SETTINGS)).finally(() => setLoading(false));
-  }, []);
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.getSettings(),
+  });
 
-  useEffect(() => {
-    Promise.all([api.getItemNames(), api.getItemSurfaces(), api.getItemCategories()])
-      .then(([names, surfaces, cats]) => { setItemNames(names); setItemSurfaces(surfaces); setItemCategories(cats); })
-      .catch(() => {})
-      .finally(() => setConfigLoading(false));
-  }, []);
+  const mutation = useMutation({
+    mutationFn: (data: Partial<CompanySettings>) => api.updateSettings(data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['settings'], updated);
+    },
+  });
 
   async function saveSection(section: SectionKey, data: Partial<CompanySettings>) {
     setSaving(section); setError('');
     try {
-      const updated = await api.updateSettings(data);
-      setSettings(updated); setSaved(section);
+      await mutation.mutateAsync(data);
+      setSaved(section);
       setTimeout(() => setSaved(null), 3000);
     } catch { setError('Fehler beim Speichern. Bitte versuchen Sie es erneut.'); }
     finally { setSaving(null); }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
@@ -182,29 +178,6 @@ export function SystemConfigSection() {
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
         </div>
       </SettingsCard>
-
-      <div className="card p-4 sm:p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600">
-            <Package className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">ERP Objekt-Konfiguration</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Vordefinierte Auswahllisten für Objekte im ERP-System</p>
-          </div>
-        </div>
-        <div className="divide-y divide-slate-100">
-          <ListManager title="Objektnamen" description="Namen, die beim Erstellen eines Objekts ausgewählt werden können"
-            items={itemNames} loading={configLoading} onAdd={async (l) => { const item = await api.createItemName(l); setItemNames((p) => [...p, item]); }}
-            onDelete={async (id) => { await api.deleteItemName(id); setItemNames((p) => p.filter((i) => i.id !== id)); }} />
-          <ListManager title="Oberflächen" description="Oberflächenbehandlungen / Beschichtungen"
-            items={itemSurfaces} loading={configLoading} onAdd={async (l) => { const item = await api.createItemSurface(l); setItemSurfaces((p) => [...p, item]); }}
-            onDelete={async (id) => { await api.deleteItemSurface(id); setItemSurfaces((p) => p.filter((i) => i.id !== id)); }} />
-          <ListManager title="Produktkategorien" description="Kategorien für Verkaufsartikel im Shop"
-            items={itemCategories} loading={configLoading} onAdd={async (l) => { const item = await api.createItemCategory(l); setItemCategories((p) => [...p, item]); }}
-            onDelete={async (id) => { await api.deleteItemCategory(id); setItemCategories((p) => p.filter((i) => i.id !== id)); }} />
-        </div>
-      </div>
     </div>
   );
 }
@@ -278,59 +251,6 @@ function ToggleField({ name, label, defaultValue, description }: {
         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-blue-600' : 'bg-slate-200'}`}>
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
       </button>
-    </div>
-  );
-}
-
-function ListManager({ title, description, items, loading, onAdd, onDelete }: {
-  title: string; description: string; items: ListEntry[]; loading: boolean;
-  onAdd: (label: string) => Promise<void>; onDelete?: (id: number) => Promise<void>;
-}) {
-  const [newLabel, setNewLabel] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState('');
-
-  const handleAdd = async () => {
-    const label = newLabel.trim();
-    if (!label) return;
-    if (items.some((i) => i.label.toLowerCase() === label.toLowerCase())) { setAddError('Dieser Eintrag existiert bereits.'); return; }
-    setAdding(true); setAddError('');
-    try { await onAdd(label); setNewLabel(''); }
-    catch { setAddError('Fehler beim Hinzufügen.'); }
-    finally { setAdding(false); }
-  };
-
-  return (
-    <div className="py-5 first:pt-0">
-      <div className="mb-3">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-      </div>
-      {loading ? (
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3"><Loader2 className="h-3.5 w-3.5 animate-spin" />Lädt…</div>
-      ) : (
-        <div className="flex flex-wrap gap-1.5 mb-3 min-h-[1.75rem]">
-          {items.filter((i) => i.is_active).length === 0 ? (
-            <span className="text-xs text-slate-400 italic">Noch keine Einträge vorhanden</span>
-          ) : (
-            items.filter((i) => i.is_active).map((item) => (
-              <span key={item.id} className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-700 text-xs rounded-full border border-slate-200">
-                {item.label}
-                {onDelete && <button type="button" onClick={() => onDelete(item.id)} className="ml-0.5 text-slate-400 hover:text-red-500 transition-colors" title="Löschen">×</button>}
-              </span>
-            ))
-          )}
-        </div>
-      )}
-      <div className="flex gap-2">
-        <input type="text" value={newLabel} onChange={(e) => { setNewLabel(e.target.value); setAddError(''); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
-          placeholder={`Neuer ${title.replace(/en$/, '')}…`} className="form-input flex-1 text-sm" />
-        <button type="button" onClick={handleAdd} disabled={adding || !newLabel.trim()} className="btn-primary text-sm px-4 disabled:opacity-50 shrink-0">
-          {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Hinzufügen'}
-        </button>
-      </div>
-      {addError && <p className="mt-1 text-xs text-red-500">{addError}</p>}
     </div>
   );
 }
