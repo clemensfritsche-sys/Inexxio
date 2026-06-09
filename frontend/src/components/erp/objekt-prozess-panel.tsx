@@ -138,8 +138,8 @@ function InlineSchrittContent({
         ergebnis,
         erfasste_daten: Object.keys(daten).length > 0 ? daten : undefined,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['uni-objekt', instanzId] });
+    onSuccess: (updated) => {
+      qc.setQueryData(['uni-objekt', instanzId], updated);
     },
   });
 

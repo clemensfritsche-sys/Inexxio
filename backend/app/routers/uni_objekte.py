@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -187,7 +188,7 @@ def _check_advance_parent(db: Session, instanz: UniversalObject) -> None:
     ).first()
     if not parent or parent.obj_status in _TERMINAL_STATUSES:
         return
-    protokoll: list[dict] = list(parent.schritt_protokoll or [])
+    protokoll: list[dict] = deepcopy(parent.schritt_protokoll or [])
     step = next((s for s in protokoll if s["position"] == instanz.parent_schritt_position), None)
     if not step or step.get("schritt_typ") != "unterprozess":
         return
@@ -539,7 +540,7 @@ async def ausfuehren(
         db.add(instanz)
         db.flush()
         # Activate the first step (handles unterprozess)
-        proto = list(instanz.schritt_protokoll)
+        proto = deepcopy(instanz.schritt_protokoll or [])
         _activate_step(db, instanz, proto, proto[0]["position"] if proto else 1, current_user.id)
         instanz.schritt_protokoll = proto
         flag_modified(instanz, 'schritt_protokoll')
@@ -607,7 +608,7 @@ async def unterprozess_starten(
     if not instanz:
         raise HTTPException(status_code=404, detail="Instanz nicht gefunden")
 
-    protokoll: list[dict] = list(instanz.schritt_protokoll or [])
+    protokoll: list[dict] = deepcopy(instanz.schritt_protokoll or [])
     step = next((s for s in protokoll if s["position"] == position), None)
     if not step:
         raise HTTPException(status_code=404, detail="Schritt nicht gefunden")
@@ -659,7 +660,7 @@ async def schritt_erledigen(
     if instanz.obj_status in _TERMINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Abgeschlossene Instanzen können nicht geändert werden")
 
-    protokoll: list[dict] = list(instanz.schritt_protokoll or [])
+    protokoll: list[dict] = deepcopy(instanz.schritt_protokoll or [])
     step = next((s for s in protokoll if s["position"] == position), None)
     if not step:
         raise HTTPException(status_code=404, detail="Schritt nicht gefunden")
