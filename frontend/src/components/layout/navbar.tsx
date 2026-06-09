@@ -154,6 +154,15 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
+              {(userRole === 'admin' || userRole === 'employee') && (
+                <Link
+                  href="/erp"
+                  className={cn('ix-nav-link', pathname.startsWith('/erp') && 'ix-nav-link-active')}
+                  style={pathname.startsWith('/erp') ? { color: 'var(--ix-red)' } : {}}
+                >
+                  ERP
+                </Link>
+              )}
             </nav>
 
             {/* Desktop right */}
@@ -327,6 +336,21 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
+            {(userRole === 'admin' || userRole === 'employee') && (
+              <Link
+                href="/erp"
+                style={{
+                  font: '600 19px/1 var(--font-display)',
+                  letterSpacing: '-0.02em',
+                  padding: '14px 0',
+                  borderBottom: '1px solid var(--border-1)',
+                  color: pathname.startsWith('/erp') ? 'var(--ix-red)' : 'var(--fg-1)',
+                  textDecoration: 'none',
+                }}
+              >
+                ERP
+              </Link>
+            )}
 
 
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
