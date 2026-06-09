@@ -33,11 +33,12 @@ def _init_firebase() -> None:
 
 
 def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfile:
-    role = (
-        "admin"
-        if settings.initial_admin_email and email.lower() == settings.initial_admin_email.lower()
-        else "customer"
+    no_users_yet = not db.query(UserProfile).filter(UserProfile.is_active == True).first()
+    email_is_admin = (
+        settings.initial_admin_email
+        and email.lower() == settings.initial_admin_email.lower()
     )
+    role = "admin" if (no_users_yet or email_is_admin) else "customer"
     user = UserProfile(
         firebase_uid=uid,
         email=email,
