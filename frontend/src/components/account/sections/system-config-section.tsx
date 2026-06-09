@@ -189,12 +189,12 @@ export function SystemConfigSection() {
             <Package className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-900">ERP Artikelkonfiguration</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Vordefinierte Auswahllisten für Artikel im ERP-System</p>
+            <h2 className="text-base font-semibold text-slate-900">ERP Objekt-Konfiguration</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Vordefinierte Auswahllisten für Objekte im ERP-System</p>
           </div>
         </div>
         <div className="divide-y divide-slate-100">
-          <ListManager title="Artikelnamen" description="Namen, die beim Erstellen eines Artikels ausgewählt werden können"
+          <ListManager title="Objektnamen" description="Namen, die beim Erstellen eines Objekts ausgewählt werden können"
             items={itemNames} loading={configLoading} onAdd={async (l) => { const item = await api.createItemName(l); setItemNames((p) => [...p, item]); }}
             onDelete={async (id) => { await api.deleteItemName(id); setItemNames((p) => p.filter((i) => i.id !== id)); }} />
           <ListManager title="Oberflächen" description="Oberflächenbehandlungen / Beschichtungen"
