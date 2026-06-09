@@ -38,7 +38,7 @@ interface DetailPanelProps {
   currentUserRole?: string;
   onRefresh?: () => void;
   initialTab?: string;
-  onNavigate?: (itemId: number, tab: string) => void;
+  onNavigate?: (itemId: number, tab: string, objectType?: string) => void;
 }
 
 function getSteps(objectType: string) {
@@ -102,7 +102,7 @@ export function DetailPanel({ object, currentUserRole, onRefresh, initialTab, on
         id={object.id}
         currentUserRole={currentUserRole}
         onRefresh={onRefresh}
-        onNavigate={(id) => onNavigate?.(id, 'prozess')}
+        onNavigate={(id) => onNavigate?.(id, 'prozess', 'objekt')}
       />
     );
   }

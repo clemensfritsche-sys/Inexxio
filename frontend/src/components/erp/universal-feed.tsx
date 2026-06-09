@@ -57,6 +57,7 @@ export function UniversalFeed() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [navItemId, setNavItemId] = useState<number | null>(null);
   const [navTab, setNavTab] = useState<string>('stammdaten');
+  const [navObjectType, setNavObjectType] = useState<string>('item');
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const typeMenuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -132,7 +133,7 @@ export function UniversalFeed() {
   }, [objects, filter, search, isUserFilter]);
 
   const selectedObject = navItemId
-    ? ({ id: navItemId, object_type: 'item', title: '', subtitle: null, status: '', number: String(navItemId), created_at: '', updated_at: '' } as UniversalObject)
+    ? ({ id: navItemId, object_type: navObjectType, title: '', subtitle: null, status: '', number: String(navItemId), created_at: '', updated_at: '' } as UniversalObject)
     : filtered.find((o) => o.id === selectedId) ?? null;
 
   const handleRefresh = useCallback(() => {
@@ -146,9 +147,10 @@ export function UniversalFeed() {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
 
-  const handleNavigate = useCallback((itemId: number, tab: string) => {
+  const handleNavigate = useCallback((itemId: number, tab: string, objectType = 'item') => {
     setNavItemId(itemId);
     setNavTab(tab);
+    setNavObjectType(objectType);
     setSelectedId(itemId);
   }, []);
 
