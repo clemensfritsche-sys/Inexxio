@@ -2,7 +2,7 @@ import enum
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Numeric, Sequence, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, Numeric, Sequence, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,3 +61,7 @@ class UniversalObject(Base, TimestampMixin):
     lagerort: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     notiz: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     schritt_protokoll: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    parent_instanz_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("objects.id", ondelete="SET NULL"), nullable=True
+    )
+    parent_schritt_position: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

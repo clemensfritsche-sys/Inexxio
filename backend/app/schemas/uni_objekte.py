@@ -71,6 +71,7 @@ class UniObjektSummary(BaseModel):
     menge: Optional[Decimal]
     einheit: Optional[str]
     lagerort: Optional[str]
+    parent_instanz_id: Optional[int] = None
     instanzen_count: int = 0
     created_at: datetime
     updated_at: datetime
@@ -88,6 +89,7 @@ class UniObjektDetail(BaseModel):
     lagerort: Optional[str]
     notiz: Optional[str]
     schritt_protokoll: Optional[list[dict]]
+    parent_instanz_id: Optional[int] = None
     schritte: list[SchrittResponse]
     instanzen_count: int
     created_at: datetime

@@ -285,6 +285,13 @@ class ApiClient {
 
   // ─── Unified Objekte ───────────────────────────────────────────────────────
 
+  searchObjekte(q: string, obj_status?: string): Promise<UniObjektSummary[]> {
+    const p = new URLSearchParams({ q, stamm: 'true', page_size: '10' });
+    if (obj_status) p.set('obj_status', obj_status);
+    return this.get<PaginatedResponse<UniObjektSummary>>(`/api/v1/uni-objekte?${p.toString()}`)
+      .then((r) => r.items);
+  }
+
   listUniObjekte(params?: { q?: string; stamm?: boolean; page?: number; page_size?: number }): Promise<PaginatedResponse<UniObjektSummary>> {
     const p = new URLSearchParams();
     if (params?.q) p.set('q', params.q);

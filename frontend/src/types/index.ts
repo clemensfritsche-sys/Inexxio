@@ -50,7 +50,7 @@ export interface ObjektTyp {
   created_at: string;
 }
 
-export type SchrittTyp = 'ressource' | 'daten' | 'hilfsmittel' | 'gate';
+export type SchrittTyp = 'ressource' | 'daten' | 'hilfsmittel' | 'gate' | 'unterprozess';
 
 export interface ProzessSchrittDef {
   id: number;
@@ -98,6 +98,7 @@ export interface UniObjektSummary {
 export interface UniObjekt {
   id: number;
   stamm_id: number | null;
+  parent_instanz_id: number | null;
   name: string | null;
   obj_status: ObjStatus | null;
   menge: string | null;
