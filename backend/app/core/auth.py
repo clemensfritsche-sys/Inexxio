@@ -71,6 +71,13 @@ def get_current_user(
             return _create_user(db, uid, email, decoded)
 
         changed = False
+        if (
+            settings.initial_admin_email
+            and email.lower() == settings.initial_admin_email.lower()
+            and user.role != "admin"
+        ):
+            user.role = "admin"
+            changed = True
         if email and user.email != email:
             collision = db.query(UserProfile).filter(
                 UserProfile.email == email,
