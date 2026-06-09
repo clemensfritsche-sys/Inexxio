@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LayoutGrid, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
@@ -115,10 +115,6 @@ export function Navbar() {
 
   const displayName = nameForDisplay || user?.email?.split('@')[0] || 'Benutzer';
 
-  // Show ERP when role allows, or when role is unknown (still loading / backend down).
-  // The ERP layout is the real security gate — it redirects customer/supplier away.
-  const canAccessERP = userRole === 'employee' || userRole === 'admin' || userRole === null;
-
   return (
     <>
       <header
@@ -158,21 +154,6 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              {authLoaded && user && canAccessERP && (
-                <Link
-                  href="/erp"
-                  className={cn('ix-nav-link', pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'ix-nav-link-active' : '')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    ...(pathname.startsWith('/erp') || pathname.startsWith('/admin') ? { color: 'var(--ix-red)' } : {}),
-                  }}
-                >
-                  <LayoutGrid style={{ width: 13, height: 13 }} />
-                  ERP
-                </Link>
-              )}
             </nav>
 
             {/* Desktop right */}
@@ -347,25 +328,6 @@ export function Navbar() {
               </Link>
             ))}
 
-            {authLoaded && user && canAccessERP && (
-              <Link
-                href="/erp"
-                style={{
-                  font: '600 19px/1 var(--font-display)',
-                  letterSpacing: '-0.02em',
-                  padding: '14px 0',
-                  borderBottom: '1px solid var(--border-1)',
-                  color: pathname.startsWith('/erp') || pathname.startsWith('/admin') ? 'var(--ix-red)' : 'var(--fg-1)',
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <LayoutGrid style={{ width: 16, height: 16 }} />
-                ERP
-              </Link>
-            )}
 
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>
