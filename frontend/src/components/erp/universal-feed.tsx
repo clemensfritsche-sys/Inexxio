@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Loader2, InboxIcon, ArrowLeft,
-  Package, Building2, Wrench, Layers,
+  Package, Building2, Wrench, Layers, Star,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
@@ -121,7 +121,67 @@ export function UniversalFeed() {
     },
   });
 
-  const isCreating = creatingItem || creatingObjekt;
+  const { mutate: createDemo, isPending: creatingDemo } = useMutation({
+    mutationFn: async () => {
+      const obj = await api.createUniObjekt({ name: 'Kaffeemaschine Typ A', einheit: 'Stk' });
+      await api.addSchritt(obj.id, {
+        position: 1,
+        beschreibung: 'Rüsten & Material bereitlegen',
+        ressourcen: [
+          { name: 'Gehäuse Typ A', menge: 1, einheit: 'Stk' },
+          { name: 'Schraube M5 DIN912', menge: 10, einheit: 'Stk' },
+          { name: 'Motor EC-42', menge: 1, einheit: 'Stk' },
+          { name: 'Steuerplatine v2', menge: 1, einheit: 'Stk' },
+        ],
+        ergebnis_optionen: [
+          { label: 'Material OK', farbe: 'gruen' },
+          { label: 'Material fehlt', farbe: 'rot' },
+        ],
+      });
+      await api.addSchritt(obj.id, {
+        position: 2,
+        beschreibung: 'Montage',
+        ressourcen: [{ name: 'Schraube M5 DIN912', menge: 10, einheit: 'Stk' }],
+        daten_felder: [
+          { name: 'Seriennummer', typ: 'text', pflicht: true },
+          { name: 'Anzugsmoment Schrauben', typ: 'number', pflicht: true, einheit: 'Nm' },
+        ],
+        ergebnis_optionen: [
+          { label: 'Montage OK — weiter zu Test', farbe: 'gruen' },
+          { label: 'Problem — NCR auslösen', farbe: 'rot' },
+        ],
+      });
+      await api.addSchritt(obj.id, {
+        position: 3,
+        beschreibung: 'Funktionstest',
+        daten_felder: [
+          { name: 'Testprotokoll Nr.', typ: 'text', pflicht: true },
+          { name: 'Leistung gemessen', typ: 'number', pflicht: true, einheit: 'W' },
+          { name: 'Temperatur gemessen', typ: 'number', pflicht: true, einheit: '°C' },
+        ],
+        ergebnis_optionen: [
+          { label: 'Test bestanden', farbe: 'gruen' },
+          { label: 'Nacharbeit nötig', farbe: 'gelb' },
+          { label: 'Verschrotten', farbe: 'rot' },
+        ],
+      });
+      await api.addSchritt(obj.id, {
+        position: 4,
+        beschreibung: 'Einlagern',
+        daten_felder: [{ name: 'Lagerort', typ: 'text', pflicht: true }],
+        ergebnis_optionen: [{ label: 'Eingelagert', farbe: 'gruen' }],
+      });
+      return obj;
+    },
+    onSuccess: (obj) => {
+      setShowTypeMenu(false);
+      setFilter('objekt');
+      setSelectedId(obj.id);
+      queryClient.invalidateQueries({ queryKey: ['objects'] });
+    },
+  });
+
+  const isCreating = creatingItem || creatingObjekt || creatingDemo;
   const isLoading = isUserFilter ? usersLoading : (objectsLoading || (filter === 'all' && usersLoading));
   const isError = isUserFilter ? usersError : objectsError;
 
@@ -211,6 +271,18 @@ export function UniversalFeed() {
                   )}
                 </button>
               ))}
+              <div className="my-1 border-t border-slate-100" />
+              <p className="px-3 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Demo</p>
+              <button
+                type="button"
+                disabled={creatingDemo}
+                onClick={() => createDemo()}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer transition-colors disabled:opacity-60"
+              >
+                <Star className="h-4 w-4 shrink-0 text-amber-500" />
+                <span className="flex-1 text-left">Kaffeemaschine Typ A</span>
+                {creatingDemo && <Loader2 className="h-3 w-3 animate-spin" />}
+              </button>
             </div>
           )}
         </div>
