@@ -1,195 +1,292 @@
 'use client';
 
-import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Check, ChevronRight, X, Loader2,
-  Package, MapPin, AlertTriangle, Network, ExternalLink,
+  Check, ChevronRight, Loader2, Network, MapPin, AlertTriangle, Search, X, Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OBJ_STATUS_CONFIG } from '@/types';
-import type { UniObjekt, SchrittProtokollEintrag } from '@/types';
+import type { UniObjekt, SchrittProtokollEintrag, UniObjektSummary } from '@/types';
 
-// ─── Step execution modal ─────────────────────────────────────────────────────
+// ─── Reference confirmation search field ─────────────────────────────────────
 
-function SchrittModal({
+function ReferenzSearchField({
+  referenzId,
+  onMatch,
+}: {
+  referenzId: number;
+  onMatch: (ok: boolean) => void;
+}) {
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<UniObjektSummary | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: results = [], isFetching } = useQuery({
+    queryKey: ['objekt-search-ref', q],
+    queryFn: () => api.searchObjekte(q, 'FREIGEGEBEN'),
+    enabled: q.trim().length >= 1,
+    staleTime: 10_000,
+  });
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function select(item: UniObjektSummary) {
+    setSelected(item);
+    setQ('');
+    setOpen(false);
+    onMatch(item.id === referenzId);
+  }
+
+  function clear() {
+    setSelected(null);
+    onMatch(false);
+  }
+
+  const isMatch = selected !== null && selected.id === referenzId;
+  const isMismatch = selected !== null && selected.id !== referenzId;
+
+  return (
+    <div ref={containerRef} className="relative">
+      {selected ? (
+        <div className={cn(
+          'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+          isMatch ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50',
+        )}>
+          <span className="flex-1 font-medium truncate text-slate-800">
+            {formatObjectId(selected.id)} · {selected.name}
+          </span>
+          {isMatch
+            ? <Check className="h-4 w-4 text-green-600 shrink-0" />
+            : <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+          }
+          <button type="button" onClick={clear} className="text-slate-400 hover:text-slate-600">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          <input
+            type="search"
+            value={q}
+            onChange={e => { setQ(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            placeholder="Referenz suchen…"
+            className="w-full pl-8 pr-3 py-2 text-sm border border-blue-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {isFetching && (
+            <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400" />
+          )}
+        </div>
+      )}
+
+      {open && !selected && results.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg py-1 max-h-44 overflow-y-auto">
+          {results.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onMouseDown={() => select(item)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-slate-50 text-left"
+            >
+              <span className="font-mono text-xs text-slate-400 shrink-0">{formatObjectId(item.id)}</span>
+              <span className="flex-1 truncate text-slate-800">{item.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isMismatch && (
+        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          Falsche Referenz. Erwartet: {formatObjectId(referenzId)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Inline step execution content ────────────────────────────────────────────
+
+function InlineSchrittContent({
   schritt,
   instanzId,
-  onClose,
 }: {
   schritt: SchrittProtokollEintrag;
   instanzId: number;
-  onClose: () => void;
 }) {
   const qc = useQueryClient();
   const [daten, setDaten] = useState<Record<string, string>>({});
-  const [ergebnis, setErgebnis] = useState<string | null>(null);
+  const [referenzOk, setReferenzOk] = useState(false);
+  const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { mutate, isPending, error } = useMutation({
-    mutationFn: () =>
+    mutationFn: (ergebnis: string) =>
       api.schrittErledigen(instanzId, schritt.position, {
-        ergebnis: ergebnis ?? 'Erledigt',
+        ergebnis,
         erfasste_daten: Object.keys(daten).length > 0 ? daten : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['uni-objekt', instanzId] });
-      onClose();
     },
   });
 
-  const pflichtErfuellt =
-    !schritt.daten_felder ||
-    schritt.daten_felder.every(f => (daten[f.name] ?? '').trim() !== '');
-  const ergebnisErfuellt = ergebnis !== null;
-  const canComplete = pflichtErfuellt && ergebnisErfuellt;
+  const hasReferenz = !!schritt.referenz_objekt_id;
+  const hasDaten = !!(schritt.daten_felder && schritt.daten_felder.length > 0);
+  const hasOptionen = !!(schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0);
+  const isGate = schritt.schritt_typ === 'gate';
+
+  const allDatenFilled = !hasDaten || (schritt.daten_felder ?? []).every(f => (daten[f.name] ?? '').trim() !== '');
+
+  const handleDatenChange = useCallback((field: string, value: string) => {
+    const next = { ...daten, [field]: value };
+    setDaten(next);
+
+    if (hasOptionen || isGate || hasReferenz) return;
+
+    const allFilled = (schritt.daten_felder ?? []).every(f => (next[f.name] ?? '').trim() !== '');
+    if (!allFilled) return;
+
+    if (autoTimer.current) clearTimeout(autoTimer.current);
+    autoTimer.current = setTimeout(() => mutate('Erledigt'), 500);
+  }, [daten, schritt.daten_felder, hasOptionen, isGate, hasReferenz, mutate]);
+
+  const handleReferenzMatch = useCallback((ok: boolean) => {
+    setReferenzOk(ok);
+    if (ok && allDatenFilled) {
+      mutate('Erledigt');
+    }
+  }, [allDatenFilled, mutate]);
+
+  const colorMap: Record<string, string> = {
+    gruen: 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100',
+    rot: 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100',
+    gelb: 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
+  };
+
+  const opts = hasOptionen
+    ? schritt.ergebnis_optionen!
+    : isGate
+      ? [{ label: 'Erledigt', farbe: 'gruen' as const }, { label: 'Problem', farbe: 'rot' as const }]
+      : null;
+
+  if (isPending) {
+    return (
+      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Wird gespeichert…
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-      <div className="bg-white w-full sm:rounded-xl sm:shadow-2xl sm:max-w-lg max-h-[90vh] flex flex-col">
-        <div className="flex items-start justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-          <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
-              Schritt {schritt.position} ausführen
-            </p>
-            <h3 className="text-base font-semibold text-slate-900">{schritt.beschreibung}</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="ml-4 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <div className="mt-2 space-y-2.5">
+      {/* Daten fields */}
+      {hasDaten && (
+        <div className="space-y-2">
+          {(schritt.daten_felder ?? []).map(feld => (
+            <div key={feld.name}>
+              <label className="block text-xs font-medium text-blue-800 mb-1">
+                {feld.name}
+                {feld.einheit && <span className="text-blue-600 font-normal ml-1">({feld.einheit})</span>}
+                <span className="text-red-500 ml-0.5">*</span>
+              </label>
+              {feld.typ === 'auswahl' && feld.optionen ? (
+                <select
+                  value={daten[feld.name] ?? ''}
+                  onChange={e => handleDatenChange(feld.name, e.target.value)}
+                  className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— Auswählen —</option>
+                  {feld.optionen.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input
+                  type={feld.typ === 'number' ? 'number' : feld.typ === 'datum' ? 'date' : 'text'}
+                  value={daten[feld.name] ?? ''}
+                  onChange={e => handleDatenChange(feld.name, e.target.value)}
+                  placeholder={feld.typ === 'number' ? '0.00' : 'Eingabe…'}
+                  className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+                />
+              )}
+            </div>
+          ))}
         </div>
+      )}
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-          {schritt.ressourcen && schritt.ressourcen.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Ressourcen entnehmen
-              </p>
-              <div className="space-y-1.5">
-                {schritt.ressourcen.map(r => (
-                  <div key={r.name} className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <span className="text-sm text-slate-800">{r.name}</span>
-                      {r.ref_id && (
-                        <span className="text-xs font-mono text-slate-400">{formatObjectId(r.ref_id)}</span>
-                      )}
-                    </div>
-                    <span className="text-sm font-semibold text-amber-700">{r.menge} {r.einheit}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {schritt.daten_felder && schritt.daten_felder.length > 0 && (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Daten erfassen
-              </p>
-              {schritt.daten_felder.map(feld => (
-                <div key={feld.name}>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    {feld.name}
-                    {feld.einheit && <span className="text-slate-400 font-normal ml-1">({feld.einheit})</span>}
-                    <span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  {feld.typ === 'auswahl' && feld.optionen ? (
-                    <select
-                      value={daten[feld.name] ?? ''}
-                      onChange={e => setDaten(p => ({ ...p, [feld.name]: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">— Auswählen —</option>
-                      {feld.optionen.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      type={feld.typ === 'number' ? 'number' : feld.typ === 'datum' ? 'date' : 'text'}
-                      value={daten[feld.name] ?? ''}
-                      onChange={e => setDaten(p => ({ ...p, [feld.name]: e.target.value }))}
-                      placeholder={feld.typ === 'number' ? '0.00' : 'Eingabe…'}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Ergebnis wählen <span className="text-red-500 ml-0.5">*</span>
-            </p>
-            <div className="space-y-2">
-              {(schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0
-                ? schritt.ergebnis_optionen
-                : [{ label: 'Erledigt', farbe: 'gruen' as const }, { label: 'Problem', farbe: 'rot' as const }]
-              ).map(opt => {
-                const selected = ergebnis === opt.label;
-                const colorMap: Record<string, string> = {
-                  gruen: selected ? 'border-green-500 bg-green-50 text-green-800' : 'border-slate-200 hover:border-green-300 hover:bg-green-50/50',
-                  rot: selected ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-200 hover:border-red-300 hover:bg-red-50/50',
-                  gelb: selected ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-slate-200 hover:border-amber-300 hover:bg-amber-50/50',
-                };
-                return (
-                  <button
-                    key={opt.label}
-                    onClick={() => setErgebnis(opt.label)}
-                    className={cn(
-                      'w-full text-left rounded-lg border px-3 py-2.5 text-sm font-medium transition-all flex items-center gap-2',
-                      colorMap[opt.farbe] ?? colorMap.gruen,
-                    )}
-                  >
-                    <div className={cn(
-                      'h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center',
-                      selected ? 'border-current bg-current' : 'border-slate-300',
-                    )}>
-                      {selected && <Check className="h-2.5 w-2.5 text-white" />}
-                    </div>
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2.5">
-              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-              <p className="text-sm text-red-700">{(error as Error).message}</p>
-            </div>
-          )}
+      {/* Reference confirmation */}
+      {hasReferenz && (
+        <div>
+          <p className="text-xs font-medium text-blue-800 mb-1 flex items-center gap-1">
+            <Package className="h-3 w-3" />
+            Referenz bestätigen
+            <span className="font-mono text-blue-600">({formatObjectId(schritt.referenz_objekt_id!)})</span>
+          </p>
+          <ReferenzSearchField
+            referenzId={schritt.referenz_objekt_id!}
+            onMatch={handleReferenzMatch}
+          />
         </div>
+      )}
 
-        <div className="px-5 py-4 border-t border-slate-200 shrink-0 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            Abbrechen
-          </button>
-          <button
-            onClick={() => mutate()}
-            disabled={!canComplete || isPending}
-            className={cn(
-              'flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 transition-colors',
-              canComplete && !isPending
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-slate-100 text-slate-400 cursor-not-allowed',
-            )}
-          >
-            {isPending
-              ? <><Loader2 className="h-4 w-4 animate-spin" /> Wird gespeichert…</>
-              : <><Check className="h-4 w-4" /> Abschliessen</>
-            }
-          </button>
+      {/* Ergebnis options (gate / explicit options) */}
+      {opts && (
+        <div className="space-y-1.5">
+          {opts.map(opt => (
+            <button
+              key={opt.label}
+              type="button"
+              disabled={!allDatenFilled}
+              onClick={() => mutate(opt.label)}
+              className={cn(
+                'w-full text-left rounded-lg border px-3 py-2 text-sm font-medium transition-all flex items-center gap-2',
+                allDatenFilled
+                  ? colorMap[opt.farbe] ?? colorMap.gruen
+                  : 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed',
+              )}
+            >
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+              {opt.label}
+            </button>
+          ))}
         </div>
-      </div>
+      )}
+
+      {/* Simple done button (no daten, no reference, no options) */}
+      {!opts && !hasReferenz && !hasDaten && (
+        <button
+          type="button"
+          onClick={() => mutate('Erledigt')}
+          className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+        >
+          <Check className="h-3.5 w-3.5" /> Erledigt
+        </button>
+      )}
+
+      {/* Auto-save indicator for pure daten steps */}
+      {!opts && !hasReferenz && hasDaten && allDatenFilled && (
+        <div className="flex items-center gap-1.5 text-xs text-blue-500">
+          <Loader2 className="h-3 w-3 animate-spin" /> Wird automatisch gespeichert…
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-red-600 flex items-center gap-1">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          {(error as Error).message}
+        </p>
+      )}
     </div>
   );
 }
@@ -204,7 +301,6 @@ interface Props {
 
 export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
   const qc = useQueryClient();
-  const [activeModal, setActiveModal] = useState<SchrittProtokollEintrag | null>(null);
 
   const protokoll = objekt.schritt_protokoll ?? [];
   const doneCount = protokoll.filter(s => s.status === 'erledigt').length;
@@ -234,15 +330,6 @@ export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
               <span className="text-xs text-slate-400">Instanz</span>
             </div>
             <h2 className="text-lg font-semibold text-slate-900 leading-tight">{objekt.name}</h2>
-            {objekt.stamm_id && (
-              <button
-                onClick={() => onNavigate?.(objekt.stamm_id!)}
-                className="mt-0.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                <ExternalLink className="h-3 w-3 shrink-0" />
-                UR-Objekt: {formatObjectId(objekt.stamm_id)}
-              </button>
-            )}
             {objekt.lagerort && (
               <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                 <MapPin className="h-3 w-3" />{objekt.lagerort}
@@ -357,17 +444,14 @@ export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
                     ))}
                   </div>
                 )}
+
+                {/* Inline execution for active non-unterprozess steps */}
+                {schritt.status === 'aktiv' && schritt.schritt_typ !== 'unterprozess' && (
+                  <InlineSchrittContent schritt={schritt} instanzId={objekt.id} />
+                )}
               </div>
 
-              {schritt.status === 'aktiv' && schritt.schritt_typ !== 'unterprozess' && (
-                <button
-                  onClick={() => setActiveModal(schritt)}
-                  className="shrink-0 flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 active:bg-blue-800 transition-colors"
-                >
-                  Ausführen <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              )}
-
+              {/* Unterprozess start button */}
               {schritt.status === 'aktiv' && schritt.schritt_typ === 'unterprozess' && (
                 <button
                   onClick={() => startUnterprozess(schritt.position)}
@@ -397,14 +481,6 @@ export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
           </div>
         ))}
       </div>
-
-      {activeModal && (
-        <SchrittModal
-          schritt={activeModal}
-          instanzId={objekt.id}
-          onClose={() => setActiveModal(null)}
-        />
-      )}
     </div>
   );
 }

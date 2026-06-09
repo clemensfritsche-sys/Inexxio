@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from ..core.auth import require_staff
 from ..core.database import get_db
@@ -205,6 +206,7 @@ def _check_advance_parent(db: Session, instanz: UniversalObject) -> None:
     else:
         parent.obj_status = "VERFUEGBAR"
     parent.schritt_protokoll = protokoll
+    flag_modified(parent, 'schritt_protokoll')
     parent.updated_at = _now()
     db.flush()
     _check_advance_parent(db, parent)
@@ -627,6 +629,7 @@ async def unterprozess_starten(
     step["status"] = "wartend"
     step["sub_instanzen"] = sub_ids
     instanz.schritt_protokoll = protokoll
+    flag_modified(instanz, 'schritt_protokoll')
     instanz.updated_at = _now()
     instanz.updated_by = current_user.id
     db.commit()
@@ -676,6 +679,7 @@ async def schritt_erledigen(
         instanz.obj_status = "VERFUEGBAR"
 
     instanz.schritt_protokoll = protokoll
+    flag_modified(instanz, 'schritt_protokoll')
     instanz.updated_at = _now()
     instanz.updated_by = current_user.id
     db.commit()
