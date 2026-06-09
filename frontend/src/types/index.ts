@@ -70,7 +70,8 @@ export interface ProzessSchrittDef {
 export interface SchrittProtokollEintrag {
   position: number;
   beschreibung: string;
-  status: 'ausstehend' | 'aktiv' | 'erledigt' | 'problem';
+  schritt_typ?: string;
+  status: 'ausstehend' | 'aktiv' | 'wartend' | 'erledigt' | 'problem';
   ressourcen: RessourceDef[] | null;
   daten_felder: DatenFeldDef[] | null;
   ergebnis_optionen: ErgebnisOption[] | null;
@@ -80,6 +81,7 @@ export interface SchrittProtokollEintrag {
   ausgefuehrt_am: string | null;
   ergebnis: string | null;
   erfasste_daten: Record<string, string> | null;
+  sub_instanzen?: number[] | null;
 }
 
 export interface UniObjektSummary {
@@ -99,6 +101,7 @@ export interface UniObjekt {
   id: number;
   stamm_id: number | null;
   parent_instanz_id: number | null;
+  parent_schritt_position?: number | null;
   name: string | null;
   obj_status: ObjStatus | null;
   menge: string | null;

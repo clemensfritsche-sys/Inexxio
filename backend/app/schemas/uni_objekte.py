@@ -90,6 +90,7 @@ class UniObjektDetail(BaseModel):
     notiz: Optional[str]
     schritt_protokoll: Optional[list[dict]]
     parent_instanz_id: Optional[int] = None
+    parent_schritt_position: Optional[int] = None
     schritte: list[SchrittResponse]
     instanzen_count: int
     created_at: datetime

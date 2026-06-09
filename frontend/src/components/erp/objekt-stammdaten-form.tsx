@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Loader2, CheckCircle2,
   Lock, AlertCircle, Package, ClipboardList, Wrench,
-  GitBranch, ArrowDown, ThumbsUp, ThumbsDown, X, Network,
+  GitBranch, ArrowDown, ThumbsUp, ThumbsDown, X, Network, Play,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
@@ -570,8 +570,8 @@ function StammdatenTab({ objekt, itemNames, canEdit, onSave }: {
 
 type Tab = 'prozess' | 'stammdaten';
 
-export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh }: {
-  objekt: UniObjekt; currentUserRole?: string; onRefresh?: () => void;
+export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh, onNavigate }: {
+  objekt: UniObjekt; currentUserRole?: string; onRefresh?: () => void; onNavigate?: (id: number) => void;
 }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('prozess');
@@ -607,6 +607,18 @@ export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh
     onError: (e: Error) => setError(e.message),
   });
 
+  const { mutate: ausfuehren, isPending: ausfuehrenLoading } = useMutation({
+    mutationFn: () => api.ausfuehren(objekt.id, { menge: 1 }),
+    onSuccess: (instanzen) => {
+      qc.invalidateQueries({ queryKey: ['objects'] });
+      if (instanzen[0]?.id && onNavigate) {
+        onNavigate(instanzen[0].id);
+      }
+      onRefresh?.();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
   const savedTime = lastSaved ? lastSaved.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : null;
 
   return (
@@ -617,7 +629,7 @@ export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh
             <div className="flex items-center gap-1.5 mb-0.5">
               <span className="text-[11px] font-mono text-slate-400">{formatObjectId(objekt.id)}</span>
               <span className="text-[11px] text-slate-300">·</span>
-              <span className="text-[11px] text-slate-400">Objekt</span>
+              <span className="text-[11px] text-slate-400">Vorlage</span>
               {!canEdit && <Lock className="h-2.5 w-2.5 text-slate-400" />}
             </div>
             <h2 className="text-base font-semibold text-slate-900 leading-tight truncate">
@@ -639,14 +651,24 @@ export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh
           </div>
         )}
 
-        {canFreigeben && (
-          <button type="button" disabled={freigebeLoading} onClick={() => freigeben()}
-            className="mt-2 flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {freigebeLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
-            Freigeben
-          </button>
-        )}
+        <div className="flex items-center gap-2 mt-2">
+          {canFreigeben && (
+            <button type="button" disabled={freigebeLoading} onClick={() => freigeben()}
+              className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {freigebeLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lock className="h-3 w-3" />}
+              Freigeben
+            </button>
+          )}
+          {objekt.obj_status === 'FREIGEGEBEN' && (
+            <button type="button" disabled={ausfuehrenLoading} onClick={() => ausfuehren()}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {ausfuehrenLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              Ausführen
+            </button>
+          )}
+        </div>
 
         <div className="flex gap-1 mt-3 -mb-px">
           {(['prozess', 'stammdaten'] as Tab[]).map((t) => (

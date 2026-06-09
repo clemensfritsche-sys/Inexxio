@@ -292,10 +292,11 @@ class ApiClient {
       .then((r) => r.items);
   }
 
-  listUniObjekte(params?: { q?: string; stamm?: boolean; page?: number; page_size?: number }): Promise<PaginatedResponse<UniObjektSummary>> {
+  listUniObjekte(params?: { q?: string; stamm?: boolean; obj_status?: string; page?: number; page_size?: number }): Promise<PaginatedResponse<UniObjektSummary>> {
     const p = new URLSearchParams();
     if (params?.q) p.set('q', params.q);
     if (params?.stamm !== undefined) p.set('stamm', String(params.stamm));
+    if (params?.obj_status) p.set('obj_status', params.obj_status);
     if (params?.page) p.set('page', String(params.page));
     if (params?.page_size) p.set('page_size', String(params.page_size));
     const qs = p.toString();
@@ -348,6 +349,10 @@ class ApiClient {
 
   schrittErledigen(instanceId: number, position: number, data: { ergebnis: string; erfasste_daten?: Record<string, string>; ausgefuehrt_von?: string }): Promise<UniObjekt> {
     return this.post(`/api/v1/uni-objekte/${instanceId}/protokoll/${position}/erledigen`, data);
+  }
+
+  unterprozessStarten(instanzId: number, position: number): Promise<UniObjekt> {
+    return this.post(`/api/v1/uni-objekte/${instanzId}/protokoll/${position}/unterprozess-starten`, {});
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

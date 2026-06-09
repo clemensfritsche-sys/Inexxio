@@ -68,6 +68,7 @@ def _build_detail(db: Session, obj: UniversalObject) -> UniObjektDetail:
         notiz=obj.notiz,
         schritt_protokoll=obj.schritt_protokoll,
         parent_instanz_id=obj.parent_instanz_id,
+        parent_schritt_position=obj.parent_schritt_position,
         schritte=[SchrittResponse.model_validate(s) for s in schritte],
         instanzen_count=count,
         created_at=obj.created_at,
@@ -78,12 +79,12 @@ def _build_detail(db: Session, obj: UniversalObject) -> UniObjektDetail:
 
 def _build_protokoll(schritte: list[ProzessSchritt]) -> list[dict]:
     result = []
-    for s in schritte:
+    for i, s in enumerate(schritte):
         result.append({
             "position": s.position,
             "beschreibung": s.beschreibung,
             "schritt_typ": s.schritt_typ,
-            "status": "ausstehend",
+            "status": "aktiv" if i == 0 else "ausstehend",
             "ressourcen": s.ressourcen,
             "daten_felder": s.daten_felder,
             "ergebnis_optionen": s.ergebnis_optionen,
@@ -93,6 +94,7 @@ def _build_protokoll(schritte: list[ProzessSchritt]) -> list[dict]:
             "ausgefuehrt_am": None,
             "ergebnis": None,
             "erfasste_daten": None,
+            "sub_instanzen": None,
         })
     return result
 
@@ -582,6 +584,54 @@ async def list_instanzen(
         "page_size": page_size,
         "items": [_build_summary(db, i) for i in instanzen],
     }
+
+
+# ─── Protokoll: start sub-process ────────────────────────────────────────────
+
+@router.post("/{instanz_id}/protokoll/{position}/unterprozess-starten", response_model=UniObjektDetail)
+async def unterprozess_starten(
+    instanz_id: int,
+    position: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_staff),
+):
+    instanz = db.query(UniversalObject).filter(
+        UniversalObject.id == instanz_id,
+        UniversalObject.object_type == ObjectType.OBJEKT,
+        UniversalObject.is_active == True,
+        UniversalObject.stamm_id != None,  # noqa: E711
+    ).first()
+    if not instanz:
+        raise HTTPException(status_code=404, detail="Instanz nicht gefunden")
+
+    protokoll: list[dict] = list(instanz.schritt_protokoll or [])
+    step = next((s for s in protokoll if s["position"] == position), None)
+    if not step:
+        raise HTTPException(status_code=404, detail="Schritt nicht gefunden")
+    if step.get("schritt_typ") != "unterprozess":
+        raise HTTPException(status_code=400, detail="Schritt ist kein Unterprozess")
+    if step["status"] != "aktiv":
+        raise HTTPException(status_code=400, detail="Schritt ist nicht aktiv")
+    if step.get("sub_instanzen"):
+        raise HTTPException(status_code=400, detail="Unterprozesse wurden bereits gestartet")
+
+    ref_id = step.get("referenz_objekt_id")
+    ref_menge = int(step.get("referenz_menge") or 1)
+    if not ref_id:
+        raise HTTPException(status_code=400, detail="Kein Referenz-Objekt hinterlegt")
+
+    sub_ids = _create_sub_instanzen(db, instanz, position, ref_id, ref_menge, current_user.id)
+    if not sub_ids:
+        raise HTTPException(status_code=404, detail="Referenz-Objekt nicht gefunden oder nicht freigegeben")
+
+    step["status"] = "wartend"
+    step["sub_instanzen"] = sub_ids
+    instanz.schritt_protokoll = protokoll
+    instanz.updated_at = _now()
+    instanz.updated_by = current_user.id
+    db.commit()
+    db.refresh(instanz)
+    return _build_detail(db, instanz)
 
 
 # ─── Protokoll: execute step ──────────────────────────────────────────────────

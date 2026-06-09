@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check, ChevronRight, X, Loader2,
-  Package, MapPin, AlertTriangle,
+  Package, MapPin, AlertTriangle, Network, ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
