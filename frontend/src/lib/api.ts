@@ -97,6 +97,20 @@ class ApiClient {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
   }
 
+  // ─── ERP Records ──────────────────────────────────────────────────────────
+
+  getErpRecords(): Promise<UserProfile[]> {
+    return this.get('/api/v1/erp/records');
+  }
+
+  getErpRecord(objectId: number): Promise<UserProfile> {
+    return this.get(`/api/v1/erp/records/${objectId}`);
+  }
+
+  updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
+    return this.patch(`/api/v1/erp/records/${objectId}`, data);
+  }
+
   // ─── Contact form ──────────────────────────────────────────────────────────
 
   sendContactForm(data: {
