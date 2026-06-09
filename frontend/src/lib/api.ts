@@ -319,11 +319,11 @@ class ApiClient {
     return this.get(`/api/v1/uni-objekte/lookup/${nummer}`);
   }
 
-  addSchritt(id: number, data: { position: number; beschreibung: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[] }): Promise<ProzessSchrittDef> {
+  addSchritt(id: number, data: { position: number; beschreibung: string; schritt_typ: string; ressourcen?: object[]; daten_felder?: object[]; ergebnis_optionen?: object[]; referenz_objekt_id?: number | null; referenz_menge?: number }): Promise<ProzessSchrittDef> {
     return this.post(`/api/v1/uni-objekte/${id}/schritte`, data);
   }
 
-  updateSchritt(id: number, schrittId: number, data: Partial<{ position: number; beschreibung: string; ressourcen: object[]; daten_felder: object[]; ergebnis_optionen: object[] }>): Promise<ProzessSchrittDef> {
+  updateSchritt(id: number, schrittId: number, data: Partial<{ position: number; beschreibung: string; schritt_typ: string; ressourcen: object[]; daten_felder: object[]; ergebnis_optionen: object[]; referenz_objekt_id: number | null; referenz_menge: number }>): Promise<ProzessSchrittDef> {
     return this.patch(`/api/v1/uni-objekte/${id}/schritte/${schrittId}`, data);
   }
 

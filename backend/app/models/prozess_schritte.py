@@ -35,6 +35,8 @@ class ProzessSchritt(Base, TimestampMixin):
     )
     referenz_menge: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
 
+    schritt_typ: Mapped[str] = mapped_column(String(20), nullable=False, default="ressource", server_default="ressource")
+
     onshape_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     dokument_link: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

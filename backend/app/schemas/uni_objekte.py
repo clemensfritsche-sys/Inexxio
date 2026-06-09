@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class SchrittCreate(BaseModel):
     position: int
     beschreibung: str
+    schritt_typ: str = "ressource"
     ressourcen: Optional[list[dict]] = None
     daten_felder: Optional[list[dict]] = None
     ergebnis_optionen: Optional[list[dict]] = None
@@ -20,6 +21,7 @@ class SchrittCreate(BaseModel):
 class SchrittUpdate(BaseModel):
     position: Optional[int] = None
     beschreibung: Optional[str] = None
+    schritt_typ: Optional[str] = None
     ressourcen: Optional[list[dict]] = None
     daten_felder: Optional[list[dict]] = None
     ergebnis_optionen: Optional[list[dict]] = None
@@ -36,6 +38,7 @@ class SchrittResponse(BaseModel):
     objekt_id: Optional[int]
     position: int
     beschreibung: str
+    schritt_typ: str
     ressourcen: Optional[list[dict]]
     daten_felder: Optional[list[dict]]
     ergebnis_optionen: Optional[list[dict]]

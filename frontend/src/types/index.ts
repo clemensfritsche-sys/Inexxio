@@ -50,11 +50,14 @@ export interface ObjektTyp {
   created_at: string;
 }
 
+export type SchrittTyp = 'ressource' | 'daten' | 'hilfsmittel' | 'gate';
+
 export interface ProzessSchrittDef {
   id: number;
   objekt_id: number | null;
   position: number;
   beschreibung: string;
+  schritt_typ: SchrittTyp;
   ressourcen: RessourceDef[] | null;
   daten_felder: DatenFeldDef[] | null;
   ergebnis_optionen: ErgebnisOption[] | null;

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Trash2, ChevronUp, ChevronDown, Loader2, CheckCircle2,
-  Lock, Search, AlertCircle,
+  Lock, Search, AlertCircle, Package, ClipboardList, Wrench,
+  GitBranch, ArrowDown, ThumbsUp, ThumbsDown, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OBJ_STATUS_CONFIG } from '@/types';
 import type {
-  UniObjekt, ProzessSchrittDef, RessourceDef, DatenFeldDef, ErgebnisOption, ItemName,
+  UniObjekt, ProzessSchrittDef, DatenFeldDef, ItemName, SchrittTyp,
 } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -27,12 +28,6 @@ function ObjStatusBadge({ status }: { status: string | null }) {
   );
 }
 
-const ERGEBNIS_FARBEN = [
-  { value: 'gruen', label: '🟢 Grün (OK)', cls: 'bg-green-100 text-green-700' },
-  { value: 'gelb', label: '🟡 Gelb (Warnung)', cls: 'bg-amber-100 text-amber-700' },
-  { value: 'rot', label: '🔴 Rot (Fehler)', cls: 'bg-red-100 text-red-700' },
-];
-
 const DATENFELD_TYPEN = [
   { value: 'text', label: 'Text' },
   { value: 'number', label: 'Zahl' },
@@ -40,147 +35,293 @@ const DATENFELD_TYPEN = [
   { value: 'auswahl', label: 'Auswahl' },
 ];
 
-// ─── Ressourcen inline (search by Objekt-Nummer) ──────────────────────────────
+const SCHRITT_TYP_CONFIG: Record<SchrittTyp, {
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  headerBg: string;
+  badge?: string;
+  badgeColor?: string;
+}> = {
+  ressource: {
+    label: 'Ressource',
+    icon: Package,
+    color: 'text-orange-600',
+    headerBg: 'bg-orange-50',
+    badge: 'Bestandswirksam',
+    badgeColor: 'bg-orange-100 text-orange-700',
+  },
+  daten: {
+    label: 'Daten erfassen',
+    icon: ClipboardList,
+    color: 'text-blue-600',
+    headerBg: 'bg-blue-50',
+  },
+  hilfsmittel: {
+    label: 'Hilfsmittel',
+    icon: Wrench,
+    color: 'text-slate-600',
+    headerBg: 'bg-slate-50',
+    badge: 'Nicht bestandswirksam',
+    badgeColor: 'bg-slate-100 text-slate-600',
+  },
+  gate: {
+    label: 'Gate',
+    icon: GitBranch,
+    color: 'text-violet-600',
+    headerBg: 'bg-violet-50',
+  },
+};
 
-function RessourcenSection({
-  ressourcen,
-  canEdit,
-  onUpdate,
-}: {
-  ressourcen: RessourceDef[];
-  canEdit: boolean;
-  onUpdate: (r: RessourceDef[]) => void;
-}) {
-  const [lookup, setLookup] = useState('');
-  const [lookupErr, setLookupErr] = useState('');
-  const [lookupLoading, setLookupLoading] = useState(false);
+// ─── Type Chooser Panel ───────────────────────────────────────────────────────
 
-  async function handleLookup() {
-    const nr = parseInt(lookup.trim(), 10);
-    if (!nr) { setLookupErr('Bitte eine gültige 9-stellige Objekt-Nummer eingeben.'); return; }
-    setLookupLoading(true);
-    setLookupErr('');
-    try {
-      const obj = await api.lookupObjektByNummer(nr);
-      if (ressourcen.some((r) => r.ref_id === obj.id)) {
-        setLookupErr('Dieses Objekt ist bereits als Ressource eingetragen.'); return;
-      }
-      onUpdate([...ressourcen, { ref_id: obj.id, name: obj.name ?? String(obj.id), menge: 1, einheit: 'Stk' }]);
-      setLookup('');
-    } catch {
-      setLookupErr('Kein freigegebenes Objekt mit dieser Nummer gefunden.');
-    } finally {
-      setLookupLoading(false);
-    }
-  }
+const TYPE_OPTIONS: { typ: SchrittTyp; title: string; description: string; icon: React.ElementType }[] = [
+  { typ: 'ressource', title: 'Ressource', description: 'Material / Teil verbrauchen (bestandswirksam)', icon: Package },
+  { typ: 'daten', title: 'Daten erfassen', description: 'Felder zum Ausfüllen definieren', icon: ClipboardList },
+  { typ: 'hilfsmittel', title: 'Hilfsmittel', description: 'Werkzeug / Messgerät referenzieren', icon: Wrench },
+  { typ: 'gate', title: 'Gate', description: '👍 OK weiter  ·  👎 Problem → MRA', icon: GitBranch },
+];
 
+function TypeChooser({ onSelect, onClose }: { onSelect: (t: SchrittTyp) => void; onClose: () => void }) {
   return (
-    <div className="px-4 py-3">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Ressourcen</p>
-      {ressourcen.length > 0 && (
-        <div className="space-y-1.5 mb-2">
-          {ressourcen.map((r, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              <span className="font-mono text-xs text-slate-400 w-24 shrink-0">{r.ref_id ? formatObjectId(r.ref_id) : '—'}</span>
-              <span className="flex-1 text-slate-800 truncate min-w-0">{r.name}</span>
-              <input
-                type="number"
-                value={r.menge}
-                disabled={!canEdit}
-                min={0.001}
-                step={1}
-                onChange={(e) => onUpdate(ressourcen.map((x, j) => j === i ? { ...x, menge: parseFloat(e.target.value) || 1 } : x))}
-                className="w-16 text-right text-xs border border-slate-200 rounded px-2 py-1 disabled:bg-slate-50"
-              />
-              <input
-                type="text"
-                value={r.einheit}
-                disabled={!canEdit}
-                onChange={(e) => onUpdate(ressourcen.map((x, j) => j === i ? { ...x, einheit: e.target.value } : x))}
-                className="w-14 text-xs border border-slate-200 rounded px-2 py-1 disabled:bg-slate-50"
-                placeholder="Stk"
-              />
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => onUpdate(ressourcen.filter((_, j) => j !== i))}
-                  className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-80 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <p className="text-sm font-semibold text-slate-800">Schritt-Typ wählen</p>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="p-2">
+          {TYPE_OPTIONS.map(({ typ, title, description, icon: Icon }) => (
+            <button
+              key={typ}
+              type="button"
+              onClick={() => onSelect(typ)}
+              className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left hover:bg-slate-50 transition-colors"
+            >
+              <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', SCHRITT_TYP_CONFIG[typ].headerBg)}>
+                <Icon className={cn('h-4 w-4', SCHRITT_TYP_CONFIG[typ].color)} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-800">{title}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+              </div>
+            </button>
           ))}
         </div>
-      )}
-      {canEdit && (
-        <div className="space-y-1">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={lookup}
-              onChange={(e) => { setLookup(e.target.value); setLookupErr(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLookup(); } }}
-              placeholder="Objekt-Nr. suchen (z.B. 100000001)…"
-              className="form-input flex-1 text-xs"
-            />
-            <button
-              type="button"
-              onClick={handleLookup}
-              disabled={lookupLoading || !lookup.trim()}
-              className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0 flex items-center gap-1"
-            >
-              {lookupLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-          {lookupErr && <p className="text-xs text-red-500">{lookupErr}</p>}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ─── Datenfelder inline ───────────────────────────────────────────────────────
+// ─── Object Lookup Field ──────────────────────────────────────────────────────
 
-function DatenfelderSection({
-  datenFelder,
+function ObjektLookupField({
+  objektId,
+  objektName,
   canEdit,
-  onUpdate,
+  onFound,
+  onClear,
 }: {
-  datenFelder: DatenFeldDef[];
+  objektId: number | null;
+  objektName?: string | null;
   canEdit: boolean;
-  onUpdate: (d: DatenFeldDef[]) => void;
+  onFound: (id: number, name: string) => void;
+  onClear: () => void;
 }) {
+  const [input, setInput] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleLookup() {
+    const nr = parseInt(input.trim(), 10);
+    if (!nr) { setErr('Gültige 9-stellige Objekt-Nummer eingeben'); return; }
+    setLoading(true);
+    setErr('');
+    try {
+      const obj = await api.lookupObjektByNummer(nr);
+      onFound(obj.id, obj.name ?? String(obj.id));
+      setInput('');
+    } catch {
+      setErr('Kein freigegebenes Objekt mit dieser Nummer gefunden');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (objektId !== null) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <span className="font-mono text-xs text-slate-400 shrink-0">{formatObjectId(objektId)}</span>
+        <span className="flex-1 text-sm text-slate-800 truncate min-w-0">{objektName || '—'}</span>
+        {canEdit && (
+          <button type="button" onClick={onClear} className="text-slate-400 hover:text-red-500 transition-colors shrink-0">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          disabled={!canEdit}
+          onChange={(e) => { setInput(e.target.value); setErr(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLookup(); } }}
+          placeholder="Objekt-Nr. eingeben (z.B. 100000001)…"
+          className="form-input flex-1 text-xs"
+        />
+        <button
+          type="button"
+          onClick={handleLookup}
+          disabled={loading || !input.trim()}
+          className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0 flex items-center gap-1"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+      {err && <p className="text-xs text-red-500">{err}</p>}
+    </div>
+  );
+}
+
+// ─── Step Content by Type ─────────────────────────────────────────────────────
+
+function RessourceContent({
+  schritt,
+  canEdit,
+  onSave,
+}: {
+  schritt: ProzessSchrittDef;
+  canEdit: boolean;
+  onSave: (data: Partial<Parameters<typeof api.updateSchritt>[2]>) => void;
+}) {
+  const [menge, setMenge] = useState(schritt.referenz_menge ?? 1);
+  const [einheit, setEinheit] = useState(() => {
+    if (schritt.ressourcen?.[0]?.einheit) return schritt.ressourcen[0].einheit;
+    return 'Stk';
+  });
+  const [objName, setObjName] = useState<string | null>(() => schritt.ressourcen?.[0]?.name ?? null);
+
+  useEffect(() => {
+    setMenge(schritt.referenz_menge ?? 1);
+    setEinheit(schritt.ressourcen?.[0]?.einheit ?? 'Stk');
+    setObjName(schritt.ressourcen?.[0]?.name ?? null);
+  }, [schritt.id]);
+
+  function saveRef(id: number | null, name: string | null, m: number, e: string) {
+    onSave({
+      referenz_objekt_id: id,
+      referenz_menge: m,
+      ressourcen: id ? [{ ref_id: id, name: name ?? String(id), menge: m, einheit: e }] : [],
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-medium text-slate-500 mb-1.5">Objekt (freigegeben)</p>
+        <ObjektLookupField
+          objektId={schritt.referenz_objekt_id}
+          objektName={objName}
+          canEdit={canEdit}
+          onFound={(id, name) => {
+            setObjName(name);
+            saveRef(id, name, menge, einheit);
+          }}
+          onClear={() => { setObjName(null); saveRef(null, null, menge, einheit); }}
+        />
+      </div>
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-slate-500 mb-1.5">Menge</p>
+          <input
+            type="number"
+            value={menge}
+            disabled={!canEdit}
+            min={0.001}
+            step={1}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value) || 1;
+              setMenge(v);
+              if (schritt.referenz_objekt_id) saveRef(schritt.referenz_objekt_id, objName, v, einheit);
+            }}
+            className="form-input text-sm disabled:bg-slate-50"
+          />
+        </div>
+        <div className="w-24">
+          <p className="text-xs font-medium text-slate-500 mb-1.5">Einheit</p>
+          <input
+            type="text"
+            value={einheit}
+            disabled={!canEdit}
+            onChange={(e) => {
+              setEinheit(e.target.value);
+              if (schritt.referenz_objekt_id) saveRef(schritt.referenz_objekt_id, objName, menge, e.target.value);
+            }}
+            className="form-input text-sm disabled:bg-slate-50"
+            placeholder="Stk"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DatenContent({
+  schritt,
+  canEdit,
+  onSave,
+}: {
+  schritt: ProzessSchrittDef;
+  canEdit: boolean;
+  onSave: (data: Partial<Parameters<typeof api.updateSchritt>[2]>) => void;
+}) {
+  const [felder, setFelder] = useState<DatenFeldDef[]>(schritt.daten_felder ?? []);
   const [newName, setNewName] = useState('');
   const [newTyp, setNewTyp] = useState<DatenFeldDef['typ']>('text');
+
+  useEffect(() => {
+    setFelder(schritt.daten_felder ?? []);
+  }, [schritt.id]);
 
   function addFeld() {
     const name = newName.trim();
     if (!name) return;
-    onUpdate([...datenFelder, { name, typ: newTyp, pflicht: true }]);
+    const updated = [...felder, { name, typ: newTyp, pflicht: true }];
+    setFelder(updated);
+    onSave({ daten_felder: updated });
     setNewName('');
     setNewTyp('text');
   }
 
+  function removeFeld(i: number) {
+    const updated = felder.filter((_, j) => j !== i);
+    setFelder(updated);
+    onSave({ daten_felder: updated });
+  }
+
   return (
-    <div className="px-4 py-3">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Datenfelder</p>
-      {datenFelder.length > 0 && (
-        <div className="space-y-1.5 mb-2">
-          {datenFelder.map((f, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              <span className="flex-1 text-slate-800 text-xs">{f.name}</span>
-              <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+    <div className="space-y-2">
+      {felder.length > 0 && (
+        <div className="space-y-1.5">
+          {felder.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5">
+              <span className="flex-1 text-sm text-slate-800 min-w-0 truncate">{f.name}</span>
+              <span className="text-xs text-slate-500 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
                 {DATENFELD_TYPEN.find((t) => t.value === f.typ)?.label ?? f.typ}
               </span>
-              {f.einheit && <span className="text-xs text-slate-400">{f.einheit}</span>}
               {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => onUpdate(datenFelder.filter((_, j) => j !== i))}
-                  className="text-slate-400 hover:text-red-500 transition-colors shrink-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
+                <button type="button" onClick={() => removeFeld(i)} className="text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -216,87 +357,71 @@ function DatenfelderSection({
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Ergebnis-Optionen inline ─────────────────────────────────────────────────
-
-function ErgebnisSection({
-  optionen,
-  canEdit,
-  onUpdate,
-}: {
-  optionen: ErgebnisOption[];
-  canEdit: boolean;
-  onUpdate: (e: ErgebnisOption[]) => void;
-}) {
-  const [newLabel, setNewLabel] = useState('');
-  const [newFarbe, setNewFarbe] = useState<ErgebnisOption['farbe']>('gruen');
-
-  function addOption() {
-    const label = newLabel.trim();
-    if (!label) return;
-    onUpdate([...optionen, { label, farbe: newFarbe }]);
-    setNewLabel('');
-    setNewFarbe('gruen');
-  }
-
-  return (
-    <div className="px-4 py-3">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Ergebnis-Optionen</p>
-      <div className="flex flex-wrap gap-1.5 mb-2">
-        {optionen.map((o, i) => {
-          const cfg = ERGEBNIS_FARBEN.find((f) => f.value === o.farbe);
-          return (
-            <span key={i} className={cn('inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium', cfg?.cls ?? 'bg-slate-100 text-slate-600')}>
-              {o.label}
-              {canEdit && optionen.length > 1 && (
-                <button type="button" onClick={() => onUpdate(optionen.filter((_, j) => j !== i))} className="opacity-60 hover:opacity-100 transition-opacity ml-0.5">
-                  ×
-                </button>
-              )}
-            </span>
-          );
-        })}
-      </div>
-      {canEdit && (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } }}
-            placeholder="Bezeichnung…"
-            className="form-input flex-1 text-xs"
-          />
-          <select
-            value={newFarbe}
-            onChange={(e) => setNewFarbe(e.target.value as ErgebnisOption['farbe'])}
-            className="form-input w-36 text-xs"
-          >
-            {ERGEBNIS_FARBEN.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={addOption}
-            disabled={!newLabel.trim()}
-            className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-50 shrink-0"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
-        </div>
+      {felder.length === 0 && !canEdit && (
+        <p className="text-xs text-slate-400 italic">Keine Felder definiert.</p>
       )}
     </div>
   );
 }
 
-// ─── SchrittCard (always-expanded, flat inline editing) ───────────────────────
-
-function SchrittCard({
+function HilfsmittelContent({
   schritt,
+  canEdit,
+  onSave,
+}: {
+  schritt: ProzessSchrittDef;
+  canEdit: boolean;
+  onSave: (data: Partial<Parameters<typeof api.updateSchritt>[2]>) => void;
+}) {
+  const [objName, setObjName] = useState<string | null>(() => schritt.ressourcen?.[0]?.name ?? null);
+
+  useEffect(() => {
+    setObjName(schritt.ressourcen?.[0]?.name ?? null);
+  }, [schritt.id]);
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1.5">Hilfsmittel (Objekt)</p>
+      <ObjektLookupField
+        objektId={schritt.referenz_objekt_id}
+        objektName={objName}
+        canEdit={canEdit}
+        onFound={(id, name) => {
+          setObjName(name);
+          onSave({ referenz_objekt_id: id, ressourcen: [{ ref_id: id, name, menge: 1, einheit: '' }] });
+        }}
+        onClear={() => { setObjName(null); onSave({ referenz_objekt_id: null, ressourcen: [] }); }}
+      />
+    </div>
+  );
+}
+
+function GateContent() {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
+        <ThumbsUp className="h-4 w-4 text-green-600 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-green-800">OK</p>
+          <p className="text-xs text-green-600">Prozess weiter</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+        <ThumbsDown className="h-4 w-4 text-red-600 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-red-800">Problem</p>
+          <p className="text-xs text-red-600">MRA-Prozess anstoßen</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Flowchart Step Card ──────────────────────────────────────────────────────
+
+function FlowSchrittCard({
+  schritt,
+  position,
   isFirst,
   isLast,
   canEdit,
@@ -307,6 +432,7 @@ function SchrittCard({
   onSaved,
 }: {
   schritt: ProzessSchrittDef;
+  position: number;
   isFirst: boolean;
   isLast: boolean;
   canEdit: boolean;
@@ -318,25 +444,9 @@ function SchrittCard({
 }) {
   const qc = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [ressourcen, setRessourcen] = useState<RessourceDef[]>(schritt.ressourcen ?? []);
-  const [datenFelder, setDatenFelder] = useState<DatenFeldDef[]>(schritt.daten_felder ?? []);
-  const [ergebnisse, setErgebnisse] = useState<ErgebnisOption[]>(
-    schritt.ergebnis_optionen?.length
-      ? schritt.ergebnis_optionen
-      : [{ label: 'Erledigt', farbe: 'gruen' }, { label: 'Problem', farbe: 'rot' }]
-  );
-
-  // Sync from parent when schritt changes
-  useEffect(() => {
-    setRessourcen(schritt.ressourcen ?? []);
-    setDatenFelder(schritt.daten_felder ?? []);
-    setErgebnisse(
-      schritt.ergebnis_optionen?.length
-        ? schritt.ergebnis_optionen
-        : [{ label: 'Erledigt', farbe: 'gruen' }, { label: 'Problem', farbe: 'rot' }]
-    );
-  }, [schritt.id]);
+  const typ = schritt.schritt_typ ?? 'ressource';
+  const cfg = SCHRITT_TYP_CONFIG[typ as SchrittTyp] ?? SCHRITT_TYP_CONFIG.ressource;
+  const Icon = cfg.icon;
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: (data: Parameters<typeof api.updateSchritt>[2]) =>
@@ -347,68 +457,81 @@ function SchrittCard({
     },
   });
 
-  function saveNow(data: Parameters<typeof api.updateSchritt>[2]) {
-    if (!canEdit) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => save(data), 600);
-  }
-
-  function saveImmediate(data: Parameters<typeof api.updateSchritt>[2]) {
+  const saveImmediate = useCallback((data: Parameters<typeof api.updateSchritt>[2]) => {
     if (!canEdit) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     save(data);
-  }
+  }, [canEdit, save]);
+
+  const saveDebounced = useCallback((data: Parameters<typeof api.updateSchritt>[2]) => {
+    if (!canEdit) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => save(data), 600);
+  }, [canEdit, save]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* Step header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600 shrink-0">
-          {schritt.position}
-        </span>
+      {/* Header */}
+      <div className={cn('flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-200', cfg.headerBg)}>
+        <div className={cn('flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-[10px] font-bold shrink-0', cfg.color)}>
+          {position}
+        </div>
+        <Icon className={cn('h-3.5 w-3.5 shrink-0', cfg.color)} />
+        <span className={cn('text-xs font-semibold shrink-0', cfg.color)}>{cfg.label}</span>
+        {cfg.badge && (
+          <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', cfg.badgeColor)}>
+            {cfg.badge}
+          </span>
+        )}
         <input
-          key={schritt.id}
+          key={`${schritt.id}-desc`}
           type="text"
           defaultValue={schritt.beschreibung}
           disabled={!canEdit}
-          onChange={(e) => saveNow({ beschreibung: e.target.value })}
-          className="flex-1 text-sm font-medium text-slate-900 bg-transparent border-none outline-none focus:ring-0 disabled:text-slate-600 min-w-0"
-          placeholder="Schrittname…"
+          onChange={(e) => saveDebounced({ beschreibung: e.target.value })}
+          className="flex-1 min-w-0 text-sm font-medium text-slate-800 bg-transparent border-none outline-none focus:ring-0 disabled:text-slate-600 placeholder:text-slate-400"
+          placeholder="Schritt beschreiben…"
         />
         {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 shrink-0" />}
         {canEdit && (
           <div className="flex items-center gap-0.5 shrink-0">
-            <button type="button" disabled={isFirst} onClick={onMoveUp} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors">
-              <ChevronUp className="h-4 w-4" />
+            <button type="button" disabled={isFirst} onClick={onMoveUp} className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 transition-colors">
+              <ChevronUp className="h-3.5 w-3.5" />
             </button>
-            <button type="button" disabled={isLast} onClick={onMoveDown} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors">
-              <ChevronDown className="h-4 w-4" />
+            <button type="button" disabled={isLast} onClick={onMoveDown} className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 transition-colors">
+              <ChevronDown className="h-3.5 w-3.5" />
             </button>
             <button type="button" onClick={onDelete} className="p-1 text-slate-400 hover:text-red-500 transition-colors">
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
       </div>
 
-      {/* Inline sections */}
-      <div className="divide-y divide-slate-100">
-        <RessourcenSection
-          ressourcen={ressourcen}
-          canEdit={canEdit}
-          onUpdate={(r) => { setRessourcen(r); saveImmediate({ ressourcen: r }); }}
-        />
-        <DatenfelderSection
-          datenFelder={datenFelder}
-          canEdit={canEdit}
-          onUpdate={(d) => { setDatenFelder(d); saveImmediate({ daten_felder: d }); }}
-        />
-        <ErgebnisSection
-          optionen={ergebnisse}
-          canEdit={canEdit}
-          onUpdate={(e) => { setErgebnisse(e); saveImmediate({ ergebnis_optionen: e }); }}
-        />
+      {/* Type-specific content */}
+      <div className="px-4 py-3">
+        {typ === 'ressource' && (
+          <RessourceContent schritt={schritt} canEdit={canEdit} onSave={saveImmediate} />
+        )}
+        {typ === 'daten' && (
+          <DatenContent schritt={schritt} canEdit={canEdit} onSave={saveImmediate} />
+        )}
+        {typ === 'hilfsmittel' && (
+          <HilfsmittelContent schritt={schritt} canEdit={canEdit} onSave={saveImmediate} />
+        )}
+        {typ === 'gate' && <GateContent />}
       </div>
+    </div>
+  );
+}
+
+// ─── Flowchart connector ──────────────────────────────────────────────────────
+
+function FlowConnector() {
+  return (
+    <div className="flex flex-col items-center py-0.5">
+      <div className="w-px h-4 bg-slate-300" />
+      <ArrowDown className="h-3 w-3 text-slate-300 -mt-0.5" />
     </div>
   );
 }
@@ -425,15 +548,13 @@ function ProzessTab({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const [showTypeChooser, setShowTypeChooser] = useState(false);
 
   const addMut = useMutation({
-    mutationFn: () => api.addSchritt(objekt.id, {
+    mutationFn: (typ: SchrittTyp) => api.addSchritt(objekt.id, {
       position: objekt.schritte.length + 1,
-      beschreibung: 'Neuer Schritt',
-      ergebnis_optionen: [
-        { label: 'Erledigt', farbe: 'gruen' },
-        { label: 'Problem', farbe: 'rot' },
-      ],
+      beschreibung: '',
+      schritt_typ: typ,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['uni-objekt', objekt.id] });
@@ -476,41 +597,84 @@ function ProzessTab({
     moveMut.mutate({ id: next.id, pos: schritt.position });
   }
 
+  function handleTypeSelect(typ: SchrittTyp) {
+    setShowTypeChooser(false);
+    addMut.mutate(typ);
+  }
+
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4">
       {!canEdit && (
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 mb-4">
           <Lock className="h-3.5 w-3.5 shrink-0" />
           Prozess ist gesperrt — Objekt ist freigegeben.
         </div>
       )}
+
+      {/* START node */}
+      <div className="flex justify-center mb-1">
+        <div className="flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+          ▶ START
+        </div>
+      </div>
+
       {sorted.length === 0 && (
-        <p className="text-sm text-slate-500 text-center py-8">Noch keine Schritte definiert.</p>
+        <>
+          <FlowConnector />
+          <p className="text-center text-xs text-slate-400 py-4">Noch keine Schritte — Schritt hinzufügen unten.</p>
+        </>
       )}
+
       {sorted.map((s, idx) => (
-        <SchrittCard
-          key={s.id}
-          schritt={s}
-          isFirst={idx === 0}
-          isLast={idx === sorted.length - 1}
-          canEdit={canEdit}
-          objektId={objekt.id}
-          onDelete={() => deleteMut.mutate(s.id)}
-          onMoveUp={() => moveUp(s)}
-          onMoveDown={() => moveDown(s)}
-          onSaved={onSaved}
-        />
+        <div key={s.id}>
+          <FlowConnector />
+          <FlowSchrittCard
+            schritt={s}
+            position={idx + 1}
+            isFirst={idx === 0}
+            isLast={idx === sorted.length - 1}
+            canEdit={canEdit}
+            objektId={objekt.id}
+            onDelete={() => deleteMut.mutate(s.id)}
+            onMoveUp={() => moveUp(s)}
+            onMoveDown={() => moveDown(s)}
+            onSaved={onSaved}
+          />
+        </div>
       ))}
+
+      {/* Add step */}
       {canEdit && (
-        <button
-          type="button"
-          onClick={() => addMut.mutate()}
-          disabled={addMut.isPending}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-        >
-          {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Schritt hinzufügen
-        </button>
+        <>
+          <FlowConnector />
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setShowTypeChooser(true)}
+              disabled={addMut.isPending}
+              className="flex items-center gap-2 rounded-full border-2 border-dashed border-slate-300 px-5 py-2 text-sm text-slate-500 hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Schritt hinzufügen
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* END node */}
+      {sorted.length > 0 && (
+        <>
+          <FlowConnector />
+          <div className="flex justify-center">
+            <div className="flex items-center gap-1.5 rounded-full border-2 border-slate-400 bg-white px-4 py-1 text-xs font-bold text-slate-600 shadow-sm">
+              ⬛ ENDE
+            </div>
+          </div>
+        </>
+      )}
+
+      {showTypeChooser && (
+        <TypeChooser onSelect={handleTypeSelect} onClose={() => setShowTypeChooser(false)} />
       )}
     </div>
   );
@@ -721,7 +885,7 @@ export function ObjektStammdatenForm({ objekt, currentUserRole: _role, onRefresh
           </button>
         )}
 
-        {/* Tabs — Prozess first */}
+        {/* Tabs */}
         <div className="flex gap-1 mt-4 -mb-px">
           {(['prozess', 'stammdaten'] as Tab[]).map((t) => (
             <button
