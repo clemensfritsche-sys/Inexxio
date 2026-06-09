@@ -143,7 +143,7 @@ def _create_sub_instanzen(
         return []
     schritte = _get_schritte(db, stamm.id)
     proto = _build_protokoll(schritte)
-    sub_ids: list[int] = []
+    subs = []
     for _ in range(menge):
         sub = UniversalObject(
             object_type=ObjectType.OBJEKT,
@@ -155,12 +155,12 @@ def _create_sub_instanzen(
             einheit=stamm.einheit,
             parent_instanz_id=parent_instanz.id,
             parent_schritt_position=step_position,
-            schritt_protokoll=list(proto),
+            schritt_protokoll=deepcopy(proto),
         )
         db.add(sub)
-        db.flush()
-        sub_ids.append(sub.id)
-    return sub_ids
+        subs.append(sub)
+    db.flush()  # single flush after all adds — prevents N sequence gaps on rollback
+    return [sub.id for sub in subs]
 
 
 def _activate_step(
@@ -535,16 +535,19 @@ async def ausfuehren(
             obj_status="IN_PRODUKTION",
             einheit=stamm.einheit,
             lagerort=data.lagerort,
-            schritt_protokoll=list(protokoll_template),
+            schritt_protokoll=deepcopy(protokoll_template),
         )
         db.add(instanz)
-        db.flush()
-        # Activate the first step (handles unterprozess)
+        created.append(instanz)
+
+    # Single flush after all adds — _activate_step needs instanz.id for sub-instances
+    db.flush()
+
+    for instanz in created:
         proto = deepcopy(instanz.schritt_protokoll or [])
         _activate_step(db, instanz, proto, proto[0]["position"] if proto else 1, current_user.id)
         instanz.schritt_protokoll = proto
         flag_modified(instanz, 'schritt_protokoll')
-        created.append(instanz)
 
     db.commit()
     for inst in created:
