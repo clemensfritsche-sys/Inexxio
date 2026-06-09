@@ -21,7 +21,7 @@ class Settings(BaseSettings):
         "https://inexxio.com",
     ]
 
-    initial_admin_email: str = ""
+    initial_admin_email: str = "clemens.fritsche@gmail.com"
 
     class Config:
         env_file = ".env"

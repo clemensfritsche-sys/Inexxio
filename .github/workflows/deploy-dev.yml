@@ -50,15 +50,6 @@ jobs:
           docker push "$IMAGE_LATEST"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Clear INITIAL_ADMIN_EMAIL secret reference
-        run: |
-          gcloud run services update ${{ env.CLOUD_RUN_SERVICE }} \
-            --project "${{ env.GCP_PROJECT }}" \
-            --region "${{ env.GCP_REGION }}" \
-            --platform managed \
-            --update-secrets "INITIAL_ADMIN_EMAIL=-" \
-            --quiet || true
-
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
@@ -70,7 +61,7 @@ jobs:
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest" \
-            --set-env-vars "APP_ENV=development,INITIAL_ADMIN_EMAIL=clemens.fritsche@gmail.com" \
+            --set-env-vars "APP_ENV=development" \
             --min-instances 0 \
             --max-instances 3 \
             --memory 512Mi \
