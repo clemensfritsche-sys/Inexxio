@@ -83,7 +83,7 @@ def _build_protokoll(schritte: list[ProzessSchritt]) -> list[dict]:
     result = []
     for i, s in enumerate(schritte):
         result.append({
-            "position": s.position,
+            "position": i + 1,
             "beschreibung": s.beschreibung,
             "schritt_typ": s.schritt_typ,
             "status": "aktiv" if i == 0 else "ausstehend",

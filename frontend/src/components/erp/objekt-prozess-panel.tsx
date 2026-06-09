@@ -144,11 +144,16 @@ function InlineSchrittContent({
   });
 
   const hasReferenz = !!schritt.referenz_objekt_id;
-  const hasDaten = !!(schritt.daten_felder && schritt.daten_felder.length > 0);
+  const activeDatenFelder = (schritt.daten_felder && schritt.daten_felder.length > 0)
+    ? schritt.daten_felder
+    : schritt.schritt_typ === 'daten'
+      ? [{ name: 'Bemerkung', typ: 'text' as const, pflicht: true }]
+      : [];
+  const hasDaten = activeDatenFelder.length > 0;
   const hasOptionen = !!(schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0);
   const isGate = schritt.schritt_typ === 'gate';
 
-  const allPflichtFilled = (schritt.daten_felder ?? [])
+  const allPflichtFilled = activeDatenFelder
     .filter(f => f.pflicht !== false)
     .every(f => (daten[f.name] ?? '').trim() !== '');
 
@@ -158,14 +163,14 @@ function InlineSchrittContent({
 
     if (hasOptionen || isGate || hasReferenz) return;
 
-    const allFilled = (schritt.daten_felder ?? [])
+    const allFilled = activeDatenFelder
       .filter(f => f.pflicht !== false)
       .every(f => (next[f.name] ?? '').trim() !== '');
     if (!allFilled) return;
 
     if (autoTimer.current) clearTimeout(autoTimer.current);
     autoTimer.current = setTimeout(() => mutate('Erledigt'), 500);
-  }, [daten, schritt.daten_felder, hasOptionen, isGate, hasReferenz, mutate]);
+  }, [daten, activeDatenFelder, hasOptionen, isGate, hasReferenz, mutate]);
 
   const handleReferenzMatch = useCallback((ok: boolean) => {
     if (ok && allPflichtFilled) {
@@ -196,7 +201,7 @@ function InlineSchrittContent({
   return (
     <div className="mt-2 space-y-2.5">
       {/* Daten fields */}
-      {hasDaten && (schritt.daten_felder ?? []).map(feld => (
+      {hasDaten && activeDatenFelder.map(feld => (
         <div key={feld.name}>
           <label className="block text-xs font-medium text-blue-800 mb-1">
             {feld.name}
@@ -272,7 +277,7 @@ function InlineSchrittContent({
           onClick={() => mutate('Erledigt')}
           className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
         >
-          <Check className="h-3.5 w-3.5" /> Erledigt
+          <Check className="h-3.5 w-3.5" /> Eingabe bestätigen
         </button>
       )}
 
