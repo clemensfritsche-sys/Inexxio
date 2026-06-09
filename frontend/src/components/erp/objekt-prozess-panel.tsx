@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Check, ChevronRight, Loader2, Network, MapPin, AlertTriangle, Search, X, Package,
+  Check, ChevronRight, ChevronDown, Loader2, Network, MapPin,
+  AlertTriangle, Search, X, Package, Wrench,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatObjectId } from '@/lib/utils';
@@ -129,7 +130,6 @@ function InlineSchrittContent({
 }) {
   const qc = useQueryClient();
   const [daten, setDaten] = useState<Record<string, string>>({});
-  const [referenzOk, setReferenzOk] = useState(false);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { mutate, isPending, error } = useMutation({
@@ -148,7 +148,9 @@ function InlineSchrittContent({
   const hasOptionen = !!(schritt.ergebnis_optionen && schritt.ergebnis_optionen.length > 0);
   const isGate = schritt.schritt_typ === 'gate';
 
-  const allDatenFilled = !hasDaten || (schritt.daten_felder ?? []).every(f => (daten[f.name] ?? '').trim() !== '');
+  const allPflichtFilled = (schritt.daten_felder ?? [])
+    .filter(f => f.pflicht !== false)
+    .every(f => (daten[f.name] ?? '').trim() !== '');
 
   const handleDatenChange = useCallback((field: string, value: string) => {
     const next = { ...daten, [field]: value };
@@ -156,7 +158,9 @@ function InlineSchrittContent({
 
     if (hasOptionen || isGate || hasReferenz) return;
 
-    const allFilled = (schritt.daten_felder ?? []).every(f => (next[f.name] ?? '').trim() !== '');
+    const allFilled = (schritt.daten_felder ?? [])
+      .filter(f => f.pflicht !== false)
+      .every(f => (next[f.name] ?? '').trim() !== '');
     if (!allFilled) return;
 
     if (autoTimer.current) clearTimeout(autoTimer.current);
@@ -164,11 +168,10 @@ function InlineSchrittContent({
   }, [daten, schritt.daten_felder, hasOptionen, isGate, hasReferenz, mutate]);
 
   const handleReferenzMatch = useCallback((ok: boolean) => {
-    setReferenzOk(ok);
-    if (ok && allDatenFilled) {
+    if (ok && allPflichtFilled) {
       mutate('Erledigt');
     }
-  }, [allDatenFilled, mutate]);
+  }, [allPflichtFilled, mutate]);
 
   const colorMap: Record<string, string> = {
     gruen: 'border-green-200 bg-green-50 text-green-800 hover:bg-green-100',
@@ -193,44 +196,43 @@ function InlineSchrittContent({
   return (
     <div className="mt-2 space-y-2.5">
       {/* Daten fields */}
-      {hasDaten && (
-        <div className="space-y-2">
-          {(schritt.daten_felder ?? []).map(feld => (
-            <div key={feld.name}>
-              <label className="block text-xs font-medium text-blue-800 mb-1">
-                {feld.name}
-                {feld.einheit && <span className="text-blue-600 font-normal ml-1">({feld.einheit})</span>}
-                <span className="text-red-500 ml-0.5">*</span>
-              </label>
-              {feld.typ === 'auswahl' && feld.optionen ? (
-                <select
-                  value={daten[feld.name] ?? ''}
-                  onChange={e => handleDatenChange(feld.name, e.target.value)}
-                  className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">— Auswählen —</option>
-                  {feld.optionen.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input
-                  type={feld.typ === 'number' ? 'number' : feld.typ === 'datum' ? 'date' : 'text'}
-                  value={daten[feld.name] ?? ''}
-                  onChange={e => handleDatenChange(feld.name, e.target.value)}
-                  placeholder={feld.typ === 'number' ? '0.00' : 'Eingabe…'}
-                  className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
-                />
-              )}
-            </div>
-          ))}
+      {hasDaten && (schritt.daten_felder ?? []).map(feld => (
+        <div key={feld.name}>
+          <label className="block text-xs font-medium text-blue-800 mb-1">
+            {feld.name}
+            {feld.einheit && <span className="text-blue-600 font-normal ml-1">({feld.einheit})</span>}
+            {feld.pflicht !== false && <span className="text-red-500 ml-0.5">*</span>}
+          </label>
+          {feld.typ === 'auswahl' && feld.optionen ? (
+            <select
+              value={daten[feld.name] ?? ''}
+              onChange={e => handleDatenChange(feld.name, e.target.value)}
+              className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">— Auswählen —</option>
+              {feld.optionen.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ) : (
+            <input
+              type={feld.typ === 'number' ? 'number' : feld.typ === 'datum' ? 'date' : 'text'}
+              value={daten[feld.name] ?? ''}
+              onChange={e => handleDatenChange(feld.name, e.target.value)}
+              placeholder={feld.typ === 'number' ? '0.00' : 'Eingabe…'}
+              className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400"
+            />
+          )}
         </div>
-      )}
+      ))}
 
-      {/* Reference confirmation */}
+      {/* Reference confirmation (ressource, hilfsmittel, or any type with referenz) */}
       {hasReferenz && (
         <div>
           <p className="text-xs font-medium text-blue-800 mb-1 flex items-center gap-1">
-            <Package className="h-3 w-3" />
-            Referenz bestätigen
+            {schritt.schritt_typ === 'hilfsmittel'
+              ? <Wrench className="h-3 w-3" />
+              : <Package className="h-3 w-3" />
+            }
+            {schritt.schritt_typ === 'hilfsmittel' ? 'Hilfsmittel' : 'Referenz'} bestätigen
             <span className="font-mono text-blue-600">({formatObjectId(schritt.referenz_objekt_id!)})</span>
           </p>
           <ReferenzSearchField
@@ -240,18 +242,18 @@ function InlineSchrittContent({
         </div>
       )}
 
-      {/* Ergebnis options (gate / explicit options) */}
+      {/* Ergebnis options (gate or explicit options) */}
       {opts && (
         <div className="space-y-1.5">
           {opts.map(opt => (
             <button
               key={opt.label}
               type="button"
-              disabled={!allDatenFilled}
+              disabled={!allPflichtFilled}
               onClick={() => mutate(opt.label)}
               className={cn(
                 'w-full text-left rounded-lg border px-3 py-2 text-sm font-medium transition-all flex items-center gap-2',
-                allDatenFilled
+                allPflichtFilled
                   ? colorMap[opt.farbe] ?? colorMap.gruen
                   : 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed',
               )}
@@ -274,8 +276,8 @@ function InlineSchrittContent({
         </button>
       )}
 
-      {/* Auto-save indicator for pure daten steps */}
-      {!opts && !hasReferenz && hasDaten && allDatenFilled && (
+      {/* Auto-save indicator */}
+      {!opts && !hasReferenz && hasDaten && allPflichtFilled && (
         <div className="flex items-center gap-1.5 text-xs text-blue-500">
           <Loader2 className="h-3 w-3 animate-spin" /> Wird automatisch gespeichert…
         </div>
@@ -291,6 +293,71 @@ function InlineSchrittContent({
   );
 }
 
+// ─── Completed step read-only detail ─────────────────────────────────────────
+
+function ErledigtDetail({ schritt }: { schritt: SchrittProtokollEintrag }) {
+  return (
+    <div className="mt-2 pt-2 border-t border-green-100 space-y-2">
+      {schritt.ressourcen && schritt.ressourcen.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-green-700 mb-1 flex items-center gap-1">
+            <Package className="h-3 w-3" /> Materialien
+          </p>
+          <div className="space-y-0.5">
+            {schritt.ressourcen.map(r => (
+              <div key={r.name} className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">{r.name}{r.ref_id ? ` (${formatObjectId(r.ref_id)})` : ''}</span>
+                <span className="font-semibold text-slate-700">{r.menge} {r.einheit}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {schritt.daten_felder && schritt.daten_felder.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-green-700 mb-1">Erfasste Daten</p>
+          <div className="space-y-0.5">
+            {schritt.daten_felder.map(f => (
+              <div key={f.name} className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">{f.name}{f.einheit ? ` (${f.einheit})` : ''}</span>
+                <span className="font-medium text-slate-800">
+                  {schritt.erfasste_daten?.[f.name] ?? '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {schritt.referenz_objekt_id && (
+        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+          <Check className="h-3 w-3 text-green-600 shrink-0" />
+          Referenz bestätigt: <span className="font-mono font-medium">{formatObjectId(schritt.referenz_objekt_id)}</span>
+        </div>
+      )}
+
+      {schritt.ergebnis && (
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="text-slate-500">Ergebnis:</span>
+          <span className={cn(
+            'font-semibold',
+            schritt.ergebnis.toLowerCase().includes('problem') ? 'text-red-600' : 'text-green-700',
+          )}>
+            {schritt.ergebnis}
+          </span>
+        </div>
+      )}
+
+      <p className="text-xs text-green-600">
+        ✓ {schritt.ausgefuehrt_von} · {schritt.ausgefuehrt_am
+          ? new Date(schritt.ausgefuehrt_am).toLocaleString('de-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : ''}
+      </p>
+    </div>
+  );
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 interface Props {
@@ -301,6 +368,7 @@ interface Props {
 
 export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
   const qc = useQueryClient();
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
 
   const protokoll = objekt.schritt_protokoll ?? [];
   const doneCount = protokoll.filter(s => s.status === 'erledigt').length;
@@ -317,6 +385,15 @@ export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
       qc.invalidateQueries({ queryKey: ['uni-objekt', objekt.id] });
     },
   });
+
+  function toggleExpand(position: number) {
+    setExpandedSteps(prev => {
+      const next = new Set(prev);
+      if (next.has(position)) next.delete(position);
+      else next.add(position);
+      return next;
+    });
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -377,109 +454,129 @@ export function ObjektProzessPanel({ objekt, onNavigate }: Props) {
           <p className="text-sm text-slate-500 text-center py-8">Kein Prozessprotokoll vorhanden.</p>
         )}
 
-        {protokoll.map(schritt => (
-          <div
-            key={schritt.position}
-            className={cn(
-              'rounded-xl border transition-all',
-              schritt.status === 'erledigt' && 'border-green-100 bg-green-50/60',
-              schritt.status === 'aktiv' && 'border-blue-200 bg-blue-50 shadow-sm ring-1 ring-blue-100',
-              schritt.status === 'wartend' && 'border-teal-200 bg-teal-50/60',
-              schritt.status === 'ausstehend' && 'border-slate-100 bg-white opacity-60',
-              schritt.status === 'problem' && 'border-red-200 bg-red-50',
-            )}
-          >
-            <div className="flex items-start gap-3 px-4 py-3">
-              <div className={cn(
-                'mt-0.5 flex h-7 w-7 items-center justify-center rounded-full shrink-0 text-xs font-bold',
-                schritt.status === 'erledigt' && 'bg-green-500 text-white',
-                schritt.status === 'aktiv' && 'bg-blue-600 text-white',
-                schritt.status === 'wartend' && 'bg-teal-500 text-white',
-                schritt.status === 'ausstehend' && 'bg-slate-100 text-slate-400',
-                schritt.status === 'problem' && 'bg-red-500 text-white',
-              )}>
-                {schritt.status === 'erledigt'
-                  ? <Check className="h-3.5 w-3.5" />
-                  : schritt.status === 'wartend'
-                    ? <Network className="h-3.5 w-3.5" />
-                    : schritt.position}
-              </div>
+        {protokoll.map(schritt => {
+          const isExpanded = expandedSteps.has(schritt.position);
+          const canExpand = schritt.status === 'erledigt';
 
-              <div className="flex-1 min-w-0">
-                <p className={cn(
-                  'text-sm font-medium',
-                  schritt.status === 'erledigt' && 'text-green-800',
-                  schritt.status === 'aktiv' && 'text-blue-900',
-                  schritt.status === 'wartend' && 'text-teal-800',
-                  schritt.status === 'ausstehend' && 'text-slate-500',
+          return (
+            <div
+              key={schritt.position}
+              className={cn(
+                'rounded-xl border transition-all',
+                schritt.status === 'erledigt' && 'border-green-100 bg-green-50/60',
+                schritt.status === 'aktiv' && 'border-blue-200 bg-blue-50 shadow-sm ring-1 ring-blue-100',
+                schritt.status === 'wartend' && 'border-teal-200 bg-teal-50/60',
+                schritt.status === 'ausstehend' && 'border-slate-100 bg-white opacity-60',
+                schritt.status === 'problem' && 'border-red-200 bg-red-50',
+              )}
+            >
+              {/* Step header row */}
+              <div
+                className={cn(
+                  'flex items-start gap-3 px-4 py-3',
+                  canExpand && 'cursor-pointer select-none',
+                )}
+                onClick={canExpand ? () => toggleExpand(schritt.position) : undefined}
+              >
+                <div className={cn(
+                  'mt-0.5 flex h-7 w-7 items-center justify-center rounded-full shrink-0 text-xs font-bold',
+                  schritt.status === 'erledigt' && 'bg-green-500 text-white',
+                  schritt.status === 'aktiv' && 'bg-blue-600 text-white',
+                  schritt.status === 'wartend' && 'bg-teal-500 text-white',
+                  schritt.status === 'ausstehend' && 'bg-slate-100 text-slate-400',
+                  schritt.status === 'problem' && 'bg-red-500 text-white',
                 )}>
-                  {schritt.beschreibung}
-                </p>
+                  {schritt.status === 'erledigt'
+                    ? <Check className="h-3.5 w-3.5" />
+                    : schritt.status === 'wartend'
+                      ? <Network className="h-3.5 w-3.5" />
+                      : schritt.position}
+                </div>
 
-                {schritt.status === 'erledigt' && (
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                    <span className="text-xs text-green-600">
-                      ✓ {schritt.ausgefuehrt_von} · {schritt.ausgefuehrt_am ? new Date(schritt.ausgefuehrt_am).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) : ''}
-                    </span>
-                    {schritt.ergebnis && (
-                      <span className="text-xs font-medium text-green-700">{schritt.ergebnis}</span>
-                    )}
-                    {schritt.erfasste_daten && Object.entries(schritt.erfasste_daten).map(([k, v]) => (
-                      <span key={k} className="text-xs text-slate-500">{k}: <span className="font-medium text-slate-700">{v}</span></span>
-                    ))}
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn(
+                    'text-sm font-medium',
+                    schritt.status === 'erledigt' && 'text-green-800',
+                    schritt.status === 'aktiv' && 'text-blue-900',
+                    schritt.status === 'wartend' && 'text-teal-800',
+                    schritt.status === 'ausstehend' && 'text-slate-500',
+                  )}>
+                    {schritt.beschreibung}
+                  </p>
+
+                  {/* Compact erledigt summary (when collapsed) */}
+                  {schritt.status === 'erledigt' && !isExpanded && (
+                    <p className="text-xs text-green-600 mt-0.5">
+                      ✓ {schritt.ergebnis ?? 'Erledigt'} · {schritt.ausgefuehrt_von}
+                    </p>
+                  )}
+
+                  {/* Wartend sub-process links */}
+                  {schritt.status === 'wartend' && schritt.sub_instanzen && schritt.sub_instanzen.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span className="text-xs text-teal-600 font-medium">Unterprozesse:</span>
+                      {schritt.sub_instanzen.map(subId => (
+                        <button
+                          key={subId}
+                          onClick={e => { e.stopPropagation(); onNavigate?.(subId); }}
+                          className="text-xs font-mono text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {formatObjectId(subId)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Inline execution for active non-unterprozess steps */}
+                  {schritt.status === 'aktiv' && schritt.schritt_typ !== 'unterprozess' && (
+                    <InlineSchrittContent schritt={schritt} instanzId={objekt.id} />
+                  )}
+
+                  {/* Expanded erledigt detail */}
+                  {schritt.status === 'erledigt' && isExpanded && (
+                    <ErledigtDetail schritt={schritt} />
+                  )}
+                </div>
+
+                {/* Expand/collapse chevron for erledigt */}
+                {canExpand && (
+                  <ChevronDown className={cn(
+                    'h-4 w-4 text-green-500 shrink-0 mt-1 transition-transform',
+                    isExpanded && 'rotate-180',
+                  )} />
                 )}
 
-                {schritt.status === 'wartend' && schritt.sub_instanzen && schritt.sub_instanzen.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    <span className="text-xs text-teal-600 font-medium">Unterprozesse:</span>
-                    {schritt.sub_instanzen.map(subId => (
-                      <button
-                        key={subId}
-                        onClick={() => onNavigate?.(subId)}
-                        className="text-xs font-mono text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        {formatObjectId(subId)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Inline execution for active non-unterprozess steps */}
-                {schritt.status === 'aktiv' && schritt.schritt_typ !== 'unterprozess' && (
-                  <InlineSchrittContent schritt={schritt} instanzId={objekt.id} />
+                {/* Unterprozess start button */}
+                {schritt.status === 'aktiv' && schritt.schritt_typ === 'unterprozess' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); startUnterprozess(schritt.position); }}
+                    disabled={startingUnterprozess}
+                    className="shrink-0 flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 active:bg-teal-800 transition-colors disabled:opacity-50"
+                  >
+                    {startingUnterprozess
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Network className="h-3.5 w-3.5" />
+                    }
+                    Starten
+                  </button>
                 )}
               </div>
 
-              {/* Unterprozess start button */}
-              {schritt.status === 'aktiv' && schritt.schritt_typ === 'unterprozess' && (
-                <button
-                  onClick={() => startUnterprozess(schritt.position)}
-                  disabled={startingUnterprozess}
-                  className="shrink-0 flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 active:bg-teal-800 transition-colors disabled:opacity-50"
-                >
-                  {startingUnterprozess
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Network className="h-3.5 w-3.5" />
-                  }
-                  Starten
-                </button>
+              {/* Active step: materials list */}
+              {schritt.status === 'aktiv' && schritt.ressourcen && schritt.ressourcen.length > 0 && (
+                <div className="px-4 pb-3 border-t border-blue-100 pt-2.5 space-y-1.5">
+                  <p className="text-xs font-medium text-blue-700 mb-1.5">Benötigte Materialien:</p>
+                  {schritt.ressourcen.map(r => (
+                    <div key={r.name} className="flex items-center justify-between text-xs">
+                      <span className="text-slate-700">{r.name}</span>
+                      <span className="font-semibold text-slate-800">{r.menge} {r.einheit}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-
-            {schritt.status === 'aktiv' && schritt.ressourcen && schritt.ressourcen.length > 0 && (
-              <div className="px-4 pb-3 border-t border-blue-100 pt-2.5 space-y-1.5">
-                <p className="text-xs font-medium text-blue-700 mb-1.5">Benötigte Materialien:</p>
-                {schritt.ressourcen.map(r => (
-                  <div key={r.name} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-700">{r.name}</span>
-                    <span className="font-semibold text-slate-800">{r.menge} {r.einheit}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

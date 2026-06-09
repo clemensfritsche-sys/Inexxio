@@ -542,6 +542,7 @@ async def ausfuehren(
         proto = list(instanz.schritt_protokoll)
         _activate_step(db, instanz, proto, proto[0]["position"] if proto else 1, current_user.id)
         instanz.schritt_protokoll = proto
+        flag_modified(instanz, 'schritt_protokoll')
         created.append(instanz)
 
     db.commit()
