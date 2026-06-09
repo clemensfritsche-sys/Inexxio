@@ -74,7 +74,16 @@ def get_current_user(
         ).first()
 
         if not user:
-            return _create_user(db, uid, email, decoded)
+            # Firebase was reset: same email, new UID → reuse existing profile
+            if email:
+                user = db.query(UserProfile).filter(
+                    UserProfile.email == email, UserProfile.is_active == True
+                ).first()
+            if user:
+                user.firebase_uid = uid
+                db.commit()
+            else:
+                return _create_user(db, uid, email, decoded)
 
         changed = False
         email_is_admin = (
