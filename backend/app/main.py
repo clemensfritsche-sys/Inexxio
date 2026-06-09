@@ -5,16 +5,47 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import get_settings
-from .core.database import Base, engine
+from .core.database import Base, SessionLocal, engine
+from .models.audit import UserProfile
 from .routers import admin, auth, contact, health
 
 settings = get_settings()
+
+
+def _bootstrap_admin() -> None:
+    """Promote a user to admin on startup if no admin exists yet."""
+    db = SessionLocal()
+    try:
+        has_admin = db.query(UserProfile).filter(
+            UserProfile.role == "admin", UserProfile.is_active == True
+        ).first()
+        if has_admin:
+            return
+        candidate = None
+        if settings.initial_admin_email:
+            candidate = db.query(UserProfile).filter(
+                UserProfile.email == settings.initial_admin_email,
+                UserProfile.is_active == True,
+            ).first()
+        if not candidate:
+            candidate = (
+                db.query(UserProfile)
+                .filter(UserProfile.is_active == True)
+                .order_by(UserProfile.id)
+                .first()
+            )
+        if candidate:
+            candidate.role = "admin"
+            db.commit()
+    finally:
+        db.close()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.debug:
         Base.metadata.create_all(bind=engine)
+    _bootstrap_admin()
     yield
 
 
