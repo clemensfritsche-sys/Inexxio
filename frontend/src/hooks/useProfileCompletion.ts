@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-type SectionId = 'profile' | 'contact' | 'company' | 'invoice';
+type SectionId = 'profile' | 'contact' | 'invoice';
 
 interface RequiredField {
   section: SectionId;
@@ -18,9 +18,9 @@ const REQUIRED: RequiredField[] = [
   { section: 'contact', field: 'address_line1' },
   { section: 'contact', field: 'city' },
   { section: 'contact', field: 'postal_code' },
-  // Firmendaten (Lieferant)
-  { section: 'company', field: 'company_name', condition: (p) => p.role === 'supplier' },
-  { section: 'company', field: 'uid_number', condition: (p) => p.role === 'supplier' },
+  // Firmendaten (Lieferant) – im Profil-Abschnitt
+  { section: 'profile', field: 'company_name', condition: (p) => p.role === 'supplier' },
+  { section: 'profile', field: 'uid_number', condition: (p) => p.role === 'supplier' },
   // Rechnungsadresse (wenn nicht = Lieferadresse)
   { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
   { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },

@@ -218,15 +218,9 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
 
       {isB2B && (
         <Sec title="Unternehmen" icon={Building2}>
-          <Field label="Firmenname"        val={v('company_name')}           ro />
-          <div />
-          <Field label="UID-Nummer"        val={v('uid_number')}             ro />
-          <Field label="MwSt-Nummer"       val={v('vat_number')}             ro />
-          <Field label="HR-Nr."            val={v('trade_register_nr')}      ro />
-          <Field label="HR-Kanton"         val={v('trade_register_canton')}  ro />
-          <Field label="Website"           val={v('company_website')}        ro />
-          <Field label="Rechnungs-E-Mail"  val={v('company_billing_email')} type="email" ro />
-          <Field label="MwSt. registriert" val={v('vat_registered')} type="check" span2 ro />
+          <Field label="Firmenname"       val={v('company_name')}          ro />
+          <Field label="UID-Nummer"       val={v('uid_number')}            ro />
+          <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} type="email" ro />
         </Sec>
       )}
 
@@ -249,8 +243,6 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
       )}
 
       <Sec title="Einstellungen" icon={Settings}>
-        <Field label="Sprache" val={v('language')} type="select" opts={['de', 'en']} ro />
-        <div />
         <div className="col-span-2 flex flex-wrap gap-4">
           <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  type="check" ro />
           <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} type="check" ro />

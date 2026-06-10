@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { User, Briefcase, Globe } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, Briefcase, Building2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
-import { Field, SelectField } from '../field';
+import { Field } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
 
@@ -11,7 +11,9 @@ interface Form {
   first_name: string;
   last_name: string;
   date_of_birth: string;
-  language: string;
+  company_name: string;
+  uid_number: string;
+  company_billing_email: string;
 }
 
 function buildForm(p: UserProfile): Form {
@@ -19,18 +21,20 @@ function buildForm(p: UserProfile): Form {
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
     date_of_birth: p.date_of_birth ?? '',
-    language: p.language ?? 'de',
+    company_name: p.company_name ?? '',
+    uid_number: p.uid_number ?? '',
+    company_billing_email: p.company_billing_email ?? '',
   };
 }
 
 interface Props {
   profile: UserProfile;
   isEmployee: boolean;
-  isCustomer: boolean;
+  isSupplier: boolean;
   onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, onSave }: Props) {
+export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
@@ -43,20 +47,24 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
     }
   }, [profile.id, profile]);
 
-  const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const { status, errorMsg, saveNow } = useAutosave(
+    form,
+    (v) => {
+      const data = { ...v } as Partial<UserProfile>;
+      if (!isSupplier) {
+        delete data.company_name;
+        delete data.uid_number;
+        delete data.company_billing_email;
+      }
+      return onSave(data);
+    },
+    3000,
+    resetKey,
+  );
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
-
-  const detectedLang = useMemo(() => {
-    if (typeof window === 'undefined') return null;
-    const tag = navigator.language?.split('-')[0]?.toLowerCase();
-    return tag === 'de' || tag === 'en' ? tag : null;
-  }, []);
-
-  const langSuggestion = detectedLang !== null && detectedLang !== form.language ? detectedLang : null;
-  const langLabel = (l: string) => (l === 'de' ? 'Deutsch' : 'English');
 
   const objectNumber = profile.object_id != null
     ? String(profile.object_id).padStart(9, '0')
@@ -78,37 +86,28 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
           <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
-          <div>
-            <SelectField
-              label="Sprache"
-              value={form.language}
-              onChange={(v) => set('language', v)}
-              options={[
-                { value: 'de', label: 'Deutsch' },
-                { value: 'en', label: 'English' },
-              ]}
-            />
-            {langSuggestion && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                <Globe style={{ width: 11, height: 11, color: '#94a3b8', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: '#64748b' }}>
-                  Browser: {langLabel(langSuggestion)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => set('language', langSuggestion)}
-                  style={{
-                    fontSize: 11, color: '#2563eb', background: 'none', border: 'none',
-                    padding: '0 4px', cursor: 'pointer', fontWeight: 600,
-                  }}
-                >
-                  Übernehmen
-                </button>
-              </div>
-            )}
-          </div>
           <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
+
+        {isSupplier && (
+          <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+              <Building2 style={{ width: 13, height: 13, color: '#64748b' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Firmendaten
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" required={!form.company_name.trim()} onEnter={saveNow} />
+              <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" required={!form.uid_number.trim()} onEnter={saveNow} />
+              <div className="col-span-2" style={{ display: 'flex' }}>
+                <div style={{ flex: 1 }}>
+                  <Field label="Rechnungs-E-Mail" value={form.company_billing_email} onChange={(v) => set('company_billing_email', v)} placeholder="buchhaltung@firma.ch" type="email" onEnter={saveNow} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isEmployee && (
           <div style={{ padding: '16px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
@@ -137,7 +136,6 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
             </p>
           </div>
         )}
-
       </div>
     </div>
   );
