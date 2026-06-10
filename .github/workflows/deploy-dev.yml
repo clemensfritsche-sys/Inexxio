@@ -57,10 +57,10 @@ jobs:
 
       - name: Check generated types are up to date
         run: |
-          cd backend && python -m scripts.dump_openapi
-          cd ../frontend && npm run generate:types
-          git diff --exit-code frontend/src/types/api.ts || \
-            (echo "::error::frontend/src/types/api.ts is stale — run 'npm run generate:types' after backend schema changes" && exit 1)
+          (cd backend && python -m scripts.dump_openapi)
+          (cd frontend && npm run generate:types)
+          git diff --exit-code backend/openapi.json frontend/src/types/api.ts || \
+            (echo "::error::Generierte Typen sind veraltet — 'npm run generate:types' nach Backend-Schema-Änderungen ausführen und committen" && exit 1)
 
   deploy-backend:
     name: Backend → Cloud Run (dev)

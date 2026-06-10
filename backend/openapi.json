@@ -912,8 +912,7 @@
           "default_skonto_pct": {
             "anyOf": [
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -1281,8 +1280,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -1464,8 +1462,7 @@
                 "type": "number"
               },
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -2002,8 +1999,7 @@
           "weekly_hours": {
             "anyOf": [
               {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -2502,13 +2498,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
