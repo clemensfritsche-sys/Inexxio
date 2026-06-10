@@ -52,26 +52,28 @@ interface SelectFieldProps {
   onChange: (v: string) => void;
   options: { value: string; label: string }[];
   hint?: string;
+  disabled?: boolean;
 }
 
-export function SelectField({ label, value, onChange, options, hint }: SelectFieldProps) {
+export function SelectField({ label, value, onChange, options, hint, disabled = false }: SelectFieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>{label}</label>
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={disabled ? undefined : (e) => onChange(e.target.value)}
+        disabled={disabled}
         style={{
           padding: '8px 12px',
           borderRadius: 8,
           border: '1px solid #E2E8F0',
           fontSize: 14,
-          color: '#0F172A',
-          background: '#fff',
+          color: disabled ? '#94a3b8' : '#0F172A',
+          background: disabled ? '#F8FAFC' : '#fff',
           outline: 'none',
           width: '100%',
           boxSizing: 'border-box',
-          cursor: 'pointer',
+          cursor: disabled ? 'default' : 'pointer',
         }}
       >
         {options.map((o) => (

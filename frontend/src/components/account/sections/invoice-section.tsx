@@ -172,7 +172,7 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
           </div>
           <Field label="PLZ" value={form.invoice_postal_code} onChange={(v) => set('invoice_postal_code', v)} readOnly={disabled} required={!disabled && !form.invoice_postal_code.trim()} onEnter={saveNow} />
           <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} readOnly={disabled} required={!disabled && !form.invoice_city.trim()} onEnter={saveNow} />
-          <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} />
+          <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} disabled={disabled} />
           <Field label="Rechnungs-E-Mail" value={form.invoice_email} onChange={(v) => set('invoice_email', v)} type="email" placeholder="buchhaltung@firma.ch" onEnter={saveNow} />
         </div>
       </div>

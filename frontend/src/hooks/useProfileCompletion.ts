@@ -22,11 +22,11 @@ const REQUIRED: RequiredField[] = [
   { section: 'company', field: 'company_name', condition: (p) => p.role === 'supplier' },
   { section: 'company', field: 'uid_number', condition: (p) => p.role === 'supplier' },
   // Rechnungsadresse (wenn nicht = Lieferadresse)
-  { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
-  { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
-  { section: 'invoice', field: 'invoice_address_line1', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
-  { section: 'invoice', field: 'invoice_city', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
-  { section: 'invoice', field: 'invoice_postal_code', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
+  { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'invoice', field: 'invoice_address_line1', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'invoice', field: 'invoice_city', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'invoice', field: 'invoice_postal_code', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {

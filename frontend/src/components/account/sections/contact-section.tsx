@@ -67,7 +67,7 @@ export function ContactSection({ profile, onSave }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #F1F5F9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <MapPin style={{ width: 16, height: 16, color: '#64748b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Kontakt & Adresse</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Adresse</h2>
         </div>
         <SaveStatusIndicator status={status} errorMsg={errorMsg} />
       </div>
@@ -86,7 +86,7 @@ export function ContactSection({ profile, onSave }: Props) {
           <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" required={!form.city.trim()} onEnter={saveNow} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Kanton / Region" value={form.state_region} onChange={(v) => set('state_region', v)} placeholder="ZH" onEnter={saveNow} />
+          <Field label="Region" value={form.state_region} onChange={(v) => set('state_region', v)} placeholder="Kanton, Bundesland, Region…" onEnter={saveNow} />
           <SelectField label="Land" value={form.country} onChange={(v) => set('country', v)} options={COUNTRIES} />
         </div>
       </div>
