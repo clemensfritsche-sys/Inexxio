@@ -1,19 +1,4 @@
-import type {
-  CompanySettings,
-  Item,
-  ItemCategory,
-  ItemName,
-  ItemSurface,
-  BOM,
-  WorkPlan,
-  Company,
-  Contact,
-  UserProfile,
-  UniversalObject,
-  PaginatedResponse,
-  ObjectFilter,
-  WhereUsedEntry,
-} from '@/types';
+import type { CompanySettings, UserProfile } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -70,172 +55,7 @@ class ApiClient {
     return this.request<T>(path, { method: 'DELETE' });
   }
 
-  // ─── Objects (universal feed) ──────────────────────────────────────────────
-
-  getObjects(filter?: ObjectFilter): Promise<PaginatedResponse<UniversalObject>> {
-    const params = new URLSearchParams();
-    if (filter?.q) params.set('q', filter.q);
-    if (filter?.object_type) params.set('object_type', filter.object_type);
-    if (filter?.status) params.set('status', filter.status);
-    if (filter?.page) params.set('page', String(filter.page));
-    if (filter?.page_size) params.set('page_size', String(filter.page_size));
-    const qs = params.toString();
-    return this.get(`/api/v1/objects${qs ? `?${qs}` : ''}`);
-  }
-
-  getObject(id: number): Promise<UniversalObject> {
-    return this.get(`/api/v1/objects/${id}`);
-  }
-
-  // ─── Items ─────────────────────────────────────────────────────────────────
-
-  getItems(params?: { page?: number; pageSize?: number; q?: string; status?: string }): Promise<PaginatedResponse<Item>> {
-    const p = new URLSearchParams();
-    p.set('page', String(params?.page ?? 1));
-    p.set('page_size', String(params?.pageSize ?? 50));
-    if (params?.q) p.set('q', params.q);
-    if (params?.status) p.set('status', params.status);
-    return this.get(`/api/v1/items?${p.toString()}`);
-  }
-
-  getItem(id: number): Promise<Item> {
-    return this.get(`/api/v1/items/${id}`);
-  }
-
-  createItem(data: Partial<Item>): Promise<Item> {
-    return this.post('/api/v1/items', data);
-  }
-
-  updateItem(id: number, data: Partial<Item>): Promise<Item> {
-    return this.patch(`/api/v1/items/${id}`, data);
-  }
-
-  submitItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/submit`, {});
-  }
-
-  approveItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/approve`, {});
-  }
-
-  replaceItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/replace`, {});
-  }
-
-  invalidateItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/invalidate`, {});
-  }
-
-  deleteItem(id: number): Promise<void> {
-    return this.delete(`/api/v1/items/${id}`);
-  }
-
-  getItemNames(): Promise<ItemName[]> {
-    return this.get('/api/v1/admin/item-names');
-  }
-
-  createItemName(label: string): Promise<ItemName> {
-    return this.post('/api/v1/admin/item-names', { label });
-  }
-
-  getItemSurfaces(): Promise<ItemSurface[]> {
-    return this.get('/api/v1/admin/item-surfaces');
-  }
-
-  createItemSurface(label: string): Promise<ItemSurface> {
-    return this.post('/api/v1/admin/item-surfaces', { label });
-  }
-
-  getItemCategories(): Promise<ItemCategory[]> {
-    return this.get('/api/v1/admin/item-categories');
-  }
-
-  createItemCategory(label: string): Promise<ItemCategory> {
-    return this.post('/api/v1/admin/item-categories', { label });
-  }
-
-  deleteItemName(id: number): Promise<void> {
-    return this.delete(`/api/v1/admin/item-names/${id}`);
-  }
-
-  deleteItemSurface(id: number): Promise<void> {
-    return this.delete(`/api/v1/admin/item-surfaces/${id}`);
-  }
-
-  deleteItemCategory(id: number): Promise<void> {
-    return this.delete(`/api/v1/admin/item-categories/${id}`);
-  }
-
-  recallItem(id: number): Promise<Item> {
-    return this.post(`/api/v1/items/${id}/recall`, {});
-  }
-
-  // ─── BOMs ──────────────────────────────────────────────────────────────────
-
-  getBOMs(page = 1, pageSize = 50): Promise<BOM[]> {
-    return this.get(`/api/v1/boms?page=${page}&page_size=${pageSize}`);
-  }
-
-  getBOM(id: number): Promise<BOM> {
-    return this.get(`/api/v1/boms/${id}`);
-  }
-
-  getBOMsForItem(itemId: number): Promise<BOM[]> {
-    return this.get(`/api/v1/boms/by-item/${itemId}`);
-  }
-
-  createBOM(data: { parent_item_id: number; note?: string | null; lines: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
-    return this.post('/api/v1/boms', data);
-  }
-
-  updateBOM(id: number, data: { note?: string | null; lines?: { component_item_id: number; quantity: number; unit: string; position: number; note?: string | null }[] }): Promise<BOM> {
-    return this.patch(`/api/v1/boms/${id}`, data);
-  }
-
-  getItemWhereUsed(itemId: number): Promise<WhereUsedEntry[]> {
-    return this.get(`/api/v1/items/${itemId}/where-used`);
-  }
-
-  // ─── Work Plans ────────────────────────────────────────────────────────────
-
-  getWorkPlans(page = 1, pageSize = 50): Promise<PaginatedResponse<WorkPlan>> {
-    return this.get(`/api/v1/work-plans?page=${page}&page_size=${pageSize}`);
-  }
-
-  getWorkPlan(id: number): Promise<WorkPlan> {
-    return this.get(`/api/v1/work-plans/${id}`);
-  }
-
-  createWorkPlan(data: Partial<WorkPlan>): Promise<WorkPlan> {
-    return this.post('/api/v1/work-plans', data);
-  }
-
-  // ─── Companies ─────────────────────────────────────────────────────────────
-
-  getCompanies(page = 1, pageSize = 50): Promise<PaginatedResponse<Company>> {
-    return this.get(`/api/v1/companies?page=${page}&page_size=${pageSize}`);
-  }
-
-  getCompany(id: number): Promise<Company> {
-    return this.get(`/api/v1/companies/${id}`);
-  }
-
-  createCompany(data: Partial<Company>): Promise<Company> {
-    return this.post('/api/v1/companies', data);
-  }
-
-  updateCompany(id: number, data: Partial<Company>): Promise<Company> {
-    return this.patch(`/api/v1/companies/${id}`, data);
-  }
-
-  // ─── Contacts ──────────────────────────────────────────────────────────────
-
-  getContacts(companyId?: number): Promise<PaginatedResponse<Contact>> {
-    const qs = companyId ? `?company_id=${companyId}` : '';
-    return this.get(`/api/v1/contacts${qs}`);
-  }
-
-  // ─── Users ─────────────────────────────────────────────────────────────────
+  // ─── Auth / Profile ────────────────────────────────────────────────────────
 
   getMe(): Promise<UserProfile> {
     return this.get('/api/v1/auth/me');
@@ -244,6 +64,12 @@ class ApiClient {
   updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
     return this.patch('/api/v1/auth/me', data);
   }
+
+  acceptTerms(): Promise<UserProfile> {
+    return this.post('/api/v1/auth/terms-accept', {});
+  }
+
+  // ─── Admin: Users ──────────────────────────────────────────────────────────
 
   getUsers(): Promise<UserProfile[]> {
     return this.get('/api/v1/admin/users');
@@ -257,7 +83,7 @@ class ApiClient {
     return this.delete(`/api/v1/admin/users/${userId}`);
   }
 
-  // ─── Settings ──────────────────────────────────────────────────────────────
+  // ─── Admin: Settings ───────────────────────────────────────────────────────
 
   getSettings(): Promise<CompanySettings> {
     return this.get<Record<string, unknown>>('/api/v1/admin/settings').then(mapSettingsFromBackend);
@@ -269,6 +95,20 @@ class ApiClient {
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
+  }
+
+  // ─── ERP Records ──────────────────────────────────────────────────────────
+
+  getErpRecords(): Promise<UserProfile[]> {
+    return this.get('/api/v1/erp/records');
+  }
+
+  getErpRecord(objectId: number): Promise<UserProfile> {
+    return this.get(`/api/v1/erp/records/${objectId}`);
+  }
+
+  updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
+    return this.patch(`/api/v1/erp/records/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

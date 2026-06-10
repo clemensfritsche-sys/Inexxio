@@ -30,21 +30,32 @@ export function Badge({ variant = 'neutral', children, className }: BadgeProps) 
   );
 }
 
+// Map raw API status strings to human-readable labels
+const STATUS_LABELS: Record<string, string> = {
+  ENTWURF: 'Entwurf',
+  IN_FREIGABE: 'In Freigabe',
+  FREIGEGEBEN: 'Freigegeben',
+  ERSETZT: 'Inaktiv',
+  UNGUELTIG: 'Inaktiv',
+};
+
 // Map ERP status strings to badge variants
 export function statusToBadgeVariant(status: string): BadgeVariant {
   const lower = status.toLowerCase();
   if (
-    ['freigegeben', 'aktiv', 'aktiv', 'lieferant', 'kunde', 'partner'].some((s) =>
+    ['freigegeben', 'aktiv', 'lieferant', 'kunde', 'partner'].some((s) =>
       lower.includes(s),
     )
   )
     return 'success';
+  if (['in_freigabe'].some((s) => lower.includes(s))) return 'warning';
   if (['entwurf', 'interessent'].some((s) => lower.includes(s))) return 'neutral';
   if (['gesperrt', 'archiviert'].some((s) => lower.includes(s))) return 'warning';
-  if (['ersetzt', 'inaktiv'].some((s) => lower.includes(s))) return 'error';
+  if (['ersetzt', 'inaktiv', 'ungueltig'].some((s) => lower.includes(s))) return 'error';
   return 'neutral';
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  return <Badge variant={statusToBadgeVariant(status)}>{status}</Badge>;
+  const label = STATUS_LABELS[status] ?? status;
+  return <Badge variant={statusToBadgeVariant(status)}>{label}</Badge>;
 }

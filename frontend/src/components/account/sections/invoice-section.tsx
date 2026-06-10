@@ -17,7 +17,6 @@ interface Form {
   invoice_postal_code: string;
   invoice_city: string;
   invoice_country: string;
-  invoice_vat_id: string;
   invoice_email: string;
 }
 
@@ -32,34 +31,20 @@ function buildForm(p: UserProfile): Form {
     invoice_postal_code: p.invoice_postal_code ?? '',
     invoice_city: p.invoice_city ?? '',
     invoice_country: p.invoice_country ?? 'CH',
-    invoice_vat_id: p.invoice_vat_id ?? '',
     invoice_email: p.invoice_email ?? '',
   };
 }
 
-function copyFromShipping(profile: UserProfile, isBusiness: boolean): Partial<Form> {
-  if (isBusiness) {
-    const contact = profile.ship_b2b_contact ?? '';
-    const parts = contact.split(' ');
-    return {
-      invoice_company: profile.ship_b2b_company ?? '',
-      invoice_first_name: parts[0] ?? '',
-      invoice_last_name: parts.slice(1).join(' '),
-      invoice_address_line1: profile.ship_b2b_address_line1 ?? '',
-      invoice_address_line2: profile.ship_b2b_address_line2 ?? '',
-      invoice_city: profile.ship_b2b_city ?? '',
-      invoice_postal_code: profile.ship_b2b_postal_code ?? '',
-      invoice_country: profile.ship_b2b_country ?? 'CH',
-    };
-  }
+function copyFromShipping(profile: UserProfile): Partial<Form> {
   return {
-    invoice_first_name: profile.ship_b2c_first_name ?? '',
-    invoice_last_name: profile.ship_b2c_last_name ?? '',
-    invoice_address_line1: profile.ship_b2c_address_line1 ?? '',
-    invoice_address_line2: profile.ship_b2c_address_line2 ?? '',
-    invoice_city: profile.ship_b2c_city ?? '',
-    invoice_postal_code: profile.ship_b2c_postal_code ?? '',
-    invoice_country: profile.ship_b2c_country ?? 'CH',
+    invoice_company: profile.ship_company ?? '',
+    invoice_first_name: profile.ship_name?.split(' ')[0] ?? '',
+    invoice_last_name: profile.ship_name?.split(' ').slice(1).join(' ') ?? '',
+    invoice_address_line1: profile.ship_address_line1 ?? '',
+    invoice_address_line2: profile.ship_address_line2 ?? '',
+    invoice_city: profile.ship_city ?? '',
+    invoice_postal_code: profile.ship_postal_code ?? '',
+    invoice_country: profile.ship_country ?? 'CH',
   };
 }
 
@@ -101,7 +86,7 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
     setForm((prev) => ({
       ...prev,
       invoice_same_as_shipping: on,
-      ...(on ? copyFromShipping(profile, isBusiness) : {}),
+      ...(on ? copyFromShipping(profile) : {}),
     }));
   }
 
@@ -166,9 +151,6 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
           <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} readOnly={disabled} required={!disabled && !form.invoice_city.trim()} onEnter={saveNow} />
           <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} />
           <Field label="Rechnungs-E-Mail" value={form.invoice_email} onChange={(v) => set('invoice_email', v)} type="email" placeholder="buchhaltung@firma.ch" onEnter={saveNow} />
-          {isBusiness && (
-            <Field label="USt-ID / MWST-Nr." value={form.invoice_vat_id} onChange={(v) => set('invoice_vat_id', v)} placeholder="CHE-xxx.xxx.xxx MWST" onEnter={saveNow} />
-          )}
         </div>
       </div>
     </div>

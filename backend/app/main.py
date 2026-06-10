@@ -5,17 +5,57 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import get_settings
-from .core.database import Base, engine
-from .routers import admin, auth, boms, companies, health, items, objects, work_plans
+from .core.database import Base, SessionLocal, engine
+from .models.audit import UserProfile
+from .routers import admin, auth, contact, erp, health
 
 settings = get_settings()
 
 
+def _bootstrap_admin() -> None:
+    """Ensure initial_admin_email always has admin role; fall back to first user."""
+    db = SessionLocal()
+    try:
+        if settings.initial_admin_email:
+            # Always enforce admin role for the designated email
+            candidate = db.query(UserProfile).filter(
+                UserProfile.email == settings.initial_admin_email,
+                UserProfile.is_active == True,
+            ).first()
+            if candidate:
+                if candidate.role != "admin":
+                    candidate.role = "admin"
+                    db.commit()
+                    print(f"INFO: Promoted {settings.initial_admin_email} to admin.", flush=True)
+                return
+
+        # No initial_admin_email match: promote first user if no admin exists
+        has_admin = db.query(UserProfile).filter(
+            UserProfile.role == "admin", UserProfile.is_active == True
+        ).first()
+        if has_admin:
+            return
+        candidate = (
+            db.query(UserProfile)
+            .filter(UserProfile.is_active == True)
+            .order_by(UserProfile.id)
+            .first()
+        )
+        if candidate:
+            candidate.role = "admin"
+            db.commit()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables if they don't exist (dev only — prod uses Alembic)
     if settings.debug:
         Base.metadata.create_all(bind=engine)
+    try:
+        _bootstrap_admin()
+    except Exception as e:
+        print(f"WARNING: _bootstrap_admin() failed (schema may be pending migration): {e}", flush=True)
     yield
 
 
@@ -38,12 +78,9 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
-app.include_router(objects.router)
-app.include_router(items.router)
-app.include_router(boms.router)
-app.include_router(work_plans.router)
-app.include_router(companies.router)
+app.include_router(contact.router)
 app.include_router(admin.router)
+app.include_router(erp.router)
 
 
 @app.get("/")

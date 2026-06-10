@@ -1,27 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { User, Briefcase, Globe } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { Field, SelectField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
 
 interface Form {
-  salutation: string;
   first_name: string;
   last_name: string;
   language: string;
-  is_business: boolean;
 }
 
 function buildForm(p: UserProfile): Form {
   return {
-    salutation: p.salutation ?? '',
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
     language: p.language ?? 'de',
-    is_business: p.is_business ?? false,
   };
 }
 
@@ -32,7 +28,7 @@ interface Props {
   onSave: (data: Partial<UserProfile>) => Promise<void>;
 }
 
-export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Props) {
+export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, onSave }: Props) {
   const [form, setForm] = useState<Form>(() => buildForm(profile));
   const [resetKey, setResetKey] = useState(0);
   const prevId = useRef<number | undefined>(undefined);
@@ -51,6 +47,15 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const detectedLang = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const tag = navigator.language?.split('-')[0]?.toLowerCase();
+    return tag === 'de' || tag === 'en' ? tag : null;
+  }, []);
+
+  const langSuggestion = detectedLang !== null && detectedLang !== form.language ? detectedLang : null;
+  const langLabel = (l: string) => (l === 'de' ? 'Deutsch' : 'English');
+
   const objectNumber = profile.object_id != null
     ? String(profile.object_id).padStart(9, '0')
     : String(profile.id);
@@ -68,55 +73,37 @@ export function ProfileSection({ profile, isEmployee, isCustomer, onSave }: Prop
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
         <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
 
-        {isCustomer && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <p style={{ fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 8 }}>Kontotyp</p>
-            <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden', width: 'fit-content' }}>
-              {[
-                { val: false, label: 'Privatkunde' },
-                { val: true, label: 'Geschäftskunde' },
-              ].map(({ val, label }) => (
+            <SelectField
+              label="Sprache"
+              value={form.language}
+              onChange={(v) => set('language', v)}
+              options={[
+                { value: 'de', label: 'Deutsch' },
+                { value: 'en', label: 'English' },
+              ]}
+            />
+            {langSuggestion && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <Globe style={{ width: 11, height: 11, color: '#94a3b8', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Browser: {langLabel(langSuggestion)}
+                </span>
                 <button
-                  key={String(val)}
-                  onClick={() => set('is_business', val)}
+                  type="button"
+                  onClick={() => set('language', langSuggestion)}
                   style={{
-                    padding: '8px 18px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                    background: form.is_business === val ? '#E51A14' : '#fff',
-                    color: form.is_business === val ? '#fff' : '#374151',
-                    transition: 'background 0.15s, color 0.15s',
+                    fontSize: 11, color: '#2563eb', background: 'none', border: 'none',
+                    padding: '0 4px', cursor: 'pointer', fontWeight: 600,
                   }}
                 >
-                  {label}
+                  Übernehmen
                 </button>
-              ))}
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>
-              Geschäftskunden können Firmendaten und USt-ID hinterlegen.
-            </p>
+              </div>
+            )}
           </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <SelectField
-            label="Anrede"
-            value={form.salutation}
-            onChange={(v) => set('salutation', v)}
-            options={[
-              { value: '', label: 'Keine Angabe' },
-              { value: 'Herr', label: 'Herr' },
-              { value: 'Frau', label: 'Frau' },
-              { value: 'Divers', label: 'Divers' },
-            ]}
-          />
-          <SelectField
-            label="Sprache"
-            value={form.language}
-            onChange={(v) => set('language', v)}
-            options={[
-              { value: 'de', label: 'Deutsch' },
-              { value: 'en', label: 'English' },
-            ]}
-          />
+          <div />
           <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
           <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
         </div>

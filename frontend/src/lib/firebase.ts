@@ -10,8 +10,7 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   onAuthStateChanged,
   verifyBeforeUpdateEmail,
@@ -82,30 +81,11 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
   return { token, user: result.user };
 }
 
-const GOOGLE_REDIRECT_KEY = 'inexxio_google_redirect_pending';
-
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
   if (!auth) throw new Error('Firebase not initialized');
-  // Set flag before navigating so we know to call getRedirectResult on return.
-  // This also prevents calling getRedirectResult on unrelated page loads, which
-  // would corrupt the auth instance via stale IndexedDB pendingRedirect entries.
-  localStorage.setItem(GOOGLE_REDIRECT_KEY, '1');
-  await signInWithRedirect(auth, googleProvider);
-}
-
-export async function getGoogleRedirectResult(): Promise<{ token: string; user: User } | null> {
-  if (!auth) return null;
-  if (!localStorage.getItem(GOOGLE_REDIRECT_KEY)) return null;
-  localStorage.removeItem(GOOGLE_REDIRECT_KEY);
-  try {
-    const result = await getRedirectResult(auth);
-    if (!result) return null;
-    const token = await result.user.getIdToken();
-    return { token, user: result.user };
-  } catch (err) {
-    if ((err as { code?: string }).code === 'auth/internal-error') return null;
-    throw err;
-  }
+  const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+  const token = await result.user.getIdToken();
+  return { token, user: result.user };
 }
 
 export async function logout(): Promise<void> {

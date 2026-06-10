@@ -47,7 +47,7 @@ export function TabList({ children, className }: TabListProps) {
   return (
     <div
       role="tablist"
-      className={cn('flex border-b border-slate-200 gap-1', className)}
+      className={cn('flex gap-1', className)}
     >
       {children}
     </div>

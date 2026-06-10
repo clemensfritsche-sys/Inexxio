@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Users, Loader2, AlertCircle, Shield, User, Truck, ShoppingBag, MoreVertical } from 'lucide-react';
 import { api } from '@/lib/api';
+import { userDisplayName } from '@/lib/utils';
 import type { UserProfile, UserPlatformRole } from '@/types';
 
 const ROLE_CONFIG: Record<UserPlatformRole, { label: string; color: string; icon: React.ElementType }> = {
@@ -61,13 +62,13 @@ export default function BenutzerPage() {
   const filtered = users.filter(
     (u) =>
       u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.display_name || '').toLowerCase().includes(search.toLowerCase())
+      userDisplayName(u).toLowerCase().includes(search.toLowerCase())
   );
 
-  const initials = (user: UserProfile) =>
-    user.display_name
-      ? user.display_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-      : user.email.slice(0, 2).toUpperCase();
+  const initials = (user: UserProfile) => {
+    const name = userDisplayName(user);
+    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || user.email.slice(0, 2).toUpperCase();
+  };
 
   if (loading) {
     return (
@@ -78,7 +79,7 @@ export default function BenutzerPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
@@ -105,12 +106,12 @@ export default function BenutzerPage() {
           placeholder="Benutzer suchen…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="form-input pl-10 max-w-sm"
+          className="form-input pl-10 w-full sm:max-w-sm"
         />
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[480px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="px-4 py-3 text-left font-medium text-slate-600">Benutzer</th>
@@ -146,7 +147,7 @@ export default function BenutzerPage() {
                         )}
                         <div>
                           <p className="font-medium text-slate-900">
-                            {user.display_name || user.email.split('@')[0]}
+                            {userDisplayName(user)}
                           </p>
                           <p className="text-xs text-slate-500">{user.email}</p>
                         </div>

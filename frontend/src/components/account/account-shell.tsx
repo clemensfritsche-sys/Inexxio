@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
 import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
@@ -14,8 +14,9 @@ import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
 import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
+import { SystemConfigSection } from './sections/system-config-section';
 
-type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice' | 'security' | 'notifications' | 'privacy';
+type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice' | 'security' | 'notifications' | 'privacy' | 'systemkonfig';
 
 interface Props {
   profile: UserProfile | null;
@@ -48,7 +49,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const isMobile = useIsMobile(768);
   const completion = useProfileCompletion(profile);
 
-  const isBusiness = profile?.is_business || profile?.role === 'supplier';
+  const isBusiness = profile?.role === 'supplier';
   const isCustomer = profile?.role === 'customer';
   const isEmployee = profile?.role === 'employee';
   const isSupplier = profile?.role === 'supplier';
@@ -70,12 +71,13 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
       { id: 'privacy', label: 'Datenschutz', icon: Lock },
     );
+    if (profile?.role === 'admin') {
+      base.push({ id: 'systemkonfig', label: 'Systemkonfiguration', icon: Package });
+    }
     return base;
-  }, [isBusiness, isCustomer, isSupplier]);
+  }, [isBusiness, isCustomer, isSupplier, profile?.role]);
 
-  const fullName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.display_name || profile.email
-    : '';
+  const fullName = profile ? userDisplayName(profile) : '';
 
   const initials = fullName
     ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -92,6 +94,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       case 'security': return <SecuritySection profile={profile} />;
       case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
       case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;
+      case 'systemkonfig': return <SystemConfigSection />;
     }
   }
 
@@ -278,16 +281,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
           })}
         </nav>
 
-        {/* Admin links */}
-        {profile?.role === 'admin' && (
-          <nav style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginTop: 10 }}>
-            <p style={{ padding: '10px 14px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Admin</p>
-            <Link href="/admin/einstellungen" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: '1px solid #F1F5F9', color: '#374151', textDecoration: 'none', fontSize: 13 }} className="hover:bg-slate-50 transition-colors">
-              <Package style={{ width: 15, height: 15, flexShrink: 0 }} />
-              Systemkonfiguration
-            </Link>
-          </nav>
-        )}
       </aside>
 
       {/* Main content */}

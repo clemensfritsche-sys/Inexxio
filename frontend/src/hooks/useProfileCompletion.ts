@@ -18,21 +18,13 @@ const REQUIRED: RequiredField[] = [
   { section: 'contact', field: 'address_line1' },
   { section: 'contact', field: 'city' },
   { section: 'contact', field: 'postal_code' },
-  // Firmendaten (B2B / Lieferant)
-  { section: 'company', field: 'company_name', condition: (p) => p.is_business || p.role === 'supplier' },
-  { section: 'company', field: 'company_legal_form', condition: (p) => p.is_business || p.role === 'supplier' },
-  { section: 'company', field: 'uid_number', condition: (p) => p.is_business || p.role === 'supplier' },
-  // Lieferadresse B2C
-  { section: 'shipping', field: 'ship_b2c_first_name', condition: (p) => !p.is_business && p.role === 'customer' },
-  { section: 'shipping', field: 'ship_b2c_last_name', condition: (p) => !p.is_business && p.role === 'customer' },
-  { section: 'shipping', field: 'ship_b2c_address_line1', condition: (p) => !p.is_business && p.role === 'customer' },
-  { section: 'shipping', field: 'ship_b2c_city', condition: (p) => !p.is_business && p.role === 'customer' },
-  { section: 'shipping', field: 'ship_b2c_postal_code', condition: (p) => !p.is_business && p.role === 'customer' },
-  // Lieferadresse B2B
-  { section: 'shipping', field: 'ship_b2b_company', condition: (p) => p.is_business || p.role === 'supplier' },
-  { section: 'shipping', field: 'ship_b2b_address_line1', condition: (p) => p.is_business || p.role === 'supplier' },
-  { section: 'shipping', field: 'ship_b2b_city', condition: (p) => p.is_business || p.role === 'supplier' },
-  { section: 'shipping', field: 'ship_b2b_postal_code', condition: (p) => p.is_business || p.role === 'supplier' },
+  // Firmendaten (Lieferant)
+  { section: 'company', field: 'company_name', condition: (p) => p.role === 'supplier' },
+  { section: 'company', field: 'uid_number', condition: (p) => p.role === 'supplier' },
+  // Lieferadresse (Kunde oder Lieferant)
+  { section: 'shipping', field: 'ship_address_line1', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
+  { section: 'shipping', field: 'ship_city', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
+  { section: 'shipping', field: 'ship_postal_code', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
   // Rechnungsadresse (wenn nicht = Lieferadresse)
   { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
   { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
