@@ -161,7 +161,7 @@ export default function DatenschutzPage() {
                 (IP-Adresse, Zeitstempel, Anfrage-Details) für den Betrieb der Infrastruktur.
               </p>
               <p className="mt-3">
-                <strong>Anbieter:</strong> Google Cloud EMEA Limited, 70 Sir John Rogerson's
+                <strong>Anbieter:</strong> Google Cloud EMEA Limited, 70 Sir John Rogerson&rsquo;s
                 Quay, Dublin 2, Irland.<br />
                 <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
                 Interesse an sicherem Hosting).
