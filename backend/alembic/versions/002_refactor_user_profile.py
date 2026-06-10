@@ -20,7 +20,9 @@ def upgrade() -> None:
         BEGIN
             IF EXISTS (
                 SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'user_profiles' AND column_name = 'display_name'
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_profiles'
+                  AND column_name = 'display_name'
             ) THEN
                 UPDATE user_profiles
                 SET
@@ -79,7 +81,14 @@ def upgrade() -> None:
         BEGIN
             IF EXISTS (
                 SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'user_profiles' AND column_name = 'state_canton'
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_profiles'
+                  AND column_name = 'state_canton'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_profiles'
+                  AND column_name = 'state_region'
             ) THEN
                 ALTER TABLE user_profiles RENAME COLUMN state_canton TO state_region;
             END IF;
@@ -126,7 +135,14 @@ def downgrade() -> None:
         BEGIN
             IF EXISTS (
                 SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'user_profiles' AND column_name = 'state_region'
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_profiles'
+                  AND column_name = 'state_region'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_profiles'
+                  AND column_name = 'state_canton'
             ) THEN
                 ALTER TABLE user_profiles RENAME COLUMN state_region TO state_canton;
             END IF;
