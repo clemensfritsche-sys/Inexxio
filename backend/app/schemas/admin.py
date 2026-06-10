@@ -161,6 +161,8 @@ class UserProfileResponse(BaseModel):
 
 
 class UserProfileUpdate(BaseModel):
+    """Self-service update — only fields a user may edit themselves.
+    Employment/role fields are intentionally excluded; use ErpAdminUpdate for those."""
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     date_of_birth: Optional[date] = None
@@ -174,16 +176,6 @@ class UserProfileUpdate(BaseModel):
     state_region: Optional[str] = None
     country: Optional[str] = None
 
-    # Unified shipping address
-    ship_name: Optional[str] = None
-    ship_company: Optional[str] = None
-    ship_address_line1: Optional[str] = None
-    ship_address_line2: Optional[str] = None
-    ship_city: Optional[str] = None
-    ship_postal_code: Optional[str] = None
-    ship_state_region: Optional[str] = None
-    ship_country: Optional[str] = None
-
     # Invoice / billing address
     invoice_company: Optional[str] = None
     invoice_first_name: Optional[str] = None
@@ -196,14 +188,9 @@ class UserProfileUpdate(BaseModel):
     invoice_email: Optional[str] = None
     invoice_same_as_shipping: Optional[bool] = None
 
-    # Business / company info
+    # Business / company info (supplier-visible fields)
     company_name: Optional[str] = None
     uid_number: Optional[str] = None
-    vat_number: Optional[str] = None
-    vat_registered: Optional[bool] = None
-    trade_register_nr: Optional[str] = None
-    trade_register_canton: Optional[str] = None
-    company_website: Optional[str] = None
     company_billing_email: Optional[str] = None
 
     # Supplier bank details
@@ -212,14 +199,7 @@ class UserProfileUpdate(BaseModel):
     bank_bic: Optional[str] = None
     bank_name: Optional[str] = None
 
-    # Employee
-    department: Optional[str] = None
-    job_title: Optional[str] = None
-    employment_start_date: Optional[date] = None
-    weekly_hours: Optional[Decimal] = None
-
     # Preferences
-    language: Optional[str] = None
     notification_email: Optional[bool] = None
     notification_inapp: Optional[bool] = None
     newsletter_opt_in: Optional[bool] = None

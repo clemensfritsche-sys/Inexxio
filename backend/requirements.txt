@@ -1,13 +1,11 @@
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
-sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
+sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
 alembic==1.14.0
 pydantic==2.10.2
 pydantic-settings==2.6.1
 email-validator==2.2.0
-python-jose[cryptography]==3.3.0
 firebase-admin==6.6.0
 httpx==0.28.0
 python-multipart==0.0.17
