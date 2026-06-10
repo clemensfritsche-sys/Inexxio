@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { User, Briefcase, Globe } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { Field, SelectField } from '../field';
 import { useAutosave } from '../use-autosave';
@@ -47,6 +47,15 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  const detectedLang = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const tag = navigator.language?.split('-')[0]?.toLowerCase();
+    return tag === 'de' || tag === 'en' ? tag : null;
+  }, []);
+
+  const langSuggestion = detectedLang !== null && detectedLang !== form.language ? detectedLang : null;
+  const langLabel = (l: string) => (l === 'de' ? 'Deutsch' : 'English');
+
   const objectNumber = profile.object_id != null
     ? String(profile.object_id).padStart(9, '0')
     : String(profile.id);
@@ -65,15 +74,35 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
         <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <SelectField
-            label="Sprache"
-            value={form.language}
-            onChange={(v) => set('language', v)}
-            options={[
-              { value: 'de', label: 'Deutsch' },
-              { value: 'en', label: 'English' },
-            ]}
-          />
+          <div>
+            <SelectField
+              label="Sprache"
+              value={form.language}
+              onChange={(v) => set('language', v)}
+              options={[
+                { value: 'de', label: 'Deutsch' },
+                { value: 'en', label: 'English' },
+              ]}
+            />
+            {langSuggestion && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <Globe style={{ width: 11, height: 11, color: '#94a3b8', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Browser: {langLabel(langSuggestion)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => set('language', langSuggestion)}
+                  style={{
+                    fontSize: 11, color: '#2563eb', background: 'none', border: 'none',
+                    padding: '0 4px', cursor: 'pointer', fontWeight: 600,
+                  }}
+                >
+                  Übernehmen
+                </button>
+              </div>
+            )}
+          </div>
           <div />
           <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
           <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />

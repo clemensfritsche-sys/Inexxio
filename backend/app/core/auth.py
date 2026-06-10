@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -32,13 +32,19 @@ def _init_firebase() -> None:
         _firebase_initialized = True
 
 
+def _detect_language(request: Request) -> str:
+    header = request.headers.get("accept-language", "")
+    tag = header.split(",")[0].split(";")[0].split("-")[0].lower().strip()
+    return tag if tag in ("de", "en") else "de"
+
+
 def _no_admin_exists(db: Session) -> bool:
     return not db.query(UserProfile).filter(
         UserProfile.role == "admin", UserProfile.is_active == True
     ).first()
 
 
-def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfile:
+def _create_user(db: Session, uid: str, email: str, decoded: dict, language: str = "de") -> UserProfile:
     email_is_admin = (
         settings.initial_admin_email
         and email.lower() == settings.initial_admin_email.lower()
@@ -55,6 +61,7 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfil
         last_name=last,
         photo_url=decoded.get("picture"),
         role=role,
+        language=language,
     )
     db.add(user)
     db.commit()
@@ -63,6 +70,7 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfil
 
 
 def get_current_user(
+    request: Request,
     credentials_: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> UserProfile:
@@ -88,7 +96,7 @@ def get_current_user(
                 user.firebase_uid = uid
                 db.commit()
             else:
-                return _create_user(db, uid, email, decoded)
+                return _create_user(db, uid, email, decoded, _detect_language(request))
 
         changed = False
         email_is_admin = (
