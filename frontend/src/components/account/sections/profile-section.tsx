@@ -74,6 +74,8 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
         <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
+          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
           <div>
             <SelectField
               label="Sprache"
@@ -104,8 +106,6 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
             )}
           </div>
           <div />
-          <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
-          <Field label="Nachname" value={form.last_name} onChange={(v) => set('last_name', v)} placeholder="Muster" required={!form.last_name.trim()} onEnter={saveNow} />
         </div>
 
         {isEmployee && (
