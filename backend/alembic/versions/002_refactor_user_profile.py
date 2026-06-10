@@ -14,21 +14,30 @@ depends_on = None
 
 def upgrade() -> None:
     # 1. Migrate display_name → first_name / last_name where not yet set
+    #    Guarded: only runs if display_name column still exists
     op.execute("""
-        UPDATE user_profiles
-        SET
-            first_name = CASE
-                WHEN first_name IS NULL AND display_name IS NOT NULL
-                THEN split_part(display_name, ' ', 1)
-                ELSE first_name
-            END,
-            last_name = CASE
-                WHEN last_name IS NULL AND display_name IS NOT NULL
-                     AND position(' ' IN display_name) > 0
-                THEN substring(display_name FROM position(' ' IN display_name) + 1)
-                ELSE last_name
-            END
-        WHERE display_name IS NOT NULL
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'user_profiles' AND column_name = 'display_name'
+            ) THEN
+                UPDATE user_profiles
+                SET
+                    first_name = CASE
+                        WHEN first_name IS NULL AND display_name IS NOT NULL
+                        THEN split_part(display_name, ' ', 1)
+                        ELSE first_name
+                    END,
+                    last_name = CASE
+                        WHEN last_name IS NULL AND display_name IS NOT NULL
+                             AND position(' ' IN display_name) > 0
+                        THEN substring(display_name FROM position(' ' IN display_name) + 1)
+                        ELSE last_name
+                    END
+                WHERE display_name IS NOT NULL;
+            END IF;
+        END $$;
     """)
 
     # 2. Drop removed columns (IF EXISTS — safe to re-run)

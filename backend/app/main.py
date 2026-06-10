@@ -13,27 +13,34 @@ settings = get_settings()
 
 
 def _bootstrap_admin() -> None:
-    """Promote a user to admin on startup if no admin exists yet."""
+    """Ensure initial_admin_email always has admin role; fall back to first user."""
     db = SessionLocal()
     try:
+        if settings.initial_admin_email:
+            # Always enforce admin role for the designated email
+            candidate = db.query(UserProfile).filter(
+                UserProfile.email == settings.initial_admin_email,
+                UserProfile.is_active == True,
+            ).first()
+            if candidate:
+                if candidate.role != "admin":
+                    candidate.role = "admin"
+                    db.commit()
+                    print(f"INFO: Promoted {settings.initial_admin_email} to admin.", flush=True)
+                return
+
+        # No initial_admin_email match: promote first user if no admin exists
         has_admin = db.query(UserProfile).filter(
             UserProfile.role == "admin", UserProfile.is_active == True
         ).first()
         if has_admin:
             return
-        candidate = None
-        if settings.initial_admin_email:
-            candidate = db.query(UserProfile).filter(
-                UserProfile.email == settings.initial_admin_email,
-                UserProfile.is_active == True,
-            ).first()
-        if not candidate:
-            candidate = (
-                db.query(UserProfile)
-                .filter(UserProfile.is_active == True)
-                .order_by(UserProfile.id)
-                .first()
-            )
+        candidate = (
+            db.query(UserProfile)
+            .filter(UserProfile.is_active == True)
+            .order_by(UserProfile.id)
+            .first()
+        )
         if candidate:
             candidate.role = "admin"
             db.commit()
