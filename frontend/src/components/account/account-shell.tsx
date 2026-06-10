@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
+import { User, MapPin, Building2, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -9,14 +9,13 @@ import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
 import { ContactSection } from './sections/contact-section';
 import { CompanySection } from './sections/company-section';
-import { ShippingSection } from './sections/shipping-section';
 import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
 import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
 import { SystemConfigSection } from './sections/system-config-section';
 
-type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice' | 'security' | 'notifications' | 'privacy' | 'systemkonfig';
+type SectionId = 'profile' | 'contact' | 'company' | 'invoice' | 'security' | 'notifications' | 'privacy' | 'systemkonfig';
 
 interface Props {
   profile: UserProfile | null;
@@ -57,13 +56,12 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const sections = useMemo(() => {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
       { id: 'profile', label: 'Mein Profil', icon: User },
-      { id: 'contact', label: 'Kontakt & Adresse', icon: MapPin },
+      { id: 'contact', label: 'Adresse', icon: MapPin },
     ];
     if (isBusiness || isSupplier) {
       base.push({ id: 'company', label: 'Firmendaten', icon: Building2 });
     }
     if (isCustomer || isSupplier) {
-      base.push({ id: 'shipping', label: 'Lieferadressen', icon: Truck });
       base.push({ id: 'invoice', label: 'Rechnungsadresse', icon: FileText });
     }
     base.push(
@@ -89,7 +87,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isCustomer={isCustomer} />;
       case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
       case 'company': return <CompanySection profile={profile} onSave={onSave} />;
-      case 'shipping': return <ShippingSection profile={profile} onSave={onSave} isBusiness={!!isBusiness} />;
       case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={!!isBusiness} />;
       case 'security': return <SecuritySection profile={profile} />;
       case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;

@@ -10,14 +10,12 @@ import { SaveStatusIndicator } from '../save-status';
 interface Form {
   notification_email: boolean;
   notification_inapp: boolean;
-  newsletter_opt_in: boolean;
 }
 
 function buildForm(p: UserProfile): Form {
   return {
     notification_email: p.notification_email ?? true,
     notification_inapp: p.notification_inapp ?? true,
-    newsletter_opt_in: p.newsletter_opt_in ?? false,
   };
 }
 
@@ -68,13 +66,6 @@ export function NotificationsSection({ profile, onSave }: Props) {
           description="Benachrichtigungen direkt in der Anwendung anzeigen"
           checked={form.notification_inapp}
           onChange={(v) => set('notification_inapp', v)}
-        />
-        <div style={{ height: 1, background: '#F1F5F9' }} />
-        <ToggleField
-          label="Newsletter"
-          description="Neuigkeiten, Produkt-Updates und Angebote von Inexxio"
-          checked={form.newsletter_opt_in}
-          onChange={(v) => set('newsletter_opt_in', v)}
         />
       </div>
     </div>

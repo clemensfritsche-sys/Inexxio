@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-type SectionId = 'profile' | 'contact' | 'company' | 'shipping' | 'invoice';
+type SectionId = 'profile' | 'contact' | 'company' | 'invoice';
 
 interface RequiredField {
   section: SectionId;
@@ -13,7 +13,7 @@ const REQUIRED: RequiredField[] = [
   // Mein Profil
   { section: 'profile', field: 'first_name' },
   { section: 'profile', field: 'last_name' },
-  // Kontakt & Adresse
+  // Adresse
   { section: 'contact', field: 'phone' },
   { section: 'contact', field: 'address_line1' },
   { section: 'contact', field: 'city' },
@@ -21,10 +21,6 @@ const REQUIRED: RequiredField[] = [
   // Firmendaten (Lieferant)
   { section: 'company', field: 'company_name', condition: (p) => p.role === 'supplier' },
   { section: 'company', field: 'uid_number', condition: (p) => p.role === 'supplier' },
-  // Lieferadresse (Kunde oder Lieferant)
-  { section: 'shipping', field: 'ship_address_line1', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
-  { section: 'shipping', field: 'ship_city', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
-  { section: 'shipping', field: 'ship_postal_code', condition: (p) => p.role === 'customer' || p.role === 'supplier' },
   // Rechnungsadresse (wenn nicht = Lieferadresse)
   { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
   { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !p.invoice_same_as_shipping },
