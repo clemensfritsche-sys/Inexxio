@@ -20,9 +20,22 @@ interface Form {
   invoice_email: string;
 }
 
-function buildForm(p: UserProfile): Form {
+function copyFromAddress(p: UserProfile): Partial<Form> {
   return {
-    invoice_same_as_shipping: p.invoice_same_as_shipping ?? false,
+    invoice_first_name: p.first_name ?? '',
+    invoice_last_name: p.last_name ?? '',
+    invoice_address_line1: p.address_line1 ?? '',
+    invoice_address_line2: p.address_line2 ?? '',
+    invoice_city: p.city ?? '',
+    invoice_postal_code: p.postal_code ?? '',
+    invoice_country: p.country ?? 'CH',
+  };
+}
+
+function buildForm(p: UserProfile): Form {
+  const sameAsShipping = p.invoice_same_as_shipping ?? true;
+  const base: Form = {
+    invoice_same_as_shipping: sameAsShipping,
     invoice_company: p.invoice_company ?? '',
     invoice_first_name: p.invoice_first_name ?? '',
     invoice_last_name: p.invoice_last_name ?? '',
@@ -33,19 +46,10 @@ function buildForm(p: UserProfile): Form {
     invoice_country: p.invoice_country ?? 'CH',
     invoice_email: p.invoice_email ?? '',
   };
-}
-
-function copyFromShipping(profile: UserProfile): Partial<Form> {
-  return {
-    invoice_company: profile.ship_company ?? '',
-    invoice_first_name: profile.ship_name?.split(' ')[0] ?? '',
-    invoice_last_name: profile.ship_name?.split(' ').slice(1).join(' ') ?? '',
-    invoice_address_line1: profile.ship_address_line1 ?? '',
-    invoice_address_line2: profile.ship_address_line2 ?? '',
-    invoice_city: profile.ship_city ?? '',
-    invoice_postal_code: profile.ship_postal_code ?? '',
-    invoice_country: profile.ship_country ?? 'CH',
-  };
+  if (sameAsShipping) {
+    return { ...base, ...copyFromAddress(p) };
+  }
+  return base;
 }
 
 const COUNTRIES = [
@@ -76,6 +80,25 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
+  // Keep invoice fields in sync with the Adresse section when same-as is on
+  const { first_name, last_name, address_line1, address_line2, city, postal_code, country } = profile;
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.invoice_same_as_shipping) return prev;
+      const patch: Partial<Form> = {
+        invoice_first_name: first_name ?? '',
+        invoice_last_name: last_name ?? '',
+        invoice_address_line1: address_line1 ?? '',
+        invoice_address_line2: address_line2 ?? '',
+        invoice_city: city ?? '',
+        invoice_postal_code: postal_code ?? '',
+        invoice_country: country ?? 'CH',
+      };
+      const changed = (Object.keys(patch) as (keyof Form)[]).some((k) => prev[k] !== patch[k]);
+      return changed ? { ...prev, ...patch } : prev;
+    });
+  }, [first_name, last_name, address_line1, address_line2, city, postal_code, country]);
+
   const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -86,7 +109,7 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
     setForm((prev) => ({
       ...prev,
       invoice_same_as_shipping: on,
-      ...(on ? copyFromShipping(profile) : {}),
+      ...(on ? copyFromAddress(profile) : {}),
     }));
   }
 

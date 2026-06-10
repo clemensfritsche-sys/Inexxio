@@ -10,6 +10,7 @@ import { SaveStatusIndicator } from '../save-status';
 interface Form {
   first_name: string;
   last_name: string;
+  date_of_birth: string;
   language: string;
 }
 
@@ -17,6 +18,7 @@ function buildForm(p: UserProfile): Form {
   return {
     first_name: p.first_name ?? '',
     last_name: p.last_name ?? '',
+    date_of_birth: p.date_of_birth ?? '',
     language: p.language ?? 'de',
   };
 }
@@ -105,7 +107,7 @@ export function ProfileSection({ profile, isEmployee, isCustomer: _isCustomer, o
               </div>
             )}
           </div>
-          <div />
+          <Field label="Geburtsdatum" value={form.date_of_birth} onChange={(v) => set('date_of_birth', v)} type="date" onEnter={saveNow} />
         </div>
 
         {isEmployee && (

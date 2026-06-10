@@ -61,9 +61,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     if (isBusiness || isSupplier) {
       base.push({ id: 'company', label: 'Firmendaten', icon: Building2 });
     }
-    if (isCustomer || isSupplier) {
-      base.push({ id: 'invoice', label: 'Rechnungsadresse', icon: FileText });
-    }
+    base.push({ id: 'invoice', label: 'Rechnungsadresse', icon: FileText });
     base.push(
       { id: 'security', label: 'Sicherheit', icon: Shield },
       { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
