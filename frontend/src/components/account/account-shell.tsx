@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { User, MapPin, Building2, Truck, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
@@ -48,7 +49,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const isMobile = useIsMobile(768);
   const completion = useProfileCompletion(profile);
 
-  const isBusiness = profile?.is_business || profile?.role === 'supplier';
+  const isBusiness = profile?.role === 'supplier';
   const isCustomer = profile?.role === 'customer';
   const isEmployee = profile?.role === 'employee';
   const isSupplier = profile?.role === 'supplier';
@@ -76,9 +77,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     return base;
   }, [isBusiness, isCustomer, isSupplier, profile?.role]);
 
-  const fullName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.display_name || profile.email
-    : '';
+  const fullName = profile ? userDisplayName(profile) : '';
 
   const initials = fullName
     ? fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)

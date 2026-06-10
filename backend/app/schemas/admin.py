@@ -82,7 +82,6 @@ class UserProfileResponse(BaseModel):
     object_id: Optional[int]
     firebase_uid: str
     email: str
-    display_name: Optional[str]
     photo_url: Optional[str]
     role: str
     is_active: bool
@@ -93,33 +92,24 @@ class UserProfileResponse(BaseModel):
     first_name: Optional[str]
     last_name: Optional[str]
     phone: Optional[str]
-    phone_mobile: Optional[str]
 
     # Contact address
     address_line1: Optional[str]
     address_line2: Optional[str]
     city: Optional[str]
     postal_code: Optional[str]
-    state_canton: Optional[str]
+    state_region: Optional[str]
     country: str
 
-    # Shipping B2C
-    ship_b2c_first_name: Optional[str]
-    ship_b2c_last_name: Optional[str]
-    ship_b2c_address_line1: Optional[str]
-    ship_b2c_address_line2: Optional[str]
-    ship_b2c_city: Optional[str]
-    ship_b2c_postal_code: Optional[str]
-    ship_b2c_country: Optional[str]
-
-    # Shipping B2B
-    ship_b2b_company: Optional[str]
-    ship_b2b_contact: Optional[str]
-    ship_b2b_address_line1: Optional[str]
-    ship_b2b_address_line2: Optional[str]
-    ship_b2b_city: Optional[str]
-    ship_b2b_postal_code: Optional[str]
-    ship_b2b_country: Optional[str]
+    # Unified shipping address
+    ship_name: Optional[str]
+    ship_company: Optional[str]
+    ship_address_line1: Optional[str]
+    ship_address_line2: Optional[str]
+    ship_city: Optional[str]
+    ship_postal_code: Optional[str]
+    ship_state_region: Optional[str]
+    ship_country: Optional[str]
 
     # Invoice
     invoice_company: Optional[str]
@@ -130,17 +120,14 @@ class UserProfileResponse(BaseModel):
     invoice_city: Optional[str]
     invoice_postal_code: Optional[str]
     invoice_country: Optional[str]
-    invoice_vat_id: Optional[str]
     invoice_email: Optional[str]
     invoice_same_as_shipping: bool
 
     # Personal extras
-    salutation: Optional[str]
     date_of_birth: Optional[date]
 
     # Business / company info
     company_name: Optional[str]
-    company_legal_form: Optional[str]
     uid_number: Optional[str]
     vat_number: Optional[str]
     vat_registered: bool
@@ -149,14 +136,11 @@ class UserProfileResponse(BaseModel):
     company_website: Optional[str]
     company_billing_email: Optional[str]
 
-    # Online shop / CRM
-    is_business: bool
-    customer_group: Optional[str]
-    credit_limit: Optional[Decimal]
-    accepts_marketing: bool
-
-    # Payment
-    stripe_customer_id: Optional[str]
+    # Supplier bank details
+    bank_account_holder: Optional[str]
+    bank_iban: Optional[str]
+    bank_bic: Optional[str]
+    bank_name: Optional[str]
 
     # Employee
     department: Optional[str]
@@ -166,7 +150,6 @@ class UserProfileResponse(BaseModel):
 
     # Preferences
     language: str
-    timezone: str
     notification_email: bool
     notification_inapp: bool
     newsletter_opt_in: bool
@@ -178,39 +161,28 @@ class UserProfileResponse(BaseModel):
 
 
 class UserProfileUpdate(BaseModel):
-    display_name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    salutation: Optional[str] = None
     date_of_birth: Optional[date] = None
     phone: Optional[str] = None
-    phone_mobile: Optional[str] = None
 
     # Contact address
     address_line1: Optional[str] = None
     address_line2: Optional[str] = None
     city: Optional[str] = None
     postal_code: Optional[str] = None
-    state_canton: Optional[str] = None
+    state_region: Optional[str] = None
     country: Optional[str] = None
 
-    # Shipping B2C
-    ship_b2c_first_name: Optional[str] = None
-    ship_b2c_last_name: Optional[str] = None
-    ship_b2c_address_line1: Optional[str] = None
-    ship_b2c_address_line2: Optional[str] = None
-    ship_b2c_city: Optional[str] = None
-    ship_b2c_postal_code: Optional[str] = None
-    ship_b2c_country: Optional[str] = None
-
-    # Shipping B2B
-    ship_b2b_company: Optional[str] = None
-    ship_b2b_contact: Optional[str] = None
-    ship_b2b_address_line1: Optional[str] = None
-    ship_b2b_address_line2: Optional[str] = None
-    ship_b2b_city: Optional[str] = None
-    ship_b2b_postal_code: Optional[str] = None
-    ship_b2b_country: Optional[str] = None
+    # Unified shipping address
+    ship_name: Optional[str] = None
+    ship_company: Optional[str] = None
+    ship_address_line1: Optional[str] = None
+    ship_address_line2: Optional[str] = None
+    ship_city: Optional[str] = None
+    ship_postal_code: Optional[str] = None
+    ship_state_region: Optional[str] = None
+    ship_country: Optional[str] = None
 
     # Invoice / billing address
     invoice_company: Optional[str] = None
@@ -221,13 +193,11 @@ class UserProfileUpdate(BaseModel):
     invoice_city: Optional[str] = None
     invoice_postal_code: Optional[str] = None
     invoice_country: Optional[str] = None
-    invoice_vat_id: Optional[str] = None
     invoice_email: Optional[str] = None
     invoice_same_as_shipping: Optional[bool] = None
 
     # Business / company info
     company_name: Optional[str] = None
-    company_legal_form: Optional[str] = None
     uid_number: Optional[str] = None
     vat_number: Optional[str] = None
     vat_registered: Optional[bool] = None
@@ -235,11 +205,12 @@ class UserProfileUpdate(BaseModel):
     trade_register_canton: Optional[str] = None
     company_website: Optional[str] = None
     company_billing_email: Optional[str] = None
-    is_business: Optional[bool] = None
-    customer_group: Optional[str] = None
-    credit_limit: Optional[Decimal] = None
-    accepts_marketing: Optional[bool] = None
-    newsletter_opt_in: Optional[bool] = None
+
+    # Supplier bank details
+    bank_account_holder: Optional[str] = None
+    bank_iban: Optional[str] = None
+    bank_bic: Optional[str] = None
+    bank_name: Optional[str] = None
 
     # Employee
     department: Optional[str] = None
@@ -249,10 +220,19 @@ class UserProfileUpdate(BaseModel):
 
     # Preferences
     language: Optional[str] = None
-    timezone: Optional[str] = None
     notification_email: Optional[bool] = None
     notification_inapp: Optional[bool] = None
+    newsletter_opt_in: Optional[bool] = None
 
 
 class UserRoleUpdate(BaseModel):
     role: str
+
+
+class ErpAdminUpdate(BaseModel):
+    """Fields an admin may change from the ERP panel."""
+    role: Optional[str] = None
+    department: Optional[str] = None
+    job_title: Optional[str] = None
+    employment_start_date: Optional[date] = None
+    weekly_hours: Optional[Decimal] = None

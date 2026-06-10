@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Users, Loader2, AlertCircle, Shield, User, Truck, ShoppingBag, MoreVertical } from 'lucide-react';
 import { api } from '@/lib/api';
+import { userDisplayName } from '@/lib/utils';
 import type { UserProfile, UserPlatformRole } from '@/types';
 
 const ROLE_CONFIG: Record<UserPlatformRole, { label: string; color: string; icon: React.ElementType }> = {
@@ -61,13 +62,13 @@ export default function BenutzerPage() {
   const filtered = users.filter(
     (u) =>
       u.email.toLowerCase().includes(search.toLowerCase()) ||
-      (u.display_name || '').toLowerCase().includes(search.toLowerCase())
+      userDisplayName(u).toLowerCase().includes(search.toLowerCase())
   );
 
-  const initials = (user: UserProfile) =>
-    user.display_name
-      ? user.display_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
-      : user.email.slice(0, 2).toUpperCase();
+  const initials = (user: UserProfile) => {
+    const name = userDisplayName(user);
+    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || user.email.slice(0, 2).toUpperCase();
+  };
 
   if (loading) {
     return (
@@ -146,7 +147,7 @@ export default function BenutzerPage() {
                         )}
                         <div>
                           <p className="font-medium text-slate-900">
-                            {user.display_name || user.email.split('@')[0]}
+                            {userDisplayName(user)}
                           </p>
                           <p className="text-xs text-slate-500">{user.email}</p>
                         </div>

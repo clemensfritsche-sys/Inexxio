@@ -45,36 +45,37 @@ export interface UserProfile {
   object_id: number | null;
   firebase_uid: string;
   email: string;
-  display_name: string | null;
   photo_url: string | null;
   role: UserPlatformRole;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+
+  // Personal
   first_name: string | null;
   last_name: string | null;
+  date_of_birth: string | null;
   phone: string | null;
-  phone_mobile: string | null;
+
+  // Contact address (international)
   address_line1: string | null;
   address_line2: string | null;
   city: string | null;
   postal_code: string | null;
-  state_canton: string | null;
+  state_region: string | null;
   country: string;
-  ship_b2c_first_name: string | null;
-  ship_b2c_last_name: string | null;
-  ship_b2c_address_line1: string | null;
-  ship_b2c_address_line2: string | null;
-  ship_b2c_city: string | null;
-  ship_b2c_postal_code: string | null;
-  ship_b2c_country: string | null;
-  ship_b2b_company: string | null;
-  ship_b2b_contact: string | null;
-  ship_b2b_address_line1: string | null;
-  ship_b2b_address_line2: string | null;
-  ship_b2b_city: string | null;
-  ship_b2b_postal_code: string | null;
-  ship_b2b_country: string | null;
+
+  // Unified shipping address
+  ship_name: string | null;
+  ship_company: string | null;
+  ship_address_line1: string | null;
+  ship_address_line2: string | null;
+  ship_city: string | null;
+  ship_postal_code: string | null;
+  ship_state_region: string | null;
+  ship_country: string | null;
+
+  // Invoice / billing
   invoice_company: string | null;
   invoice_first_name: string | null;
   invoice_last_name: string | null;
@@ -83,13 +84,11 @@ export interface UserProfile {
   invoice_city: string | null;
   invoice_postal_code: string | null;
   invoice_country: string | null;
-  invoice_vat_id: string | null;
   invoice_email: string | null;
   invoice_same_as_shipping: boolean;
-  salutation: string | null;
-  date_of_birth: string | null;
+
+  // Company (B2B)
   company_name: string | null;
-  company_legal_form: string | null;
   uid_number: string | null;
   vat_number: string | null;
   vat_registered: boolean;
@@ -97,20 +96,26 @@ export interface UserProfile {
   trade_register_canton: string | null;
   company_website: string | null;
   company_billing_email: string | null;
-  is_business: boolean;
-  customer_group: string | null;
-  credit_limit: string | null;
-  accepts_marketing: boolean;
-  stripe_customer_id: string | null;
+
+  // Supplier bank details
+  bank_account_holder: string | null;
+  bank_iban: string | null;
+  bank_bic: string | null;
+  bank_name: string | null;
+
+  // Employee
   department: string | null;
   job_title: string | null;
   employment_start_date: string | null;
   weekly_hours: string | null;
+
+  // Preferences
   language: string;
-  timezone: string;
   notification_email: boolean;
   notification_inapp: boolean;
   newsletter_opt_in: boolean;
+
+  // Auth / compliance
   last_login_at: string | null;
   terms_accepted_at: string | null;
   terms_version: string | null;

@@ -13,7 +13,7 @@ interface Form {
   address_line2: string;
   postal_code: string;
   city: string;
-  state_canton: string;
+  state_region: string;
   country: string;
 }
 
@@ -24,7 +24,7 @@ function buildForm(p: UserProfile): Form {
     address_line2: p.address_line2 ?? '',
     postal_code: p.postal_code ?? '',
     city: p.city ?? '',
-    state_canton: p.state_canton ?? '',
+    state_region: p.state_region ?? '',
     country: p.country ?? 'CH',
   };
 }
@@ -86,7 +86,7 @@ export function ContactSection({ profile, onSave }: Props) {
           <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" required={!form.city.trim()} onEnter={saveNow} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Kanton / Region" value={form.state_canton} onChange={(v) => set('state_canton', v)} placeholder="ZH" onEnter={saveNow} />
+          <Field label="Kanton / Region" value={form.state_region} onChange={(v) => set('state_region', v)} placeholder="ZH" onEnter={saveNow} />
           <SelectField label="Land" value={form.country} onChange={(v) => set('country', v)} options={COUNTRIES} />
         </div>
       </div>

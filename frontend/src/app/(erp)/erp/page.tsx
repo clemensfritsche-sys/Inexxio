@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, User, ArrowLeft } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Search, User, ArrowLeft, Pencil } from 'lucide-react';
+import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { UserProfile, UserPlatformRole } from '@/types';
+import type { UserProfile } from '@/types';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -72,24 +72,22 @@ function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldPr
 
 // ─── Section ───────────────────────────────────────────────────────────────────
 
-function Sec({ title, children }: { title: string; children: React.ReactNode }) {
+function Sec({ title, children, editable }: { title: string; children: React.ReactNode; editable?: boolean }) {
   return (
     <div className="mb-6">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pb-2 mb-3 border-b border-slate-100">{title}</div>
+      <div className="flex items-center gap-1.5 pb-2 mb-3 border-b border-slate-100">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</span>
+        {editable && <Pencil size={10} className="text-blue-400" />}
+      </div>
       <div className="grid grid-cols-2 gap-3">{children}</div>
     </div>
   );
-}
-
-function SubLabel({ label }: { label: string }) {
-  return <div className="col-span-2 text-[10px] font-semibold text-slate-400 mt-1 -mb-1">{label}</div>;
 }
 
 // ─── RecordItem ────────────────────────────────────────────────────────────────
 
 function RecordItem({ r, sel, onClick }: { r: UserProfile; sel: boolean; onClick: () => void }) {
   const rc = ROLE_CFG[r.role] ?? ROLE_CFG.customer;
-  const name = r.display_name || [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email.split('@')[0];
   return (
     <button
       onClick={onClick}
@@ -108,7 +106,7 @@ function RecordItem({ r, sel, onClick }: { r: UserProfile; sel: boolean; onClick
         <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: rc.bg, color: rc.color, flexShrink: 0 }}>{rc.label}</span>
       </div>
       <div className="mt-1 text-[11px] font-medium text-slate-400 uppercase tracking-wide">User</div>
-      <div className="mt-0.5 text-[13px] font-semibold text-slate-800 truncate">{name}</div>
+      <div className="mt-0.5 text-[13px] font-semibold text-slate-800 truncate">{userDisplayName(r)}</div>
     </button>
   );
 }
@@ -119,9 +117,13 @@ type GetVal = (k: keyof UserProfile) => string | boolean | null | undefined;
 type SetVal = (k: keyof UserProfile) => (v: string | boolean) => void;
 
 function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; record: UserProfile; isAdmin: boolean }) {
+  const isSupplier = record.role === 'supplier';
+  const isEmployee = record.role === 'employee' || record.role === 'admin';
+  const isB2B = record.role === 'supplier' || record.role === 'customer';
+
   return (
     <>
-      <Sec title="Rolle & Status">
+      <Sec title="Rolle" editable={isAdmin}>
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Rolle</div>
           {isAdmin ? (
@@ -135,111 +137,103 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
             <div className="px-2.5 py-1.5 text-sm rounded border border-slate-100 bg-slate-50 text-slate-400">{ROLE_CFG[record.role]?.label ?? record.role}</div>
           )}
         </div>
-        <div />
-        <Field label="Kunden-Gruppe" val={v('customer_group')} onChange={set('customer_group')} />
-        <Field label="Kreditlimit (CHF)" val={v('credit_limit')} onChange={set('credit_limit')} />
-        <div className="col-span-2 flex flex-wrap gap-4">
-          <Field label="Geschäftskunde" val={v('is_business')} onChange={set('is_business')} type="check" />
-          <Field label="MwSt. registriert" val={v('vat_registered')} onChange={set('vat_registered')} type="check" />
-          <Field label="Marketing" val={v('accepts_marketing')} onChange={set('accepts_marketing')} type="check" />
-        </div>
       </Sec>
 
       <Sec title="Personalien">
-        <Field label="Anrede" val={v('salutation')} onChange={set('salutation')} type="select" opts={['', 'Herr', 'Frau', 'Divers']} />
-        <div />
-        <Field label="Vorname" val={v('first_name')} onChange={set('first_name')} />
-        <Field label="Nachname" val={v('last_name')} onChange={set('last_name')} />
-        <Field label="Geburtsdatum" val={v('date_of_birth')} onChange={set('date_of_birth')} type="date" />
-        <Field label="Anzeigename" val={v('display_name')} onChange={set('display_name')} />
-      </Sec>
-
-      <Sec title="Kontakt">
-        <Field label="E-Mail" val={record.email} ro />
-        <div />
-        <Field label="Telefon" val={v('phone')} onChange={set('phone')} />
-        <Field label="Mobiltelefon" val={v('phone_mobile')} onChange={set('phone_mobile')} />
+        <Field label="Vorname" val={v('first_name')} ro />
+        <Field label="Nachname" val={v('last_name')} ro />
+        <Field label="Geburtsdatum" val={v('date_of_birth')} type="date" ro />
+        <Field label="Telefon" val={v('phone')} ro />
       </Sec>
 
       <Sec title="Adresse">
-        <Field label="Adresszeile 1" val={v('address_line1')} onChange={set('address_line1')} />
-        <Field label="Adresszeile 2" val={v('address_line2')} onChange={set('address_line2')} />
-        <Field label="PLZ" val={v('postal_code')} onChange={set('postal_code')} />
-        <Field label="Ort" val={v('city')} onChange={set('city')} />
-        <Field label="Kanton/Bundesland" val={v('state_canton')} onChange={set('state_canton')} />
-        <Field label="Land" val={v('country')} onChange={set('country')} />
+        <Field label="Adresszeile 1" val={v('address_line1')} ro />
+        <Field label="Adresszeile 2" val={v('address_line2')} ro />
+        <Field label="PLZ" val={v('postal_code')} ro />
+        <Field label="Ort" val={v('city')} ro />
+        <Field label="Region/Bundesland" val={v('state_region')} ro />
+        <Field label="Land" val={v('country')} ro />
       </Sec>
 
-      <Sec title="Lieferadresse">
-        <SubLabel label="Privat (B2C)" />
-        <Field label="Vorname" val={v('ship_b2c_first_name')} onChange={set('ship_b2c_first_name')} />
-        <Field label="Nachname" val={v('ship_b2c_last_name')} onChange={set('ship_b2c_last_name')} />
-        <Field label="Adresszeile 1" val={v('ship_b2c_address_line1')} onChange={set('ship_b2c_address_line1')} />
-        <Field label="Adresszeile 2" val={v('ship_b2c_address_line2')} onChange={set('ship_b2c_address_line2')} />
-        <Field label="PLZ" val={v('ship_b2c_postal_code')} onChange={set('ship_b2c_postal_code')} />
-        <Field label="Ort" val={v('ship_b2c_city')} onChange={set('ship_b2c_city')} />
-        <Field label="Land" val={v('ship_b2c_country')} onChange={set('ship_b2c_country')} />
-        <SubLabel label="Firma (B2B)" />
-        <Field label="Firma" val={v('ship_b2b_company')} onChange={set('ship_b2b_company')} />
-        <Field label="Kontakt" val={v('ship_b2b_contact')} onChange={set('ship_b2b_contact')} />
-        <Field label="Adresszeile 1" val={v('ship_b2b_address_line1')} onChange={set('ship_b2b_address_line1')} />
-        <Field label="Adresszeile 2" val={v('ship_b2b_address_line2')} onChange={set('ship_b2b_address_line2')} />
-        <Field label="PLZ" val={v('ship_b2b_postal_code')} onChange={set('ship_b2b_postal_code')} />
-        <Field label="Ort" val={v('ship_b2b_city')} onChange={set('ship_b2b_city')} />
-        <Field label="Land" val={v('ship_b2b_country')} onChange={set('ship_b2b_country')} />
-      </Sec>
+      {isB2B && (
+        <Sec title="Lieferadresse">
+          <Field label="Name" val={v('ship_name')} ro />
+          <Field label="Firma" val={v('ship_company')} ro />
+          <Field label="Adresszeile 1" val={v('ship_address_line1')} ro />
+          <Field label="Adresszeile 2" val={v('ship_address_line2')} ro />
+          <Field label="PLZ" val={v('ship_postal_code')} ro />
+          <Field label="Ort" val={v('ship_city')} ro />
+          <Field label="Region/Bundesland" val={v('ship_state_region')} ro />
+          <Field label="Land" val={v('ship_country')} ro />
+        </Sec>
+      )}
 
-      <Sec title="Rechnungsadresse">
-        <Field label="Firma" val={v('invoice_company')} onChange={set('invoice_company')} />
-        <div />
-        <Field label="Vorname" val={v('invoice_first_name')} onChange={set('invoice_first_name')} />
-        <Field label="Nachname" val={v('invoice_last_name')} onChange={set('invoice_last_name')} />
-        <Field label="Adresszeile 1" val={v('invoice_address_line1')} onChange={set('invoice_address_line1')} />
-        <Field label="Adresszeile 2" val={v('invoice_address_line2')} onChange={set('invoice_address_line2')} />
-        <Field label="PLZ" val={v('invoice_postal_code')} onChange={set('invoice_postal_code')} />
-        <Field label="Ort" val={v('invoice_city')} onChange={set('invoice_city')} />
-        <Field label="Land" val={v('invoice_country')} onChange={set('invoice_country')} />
-        <Field label="MwSt-ID" val={v('invoice_vat_id')} onChange={set('invoice_vat_id')} />
-        <Field label="Rechnungs-E-Mail" val={v('invoice_email')} onChange={set('invoice_email')} type="email" />
-        <Field label="Gleich wie Lieferadresse" val={v('invoice_same_as_shipping')} onChange={set('invoice_same_as_shipping')} type="check" span2 />
-      </Sec>
+      {isB2B && (
+        <Sec title="Rechnungsadresse">
+          <Field label="Firma" val={v('invoice_company')} ro />
+          <div />
+          <Field label="Vorname" val={v('invoice_first_name')} ro />
+          <Field label="Nachname" val={v('invoice_last_name')} ro />
+          <Field label="Adresszeile 1" val={v('invoice_address_line1')} ro />
+          <Field label="Adresszeile 2" val={v('invoice_address_line2')} ro />
+          <Field label="PLZ" val={v('invoice_postal_code')} ro />
+          <Field label="Ort" val={v('invoice_city')} ro />
+          <Field label="Land" val={v('invoice_country')} ro />
+          <Field label="Rechnungs-E-Mail" val={v('invoice_email')} type="email" ro />
+          <Field label="Gleich wie Lieferadresse" val={v('invoice_same_as_shipping')} type="check" span2 ro />
+        </Sec>
+      )}
 
-      <Sec title="Unternehmen">
-        <Field label="Firmenname" val={v('company_name')} onChange={set('company_name')} />
-        <Field label="Rechtsform" val={v('company_legal_form')} onChange={set('company_legal_form')} />
-        <Field label="UID-Nummer" val={v('uid_number')} onChange={set('uid_number')} />
-        <Field label="MwSt-Nummer" val={v('vat_number')} onChange={set('vat_number')} />
-        <Field label="Handelsreg.-Nr." val={v('trade_register_nr')} onChange={set('trade_register_nr')} />
-        <Field label="Handelsreg.-Kanton" val={v('trade_register_canton')} onChange={set('trade_register_canton')} />
-        <Field label="Website" val={v('company_website')} onChange={set('company_website')} />
-        <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} onChange={set('company_billing_email')} type="email" />
-      </Sec>
+      {isB2B && (
+        <Sec title="Unternehmen">
+          <Field label="Firmenname" val={v('company_name')} ro />
+          <div />
+          <Field label="UID-Nummer" val={v('uid_number')} ro />
+          <Field label="MwSt-Nummer" val={v('vat_number')} ro />
+          <Field label="Handelsreg.-Nr." val={v('trade_register_nr')} ro />
+          <Field label="Handelsreg.-Kanton" val={v('trade_register_canton')} ro />
+          <Field label="Website" val={v('company_website')} ro />
+          <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} type="email" ro />
+          <Field label="MwSt. registriert" val={v('vat_registered')} type="check" span2 ro />
+        </Sec>
+      )}
 
-      <Sec title="Anstellung">
-        <Field label="Abteilung" val={v('department')} onChange={set('department')} />
-        <Field label="Berufsbezeichnung" val={v('job_title')} onChange={set('job_title')} />
-        <Field label="Eintrittsdatum" val={v('employment_start_date')} onChange={set('employment_start_date')} type="date" />
-        <Field label="Wochenstunden" val={v('weekly_hours')} onChange={set('weekly_hours')} />
-      </Sec>
+      {isSupplier && (
+        <Sec title="Bankverbindung">
+          <Field label="Kontoinhaber" val={v('bank_account_holder')} ro />
+          <Field label="Bank" val={v('bank_name')} ro />
+          <Field label="IBAN" val={v('bank_iban')} ro />
+          <Field label="BIC/SWIFT" val={v('bank_bic')} ro />
+        </Sec>
+      )}
+
+      {isEmployee && (
+        <Sec title="Anstellung" editable={isAdmin}>
+          <Field label="Abteilung" val={v('department')} onChange={isAdmin ? set('department') : undefined} ro={!isAdmin} />
+          <Field label="Berufsbezeichnung" val={v('job_title')} onChange={isAdmin ? set('job_title') : undefined} ro={!isAdmin} />
+          <Field label="Eintrittsdatum" val={v('employment_start_date')} onChange={isAdmin ? set('employment_start_date') : undefined} type="date" ro={!isAdmin} />
+          <Field label="Wochenstunden" val={v('weekly_hours')} onChange={isAdmin ? set('weekly_hours') : undefined} ro={!isAdmin} />
+        </Sec>
+      )}
 
       <Sec title="Einstellungen">
-        <Field label="Sprache" val={v('language')} onChange={set('language')} type="select" opts={['de', 'en']} />
-        <Field label="Zeitzone" val={v('timezone')} onChange={set('timezone')} />
+        <Field label="Sprache" val={v('language')} type="select" opts={['de', 'en']} ro />
+        <div />
         <div className="col-span-2 flex flex-wrap gap-4">
-          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')} onChange={set('notification_email')} type="check" />
-          <Field label="In-App-Benachrichtigungen" val={v('notification_inapp')} onChange={set('notification_inapp')} type="check" />
-          <Field label="Newsletter" val={v('newsletter_opt_in')} onChange={set('newsletter_opt_in')} type="check" />
+          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')} type="check" ro />
+          <Field label="In-App-Benachrichtigungen" val={v('notification_inapp')} type="check" ro />
+          <Field label="Newsletter" val={v('newsletter_opt_in')} type="check" ro />
         </div>
       </Sec>
 
       <Sec title="System">
-        <Field label="Firebase UID" val={record.firebase_uid.slice(0, 16) + '…'} ro />
-        <div />
+        <Field label="E-Mail" val={record.email} ro />
         <Field label="Erstellt" val={localDate(record.created_at)} ro />
         <Field label="Zuletzt geändert" val={localDate(record.updated_at)} ro />
         <Field label="Letzter Login" val={localDate(record.last_login_at)} ro />
         <Field label="AGB akzeptiert" val={localDate(record.terms_accepted_at)} ro />
         <Field label="AGB Version" val={record.terms_version ?? '—'} ro />
+        {isAdmin && <Field label="Firebase UID" val={record.firebase_uid.slice(0, 16) + '…'} ro span2 />}
       </Sec>
     </>
   );
@@ -290,16 +284,13 @@ function DetailPanel({
     }
   }
 
-  const rc = ROLE_CFG[record.role] ?? ROLE_CFG.customer;
   const currentRole = (v('role') as string | null | undefined) ?? record.role;
-  const displayRc = ROLE_CFG[currentRole] ?? ROLE_CFG.customer;
-  const name = record.display_name || [record.first_name, record.last_name].filter(Boolean).join(' ') || record.email.split('@')[0];
+  const rc = ROLE_CFG[currentRole] ?? ROLE_CFG.customer;
+  const name = userDisplayName(record);
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="px-4 py-3 border-b border-slate-200 bg-white flex-shrink-0">
-        {/* Mobile back button */}
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
           <ArrowLeft size={14} /> Zurück
         </button>
@@ -312,7 +303,7 @@ function DetailPanel({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-xs text-slate-400 font-semibold">{fmtObjId(record.object_id)}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: displayRc.bg, color: displayRc.color }}>{displayRc.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: rc.bg, color: rc.color }}>{rc.label}</span>
             </div>
             <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">User</div>
             <div className="text-sm font-semibold text-slate-900 truncate">{name}</div>
@@ -320,12 +311,10 @@ function DetailPanel({
         </div>
       </div>
 
-      {/* Form */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
         <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
       </div>
 
-      {/* Footer */}
       {(dirty || error) && (
         <div className="px-4 py-2.5 bg-white border-t border-slate-200 flex items-center gap-2 flex-shrink-0">
           <span className="flex-1 text-sm truncate" style={{ color: error ? '#dc2626' : '#64748b' }}>
@@ -364,10 +353,9 @@ export default function ErpPage() {
   const filtered = records.filter(r => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const name = (r.display_name ?? '') + ' ' + (r.first_name ?? '') + ' ' + (r.last_name ?? '');
     return (
       r.email.toLowerCase().includes(q) ||
-      name.toLowerCase().includes(q) ||
+      userDisplayName(r).toLowerCase().includes(q) ||
       String(r.object_id ?? '').includes(q)
     );
   });
@@ -387,7 +375,6 @@ export default function ErpPage() {
 
   return (
     <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 72px)' }}>
-      {/* List panel */}
       <div className={cn(
         'flex-shrink-0 border-r border-slate-200 flex flex-col bg-white',
         'w-full md:w-[280px] lg:w-[320px]',
@@ -418,7 +405,6 @@ export default function ErpPage() {
         </div>
       </div>
 
-      {/* Detail panel */}
       <div className={cn(
         'flex-1 overflow-hidden flex flex-col',
         !showList ? 'flex' : 'hidden md:flex',

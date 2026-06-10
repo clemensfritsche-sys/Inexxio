@@ -9,11 +9,11 @@ import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
 
 interface Form {
-  accepts_marketing: boolean;
+  newsletter_opt_in: boolean;
 }
 
 function buildForm(p: UserProfile): Form {
-  return { accepts_marketing: p.accepts_marketing ?? false };
+  return { newsletter_opt_in: p.newsletter_opt_in ?? false };
 }
 
 interface Props {
@@ -53,10 +53,10 @@ export function PrivacySection({ profile, onSave }: Props) {
 
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <ToggleField
-            label="Marketing-Kommunikation"
-            description="Ich möchte personalisierte Angebote und Produktneuigkeiten per E-Mail erhalten"
-            checked={form.accepts_marketing}
-            onChange={(v) => setForm({ accepts_marketing: v })}
+            label="Newsletter"
+            description="Ich möchte Produktneuigkeiten und Angebote per E-Mail erhalten"
+            checked={form.newsletter_opt_in}
+            onChange={(v) => setForm({ newsletter_opt_in: v })}
           />
         </div>
       </div>

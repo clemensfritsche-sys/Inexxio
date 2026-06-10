@@ -59,3 +59,8 @@ export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
   return str.slice(0, maxLength - 3) + '...';
 }
+
+export function userDisplayName(user: { first_name?: string | null; last_name?: string | null; email: string }): string {
+  const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  return full || user.email.split('@')[0];
+}

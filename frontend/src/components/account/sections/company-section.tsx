@@ -9,7 +9,6 @@ import { SaveStatusIndicator } from '../save-status';
 
 interface Form {
   company_name: string;
-  company_legal_form: string;
   uid_number: string;
   vat_number: string;
   vat_registered: boolean;
@@ -22,7 +21,6 @@ interface Form {
 function buildForm(p: UserProfile): Form {
   return {
     company_name: p.company_name ?? '',
-    company_legal_form: p.company_legal_form ?? '',
     uid_number: p.uid_number ?? '',
     vat_number: p.vat_number ?? '',
     vat_registered: p.vat_registered ?? false,
@@ -70,7 +68,6 @@ export function CompanySection({ profile, onSave }: Props) {
       <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Firmenname" value={form.company_name} onChange={(v) => set('company_name', v)} placeholder="Muster AG" required={!form.company_name.trim()} onEnter={saveNow} />
-          <Field label="Rechtsform" value={form.company_legal_form} onChange={(v) => set('company_legal_form', v)} placeholder="AG, GmbH, Einzelfirma…" required={!form.company_legal_form.trim()} onEnter={saveNow} />
           <Field label="UID-Nummer" value={form.uid_number} onChange={(v) => set('uid_number', v)} placeholder="CHE-123.456.789" hint="Format: CHE-xxx.xxx.xxx" required={!form.uid_number.trim()} onEnter={saveNow} />
           <Field label="MWST-Nummer" value={form.vat_number} onChange={(v) => set('vat_number', v)} placeholder="CHE-123.456.789 MWST" onEnter={saveNow} />
           <Field label="Handelsregister-Nr." value={form.trade_register_nr} onChange={(v) => set('trade_register_nr', v)} placeholder="CH-020.3.000.000-0" onEnter={saveNow} />
