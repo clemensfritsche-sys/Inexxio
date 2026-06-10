@@ -227,3 +227,12 @@ class UserProfileUpdate(BaseModel):
 
 class UserRoleUpdate(BaseModel):
     role: str
+
+
+class ErpAdminUpdate(BaseModel):
+    """Fields an admin may change from the ERP panel."""
+    role: Optional[str] = None
+    department: Optional[str] = None
+    job_title: Optional[str] = None
+    employment_start_date: Optional[date] = None
+    weekly_hours: Optional[Decimal] = None

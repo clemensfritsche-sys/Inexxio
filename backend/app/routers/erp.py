@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..core.auth import require_employee
+from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
 from ..models.audit import UserProfile
-from ..schemas.admin import UserProfileResponse, UserProfileUpdate
+from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
+from ..services.admin import log_audit
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -61,9 +62,9 @@ async def get_erp_record(
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
 async def update_erp_record(
     object_id: int,
-    data: UserProfileUpdate,
+    data: ErpAdminUpdate,
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    current_user: UserProfile = Depends(require_admin),
 ):
     user = db.query(UserProfile).filter(
         UserProfile.object_id == object_id, UserProfile.is_active == True
@@ -71,6 +72,12 @@ async def update_erp_record(
     if not user:
         raise HTTPException(404, detail="Record not found")
     for key, value in data.model_dump(exclude_unset=True).items():
+        old_val = getattr(user, key, None)
+        old_str = str(old_val) if old_val is not None else None
+        new_str = str(value) if value is not None else None
+        if old_str != new_str:
+            log_audit(db, "user_profiles", key, new_str, current_user.id,
+                      object_id=user.object_id, old_value=old_str)
         setattr(user, key, value)
     db.commit()
     db.refresh(user)
