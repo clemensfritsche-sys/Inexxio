@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, User } from 'lucide-react';
+import { Search, User, ArrowLeft } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { UserProfile } from '@/types';
+import type { UserProfile, UserPlatformRole } from '@/types';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtObjId(id: number | null | undefined): string {
   if (!id) return '—';
-  const s = String(id).padStart(9, '0');
-  return `${s.slice(0, 3)} ${s.slice(3, 6)} ${s.slice(6)}`;
+  return String(id).padStart(9, '0');
 }
 
 const ROLE_CFG: Record<string, { label: string; color: string; bg: string }> = {
@@ -43,7 +43,7 @@ function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldPr
 
   if (type === 'check') {
     return (
-      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer" style={span2 ? { gridColumn: '1 / -1' } : {}}>
+      <label className={cn('flex items-center gap-2 text-sm text-slate-600 cursor-pointer', span2 && 'col-span-2')}>
         <input type="checkbox" checked={!!val} onChange={e => onChange?.(e.target.checked)} disabled={ro} className="w-3.5 h-3.5 rounded text-blue-600" />
         {label}
       </label>
@@ -51,7 +51,7 @@ function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldPr
   }
 
   return (
-    <div style={span2 ? { gridColumn: '1 / -1' } : {}}>
+    <div className={span2 ? 'col-span-2' : ''}>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">{label}</div>
       {type === 'select' && !ro ? (
         <select value={String(val ?? '')} onChange={e => onChange?.(e.target.value)} className={editable}>
@@ -75,47 +75,76 @@ function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldPr
 function Sec({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pb-2 mb-3 border-b border-slate-100">
-        {title}
-      </div>
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 pb-2 mb-3 border-b border-slate-100">{title}</div>
       <div className="grid grid-cols-2 gap-3">{children}</div>
     </div>
   );
+}
+
+function SubLabel({ label }: { label: string }) {
+  return <div className="col-span-2 text-[10px] font-semibold text-slate-400 mt-1 -mb-1">{label}</div>;
 }
 
 // ─── RecordItem ────────────────────────────────────────────────────────────────
 
 function RecordItem({ r, sel, onClick }: { r: UserProfile; sel: boolean; onClick: () => void }) {
   const rc = ROLE_CFG[r.role] ?? ROLE_CFG.customer;
+  const name = r.display_name || [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email.split('@')[0];
   return (
     <button
       onClick={onClick}
+      className="block w-full text-left"
       style={{
-        display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px',
+        padding: '10px 14px',
         background: sel ? '#eff6ff' : 'transparent',
         borderLeft: `3px solid ${sel ? '#2563eb' : 'transparent'}`,
-        borderTop: 'none', borderRight: 'none', borderBottom: '1px solid #f1f5f9',
+        borderTop: 'none', borderRight: 'none',
+        borderBottom: '1px solid #f1f5f9',
         cursor: 'pointer',
       }}
     >
-      <div className="flex justify-between items-center">
-        <span className="font-mono text-[11px] text-slate-400">{fmtObjId(r.object_id)}</span>
-        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: rc.bg, color: rc.color }}>{rc.label}</span>
+      <div className="flex justify-between items-start gap-2">
+        <span className="font-mono text-[11px] text-slate-400 leading-none">{fmtObjId(r.object_id)}</span>
+        <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 3, background: rc.bg, color: rc.color, flexShrink: 0 }}>{rc.label}</span>
       </div>
-      <div className="mt-0.5 text-[13px] font-medium text-slate-800 truncate">{r.display_name || r.email.split('@')[0]}</div>
-      <div className="mt-0.5 text-[11px] text-slate-400 truncate">{r.email}</div>
+      <div className="mt-1 text-[11px] font-medium text-slate-400 uppercase tracking-wide">User</div>
+      <div className="mt-0.5 text-[13px] font-semibold text-slate-800 truncate">{name}</div>
     </button>
   );
 }
 
-// ─── Detail helpers ────────────────────────────────────────────────────────────
+// ─── Form sections ─────────────────────────────────────────────────────────────
 
 type GetVal = (k: keyof UserProfile) => string | boolean | null | undefined;
 type SetVal = (k: keyof UserProfile) => (v: string | boolean) => void;
 
-function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: UserProfile }) {
+function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; record: UserProfile; isAdmin: boolean }) {
   return (
     <>
+      <Sec title="Rolle & Status">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Rolle</div>
+          {isAdmin ? (
+            <select value={String(v('role') ?? 'customer')} onChange={e => set('role')(e.target.value)} className="w-full px-2.5 py-1.5 text-sm rounded border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+              <option value="admin">Admin</option>
+              <option value="employee">Mitarbeiter</option>
+              <option value="supplier">Lieferant</option>
+              <option value="customer">Kunde</option>
+            </select>
+          ) : (
+            <div className="px-2.5 py-1.5 text-sm rounded border border-slate-100 bg-slate-50 text-slate-400">{ROLE_CFG[record.role]?.label ?? record.role}</div>
+          )}
+        </div>
+        <div />
+        <Field label="Kunden-Gruppe" val={v('customer_group')} onChange={set('customer_group')} />
+        <Field label="Kreditlimit (CHF)" val={v('credit_limit')} onChange={set('credit_limit')} />
+        <div className="col-span-2 flex flex-wrap gap-4">
+          <Field label="Geschäftskunde" val={v('is_business')} onChange={set('is_business')} type="check" />
+          <Field label="MwSt. registriert" val={v('vat_registered')} onChange={set('vat_registered')} type="check" />
+          <Field label="Marketing" val={v('accepts_marketing')} onChange={set('accepts_marketing')} type="check" />
+        </div>
+      </Sec>
+
       <Sec title="Personalien">
         <Field label="Anrede" val={v('salutation')} onChange={set('salutation')} type="select" opts={['', 'Herr', 'Frau', 'Divers']} />
         <div />
@@ -141,7 +170,8 @@ function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: User
         <Field label="Land" val={v('country')} onChange={set('country')} />
       </Sec>
 
-      <Sec title="Lieferadresse B2C">
+      <Sec title="Lieferadresse">
+        <SubLabel label="Privat (B2C)" />
         <Field label="Vorname" val={v('ship_b2c_first_name')} onChange={set('ship_b2c_first_name')} />
         <Field label="Nachname" val={v('ship_b2c_last_name')} onChange={set('ship_b2c_last_name')} />
         <Field label="Adresszeile 1" val={v('ship_b2c_address_line1')} onChange={set('ship_b2c_address_line1')} />
@@ -149,9 +179,7 @@ function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: User
         <Field label="PLZ" val={v('ship_b2c_postal_code')} onChange={set('ship_b2c_postal_code')} />
         <Field label="Ort" val={v('ship_b2c_city')} onChange={set('ship_b2c_city')} />
         <Field label="Land" val={v('ship_b2c_country')} onChange={set('ship_b2c_country')} />
-      </Sec>
-
-      <Sec title="Lieferadresse B2B">
+        <SubLabel label="Firma (B2B)" />
         <Field label="Firma" val={v('ship_b2b_company')} onChange={set('ship_b2b_company')} />
         <Field label="Kontakt" val={v('ship_b2b_contact')} onChange={set('ship_b2b_contact')} />
         <Field label="Adresszeile 1" val={v('ship_b2b_address_line1')} onChange={set('ship_b2b_address_line1')} />
@@ -185,13 +213,6 @@ function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: User
         <Field label="Handelsreg.-Kanton" val={v('trade_register_canton')} onChange={set('trade_register_canton')} />
         <Field label="Website" val={v('company_website')} onChange={set('company_website')} />
         <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} onChange={set('company_billing_email')} type="email" />
-        <Field label="Kunden-Gruppe" val={v('customer_group')} onChange={set('customer_group')} />
-        <Field label="Kreditlimit (CHF)" val={v('credit_limit')} onChange={set('credit_limit')} />
-        <div className="col-span-2 flex gap-5">
-          <Field label="Geschäftskunde" val={v('is_business')} onChange={set('is_business')} type="check" />
-          <Field label="MwSt. registriert" val={v('vat_registered')} onChange={set('vat_registered')} type="check" />
-          <Field label="Marketing" val={v('accepts_marketing')} onChange={set('accepts_marketing')} type="check" />
-        </div>
       </Sec>
 
       <Sec title="Anstellung">
@@ -204,7 +225,7 @@ function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: User
       <Sec title="Einstellungen">
         <Field label="Sprache" val={v('language')} onChange={set('language')} type="select" opts={['de', 'en']} />
         <Field label="Zeitzone" val={v('timezone')} onChange={set('timezone')} />
-        <div className="col-span-2 flex gap-5">
+        <div className="col-span-2 flex flex-wrap gap-4">
           <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')} onChange={set('notification_email')} type="check" />
           <Field label="In-App-Benachrichtigungen" val={v('notification_inapp')} onChange={set('notification_inapp')} type="check" />
           <Field label="Newsletter" val={v('newsletter_opt_in')} onChange={set('newsletter_opt_in')} type="check" />
@@ -226,7 +247,14 @@ function FormSections({ v, set, record }: { v: GetVal; set: SetVal; record: User
 
 // ─── DetailPanel ───────────────────────────────────────────────────────────────
 
-function DetailPanel({ record, onSave }: { record: UserProfile; onSave: (u: UserProfile) => void }) {
+function DetailPanel({
+  record, onSave, isAdmin, onBack,
+}: {
+  record: UserProfile;
+  onSave: (u: UserProfile) => void;
+  isAdmin: boolean;
+  onBack: () => void;
+}) {
   const [form, setForm] = useState<Partial<UserProfile>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -263,50 +291,50 @@ function DetailPanel({ record, onSave }: { record: UserProfile; onSave: (u: User
   }
 
   const rc = ROLE_CFG[record.role] ?? ROLE_CFG.customer;
+  const currentRole = (v('role') as string | null | undefined) ?? record.role;
+  const displayRc = ROLE_CFG[currentRole] ?? ROLE_CFG.customer;
+  const name = record.display_name || [record.first_name, record.last_name].filter(Boolean).join(' ') || record.email.split('@')[0];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="px-6 py-4 border-b border-slate-200 bg-white flex-shrink-0">
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-slate-200 bg-white flex-shrink-0">
+        {/* Mobile back button */}
+        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
+          <ArrowLeft size={14} /> Zurück
+        </button>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+          <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
             {record.photo_url
               ? <img src={record.photo_url} alt="" className="w-full h-full object-cover" />
-              : <User size={18} className="text-slate-400" />}
+              : <User size={16} className="text-slate-400" />}
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-xs text-slate-400 font-semibold">{fmtObjId(record.object_id)}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: rc.bg, color: rc.color }}>{rc.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: displayRc.bg, color: displayRc.color }}>{displayRc.label}</span>
             </div>
-            <div className="text-base font-semibold text-slate-900 leading-tight">
-              {record.display_name || record.email.split('@')[0]}
-            </div>
-            <div className="text-sm text-slate-500">{record.email}</div>
+            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">User</div>
+            <div className="text-sm font-semibold text-slate-900 truncate">{name}</div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
-        <FormSections v={v} set={set} record={record} />
+      {/* Form */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50">
+        <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
       </div>
 
+      {/* Footer */}
       {(dirty || error) && (
-        <div className="px-6 py-3 bg-white border-t border-slate-200 flex items-center gap-2 flex-shrink-0">
-          <span className="flex-1 text-sm" style={{ color: error ? '#dc2626' : '#64748b' }}>
+        <div className="px-4 py-2.5 bg-white border-t border-slate-200 flex items-center gap-2 flex-shrink-0">
+          <span className="flex-1 text-sm truncate" style={{ color: error ? '#dc2626' : '#64748b' }}>
             {error ?? 'Ungespeicherte Änderungen'}
           </span>
-          <button
-            onClick={() => { setForm({}); setDirty(false); setError(null); }}
-            className="px-4 py-1.5 rounded text-sm border border-slate-200 bg-white text-slate-600 cursor-pointer hover:bg-slate-50"
-          >
+          <button onClick={() => { setForm({}); setDirty(false); setError(null); }} className="px-3 py-1.5 rounded text-sm border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 flex-shrink-0">
             Verwerfen
           </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            className="px-4 py-1.5 rounded text-sm font-medium text-white cursor-pointer"
-            style={{ background: saving ? '#93c5fd' : '#2563eb' }}
-          >
+          <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded text-sm font-medium text-white flex-shrink-0" style={{ background: saving ? '#93c5fd' : '#2563eb' }}>
             {saving ? 'Speichern…' : 'Speichern'}
           </button>
         </div>
@@ -322,8 +350,12 @@ export default function ErpPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selId, setSelId] = useState<number | null>(null);
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    const cached = typeof window !== 'undefined' ? localStorage.getItem('inexxio_user_role') : null;
+    setIsAdmin(cached === 'admin');
     api.getErpRecords()
       .then(r => { setRecords(r); setLoading(false); })
       .catch(() => setLoading(false));
@@ -332,24 +364,35 @@ export default function ErpPage() {
   const filtered = records.filter(r => {
     if (!search) return true;
     const q = search.toLowerCase();
+    const name = (r.display_name ?? '') + ' ' + (r.first_name ?? '') + ' ' + (r.last_name ?? '');
     return (
       r.email.toLowerCase().includes(q) ||
-      (r.display_name ?? '').toLowerCase().includes(q) ||
-      (r.first_name ?? '').toLowerCase().includes(q) ||
-      (r.last_name ?? '').toLowerCase().includes(q) ||
+      name.toLowerCase().includes(q) ||
       String(r.object_id ?? '').includes(q)
     );
   });
 
   const selected = records.find(r => r.object_id === selId) ?? null;
 
+  function handleSelect(id: number | null) {
+    setSelId(id);
+    setMobileView('detail');
+  }
+
   function handleSave(updated: UserProfile) {
     setRecords(prev => prev.map(r => r.id === updated.id ? updated : r));
   }
 
+  const showList = mobileView === 'list';
+
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 72px)', overflow: 'hidden' }}>
-      <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+    <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 72px)' }}>
+      {/* List panel */}
+      <div className={cn(
+        'flex-shrink-0 border-r border-slate-200 flex flex-col bg-white',
+        'w-full md:w-[280px] lg:w-[320px]',
+        showList ? 'flex' : 'hidden md:flex',
+      )}>
         <div className="px-3.5 pt-4 pb-3 border-b border-slate-100">
           <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
             Datensätze · {filtered.length}
@@ -364,23 +407,30 @@ export default function ErpPage() {
             />
           </div>
         </div>
-
         <div className="flex-1 overflow-y-auto">
           {loading && <div className="p-6 text-center text-sm text-slate-400">Laden…</div>}
           {!loading && filtered.length === 0 && (
-            <div className="p-6 text-center text-sm text-slate-400">
-              {search ? 'Keine Treffer' : 'Keine Datensätze'}
-            </div>
+            <div className="p-6 text-center text-sm text-slate-400">{search ? 'Keine Treffer' : 'Keine Datensätze'}</div>
           )}
           {filtered.map(r => (
-            <RecordItem key={r.id} r={r} sel={r.object_id === selId} onClick={() => setSelId(r.object_id ?? null)} />
+            <RecordItem key={r.id} r={r} sel={r.object_id === selId} onClick={() => handleSelect(r.object_id ?? null)} />
           ))}
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Detail panel */}
+      <div className={cn(
+        'flex-1 overflow-hidden flex flex-col',
+        !showList ? 'flex' : 'hidden md:flex',
+      )}>
         {selected
-          ? <DetailPanel key={selected.object_id} record={selected} onSave={handleSave} />
+          ? <DetailPanel
+              key={selected.object_id}
+              record={selected}
+              onSave={handleSave}
+              isAdmin={isAdmin}
+              onBack={() => setMobileView('list')}
+            />
           : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-300">
               <User size={48} strokeWidth={1} />

@@ -1,4 +1,7 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -6,10 +9,16 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models.audit import UserProfile
 from ..schemas.admin import UserProfileResponse, UserProfileUpdate
+from ..services.admin import log_audit
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
 _OBJ_ID_START = 100_000_001
+_VALID_ROLES = {"admin", "employee", "supplier", "customer"}
+
+
+class ErpRecordUpdate(UserProfileUpdate):
+    role: Optional[str] = None
 
 
 def _assign_object_ids(db: Session) -> None:
@@ -61,17 +70,35 @@ async def get_erp_record(
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)
 async def update_erp_record(
     object_id: int,
-    data: UserProfileUpdate,
+    data: ErpRecordUpdate,
     db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
+    current_user: UserProfile = Depends(require_employee),
 ):
     user = db.query(UserProfile).filter(
         UserProfile.object_id == object_id, UserProfile.is_active == True
     ).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
-    for key, value in data.model_dump(exclude_unset=True).items():
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    if "role" in update_data:
+        if current_user.role != "admin":
+            del update_data["role"]
+        elif update_data["role"] not in _VALID_ROLES:
+            raise HTTPException(400, detail="Invalid role")
+
+    for key, value in update_data.items():
+        old_val = getattr(user, key, None)
+        old_str = str(old_val) if old_val is not None else None
+        new_str = str(value) if value is not None else None
+        if old_str != new_str:
+            log_audit(
+                db, "user_profiles", key, new_str, current_user.id,
+                object_id=user.object_id, old_value=old_str,
+            )
         setattr(user, key, value)
+
     db.commit()
     db.refresh(user)
     return UserProfileResponse.model_validate(user)
