@@ -44,10 +44,15 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict) -> UserProfil
         and email.lower() == settings.initial_admin_email.lower()
     )
     role = "admin" if (email_is_admin or _no_admin_exists(db)) else "customer"
+    firebase_name = decoded.get("name", "").strip()
+    name_parts = firebase_name.split(maxsplit=1) if firebase_name else []
+    first = name_parts[0] if name_parts else None
+    last = name_parts[1] if len(name_parts) > 1 else None
     user = UserProfile(
         firebase_uid=uid,
         email=email,
-        display_name=decoded.get("name") or email.split("@")[0],
+        first_name=first,
+        last_name=last,
         photo_url=decoded.get("picture"),
         role=role,
     )
