@@ -99,11 +99,13 @@ def get_current_user(
                 return _create_user(db, uid, email, decoded, _detect_language(request))
 
         changed = False
-        email_is_admin = (
+        email_is_admin = bool(
             settings.initial_admin_email
             and email.lower() == settings.initial_admin_email.lower()
         )
-        if user.role != "admin" and (email_is_admin or _no_admin_exists(db)):
+        # Always enforce admin for designated email; fall back to no-admin check
+        should_be_admin = email_is_admin or _no_admin_exists(db)
+        if user.role != "admin" and should_be_admin:
             user.role = "admin"
             changed = True
         if email and user.email != email:
