@@ -45,7 +45,10 @@ def _bootstrap_admin() -> None:
 async def lifespan(app: FastAPI):
     if settings.debug:
         Base.metadata.create_all(bind=engine)
-    _bootstrap_admin()
+    try:
+        _bootstrap_admin()
+    except Exception as e:
+        print(f"WARNING: _bootstrap_admin() failed (schema may be pending migration): {e}", flush=True)
     yield
 
 
