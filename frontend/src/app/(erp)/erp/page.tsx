@@ -20,6 +20,20 @@ const ROLE_CFG: Record<string, { label: string; color: string; bg: string }> = {
   customer: { label: 'Kunde',       color: '#16a34a', bg: '#f0fdf4' },
 };
 
+const COUNTRY_NAMES: Record<string, string> = {
+  CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
+  IT: 'Italien', LI: 'Liechtenstein', LU: 'Luxemburg', NL: 'Niederlande',
+  BE: 'Belgien', ES: 'Spanien', PT: 'Portugal', GB: 'Grossbritannien',
+  US: 'USA', PL: 'Polen', CZ: 'Tschechien', SK: 'Slowakei', HU: 'Ungarn',
+  HR: 'Kroatien', SI: 'Slowenien', RO: 'Rumänien', BG: 'Bulgarien',
+  SE: 'Schweden', NO: 'Norwegen', DK: 'Dänemark', FI: 'Finnland',
+};
+
+function countryName(code: string | null | undefined): string {
+  if (!code) return '';
+  return COUNTRY_NAMES[code.toUpperCase()] ?? code;
+}
+
 function localDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('de-CH');
@@ -133,177 +147,126 @@ function RecordItem({ r, sel, onClick }: { r: UserProfile; sel: boolean; onClick
         <div style={{ fontSize: 13, fontWeight: 600, color: hasName ? '#0F172A' : '#94a3b8', fontStyle: hasName ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {hasName ? name : 'Kein Name'}
         </div>
-        <div style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-          {r.email}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+          <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#475569', letterSpacing: '0.02em' }}>{fmtObjId(r.object_id)}</span>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: rc.bg, color: rc.color }}>{rc.label}</span>
-          <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#CBD5E1' }}>{fmtObjId(r.object_id)}</span>
         </div>
       </div>
     </button>
   );
 }
 
-// ─── Form sections (tabbed) ────────────────────────────────────────────────────
+// ─── Form sections ─────────────────────────────────────────────────────────────
 
 type GetVal = (k: keyof UserProfile) => string | boolean | null | undefined;
 type SetVal = (k: keyof UserProfile) => (v: string | boolean) => void;
-type TabId = 'stammdaten' | 'geschaeftlich' | 'anstellung' | 'system';
 
 function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; record: UserProfile; isAdmin: boolean }) {
   const isSupplier = record.role === 'supplier';
-  const isB2B = record.role === 'supplier' || record.role === 'customer';
-  const isStaff = record.role === 'employee' || record.role === 'admin';
-
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'stammdaten', label: 'Stammdaten' },
-    ...(isB2B   ? [{ id: 'geschaeftlich' as TabId, label: 'Geschäftlich' }] : []),
-    ...(isStaff ? [{ id: 'anstellung'    as TabId, label: 'Anstellung'   }] : []),
-    { id: 'system', label: 'System' },
-  ];
-
-  const [activeTab, setActiveTab] = useState<TabId>('stammdaten');
+  const isB2B      = record.role === 'supplier' || record.role === 'customer';
+  const isStaff    = record.role === 'employee'  || record.role === 'admin';
 
   return (
     <>
-      {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', marginBottom: 16, background: 'transparent' }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '8px 14px', border: 'none', background: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? '#2563eb' : '#64748b',
-              borderBottom: `2px solid ${activeTab === tab.id ? '#2563eb' : 'transparent'}`,
-              marginBottom: -1,
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'stammdaten' && (
-        <>
-          <Sec title="Rolle" editable={isAdmin} icon={Shield}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 4 }}>Rolle</div>
-              {isAdmin ? (
-                <select value={String(v('role') ?? 'customer')} onChange={e => set('role')(e.target.value)} className="w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
-                  <option value="admin">Admin</option>
-                  <option value="employee">Mitarbeiter</option>
-                  <option value="supplier">Lieferant</option>
-                  <option value="customer">Kunde</option>
-                </select>
-              ) : (
-                <div className="px-2.5 py-1.5 text-sm rounded-md border border-slate-100 bg-slate-50 text-slate-400">{ROLE_CFG[record.role]?.label ?? record.role}</div>
-              )}
-            </div>
-          </Sec>
-
-          <Sec title="Personalien" icon={User}>
-            <Field label="Vorname"      val={v('first_name')}   ro />
-            <Field label="Nachname"     val={v('last_name')}    ro />
-            <Field label="Geburtsdatum" val={v('date_of_birth')} type="date" ro />
-            <Field label="Telefon"      val={v('phone')}        ro />
-          </Sec>
-
-          <Sec title="Adresse" icon={MapPin}>
-            <Field label="Adresszeile 1" val={v('address_line1')}  ro />
-            <Field label="Adresszeile 2" val={v('address_line2')}  ro />
-            <Field label="PLZ"           val={v('postal_code')}    ro />
-            <Field label="Ort"           val={v('city')}           ro />
-            <Field label="Region"        val={v('state_region')}   ro />
-            <Field label="Land"          val={v('country')}        ro />
-          </Sec>
-        </>
-      )}
-
-      {activeTab === 'geschaeftlich' && isB2B && (
-        <>
-          <Sec title="Lieferadresse" icon={MapPin}>
-            <Field label="Name"          val={v('ship_name')}          ro />
-            <Field label="Firma"         val={v('ship_company')}       ro />
-            <Field label="Adresszeile 1" val={v('ship_address_line1')} ro />
-            <Field label="Adresszeile 2" val={v('ship_address_line2')} ro />
-            <Field label="PLZ"           val={v('ship_postal_code')}   ro />
-            <Field label="Ort"           val={v('ship_city')}          ro />
-            <Field label="Region"        val={v('ship_state_region')}  ro />
-            <Field label="Land"          val={v('ship_country')}       ro />
-          </Sec>
-
-          <Sec title="Rechnungsadresse" icon={Building2}>
-            <Field label="Firma"               val={v('invoice_company')}          ro />
-            <div />
-            <Field label="Vorname"             val={v('invoice_first_name')}       ro />
-            <Field label="Nachname"            val={v('invoice_last_name')}        ro />
-            <Field label="Adresszeile 1"       val={v('invoice_address_line1')}    ro />
-            <Field label="Adresszeile 2"       val={v('invoice_address_line2')}    ro />
-            <Field label="PLZ"                 val={v('invoice_postal_code')}      ro />
-            <Field label="Ort"                 val={v('invoice_city')}             ro />
-            <Field label="Land"                val={v('invoice_country')}          ro />
-            <Field label="Rechnungs-E-Mail"    val={v('invoice_email')}  type="email" ro />
-            <Field label="Gleich wie Lieferadresse" val={v('invoice_same_as_shipping')} type="check" span2 ro />
-          </Sec>
-
-          <Sec title="Unternehmen" icon={Building2}>
-            <Field label="Firmenname"      val={v('company_name')}           ro />
-            <div />
-            <Field label="UID-Nummer"      val={v('uid_number')}             ro />
-            <Field label="MwSt-Nummer"     val={v('vat_number')}             ro />
-            <Field label="HR-Nr."          val={v('trade_register_nr')}      ro />
-            <Field label="HR-Kanton"       val={v('trade_register_canton')}  ro />
-            <Field label="Website"         val={v('company_website')}        ro />
-            <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} type="email" ro />
-            <Field label="MwSt. registriert" val={v('vat_registered')} type="check" span2 ro />
-          </Sec>
-
-          {isSupplier && (
-            <Sec title="Bankverbindung">
-              <Field label="Kontoinhaber" val={v('bank_account_holder')} ro />
-              <Field label="Bank"         val={v('bank_name')}           ro />
-              <Field label="IBAN"         val={v('bank_iban')}           ro />
-              <Field label="BIC/SWIFT"    val={v('bank_bic')}            ro />
-            </Sec>
+      <Sec title="Rolle" editable={isAdmin} icon={Shield}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 4 }}>Rolle</div>
+          {isAdmin ? (
+            <select value={String(v('role') ?? 'customer')} onChange={e => set('role')(e.target.value)} className="w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+              <option value="admin">Admin</option>
+              <option value="employee">Mitarbeiter</option>
+              <option value="supplier">Lieferant</option>
+              <option value="customer">Kunde</option>
+            </select>
+          ) : (
+            <div className="px-2.5 py-1.5 text-sm rounded-md border border-slate-100 bg-slate-50 text-slate-400">{ROLE_CFG[record.role]?.label ?? record.role}</div>
           )}
-        </>
-      )}
+        </div>
+      </Sec>
 
-      {activeTab === 'anstellung' && isStaff && (
-        <Sec title="Anstellung" editable={isAdmin} icon={Briefcase}>
-          <Field label="Abteilung"        val={v('department')}          onChange={isAdmin ? set('department') : undefined}          ro={!isAdmin} />
-          <Field label="Berufsbezeichnung" val={v('job_title')}          onChange={isAdmin ? set('job_title') : undefined}           ro={!isAdmin} />
-          <Field label="Eintrittsdatum"   val={v('employment_start_date')} onChange={isAdmin ? set('employment_start_date') : undefined} type="date" ro={!isAdmin} />
-          <Field label="Wochenstunden"    val={v('weekly_hours')}        onChange={isAdmin ? set('weekly_hours') : undefined}        ro={!isAdmin} />
+      <Sec title="Personalien" icon={User}>
+        <Field label="Vorname"      val={v('first_name')}    ro />
+        <Field label="Nachname"     val={v('last_name')}     ro />
+        <Field label="Geburtsdatum" val={v('date_of_birth')} type="date" ro />
+        <Field label="Telefon"      val={v('phone')}         ro />
+      </Sec>
+
+      <Sec title="Adresse" icon={MapPin}>
+        <Field label="Adresszeile 1" val={v('address_line1')}              ro />
+        <Field label="Adresszeile 2" val={v('address_line2')}              ro />
+        <Field label="PLZ"           val={v('postal_code')}                ro />
+        <Field label="Ort"           val={v('city')}                       ro />
+        <Field label="Region"        val={v('state_region')}               ro />
+        <Field label="Land"          val={countryName(v('country') as string)} ro />
+      </Sec>
+
+      {isB2B && (
+        <Sec title="Rechnungsadresse" icon={Building2}>
+          <Field label="Firma"            val={v('invoice_company')}       ro />
+          <div />
+          <Field label="Vorname"          val={v('invoice_first_name')}    ro />
+          <Field label="Nachname"         val={v('invoice_last_name')}     ro />
+          <Field label="Adresszeile 1"    val={v('invoice_address_line1')} ro />
+          <Field label="Adresszeile 2"    val={v('invoice_address_line2')} ro />
+          <Field label="PLZ"              val={v('invoice_postal_code')}   ro />
+          <Field label="Ort"              val={v('invoice_city')}          ro />
+          <Field label="Land"             val={countryName(v('invoice_country') as string)} ro />
+          <Field label="Rechnungs-E-Mail" val={v('invoice_email')} type="email" ro />
+          <Field label="Gleich wie Adresse" val={v('invoice_same_as_shipping')} type="check" span2 ro />
         </Sec>
       )}
 
-      {activeTab === 'system' && (
-        <>
-          <Sec title="Einstellungen" icon={Settings}>
-            <Field label="Sprache" val={v('language')} type="select" opts={['de', 'en']} ro />
-            <div />
-            <div className="col-span-2 flex flex-wrap gap-4">
-              <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  type="check" ro />
-              <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} type="check" ro />
-              <Field label="Newsletter"                  val={v('newsletter_opt_in')} type="check" ro />
-            </div>
-          </Sec>
-
-          <Sec title="System" icon={Shield}>
-            <Field label="E-Mail"           val={record.email}                    ro />
-            <Field label="Erstellt"         val={localDate(record.created_at)}    ro />
-            <Field label="Zuletzt geändert" val={localDate(record.updated_at)}    ro />
-            <Field label="Letzter Login"    val={localDate(record.last_login_at)} ro />
-            <Field label="AGB akzeptiert"   val={localDate(record.terms_accepted_at)} ro />
-            <Field label="AGB Version"      val={record.terms_version ?? '—'}     ro />
-            {isAdmin && <Field label="Firebase UID" val={record.firebase_uid.slice(0, 16) + '…'} ro span2 />}
-          </Sec>
-        </>
+      {isB2B && (
+        <Sec title="Unternehmen" icon={Building2}>
+          <Field label="Firmenname"        val={v('company_name')}           ro />
+          <div />
+          <Field label="UID-Nummer"        val={v('uid_number')}             ro />
+          <Field label="MwSt-Nummer"       val={v('vat_number')}             ro />
+          <Field label="HR-Nr."            val={v('trade_register_nr')}      ro />
+          <Field label="HR-Kanton"         val={v('trade_register_canton')}  ro />
+          <Field label="Website"           val={v('company_website')}        ro />
+          <Field label="Rechnungs-E-Mail"  val={v('company_billing_email')} type="email" ro />
+          <Field label="MwSt. registriert" val={v('vat_registered')} type="check" span2 ro />
+        </Sec>
       )}
+
+      {isSupplier && (
+        <Sec title="Bankverbindung">
+          <Field label="Kontoinhaber" val={v('bank_account_holder')} ro />
+          <Field label="Bank"         val={v('bank_name')}           ro />
+          <Field label="IBAN"         val={v('bank_iban')}           ro />
+          <Field label="BIC/SWIFT"    val={v('bank_bic')}            ro />
+        </Sec>
+      )}
+
+      {isStaff && (
+        <Sec title="Anstellung" editable={isAdmin} icon={Briefcase}>
+          <Field label="Abteilung"         val={v('department')}            onChange={isAdmin ? set('department') : undefined}            ro={!isAdmin} />
+          <Field label="Berufsbezeichnung" val={v('job_title')}             onChange={isAdmin ? set('job_title') : undefined}             ro={!isAdmin} />
+          <Field label="Eintrittsdatum"    val={v('employment_start_date')} onChange={isAdmin ? set('employment_start_date') : undefined} type="date" ro={!isAdmin} />
+          <Field label="Wochenstunden"     val={v('weekly_hours')}          onChange={isAdmin ? set('weekly_hours') : undefined}          ro={!isAdmin} />
+        </Sec>
+      )}
+
+      <Sec title="Einstellungen" icon={Settings}>
+        <Field label="Sprache" val={v('language')} type="select" opts={['de', 'en']} ro />
+        <div />
+        <div className="col-span-2 flex flex-wrap gap-4">
+          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  type="check" ro />
+          <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} type="check" ro />
+          <Field label="Newsletter"                  val={v('newsletter_opt_in')} type="check" ro />
+        </div>
+      </Sec>
+
+      <Sec title="System" icon={Shield}>
+        <Field label="E-Mail"           val={record.email}                       ro />
+        <Field label="Erstellt"         val={localDate(record.created_at)}       ro />
+        <Field label="Zuletzt geändert" val={localDate(record.updated_at)}       ro />
+        <Field label="Letzter Login"    val={localDate(record.last_login_at)}    ro />
+        <Field label="AGB akzeptiert"   val={localDate(record.terms_accepted_at)} ro />
+        <Field label="AGB Version"      val={record.terms_version ?? '—'}        ro />
+        {isAdmin && <Field label="Firebase UID" val={record.firebase_uid.slice(0, 16) + '…'} ro span2 />}
+      </Sec>
     </>
   );
 }
@@ -352,9 +315,9 @@ function DetailPanel({ record, onSave, isAdmin, onBack }: {
   }
 
   const currentRole = (v('role') as string | null | undefined) ?? record.role;
-  const rc      = ROLE_CFG[currentRole] ?? ROLE_CFG.customer;
-  const name    = userDisplayName(record);
-  const hasName = name && name !== record.email;
+  const rc       = ROLE_CFG[currentRole] ?? ROLE_CFG.customer;
+  const name     = userDisplayName(record);
+  const hasName  = name && name !== record.email;
   const initials = getInitials(name, record.email);
 
   return (
@@ -388,7 +351,7 @@ function DetailPanel({ record, onSave, isAdmin, onBack }: {
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 600, color: '#94a3b8' }}>{fmtObjId(record.object_id)}</div>
+            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id)}</div>
           </div>
         </div>
       </div>
@@ -498,7 +461,6 @@ export default function ErpPage() {
               }}
             />
           </div>
-          {/* Role filter pills */}
           <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
             {(['admin', 'employee', 'supplier', 'customer'] as const)
               .filter(role => roleCounts[role])
