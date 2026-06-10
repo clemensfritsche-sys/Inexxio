@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
-from .models.audit import UserProfile
+from .models import UserProfile
 from .routers import admin, auth, contact, erp, health
 
 settings = get_settings()

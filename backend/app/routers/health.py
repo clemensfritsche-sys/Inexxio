@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.database import get_db
-from ..models.audit import UserProfile
+from ..models import UserProfile
 
 router = APIRouter(tags=["health"])
 settings = get_settings()

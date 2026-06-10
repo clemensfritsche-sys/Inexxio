@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .database import get_db
-from ..models.audit import UserProfile
+from ..models import UserProfile
 
 settings = get_settings()
 security = HTTPBearer(auto_error=False)
@@ -69,66 +69,88 @@ def _create_user(db: Session, uid: str, email: str, decoded: dict, language: str
     return user
 
 
+def _verify_firebase_token(token: str) -> dict:
+    """Verify a Firebase ID token and return its decoded claims. Raises on invalid token."""
+    _init_firebase()
+    return firebase_auth.verify_id_token(token)
+
+
+def _resolve_user(db: Session, uid: str, email: str, decoded: dict, request: Request) -> UserProfile:
+    """Load the profile for this identity, handling Firebase-UID resets, else provision one."""
+    user = db.query(UserProfile).filter(
+        UserProfile.firebase_uid == uid, UserProfile.is_active == True
+    ).first()
+    if user:
+        return user
+
+    # Firebase was reset: same email, new UID → reattach existing profile
+    if email:
+        user = db.query(UserProfile).filter(
+            UserProfile.email == email, UserProfile.is_active == True
+        ).first()
+        if user:
+            user.firebase_uid = uid
+            db.commit()
+            return user
+
+    return _create_user(db, uid, email, decoded, _detect_language(request))
+
+
+def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict) -> None:
+    """Keep role/email/photo aligned with the identity provider. Writes only on change."""
+    changed = False
+
+    email_is_admin = bool(
+        settings.initial_admin_email
+        and email.lower() == settings.initial_admin_email.lower()
+    )
+    # Always enforce admin for the designated email; otherwise bootstrap the first user
+    if user.role != "admin" and (email_is_admin or _no_admin_exists(db)):
+        user.role = "admin"
+        changed = True
+
+    if email and user.email != email:
+        collision = db.query(UserProfile).filter(
+            UserProfile.email == email,
+            UserProfile.id != user.id,
+            UserProfile.is_active == True,
+        ).first()
+        if not collision:
+            user.email = email
+            changed = True
+
+    new_photo = decoded.get("picture")
+    if new_photo and user.photo_url != new_photo:
+        user.photo_url = new_photo
+        changed = True
+
+    if changed:
+        db.commit()
+
+
 def get_current_user(
     request: Request,
     credentials_: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> UserProfile:
+    """Authenticate the request and return the matching profile.
+
+    Token verification (read-only) is separated from profile provisioning and
+    sync (writes): only an invalid token yields 401, genuine server/DB errors
+    surface as 500 instead of masquerading as an auth failure.
+    """
     if not credentials_:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
-        _init_firebase()
-        decoded = firebase_auth.verify_id_token(credentials_.credentials)
-        uid = decoded["uid"]
-        email = decoded.get("email", "")
-
-        user = db.query(UserProfile).filter(
-            UserProfile.firebase_uid == uid, UserProfile.is_active == True
-        ).first()
-
-        if not user:
-            # Firebase was reset: same email, new UID → reuse existing profile
-            if email:
-                user = db.query(UserProfile).filter(
-                    UserProfile.email == email, UserProfile.is_active == True
-                ).first()
-            if user:
-                user.firebase_uid = uid
-                db.commit()
-            else:
-                return _create_user(db, uid, email, decoded, _detect_language(request))
-
-        changed = False
-        email_is_admin = bool(
-            settings.initial_admin_email
-            and email.lower() == settings.initial_admin_email.lower()
-        )
-        # Always enforce admin for designated email; fall back to no-admin check
-        should_be_admin = email_is_admin or _no_admin_exists(db)
-        if user.role != "admin" and should_be_admin:
-            user.role = "admin"
-            changed = True
-        if email and user.email != email:
-            collision = db.query(UserProfile).filter(
-                UserProfile.email == email,
-                UserProfile.id != user.id,
-                UserProfile.is_active == True,
-            ).first()
-            if not collision:
-                user.email = email
-                changed = True
-        new_photo = decoded.get("picture")
-        if new_photo and user.photo_url != new_photo:
-            user.photo_url = new_photo
-            changed = True
-        if changed:
-            db.commit()
-
-        return user
-    except HTTPException:
-        raise
+        decoded = _verify_firebase_token(credentials_.credentials)
     except Exception as e:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
+
+    uid = decoded["uid"]
+    email = decoded.get("email", "")
+    user = _resolve_user(db, uid, email, decoded, request)
+    _sync_user_profile(db, user, email, decoded)
+    return user
 
 
 def require_role(*roles: str):

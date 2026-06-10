@@ -2,8 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from ..models.admin import CompanySettings
-from ..models.audit import AuditLog, Notification, UserProfile
+from ..models import AuditLog, CompanySettings, Notification, UserProfile
 
 
 def get_or_create_settings(db: Session) -> CompanySettings:

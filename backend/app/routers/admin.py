@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_admin, require_employee
 from ..core.database import get_db
-from ..models.audit import AuditLog, Notification, UserProfile
+from ..models import AuditLog, Notification, UserProfile
 from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,

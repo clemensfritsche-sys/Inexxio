@@ -51,6 +51,15 @@ ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.
 - Firebase: src/lib/firebase.ts (Magic Link, Google Sign-In)
 - React Query für Serverdaten-Caching
 
+## Typen (Single Source of Truth)
+- `src/types/api.ts` wird aus dem Backend-OpenAPI-Schema generiert – NICHT editieren.
+- `src/types/index.ts` leitet `UserProfile` daraus ab (nur `role` wird auf die Union verengt).
+- Neu generieren nach Backend-Schema-Änderung:
+  ```bash
+  cd backend && python -m scripts.dump_openapi   # → backend/openapi.json
+  cd frontend && npm run generate:types          # → src/types/api.ts
+  ```
+
 ## Wichtige Konventionen
 - 'use client' nur wenn nötig (Interaktivität, Hooks)
 - Server Components für statische Seiten

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user
 from ..core.database import get_db
-from ..models.audit import UserProfile
+from ..models import UserProfile
 from ..schemas.admin import UserProfileResponse, UserProfileUpdate
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])

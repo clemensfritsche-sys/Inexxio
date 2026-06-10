@@ -33,29 +33,46 @@ app/
 │   ├── config.py     ← Pydantic Settings (env vars)
 │   ├── database.py   ← SQLAlchemy Engine + Session
 │   └── auth.py       ← Firebase JWT-Verifikation, require_admin/require_staff
-├── models/           ← SQLAlchemy 2.0 Mapped-Column Modelle
+├── models/           ← SQLAlchemy 2.0 Modelle (je ein File pro Entität)
+│   ├── user.py       ← UserProfile
+│   ├── audit.py      ← AuditLog
+│   ├── notification.py ← Notification
+│   ├── admin.py      ← CompanySettings
+│   └── __init__.py   ← Re-Export aller Modelle (immer von hier importieren)
 ├── schemas/          ← Pydantic v2 Request/Response Schemas
 ├── routers/          ← FastAPI Router (je ein File pro Ressource)
-└── services/         ← Business Logic (DB-unabhängig testbar)
+├── services/         ← Business Logic (DB-unabhängig testbar)
+└── scripts/
+    └── dump_openapi.py ← OpenAPI-Schema → backend/openapi.json (SSOT für FE-Typen)
 ```
 
-## API-Endpunkte Phase 1
+## OpenAPI → Frontend-Typen (Single Source of Truth)
+Die TypeScript-Typen des Frontends werden aus den Pydantic-Schemas generiert.
+Nach jeder Änderung an einem Request/Response-Schema:
+```bash
+cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
+cd ../frontend && npm run generate:types          # → src/types/api.ts
+```
+
+## API-Endpunkte (tatsächlich vorhanden, Phase 1)
 | Method | Path | Auth | Beschreibung |
 |--------|------|------|--------------|
 | GET | /health | – | Health Check |
 | GET | /api/v1/auth/me | user | Eigenes Profil |
+| PATCH | /api/v1/auth/me | user | Eigenes Profil bearbeiten (Self-Service) |
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
-| GET | /api/v1/objects | staff | Universal Feed |
-| CRUD | /api/v1/items | staff | Artikel |
-| POST | /api/v1/items/{id}/approve | staff | Artikel freigeben |
-| CRUD | /api/v1/boms | staff | Stücklisten |
-| CRUD | /api/v1/work-plans | staff | Arbeitspläne |
-| CRUD | /api/v1/companies | staff | Firmen (Kunden + Lieferanten) |
-| CRUD | /api/v1/companies/{id}/contacts | staff | Kontakte |
+| GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) |
+| GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
-| CRUD | /api/v1/admin/users | admin | Benutzerverwaltung |
+| GET | /api/v1/admin/users | staff | Benutzerliste |
+| PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
+| DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
+| GET | /api/v1/admin/notifications | user | Eigene Benachrichtigungen |
+| POST | /api/v1/contact | – | Kontaktformular |
+
+> Artikel/BOM/Arbeitspläne/Companies sind Phase 2+ und **noch nicht** implementiert.
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
-from ..models.audit import UserProfile
+from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..services.admin import log_audit
 
