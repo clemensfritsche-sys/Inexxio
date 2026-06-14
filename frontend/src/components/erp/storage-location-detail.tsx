@@ -10,7 +10,7 @@ import { TextField, StatusBadge, ErrorText } from '@/components/erp/fields';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
 type Form = {
-  code: string; status: string;
+  status: string;
   max_load_kg: string; dimensions: string;
   latitude: string; longitude: string;
   address_street: string; address_zip: string; address_city: string; address_country: string;
@@ -27,12 +27,12 @@ function joinDims(record: StorageLocation): string {
 function seedFrom(record: StorageLocation | null): Form {
   if (!record) {
     return {
-      code: '', status: 'draft', max_load_kg: '', dimensions: '',
+      status: 'draft', max_load_kg: '', dimensions: '',
       latitude: '', longitude: '', address_street: '', address_zip: '', address_city: '', address_country: '',
     };
   }
   return {
-    code: s(record.code), status: record.status,
+    status: record.status,
     max_load_kg: s(record.max_load_kg), dimensions: joinDims(record),
     latitude: s(record.latitude), longitude: s(record.longitude),
     address_street: s(record.address_street), address_zip: s(record.address_zip),
@@ -75,7 +75,6 @@ function validateDims(v: string): string | null {
 function buildInput(form: Form): StorageLocationInput {
   const dims = parseDims(form.dimensions);
   return {
-    code: strOrNull(form.code),
     max_load_kg: num(form.max_load_kg),
     width_mm: dims?.w ?? null, depth_mm: dims?.d ?? null, height_mm: dims?.h ?? null,
     latitude: num(form.latitude), longitude: num(form.longitude),
@@ -162,7 +161,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>
-              Lagerplatz{form.code ? ` · ${form.code}` : ''}
+              Lagerplatz
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               {isCreate ? (
@@ -196,11 +195,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
-        {/* Identifikation */}
-        <Card>
-          <TextField label="Lagerplatz-Code" value={form.code} onChange={(v) => set('code', v)} placeholder="z. B. A-01-02-03" hint="Die Bezeichnung ist fix Lagerplatz; der Code unterscheidet die Plätze." />
-        </Card>
-
         {/* Standort */}
         <SectionTitle icon={MapPin}>Standort *</SectionTitle>
         <Card>

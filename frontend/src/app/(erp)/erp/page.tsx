@@ -33,7 +33,7 @@ type Row =
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return row.data.title || 'Auftrag';
-  if (row.type === 'storage_location') return row.data.code ? `Lagerplatz · ${row.data.code}` : 'Lagerplatz';
+  if (row.type === 'storage_location') return 'Lagerplatz';
   return row.data.name; // article
 }
 
@@ -42,7 +42,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'user') return `${userDisplayName(row.data)} ${row.data.email} ${id}`.toLowerCase();
   if (row.type === 'article') return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();
   if (row.type === 'order') return `${row.data.title ?? ''} ${id}`.toLowerCase();
-  return `${row.data.name} ${row.data.code ?? ''} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
+  return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
