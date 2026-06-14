@@ -25,6 +25,8 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
   onPick: (lat: number, lng: number, address?: ParsedAddress) => void;
 }) {
   const { loaded, error } = useGoogleMaps(apiKey);
+  const mapAvailable = !!apiKey && !error;
+
   const mapEl = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
@@ -100,41 +102,46 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
     );
   }
 
-  if (!apiKey || error === 'no-key') {
-    return (
-      <div style={noticeStyle}>
-        <AlertCircle size={14} style={{ flexShrink: 0 }} />
-        <span>Google-Maps-API-Key fehlt — bitte unter <b>Admin → Einstellungen</b> hinterlegen, um die Karte zu nutzen.</span>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div style={{ ...noticeStyle, background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' }}>
-        <AlertCircle size={14} style={{ flexShrink: 0 }} /> Karte konnte nicht geladen werden.
-      </div>
-    );
-  }
+  const hasGeo = typeof navigator !== 'undefined' && !!navigator.geolocation;
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8' }}>Standort (Karte)</span>
-        <button
-          type="button"
-          onClick={useGps}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: '#2563eb', cursor: 'pointer' }}
-        >
-          <Crosshair size={13} /> {locating ? 'Ermittle…' : 'Standort via GPS'}
-        </button>
+        {hasGeo && (
+          <button
+            type="button"
+            onClick={useGps}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: '#2563eb', cursor: 'pointer' }}
+          >
+            <Crosshair size={13} /> {locating ? 'Ermittle…' : 'Standort via GPS'}
+          </button>
+        )}
       </div>
-      <div ref={mapEl} style={{ width: '100%', height: 260, borderRadius: 10, border: '1px solid #E2E8F0', background: '#F1F5F9' }} />
+
+      {mapAvailable ? (
+        <>
+          <div ref={mapEl} style={{ width: '100%', height: 260, borderRadius: 10, border: '1px solid #E2E8F0', background: '#F1F5F9' }} />
+          {!loaded && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Karte lädt…</div>}
+        </>
+      ) : (
+        <div style={noticeStyle}>
+          <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>
+            {error && error !== 'no-key'
+              ? 'Karte konnte nicht geladen werden.'
+              : 'Karte benötigt einen Google-Maps-API-Key (Admin → Einstellungen). Der GPS-Button funktioniert auch ohne Karte; die Adresse muss dann manuell erfasst werden.'}
+          </span>
+        </div>
+      )}
+
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
         {lat != null && lng != null
-          ? `Koordinaten: ${lat.toFixed(6)}, ${lng.toFixed(6)} — Marker ziehen oder auf die Karte klicken, um anzupassen.`
-          : 'Auf die Karte klicken, Marker ziehen oder GPS verwenden — die Adresse wird automatisch ermittelt.'}
+          ? `Koordinaten: ${lat.toFixed(6)}, ${lng.toFixed(6)}${mapAvailable ? ' — Marker ziehen oder auf die Karte klicken' : ''}`
+          : mapAvailable
+            ? 'Auf die Karte klicken, Marker ziehen oder GPS verwenden — die Adresse wird automatisch ermittelt.'
+            : 'GPS verwenden, um die Koordinaten zu erfassen.'}
       </div>
-      {!loaded && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Karte lädt…</div>}
     </div>
   );
 }

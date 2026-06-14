@@ -675,12 +675,10 @@ export interface components {
         };
         /**
          * StorageLocationCreate
-         * @description Anlage über '+'. Status startet als 'draft'. Nur Bezeichnung ist Pflicht;
-         *     Koordinaten/Adresse/Kapazität können bereits mitgegeben werden (atomare Anlage).
+         * @description Anlage über '+'. Status startet als 'draft'. Bezeichnung ist fix 'Lagerplatz'
+         *     (serverseitig gesetzt); Koordinaten/Adresse/Kapazität werden mitgegeben.
          */
         StorageLocationCreate: {
-            /** Name */
-            name: string;
             /** Code */
             code?: string | null;
             /** Location Type */

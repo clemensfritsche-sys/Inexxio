@@ -41,11 +41,18 @@ def _check_lng(v: Optional[Decimal]) -> Optional[Decimal]:
     return v
 
 
-class StorageLocationCreate(BaseModel):
-    """Anlage über '+'. Status startet als 'draft'. Nur Bezeichnung ist Pflicht;
-    Koordinaten/Adresse/Kapazität können bereits mitgegeben werden (atomare Anlage)."""
+def _check_weight(v: Optional[Decimal]) -> Optional[Decimal]:
+    if v is None:
+        return v
+    if v <= 0:
+        raise ValueError("Traglast muss grösser als 0 sein")
+    return v
 
-    name: str
+
+class StorageLocationCreate(BaseModel):
+    """Anlage über '+'. Status startet als 'draft'. Bezeichnung ist fix 'Lagerplatz'
+    (serverseitig gesetzt); Koordinaten/Adresse/Kapazität werden mitgegeben."""
+
     code: Optional[str] = None
     location_type: Optional[str] = None
 
@@ -65,18 +72,15 @@ class StorageLocationCreate(BaseModel):
     address_city: Optional[str] = None
     address_country: Optional[str] = None
 
-    @field_validator("name")
-    @classmethod
-    def _name_not_empty(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("Bezeichnung ist ein Pflichtfeld")
-        return v
-
     @field_validator("location_type")
     @classmethod
     def _type(cls, v: Optional[str]) -> Optional[str]:
         return _check_type(v)
+
+    @field_validator("max_load_kg")
+    @classmethod
+    def _weight(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return _check_weight(v)
 
     @field_validator("latitude")
     @classmethod
@@ -132,6 +136,11 @@ class StorageLocationUpdate(BaseModel):
         if not v:
             raise ValueError("Bezeichnung darf nicht leer sein")
         return v
+
+    @field_validator("max_load_kg")
+    @classmethod
+    def _weight(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return _check_weight(v)
 
     @field_validator("latitude")
     @classmethod

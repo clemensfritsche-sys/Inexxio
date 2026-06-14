@@ -49,11 +49,12 @@ async def create_storage_location(
     loc = StorageLocation(
         object_id=next_object_id(db),
         status="draft",
+        name="Lagerplatz",
         **data.model_dump(exclude_none=True),
     )
     db.add(loc)
     db.flush()
-    log_audit(db, "storage_locations", None, f"Lagerplatz '{loc.name}' angelegt",
+    log_audit(db, "storage_locations", None, "Lagerplatz angelegt",
               current_user.id, object_id=loc.object_id)
     db.commit()
     db.refresh(loc)

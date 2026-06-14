@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ChevronDown, Settings, Cog } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
@@ -258,6 +258,26 @@ export function Navbar() {
                             <Settings style={{ width: 14, height: 14 }} />
                             Kontoeinstellungen
                           </Link>
+                          {userRole === 'admin' && (
+                            <Link
+                              href="/admin/einstellungen"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                width: '100%',
+                                padding: '8px 10px',
+                                borderRadius: 8,
+                                font: '500 13px var(--font-body)',
+                                color: 'var(--fg-2)',
+                                textDecoration: 'none',
+                              }}
+                              className="hover:bg-slate-50"
+                            >
+                              <Cog style={{ width: 14, height: 14 }} />
+                              Einstellungen (Admin)
+                            </Link>
+                          )}
                           <div style={{ margin: '4px 10px', borderTop: '1px solid var(--border-1)' }} />
                           <button
                             onClick={handleLogout}
@@ -394,6 +414,25 @@ export function Navbar() {
                       <Settings style={{ width: 15, height: 15 }} />
                       Kontoeinstellungen
                     </Link>
+                    {userRole === 'admin' && (
+                      <Link
+                        href="/admin/einstellungen"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          border: '1px solid var(--border-1)',
+                          borderRadius: 8,
+                          padding: '10px 16px',
+                          font: '500 14px var(--font-body)',
+                          color: 'var(--fg-2)',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        <Cog style={{ width: 15, height: 15 }} />
+                        Einstellungen (Admin)
+                      </Link>
+                    )}
                     <button
                       onClick={handleLogout}
                       style={{

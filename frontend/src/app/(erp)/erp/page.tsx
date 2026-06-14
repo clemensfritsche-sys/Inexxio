@@ -33,7 +33,8 @@ type Row =
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return row.data.title || 'Auftrag';
-  return row.data.name; // article + storage_location
+  if (row.type === 'storage_location') return row.data.code ? `Lagerplatz · ${row.data.code}` : 'Lagerplatz';
+  return row.data.name; // article
 }
 
 function rowSearchText(row: Row): string {

@@ -80,7 +80,6 @@ export type StorageLocation = Omit<StorageLocationApi, 'status'> & {
 };
 
 export interface StorageLocationInput {
-  name: string;
   code?: string | null;
   location_type?: string | null;
   max_load_kg?: number | string | null;
