@@ -1,6 +1,7 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   Order, OrderInput, OrderUpdateInput,
+  StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
 
@@ -151,6 +152,24 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}`, data);
   }
 
+  // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
+
+  getStorageLocations(): Promise<StorageLocation[]> {
+    return this.get('/api/v1/erp/storage-locations');
+  }
+
+  getStorageLocation(objectId: number): Promise<StorageLocation> {
+    return this.get(`/api/v1/erp/storage-locations/${objectId}`);
+  }
+
+  createStorageLocation(data: StorageLocationInput): Promise<StorageLocation> {
+    return this.post('/api/v1/erp/storage-locations', data);
+  }
+
+  updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
+    return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
+  }
+
   // ─── Contact form ──────────────────────────────────────────────────────────
 
   sendContactForm(data: {
@@ -201,6 +220,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     stripe_publishable_key: (s.stripe_publishable_key as string | null) ?? null,
     plausible_domain: (s.plausible_domain as string | null) ?? null,
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
+    google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
   };
 }
 

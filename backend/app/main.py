@@ -7,7 +7,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
-from .routers import admin, articles, auth, contact, erp, health, orders
+from .routers import admin, articles, auth, contact, erp, health, orders, storage_locations
 
 settings = get_settings()
 
@@ -86,6 +86,7 @@ app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(orders.router)
+app.include_router(storage_locations.router)
 
 
 @app.get("/")

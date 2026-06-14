@@ -20,7 +20,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   vat_method: 'effektiv', vat_period: 'quartal', default_payment_days: 30,
   default_discount_percent: null, default_discount_days: null, oss_active: false,
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
-  plausible_domain: null, hcaptcha_site_key: null,
+  plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
 };
 
 export function SystemConfigSection() {
@@ -167,7 +167,7 @@ export function SystemConfigSection() {
 
       <SettingsCard icon={<Key className="h-5 w-5" />} title="Integrationen & API-Keys"
         saved={saved === 'integrations'} saving={saving === 'integrations'}
-        onSave={(d) => saveSection('integrations', { stripe_publishable_key: d.stripe_publishable_key || null, plausible_domain: d.plausible_domain || null, hcaptcha_site_key: d.hcaptcha_site_key || null })}>
+        onSave={(d) => saveSection('integrations', { stripe_publishable_key: d.stripe_publishable_key || null, plausible_domain: d.plausible_domain || null, hcaptcha_site_key: d.hcaptcha_site_key || null, google_maps_api_key: d.google_maps_api_key || null })}>
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
           <Lock className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
           <p className="text-xs text-blue-800">Secret Keys werden im Google Secret Manager verwaltet und sind hier nicht sichtbar.</p>
@@ -176,6 +176,7 @@ export function SystemConfigSection() {
           <Field label="Stripe Publishable Key" name="stripe_publishable_key" defaultValue={s.stripe_publishable_key ?? ''} placeholder="pk_live_…" hint="Öffentlicher Key" />
           <Field label="Plausible Domain" name="plausible_domain" defaultValue={s.plausible_domain ?? ''} placeholder="inexxio.com" />
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
+          <Field label="Google Maps API Key" name="google_maps_api_key" defaultValue={s.google_maps_api_key ?? ''} placeholder="AIza…" hint="Für Lagerplatz-Karte; Maps JavaScript API + Geocoding API aktivieren, auf Domain einschränken" className="sm:col-span-2" />
         </div>
       </SettingsCard>
     </div>

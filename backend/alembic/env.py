@@ -24,6 +24,7 @@ from app.models import (  # noqa: F401
     CompanySettings,
     Notification,
     Order,
+    StorageLocation,
     TimestampMixin,
     UserProfile,
 )

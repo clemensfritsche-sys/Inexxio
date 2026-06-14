@@ -68,9 +68,62 @@ export type OrderUpdateInput = {
   is_active?: boolean;
 };
 
+// ─── Storage Location (Lagerplatz) ────────────────────────────────────────────
+
+export type StorageLocationStatus = 'draft' | 'released' | 'inactive';
+export type StorageLocationType = 'rack' | 'pallet' | 'floor' | 'drawer' | 'picking' | 'external';
+
+type StorageLocationApi = components['schemas']['StorageLocationResponse'];
+
+export type StorageLocation = Omit<StorageLocationApi, 'status'> & {
+  status: StorageLocationStatus;
+};
+
+export interface StorageLocationInput {
+  name: string;
+  code?: string | null;
+  location_type?: string | null;
+  max_load_kg?: number | string | null;
+  width_mm?: number | null;
+  depth_mm?: number | null;
+  height_mm?: number | null;
+  is_dry?: boolean;
+  is_tempered?: boolean;
+  is_hazmat?: boolean;
+  is_blocked?: boolean;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  address_street?: string | null;
+  address_zip?: string | null;
+  address_city?: string | null;
+  address_country?: string | null;
+}
+
+export interface StorageLocationUpdateInput {
+  status?: StorageLocationStatus;
+  name?: string;
+  code?: string | null;
+  location_type?: string | null;
+  max_load_kg?: number | string | null;
+  width_mm?: number | null;
+  depth_mm?: number | null;
+  height_mm?: number | null;
+  is_dry?: boolean;
+  is_tempered?: boolean;
+  is_hazmat?: boolean;
+  is_blocked?: boolean;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+  address_street?: string | null;
+  address_zip?: string | null;
+  address_city?: string | null;
+  address_country?: string | null;
+  is_active?: boolean;
+}
+
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
@@ -112,6 +165,7 @@ export interface CompanySettings {
   stripe_publishable_key: string | null;
   plausible_domain: string | null;
   hcaptcha_site_key: string | null;
+  google_maps_api_key: string | null;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

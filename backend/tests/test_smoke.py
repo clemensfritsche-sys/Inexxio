@@ -2,7 +2,7 @@
 import pytest
 
 from app.core.config import get_settings
-from app.routers import admin, articles, auth, contact, erp, health, orders
+from app.routers import admin, articles, auth, contact, erp, health, orders, storage_locations
 
 
 def test_settings_loads():
@@ -14,6 +14,7 @@ def test_routers_importable():
     assert hasattr(admin, "router")
     assert hasattr(articles, "router")
     assert hasattr(orders, "router")
+    assert hasattr(storage_locations, "router")
     assert hasattr(auth, "router")
     assert hasattr(contact, "router")
     assert hasattr(erp, "router")
@@ -22,11 +23,14 @@ def test_routers_importable():
 
 def test_models_exposed_from_package():
     """Models are re-exported from the package regardless of their file."""
-    from app.models import Article, AuditLog, CompanySettings, Notification, Order, UserProfile
+    from app.models import (
+        Article, AuditLog, CompanySettings, Notification, Order, StorageLocation, UserProfile,
+    )
 
     assert UserProfile.__tablename__ == "user_profiles"
     assert Article.__tablename__ == "articles"
     assert Order.__tablename__ == "orders"
+    assert StorageLocation.__tablename__ == "storage_locations"
     assert AuditLog.__tablename__ == "audit_log"
     assert Notification.__tablename__ == "notifications"
     assert CompanySettings.__tablename__ == "company_settings"
@@ -82,3 +86,4 @@ def test_object_id_allocator_shared_across_types():
     assert objects.UserProfile.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
+    assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS

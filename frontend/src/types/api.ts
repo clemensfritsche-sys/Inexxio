@@ -337,6 +337,42 @@ export interface paths {
         patch: operations["update_order_api_v1_erp_orders__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/storage-locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Storage Locations */
+        get: operations["list_storage_locations_api_v1_erp_storage_locations_get"];
+        put?: never;
+        /** Create Storage Location */
+        post: operations["create_storage_location_api_v1_erp_storage_locations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/storage-locations/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Storage Location */
+        get: operations["get_storage_location_api_v1_erp_storage_locations__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Storage Location */
+        patch: operations["update_storage_location_api_v1_erp_storage_locations__object_id__patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -491,6 +527,8 @@ export interface components {
             plausible_domain: string | null;
             /** Hcaptcha Site Key */
             hcaptcha_site_key: string | null;
+            /** Google Maps Api Key */
+            google_maps_api_key: string | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -554,6 +592,8 @@ export interface components {
             plausible_domain?: string | null;
             /** Hcaptcha Site Key */
             hcaptcha_site_key?: string | null;
+            /** Google Maps Api Key */
+            google_maps_api_key?: string | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -630,6 +670,143 @@ export interface components {
             status?: string | null;
             /** Title */
             title?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
+        /**
+         * StorageLocationCreate
+         * @description Anlage über '+'. Status startet als 'draft'. Nur Bezeichnung ist Pflicht;
+         *     Koordinaten/Adresse/Kapazität können bereits mitgegeben werden (atomare Anlage).
+         */
+        StorageLocationCreate: {
+            /** Name */
+            name: string;
+            /** Code */
+            code?: string | null;
+            /** Location Type */
+            location_type?: string | null;
+            /** Max Load Kg */
+            max_load_kg?: number | string | null;
+            /** Width Mm */
+            width_mm?: number | null;
+            /** Depth Mm */
+            depth_mm?: number | null;
+            /** Height Mm */
+            height_mm?: number | null;
+            /** Is Dry */
+            is_dry?: boolean | null;
+            /** Is Tempered */
+            is_tempered?: boolean | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
+            /** Is Blocked */
+            is_blocked?: boolean | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
+            /** Address Street */
+            address_street?: string | null;
+            /** Address Zip */
+            address_zip?: string | null;
+            /** Address City */
+            address_city?: string | null;
+            /** Address Country */
+            address_country?: string | null;
+        };
+        /** StorageLocationResponse */
+        StorageLocationResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Status */
+            status: string;
+            /** Name */
+            name: string;
+            /** Code */
+            code: string | null;
+            /** Location Type */
+            location_type: string | null;
+            /** Max Load Kg */
+            max_load_kg: string | null;
+            /** Width Mm */
+            width_mm: number | null;
+            /** Depth Mm */
+            depth_mm: number | null;
+            /** Height Mm */
+            height_mm: number | null;
+            /** Is Dry */
+            is_dry: boolean;
+            /** Is Tempered */
+            is_tempered: boolean;
+            /** Is Hazmat */
+            is_hazmat: boolean;
+            /** Is Blocked */
+            is_blocked: boolean;
+            /** Latitude */
+            latitude: string | null;
+            /** Longitude */
+            longitude: string | null;
+            /** Address Street */
+            address_street: string | null;
+            /** Address Zip */
+            address_zip: string | null;
+            /** Address City */
+            address_city: string | null;
+            /** Address Country */
+            address_country: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** StorageLocationUpdate */
+        StorageLocationUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Location Type */
+            location_type?: string | null;
+            /** Max Load Kg */
+            max_load_kg?: number | string | null;
+            /** Width Mm */
+            width_mm?: number | null;
+            /** Depth Mm */
+            depth_mm?: number | null;
+            /** Height Mm */
+            height_mm?: number | null;
+            /** Is Dry */
+            is_dry?: boolean | null;
+            /** Is Tempered */
+            is_tempered?: boolean | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
+            /** Is Blocked */
+            is_blocked?: boolean | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
+            /** Address Street */
+            address_street?: string | null;
+            /** Address Zip */
+            address_zip?: string | null;
+            /** Address City */
+            address_city?: string | null;
+            /** Address Country */
+            address_country?: string | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -1563,6 +1740,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_storage_locations_api_v1_erp_storage_locations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"][];
+                };
+            };
+        };
+    };
+    create_storage_location_api_v1_erp_storage_locations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageLocationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_storage_location_api_v1_erp_storage_locations__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_storage_location_api_v1_erp_storage_locations__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageLocationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
                 };
             };
             /** @description Validation Error */

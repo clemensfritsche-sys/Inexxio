@@ -45,3 +45,4 @@ class CompanySettings(Base):
     stripe_publishable_key: Mapped[Optional[str]] = mapped_column(String(255))
     plausible_domain: Mapped[Optional[str]] = mapped_column(String(255))
     hcaptcha_site_key: Mapped[Optional[str]] = mapped_column(String(255))
+    google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))

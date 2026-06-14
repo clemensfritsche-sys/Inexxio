@@ -36,6 +36,7 @@ class CompanySettingsUpdate(BaseModel):
     stripe_publishable_key: Optional[str] = None
     plausible_domain: Optional[str] = None
     hcaptcha_site_key: Optional[str] = None
+    google_maps_api_key: Optional[str] = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -73,6 +74,7 @@ class CompanySettingsResponse(BaseModel):
     stripe_publishable_key: Optional[str]
     plausible_domain: Optional[str]
     hcaptcha_site_key: Optional[str]
+    google_maps_api_key: Optional[str]
 
 
 class UserProfileResponse(BaseModel):
