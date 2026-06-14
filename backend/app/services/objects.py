@@ -8,12 +8,12 @@ Maximum über alle Objekttabellen + 1 – so kollidieren verschiedene Typen nich
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Article, UserProfile
+from ..models import Article, Order, UserProfile
 
 OBJ_ID_START = 100_000_001
 
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.
-_OBJECT_ID_COLUMNS = (UserProfile.object_id, Article.object_id)
+_OBJECT_ID_COLUMNS = (UserProfile.object_id, Article.object_id, Order.object_id)
 
 
 def current_max_object_id(db: Session) -> int:

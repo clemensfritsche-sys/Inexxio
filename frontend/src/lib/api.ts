@@ -1,4 +1,8 @@
-import type { Article, ArticleInput, ArticleUpdateInput, CompanySettings, UserProfile } from '@/types';
+import type {
+  Article, ArticleInput, ArticleUpdateInput,
+  Order, OrderInput, OrderUpdateInput,
+  CompanySettings, UserProfile,
+} from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -127,6 +131,24 @@ class ApiClient {
 
   updateArticle(objectId: number, data: ArticleUpdateInput): Promise<Article> {
     return this.patch(`/api/v1/erp/articles/${objectId}`, data);
+  }
+
+  // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
+
+  getOrders(): Promise<Order[]> {
+    return this.get('/api/v1/erp/orders');
+  }
+
+  getOrder(objectId: number): Promise<Order> {
+    return this.get(`/api/v1/erp/orders/${objectId}`);
+  }
+
+  createOrder(data: OrderInput): Promise<Order> {
+    return this.post('/api/v1/erp/orders', data);
+  }
+
+  updateOrder(objectId: number, data: OrderUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

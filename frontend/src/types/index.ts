@@ -47,6 +47,31 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
   is_active?: boolean;
 };
 
+// ─── Order (Auftrag) ──────────────────────────────────────────────────────────
+
+export type OrderStatus = 'draft' | 'released' | 'inactive';
+
+type OrderApi = components['schemas']['OrderResponse'];
+
+// Aus dem Backend-Schema abgeleitet; nur `status` auf die bekannte Union verengt.
+export type Order = Omit<OrderApi, 'status'> & {
+  status: OrderStatus;
+};
+
+export interface OrderInput {
+  title?: string | null;
+}
+
+export type OrderUpdateInput = {
+  status?: OrderStatus;
+  title?: string | null;
+  is_active?: boolean;
+};
+
+// ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
+
+export type ErpRecordType = 'user' | 'article' | 'order';
+
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
 // Bewusst NICHT aus dem Schema abgeleitet: die API liefert snake_case-Felder mit

@@ -23,6 +23,7 @@ from app.models import (  # noqa: F401
     AuditLog,
     CompanySettings,
     Notification,
+    Order,
     TimestampMixin,
     UserProfile,
 )
