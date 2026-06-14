@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sqlalchemy import inspect, text
 
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
@@ -46,6 +47,23 @@ def _bootstrap_admin() -> None:
         db.close()
 
 
+def _ensure_columns() -> None:
+    """Add columns that Alembic may not have applied yet (idempotent).
+    create_all() only creates missing tables — not missing columns on existing tables.
+    This covers each column added after the initial schema was deployed."""
+    try:
+        with engine.connect() as conn:
+            insp = inspect(engine)
+            cols = {c['name'] for c in insp.get_columns('company_settings')}
+            if 'google_maps_api_key' not in cols:
+                conn.execute(text(
+                    "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS google_maps_api_key VARCHAR(255)"
+                ))
+                conn.commit()
+    except Exception as e:
+        print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -55,6 +73,7 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
     except Exception as e:
         print(f"WARNING: create_all() failed: {e}", flush=True)
+    _ensure_columns()
     try:
         _bootstrap_admin()
     except Exception as e:
