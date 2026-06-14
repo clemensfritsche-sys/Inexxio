@@ -21,7 +21,7 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 // ─── Article ────────────────────────────────────────────────────────────────
 
 export type ArticleStatus = 'draft' | 'released' | 'inactive';
-export type ArticleUnit = 'Stk' | 'm' | 'kg' | 'l';
+export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
 
 type ArticleApi = components['schemas']['ArticleResponse'];

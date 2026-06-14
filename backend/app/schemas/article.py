@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
-ALLOWED_UNITS = ("Stk", "m", "kg", "l")
+ALLOWED_UNITS = ("Stk", "mm", "m2", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
 ALLOWED_STATUS = ("draft", "released", "inactive")
 

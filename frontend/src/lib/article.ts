@@ -12,7 +12,8 @@ export const ARTICLE_STATUS_ORDER: ArticleStatus[] = ['draft', 'released', 'inac
 
 export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'Stk', label: 'Stk.' },
-  { value: 'm',   label: 'm' },
+  { value: 'mm',  label: 'mm' },
+  { value: 'm2',  label: 'm²' },
   { value: 'kg',  label: 'kg' },
   { value: 'l',   label: 'l' },
 ];

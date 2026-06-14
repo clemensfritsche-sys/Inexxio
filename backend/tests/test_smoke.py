@@ -65,11 +65,11 @@ def test_article_create_validation():
     assert ok.size == "3x40x600"       # normalisiert
 
     with pytest.raises(ValueError):    # Grösse absteigend
-        ArticleCreate(name="x", unit="m", serialization="batch", size="600x40x3", weight_kg=Decimal("1"))
+        ArticleCreate(name="x", unit="mm", serialization="batch", size="600x40x3", weight_kg=Decimal("1"))
     with pytest.raises(ValueError):    # Gewicht 0
-        ArticleCreate(name="x", unit="m", serialization="batch", size="1x2", weight_kg=Decimal("0"))
+        ArticleCreate(name="x", unit="mm", serialization="batch", size="1x2", weight_kg=Decimal("0"))
     with pytest.raises(ValueError):    # > 3 Nachkommastellen
-        ArticleCreate(name="x", unit="m", serialization="batch", size="1x2", weight_kg=Decimal("1.2345"))
+        ArticleCreate(name="x", unit="mm", serialization="batch", size="1x2", weight_kg=Decimal("1.2345"))
     with pytest.raises(ValueError):    # ungültige Einheit
         ArticleCreate(name="x", unit="xx", serialization="unit", size="1x2", weight_kg=Decimal("1"))
 

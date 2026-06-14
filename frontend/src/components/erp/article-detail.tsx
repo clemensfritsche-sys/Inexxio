@@ -172,7 +172,7 @@ export function ArticleDetail({ record, onSaved, onCancel, onBack }: {
               <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
               <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
             </div>
-            <TextField label="Grösse" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Zahlen aufsteigend, getrennt durch 'x'" error={showErrors ? errs.size : null} />
+            <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={showErrors ? errs.size : null} />
             <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={showErrors ? errs.weight : null} />
           </div>
         )}
