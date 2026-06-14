@@ -34,6 +34,7 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
   const onPickRef = useRef(onPick);
   onPickRef.current = onPick;
   const [locating, setLocating] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
 
   function reverseGeocode(p: google.maps.LatLngLiteral) {
     if (!geocoder.current) { onPickRef.current(p.lat, p.lng); return; }
@@ -90,6 +91,7 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
   function useGps() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     setLocating(true);
+    setGpsError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
@@ -97,7 +99,16 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
         placeMarker(p, true);
         reverseGeocode(p);
       },
-      () => setLocating(false),
+      (err) => {
+        setLocating(false);
+        if (err.code === 1) {
+          setGpsError('Standortzugriff verweigert – bitte in den Browser-Einstellungen erlauben.');
+        } else if (err.code === 2) {
+          setGpsError('Standort konnte nicht ermittelt werden.');
+        } else {
+          setGpsError('Zeitüberschreitung – bitte erneut versuchen.');
+        }
+      },
       { enableHighAccuracy: true, timeout: 10000 },
     );
   }
@@ -112,12 +123,20 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
           <button
             type="button"
             onClick={useGps}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: '#2563eb', cursor: 'pointer' }}
+            disabled={locating}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 12, fontWeight: 600, color: locating ? '#94a3b8' : '#2563eb', cursor: locating ? 'wait' : 'pointer' }}
           >
             <Crosshair size={13} /> {locating ? 'Ermittle…' : 'Standort via GPS'}
           </button>
         )}
       </div>
+
+      {gpsError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '7px 10px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, color: '#dc2626' }}>
+          <AlertCircle size={13} style={{ flexShrink: 0 }} />
+          {gpsError}
+        </div>
+      )}
 
       {mapAvailable ? (
         <>
