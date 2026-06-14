@@ -265,6 +265,42 @@ export interface paths {
         patch: operations["update_erp_record_api_v1_erp_records__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Articles */
+        get: operations["list_articles_api_v1_erp_articles_get"];
+        put?: never;
+        /** Create Article */
+        post: operations["create_article_api_v1_erp_articles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Article */
+        get: operations["get_article_api_v1_erp_articles__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Article */
+        patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -286,6 +322,73 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ArticleCreate
+         * @description Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
+         */
+        ArticleCreate: {
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Serialization */
+            serialization: string;
+            /** Size */
+            size: string;
+            /** Weight Kg */
+            weight_kg: number | string;
+        };
+        /** ArticleResponse */
+        ArticleResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Status */
+            status: string;
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string;
+            /** Serialization */
+            serialization: string;
+            /** Size */
+            size: string;
+            /** Weight Kg */
+            weight_kg: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ArticleUpdate
+         * @description Teil-Update aus dem Detailfenster. Alle Felder optional.
+         */
+        ArticleUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Serialization */
+            serialization?: string | null;
+            /** Size */
+            size?: string | null;
+            /** Weight Kg */
+            weight_kg?: number | string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
         /** CompanySettingsResponse */
         CompanySettingsResponse: {
             /** Id */
@@ -1145,6 +1248,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_articles_api_v1_erp_articles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"][];
+                };
+            };
+        };
+    };
+    create_article_api_v1_erp_articles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_article_api_v1_erp_articles__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_article_api_v1_erp_articles__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"];
                 };
             };
             /** @description Validation Error */

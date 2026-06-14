@@ -1,4 +1,4 @@
-import type { CompanySettings, UserProfile } from '@/types';
+import type { Article, ArticleInput, ArticleUpdateInput, CompanySettings, UserProfile } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -109,6 +109,24 @@ class ApiClient {
 
   updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
     return this.patch(`/api/v1/erp/records/${objectId}`, data);
+  }
+
+  // ─── ERP Articles ──────────────────────────────────────────────────────────
+
+  getArticles(): Promise<Article[]> {
+    return this.get('/api/v1/erp/articles');
+  }
+
+  getArticle(objectId: number): Promise<Article> {
+    return this.get(`/api/v1/erp/articles/${objectId}`);
+  }
+
+  createArticle(data: ArticleInput): Promise<Article> {
+    return this.post('/api/v1/erp/articles', data);
+  }
+
+  updateArticle(objectId: number, data: ArticleUpdateInput): Promise<Article> {
+    return this.patch(`/api/v1/erp/articles/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

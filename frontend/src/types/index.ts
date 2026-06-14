@@ -18,6 +18,35 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
   role: UserPlatformRole;
 };
 
+// ─── Article ────────────────────────────────────────────────────────────────
+
+export type ArticleStatus = 'draft' | 'released' | 'inactive';
+export type ArticleUnit = 'Stk' | 'm' | 'kg' | 'l';
+export type ArticleSerialization = 'unit' | 'batch';
+
+type ArticleApi = components['schemas']['ArticleResponse'];
+
+// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung auf Unions verengt.
+export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
+  status: ArticleStatus;
+  unit: ArticleUnit;
+  serialization: ArticleSerialization;
+};
+
+// Eingaben für Anlage (alle Pflicht) bzw. Teil-Update aus dem Detailfenster.
+export interface ArticleInput {
+  name: string;
+  unit: ArticleUnit;
+  serialization: ArticleSerialization;
+  size: string;
+  weight_kg: string;
+}
+
+export type ArticleUpdateInput = Partial<ArticleInput> & {
+  status?: ArticleStatus;
+  is_active?: boolean;
+};
+
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
 // Bewusst NICHT aus dem Schema abgeleitet: die API liefert snake_case-Felder mit

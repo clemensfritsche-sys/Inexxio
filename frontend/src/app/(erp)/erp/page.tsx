@@ -5,6 +5,7 @@ import { Search, User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, B
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { UserProfile } from '@/types';
+import { ErpTabs } from '@/components/erp/erp-tabs';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -427,7 +428,9 @@ export default function ErpPage() {
   }, {});
 
   return (
-    <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 72px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 72px)' }}>
+      <ErpTabs />
+      <div className="flex overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
 
       {/* ── List panel ─────────────────────────────────────────────────────── */}
       <div className={cn(
@@ -511,6 +514,7 @@ export default function ErpPage() {
             </div>
           )
         }
+      </div>
       </div>
     </div>
   );

@@ -19,6 +19,7 @@ if database_url:
 # Import all models so Alembic can detect them for autogenerate
 from app.core.database import Base  # noqa: E402 — must come after path setup
 from app.models import (  # noqa: F401
+    Article,
     AuditLog,
     CompanySettings,
     Notification,

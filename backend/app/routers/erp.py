@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_admin, require_employee
@@ -7,10 +6,9 @@ from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..services.admin import log_audit
+from ..services.objects import current_max_object_id
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
-
-_OBJ_ID_START = 100_000_001
 
 
 def _assign_object_ids(db: Session) -> None:
@@ -22,8 +20,8 @@ def _assign_object_ids(db: Session) -> None:
     )
     if not pending:
         return
-    max_id = db.query(func.max(UserProfile.object_id)).scalar()
-    next_id = max(max_id + 1 if max_id else _OBJ_ID_START, _OBJ_ID_START)
+    # Aus dem gemeinsamen Nummernkreis vergeben (über alle Objekttypen hinweg).
+    next_id = current_max_object_id(db) + 1
     for u in pending:
         u.object_id = next_id
         next_id += 1

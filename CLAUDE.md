@@ -145,12 +145,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 ### Tatsächlich gebaut (Stand Juni 2026)
 - Monorepo-Struktur vollständig
 - Backend: FastAPI mit UserProfile (Benutzer- & Profilverwaltung), Admin-Einstellungen, Audit-Log, Notifications, Kontaktformular
+- Backend: Artikel-Stammdaten (`articles`, Status draft/released/inactive, gemeinsamer Nummernkreis via `services/objects.py`)
 - Frontend: Öffentliche Website (Homepage, Über uns, Kontakt, Impressum, AGB, Datenschutz)
-- Frontend: ERP-Benutzerübersicht (Master-Detail-Feed für UserProfile; **keine** Artikel/BOM/Arbeitspläne)
+- Frontend: ERP mit Reitern Benutzer + Artikel (Master-Detail-Feed)
+- Frontend: Artikel-Anlage via «+» (Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht), Detailfenster mit Reitern Stammdaten/Prozess/Bestand
 - Frontend: Admin Einstellungen + Benutzerverwaltung
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
 
-> **HINWEIS:** Die in früheren Versionen dieser Datei genannten Features (Artikelstamm, Stückliste, BOM, Gewichtsberechnung, Verwendungsnachweise, Arbeitspläne) sind **noch nicht implementiert** und gehören zu Phase 2+.
+> **HINWEIS:** Vom Artikel ist bisher nur der **Stammdaten**-Reiter mit Feldern gefüllt;
+> Prozess & Bestand sind Platzhalter. Stückliste/BOM, Gewichtsberechnung,
+> Verwendungsnachweise und Arbeitspläne sind **noch nicht implementiert** (Phase 2+).
 
 Nächste Aufgabe: Phase 2 – Purchase Orders + Lieferantenportal + Stripe Payments
 

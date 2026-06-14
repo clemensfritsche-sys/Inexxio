@@ -63,6 +63,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/auth/terms-accept | user | AGB akzeptieren |
 | GET | /api/v1/erp/records | staff | Benutzer-Feed (Master-Detail) |
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
+| GET/POST | /api/v1/erp/articles | staff | Artikel-Feed / Artikel anlegen (Status 'draft') |
+| GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern |
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
@@ -72,7 +74,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/admin/notifications | user | Eigene Benachrichtigungen |
 | POST | /api/v1/contact | – | Kontaktformular |
 
-> Artikel/BOM/Arbeitspläne/Companies sind Phase 2+ und **noch nicht** implementiert.
+> Artikel: **Stammdaten** implementiert (`articles`-Tabelle, Status draft/released/inactive,
+> Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht). Reiter Prozess & Bestand sind
+> noch Platzhalter. BOM/Arbeitspläne/Companies sind Phase 2+ und **noch nicht** implementiert.
+>
+> Objektnummern (9-stellig) werden objekttyp-übergreifend in `app/services/objects.py`
+> vergeben (Maximum über alle Objekttabellen + 1).
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete
