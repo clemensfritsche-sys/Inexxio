@@ -8,7 +8,10 @@ from sqlalchemy import inspect, text
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
-from .routers import admin, articles, auth, contact, erp, health, orders, storage_locations
+from .routers import (
+    admin, article_process, articles, auth, contact, erp, health,
+    orders, purchase_orders, storage_locations,
+)
 
 settings = get_settings()
 
@@ -47,19 +50,32 @@ def _bootstrap_admin() -> None:
         db.close()
 
 
+# Spalten, die nach dem Initial-Schema ergänzt wurden (Tabelle, Spalte, DDL-Typ).
+# create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
+_COLUMN_SAFETY_NET = (
+    ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
+    ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
+    ("orders", "article_id", "BIGINT"),
+    ("orders", "quantity", "INTEGER"),
+    ("orders", "desired_delivery_date", "DATE"),
+)
+
+
 def _ensure_columns() -> None:
-    """Add columns that Alembic may not have applied yet (idempotent).
-    create_all() only creates missing tables — not missing columns on existing tables.
-    This covers each column added after the initial schema was deployed."""
+    """Fehlende Spalten idempotent ergänzen, falls eine Migration nicht lief.
+    create_all() ergänzt nur Tabellen, nicht Spalten auf bestehenden Tabellen."""
     try:
         with engine.connect() as conn:
             insp = inspect(engine)
-            cols = {c['name'] for c in insp.get_columns('company_settings')}
-            if 'google_maps_api_key' not in cols:
-                conn.execute(text(
-                    "ALTER TABLE company_settings ADD COLUMN IF NOT EXISTS google_maps_api_key VARCHAR(255)"
-                ))
-                conn.commit()
+            tables = set(insp.get_table_names())
+            for table, col, ddl in _COLUMN_SAFETY_NET:
+                if table not in tables:
+                    continue
+                if col not in {c["name"] for c in insp.get_columns(table)}:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
+                    ))
+            conn.commit()
     except Exception as e:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
 
@@ -104,7 +120,9 @@ app.include_router(contact.router)
 app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)
+app.include_router(article_process.router)
 app.include_router(orders.router)
+app.include_router(purchase_orders.router)
 app.include_router(storage_locations.router)
 
 

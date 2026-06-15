@@ -20,10 +20,12 @@ if database_url:
 from app.core.database import Base  # noqa: E402 — must come after path setup
 from app.models import (  # noqa: F401
     Article,
+    ArticleProcessStep,
     AuditLog,
     CompanySettings,
     Notification,
     Order,
+    PurchaseOrder,
     StorageLocation,
     TimestampMixin,
     UserProfile,

@@ -35,3 +35,7 @@ class Article(Base, TimestampMixin):
     serialization: Mapped[str] = mapped_column(String(20), nullable=False)  # unit | batch
     size: Mapped[str] = mapped_column(String(100), nullable=False)  # z. B. 3x40x600
     weight_kg: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+
+    # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
+    # Bestellung (Purchase Order) automatisch zurückgeschrieben.
+    landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)

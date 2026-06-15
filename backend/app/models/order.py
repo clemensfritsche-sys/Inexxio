@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Optional
 
-from sqlalchemy import BigInteger, String
+from sqlalchemy import BigInteger, Date, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -8,10 +9,11 @@ from .base import TimestampMixin
 
 
 class Order(Base, TimestampMixin):
-    """Auftrag — neuer ERP-Datensatztyp.
+    """Auftrag — interner Bedarf, der einen Artikel-Prozess auslöst.
 
-    Inhaltliche Felder folgen noch; vorerst Status + optionaler Titel, plus
-    gemeinsame Objektnummer und Soft-Delete (is_active via TimestampMixin).
+    Beispiel: «5× Artikel 1003». Wird der Auftrag freigegeben (status=released)
+    und besitzt der Artikel einen ``purchase``-Prozessschritt, instanziiert das
+    System die zugehörige Bestellung (Purchase Order).
 
     Statuswerte (`status`): draft → Entwurf | released → Freigegeben | inactive → Inaktiv
     """
@@ -25,3 +27,8 @@ class Order(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Bedarf: welcher Artikel in welcher Menge (löst den Prozess aus)
+    article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

@@ -1,6 +1,8 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
+  ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderInput, OrderUpdateInput,
+  PurchaseOrder, PurchaseOrderUpdateInput,
   StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
@@ -134,6 +136,24 @@ class ApiClient {
     return this.patch(`/api/v1/erp/articles/${objectId}`, data);
   }
 
+  // ─── Article Process Steps (Prozess-Definition) ──────────────────────────────
+
+  getArticleProcessSteps(objectId: number): Promise<ArticleProcessStep[]> {
+    return this.get(`/api/v1/erp/articles/${objectId}/process-steps`);
+  }
+
+  createArticleProcessStep(objectId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
+    return this.post(`/api/v1/erp/articles/${objectId}/process-steps`, data);
+  }
+
+  updateArticleProcessStep(objectId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/process-steps/${stepId}`, data);
+  }
+
+  deleteArticleProcessStep(objectId: number, stepId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/process-steps/${stepId}`);
+  }
+
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
   getOrders(): Promise<Order[]> {
@@ -168,6 +188,20 @@ class ApiClient {
 
   updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
     return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
+  }
+
+  // ─── Purchase Orders (Bestellungen) ──────────────────────────────────────────
+
+  getPurchaseOrders(): Promise<PurchaseOrder[]> {
+    return this.get('/api/v1/erp/purchase-orders');
+  }
+
+  getPurchaseOrder(objectId: number): Promise<PurchaseOrder> {
+    return this.get(`/api/v1/erp/purchase-orders/${objectId}`);
+  }
+
+  updatePurchaseOrder(objectId: number, data: PurchaseOrderUpdateInput): Promise<PurchaseOrder> {
+    return this.patch(`/api/v1/erp/purchase-orders/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

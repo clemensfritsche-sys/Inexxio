@@ -166,6 +166,7 @@ class ArticleResponse(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
+    landed_unit_cost: Optional[Decimal] = None  # read-only, aus Bestellung
     is_active: bool
     created_at: datetime
     updated_at: datetime

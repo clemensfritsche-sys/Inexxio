@@ -7,6 +7,7 @@ from ..models import Order, UserProfile
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..services.admin import log_audit
 from ..services.objects import next_object_id
+from ..services.purchase import instantiate_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -46,6 +47,9 @@ async def create_order(
         object_id=next_object_id(db),
         status="draft",
         title=data.title,
+        article_id=data.article_id,
+        quantity=data.quantity,
+        desired_delivery_date=data.desired_delivery_date,
     )
     db.add(order)
     db.flush()
@@ -73,6 +77,8 @@ async def update_order(
     current_user: UserProfile = Depends(require_employee),
 ):
     order = _get_active(db, object_id)
+    was_released = order.status == "released"
+
     for key, value in data.model_dump(exclude_unset=True).items():
         old_val = getattr(order, key, None)
         old_str = str(old_val) if old_val is not None else None
@@ -81,6 +87,13 @@ async def update_order(
             log_audit(db, "orders", key, new_str, current_user.id,
                       object_id=order.object_id, old_value=old_str)
         setattr(order, key, value)
+
+    # Freigabe (draft → released) stösst den Artikel-Prozess an
+    if order.status == "released" and not was_released:
+        if not order.article_id or not order.quantity:
+            raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        instantiate_for_order(db, order, current_user.id)
+
     db.commit()
     db.refresh(order)
     return OrderResponse.model_validate(order)

@@ -8,7 +8,7 @@ Maximum über alle Objekttabellen + 1 – so kollidieren verschiedene Typen nich
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Article, Order, StorageLocation, UserProfile
+from ..models import Article, Order, PurchaseOrder, StorageLocation, UserProfile
 
 OBJ_ID_START = 100_000_001
 
@@ -17,6 +17,7 @@ _OBJECT_ID_COLUMNS = (
     UserProfile.object_id,
     Article.object_id,
     Order.object_id,
+    PurchaseOrder.object_id,
     StorageLocation.object_id,
 )
 

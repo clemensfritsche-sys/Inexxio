@@ -154,7 +154,7 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              {(userRole === 'admin' || userRole === 'employee') && (
+              {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
                 <Link
                   href="/erp"
                   className={cn('ix-nav-link', pathname.startsWith('/erp') && 'ix-nav-link-active')}
@@ -336,7 +336,7 @@ export function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {(userRole === 'admin' || userRole === 'employee') && (
+            {(userRole === 'admin' || userRole === 'employee' || userRole === 'supplier') && (
               <Link
                 href="/erp"
                 style={{

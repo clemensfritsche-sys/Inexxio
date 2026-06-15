@@ -151,12 +151,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: Artikel-Anlage via «+» (Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht), Detailfenster mit Reitern Stammdaten/Prozess/Bestand
 - Frontend: Admin Einstellungen + Benutzerverwaltung
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
+- Backend: Prozessschritt-Modul «Purchase» – Artikel-Prozessdefinition (`article_process_steps`,
+  Modus Lieferant/Webshop), Bestellung-Instanz (`purchase_orders`, eigener Nummernkreis,
+  Status requested→quoted→approved/rejected→confirmed→received), Einstandspreis-Rechnung,
+  Auftragsfreigabe stösst Prozess an (`services/purchase.py`)
+- Frontend: Artikel-«Prozess»-Reiter (Schritt «Bestellung» hinterlegen), Auftrag mit Artikel+Menge
+  + Freigabe, Bestellungs-Detail (rollenabhängig Lieferant vs. Mitarbeiter), Lieferant-Zugang zum ERP
 
-> **HINWEIS:** Vom Artikel ist bisher nur der **Stammdaten**-Reiter mit Feldern gefüllt;
-> Prozess & Bestand sind Platzhalter. Stückliste/BOM, Gewichtsberechnung,
-> Verwendungsnachweise und Arbeitspläne sind **noch nicht implementiert** (Phase 2+).
+> **HINWEIS:** Artikel **Stammdaten** + **Prozess** (Purchase-Schritt) sind gefüllt; **Bestand** ist
+> Platzhalter. E-Mail-Versand an Lieferanten ist nur als TODO vermerkt (Gmail API, Phase 2). Serien-
+> nummern/Eingangskontrolle, Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
 
-Nächste Aufgabe: Phase 2 – Purchase Orders + Lieferantenportal + Stripe Payments
+Nächste Aufgabe: Wareneingangskontrolle + Seriennummern-Vergabe (Schritt nach «Purchase»); E-Mail-Versand (Gmail API); Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

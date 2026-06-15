@@ -26,13 +26,14 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       try {
         const profile = await api.getMe();
         localStorage.setItem(ROLE_KEY, profile.role);
-        if (profile.role === 'customer' || profile.role === 'supplier') {
+        // Lieferanten dürfen ins ERP (sehen nur ihre Bestellungen); Kunden nicht.
+        if (profile.role === 'customer') {
           router.replace('/');
           return;
         }
       } catch {
         const cached = localStorage.getItem(ROLE_KEY);
-        if (cached === 'customer' || cached === 'supplier') {
+        if (cached === 'customer') {
           router.replace('/');
           return;
         }

@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleUpdateInput } from '@/types';
+import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleUpdateInput, UserProfile } from '@/types';
 import {
   ARTICLE_UNITS, SERIALIZATION_OPTIONS, ARTICLE_STATUS_ORDER, statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, Placeholder } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, StatusBadge, Placeholder, Label } from '@/components/erp/fields';
+import { ProcessSteps } from '@/components/erp/process-steps';
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
 
@@ -34,8 +35,9 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-export function ArticleDetail({ record, onSaved, onCancel, onBack }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack }: {
   record: Article | null;          // null ⇒ Anlage-Modus
+  suppliers?: UserProfile[];
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -174,10 +176,21 @@ export function ArticleDetail({ record, onSaved, onCancel, onBack }: {
             </div>
             <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={showErrors ? errs.size : null} />
             <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={showErrors ? errs.weight : null} />
+            {!isCreate && record?.landed_unit_cost != null && (
+              <div>
+                <Label>Einstandspreis netto / Stück (CHF)</Label>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>
+                  {Number(record.landed_unit_cost).toLocaleString('de-CH', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+                  Automatisch aus der zuletzt freigegebenen Bestellung – nur Lesen.
+                </div>
+              </div>
+            )}
           </div>
         )}
         {tab === 'prozess' && (
-          <Placeholder icon={Workflow} title="Prozess" text="Arbeitsplan und Prozessschritte für diesen Artikel folgen in einer späteren Phase." />
+          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} />
         )}
         {tab === 'bestand' && (
           <Placeholder icon={Boxes} title="Bestand" text="Lagerbestand und Bewegungen für diesen Artikel folgen in einer späteren Phase." />

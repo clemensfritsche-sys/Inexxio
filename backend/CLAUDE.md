@@ -65,6 +65,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/erp/records/{object_id} | staff/admin | Datensatz lesen/ändern |
 | GET/POST | /api/v1/erp/articles | staff | Artikel-Feed / Artikel anlegen (Status 'draft') |
 | GET/PATCH | /api/v1/erp/articles/{object_id} | staff | Artikel lesen/ändern |
+| GET/POST | /api/v1/erp/articles/{object_id}/process-steps | staff | Prozessschritte (Purchase) lesen/anlegen |
+| PATCH/DELETE | /api/v1/erp/articles/{object_id}/process-steps/{step_id} | staff | Prozessschritt ändern/entfernen |
+| GET/POST | /api/v1/erp/orders | staff | Auftrag-Feed / anlegen (Freigabe stösst Prozess an) |
+| GET/PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag lesen/ändern |
+| GET | /api/v1/erp/purchase-orders | user | Bestellungen (Lieferant: nur eigene) |
+| GET/PATCH | /api/v1/erp/purchase-orders/{object_id} | user | Bestellung lesen / Status & Felder (rollenabhängig) |
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
@@ -74,9 +80,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/admin/notifications | user | Eigene Benachrichtigungen |
 | POST | /api/v1/contact | – | Kontaktformular |
 
-> Artikel: **Stammdaten** implementiert (`articles`-Tabelle, Status draft/released/inactive,
-> Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht). Reiter Prozess & Bestand sind
-> noch Platzhalter. BOM/Arbeitspläne/Companies sind Phase 2+ und **noch nicht** implementiert.
+> Artikel: **Stammdaten** + **Prozess** (Purchase-Schritt) implementiert; Reiter **Bestand** ist
+> noch Platzhalter. Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert
+> die Bestellung (`purchase_orders`), Status requested→quoted→approved/rejected→confirmed→received,
+> Einstandspreis netto/Stück wird auf den Artikel zurückgeschrieben (`services/purchase.py`).
+> E-Mail-Versand ist nur als TODO vermerkt. Seriennummern/Eingangskontrolle, BOM/Arbeitspläne,
+> Stripe sind Phase 2+ und **noch nicht** implementiert.
 >
 > Objektnummern (9-stellig) werden objekttyp-übergreifend in `app/services/objects.py`
 > vergeben (Maximum über alle Objekttabellen + 1).

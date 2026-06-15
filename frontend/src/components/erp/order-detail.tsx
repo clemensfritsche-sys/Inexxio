@@ -1,26 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, ArrowLeft, Info } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Info, Rocket } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, OrderStatus, OrderUpdateInput } from '@/types';
+import type { Article, Order, OrderStatus, OrderUpdateInput } from '@/types';
 import { ORDER_STATUS_ORDER, orderStatusConfig } from '@/lib/order';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, StatusBadge } from '@/components/erp/fields';
+import { TextField, SelectField, StatusBadge, Label, ErrorText } from '@/components/erp/fields';
 
-type Form = { title: string; status: string };
+type Form = {
+  title: string; status: string;
+  article_id: string; quantity: string; desired_delivery_date: string;
+};
 
 function seedFrom(record: Order | null): Form {
-  if (!record) return { title: '', status: 'draft' };
-  return { title: record.title ?? '', status: record.status };
+  if (!record) return { title: '', status: 'draft', article_id: '', quantity: '', desired_delivery_date: '' };
+  return {
+    title: record.title ?? '',
+    status: record.status,
+    article_id: record.article_id != null ? String(record.article_id) : '',
+    quantity: record.quantity != null ? String(record.quantity) : '',
+    desired_delivery_date: record.desired_delivery_date ?? '',
+  };
 }
 
 function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-export function OrderDetail({ record, onSaved, onCancel, onBack }: {
+export function OrderDetail({ record, articles, onSaved, onCancel, onBack }: {
   record: Order | null;            // null ⇒ Anlage-Modus
+  articles: Article[];
   onSaved: (o: Order) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -34,20 +44,32 @@ export function OrderDetail({ record, onSaved, onCancel, onBack }: {
     setForm((p) => ({ ...p, [key]: value }));
   }
 
-  const dirty = isCreate || (record !== null && (
-    form.title !== (record.title ?? '') || form.status !== record.status
-  ));
+  const seed = seedFrom(record);
+  const dirty = isCreate || (Object.keys(form) as (keyof Form)[]).some((k) => form[k] !== seed[k]);
+
+  const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
+  const hasArticleQty = !!form.article_id && qtyNum != null && qtyNum > 0;
+  const releaseBlocked = form.status === 'released' && !hasArticleQty;
 
   async function save() {
+    if (releaseBlocked) { setError('Zur Freigabe sind Artikel und Menge (> 0) erforderlich'); return; }
     setSaving(true);
     setError(null);
     try {
+      const article_id = form.article_id ? Number(form.article_id) : null;
+      const quantity = qtyNum;
+      const desired_delivery_date = form.desired_delivery_date || null;
       if (isCreate) {
-        const created = await api.createOrder({ title: form.title.trim() || null });
+        const created = await api.createOrder({
+          title: form.title.trim() || null, article_id, quantity, desired_delivery_date,
+        });
         onSaved(created);
       } else {
         const payload: OrderUpdateInput = {};
         if (form.title !== (record.title ?? '')) payload.title = form.title.trim() || null;
+        if (article_id !== (record.article_id ?? null)) payload.article_id = article_id;
+        if (quantity !== (record.quantity ?? null)) payload.quantity = quantity;
+        if (desired_delivery_date !== (record.desired_delivery_date ?? null)) payload.desired_delivery_date = desired_delivery_date;
         if (form.status !== record.status) payload.status = form.status as OrderStatus;
         const updated = await api.updateOrder(record.object_id as number, payload);
         onSaved(updated);
@@ -60,6 +82,10 @@ export function OrderDetail({ record, onSaved, onCancel, onBack }: {
   }
 
   const heading = form.title || (isCreate ? 'Neuer Auftrag' : 'Auftrag');
+  const articleOptions = [
+    { value: '', label: '— Artikel wählen —' },
+    ...articles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` })),
+  ];
 
   return (
     <div className="flex flex-col h-full">
@@ -102,12 +128,30 @@ export function OrderDetail({ record, onSaved, onCancel, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <TextField label="Bezeichnung" value={form.title} onChange={(v) => set('title', v)} placeholder="Kurzbeschreibung des Auftrags" />
+          <TextField label="Bezeichnung" value={form.title} onChange={(v) => set('title', v)} placeholder="Kurzbeschreibung (optional)" />
+          <SelectField label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <TextField label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} required placeholder="z. B. 5" />
+            <div>
+              <Label>Wunsch-Liefertermin</Label>
+              <input type="date" value={form.desired_delivery_date} onChange={(e) => set('desired_delivery_date', e.target.value)}
+                className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
+            </div>
+          </div>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 12, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1e40af' }}>
-          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>Weitere Auftragsfelder folgen — der Inhalt dieses Datensatztyps wird noch definiert.</span>
+          <Rocket size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Sobald der Auftrag auf <b>Freigegeben</b> gesetzt wird, startet der hinterlegte Prozess des
+            Artikels. Hat der Artikel einen Bestell-Schritt, entsteht automatisch eine Bestellung im Feed.</span>
         </div>
+
+        {!isCreate && record.status === 'released' && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 10, padding: '12px 14px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, fontSize: 13, color: '#166534' }}>
+            <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>Auftrag freigegeben – der Prozess wurde angestossen.</span>
+          </div>
+        )}
       </div>
 
       {/* Meta footer (edit only) */}
@@ -121,8 +165,8 @@ export function OrderDetail({ record, onSaved, onCancel, onBack }: {
       {/* Save bar */}
       {(isCreate || dirty || error) && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (isCreate ? 'Neuen Auftrag erfassen' : 'Ungespeicherte Änderungen')}
+          <span style={{ flex: 1, fontSize: 13, color: error || releaseBlocked ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {error ?? (releaseBlocked ? 'Freigabe braucht Artikel + Menge' : isCreate ? 'Neuen Auftrag erfassen' : 'Ungespeicherte Änderungen')}
           </span>
           <button
             onClick={isCreate ? onCancel : () => { setForm(seedFrom(record)); setError(null); }}
@@ -132,8 +176,8 @@ export function OrderDetail({ record, onSaved, onCancel, onBack }: {
           </button>
           <button
             onClick={save}
-            disabled={saving}
-            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}
+            disabled={saving || releaseBlocked}
+            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving || releaseBlocked ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}
           >
             {saving ? 'Speichern…' : isCreate ? 'Anlegen' : 'Speichern'}
           </button>

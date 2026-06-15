@@ -301,6 +301,42 @@ export interface paths {
         patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/articles/{object_id}/process-steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Steps */
+        get: operations["list_steps_api_v1_erp_articles__object_id__process_steps_get"];
+        put?: never;
+        /** Create Step */
+        post: operations["create_step_api_v1_erp_articles__object_id__process_steps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/process-steps/{step_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Step */
+        delete: operations["delete_step_api_v1_erp_articles__object_id__process_steps__step_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Step */
+        patch: operations["update_step_api_v1_erp_articles__object_id__process_steps__step_id__patch"];
+        trace?: never;
+    };
     "/api/v1/erp/orders": {
         parameters: {
             query?: never;
@@ -335,6 +371,41 @@ export interface paths {
         head?: never;
         /** Update Order */
         patch: operations["update_order_api_v1_erp_orders__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/purchase-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Purchase Orders */
+        get: operations["list_purchase_orders_api_v1_erp_purchase_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/purchase-orders/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Purchase Order */
+        get: operations["get_purchase_order_api_v1_erp_purchase_orders__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Purchase Order */
+        patch: operations["update_purchase_order_api_v1_erp_purchase_orders__object_id__patch"];
         trace?: never;
     };
     "/api/v1/erp/storage-locations": {
@@ -410,6 +481,73 @@ export interface components {
             /** Weight Kg */
             weight_kg: number | string;
         };
+        /**
+         * ArticleProcessStepCreate
+         * @description Anlage eines Prozessschritts im Reiter «Prozess» des Artikels.
+         */
+        ArticleProcessStepCreate: {
+            /**
+             * Step Type
+             * @default purchase
+             */
+            step_type: string;
+            /**
+             * Mode
+             * @default supplier
+             */
+            mode: string;
+            /** Supplier Id */
+            supplier_id?: number | null;
+            /** Webshop Url */
+            webshop_url?: string | null;
+        };
+        /** ArticleProcessStepResponse */
+        ArticleProcessStepResponse: {
+            /** Id */
+            id: number;
+            /** Article Id */
+            article_id: number;
+            /** Position */
+            position: number;
+            /** Step Type */
+            step_type: string;
+            /** Mode */
+            mode: string;
+            /** Supplier Id */
+            supplier_id: number | null;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Webshop Url */
+            webshop_url: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * ArticleProcessStepUpdate
+         * @description Teil-Update eines Prozessschritts.
+         */
+        ArticleProcessStepUpdate: {
+            /** Mode */
+            mode?: string | null;
+            /** Supplier Id */
+            supplier_id?: number | null;
+            /** Webshop Url */
+            webshop_url?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+        };
         /** ArticleResponse */
         ArticleResponse: {
             /** Id */
@@ -428,6 +566,8 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: string;
+            /** Landed Unit Cost */
+            landed_unit_cost?: string | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -635,11 +775,16 @@ export interface components {
         /**
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
-         *     Inhaltliche Pflichtfelder folgen noch – daher vorerst alles optional.
          */
         OrderCreate: {
             /** Title */
             title?: string | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -651,6 +796,12 @@ export interface components {
             status: string;
             /** Title */
             title: string | null;
+            /** Article Id */
+            article_id: number | null;
+            /** Quantity */
+            quantity: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date: string | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -670,8 +821,110 @@ export interface components {
             status?: string | null;
             /** Title */
             title?: string | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /** PurchaseOrderResponse */
+        PurchaseOrderResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Order Id */
+            order_id: number;
+            /** Article Id */
+            article_id: number;
+            /** Quantity */
+            quantity: number;
+            /** Mode */
+            mode: string;
+            /** Supplier Id */
+            supplier_id: number | null;
+            /** Status */
+            status: string;
+            /** Unit Price */
+            unit_price: string | null;
+            /** Transport Cost */
+            transport_cost: string | null;
+            /** Transport Included */
+            transport_included: boolean;
+            /** Other Costs */
+            other_costs: string | null;
+            /** Lead Time Days */
+            lead_time_days: number | null;
+            /** Payment Terms Days */
+            payment_terms_days: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date: string | null;
+            /** Tracking Number */
+            tracking_number: string | null;
+            /** Rejection Reason */
+            rejection_reason: string | null;
+            /** Landed Unit Cost */
+            landed_unit_cost: string | null;
+            /** Webshop Url */
+            webshop_url: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Size */
+            article_size?: string | null;
+            /** Article Unit */
+            article_unit?: string | null;
+            /** Article Weight Kg */
+            article_weight_kg?: string | null;
+            /** Supplier Name */
+            supplier_name?: string | null;
+            /** Order Object Id */
+            order_object_id?: number | null;
+        };
+        /**
+         * PurchaseOrderUpdate
+         * @description Statusübergänge & Feldeingaben einer Bestellung.
+         *
+         *     Wer welche Felder/Übergänge setzen darf, validiert ``services/purchase.py``
+         *     rollenabhängig (Lieferant vs. Mitarbeiter, supplier- vs. webshop-Modus).
+         */
+        PurchaseOrderUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Unit Price */
+            unit_price?: number | string | null;
+            /** Transport Cost */
+            transport_cost?: number | string | null;
+            /** Transport Included */
+            transport_included?: boolean | null;
+            /** Other Costs */
+            other_costs?: number | string | null;
+            /** Lead Time Days */
+            lead_time_days?: number | null;
+            /** Payment Terms Days */
+            payment_terms_days?: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Rejection Reason */
+            rejection_reason?: string | null;
         };
         /**
          * StorageLocationCreate
@@ -1632,6 +1885,140 @@ export interface operations {
             };
         };
     };
+    list_steps_api_v1_erp_articles__object_id__process_steps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_step_api_v1_erp_articles__object_id__process_steps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleProcessStepCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_step_api_v1_erp_articles__object_id__process_steps__step_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_step_api_v1_erp_articles__object_id__process_steps__step_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleProcessStepUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_orders_api_v1_erp_orders_get: {
         parameters: {
             query?: never;
@@ -1738,6 +2125,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_purchase_orders_api_v1_erp_purchase_orders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderResponse"][];
+                };
+            };
+        };
+    };
+    get_purchase_order_api_v1_erp_purchase_orders__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_purchase_order_api_v1_erp_purchase_orders__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOrderResponse"];
                 };
             };
             /** @description Validation Error */

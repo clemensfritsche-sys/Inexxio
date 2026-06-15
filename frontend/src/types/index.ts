@@ -60,13 +60,69 @@ export type Order = Omit<OrderApi, 'status'> & {
 
 export interface OrderInput {
   title?: string | null;
+  article_id?: number | null;
+  quantity?: number | null;
+  desired_delivery_date?: string | null;
 }
 
 export type OrderUpdateInput = {
   status?: OrderStatus;
   title?: string | null;
+  article_id?: number | null;
+  quantity?: number | null;
+  desired_delivery_date?: string | null;
   is_active?: boolean;
 };
+
+// ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
+
+export type ProcessStepMode = 'supplier' | 'webshop';
+
+type ArticleProcessStepApi = components['schemas']['ArticleProcessStepResponse'];
+
+export type ArticleProcessStep = Omit<ArticleProcessStepApi, 'mode'> & {
+  mode: ProcessStepMode;
+};
+
+export interface ArticleProcessStepInput {
+  step_type?: string;
+  mode: ProcessStepMode;
+  supplier_id?: number | null;
+  webshop_url?: string | null;
+}
+
+export interface ArticleProcessStepUpdateInput {
+  mode?: ProcessStepMode;
+  supplier_id?: number | null;
+  webshop_url?: string | null;
+  position?: number;
+  is_active?: boolean;
+}
+
+// ─── Purchase Orders (angestossene Bestellung) ────────────────────────────────
+
+export type PurchaseOrderStatus =
+  | 'requested' | 'quoted' | 'approved' | 'rejected' | 'confirmed' | 'received';
+
+type PurchaseOrderApi = components['schemas']['PurchaseOrderResponse'];
+
+export type PurchaseOrder = Omit<PurchaseOrderApi, 'status' | 'mode'> & {
+  status: PurchaseOrderStatus;
+  mode: ProcessStepMode;
+};
+
+export interface PurchaseOrderUpdateInput {
+  status?: PurchaseOrderStatus;
+  unit_price?: number | string | null;
+  transport_cost?: number | string | null;
+  transport_included?: boolean;
+  other_costs?: number | string | null;
+  lead_time_days?: number | null;
+  payment_terms_days?: number | null;
+  desired_delivery_date?: string | null;
+  tracking_number?: string | null;
+  rejection_reason?: string | null;
+}
 
 // ─── Storage Location (Lagerplatz) ────────────────────────────────────────────
 
@@ -122,7 +178,7 @@ export interface StorageLocationUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location' | 'purchase_order';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
