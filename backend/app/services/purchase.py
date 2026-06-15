@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
 from .admin import log_audit
-from .objects import next_object_id
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
 _FROM = {
@@ -82,7 +81,6 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
     if not step:
         return []
     po = PurchaseOrder(
-        object_id=next_object_id(db),
         order_id=order.id,
         article_id=order.article_id,
         quantity=order.quantity,
@@ -95,9 +93,43 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
     db.add(po)
     db.flush()
     log_audit(db, "purchase_orders", None, "Bestellung angefragt",
-              actor_id, object_id=po.object_id)
+              actor_id, object_id=order.object_id)
     # TODO(E-Mail): Lieferant über neue Bestellanfrage benachrichtigen (Gmail API, Phase 2)
     return [po]
+
+
+def _order_steps_done(db: Session, order: Order) -> bool:
+    """True, wenn alle Prozessschritte des Auftrags erledigt sind.
+
+    Aktuell existiert nur der Schritt «purchase» (erledigt = Wareneingang).
+    Künftige Schritt-Typen hier ergänzen – ein unbekannter Typ gilt als offen.
+    """
+    steps = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.article_id == order.article_id,
+                ArticleProcessStep.is_active == True)
+        .all()
+    )
+    if not steps:
+        return False
+    for st in steps:
+        if st.step_type == "purchase":
+            po = (
+                db.query(PurchaseOrder)
+                .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
+                .first()
+            )
+            if not po or po.status != "received":
+                return False
+        else:
+            return False
+    return True
+
+
+def maybe_complete_order(db: Session, order: Order) -> None:
+    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
+    if order.status != "completed" and _order_steps_done(db, order):
+        order.status = "completed"
 
 
 def _editable_fields(po: PurchaseOrder, user: UserProfile) -> set[str]:
@@ -121,7 +153,7 @@ def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bo
     return False
 
 
-def _apply_transition(db: Session, po: PurchaseOrder, target: str, user: UserProfile) -> None:
+def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str, user: UserProfile) -> None:
     if target not in _FROM:
         raise HTTPException(400, detail="Unbekannter Zielstatus")
     if po.status not in _FROM[target]:
@@ -140,7 +172,9 @@ def _apply_transition(db: Session, po: PurchaseOrder, target: str, user: UserPro
     old = po.status
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
-              object_id=po.object_id, old_value=old)
+              object_id=order.object_id, old_value=old)
+    # Auftrag automatisch abschliessen, wenn damit alle Schritte erledigt sind
+    maybe_complete_order(db, order)
     # TODO(E-Mail): Statuswechsel an Lieferant/uns melden (Gmail API, Phase 2)
 
 
@@ -148,6 +182,10 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
     """Felder setzen (rollen-/statusabhängig) und optional einen Statusübergang ausführen."""
     if not (_is_staff(user) or _is_owner_supplier(po, user)):
         raise HTTPException(403, detail="Keine Berechtigung für diese Bestellung")
+    order = db.query(Order).filter(Order.id == po.order_id).first()
+    if not order:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+
     payload = data.model_dump(exclude_unset=True)
     target = payload.pop("status", None)
 
@@ -158,7 +196,7 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
         setattr(po, key, value)
 
     if target and target != po.status:
-        _apply_transition(db, po, target, user)
+        _apply_transition(db, po, order, target, user)
 
     db.commit()
     db.refresh(po)

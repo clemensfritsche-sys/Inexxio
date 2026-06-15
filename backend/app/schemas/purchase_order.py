@@ -61,14 +61,16 @@ class PurchaseOrderUpdate(BaseModel):
         return v.strip() or None
 
 
-class PurchaseOrderResponse(BaseModel):
+class PurchaseEmbed(BaseModel):
+    """Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.
+
+    Bewusst OHNE eigene Objektnummer: die Bestellung läuft unter der
+    Auftragsnummer und ist kein eigenständiges Objekt.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    object_id: Optional[int]
-    order_id: int
-    article_id: int
-    quantity: int
     mode: str
     supplier_id: Optional[int]
     status: str
@@ -85,15 +87,8 @@ class PurchaseOrderResponse(BaseModel):
     landed_unit_cost: Optional[Decimal]
     webshop_url: Optional[str]
 
-    is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    # Denormalisiert vom Router (für Lieferant-Ansicht ohne Artikelzugriff)
-    article_name: Optional[str] = None
-    article_object_id: Optional[int] = None
-    article_size: Optional[str] = None
-    article_unit: Optional[str] = None
-    article_weight_kg: Optional[Decimal] = None
+    # Denormalisiert vom Router
     supplier_name: Optional[str] = None
-    order_object_id: Optional[int] = None

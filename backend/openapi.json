@@ -1274,88 +1274,14 @@
         }
       }
     },
-    "/api/v1/erp/purchase-orders": {
-      "get": {
-        "tags": [
-          "purchase-orders"
-        ],
-        "summary": "List Purchase Orders",
-        "operationId": "list_purchase_orders_api_v1_erp_purchase_orders_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/PurchaseOrderResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Purchase Orders Api V1 Erp Purchase Orders Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/erp/purchase-orders/{object_id}": {
-      "get": {
-        "tags": [
-          "purchase-orders"
-        ],
-        "summary": "Get Purchase Order",
-        "operationId": "get_purchase_order_api_v1_erp_purchase_orders__object_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PurchaseOrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [
-          "purchase-orders"
+          "orders"
         ],
-        "summary": "Update Purchase Order",
-        "operationId": "update_purchase_order_api_v1_erp_purchase_orders__object_id__patch",
+        "summary": "Update Order Purchase",
+        "description": "Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter\nder Auftragsnummer – keine eigene Bestellnummer).",
+        "operationId": "update_order_purchase_api_v1_erp_orders__object_id__purchase_patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1388,7 +1314,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PurchaseOrderResponse"
+                  "$ref": "#/components/schemas/OrderResponse"
                 }
               }
             }
@@ -2923,6 +2849,71 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Size"
+          },
+          "article_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Unit"
+          },
+          "article_weight_kg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Weight Kg"
+          },
+          "purchase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -3013,34 +3004,11 @@
         "type": "object",
         "title": "OrderUpdate"
       },
-      "PurchaseOrderResponse": {
+      "PurchaseEmbed": {
         "properties": {
           "id": {
             "type": "integer",
             "title": "Id"
-          },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "order_id": {
-            "type": "integer",
-            "title": "Order Id"
-          },
-          "article_id": {
-            "type": "integer",
-            "title": "Article Id"
-          },
-          "quantity": {
-            "type": "integer",
-            "title": "Quantity"
           },
           "mode": {
             "type": "string",
@@ -3176,10 +3144,6 @@
             ],
             "title": "Webshop Url"
           },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3189,61 +3153,6 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
-          },
-          "article_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Name"
-          },
-          "article_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Object Id"
-          },
-          "article_size": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Size"
-          },
-          "article_unit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Unit"
-          },
-          "article_weight_kg": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Weight Kg"
           },
           "supplier_name": {
             "anyOf": [
@@ -3255,26 +3164,11 @@
               }
             ],
             "title": "Supplier Name"
-          },
-          "order_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Object Id"
           }
         },
         "type": "object",
         "required": [
           "id",
-          "object_id",
-          "order_id",
-          "article_id",
-          "quantity",
           "mode",
           "supplier_id",
           "status",
@@ -3289,11 +3183,11 @@
           "rejection_reason",
           "landed_unit_cost",
           "webshop_url",
-          "is_active",
           "created_at",
           "updated_at"
         ],
-        "title": "PurchaseOrderResponse"
+        "title": "PurchaseEmbed",
+        "description": "Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.\n\nBewusst OHNE eigene Objektnummer: die Bestellung läuft unter der\nAuftragsnummer und ist kein eigenständiges Objekt."
       },
       "PurchaseOrderUpdate": {
         "properties": {

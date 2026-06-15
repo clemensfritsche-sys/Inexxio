@@ -152,15 +152,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: Admin Einstellungen + Benutzerverwaltung
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
 - Backend: Prozessschritt-Modul «Purchase» – Artikel-Prozessdefinition (`article_process_steps`,
-  Modus Lieferant/Webshop), Bestellung-Instanz (`purchase_orders`, eigener Nummernkreis,
-  Status requested→quoted→approved/rejected→confirmed→received), Einstandspreis-Rechnung,
-  Auftragsfreigabe stösst Prozess an (`services/purchase.py`)
+  Modus Lieferant/Webshop). Die Bestellung (`purchase_orders`) ist die **Ausführung unter dem
+  Auftrag** (KEINE eigene Objektnummer), Status requested→quoted→approved/rejected→confirmed→received,
+  Einstandspreis-Rechnung. Auftragsfreigabe stösst den Prozess an; der Auftrag wird **automatisch
+  abgeschlossen** (`status=completed`), wenn alle Prozessschritte erledigt sind (`services/purchase.py`,
+  `services/orders.py`)
 - Frontend: Artikel-«Prozess»-Reiter (Schritt «Bestellung» hinterlegen), Auftrag mit Artikel+Menge
-  + Freigabe, Bestellungs-Detail (rollenabhängig Lieferant vs. Mitarbeiter), Lieferant-Zugang zum ERP
+  + Freigabe; der Prozess wird **im Auftrag** als Bereich «Beschaffung» geführt (rollenabhängig
+  Lieferant vs. Mitarbeiter), Lieferant-Zugang zum ERP (sieht nur eigene Aufträge)
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** (Purchase-Schritt) sind gefüllt; **Bestand** ist
-> Platzhalter. E-Mail-Versand an Lieferanten ist nur als TODO vermerkt (Gmail API, Phase 2). Serien-
-> nummern/Eingangskontrolle, Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
+> Platzhalter. Die Bestellung läuft unter der Auftragsnummer (kein eigenes Objekt). E-Mail-Versand ist
+> nur als TODO vermerkt (Gmail API, Phase 2). Seriennummern/Eingangskontrolle, Stückliste/BOM,
+> Arbeitspläne und Stripe sind **noch nicht** implementiert.
 
 Nächste Aufgabe: Wareneingangskontrolle + Seriennummern-Vergabe (Schritt nach «Purchase»); E-Mail-Versand (Gmail API); Stripe
 

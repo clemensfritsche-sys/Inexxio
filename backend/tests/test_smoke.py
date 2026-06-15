@@ -4,7 +4,7 @@ import pytest
 from app.core.config import get_settings
 from app.routers import (
     admin, article_process, articles, auth, contact, erp, health,
-    orders, purchase_orders, storage_locations,
+    orders, storage_locations,
 )
 
 
@@ -18,7 +18,6 @@ def test_routers_importable():
     assert hasattr(articles, "router")
     assert hasattr(article_process, "router")
     assert hasattr(orders, "router")
-    assert hasattr(purchase_orders, "router")
     assert hasattr(storage_locations, "router")
     assert hasattr(auth, "router")
     assert hasattr(contact, "router")
@@ -94,8 +93,9 @@ def test_object_id_allocator_shared_across_types():
     assert objects.UserProfile.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
-    assert objects.PurchaseOrder.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS
+    # Bestellungen laufen unter der Auftragsnummer → KEINE eigene Objektnummer
+    assert not hasattr(objects, "PurchaseOrder")
 
 
 def test_landed_unit_cost_calculation():
@@ -158,3 +158,23 @@ def test_process_step_requires_consistent_mode():
         ArticleProcessStepCreate(mode="supplier")
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(mode="webshop")
+
+
+def test_order_status_allows_completed():
+    """Auftrag kann automatisch abgeschlossen werden (Status 'completed')."""
+    from app.schemas.order import ALLOWED_STATUS, OrderUpdate
+
+    assert "completed" in ALLOWED_STATUS
+    assert OrderUpdate(status="completed").status == "completed"
+
+
+def test_purchase_runs_under_order_without_own_number():
+    """Bestellung hat keine eigene Objektnummer; sie läuft unter dem Auftrag."""
+    from app.models import PurchaseOrder
+    from app.schemas.order import OrderResponse
+    from app.schemas.purchase_order import PurchaseEmbed
+
+    assert not hasattr(PurchaseOrder, "object_id")
+    assert "object_id" not in PurchaseEmbed.model_fields
+    # Auftrag bettet den Beschaffungsschritt ein
+    assert "purchase" in OrderResponse.model_fields

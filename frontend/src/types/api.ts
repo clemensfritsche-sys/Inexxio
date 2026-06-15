@@ -373,39 +373,25 @@ export interface paths {
         patch: operations["update_order_api_v1_erp_orders__object_id__patch"];
         trace?: never;
     };
-    "/api/v1/erp/purchase-orders": {
+    "/api/v1/erp/orders/{object_id}/purchase": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Purchase Orders */
-        get: operations["list_purchase_orders_api_v1_erp_purchase_orders_get"];
+        get?: never;
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/purchase-orders/{object_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Purchase Order */
-        get: operations["get_purchase_order_api_v1_erp_purchase_orders__object_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Purchase Order */
-        patch: operations["update_purchase_order_api_v1_erp_purchase_orders__object_id__patch"];
+        /**
+         * Update Order Purchase
+         * @description Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter
+         *     der Auftragsnummer – keine eigene Bestellnummer).
+         */
+        patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
         trace?: never;
     };
     "/api/v1/erp/storage-locations": {
@@ -814,6 +800,17 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Size */
+            article_size?: string | null;
+            /** Article Unit */
+            article_unit?: string | null;
+            /** Article Weight Kg */
+            article_weight_kg?: string | null;
+            purchase?: components["schemas"]["PurchaseEmbed"] | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -830,18 +827,16 @@ export interface components {
             /** Is Active */
             is_active?: boolean | null;
         };
-        /** PurchaseOrderResponse */
-        PurchaseOrderResponse: {
+        /**
+         * PurchaseEmbed
+         * @description Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.
+         *
+         *     Bewusst OHNE eigene Objektnummer: die Bestellung läuft unter der
+         *     Auftragsnummer und ist kein eigenständiges Objekt.
+         */
+        PurchaseEmbed: {
             /** Id */
             id: number;
-            /** Object Id */
-            object_id: number | null;
-            /** Order Id */
-            order_id: number;
-            /** Article Id */
-            article_id: number;
-            /** Quantity */
-            quantity: number;
             /** Mode */
             mode: string;
             /** Supplier Id */
@@ -870,8 +865,6 @@ export interface components {
             landed_unit_cost: string | null;
             /** Webshop Url */
             webshop_url: string | null;
-            /** Is Active */
-            is_active: boolean;
             /**
              * Created At
              * Format: date-time
@@ -882,20 +875,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Article Name */
-            article_name?: string | null;
-            /** Article Object Id */
-            article_object_id?: number | null;
-            /** Article Size */
-            article_size?: string | null;
-            /** Article Unit */
-            article_unit?: string | null;
-            /** Article Weight Kg */
-            article_weight_kg?: string | null;
             /** Supplier Name */
             supplier_name?: string | null;
-            /** Order Object Id */
-            order_object_id?: number | null;
         };
         /**
          * PurchaseOrderUpdate
@@ -2138,58 +2119,7 @@ export interface operations {
             };
         };
     };
-    list_purchase_orders_api_v1_erp_purchase_orders_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PurchaseOrderResponse"][];
-                };
-            };
-        };
-    };
-    get_purchase_order_api_v1_erp_purchase_orders__object_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PurchaseOrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_purchase_order_api_v1_erp_purchase_orders__object_id__patch: {
+    update_order_purchase_api_v1_erp_orders__object_id__purchase_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -2210,7 +2140,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PurchaseOrderResponse"];
+                    "application/json": components["schemas"]["OrderResponse"];
                 };
             };
             /** @description Validation Error */

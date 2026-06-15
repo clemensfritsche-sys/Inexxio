@@ -10,7 +10,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, contact, erp, health,
-    orders, purchase_orders, storage_locations,
+    orders, storage_locations,
 )
 
 settings = get_settings()
@@ -122,7 +122,6 @@ app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(article_process.router)
 app.include_router(orders.router)
-app.include_router(purchase_orders.router)
 app.include_router(storage_locations.router)
 
 

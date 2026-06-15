@@ -1,9 +1,13 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-ALLOWED_STATUS = ("draft", "released", "inactive")
+from .purchase_order import PurchaseEmbed
+
+# completed wird automatisch gesetzt (alle Prozessschritte erledigt)
+ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
 
 
 class OrderCreate(BaseModel):
@@ -79,3 +83,11 @@ class OrderResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    # Denormalisierter Artikel + eingebetteter Prozess (Beschaffung)
+    article_name: Optional[str] = None
+    article_object_id: Optional[int] = None
+    article_size: Optional[str] = None
+    article_unit: Optional[str] = None
+    article_weight_kg: Optional[Decimal] = None
+    purchase: Optional[PurchaseEmbed] = None

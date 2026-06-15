@@ -49,13 +49,20 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 
 // ─── Order (Auftrag) ──────────────────────────────────────────────────────────
 
-export type OrderStatus = 'draft' | 'released' | 'inactive';
+export type OrderStatus = 'draft' | 'released' | 'inactive' | 'completed';
 
 type OrderApi = components['schemas']['OrderResponse'];
 
-// Aus dem Backend-Schema abgeleitet; nur `status` auf die bekannte Union verengt.
-export type Order = Omit<OrderApi, 'status'> & {
+// Eingebetteter Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer).
+export type OrderPurchase = Omit<NonNullable<OrderApi['purchase']>, 'status' | 'mode'> & {
+  status: PurchaseOrderStatus;
+  mode: ProcessStepMode;
+};
+
+// Aus dem Backend-Schema abgeleitet; Status verengt, Prozess-Embed eingehängt.
+export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
   status: OrderStatus;
+  purchase: OrderPurchase | null;
 };
 
 export interface OrderInput {
@@ -99,17 +106,10 @@ export interface ArticleProcessStepUpdateInput {
   is_active?: boolean;
 }
 
-// ─── Purchase Orders (angestossene Bestellung) ────────────────────────────────
+// ─── Beschaffungsschritt (läuft unter dem Auftrag, keine eigene Nummer) ────────
 
 export type PurchaseOrderStatus =
   | 'requested' | 'quoted' | 'approved' | 'rejected' | 'confirmed' | 'received';
-
-type PurchaseOrderApi = components['schemas']['PurchaseOrderResponse'];
-
-export type PurchaseOrder = Omit<PurchaseOrderApi, 'status' | 'mode'> & {
-  status: PurchaseOrderStatus;
-  mode: ProcessStepMode;
-};
 
 export interface PurchaseOrderUpdateInput {
   status?: PurchaseOrderStatus;
@@ -178,7 +178,7 @@ export interface StorageLocationUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location' | 'purchase_order';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

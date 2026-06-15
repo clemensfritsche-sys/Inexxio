@@ -1,8 +1,7 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderInput, OrderUpdateInput,
-  PurchaseOrder, PurchaseOrderUpdateInput,
+  Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput,
   StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
@@ -172,6 +171,11 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}`, data);
   }
 
+  // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
+  updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
+  }
+
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
 
   getStorageLocations(): Promise<StorageLocation[]> {
@@ -188,20 +192,6 @@ class ApiClient {
 
   updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
     return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
-  }
-
-  // ─── Purchase Orders (Bestellungen) ──────────────────────────────────────────
-
-  getPurchaseOrders(): Promise<PurchaseOrder[]> {
-    return this.get('/api/v1/erp/purchase-orders');
-  }
-
-  getPurchaseOrder(objectId: number): Promise<PurchaseOrder> {
-    return this.get(`/api/v1/erp/purchase-orders/${objectId}`);
-  }
-
-  updatePurchaseOrder(objectId: number, data: PurchaseOrderUpdateInput): Promise<PurchaseOrder> {
-    return this.patch(`/api/v1/erp/purchase-orders/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

@@ -10,11 +10,11 @@ from .base import TimestampMixin
 
 
 class PurchaseOrder(Base, TimestampMixin):
-    """Angestossene Bestellung (Purchase-Order-Instanz).
+    """Ausführung des Prozessschritts «Beschaffung» – läuft unter dem Auftrag.
 
-    Entsteht automatisch, sobald ein Auftrag freigegeben wird und der bestellte
-    Artikel einen ``purchase``-Prozessschritt besitzt. Trägt eine eigene
-    Objektnummer aus dem gemeinsamen Nummernkreis.
+    KEINE eigene Objektnummer: die Bestellung ist kein eigenständiges Objekt,
+    sondern der Ausführungsstand eines Auftrags-Prozessschritts. Referenziert
+    wird sie über die Auftragsnummer (``order_id``).
 
     Status-Ablauf:
         requested  → Angefragt    (angelegt, wartet auf Offerte des Lieferanten)
@@ -22,15 +22,12 @@ class PurchaseOrder(Base, TimestampMixin):
         approved   → Freigegeben  (wir akzeptieren die Offerte)
         rejected   → Abgelehnt    (wir lehnen ab)
         confirmed  → Bestätigt    (Lieferant bestätigt, ggf. Tracking)
-        received   → Wareneingang (Ware ist eingetroffen)
+        received   → Wareneingang (Ware ist eingetroffen → Schritt erledigt)
     """
 
     __tablename__ = "purchase_orders"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    object_id: Mapped[Optional[int]] = mapped_column(
-        BigInteger, unique=True, nullable=True, index=True
-    )
 
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
