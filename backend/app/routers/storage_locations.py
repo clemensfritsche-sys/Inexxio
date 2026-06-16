@@ -10,6 +10,7 @@ from ..schemas.storage_location import (
     StorageLocationUpdate,
 )
 from ..services.admin import log_audit
+from ..services.lifecycle import ensure_mutable
 from ..services.objects import next_object_id
 
 router = APIRouter(prefix="/api/v1/erp/storage-locations", tags=["storage-locations"])
@@ -78,7 +79,9 @@ async def update_storage_location(
     current_user: UserProfile = Depends(require_employee),
 ):
     loc = _get_active(db, object_id)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    ensure_mutable(loc.status, payload, "Lagerplatz")
+    for key, value in payload.items():
         old_val = getattr(loc, key, None)
         old_str = str(old_val) if old_val is not None else None
         new_str = str(value) if value is not None else None

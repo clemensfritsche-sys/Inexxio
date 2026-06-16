@@ -8,6 +8,30 @@ import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
 import { TextField, StatusBadge } from '@/components/erp/fields';
+import { ProcessStepper, type StepNode } from '@/components/erp/process-stepper';
+
+const PURCHASE_FLOW: { key: string; label: string }[] = [
+  { key: 'requested', label: 'Angefragt' },
+  { key: 'quoted', label: 'Offeriert' },
+  { key: 'approved', label: 'Freigegeben' },
+  { key: 'confirmed', label: 'Bestätigt' },
+  { key: 'received', label: 'Wareneingang' },
+];
+
+function purchaseNodes(status: string): StepNode[] {
+  if (status === 'rejected') {
+    return [
+      { key: 'requested', label: 'Angefragt', state: 'done' },
+      { key: 'quoted', label: 'Offeriert', state: 'done' },
+      { key: 'rejected', label: 'Abgelehnt', state: 'rejected' },
+    ];
+  }
+  const ci = PURCHASE_FLOW.findIndex((n) => n.key === status);
+  return PURCHASE_FLOW.map((n, i) => ({
+    ...n,
+    state: i < ci ? 'done' : i === ci ? (status === 'received' ? 'done' : 'active') : 'pending',
+  }));
+}
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -135,6 +159,11 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Bestellung (Beschaffung)</div>
           </div>
           <StatusBadge cfg={cfg} size={11} />
+        </div>
+
+        {/* Fortschritt des Beschaffungs-Prozesses */}
+        <div style={{ padding: '4px 2px 2px' }}>
+          <ProcessStepper nodes={purchaseNodes(s)} />
         </div>
 
         {/* Bezugsquelle */}

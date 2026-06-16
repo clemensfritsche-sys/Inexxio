@@ -10,6 +10,7 @@ from ..schemas.article_process_step import (
     ArticleProcessStepUpdate,
 )
 from ..services.admin import log_audit
+from ..services.lifecycle import ensure_article_draft
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["article-process"])
 
@@ -75,6 +76,7 @@ async def create_step(
     current_user: UserProfile = Depends(require_employee),
 ):
     article = _get_article(db, object_id)
+    ensure_article_draft(article)
     _validate_supplier(db, data.supplier_id)
     count = (
         db.query(ArticleProcessStep)
@@ -123,6 +125,7 @@ async def update_step(
     current_user: UserProfile = Depends(require_employee),
 ):
     article = _get_article(db, object_id)
+    ensure_article_draft(article)
     step = _get_step(db, article, step_id)
     payload = data.model_dump(exclude_unset=True)
     if "supplier_id" in payload:
@@ -149,6 +152,7 @@ async def delete_step(
     current_user: UserProfile = Depends(require_employee),
 ):
     article = _get_article(db, object_id)
+    ensure_article_draft(article)
     step = _get_step(db, article, step_id)
     step.is_active = False
     log_audit(db, "article_process_steps", "is_active", "false", current_user.id,

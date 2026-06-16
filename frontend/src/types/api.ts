@@ -563,6 +563,10 @@ export interface components {
             weight_kg: string;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
+            /** Unit Cost Low */
+            unit_cost_low?: string | null;
+            /** Unit Cost High */
+            unit_cost_high?: string | null;
             /** Is Active */
             is_active: boolean;
             /**

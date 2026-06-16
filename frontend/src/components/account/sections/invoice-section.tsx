@@ -22,6 +22,7 @@ interface Form {
 
 function copyFromAddress(p: UserProfile): Partial<Form> {
   return {
+    invoice_company: p.company_name ?? '',   // Firmenname aus «Mein Profil»
     invoice_first_name: p.first_name ?? '',
     invoice_last_name: p.last_name ?? '',
     invoice_address_line1: p.address_line1 ?? '',
@@ -80,12 +81,13 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
     }
   }, [profile.id, profile]);
 
-  // Keep invoice fields in sync with the Adresse section when same-as is on
-  const { first_name, last_name, address_line1, address_line2, city, postal_code, country } = profile;
+  // Keep invoice fields in sync with the Adresse/Profil section when same-as is on
+  const { company_name, first_name, last_name, address_line1, address_line2, city, postal_code, country } = profile;
   useEffect(() => {
     setForm((prev) => {
       if (!prev.invoice_same_as_shipping) return prev;
       const patch: Partial<Form> = {
+        invoice_company: company_name ?? '',
         invoice_first_name: first_name ?? '',
         invoice_last_name: last_name ?? '',
         invoice_address_line1: address_line1 ?? '',
@@ -97,7 +99,7 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
       const changed = (Object.keys(patch) as (keyof Form)[]).some((k) => prev[k] !== patch[k]);
       return changed ? { ...prev, ...patch } : prev;
     });
-  }, [first_name, last_name, address_line1, address_line2, city, postal_code, country]);
+  }, [company_name, first_name, last_name, address_line1, address_line2, city, postal_code, country]);
 
   const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
 

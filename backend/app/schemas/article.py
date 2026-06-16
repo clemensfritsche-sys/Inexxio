@@ -166,7 +166,10 @@ class ArticleResponse(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
-    landed_unit_cost: Optional[Decimal] = None  # read-only, aus Bestellung
+    landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe
+    # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
+    unit_cost_low: Optional[Decimal] = None
+    unit_cost_high: Optional[Decimal] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

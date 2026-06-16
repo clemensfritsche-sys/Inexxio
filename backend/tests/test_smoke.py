@@ -188,6 +188,38 @@ def test_process_step_requires_consistent_mode():
         ArticleProcessStepCreate(mode="webshop")
 
 
+def test_order_desired_date_must_be_future():
+    """Wunsch-Liefertermin in der Vergangenheit wird abgelehnt, heute/Zukunft ok."""
+    from datetime import date, timedelta
+
+    import pytest
+
+    from app.schemas.order import OrderCreate
+
+    assert OrderCreate(desired_delivery_date=date.today()).desired_delivery_date == date.today()
+    future = date.today() + timedelta(days=5)
+    assert OrderCreate(desired_delivery_date=future).desired_delivery_date == future
+    with pytest.raises(ValueError):
+        OrderCreate(desired_delivery_date=date.today() - timedelta(days=1))
+
+
+def test_lifecycle_locks_after_release():
+    """Nach Freigabe sind nur noch Status/is_active änderbar."""
+    import pytest
+
+    from app.services.lifecycle import ensure_mutable
+
+    # Entwurf: alles erlaubt
+    ensure_mutable("draft", {"name": "x", "status": "released"}, "Artikel")
+    # Freigegeben: nur Status/is_active
+    ensure_mutable("released", {"status": "inactive"}, "Artikel")
+    ensure_mutable("released", {"is_active": False}, "Artikel")
+    with pytest.raises(Exception):
+        ensure_mutable("released", {"name": "neu"}, "Artikel")
+    with pytest.raises(Exception):
+        ensure_mutable("completed", {"quantity": 5}, "Auftrag")
+
+
 def test_order_status_allows_completed():
     """Auftrag kann automatisch abgeschlossen werden (Status 'completed')."""
     from app.schemas.order import ALLOWED_STATUS, OrderUpdate

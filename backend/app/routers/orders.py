@@ -7,6 +7,7 @@ from ..models import Article, Order, PurchaseOrder, UserProfile
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..services.admin import log_audit
+from ..services.lifecycle import ensure_mutable
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
@@ -91,6 +92,7 @@ async def update_order(
     was_released = order.status == "released"
 
     payload_preview = data.model_dump(exclude_unset=True)
+    ensure_mutable(order.status, payload_preview, "Auftrag")
     if "article_id" in payload_preview:
         _validate_article(db, payload_preview["article_id"])
 

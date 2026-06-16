@@ -28,6 +28,10 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig).
 function orderActions(status: string, canRelease: boolean): StatusAction[] {
   if (status === 'draft')
@@ -179,7 +183,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   <Label>Wunsch-Liefertermin</Label>
                   {dateOpen ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <input type="date" value={form.desired_delivery_date} onChange={(e) => set('desired_delivery_date', e.target.value)}
+                      <input type="date" value={form.desired_delivery_date} min={todayIso()} onChange={(e) => set('desired_delivery_date', e.target.value)}
                         className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
                       <button type="button" onClick={() => { setDateOpen(false); set('desired_delivery_date', ''); }}
                         style={linkBtn}>Schnellstmöglich (kein Datum)</button>

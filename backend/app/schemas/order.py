@@ -10,6 +10,15 @@ from .purchase_order import PurchaseEmbed
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
 
 
+def _validate_future_date(v: Optional[date]) -> Optional[date]:
+    """Wunsch-Liefertermin darf nicht in der Vergangenheit liegen."""
+    if v is None:
+        return v
+    if v < date.today():
+        raise ValueError("Wunsch-Liefertermin darf nicht in der Vergangenheit liegen")
+    return v
+
+
 class OrderCreate(BaseModel):
     """Anlage eines Auftrags über '+'. Status startet als 'draft'.
     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag»."""
@@ -26,6 +35,11 @@ class OrderCreate(BaseModel):
         if v <= 0:
             raise ValueError("Menge muss grösser als 0 sein")
         return v
+
+    @field_validator("desired_delivery_date")
+    @classmethod
+    def _date_future(cls, v: Optional[date]) -> Optional[date]:
+        return _validate_future_date(v)
 
 
 class OrderUpdate(BaseModel):
@@ -52,6 +66,11 @@ class OrderUpdate(BaseModel):
         if v <= 0:
             raise ValueError("Menge muss grösser als 0 sein")
         return v
+
+    @field_validator("desired_delivery_date")
+    @classmethod
+    def _date_future(cls, v: Optional[date]) -> Optional[date]:
+        return _validate_future_date(v)
 
 
 class OrderResponse(BaseModel):

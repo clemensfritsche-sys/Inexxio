@@ -1842,6 +1842,28 @@
             ],
             "title": "Landed Unit Cost"
           },
+          "unit_cost_low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Low"
+          },
+          "unit_cost_high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost High"
+          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active"

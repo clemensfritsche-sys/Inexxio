@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes } from 'lucide-react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleUpdateInput, UserProfile } from '@/types';
 import {
@@ -54,6 +54,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
   }
+
+  // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
+  const locked = !isCreate && record !== null && record.status !== 'draft';
 
   const errs = {
     name: validateName(form.name),
@@ -176,28 +179,34 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         {tab === 'stammdaten' && (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <TextField label="Name" value={form.name} onChange={(v) => set('name', v)} required placeholder="z. B. Welle Antrieb" error={showErrors ? errs.name : null} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
-              <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
-            </div>
-            <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={showErrors ? errs.size : null} />
-            <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={showErrors ? errs.weight : null} />
-            {!isCreate && record?.landed_unit_cost != null && (
-              <div>
-                <Label>Einstandspreis netto / Stück (CHF)</Label>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>
-                  {Number(record.landed_unit_cost).toLocaleString('de-CH', { minimumFractionDigits: 2 })}
+            {locked ? (
+              <>
+                <div style={lockedNotice}>
+                  <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
                 </div>
-                <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
-                  Automatisch aus der zuletzt freigegebenen Bestellung – nur Lesen.
+                <Row k="Name" v={record!.name} />
+                <Row k="Einheit" v={unitLabel(record!.unit)} />
+                <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
+                <Row k="Grösse" v={record!.size} />
+                <Row k="Gewicht" v={`${record!.weight_kg} kg`} />
+              </>
+            ) : (
+              <>
+                <TextField label="Name" value={form.name} onChange={(v) => set('name', v)} required placeholder="z. B. Welle Antrieb" error={showErrors ? errs.name : null} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
+                  <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
                 </div>
-              </div>
+                <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={showErrors ? errs.size : null} />
+                <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={showErrors ? errs.weight : null} />
+              </>
             )}
+            {!isCreate && <PriceRange record={record!} />}
           </div>
         )}
         {tab === 'prozess' && (
-          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} />
+          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} />
         )}
         {tab === 'bestand' && (
           <Placeholder icon={Boxes} title="Bestand" text="Lagerbestand und Bewegungen für diesen Artikel folgen in einer späteren Phase." />
@@ -214,7 +223,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       )}
 
       {/* Save bar */}
-      {(isCreate || dirty || error) && (
+      {!locked && (isCreate || dirty || error) && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : (showErrors && !valid) ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? (isCreate ? 'Neuen Artikel erfassen' : (showErrors && !valid) ? 'Bitte Eingaben prüfen' : 'Ungespeicherte Änderungen')}
@@ -234,6 +243,45 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+const lockedNotice: React.CSSProperties = {
+  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+  background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8,
+  fontSize: 12, color: '#475569',
+};
+
+function fmtChf(v: string | number): string {
+  return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2 });
+}
+
+function PriceRange({ record }: { record: Article }) {
+  const low = record.unit_cost_low;
+  const high = record.unit_cost_high;
+  if (low == null && high == null) return null;
+  const same = low == null || high == null || Number(low) === Number(high);
+  return (
+    <div>
+      <Label>Stückpreis netto / Stück</Label>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>
+        {same ? `CHF ${fmtChf((low ?? high) as string | number)}` : `CHF ${fmtChf(low as string | number)} – ${fmtChf(high as string | number)}`}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+        {same
+          ? 'Aus akzeptierten Bestellungen – ohne MWST.'
+          : 'Spanne über akzeptierte Bestellungen: kleinste bis grösste Bestellmenge – ohne MWST.'}
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
+      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
   );
 }

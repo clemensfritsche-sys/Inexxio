@@ -9,9 +9,10 @@ import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SelectField, TextField } from '@/components/erp/fields';
 
-export function ProcessSteps({ articleObjectId, suppliers }: {
+export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
   articleObjectId: number | null;
   suppliers: UserProfile[];
+  readOnly?: boolean;
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -86,11 +87,18 @@ export function ProcessSteps({ articleObjectId, suppliers }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={infoStyle}>
-        <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Diese Schritte definieren, wie der Artikel beschafft wird. Wird ein Auftrag mit
-          diesem Artikel freigegeben, startet der Prozess automatisch.</span>
-      </div>
+      {readOnly ? (
+        <div style={noticeStyle}>
+          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Artikel ist freigegeben – die Prozessdefinition ist schreibgeschützt.</span>
+        </div>
+      ) : (
+        <div style={infoStyle}>
+          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Diese Schritte definieren, wie der Artikel beschafft wird. Wird ein Auftrag mit
+            diesem Artikel freigegeben, startet der Prozess automatisch.</span>
+        </div>
+      )}
 
       {loading && <div style={{ fontSize: 13, color: '#94a3b8' }}>Laden…</div>}
 
@@ -111,10 +119,12 @@ export function ProcessSteps({ articleObjectId, suppliers }: {
                 <a href={s.webshop_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: '#2563eb', wordBreak: 'break-all' }}>{s.webshop_url}</a>
               )}
             </div>
-            <button onClick={() => removeStep(s.id)} title="Entfernen"
-              style={{ flexShrink: 0, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}>
-              <Trash2 size={15} />
-            </button>
+            {!readOnly && (
+              <button onClick={() => removeStep(s.id)} title="Entfernen"
+                style={{ flexShrink: 0, border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}>
+                <Trash2 size={15} />
+              </button>
+            )}
           </div>
 
           {/* Sichtbare Stammdaten */}
@@ -123,13 +133,13 @@ export function ProcessSteps({ articleObjectId, suppliers }: {
               <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
                 <Eye size={12} /> Für Lieferant sichtbar
               </span>
-              {editId === s.id ? (
+              {!readOnly && (editId === s.id ? (
                 <button onClick={() => saveShared(s.id)} style={miniPrimary}><Check size={12} /> Speichern</button>
               ) : (
                 <button onClick={() => { setEditId(s.id); setEditShared(normalizeSharedFields(s.shared_fields)); }} style={miniGhost}>Ändern</button>
-              )}
+              ))}
             </div>
-            {editId === s.id ? (
+            {!readOnly && editId === s.id ? (
               <FieldChips value={editShared} onChange={setEditShared} />
             ) : (
               <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -140,7 +150,7 @@ export function ProcessSteps({ articleObjectId, suppliers }: {
         </div>
       ))}
 
-      {!adding ? (
+      {readOnly ? null : !adding ? (
         <button onClick={() => setAdding(true)} style={addBtnStyle}>
           <Plus size={15} /> Prozessschritt «Bestellung» hinzufügen
         </button>

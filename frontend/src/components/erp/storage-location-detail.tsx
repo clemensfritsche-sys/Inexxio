@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes } from 'lucide-react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -161,6 +161,9 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   const latNum = form.latitude.trim() ? Number(form.latitude) : null;
   const lngNum = form.longitude.trim() ? Number(form.longitude) : null;
 
+  // Nach der Freigabe ist der Lagerplatz schreibgeschützt.
+  const locked = !isCreate && record !== null && record.status !== 'draft';
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -202,26 +205,49 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
-        {/* Standort */}
-        <SectionTitle icon={MapPin}>Standort *</SectionTitle>
-        <Card>
-          <MapPicker apiKey={mapsApiKey} lat={latNum} lng={lngNum} onPick={handlePick} />
-          {showErrors && errs.gps && <ErrorText msg={errs.gps} />}
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>Adresse (wird aus Karte/GPS ermittelt, anpassbar):</div>
-          <TextField label="Strasse & Nr." value={form.address_street} onChange={(v) => set('address_street', v)} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
-            <TextField label="PLZ" value={form.address_zip} onChange={(v) => set('address_zip', v)} />
-            <TextField label="Ort" value={form.address_city} onChange={(v) => set('address_city', v)} />
-          </div>
-          <TextField label="Land" value={form.address_country} onChange={(v) => set('address_country', v)} />
-        </Card>
+        {locked ? (
+          <>
+            <div style={lockedNotice}>
+              <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>Lagerplatz ist freigegeben und schreibgeschützt.</span>
+            </div>
+            <SectionTitle icon={MapPin}>Standort</SectionTitle>
+            <Card>
+              <Row k="Adresse" v={record!.address_street || '—'} />
+              <Row k="PLZ / Ort" v={`${record!.address_zip ?? ''} ${record!.address_city ?? ''}`.trim() || '—'} />
+              <Row k="Land" v={record!.address_country || '—'} />
+              <Row k="GPS" v={latNum != null && lngNum != null ? `${latNum.toFixed(5)}, ${lngNum.toFixed(5)}` : '—'} />
+            </Card>
+            <SectionTitle icon={Boxes}>Kapazität</SectionTitle>
+            <Card>
+              <Row k="Max. Traglast" v={record!.max_load_kg != null ? `${record!.max_load_kg} kg` : '—'} />
+              <Row k="Abmessungen (B×L×H)" v={joinDims(record!) ? `${joinDims(record!)} mm` : '—'} />
+            </Card>
+          </>
+        ) : (
+          <>
+            {/* Standort */}
+            <SectionTitle icon={MapPin}>Standort *</SectionTitle>
+            <Card>
+              <MapPicker apiKey={mapsApiKey} lat={latNum} lng={lngNum} onPick={handlePick} />
+              {showErrors && errs.gps && <ErrorText msg={errs.gps} />}
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>Adresse (wird aus Karte/GPS ermittelt, anpassbar):</div>
+              <TextField label="Strasse & Nr." value={form.address_street} onChange={(v) => set('address_street', v)} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
+                <TextField label="PLZ" value={form.address_zip} onChange={(v) => set('address_zip', v)} />
+                <TextField label="Ort" value={form.address_city} onChange={(v) => set('address_city', v)} />
+              </div>
+              <TextField label="Land" value={form.address_country} onChange={(v) => set('address_country', v)} />
+            </Card>
 
-        {/* Kapazität */}
-        <SectionTitle icon={Boxes}>Kapazität</SectionTitle>
-        <Card>
-          <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={showErrors ? errs.weight : null} />
-          <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={showErrors ? errs.dimensions : null} />
-        </Card>
+            {/* Kapazität */}
+            <SectionTitle icon={Boxes}>Kapazität</SectionTitle>
+            <Card>
+              <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={showErrors ? errs.weight : null} />
+              <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={showErrors ? errs.dimensions : null} />
+            </Card>
+          </>
+        )}
 
         {!isCreate && (
           <div style={{ fontSize: 11, color: '#94a3b8', padding: '4px 2px' }}>
@@ -231,7 +257,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       </div>
 
       {/* Save bar */}
-      {(isCreate || dirty || error) && (
+      {!locked && (isCreate || dirty || error) && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : (showErrors && !valid) ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? (showErrors && !valid ? 'Pflichtfelder: Traglast, Abmessungen, Standort' : isCreate ? 'Neuen Lagerplatz erfassen' : 'Ungespeicherte Änderungen')}
@@ -268,6 +294,20 @@ function SectionTitle({ icon: Icon, children }: { icon: React.ElementType; child
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}>
       <Icon size={13} style={{ color: '#94a3b8' }} />
       <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
+    </div>
+  );
+}
+
+const lockedNotice: React.CSSProperties = {
+  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 12,
+  background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#475569',
+};
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
+      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
   );
 }

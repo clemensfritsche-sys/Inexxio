@@ -62,10 +62,21 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "shared_fields", "JSONB"),
 )
 
+# Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
+# via create_all() (nicht Alembic) erzeugt – diese NOT-NULL/Alt-Spalten würden
+# sonst INSERTs brechen (z. B. purchase_orders.transport_included). Idempotent.
+_DROP_COLUMN_SAFETY_NET = (
+    ("purchase_orders", "transport_cost"),
+    ("purchase_orders", "transport_included"),
+    ("purchase_orders", "other_costs"),
+    ("purchase_orders", "rejection_reason"),
+    ("purchase_orders", "object_id"),
+)
+
 
 def _ensure_columns() -> None:
-    """Fehlende Spalten idempotent ergänzen, falls eine Migration nicht lief.
-    create_all() ergänzt nur Tabellen, nicht Spalten auf bestehenden Tabellen."""
+    """Fehlende Spalten idempotent ergänzen und obsolete entfernen, falls eine
+    Migration nicht lief. create_all() ändert bestehende Tabellen NICHT."""
     try:
         with engine.connect() as conn:
             insp = inspect(engine)
@@ -77,6 +88,9 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
                     ))
+            for table, col in _DROP_COLUMN_SAFETY_NET:
+                if table in tables:
+                    conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
             conn.commit()
     except Exception as e:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
