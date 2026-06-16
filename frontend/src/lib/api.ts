@@ -1,8 +1,8 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput,
-  StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
+  Instance, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
 
@@ -174,6 +174,21 @@ class ApiClient {
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
+  }
+
+  // Schritt «Serialisierung»: Instanzen erzeugen
+  serializeOrder(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/serialize`, {});
+  }
+
+  // Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen
+  updateOrderInspection(objectId: number, data: InspectionUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);
+  }
+
+  // Bestand (Instanzen) eines Artikels
+  getArticleInstances(objectId: number): Promise<Instance[]> {
+    return this.get(`/api/v1/erp/articles/${objectId}/instances`);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────

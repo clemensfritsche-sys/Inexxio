@@ -874,6 +874,58 @@
         }
       }
     },
+    "/api/v1/erp/articles/{object_id}/instances": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "List Article Instances",
+        "description": "Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»).",
+        "operationId": "list_article_instances_api_v1_erp_articles__object_id__instances_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceResponse"
+                  },
+                  "title": "Response List Article Instances Api V1 Erp Articles  Object Id  Instances Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles/{object_id}/process-steps": {
       "get": {
         "tags": [
@@ -1332,6 +1384,112 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/serialize": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Serialize Order",
+        "description": "Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge).",
+        "operationId": "serialize_order_api_v1_erp_orders__object_id__serialize_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/inspection": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Inspection",
+        "description": "Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed).",
+        "operationId": "update_order_inspection_api_v1_erp_orders__object_id__inspection_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/storage-locations": {
       "get": {
         "tags": [
@@ -1575,6 +1733,17 @@
             "title": "Step Type",
             "default": "purchase"
           },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
           "mode": {
             "type": "string",
             "title": "Mode",
@@ -1615,6 +1784,17 @@
               }
             ],
             "title": "Shared Fields"
+          },
+          "sample_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Percent"
           }
         },
         "type": "object",
@@ -1630,6 +1810,10 @@
           "article_id": {
             "type": "integer",
             "title": "Article Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
           },
           "step_type": {
             "type": "string",
@@ -1680,6 +1864,17 @@
             "title": "Shared Fields",
             "default": []
           },
+          "sample_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Percent"
+          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
@@ -1699,6 +1894,7 @@
         "required": [
           "id",
           "article_id",
+          "position",
           "step_type",
           "mode",
           "supplier_id",
@@ -1711,6 +1907,17 @@
       },
       "ArticleProcessStepUpdate": {
         "properties": {
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
           "mode": {
             "anyOf": [
               {
@@ -1757,6 +1964,17 @@
               }
             ],
             "title": "Shared Fields"
+          },
+          "sample_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Percent"
           },
           "is_active": {
             "anyOf": [
@@ -2760,6 +2978,260 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "InspectionEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "checked_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Count"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "sample_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Percent"
+          },
+          "required_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Count"
+          },
+          "inspector_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inspector Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "result",
+          "checked_count",
+          "note"
+        ],
+        "title": "InspectionEmbed",
+        "description": "Eingebetteter Stand der Eingangskontrolle (im Auftrag)."
+      },
+      "InspectionUpdate": {
+        "properties": {
+          "result": {
+            "type": "string",
+            "title": "Result"
+          },
+          "checked_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Count"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "result"
+        ],
+        "title": "InspectionUpdate",
+        "description": "Erfassung des Eingangskontroll-Ergebnisses."
+      },
+      "InstanceEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "qc_status": {
+            "type": "string",
+            "title": "Qc Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "kind",
+          "quantity",
+          "qc_status"
+        ],
+        "title": "InstanceEmbed",
+        "description": "Kurzform für die Einbettung in den Auftrag (Serialisierungs-Panel)."
+      },
+      "InstanceResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "order_id": {
+            "type": "integer",
+            "title": "Order Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "serial_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial Number"
+          },
+          "qc_status": {
+            "type": "string",
+            "title": "Qc Status"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "article_id",
+          "order_id",
+          "kind",
+          "quantity",
+          "serial_number",
+          "qc_status",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InstanceResponse"
+      },
       "OrderCreate": {
         "properties": {
           "article_id": {
@@ -2956,6 +3428,32 @@
                 "type": "null"
               }
             ]
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceEmbed"
+            },
+            "type": "array",
+            "title": "Instances",
+            "default": []
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/OrderStepInfo"
+            },
+            "type": "array",
+            "title": "Steps",
+            "default": []
           }
         },
         "type": "object",
@@ -2972,6 +3470,35 @@
           "updated_at"
         ],
         "title": "OrderResponse"
+      },
+      "OrderStepInfo": {
+        "properties": {
+          "step_type": {
+            "type": "string",
+            "title": "Step Type"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_type",
+          "position",
+          "label",
+          "state"
+        ],
+        "title": "OrderStepInfo",
+        "description": "Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung)."
       },
       "OrderUpdate": {
         "properties": {

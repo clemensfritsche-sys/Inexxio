@@ -189,6 +189,30 @@ def test_process_step_requires_consistent_mode():
         ArticleProcessStepCreate(mode="webshop")
 
 
+def test_process_step_types_and_optional_config():
+    """Serialisierung/Eingangskontrolle brauchen keinen Lieferanten; % default 100."""
+    from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
+
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "serialization", "inspection"}
+    ser = ArticleProcessStepCreate(step_type="serialization")
+    assert ser.step_type == "serialization"          # kein supplier_id nötig
+    insp = ArticleProcessStepCreate(step_type="inspection")
+    assert insp.sample_percent == 100                 # Default: ganze Menge
+    insp2 = ArticleProcessStepCreate(step_type="inspection", sample_percent=10)
+    assert insp2.sample_percent == 10
+
+
+def test_required_sample_math():
+    """Prüfumfang = aufgerundet Menge × % (mind. 1, höchstens Menge)."""
+    from app.services.process import required_sample
+
+    assert required_sample(30, 10) == 3
+    assert required_sample(30, 100) == 30
+    assert required_sample(5, 10) == 1     # mind. 1
+    assert required_sample(30, None) == 30  # ohne Angabe = 100 %
+    assert required_sample(0, 50) == 0
+
+
 def test_order_desired_date_must_be_future():
     """Wunsch-Liefertermin in der Vergangenheit wird abgelehnt, heute/Zukunft ok."""
     from datetime import date, timedelta

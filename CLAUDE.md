@@ -151,28 +151,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: Artikel-Anlage via «+» (Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht), Detailfenster mit Reitern Stammdaten/Prozess/Bestand
 - Frontend: Admin Einstellungen + Benutzerverwaltung
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
-- Backend: Prozessschritt-Modul «Purchase» – Artikel-Prozessdefinition (`article_process_steps`,
-  Modus Lieferant/Webshop, wählbare für den Lieferanten sichtbare Stammdaten `shared_fields`;
-  Pflichtfelder immer dabei). Die Bestellung (`purchase_orders`) ist die **Ausführung unter dem
-  Auftrag** (KEINE eigene Objektnummer), Status requested→quoted→approved/rejected→confirmed→received.
-  Offerte = **eine Bestellsumme** (netto), Stück- & Einstandspreis = Bestellsumme÷Menge (berechnet).
-  **Saubere Verantwortungstrennung**: Lieferant offeriert/bestätigt, Besteller gibt frei/lehnt ab/
-  bestätigt Wareneingang (im Webshop-Modus macht alles der Mitarbeiter). Auftrag wird **automatisch
-  abgeschlossen** (`status=completed`), wenn alle Schritte erledigt sind (`services/purchase.py`,
-  `services/orders.py`)
+- **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
+  Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
+  `position`). Schritt-Status wird aus der Fachtabelle abgeleitet (keine Orchestrierungstabelle);
+  Auftrag wird **automatisch `completed`**, wenn alle Schritte erledigt sind. Schritttypen:
+  - **purchase** (Beschaffung): Bestellung `purchase_orders` unter dem Auftrag (keine eigene Nummer),
+    Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
+    Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
+    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an).
+  - **serialization** (Serialisierung): erzeugt **Instanzen** (`instances`, eigene Objektnummer) –
+    Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N. Speist den **Bestand** (`services/serialization.py`).
+  - **inspection** (Eingangskontrolle): Stichprobenprüfung mit konfigurierbarem Prüfumfang in %
+    (`sample_percent`); Ergebnis passed/failed wird auf `instances.qc_status` übertragen (`services/inspection.py`).
 - Status als **Prozess** (kein Dropdown): Entwurf →[Freigeben]→ Freigegeben →[Deaktivieren]→ Inaktiv
   (→[Reaktivieren]); gilt für Artikel/Auftrag/Lagerplatz (`lib/status-flow.ts`, `StatusFlow`)
-- Frontend: Artikel-«Prozess»-Reiter (Schritt «Bestellung» + sichtbare Stammdaten), Auftrag heisst
-  starr «Auftrag» (kein Name), nur **freigegebene** Artikel referenzierbar, Menge mit Artikel-Einheit,
-  Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe read-only; der
-  Prozess wird **im Auftrag** als Bereich «Beschaffung» geführt, Lieferant-Zugang (sieht nur eigene Aufträge)
+- Frontend: Artikel-«Prozess»-Reiter (Schritttypen hinzufügen/sortieren), **Bestand**-Reiter zeigt die
+  Instanzen. Auftrag heisst starr «Auftrag», nur **freigegebene** Artikel referenzierbar, Menge mit
+  Artikel-Einheit, Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe
+  read-only. Auftrag-Detail: **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts
+  (Beschaffung/Serialisierung/Eingangskontrolle); Lieferant sieht nur die Beschaffung seiner Aufträge.
 
-> **HINWEIS:** Artikel **Stammdaten** + **Prozess** (Purchase-Schritt) sind gefüllt; **Bestand** ist
-> Platzhalter. Die Bestellung läuft unter der Auftragsnummer (kein eigenes Objekt). E-Mail-Versand ist
-> nur als TODO vermerkt (Gmail API, Phase 2). Seriennummern/Eingangskontrolle, Stückliste/BOM,
-> Arbeitspläne und Stripe sind **noch nicht** implementiert.
+> **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen) sind gefüllt. Prozess-
+> Schritttypen: purchase, serialization, inspection. E-Mail-Versand ist nur als TODO vermerkt
+> (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne, Lagerplatz-Zuweisung der Instanzen und Stripe
+> sind **noch nicht** implementiert.
 
-Nächste Aufgabe: Wareneingangskontrolle + Seriennummern-Vergabe (Schritt nach «Purchase»); E-Mail-Versand (Gmail API); Stripe
+Nächste Aufgabe: Lagerplatz-Zuweisung/Bestandsbewegungen der Instanzen; E-Mail-Versand (Gmail API); Stückliste/BOM; Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

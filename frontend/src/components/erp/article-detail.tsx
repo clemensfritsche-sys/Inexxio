@@ -11,8 +11,9 @@ import {
 } from '@/lib/article';
 import { lifecycleActions } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Placeholder, Label } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import { InstanceList } from '@/components/erp/instance-list';
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
 
@@ -209,7 +210,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} />
         )}
         {tab === 'bestand' && (
-          <Placeholder icon={Boxes} title="Bestand" text="Lagerbestand und Bewegungen für diesen Artikel folgen in einer späteren Phase." />
+          <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
         )}
       </div>
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -77,14 +78,27 @@ async def create_step(
 ):
     article = _get_article(db, object_id)
     ensure_article_draft(article)
-    _validate_supplier(db, data.supplier_id)
+    is_purchase = data.step_type == "purchase"
+    if is_purchase:
+        _validate_supplier(db, data.supplier_id)
+    if data.position is not None:
+        position = data.position
+    else:
+        max_pos = (
+            db.query(func.max(ArticleProcessStep.position))
+            .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
+            .scalar()
+        )
+        position = (max_pos or 0) + 1
     step = ArticleProcessStep(
         article_id=article.id,
+        position=position,
         step_type=data.step_type,
         mode=data.mode,
-        supplier_id=data.supplier_id if data.mode == "supplier" else None,
-        webshop_url=data.webshop_url if data.mode == "webshop" else None,
-        shared_fields=data.shared_fields,
+        supplier_id=data.supplier_id if (is_purchase and data.mode == "supplier") else None,
+        webshop_url=data.webshop_url if (is_purchase and data.mode == "webshop") else None,
+        shared_fields=data.shared_fields if is_purchase else None,
+        sample_percent=data.sample_percent if data.step_type == "inspection" else None,
     )
     db.add(step)
     db.flush()

@@ -61,6 +61,8 @@ _COLUMN_SAFETY_NET = (
     ("purchase_orders", "order_total", "NUMERIC(12,2)"),
     ("purchase_orders", "ordered_at", "TIMESTAMP WITH TIME ZONE"),
     ("article_process_steps", "shared_fields", "JSONB"),
+    ("article_process_steps", "position", "INTEGER DEFAULT 1"),
+    ("article_process_steps", "sample_percent", "INTEGER"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -74,7 +76,6 @@ _DROP_COLUMN_SAFETY_NET = (
     ("purchase_orders", "object_id"),
     ("purchase_orders", "unit_price"),
     ("purchase_orders", "desired_delivery_date"),
-    ("article_process_steps", "position"),
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.

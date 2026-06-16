@@ -4,7 +4,18 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .inspection import InspectionEmbed
+from .instance import InstanceEmbed
 from .purchase_order import PurchaseEmbed
+
+
+class OrderStepInfo(BaseModel):
+    """Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung)."""
+
+    step_type: str
+    position: int
+    label: str
+    state: str   # done | active | locked | failed
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
@@ -95,3 +106,6 @@ class OrderResponse(BaseModel):
     article_weight_kg: Optional[Decimal] = None
     article_serialization: Optional[str] = None
     purchase: Optional[PurchaseEmbed] = None
+    instances: list[InstanceEmbed] = []
+    inspection: Optional[InspectionEmbed] = None
+    steps: list[OrderStepInfo] = []

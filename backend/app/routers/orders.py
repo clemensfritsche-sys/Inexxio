@@ -4,13 +4,16 @@ from sqlalchemy.orm import Session
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Order, PurchaseOrder, UserProfile
+from ..schemas.inspection import InspectionUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..services.admin import log_audit
+from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
+from ..services.serialization import serialize_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -136,5 +139,32 @@ async def update_order_purchase(
     if not po:
         raise HTTPException(404, detail="Für diesen Auftrag existiert keine Bestellung")
     apply_update(db, po, data, user)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/serialize", response_model=OrderResponse)
+async def serialize_order(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge)."""
+    order = _get_staff_order(db, object_id)
+    serialize_for_order(db, order, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/inspection", response_model=OrderResponse)
+async def update_order_inspection(
+    object_id: int,
+    data: InspectionUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed)."""
+    order = _get_staff_order(db, object_id)
+    record_inspection(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)

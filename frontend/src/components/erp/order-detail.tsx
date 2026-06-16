@@ -3,13 +3,17 @@
 import { useState } from 'react';
 import { ClipboardList, ArrowLeft, Rocket, Workflow, MapPin, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Order, OrderUpdateInput } from '@/types';
+import type { Article, CompanySettings, Order, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
+import { toStepperState } from '@/lib/process';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { SelectField, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
+import { SerializationPanel } from '@/components/erp/serialization-panel';
+import { InspectionPanel } from '@/components/erp/inspection-panel';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -58,6 +62,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [saving, setSaving] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selStep, setSelStep] = useState<string | null>(null);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -67,6 +72,15 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const demandEditable = isStaff && (isCreate || record?.status === 'draft');
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
+
+  // Auftrag-Prozess (mehrere Schritte) – nur für Mitarbeiter nach Freigabe
+  const steps = (record?.steps ?? []) as OrderStep[];
+  const showProcess = isStaff && !!record && record.status !== 'draft' && steps.length > 0;
+  const activeStepType = steps.find((s) => s.state === 'active')?.step_type
+    ?? steps.find((s) => s.state === 'failed')?.step_type
+    ?? steps[steps.length - 1]?.step_type ?? null;
+  const currentStep = selStep ?? activeStepType;
+  const currentStepState = steps.find((s) => s.step_type === currentStep)?.state ?? 'locked';
 
   const seed = seedFrom(record);
   const dirty = isCreate || (Object.keys(form) as (keyof Form)[]).some((k) => form[k] !== seed[k]);
@@ -218,7 +232,19 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         )}
 
         {/* Prozess */}
-        {hasPurchase ? (
+        {showProcess ? (
+          <>
+            <SectionTitle icon={Workflow}>Prozess</SectionTitle>
+            <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
+              <ProcessStepper
+                nodes={steps.map((s) => ({ key: s.step_type, label: s.label, state: toStepperState(s.state) }))}
+                selectedKey={currentStep ?? undefined}
+                onSelect={setSelStep}
+              />
+            </div>
+            <StepPanel type={currentStep} stepState={currentStepState} order={record as Order} viewerRole={viewerRole} onSaved={onSaved} />
+          </>
+        ) : !isStaff && hasPurchase ? (
           <>
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <PurchaseStepPanel order={record as Order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
@@ -226,8 +252,8 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         ) : isStaff && demandEditable ? (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 4, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1e40af' }}>
             <Rocket size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span><b>Freigeben</b> startet den hinterlegten Prozess des Artikels. Hat der Artikel einen
-              Bestell-Schritt, erscheint die Beschaffung hier unter der Auftragsnummer.</span>
+            <span><b>Freigeben</b> startet den hinterlegten Prozess des Artikels (Beschaffung,
+              Serialisierung, Eingangskontrolle – je nach Artikel-Definition).</span>
           </div>
         ) : null}
       </div>
@@ -263,6 +289,28 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       )}
     </div>
   );
+}
+
+// Rendert das Panel des gewählten Prozessschritts
+function StepPanel({ type, stepState, order, viewerRole, onSaved }: {
+  type: string | null;
+  stepState: string;
+  order: Order;
+  viewerRole: ViewerRole;
+  onSaved: (o: Order) => void;
+}) {
+  if (type === 'purchase') {
+    return order.purchase
+      ? <PurchaseStepPanel order={order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
+      : null;
+  }
+  if (type === 'serialization') {
+    return <SerializationPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  }
+  if (type === 'inspection') {
+    return <InspectionPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  }
+  return null;
 }
 
 // Mengen-Eingabe mit Einheit-Suffix des referenzierten Artikels

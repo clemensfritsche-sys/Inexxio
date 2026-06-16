@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
+from . import process
 from .admin import log_audit
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
@@ -101,23 +102,6 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
     return [po]
 
 
-def maybe_complete_order(db: Session, order: Order) -> None:
-    """Auftrag automatisch abschliessen, wenn die Bestellung im Wareneingang ist.
-
-    Aktuell besteht der Auftragsprozess aus genau einem Schritt (Beschaffung).
-    Kommt ein zweiter Schritttyp hinzu, hier um dessen Abschluss erweitern.
-    """
-    if order.status == "completed":
-        return
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-        .first()
-    )
-    if po and po.status == "received":
-        order.status = "completed"
-
-
 def _editable_fields(po: PurchaseOrder, user: UserProfile) -> set[str]:
     """Felder, die der Aufrufer in diesem Status setzen darf.
 
@@ -167,8 +151,8 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
-    # Auftrag automatisch abschliessen, wenn die Ware eingegangen ist
-    maybe_complete_order(db, order)
+    # Auftrag ggf. automatisch abschliessen (alle Prozessschritte erledigt)
+    process.recompute_completion(db, order)
     # TODO(E-Mail): Statuswechsel an Lieferant/uns melden (Gmail API, Phase 2)
 
 

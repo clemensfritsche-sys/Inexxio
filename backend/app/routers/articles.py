@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, PurchaseOrder, UserProfile
+from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
+from ..schemas.instance import InstanceResponse
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable
 from ..services.objects import next_object_id
@@ -133,3 +134,31 @@ async def update_article(
     db.commit()
     db.refresh(article)
     return _to_response(article, _price_ranges(db, [article.id]).get(article.id))
+
+
+@router.get("/{object_id}/instances", response_model=list[InstanceResponse])
+async def list_article_instances(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»)."""
+    article = _get_active(db, object_id)
+    rows = (
+        db.query(Instance)
+        .filter(Instance.article_id == article.id, Instance.is_active == True)
+        .order_by(Instance.object_id)
+        .all()
+    )
+    order_ids = {r.order_id for r in rows}
+    order_map = {
+        o.id: o.object_id
+        for o in db.query(Order).filter(Order.id.in_(order_ids)).all()
+    } if order_ids else {}
+    out: list[InstanceResponse] = []
+    for r in rows:
+        resp = InstanceResponse.model_validate(r)
+        resp.order_object_id = order_map.get(r.order_id)
+        resp.article_name = article.name
+        out.append(resp)
+    return out

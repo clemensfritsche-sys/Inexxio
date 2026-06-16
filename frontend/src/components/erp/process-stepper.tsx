@@ -17,16 +17,25 @@ const LINE_PENDING = '#e2e8f0';
 
 /** Horizontaler Prozess-Stepper. Eine Linie zwischen zwei Knoten gilt als
  *  erledigt, sobald der LINKE Knoten erledigt ist – beide Hälften nutzen
- *  dieselbe Regel, daher keine inkonsistenten Farben mehr. */
-export function ProcessStepper({ nodes }: { nodes: StepNode[] }) {
+ *  dieselbe Regel, daher keine inkonsistenten Farben mehr.
+ *  Optional klickbar (onSelect) mit Hervorhebung des gewählten Knotens. */
+export function ProcessStepper({ nodes, selectedKey, onSelect }: {
+  nodes: StepNode[];
+  selectedKey?: string;
+  onSelect?: (key: string) => void;
+}) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       {nodes.map((n, i) => {
         const node = NODE[n.state];
         const leftDone = i > 0 && nodes[i - 1].state === 'done';
         const rightDone = n.state === 'done';
+        const selected = selectedKey === n.key;
+        const clickable = !!onSelect;
         return (
-          <div key={n.key} title={n.hint} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: n.hint ? 'help' : 'default' }}>
+          <div key={n.key} title={n.hint}
+            onClick={clickable ? () => onSelect(n.key) : undefined}
+            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: clickable ? 'pointer' : (n.hint ? 'help' : 'default') }}>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <div style={{ flex: 1, height: 2, background: i === 0 ? 'transparent' : (leftDone ? LINE_DONE : LINE_PENDING) }} />
               <div style={{
@@ -34,7 +43,7 @@ export function ProcessStepper({ nodes }: { nodes: StepNode[] }) {
                 background: node.bg, color: node.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700,
-                boxShadow: n.state === 'active' ? `0 0 0 4px ${node.ring}` : 'none',
+                boxShadow: selected ? '0 0 0 3px #0f172a' : n.state === 'active' ? `0 0 0 4px ${node.ring}` : 'none',
               }}>
                 {n.state === 'done' ? <Check size={14} /> : n.state === 'rejected' ? <X size={14} /> : i + 1}
               </div>
@@ -42,7 +51,7 @@ export function ProcessStepper({ nodes }: { nodes: StepNode[] }) {
             </div>
             <div style={{
               marginTop: 5, fontSize: 10, lineHeight: 1.2, textAlign: 'center',
-              fontWeight: n.state === 'active' ? 700 : 500,
+              fontWeight: selected || n.state === 'active' ? 700 : 500,
               color: n.state === 'pending' ? '#94a3b8' : n.state === 'rejected' ? '#dc2626' : '#0F172A',
             }}>
               {n.label}

@@ -1,0 +1,28 @@
+from typing import Optional
+
+from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from ..core.database import Base
+from .base import TimestampMixin
+
+
+class Inspection(Base, TimestampMixin):
+    """Ausführung des Schritts «Eingangskontrolle» – läuft unter dem Auftrag.
+
+    KEINE eigene Objektnummer. Es wird ein Stichproben-Prüfumfang (% der Menge,
+    aus der Prozessdefinition) erwartet; der Prüfer erfasst die geprüfte Anzahl
+    und das Ergebnis (passed/failed). Das Ergebnis wird auf die Instanzen
+    (qc_status) übertragen.
+    """
+
+    __tablename__ = "inspections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+
+    result: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)  # pending|passed|failed
+    checked_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    inspector_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

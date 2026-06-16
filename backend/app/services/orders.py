@@ -4,10 +4,17 @@ rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
-from ..models import Article, ArticleProcessStep, AuditLog, Order, PurchaseOrder, UserProfile
-from ..schemas.order import OrderResponse
+from ..models import (
+    Article, ArticleProcessStep, AuditLog, Inspection, Instance, Order,
+    PurchaseOrder, UserProfile,
+)
+from ..schemas.inspection import InspectionEmbed
+from ..schemas.instance import InstanceEmbed
+from ..schemas.order import OrderResponse, OrderStepInfo
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
+from . import process
 from .article_fields import normalize_shared_fields
+from .inspection import required_count
 
 _STAFF_ROLES = ("admin", "employee")
 # alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
@@ -94,7 +101,53 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             emb.shared_fields = _purchase_shared_fields(db, order.article_id)
         emb.history = _purchase_history(db, order)
         resp.purchase = emb
+
+    # Serialisierung: erzeugte Instanzen
+    instances = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True)
+        .order_by(Instance.object_id)
+        .all()
+    )
+    resp.instances = [InstanceEmbed.model_validate(i) for i in instances]
+
+    # Eingangskontrolle: Embed sobald der Schritt definiert ist (auch ohne Erfassung,
+    # damit der Prüfumfang vorab sichtbar ist)
+    insp_step = _step(db, order.article_id, "inspection")
+    if insp_step:
+        insp = (
+            db.query(Inspection)
+            .filter(Inspection.order_id == order.id, Inspection.is_active == True)
+            .first()
+        )
+        ie = (InspectionEmbed.model_validate(insp) if insp
+              else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
+        ie.sample_percent = insp_step.sample_percent
+        ie.required_count = required_count(db, order)
+        if insp and insp.inspector_id:
+            ie.inspector_name = _supplier_name(
+                db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first()
+            )
+        resp.inspection = ie
+
+    # Auftrag-Stepper
+    resp.steps = [OrderStepInfo(**i) for i in process.order_step_infos(db, order)]
     return resp
+
+
+def _step(db: Session, article_id: int | None, step_type: str) -> ArticleProcessStep | None:
+    if not article_id:
+        return None
+    return (
+        db.query(ArticleProcessStep)
+        .filter(
+            ArticleProcessStep.article_id == article_id,
+            ArticleProcessStep.step_type == step_type,
+            ArticleProcessStep.is_active == True,
+        )
+        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+        .first()
+    )
 
 
 def visible_orders(db: Session, user: UserProfile) -> Query:

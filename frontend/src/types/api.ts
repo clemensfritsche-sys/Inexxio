@@ -301,6 +301,26 @@ export interface paths {
         patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/articles/{object_id}/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Article Instances
+         * @description Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»).
+         */
+        get: operations["list_article_instances_api_v1_erp_articles__object_id__instances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles/{object_id}/process-steps": {
         parameters: {
             query?: never;
@@ -394,6 +414,46 @@ export interface paths {
         patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/serialize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Serialize Order
+         * @description Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge).
+         */
+        post: operations["serialize_order_api_v1_erp_orders__object_id__serialize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/inspection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Inspection
+         * @description Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed).
+         */
+        patch: operations["update_order_inspection_api_v1_erp_orders__object_id__inspection_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/storage-locations": {
         parameters: {
             query?: never;
@@ -477,6 +537,8 @@ export interface components {
              * @default purchase
              */
             step_type: string;
+            /** Position */
+            position?: number | null;
             /**
              * Mode
              * @default supplier
@@ -488,6 +550,8 @@ export interface components {
             webshop_url?: string | null;
             /** Shared Fields */
             shared_fields?: string[] | null;
+            /** Sample Percent */
+            sample_percent?: number | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -495,6 +559,8 @@ export interface components {
             id: number;
             /** Article Id */
             article_id: number;
+            /** Position */
+            position: number;
             /** Step Type */
             step_type: string;
             /** Mode */
@@ -510,6 +576,8 @@ export interface components {
              * @default []
              */
             shared_fields: string[];
+            /** Sample Percent */
+            sample_percent?: number | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -528,6 +596,8 @@ export interface components {
          * @description Teil-Update eines Prozessschritts.
          */
         ArticleProcessStepUpdate: {
+            /** Position */
+            position?: number | null;
             /** Mode */
             mode?: string | null;
             /** Supplier Id */
@@ -536,6 +606,8 @@ export interface components {
             webshop_url?: string | null;
             /** Shared Fields */
             shared_fields?: string[] | null;
+            /** Sample Percent */
+            sample_percent?: number | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -768,6 +840,89 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * InspectionEmbed
+         * @description Eingebetteter Stand der Eingangskontrolle (im Auftrag).
+         */
+        InspectionEmbed: {
+            /** Id */
+            id: number;
+            /** Result */
+            result: string;
+            /** Checked Count */
+            checked_count: number | null;
+            /** Note */
+            note: string | null;
+            /** Sample Percent */
+            sample_percent?: number | null;
+            /** Required Count */
+            required_count?: number | null;
+            /** Inspector Name */
+            inspector_name?: string | null;
+        };
+        /**
+         * InspectionUpdate
+         * @description Erfassung des Eingangskontroll-Ergebnisses.
+         */
+        InspectionUpdate: {
+            /** Result */
+            result: string;
+            /** Checked Count */
+            checked_count?: number | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * InstanceEmbed
+         * @description Kurzform für die Einbettung in den Auftrag (Serialisierungs-Panel).
+         */
+        InstanceEmbed: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Kind */
+            kind: string;
+            /** Quantity */
+            quantity: number;
+            /** Qc Status */
+            qc_status: string;
+        };
+        /** InstanceResponse */
+        InstanceResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Article Id */
+            article_id: number;
+            /** Order Id */
+            order_id: number;
+            /** Kind */
+            kind: string;
+            /** Quantity */
+            quantity: number;
+            /** Serial Number */
+            serial_number: string | null;
+            /** Qc Status */
+            qc_status: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
+        };
+        /**
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
@@ -821,6 +976,31 @@ export interface components {
             /** Article Serialization */
             article_serialization?: string | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            /**
+             * Instances
+             * @default []
+             */
+            instances: components["schemas"]["InstanceEmbed"][];
+            inspection?: components["schemas"]["InspectionEmbed"] | null;
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["OrderStepInfo"][];
+        };
+        /**
+         * OrderStepInfo
+         * @description Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).
+         */
+        OrderStepInfo: {
+            /** Step Type */
+            step_type: string;
+            /** Position */
+            position: number;
+            /** Label */
+            label: string;
+            /** State */
+            state: string;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -1884,6 +2064,37 @@ export interface operations {
             };
         };
     };
+    list_article_instances_api_v1_erp_articles__object_id__instances_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_steps_api_v1_erp_articles__object_id__process_steps_get: {
         parameters: {
             query?: never;
@@ -2149,6 +2360,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PurchaseOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serialize_order_api_v1_erp_orders__object_id__serialize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_inspection_api_v1_erp_orders__object_id__inspection_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectionUpdate"];
             };
         };
         responses: {

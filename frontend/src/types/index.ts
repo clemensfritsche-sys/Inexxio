@@ -65,6 +65,24 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
   purchase: OrderPurchase | null;
 };
 
+// Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
+export type StepType = 'purchase' | 'serialization' | 'inspection';
+export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
+export type OrderStep = OrderApi['steps'][number];
+export type OrderInstance = NonNullable<OrderApi['instances']>[number];
+export type OrderInspection = NonNullable<OrderApi['inspection']>;
+
+export interface InspectionUpdateInput {
+  result: 'passed' | 'failed';
+  checked_count?: number | null;
+  note?: string | null;
+}
+
+// Bestands-Instanz (Reiter «Bestand» am Artikel)
+type InstanceApi = components['schemas']['InstanceResponse'];
+export type Instance = InstanceApi;
+export type InstanceQcStatus = 'pending' | 'passed' | 'failed';
+
 export interface OrderInput {
   article_id?: number | null;
   quantity?: number | null;
@@ -90,18 +108,22 @@ export type ArticleProcessStep = Omit<ArticleProcessStepApi, 'mode'> & {
 };
 
 export interface ArticleProcessStepInput {
-  step_type?: string;
-  mode: ProcessStepMode;
-  supplier_id?: number | null;
-  webshop_url?: string | null;
-  shared_fields?: string[] | null;
-}
-
-export interface ArticleProcessStepUpdateInput {
+  step_type?: StepType;
+  position?: number | null;
   mode?: ProcessStepMode;
   supplier_id?: number | null;
   webshop_url?: string | null;
   shared_fields?: string[] | null;
+  sample_percent?: number | null;
+}
+
+export interface ArticleProcessStepUpdateInput {
+  position?: number;
+  mode?: ProcessStepMode;
+  supplier_id?: number | null;
+  webshop_url?: string | null;
+  shared_fields?: string[] | null;
+  sample_percent?: number | null;
   is_active?: boolean;
 }
 
