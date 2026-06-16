@@ -21,7 +21,7 @@ from ..models import ArticleProcessStep, Inspection, Instance, Order, PurchaseOr
 STEP_LABELS = {
     "purchase": "Beschaffung",
     "serialization": "Serialisierung",
-    "inspection": "Eingangskontrolle",
+    "inspection": "Datenerfassung",
 }
 
 

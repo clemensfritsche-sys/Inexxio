@@ -9,6 +9,7 @@ from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
     ArticleProcessStepResponse,
     ArticleProcessStepUpdate,
+    normalize_capture_fields,
 )
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_article_draft
@@ -99,6 +100,7 @@ async def create_step(
         webshop_url=data.webshop_url if (is_purchase and data.mode == "webshop") else None,
         shared_fields=data.shared_fields if is_purchase else None,
         sample_percent=data.sample_percent if data.step_type == "inspection" else None,
+        capture_fields=normalize_capture_fields(data.capture_fields) if data.step_type == "inspection" else None,
     )
     db.add(step)
     db.flush()
@@ -138,6 +140,8 @@ async def update_step(
     payload = data.model_dump(exclude_unset=True)
     if "supplier_id" in payload:
         _validate_supplier(db, payload["supplier_id"])
+    if "capture_fields" in payload:
+        payload["capture_fields"] = normalize_capture_fields(payload["capture_fields"])
     for key, value in payload.items():
         setattr(step, key, value)
     # Konsistenz: nur das zum Modus passende Bezugsfeld behalten

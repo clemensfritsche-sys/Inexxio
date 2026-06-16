@@ -10,7 +10,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, contact, erp, health,
-    orders, storage_locations,
+    instances, orders, storage_locations,
 )
 
 settings = get_settings()
@@ -63,6 +63,8 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "shared_fields", "JSONB"),
     ("article_process_steps", "position", "INTEGER DEFAULT 1"),
     ("article_process_steps", "sample_percent", "INTEGER"),
+    ("article_process_steps", "capture_fields", "JSONB"),
+    ("inspections", "values", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -152,6 +154,7 @@ app.include_router(erp.router)
 app.include_router(articles.router)
 app.include_router(article_process.router)
 app.include_router(orders.router)
+app.include_router(instances.router)
 app.include_router(storage_locations.router)
 
 

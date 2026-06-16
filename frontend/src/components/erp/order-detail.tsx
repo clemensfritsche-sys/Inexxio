@@ -134,9 +134,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` })),
   ];
-  const articleLabel = record?.article_name
-    ? `${record.article_name} · ${fmtObjId(record.article_object_id)}`
-    : '—';
+  const articleLabel = record?.article_object_id != null ? fmtObjId(record.article_object_id) : '—';
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
   const showSaveBar = isStaff && demandEditable && (isCreate || dirty || !!error);
 

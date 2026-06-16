@@ -454,6 +454,40 @@ export interface paths {
         patch: operations["update_order_inspection_api_v1_erp_orders__object_id__inspection_patch"];
         trace?: never;
     };
+    "/api/v1/erp/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Instances */
+        get: operations["list_instances_api_v1_erp_instances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/instances/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Instance */
+        get: operations["get_instance_api_v1_erp_instances__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/storage-locations": {
         parameters: {
             query?: never;
@@ -552,6 +586,8 @@ export interface components {
             shared_fields?: string[] | null;
             /** Sample Percent */
             sample_percent?: number | null;
+            /** Capture Fields */
+            capture_fields?: components["schemas"]["CaptureField"][] | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -578,6 +614,11 @@ export interface components {
             shared_fields: string[];
             /** Sample Percent */
             sample_percent?: number | null;
+            /**
+             * Capture Fields
+             * @default []
+             */
+            capture_fields: components["schemas"]["CaptureField"][];
             /** Is Active */
             is_active: boolean;
             /**
@@ -608,6 +649,8 @@ export interface components {
             shared_fields?: string[] | null;
             /** Sample Percent */
             sample_percent?: number | null;
+            /** Capture Fields */
+            capture_fields?: components["schemas"]["CaptureField"][] | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -667,6 +710,30 @@ export interface components {
             weight_kg?: number | string | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /**
+         * CaptureField
+         * @description Ein Erfassungsfeld der Datenerfassung (Prozessschritt «inspection»).
+         */
+        CaptureField: {
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Type
+             * @default measure
+             */
+            type: string;
+            /** Target */
+            target?: number | null;
+            /** Tolerance */
+            tolerance?: number | null;
+            /** Unit */
+            unit?: string | null;
         };
         /** CompanySettingsResponse */
         CompanySettingsResponse: {
@@ -841,7 +908,7 @@ export interface components {
         };
         /**
          * InspectionEmbed
-         * @description Eingebetteter Stand der Eingangskontrolle (im Auftrag).
+         * @description Eingebetteter Stand der Datenerfassung (im Auftrag).
          */
         InspectionEmbed: {
             /** Id */
@@ -852,24 +919,39 @@ export interface components {
             checked_count: number | null;
             /** Note */
             note: string | null;
+            /**
+             * Values
+             * @default {}
+             */
+            values: Record<string, never>;
             /** Sample Percent */
             sample_percent?: number | null;
             /** Required Count */
             required_count?: number | null;
             /** Inspector Name */
             inspector_name?: string | null;
+            /**
+             * Fields
+             * @default []
+             */
+            fields: components["schemas"]["CaptureField"][];
         };
         /**
          * InspectionUpdate
-         * @description Erfassung des Eingangskontroll-Ergebnisses.
+         * @description Erfassung der Datenerfassung/Eingangskontrolle.
+         *
+         *     Bei Schritten mit Maske (``capture_fields``) leiten die erfassten ``values``
+         *     das Ergebnis ab; ohne Maske wird ``result`` direkt gesetzt (passed/failed).
          */
         InspectionUpdate: {
             /** Result */
-            result: string;
+            result?: string | null;
             /** Checked Count */
             checked_count?: number | null;
             /** Note */
             note?: string | null;
+            /** Values */
+            values?: Record<string, never> | null;
         };
         /**
          * InstanceEmbed
@@ -2436,6 +2518,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_instances_api_v1_erp_instances_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"][];
+                };
+            };
+        };
+    };
+    get_instance_api_v1_erp_instances__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"];
                 };
             };
             /** @description Validation Error */

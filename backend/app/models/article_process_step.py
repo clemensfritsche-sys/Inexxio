@@ -35,6 +35,8 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Welche Artikel-Stammdaten der Lieferant sehen darf (Pflichtfelder immer).
     shared_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
-    # Konfiguration «inspection»: Stichproben-Prüfumfang in % der Menge
+    # Konfiguration «inspection» (Datenerfassung): Stichproben-Prüfumfang in % der
+    # Menge + Erfassungsfelder (Soll-Ist mit Toleranz, Gut/Schlecht, Text).
     sample_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 

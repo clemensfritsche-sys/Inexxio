@@ -1490,6 +1490,83 @@
         }
       }
     },
+    "/api/v1/erp/instances": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "List Instances",
+        "operationId": "list_instances_api_v1_erp_instances_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Instances Api V1 Erp Instances Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/instances/{object_id}": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Get Instance",
+        "operationId": "get_instance_api_v1_erp_instances__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/storage-locations": {
       "get": {
         "tags": [
@@ -1795,6 +1872,20 @@
               }
             ],
             "title": "Sample Percent"
+          },
+          "capture_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CaptureField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capture Fields"
           }
         },
         "type": "object",
@@ -1874,6 +1965,14 @@
               }
             ],
             "title": "Sample Percent"
+          },
+          "capture_fields": {
+            "items": {
+              "$ref": "#/components/schemas/CaptureField"
+            },
+            "type": "array",
+            "title": "Capture Fields",
+            "default": []
           },
           "is_active": {
             "type": "boolean",
@@ -1975,6 +2074,20 @@
               }
             ],
             "title": "Sample Percent"
+          },
+          "capture_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CaptureField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capture Fields"
           },
           "is_active": {
             "anyOf": [
@@ -2183,6 +2296,63 @@
         "type": "object",
         "title": "ArticleUpdate",
         "description": "Teil-Update aus dem Detailfenster. Alle Felder optional."
+      },
+      "CaptureField": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "default": ""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "measure"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          },
+          "tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "CaptureField",
+        "description": "Ein Erfassungsfeld der Datenerfassung (Prozessschritt «inspection»)."
       },
       "CompanySettingsResponse": {
         "properties": {
@@ -3010,6 +3180,11 @@
             ],
             "title": "Note"
           },
+          "values": {
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          },
           "sample_percent": {
             "anyOf": [
               {
@@ -3042,6 +3217,14 @@
               }
             ],
             "title": "Inspector Name"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CaptureField"
+            },
+            "type": "array",
+            "title": "Fields",
+            "default": []
           }
         },
         "type": "object",
@@ -3052,12 +3235,19 @@
           "note"
         ],
         "title": "InspectionEmbed",
-        "description": "Eingebetteter Stand der Eingangskontrolle (im Auftrag)."
+        "description": "Eingebetteter Stand der Datenerfassung (im Auftrag)."
       },
       "InspectionUpdate": {
         "properties": {
           "result": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Result"
           },
           "checked_count": {
@@ -3081,14 +3271,22 @@
               }
             ],
             "title": "Note"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
           }
         },
         "type": "object",
-        "required": [
-          "result"
-        ],
         "title": "InspectionUpdate",
-        "description": "Erfassung des Eingangskontroll-Ergebnisses."
+        "description": "Erfassung der Datenerfassung/Eingangskontrolle.\n\nBei Schritten mit Maske (``capture_fields``) leiten die erfassten ``values``\ndas Ergebnis ab; ohne Maske wird ``result`` direkt gesetzt (passed/failed)."
       },
       "InstanceEmbed": {
         "properties": {

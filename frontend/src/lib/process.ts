@@ -3,9 +3,9 @@ import type { StepType, InstanceQcStatus } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 
 export const STEP_META: Record<StepType, { label: string; icon: React.ElementType }> = {
-  purchase:      { label: 'Beschaffung',      icon: ShoppingCart },
-  serialization: { label: 'Serialisierung',   icon: Hash },
-  inspection:    { label: 'Eingangskontrolle', icon: ClipboardCheck },
+  purchase:      { label: 'Beschaffung',    icon: ShoppingCart },
+  serialization: { label: 'Serialisierung', icon: Hash },
+  inspection:    { label: 'Datenerfassung', icon: ClipboardCheck },
 };
 
 export function stepLabel(type: string): string {

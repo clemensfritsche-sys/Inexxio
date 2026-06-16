@@ -1,6 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -8,12 +9,12 @@ from .base import TimestampMixin
 
 
 class Inspection(Base, TimestampMixin):
-    """Ausführung des Schritts «Eingangskontrolle» – läuft unter dem Auftrag.
+    """Ausführung des Schritts «Datenerfassung» (Eingangskontrolle) – unter dem Auftrag.
 
-    KEINE eigene Objektnummer. Es wird ein Stichproben-Prüfumfang (% der Menge,
-    aus der Prozessdefinition) erwartet; der Prüfer erfasst die geprüfte Anzahl
-    und das Ergebnis (passed/failed). Das Ergebnis wird auf die Instanzen
-    (qc_status) übertragen.
+    KEINE eigene Objektnummer. Stichproben-Prüfumfang (% der Menge) aus der
+    Prozessdefinition; der Prüfer erfasst die geprüfte Anzahl, erfasst die in der
+    Maske definierten Werte (``values``) und das Ergebnis (passed/failed). Das
+    Ergebnis wird auf die Instanzen (qc_status) übertragen.
     """
 
     __tablename__ = "inspections"
@@ -26,3 +27,5 @@ class Inspection(Base, TimestampMixin):
     checked_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     inspector_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Erfasste Werte der Maske: {field_key: value}
+    values: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

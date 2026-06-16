@@ -72,10 +72,14 @@ export type OrderStep = OrderApi['steps'][number];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderInspection = NonNullable<OrderApi['inspection']>;
 
+export type CaptureField = components['schemas']['CaptureField'];
+export type CaptureFieldType = 'measure' | 'bool' | 'text';
+
 export interface InspectionUpdateInput {
-  result: 'passed' | 'failed';
+  result?: 'passed' | 'failed' | null;
   checked_count?: number | null;
   note?: string | null;
+  values?: Record<string, unknown> | null;
 }
 
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
@@ -115,6 +119,7 @@ export interface ArticleProcessStepInput {
   webshop_url?: string | null;
   shared_fields?: string[] | null;
   sample_percent?: number | null;
+  capture_fields?: CaptureField[] | null;
 }
 
 export interface ArticleProcessStepUpdateInput {
@@ -124,6 +129,7 @@ export interface ArticleProcessStepUpdateInput {
   webshop_url?: string | null;
   shared_fields?: string[] | null;
   sample_percent?: number | null;
+  capture_fields?: CaptureField[] | null;
   is_active?: boolean;
 }
 
@@ -194,7 +200,7 @@ export interface StorageLocationUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'storage_location';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, ChevronDown } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, ChevronDown } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Order, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Instance, Order, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
+import { qcStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
+import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 
 // ─── Type metadata ───────────────────────────────────────────────────────────
@@ -20,20 +22,23 @@ const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType 
   user:             { label: 'Benutzer',   icon: Users },
   article:          { label: 'Artikel',    icon: Package },
   order:            { label: 'Auftrag',    icon: ClipboardList },
+  instance:         { label: 'Instanzen',  icon: Boxes },
   storage_location: { label: 'Lagerplatz', icon: Warehouse },
 };
 
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'storage_location'];
+const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location'];
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
   | { type: 'article'; key: string; objectId: number | null; data: Article }
   | { type: 'order'; key: string; objectId: number | null; data: Order }
+  | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
+  if (row.type === 'instance') return row.data.kind === 'batch' ? 'Charge' : 'Instanz';
   if (row.type === 'storage_location') return 'Lagerplatz';
   return row.data.name; // article
 }
@@ -43,6 +48,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'user') return `${userDisplayName(row.data)} ${row.data.email} ${id}`.toLowerCase();
   if (row.type === 'article') return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
+  if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -61,6 +67,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
       ? purchaseStatusConfig(row.data.purchase.status)
       : orderStatusConfig(row.data.status);
   }
+  else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -113,6 +120,7 @@ export default function ErpPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
+  const [instances, setInstances] = useState<Instance[]>([]);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -131,12 +139,13 @@ export default function ErpPage() {
   useEffect(() => {
     Promise.allSettled([
       api.getErpRecords(), api.getArticles(), api.getOrders(),
-      api.getStorageLocations(), api.getMe(),
-    ]).then(([u, a, o, sl, me]) => {
+      api.getStorageLocations(), api.getMe(), api.getInstances(),
+    ]).then(([u, a, o, sl, me, inst]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
       if (o.status === 'fulfilled') setOrders(o.value);
       if (sl.status === 'fulfilled') setStorageLocations(sl.value);
+      if (inst.status === 'fulfilled') setInstances(inst.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
@@ -158,8 +167,9 @@ export default function ErpPage() {
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
+    ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
-  ].sort((x, y) => (x.objectId ?? Infinity) - (y.objectId ?? Infinity));
+  ].sort((x, y) => (y.objectId ?? -Infinity) - (x.objectId ?? -Infinity));   // höchste Nummer zuerst
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
@@ -198,8 +208,9 @@ export default function ErpPage() {
     setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
     setCreating(null);
     if (o.object_id != null) setSel({ type: 'order', objectId: o.object_id });
-    // Bestellungen beeinflussen die Stückpreis-Spanne der Artikel → neu laden
+    // Prozessschritte beeinflussen Artikel-Preisspanne & Instanzen → neu laden
     api.getArticles().then(setArticles).catch(() => {});
+    api.getInstances().then(setInstances).catch(() => {});
   }
 
   function handleStorageSaved(loc: StorageLocation) {
@@ -335,6 +346,9 @@ export default function ErpPage() {
           )}
           {!creating && selectedRow?.type === 'order' && (
             <OrderDetail key={selectedRow.key} record={selectedRow.data} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          )}
+          {!creating && selectedRow?.type === 'instance' && (
+            <InstanceDetail key={selectedRow.key} record={selectedRow.data} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'storage_location' && (
             <StorageLocationDetail key={selectedRow.key} record={selectedRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />

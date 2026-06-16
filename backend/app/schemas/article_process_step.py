@@ -7,6 +7,52 @@ from ..services.article_fields import normalize_shared_fields
 
 ALLOWED_STEP_TYPES = ("purchase", "serialization", "inspection")
 ALLOWED_MODES = ("supplier", "webshop")
+ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
+
+
+class CaptureField(BaseModel):
+    """Ein Erfassungsfeld der Datenerfassung (Prozessschritt «inspection»)."""
+
+    key: str = ""
+    label: str
+    type: str = "measure"            # measure (Soll-Ist) | bool (Gut/Schlecht) | text
+    target: Optional[float] = None   # Sollwert (measure)
+    tolerance: Optional[float] = None  # ± Toleranz (measure)
+    unit: Optional[str] = None
+
+    @field_validator("type")
+    @classmethod
+    def _type_ok(cls, v: str) -> str:
+        if v not in ALLOWED_CAPTURE_TYPES:
+            raise ValueError("Feldtyp muss measure, bool oder text sein")
+        return v
+
+    @field_validator("label")
+    @classmethod
+    def _label_ok(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("Bezeichnung des Erfassungsfelds fehlt")
+        return v
+
+
+def normalize_capture_fields(fields: Optional[list]) -> list[dict]:
+    """Erfassungsfelder validieren, Keys vergeben/eindeutig machen."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for i, raw in enumerate(fields or []):
+        cf = raw if isinstance(raw, CaptureField) else CaptureField(**raw)
+        key = (cf.key or "").strip() or f"feld_{i + 1}"
+        while key in seen:
+            key = f"{key}_{i + 1}"
+        seen.add(key)
+        d = cf.model_dump()
+        d["key"] = key
+        if cf.type != "measure":
+            d["target"] = None
+            d["tolerance"] = None
+        out.append(d)
+    return out
 
 
 def _clean_url(v: Optional[str]) -> Optional[str]:
@@ -33,6 +79,7 @@ class ArticleProcessStepCreate(BaseModel):
     webshop_url: Optional[str] = None
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
+    capture_fields: Optional[list[CaptureField]] = None
 
     @field_validator("shared_fields")
     @classmethod
@@ -85,6 +132,7 @@ class ArticleProcessStepUpdate(BaseModel):
     webshop_url: Optional[str] = None
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
+    capture_fields: Optional[list[CaptureField]] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -127,6 +175,7 @@ class ArticleProcessStepResponse(BaseModel):
     webshop_url: Optional[str]
     shared_fields: list[str] = []
     sample_percent: Optional[int] = None
+    capture_fields: list[CaptureField] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -135,3 +184,8 @@ class ArticleProcessStepResponse(BaseModel):
     @classmethod
     def _shared_default(cls, v: Optional[list]) -> list[str]:
         return normalize_shared_fields(v)
+
+    @field_validator("capture_fields", mode="before")
+    @classmethod
+    def _capture_default(cls, v: Optional[list]) -> list:
+        return v or []

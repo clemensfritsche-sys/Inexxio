@@ -191,6 +191,15 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
   }
 
+  // Alle Instanzen (ERP-Feed)
+  getInstances(): Promise<Instance[]> {
+    return this.get('/api/v1/erp/instances');
+  }
+
+  getInstance(objectId: number): Promise<Instance> {
+    return this.get(`/api/v1/erp/instances/${objectId}`);
+  }
+
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
 
   getStorageLocations(): Promise<StorageLocation[]> {

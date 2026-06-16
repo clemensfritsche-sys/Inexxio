@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, User as UserIcon, FileText, Truck } from 'lucide-react';
+import { Link2, Calculator, User as UserIcon, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
 import { TextField, StatusBadge } from '@/components/erp/fields';
-import { ProcessStepper, type StepNode } from '@/components/erp/process-stepper';
+import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 
 type ViewerRole = 'staff' | 'supplier';
 type Hist = NonNullable<OrderPurchase['history']>[number];
@@ -26,9 +26,8 @@ function seed(p: OrderPurchase): Form {
 const moneyOrNull = (v: string): string | null => (v.trim().replace(',', '.') === '' ? null : v.trim().replace(',', '.'));
 const intOrNull = (v: string): number | null => (v.trim() === '' ? null : Math.trunc(Number(v)));
 const fmtMoney = (v: string | number | null | undefined): string =>
-  v == null || v === '' ? '—' : Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2 });
+  v == null || v === '' ? '—' : Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDateTime = (iso: string): string => new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
-const fmtDate = (d: Date): string => d.toLocaleDateString('de-CH');
 
 // Letzten Audit-Eintrag je Status (für Hover-Tooltip)
 function historyByStatus(history: Hist[] | undefined): Record<string, Hist> {
@@ -95,7 +94,8 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
     if (canEditOffer) {
       p.order_total = moneyOrNull(form.order_total);
       p.lead_time_days = intOrNull(form.lead_time_days);
-      p.payment_terms_days = intOrNull(form.payment_terms_days);
+      // Webshop wird sofort bezahlt → kein Zahlungsziel
+      p.payment_terms_days = isWebshop ? null : intOrNull(form.payment_terms_days);
     }
     if (canEditTracking) p.tracking_number = form.tracking_number.trim() || null;
     return p;
@@ -132,6 +132,20 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
 
   const hist = historyByStatus(po.history);
   const nodes = buildNodes(s, isWebshop, hist);
+  const delivery: Delivery | undefined = (() => {
+    if (s !== 'ordered' || !po.ordered_at || !po.lead_time_days || po.lead_time_days <= 0) return undefined;
+    const start = new Date(po.ordered_at).getTime();
+    const total = po.lead_time_days * 86400000;
+    const now = Date.now();
+    const pct = Math.max(0, Math.min(100, ((now - start) / total) * 100));
+    const remaining = Math.ceil((start + total - now) / 86400000);
+    const overdue = remaining < 0;
+    const label = remaining > 0 ? `noch ${remaining} Tag${remaining === 1 ? '' : 'e'}`
+      : remaining === 0 ? 'heute fällig'
+      : `überfällig ${-remaining} Tag${-remaining === 1 ? '' : 'e'}`;
+    const oi = Math.max(0, nodes.findIndex((n) => n.key === 'ordered'));
+    return { pct, label, overdue, oi };
+  })();
 
   const sharedRows = (po.shared_fields ?? []).map((key) => {
     let value = '—';
@@ -157,13 +171,10 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
           <StatusBadge cfg={cfg} size={11} />
         </div>
 
-        {/* Fortschritt */}
-        <div style={{ padding: '4px 2px 2px' }}>
-          <ProcessStepper nodes={nodes} />
+        {/* Fortschritt inkl. Lieferungs-Animation + Audit-Hover */}
+        <div style={{ padding: '8px 2px 2px' }}>
+          <PurchaseProgress nodes={nodes} delivery={delivery} />
         </div>
-
-        {/* Lieferzeit-Fortschritt (zwischen Bestellt und Wareneingang) */}
-        {s === 'ordered' && <DeliveryProgress orderedAt={po.ordered_at ?? null} leadDays={po.lead_time_days ?? null} />}
 
         {/* Bezugsquelle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
@@ -178,16 +189,20 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
         {canEditOffer ? (
           <>
             <TextField label="Bestellsumme netto, exkl. MWST (CHF)" value={form.order_total} onChange={(v) => set('order_total', v)} required placeholder="z. B. 1250" hint="Gesamtsumme für die ganze Bestellmenge" />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" />
-              <TextField label="Zahlungsziel (Tage)" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30" />
-            </div>
+            {isWebshop ? (
+              <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" hint="Webshop wird sofort bezahlt – kein Zahlungsziel" />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" />
+                <TextField label="Zahlungsziel (Tage)" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30" />
+              </div>
+            )}
           </>
         ) : (po.order_total != null || s !== 'requested') && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <Row k="Bestellsumme netto" v={`CHF ${fmtMoney(po.order_total)}`} />
             <Row k="Lieferzeit" v={po.lead_time_days != null ? `${po.lead_time_days} Tage` : '—'} />
-            <Row k="Zahlungsziel" v={po.payment_terms_days != null ? `${po.payment_terms_days} Tage` : '—'} />
+            {!isWebshop && <Row k="Zahlungsziel" v={po.payment_terms_days != null ? `${po.payment_terms_days} Tage` : 'sofort'} />}
           </div>
         )}
 
@@ -264,7 +279,7 @@ function hint(h: Hist | undefined): string | undefined {
   return `${h.by ?? 'System'} · ${fmtDateTime(h.at)}`;
 }
 
-function buildNodes(status: string, isWebshop: boolean, hist: Record<string, Hist>): StepNode[] {
+function buildNodes(status: string, isWebshop: boolean, hist: Record<string, Hist>): PNode[] {
   if (status === 'rejected') {
     return [
       { key: 'requested', label: 'Angefragt', state: 'done', hint: hint(hist.requested) },
@@ -283,33 +298,6 @@ function buildNodes(status: string, isWebshop: boolean, hist: Record<string, His
     state: i < current ? 'done' : i === current ? (status === 'received' ? 'done' : 'active') : 'pending',
     hint: hint(hist[f.key]),
   }));
-}
-
-function DeliveryProgress({ orderedAt, leadDays }: { orderedAt: string | null; leadDays: number | null }) {
-  if (!orderedAt || !leadDays || leadDays <= 0) return null;
-  const start = new Date(orderedAt).getTime();
-  const total = leadDays * 86400000;
-  const expected = new Date(start + total);
-  const now = Date.now();
-  const pct = Math.max(0, Math.min(100, ((now - start) / total) * 100));
-  const remaining = Math.ceil((expected.getTime() - now) / 86400000);
-  const label = remaining > 0 ? `noch ${remaining} Tag${remaining === 1 ? '' : 'e'}`
-    : remaining === 0 ? 'heute fällig'
-    : `überfällig seit ${-remaining} Tag${-remaining === 1 ? '' : 'en'}`;
-  const overdue = remaining < 0;
-  return (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#64748b' }}>
-          <Truck size={12} /> Lieferung · erwartet {fmtDate(expected)}
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: overdue ? '#dc2626' : '#2563eb' }}>{label}</span>
-      </div>
-      <div style={{ height: 5, background: '#e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: overdue ? '#dc2626' : '#2563eb', borderRadius: 3, transition: 'width 0.4s' }} />
-      </div>
-    </div>
-  );
 }
 
 function Card({ children }: { children: React.ReactNode }) {

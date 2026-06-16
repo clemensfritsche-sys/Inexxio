@@ -8,6 +8,7 @@ from ..models import (
     Article, ArticleProcessStep, AuditLog, Inspection, Instance, Order,
     PurchaseOrder, UserProfile,
 )
+from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed
 from ..schemas.instance import InstanceEmbed
 from ..schemas.order import OrderResponse, OrderStepInfo
@@ -124,6 +125,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
               else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
         ie.sample_percent = insp_step.sample_percent
         ie.required_count = required_count(db, order)
+        ie.fields = [CaptureField(**f) for f in (insp_step.capture_fields or [])]
         if insp and insp.inspector_id:
             ie.inspector_name = _supplier_name(
                 db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first()

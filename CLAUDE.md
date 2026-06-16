@@ -161,8 +161,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an).
   - **serialization** (Serialisierung): erzeugt **Instanzen** (`instances`, eigene Objektnummer) –
     Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N. Speist den **Bestand** (`services/serialization.py`).
-  - **inspection** (Eingangskontrolle): Stichprobenprüfung mit konfigurierbarem Prüfumfang in %
-    (`sample_percent`); Ergebnis passed/failed wird auf `instances.qc_status` übertragen (`services/inspection.py`).
+  - **inspection** = «**Datenerfassung**»: Stichprobenprüfung (Prüfumfang % via `sample_percent`) mit
+    konfigurierbarer Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht / Text). Ergebnis
+    (passed/failed) wird aus den erfassten Werten abgeleitet und auf `instances.qc_status` übertragen
+    (`services/inspection.py`).
+- ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
+  (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
+  Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
 - Status als **Prozess** (kein Dropdown): Entwurf →[Freigeben]→ Freigegeben →[Deaktivieren]→ Inaktiv
   (→[Reaktivieren]); gilt für Artikel/Auftrag/Lagerplatz (`lib/status-flow.ts`, `StatusFlow`)
 - Frontend: Artikel-«Prozess»-Reiter (Schritttypen hinzufügen/sortieren), **Bestand**-Reiter zeigt die

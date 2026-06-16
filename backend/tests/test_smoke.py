@@ -202,6 +202,36 @@ def test_process_step_types_and_optional_config():
     assert insp2.sample_percent == 10
 
 
+def test_capture_field_evaluation():
+    """Soll-Ist mit Toleranz, Gut/Schlecht, Text werden korrekt bewertet."""
+    from app.services.inspection import evaluate, field_ok
+
+    measure = {"key": "len", "type": "measure", "target": 100.0, "tolerance": 0.5}
+    assert field_ok(measure, 100.3) is True       # innerhalb Toleranz
+    assert field_ok(measure, 101.0) is False      # ausserhalb
+    assert field_ok(measure, "") is False         # nicht erfasst
+    assert field_ok({"key": "b", "type": "bool"}, True) is True
+    assert field_ok({"key": "b", "type": "bool"}, False) is False
+    assert field_ok({"key": "t", "type": "text"}, "ok") is True  # informativ
+
+    fields = [measure, {"key": "b", "type": "bool"}]
+    assert evaluate(fields, {"len": 100.0, "b": True}) is True
+    assert evaluate(fields, {"len": 100.0, "b": False}) is False
+
+
+def test_capture_field_normalize_assigns_keys():
+    """Erfassungsfelder bekommen eindeutige Keys; Nicht-Measure ohne Soll/Tol."""
+    from app.schemas.article_process_step import normalize_capture_fields
+
+    out = normalize_capture_fields([
+        {"label": "Länge", "type": "measure", "target": 10, "tolerance": 1},
+        {"label": "Sauber", "type": "bool", "target": 5},
+    ])
+    assert out[0]["key"] and out[1]["key"]
+    assert out[0]["key"] != out[1]["key"]
+    assert out[1]["target"] is None  # bool → kein Sollwert
+
+
 def test_required_sample_math():
     """Prüfumfang = aufgerundet Menge × % (mind. 1, höchstens Menge)."""
     from app.services.process import required_sample
