@@ -33,7 +33,7 @@ type Row =
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
-  if (row.type === 'order') return row.data.title || (row.data.article_name ? `Auftrag · ${row.data.article_name}` : 'Auftrag');
+  if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
   if (row.type === 'storage_location') return 'Lagerplatz';
   return row.data.name; // article
 }
@@ -42,7 +42,7 @@ function rowSearchText(row: Row): string {
   const id = String(row.objectId ?? '');
   if (row.type === 'user') return `${userDisplayName(row.data)} ${row.data.email} ${id}`.toLowerCase();
   if (row.type === 'article') return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();
-  if (row.type === 'order') return `${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
+  if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -50,7 +50,7 @@ function rowSearchText(row: Row): string {
 
 function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () => void }) {
   const title = rowTitle(row);
-  const hasTitle = row.type === 'user' ? title !== row.data.email : !!title && title !== 'Auftrag';
+  const hasTitle = row.type === 'user' ? title !== row.data.email : !!title;
 
   let badge: { label: string; color: string; bg: string };
   if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;

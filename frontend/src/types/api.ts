@@ -486,6 +486,8 @@ export interface components {
             supplier_id?: number | null;
             /** Webshop Url */
             webshop_url?: string | null;
+            /** Shared Fields */
+            shared_fields?: string[] | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -505,6 +507,11 @@ export interface components {
             supplier_name?: string | null;
             /** Webshop Url */
             webshop_url: string | null;
+            /**
+             * Shared Fields
+             * @default []
+             */
+            shared_fields: string[];
             /** Is Active */
             is_active: boolean;
             /**
@@ -529,6 +536,8 @@ export interface components {
             supplier_id?: number | null;
             /** Webshop Url */
             webshop_url?: string | null;
+            /** Shared Fields */
+            shared_fields?: string[] | null;
             /** Position */
             position?: number | null;
             /** Is Active */
@@ -761,10 +770,9 @@ export interface components {
         /**
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
+         *     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
          */
         OrderCreate: {
-            /** Title */
-            title?: string | null;
             /** Article Id */
             article_id?: number | null;
             /** Quantity */
@@ -810,14 +818,14 @@ export interface components {
             article_unit?: string | null;
             /** Article Weight Kg */
             article_weight_kg?: string | null;
+            /** Article Serialization */
+            article_serialization?: string | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
             /** Status */
             status?: string | null;
-            /** Title */
-            title?: string | null;
             /** Article Id */
             article_id?: number | null;
             /** Quantity */
@@ -843,24 +851,16 @@ export interface components {
             supplier_id: number | null;
             /** Status */
             status: string;
+            /** Order Total */
+            order_total: string | null;
             /** Unit Price */
             unit_price: string | null;
-            /** Transport Cost */
-            transport_cost: string | null;
-            /** Transport Included */
-            transport_included: boolean;
-            /** Other Costs */
-            other_costs: string | null;
             /** Lead Time Days */
             lead_time_days: number | null;
             /** Payment Terms Days */
             payment_terms_days: number | null;
-            /** Desired Delivery Date */
-            desired_delivery_date: string | null;
             /** Tracking Number */
             tracking_number: string | null;
-            /** Rejection Reason */
-            rejection_reason: string | null;
             /** Landed Unit Cost */
             landed_unit_cost: string | null;
             /** Webshop Url */
@@ -877,35 +877,32 @@ export interface components {
             updated_at: string;
             /** Supplier Name */
             supplier_name?: string | null;
+            /**
+             * Shared Fields
+             * @default []
+             */
+            shared_fields: string[];
         };
         /**
          * PurchaseOrderUpdate
          * @description Statusübergänge & Feldeingaben einer Bestellung.
          *
-         *     Wer welche Felder/Übergänge setzen darf, validiert ``services/purchase.py``
-         *     rollenabhängig (Lieferant vs. Mitarbeiter, supplier- vs. webshop-Modus).
+         *     Die Offerte besteht aus EINER Bestellsumme (netto); der Stückpreis wird
+         *     berechnet (read-only). Wer welche Felder/Übergänge setzen darf, validiert
+         *     ``services/purchase.py`` rollenabhängig (Lieferant vs. Mitarbeiter,
+         *     supplier- vs. webshop-Modus).
          */
         PurchaseOrderUpdate: {
             /** Status */
             status?: string | null;
-            /** Unit Price */
-            unit_price?: number | string | null;
-            /** Transport Cost */
-            transport_cost?: number | string | null;
-            /** Transport Included */
-            transport_included?: boolean | null;
-            /** Other Costs */
-            other_costs?: number | string | null;
+            /** Order Total */
+            order_total?: number | string | null;
             /** Lead Time Days */
             lead_time_days?: number | null;
             /** Payment Terms Days */
             payment_terms_days?: number | null;
-            /** Desired Delivery Date */
-            desired_delivery_date?: string | null;
             /** Tracking Number */
             tracking_number?: string | null;
-            /** Rejection Reason */
-            rejection_reason?: string | null;
         };
         /**
          * StorageLocationCreate

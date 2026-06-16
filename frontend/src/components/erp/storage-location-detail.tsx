@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Warehouse, ArrowLeft, FileText, MapPin, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput } from '@/types';
-import { STORAGE_STATUS_ORDER, storageStatusConfig } from '@/lib/storage-location';
+import { storageStatusConfig } from '@/lib/storage-location';
+import { lifecycleActions } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, StatusBadge, ErrorText } from '@/components/erp/fields';
+import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
 type Form = {
-  status: string;
   max_load_kg: string; dimensions: string;
   latitude: string; longitude: string;
   address_street: string; address_zip: string; address_city: string; address_country: string;
@@ -27,12 +27,11 @@ function joinDims(record: StorageLocation): string {
 function seedFrom(record: StorageLocation | null): Form {
   if (!record) {
     return {
-      status: 'draft', max_load_kg: '', dimensions: '',
+      max_load_kg: '', dimensions: '',
       latitude: '', longitude: '', address_street: '', address_zip: '', address_city: '', address_country: '',
     };
   }
   return {
-    status: record.status,
     max_load_kg: s(record.max_load_kg), dimensions: joinDims(record),
     latitude: s(record.latitude), longitude: s(record.longitude),
     address_street: s(record.address_street), address_zip: s(record.address_zip),
@@ -99,7 +98,21 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   const [dirty, setDirty] = useState(false);
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function changeStatus(target: string) {
+    if (!record) return;
+    setStatusBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.updateStorageLocation(record.object_id as number, { status: target as StorageLocationStatus }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -136,7 +149,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       if (isCreate) {
         onSaved(await api.createStorageLocation(input));
       } else {
-        onSaved(await api.updateStorageLocation(record.object_id as number, { ...input, status: form.status as StorageLocationStatus }));
+        onSaved(await api.updateStorageLocation(record.object_id as number, input));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -167,13 +180,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
               {isCreate ? (
                 <StatusBadge cfg={storageStatusConfig('draft')} />
               ) : (
-                <select
-                  value={form.status}
-                  onChange={(e) => set('status', e.target.value)}
-                  style={{ fontSize: 12, fontWeight: 600, padding: '2px 6px', borderRadius: 6, border: '1px solid #E2E8F0', background: '#fff', color: '#475569', cursor: 'pointer' }}
-                >
-                  {STORAGE_STATUS_ORDER.map((st) => <option key={st} value={st}>{storageStatusConfig(st).label}</option>)}
-                </select>
+                <StatusFlow cfg={storageStatusConfig(record.status)} actions={lifecycleActions(record.status)} busy={statusBusy} onAction={changeStatus} />
               )}
             </div>
           </div>

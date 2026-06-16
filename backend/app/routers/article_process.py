@@ -88,6 +88,7 @@ async def create_step(
         mode=data.mode,
         supplier_id=data.supplier_id if data.mode == "supplier" else None,
         webshop_url=data.webshop_url if data.mode == "webshop" else None,
+        shared_fields=data.shared_fields,
     )
     db.add(step)
     db.flush()

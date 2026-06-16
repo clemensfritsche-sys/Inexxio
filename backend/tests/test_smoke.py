@@ -99,25 +99,53 @@ def test_object_id_allocator_shared_across_types():
 
 
 def test_landed_unit_cost_calculation():
-    """Einstandspreis netto/Stück = (Stückpreis × Menge + Transport + Sonstiges) ÷ Menge."""
+    """Einstandspreis & Stückpreis netto = Bestellsumme ÷ Menge."""
     from decimal import Decimal
 
     from app.models import PurchaseOrder
-    from app.services.purchase import compute_landed_unit_cost
+    from app.services.purchase import compute_landed_unit_cost, compute_unit_price
 
-    po = PurchaseOrder(
-        order_id=1, article_id=1, quantity=5,
-        unit_price=Decimal("10.00"), transport_cost=Decimal("25.00"),
-        transport_included=False, other_costs=Decimal("0"),
-    )
-    # (10*5 + 25) / 5 = 15.0000
+    po = PurchaseOrder(order_id=1, article_id=1, quantity=5, order_total=Decimal("75.00"))
+    # 75 / 5 = 15
     assert compute_landed_unit_cost(po) == Decimal("15.0000")
+    assert compute_unit_price(po) == Decimal("15.00")
 
-    po.transport_included = True  # Transport im Stückpreis → wird ignoriert
-    assert compute_landed_unit_cost(po) == Decimal("10.0000")
-
-    po.unit_price = None  # ohne Stückpreis kein Einstandspreis
+    po.order_total = None  # ohne Bestellsumme kein Preis
     assert compute_landed_unit_cost(po) is None
+    assert compute_unit_price(po) is None
+
+
+def test_supplier_fields_mandatory_always_included():
+    """Pflicht-Stammdaten sind für den Lieferanten immer sichtbar."""
+    from app.services.article_fields import MANDATORY_FIELD_KEYS, normalize_shared_fields
+
+    assert set(normalize_shared_fields(None)) >= set(MANDATORY_FIELD_KEYS)
+    assert set(normalize_shared_fields([])) >= set(MANDATORY_FIELD_KEYS)
+    out = normalize_shared_fields(["unknown_key", "name"])
+    assert "unknown_key" not in out                      # unbekannt verworfen
+    assert set(MANDATORY_FIELD_KEYS) <= set(out)         # Pflicht erzwungen
+
+
+def test_purchase_responsibility_separation():
+    """Lieferant offeriert/bestätigt, Besteller gibt frei/nimmt Ware an – getrennt."""
+    from app.models import PurchaseOrder, UserProfile
+    from app.services.purchase import _transition_allowed
+
+    staff = UserProfile(role="employee", id=1)
+    supplier = UserProfile(role="supplier", id=2)
+    po = PurchaseOrder(order_id=1, article_id=1, quantity=1, mode="supplier", supplier_id=2)
+
+    assert _transition_allowed(po, "quoted", supplier) is True
+    assert _transition_allowed(po, "quoted", staff) is False
+    assert _transition_allowed(po, "approved", staff) is True
+    assert _transition_allowed(po, "approved", supplier) is False
+    assert _transition_allowed(po, "received", staff) is True
+    assert _transition_allowed(po, "received", supplier) is False
+
+    po.mode = "webshop"
+    po.supplier_id = None
+    assert _transition_allowed(po, "quoted", staff) is True
+    assert _transition_allowed(po, "approved", staff) is True
 
 
 def test_purchase_order_transitions_map():
@@ -141,7 +169,7 @@ def test_purchase_order_update_schema_validates_status():
     with pytest.raises(ValueError):
         PurchaseOrderUpdate(status="erledigt")
     with pytest.raises(ValueError):
-        PurchaseOrderUpdate(unit_price=Decimal("-1"))
+        PurchaseOrderUpdate(order_total=Decimal("-1"))
 
 
 def test_process_step_requires_consistent_mode():

@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, Integer, Numeric, String
+from sqlalchemy import BigInteger, Date, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -16,11 +16,15 @@ class PurchaseOrder(Base, TimestampMixin):
     sondern der Ausführungsstand eines Auftrags-Prozessschritts. Referenziert
     wird sie über die Auftragsnummer (``order_id``).
 
+    Verantwortlichkeiten (Modus 'supplier'): Offerte/Bestätigung = Lieferant,
+    Freigabe/Ablehnung/Wareneingang = Besteller. Im Modus 'webshop' führt der
+    Mitarbeiter alle Schritte.
+
     Status-Ablauf:
         requested  → Angefragt    (angelegt, wartet auf Offerte des Lieferanten)
-        quoted     → Offeriert    (Stückpreis/Transport/Lieferzeit erfasst)
-        approved   → Freigegeben  (wir akzeptieren die Offerte)
-        rejected   → Abgelehnt    (wir lehnen ab)
+        quoted     → Offeriert    (Bestellsumme/Lieferzeit erfasst)
+        approved   → Freigegeben  (Besteller akzeptiert die Offerte)
+        rejected   → Abgelehnt    (Besteller lehnt ab)
         confirmed  → Bestätigt    (Lieferant bestätigt, ggf. Tracking)
         received   → Wareneingang (Ware ist eingetroffen → Schritt erledigt)
     """
@@ -40,18 +44,16 @@ class PurchaseOrder(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
 
-    # Offerte
-    unit_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
-    transport_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
-    transport_included: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    other_costs: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
+    # Offerte: der Lieferant erfasst EINE Bestellsumme (netto, exkl. MWST).
+    # Der Preis pro Stück (unit_price) wird daraus automatisch berechnet.
+    order_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
+    unit_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))  # = order_total / quantity (read-only)
     lead_time_days: Mapped[Optional[int]] = mapped_column(Integer)
     payment_terms_days: Mapped[Optional[int]] = mapped_column(Integer)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date)
 
     # Abwicklung
     tracking_number: Mapped[Optional[str]] = mapped_column(String(100))
-    rejection_reason: Mapped[Optional[str]] = mapped_column(String(500))
 
     # Vom System berechneter Einstandspreis netto/Stück
     landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))

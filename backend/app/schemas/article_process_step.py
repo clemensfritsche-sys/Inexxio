@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from ..services.article_fields import normalize_shared_fields
+
 ALLOWED_STEP_TYPES = ("purchase",)
 ALLOWED_MODES = ("supplier", "webshop")
 
@@ -20,6 +22,12 @@ class ArticleProcessStepCreate(BaseModel):
     mode: str = "supplier"
     supplier_id: Optional[int] = None
     webshop_url: Optional[str] = None
+    shared_fields: Optional[list[str]] = None
+
+    @field_validator("shared_fields")
+    @classmethod
+    def _shared_ok(cls, v: Optional[list[str]]) -> list[str]:
+        return normalize_shared_fields(v)
 
     @field_validator("step_type")
     @classmethod
@@ -55,8 +63,16 @@ class ArticleProcessStepUpdate(BaseModel):
     mode: Optional[str] = None
     supplier_id: Optional[int] = None
     webshop_url: Optional[str] = None
+    shared_fields: Optional[list[str]] = None
     position: Optional[int] = None
     is_active: Optional[bool] = None
+
+    @field_validator("shared_fields")
+    @classmethod
+    def _shared_ok(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        if v is None:
+            return None
+        return normalize_shared_fields(v)
 
     @field_validator("mode")
     @classmethod
@@ -84,6 +100,12 @@ class ArticleProcessStepResponse(BaseModel):
     supplier_id: Optional[int]
     supplier_name: Optional[str] = None  # vom Router denormalisiert
     webshop_url: Optional[str]
+    shared_fields: list[str] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("shared_fields", mode="before")
+    @classmethod
+    def _shared_default(cls, v: Optional[list]) -> list[str]:
+        return normalize_shared_fields(v)

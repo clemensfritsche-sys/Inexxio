@@ -66,7 +66,6 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
 };
 
 export interface OrderInput {
-  title?: string | null;
   article_id?: number | null;
   quantity?: number | null;
   desired_delivery_date?: string | null;
@@ -74,7 +73,6 @@ export interface OrderInput {
 
 export type OrderUpdateInput = {
   status?: OrderStatus;
-  title?: string | null;
   article_id?: number | null;
   quantity?: number | null;
   desired_delivery_date?: string | null;
@@ -96,12 +94,14 @@ export interface ArticleProcessStepInput {
   mode: ProcessStepMode;
   supplier_id?: number | null;
   webshop_url?: string | null;
+  shared_fields?: string[] | null;
 }
 
 export interface ArticleProcessStepUpdateInput {
   mode?: ProcessStepMode;
   supplier_id?: number | null;
   webshop_url?: string | null;
+  shared_fields?: string[] | null;
   position?: number;
   is_active?: boolean;
 }
@@ -113,15 +113,10 @@ export type PurchaseOrderStatus =
 
 export interface PurchaseOrderUpdateInput {
   status?: PurchaseOrderStatus;
-  unit_price?: number | string | null;
-  transport_cost?: number | string | null;
-  transport_included?: boolean;
-  other_costs?: number | string | null;
+  order_total?: number | string | null;
   lead_time_days?: number | null;
   payment_terms_days?: number | null;
-  desired_delivery_date?: string | null;
   tracking_number?: string | null;
-  rejection_reason?: string | null;
 }
 
 // ─── Storage Location (Lagerplatz) ────────────────────────────────────────────

@@ -11,20 +11,12 @@ ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
 
 
 class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'."""
+    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
+    Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag»."""
 
-    title: Optional[str] = None
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
-
-    @field_validator("title")
-    @classmethod
-    def _title_trim(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        return v or None
 
     @field_validator("quantity")
     @classmethod
@@ -38,7 +30,6 @@ class OrderCreate(BaseModel):
 
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
-    title: Optional[str] = None
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
@@ -52,13 +43,6 @@ class OrderUpdate(BaseModel):
         if v not in ALLOWED_STATUS:
             raise ValueError(f"Status muss eine von {', '.join(ALLOWED_STATUS)} sein")
         return v
-
-    @field_validator("title")
-    @classmethod
-    def _title_trim(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        return v.strip() or None
 
     @field_validator("quantity")
     @classmethod
@@ -90,4 +74,5 @@ class OrderResponse(BaseModel):
     article_size: Optional[str] = None
     article_unit: Optional[str] = None
     article_weight_kg: Optional[Decimal] = None
+    article_serialization: Optional[str] = None
     purchase: Optional[PurchaseEmbed] = None

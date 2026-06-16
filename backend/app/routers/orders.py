@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
-from ..models import Order, PurchaseOrder, UserProfile
+from ..models import Article, Order, PurchaseOrder, UserProfile
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..services.admin import log_audit
@@ -25,6 +25,17 @@ def _get_staff_order(db: Session, object_id: int) -> Order:
     return order
 
 
+def _validate_article(db: Session, article_id: int | None) -> None:
+    """Im Auftrag dürfen nur freigegebene Artikel referenziert werden."""
+    if article_id is None:
+        return
+    art = db.query(Article).filter(Article.id == article_id, Article.is_active == True).first()
+    if not art:
+        raise HTTPException(400, detail="Artikel nicht gefunden")
+    if art.status != "released":
+        raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
+
+
 @router.get("", response_model=list[OrderResponse])
 async def list_orders(
     db: Session = Depends(get_db),
@@ -40,10 +51,10 @@ async def create_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
+    _validate_article(db, data.article_id)
     order = Order(
         object_id=next_object_id(db),
         status="draft",
-        title=data.title,
         article_id=data.article_id,
         quantity=data.quantity,
         desired_delivery_date=data.desired_delivery_date,
@@ -78,6 +89,10 @@ async def update_order(
 ):
     order = _get_staff_order(db, object_id)
     was_released = order.status == "released"
+
+    payload_preview = data.model_dump(exclude_unset=True)
+    if "article_id" in payload_preview:
+        _validate_article(db, payload_preview["article_id"])
 
     for key, value in data.model_dump(exclude_unset=True).items():
         old_val = getattr(order, key, None)

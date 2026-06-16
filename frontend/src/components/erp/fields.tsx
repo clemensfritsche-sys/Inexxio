@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertCircle } from 'lucide-react';
+import type { StatusAction, StatusTone } from '@/lib/status-flow';
 
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
 
@@ -95,6 +96,42 @@ export function StatusBadge({ cfg, size = 10 }: { cfg: { label: string; color: s
     }}>
       {cfg.label}
     </span>
+  );
+}
+
+function statusActionStyle(tone: StatusTone = 'neutral', disabled?: boolean): React.CSSProperties {
+  const base: React.CSSProperties = {
+    padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
+  };
+  if (tone === 'primary') return { ...base, border: 'none', background: '#2563eb', color: '#fff' };
+  if (tone === 'danger') return { ...base, border: '1px solid #fecaca', background: '#fff', color: '#dc2626' };
+  return { ...base, border: '1px solid #e2e8f0', background: '#fff', color: '#475569' };
+}
+
+/** Status-Badge + Prozess-Buttons (Freigeben / Deaktivieren / Reaktivieren). */
+export function StatusFlow({ cfg, actions = [], busy, onAction }: {
+  cfg: { label: string; color: string; bg: string };
+  actions?: StatusAction[];
+  busy?: boolean;
+  onAction?: (target: string) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <StatusBadge cfg={cfg} />
+      {actions.map((a) => (
+        <button
+          key={a.target}
+          type="button"
+          title={a.hint}
+          disabled={busy || a.disabled}
+          onClick={() => onAction?.(a.target)}
+          style={statusActionStyle(a.tone, busy || a.disabled)}
+        >
+          {a.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

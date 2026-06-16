@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -11,20 +11,17 @@ ALLOWED_STATUS = ("requested", "quoted", "approved", "rejected", "confirmed", "r
 class PurchaseOrderUpdate(BaseModel):
     """Statusübergänge & Feldeingaben einer Bestellung.
 
-    Wer welche Felder/Übergänge setzen darf, validiert ``services/purchase.py``
-    rollenabhängig (Lieferant vs. Mitarbeiter, supplier- vs. webshop-Modus).
+    Die Offerte besteht aus EINER Bestellsumme (netto); der Stückpreis wird
+    berechnet (read-only). Wer welche Felder/Übergänge setzen darf, validiert
+    ``services/purchase.py`` rollenabhängig (Lieferant vs. Mitarbeiter,
+    supplier- vs. webshop-Modus).
     """
 
     status: Optional[str] = None
-    unit_price: Optional[Decimal] = None
-    transport_cost: Optional[Decimal] = None
-    transport_included: Optional[bool] = None
-    other_costs: Optional[Decimal] = None
+    order_total: Optional[Decimal] = None
     lead_time_days: Optional[int] = None
     payment_terms_days: Optional[int] = None
-    desired_delivery_date: Optional[date] = None
     tracking_number: Optional[str] = None
-    rejection_reason: Optional[str] = None
 
     @field_validator("status")
     @classmethod
@@ -35,7 +32,7 @@ class PurchaseOrderUpdate(BaseModel):
             raise ValueError(f"Status muss eine von {', '.join(ALLOWED_STATUS)} sein")
         return v
 
-    @field_validator("unit_price", "transport_cost", "other_costs")
+    @field_validator("order_total")
     @classmethod
     def _money_non_negative(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         if v is None:
@@ -53,7 +50,7 @@ class PurchaseOrderUpdate(BaseModel):
             raise ValueError("Anzahl Tage darf nicht negativ sein")
         return v
 
-    @field_validator("tracking_number", "rejection_reason")
+    @field_validator("tracking_number")
     @classmethod
     def _trim(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
@@ -75,15 +72,11 @@ class PurchaseEmbed(BaseModel):
     supplier_id: Optional[int]
     status: str
 
-    unit_price: Optional[Decimal]
-    transport_cost: Optional[Decimal]
-    transport_included: bool
-    other_costs: Optional[Decimal]
+    order_total: Optional[Decimal]
+    unit_price: Optional[Decimal]      # = order_total / Menge (berechnet)
     lead_time_days: Optional[int]
     payment_terms_days: Optional[int]
-    desired_delivery_date: Optional[date]
     tracking_number: Optional[str]
-    rejection_reason: Optional[str]
     landed_unit_cost: Optional[Decimal]
     webshop_url: Optional[str]
 
@@ -92,3 +85,5 @@ class PurchaseEmbed(BaseModel):
 
     # Denormalisiert vom Router
     supplier_name: Optional[str] = None
+    # Artikel-Stammdaten-Keys, die der Lieferant sehen darf
+    shared_fields: list[str] = []

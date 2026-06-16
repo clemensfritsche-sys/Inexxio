@@ -152,14 +152,20 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: Admin Einstellungen + Benutzerverwaltung
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
 - Backend: Prozessschritt-Modul «Purchase» – Artikel-Prozessdefinition (`article_process_steps`,
-  Modus Lieferant/Webshop). Die Bestellung (`purchase_orders`) ist die **Ausführung unter dem
-  Auftrag** (KEINE eigene Objektnummer), Status requested→quoted→approved/rejected→confirmed→received,
-  Einstandspreis-Rechnung. Auftragsfreigabe stösst den Prozess an; der Auftrag wird **automatisch
-  abgeschlossen** (`status=completed`), wenn alle Prozessschritte erledigt sind (`services/purchase.py`,
+  Modus Lieferant/Webshop, wählbare für den Lieferanten sichtbare Stammdaten `shared_fields`;
+  Pflichtfelder immer dabei). Die Bestellung (`purchase_orders`) ist die **Ausführung unter dem
+  Auftrag** (KEINE eigene Objektnummer), Status requested→quoted→approved/rejected→confirmed→received.
+  Offerte = **eine Bestellsumme** (netto), Stück- & Einstandspreis = Bestellsumme÷Menge (berechnet).
+  **Saubere Verantwortungstrennung**: Lieferant offeriert/bestätigt, Besteller gibt frei/lehnt ab/
+  bestätigt Wareneingang (im Webshop-Modus macht alles der Mitarbeiter). Auftrag wird **automatisch
+  abgeschlossen** (`status=completed`), wenn alle Schritte erledigt sind (`services/purchase.py`,
   `services/orders.py`)
-- Frontend: Artikel-«Prozess»-Reiter (Schritt «Bestellung» hinterlegen), Auftrag mit Artikel+Menge
-  + Freigabe; der Prozess wird **im Auftrag** als Bereich «Beschaffung» geführt (rollenabhängig
-  Lieferant vs. Mitarbeiter), Lieferant-Zugang zum ERP (sieht nur eigene Aufträge)
+- Status als **Prozess** (kein Dropdown): Entwurf →[Freigeben]→ Freigegeben →[Deaktivieren]→ Inaktiv
+  (→[Reaktivieren]); gilt für Artikel/Auftrag/Lagerplatz (`lib/status-flow.ts`, `StatusFlow`)
+- Frontend: Artikel-«Prozess»-Reiter (Schritt «Bestellung» + sichtbare Stammdaten), Auftrag heisst
+  starr «Auftrag» (kein Name), nur **freigegebene** Artikel referenzierbar, Menge mit Artikel-Einheit,
+  Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe read-only; der
+  Prozess wird **im Auftrag** als Bereich «Beschaffung» geführt, Lieferant-Zugang (sieht nur eigene Aufträge)
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** (Purchase-Schritt) sind gefüllt; **Bestand** ist
 > Platzhalter. Die Bestellung läuft unter der Auftragsnummer (kein eigenes Objekt). E-Mail-Versand ist

@@ -1,6 +1,7 @@
 from typing import Optional
 
 from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -30,3 +31,7 @@ class ArticleProcessStep(Base, TimestampMixin):
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)  # supplier | webshop
     supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     webshop_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # Welche Artikel-Stammdaten der Lieferant sehen darf (Liste von Feld-Keys).
+    # NULL ⇒ nur die Pflichtfelder. Pflichtfelder sind immer enthalten.
+    shared_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)

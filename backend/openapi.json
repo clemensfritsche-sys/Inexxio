@@ -1601,6 +1601,20 @@
               }
             ],
             "title": "Webshop Url"
+          },
+          "shared_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Fields"
           }
         },
         "type": "object",
@@ -1661,6 +1675,14 @@
               }
             ],
             "title": "Webshop Url"
+          },
+          "shared_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Fields",
+            "default": []
           },
           "is_active": {
             "type": "boolean",
@@ -1726,6 +1748,20 @@
               }
             ],
             "title": "Webshop Url"
+          },
+          "shared_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Fields"
           },
           "position": {
             "anyOf": [
@@ -2720,17 +2756,6 @@
       },
       "OrderCreate": {
         "properties": {
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
           "article_id": {
             "anyOf": [
               {
@@ -2768,7 +2793,7 @@
         },
         "type": "object",
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\nDer Auftrag trägt keinen freien Namen – er heisst immer «Auftrag»."
       },
       "OrderResponse": {
         "properties": {
@@ -2905,6 +2930,17 @@
             ],
             "title": "Article Weight Kg"
           },
+          "article_serialization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Serialization"
+          },
           "purchase": {
             "anyOf": [
               {
@@ -2943,17 +2979,6 @@
               }
             ],
             "title": "Status"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
           },
           "article_id": {
             "anyOf": [
@@ -3029,6 +3054,17 @@
             "type": "string",
             "title": "Status"
           },
+          "order_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Total"
+          },
           "unit_price": {
             "anyOf": [
               {
@@ -3039,32 +3075,6 @@
               }
             ],
             "title": "Unit Price"
-          },
-          "transport_cost": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport Cost"
-          },
-          "transport_included": {
-            "type": "boolean",
-            "title": "Transport Included"
-          },
-          "other_costs": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Other Costs"
           },
           "lead_time_days": {
             "anyOf": [
@@ -3088,18 +3098,6 @@
             ],
             "title": "Payment Terms Days"
           },
-          "desired_delivery_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desired Delivery Date"
-          },
           "tracking_number": {
             "anyOf": [
               {
@@ -3110,17 +3108,6 @@
               }
             ],
             "title": "Tracking Number"
-          },
-          "rejection_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rejection Reason"
           },
           "landed_unit_cost": {
             "anyOf": [
@@ -3164,6 +3151,14 @@
               }
             ],
             "title": "Supplier Name"
+          },
+          "shared_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Fields",
+            "default": []
           }
         },
         "type": "object",
@@ -3172,15 +3167,11 @@
           "mode",
           "supplier_id",
           "status",
+          "order_total",
           "unit_price",
-          "transport_cost",
-          "transport_included",
-          "other_costs",
           "lead_time_days",
           "payment_terms_days",
-          "desired_delivery_date",
           "tracking_number",
-          "rejection_reason",
           "landed_unit_cost",
           "webshop_url",
           "created_at",
@@ -3202,7 +3193,7 @@
             ],
             "title": "Status"
           },
-          "unit_price": {
+          "order_total": {
             "anyOf": [
               {
                 "type": "number"
@@ -3214,46 +3205,7 @@
                 "type": "null"
               }
             ],
-            "title": "Unit Price"
-          },
-          "transport_cost": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport Cost"
-          },
-          "transport_included": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Transport Included"
-          },
-          "other_costs": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Other Costs"
+            "title": "Order Total"
           },
           "lead_time_days": {
             "anyOf": [
@@ -3277,18 +3229,6 @@
             ],
             "title": "Payment Terms Days"
           },
-          "desired_delivery_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Desired Delivery Date"
-          },
           "tracking_number": {
             "anyOf": [
               {
@@ -3299,22 +3239,11 @@
               }
             ],
             "title": "Tracking Number"
-          },
-          "rejection_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Rejection Reason"
           }
         },
         "type": "object",
         "title": "PurchaseOrderUpdate",
-        "description": "Statusübergänge & Feldeingaben einer Bestellung.\n\nWer welche Felder/Übergänge setzen darf, validiert ``services/purchase.py``\nrollenabhängig (Lieferant vs. Mitarbeiter, supplier- vs. webshop-Modus)."
+        "description": "Statusübergänge & Feldeingaben einer Bestellung.\n\nDie Offerte besteht aus EINER Bestellsumme (netto); der Stückpreis wird\nberechnet (read-only). Wer welche Felder/Übergänge setzen darf, validiert\n``services/purchase.py`` rollenabhängig (Lieferant vs. Mitarbeiter,\nsupplier- vs. webshop-Modus)."
       },
       "StorageLocationCreate": {
         "properties": {

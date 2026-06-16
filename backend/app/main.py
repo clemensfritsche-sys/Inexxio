@@ -58,6 +58,8 @@ _COLUMN_SAFETY_NET = (
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "INTEGER"),
     ("orders", "desired_delivery_date", "DATE"),
+    ("purchase_orders", "order_total", "NUMERIC(12,2)"),
+    ("article_process_steps", "shared_fields", "JSONB"),
 )
 
 

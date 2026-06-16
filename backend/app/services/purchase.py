@@ -25,14 +25,10 @@ _FROM = {
 }
 
 _STAFF_ROLES = ("admin", "employee")
-_SUPPLIER_OFFER_FIELDS = {
-    "unit_price", "transport_cost", "transport_included",
-    "other_costs", "lead_time_days", "payment_terms_days",
-}
-_SUPPLIER_CONFIRM_FIELDS = {"tracking_number", "lead_time_days"}
-_STAFF_FIELDS = _SUPPLIER_OFFER_FIELDS | {
-    "desired_delivery_date", "tracking_number", "rejection_reason",
-}
+# Offerte (Verantwortung Lieferant bzw. Mitarbeiter im Webshop-Modus)
+_OFFER_FIELDS = {"order_total", "lead_time_days", "payment_terms_days"}
+# Bestätigung/Versand (gleiche Verantwortung wie Offerte)
+_CONFIRM_FIELDS = {"tracking_number", "lead_time_days"}
 
 
 def _is_staff(user: UserProfile) -> bool:
@@ -43,14 +39,25 @@ def _is_owner_supplier(po: PurchaseOrder, user: UserProfile) -> bool:
     return user.role == "supplier" and po.supplier_id == user.id
 
 
+def _offer_editor(po: PurchaseOrder, user: UserProfile) -> bool:
+    """Wer die Offerte erfasst: im Webshop-Modus der Mitarbeiter, sonst der Lieferant."""
+    if po.mode == "webshop":
+        return _is_staff(user)
+    return _is_owner_supplier(po, user)
+
+
 def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
-    """Einstandspreis netto/Stück = (Stückpreis × Menge + Transport + Sonstiges) ÷ Menge."""
-    if po.unit_price is None or not po.quantity:
+    """Einstandspreis netto/Stück = Bestellsumme ÷ Menge (alles netto, exkl. MWST)."""
+    if po.order_total is None or not po.quantity:
         return None
-    transport = Decimal(0) if po.transport_included else (po.transport_cost or Decimal(0))
-    other = po.other_costs or Decimal(0)
-    total = po.unit_price * po.quantity + transport + other
-    return (total / po.quantity).quantize(Decimal("0.0001"))
+    return (po.order_total / po.quantity).quantize(Decimal("0.0001"))
+
+
+def compute_unit_price(po: PurchaseOrder) -> Optional[Decimal]:
+    """Preis pro Stück (netto) = Bestellsumme ÷ Menge – read-only, abgeleitet."""
+    if po.order_total is None or not po.quantity:
+        return None
+    return (po.order_total / po.quantity).quantize(Decimal("0.01"))
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
@@ -133,23 +140,30 @@ def maybe_complete_order(db: Session, order: Order) -> None:
 
 
 def _editable_fields(po: PurchaseOrder, user: UserProfile) -> set[str]:
-    if _is_staff(user):
-        return set(_STAFF_FIELDS)
-    if _is_owner_supplier(po, user):
-        fields: set[str] = set()
+    """Felder, die der Aufrufer in diesem Status setzen darf.
+
+    Nur die für die Offerte/Bestätigung zuständige Seite (Lieferant bzw. im
+    Webshop-Modus der Mitarbeiter) darf diese Felder bearbeiten. Der Besteller
+    gibt sie NICHT ein – saubere Trennung der Verantwortlichkeiten.
+    """
+    fields: set[str] = set()
+    if _offer_editor(po, user):
         if po.status in ("requested", "quoted"):
-            fields |= _SUPPLIER_OFFER_FIELDS
+            fields |= _OFFER_FIELDS
         if po.status in ("approved", "confirmed"):
-            fields |= _SUPPLIER_CONFIRM_FIELDS
-        return fields
-    return set()
+            fields |= _CONFIRM_FIELDS
+    return fields
 
 
 def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bool:
-    if _is_staff(user):
-        return True
-    if _is_owner_supplier(po, user):
-        return target in ("quoted", "confirmed") and po.mode == "supplier"
+    if po.mode == "webshop":
+        # kein externer Lieferant – der Mitarbeiter führt den ganzen Schritt
+        return _is_staff(user)
+    # supplier-Modus: saubere Trennung der Verantwortlichkeiten
+    if target in ("quoted", "confirmed"):
+        return _is_owner_supplier(po, user)        # Lieferant
+    if target in ("approved", "rejected", "received"):
+        return _is_staff(user)                      # Besteller
     return False
 
 
@@ -160,8 +174,10 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
         raise HTTPException(400, detail=f"Übergang {po.status} → {target} ist nicht erlaubt")
     if not _transition_allowed(po, target, user):
         raise HTTPException(403, detail="Keine Berechtigung für diesen Schritt")
-    if target == "quoted" and po.unit_price is None:
-        raise HTTPException(400, detail="Stückpreis ist für die Offerte erforderlich")
+    if target == "quoted":
+        if po.order_total is None:
+            raise HTTPException(400, detail="Bestellsumme ist für die Offerte erforderlich")
+        po.unit_price = compute_unit_price(po)
     if target == "approved":
         lc = compute_landed_unit_cost(po)
         po.landed_unit_cost = lc

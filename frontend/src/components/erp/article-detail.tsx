@@ -5,12 +5,13 @@ import { Package, ArrowLeft, FileText, Workflow, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleUpdateInput, UserProfile } from '@/types';
 import {
-  ARTICLE_UNITS, SERIALIZATION_OPTIONS, ARTICLE_STATUS_ORDER, statusConfig,
+  ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
+import { lifecycleActions } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, Placeholder, Label } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Placeholder, Label } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
@@ -21,13 +22,13 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'bestand', label: 'Bestand', icon: Boxes },
 ];
 
-type Form = { name: string; unit: string; serialization: string; size: string; weight_kg: string; status: string };
+type Form = { name: string; unit: string; serialization: string; size: string; weight_kg: string };
 
 function seedFrom(record: Article | null): Form {
-  if (!record) return { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', status: 'draft' };
+  if (!record) return { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '' };
   return {
     name: record.name, unit: record.unit, serialization: record.serialization,
-    size: record.size, weight_kg: record.weight_kg, status: record.status,
+    size: record.size, weight_kg: record.weight_kg,
   };
 }
 
@@ -47,6 +48,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [touched, setTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -66,9 +68,21 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
     form.unit !== record.unit ||
     form.serialization !== record.serialization ||
     normalizeSize(form.size) !== record.size ||
-    normalizeWeight(form.weight_kg) !== record.weight_kg ||
-    form.status !== record.status
+    normalizeWeight(form.weight_kg) !== record.weight_kg
   ));
+
+  async function changeStatus(target: string) {
+    if (!record) return;
+    setStatusBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.updateArticle(record.object_id as number, { status: target as ArticleStatus }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
 
   async function save() {
     setTouched(true);
@@ -92,7 +106,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         if (form.serialization !== record.serialization) payload.serialization = form.serialization as ArticleSerialization;
         if (normalizeSize(form.size) !== record.size) payload.size = normalizeSize(form.size);
         if (normalizeWeight(form.weight_kg) !== record.weight_kg) payload.weight_kg = normalizeWeight(form.weight_kg);
-        if (form.status !== record.status) payload.status = form.status as ArticleStatus;
         const updated = await api.updateArticle(record.object_id as number, payload);
         onSaved(updated);
       }
@@ -122,13 +135,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <select
-                  value={form.status}
-                  onChange={(e) => set('status', e.target.value)}
-                  style={{ fontSize: 12, fontWeight: 600, padding: '2px 6px', borderRadius: 6, border: '1px solid #E2E8F0', background: '#fff', color: '#475569', cursor: 'pointer' }}
-                >
-                  {ARTICLE_STATUS_ORDER.map((s) => <option key={s} value={s}>{statusConfig(s).label}</option>)}
-                </select>
+                <StatusFlow cfg={statusConfig(record.status)} actions={lifecycleActions(record.status)} busy={statusBusy} onAction={changeStatus} />
               )}
             </div>
           </div>
