@@ -13,7 +13,7 @@ from ..services.objects import next_object_id
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
 # Bestellstatus, deren Preise als „akzeptiert" in die Stückpreis-Spanne zählen
-_PRICED_STATUS = ("approved", "confirmed", "received")
+_PRICED_STATUS = ("ordered", "received")
 
 
 def _get_active(db: Session, object_id: int) -> Article:

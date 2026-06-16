@@ -62,7 +62,7 @@ async def list_steps(
     steps = (
         db.query(ArticleProcessStep)
         .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
-        .order_by(ArticleProcessStep.position)
+        .order_by(ArticleProcessStep.id)
         .all()
     )
     return [_to_response(db, s) for s in steps]
@@ -78,14 +78,8 @@ async def create_step(
     article = _get_article(db, object_id)
     ensure_article_draft(article)
     _validate_supplier(db, data.supplier_id)
-    count = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
-        .count()
-    )
     step = ArticleProcessStep(
         article_id=article.id,
-        position=count + 1,
         step_type=data.step_type,
         mode=data.mode,
         supplier_id=data.supplier_id if data.mode == "supplier" else None,

@@ -495,8 +495,6 @@ export interface components {
             id: number;
             /** Article Id */
             article_id: number;
-            /** Position */
-            position: number;
             /** Step Type */
             step_type: string;
             /** Mode */
@@ -538,8 +536,6 @@ export interface components {
             webshop_url?: string | null;
             /** Shared Fields */
             shared_fields?: string[] | null;
-            /** Position */
-            position?: number | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -844,7 +840,8 @@ export interface components {
          * @description Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.
          *
          *     Bewusst OHNE eigene Objektnummer: die Bestellung läuft unter der
-         *     Auftragsnummer und ist kein eigenständiges Objekt.
+         *     Auftragsnummer und ist kein eigenständiges Objekt. Der Stückpreis wird aus
+         *     ``order_total ÷ Menge`` berechnet (nicht gespeichert).
          */
         PurchaseEmbed: {
             /** Id */
@@ -857,14 +854,14 @@ export interface components {
             status: string;
             /** Order Total */
             order_total: string | null;
-            /** Unit Price */
-            unit_price: string | null;
             /** Lead Time Days */
             lead_time_days: number | null;
             /** Payment Terms Days */
             payment_terms_days: number | null;
             /** Tracking Number */
             tracking_number: string | null;
+            /** Ordered At */
+            ordered_at: string | null;
             /** Landed Unit Cost */
             landed_unit_cost: string | null;
             /** Webshop Url */
@@ -886,6 +883,26 @@ export interface components {
              * @default []
              */
             shared_fields: string[];
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["PurchaseHistoryEntry"][];
+        };
+        /**
+         * PurchaseHistoryEntry
+         * @description Audit-Eintrag eines Statuswechsels (für Hover-Anzeige im Stepper).
+         */
+        PurchaseHistoryEntry: {
+            /** Status */
+            status: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** By */
+            by?: string | null;
         };
         /**
          * PurchaseOrderUpdate

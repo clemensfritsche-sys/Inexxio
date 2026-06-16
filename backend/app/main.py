@@ -59,6 +59,7 @@ _COLUMN_SAFETY_NET = (
     ("orders", "quantity", "INTEGER"),
     ("orders", "desired_delivery_date", "DATE"),
     ("purchase_orders", "order_total", "NUMERIC(12,2)"),
+    ("purchase_orders", "ordered_at", "TIMESTAMP WITH TIME ZONE"),
     ("article_process_steps", "shared_fields", "JSONB"),
 )
 
@@ -71,12 +72,21 @@ _DROP_COLUMN_SAFETY_NET = (
     ("purchase_orders", "other_costs"),
     ("purchase_orders", "rejection_reason"),
     ("purchase_orders", "object_id"),
+    ("purchase_orders", "unit_price"),
+    ("purchase_orders", "desired_delivery_date"),
+    ("article_process_steps", "position"),
+)
+
+# Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
+_DATA_FIXES = (
+    "UPDATE purchase_orders SET status='ordered' WHERE status IN ('approved','confirmed')",
 )
 
 
 def _ensure_columns() -> None:
-    """Fehlende Spalten idempotent ergänzen und obsolete entfernen, falls eine
-    Migration nicht lief. create_all() ändert bestehende Tabellen NICHT."""
+    """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
+    normalisieren, falls eine Migration nicht lief. create_all() ändert
+    bestehende Tabellen NICHT."""
     try:
         with engine.connect() as conn:
             insp = inspect(engine)
@@ -91,6 +101,9 @@ def _ensure_columns() -> None:
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:
                     conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
+            if "purchase_orders" in tables:
+                for stmt in _DATA_FIXES:
+                    conn.execute(text(stmt))
             conn.commit()
     except Exception as e:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)

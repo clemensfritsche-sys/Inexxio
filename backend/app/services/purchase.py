@@ -2,8 +2,12 @@
 
 - ``instantiate_for_order``: erzeugt bei Auftragsfreigabe die Bestellung aus dem
   ``purchase``-Prozessschritt des Artikels.
-- ``compute_landed_unit_cost``: Einstandspreis netto/Stück.
+- ``compute_landed_unit_cost``: Einstandspreis netto/Stück = Bestellsumme ÷ Menge.
 - ``apply_update``: rollenabhängige Feldeingaben + Statusübergänge.
+
+Verschlankter Ablauf:
+    supplier:  requested → quoted → ordered → received   (+ rejected)
+    webshop:   requested → ordered → received
 """
 
 from decimal import Decimal
@@ -13,22 +17,22 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
+from ..models.base import utcnow
 from .admin import log_audit
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
 _FROM = {
-    "quoted": {"requested"},
-    "approved": {"quoted"},
-    "rejected": {"quoted"},
-    "confirmed": {"approved"},
-    "received": {"confirmed"},
+    "quoted": {"requested"},                 # Lieferant offeriert
+    "ordered": {"quoted", "requested"},      # Besteller bestellt / Webshop: Summe erfassen
+    "received": {"ordered"},                 # Wareneingang
+    "rejected": {"quoted"},                  # Besteller lehnt Offerte ab
 }
 
 _STAFF_ROLES = ("admin", "employee")
-# Offerte (Verantwortung Lieferant bzw. Mitarbeiter im Webshop-Modus)
+# Offerte-Felder (nur im Status «requested» editierbar)
 _OFFER_FIELDS = {"order_total", "lead_time_days", "payment_terms_days"}
-# Bestätigung/Versand (gleiche Verantwortung wie Offerte)
-_CONFIRM_FIELDS = {"tracking_number", "lead_time_days"}
+# Tracking ist ein optionales Detail von «Bestellt» (Status «ordered»)
+_TRACKING_FIELDS = {"tracking_number"}
 
 
 def _is_staff(user: UserProfile) -> bool:
@@ -40,7 +44,7 @@ def _is_owner_supplier(po: PurchaseOrder, user: UserProfile) -> bool:
 
 
 def _offer_editor(po: PurchaseOrder, user: UserProfile) -> bool:
-    """Wer die Offerte erfasst: im Webshop-Modus der Mitarbeiter, sonst der Lieferant."""
+    """Wer die Offerte/Bestellsumme erfasst: im Webshop-Modus der Mitarbeiter, sonst der Lieferant."""
     if po.mode == "webshop":
         return _is_staff(user)
     return _is_owner_supplier(po, user)
@@ -51,13 +55,6 @@ def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
     if po.order_total is None or not po.quantity:
         return None
     return (po.order_total / po.quantity).quantize(Decimal("0.0001"))
-
-
-def compute_unit_price(po: PurchaseOrder) -> Optional[Decimal]:
-    """Preis pro Stück (netto) = Bestellsumme ÷ Menge – read-only, abgeleitet."""
-    if po.order_total is None or not po.quantity:
-        return None
-    return (po.order_total / po.quantity).quantize(Decimal("0.01"))
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
@@ -82,7 +79,7 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
             ArticleProcessStep.step_type == "purchase",
             ArticleProcessStep.is_active == True,
         )
-        .order_by(ArticleProcessStep.position)
+        .order_by(ArticleProcessStep.id)
         .first()
     )
     if not step:
@@ -94,7 +91,6 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
         mode=step.mode,
         supplier_id=step.supplier_id,
         webshop_url=step.webshop_url,
-        desired_delivery_date=order.desired_delivery_date,
         status="requested",
     )
     db.add(po)
@@ -105,53 +101,36 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
     return [po]
 
 
-def _order_steps_done(db: Session, order: Order) -> bool:
-    """True, wenn alle Prozessschritte des Auftrags erledigt sind.
-
-    Aktuell existiert nur der Schritt «purchase» (erledigt = Wareneingang).
-    Künftige Schritt-Typen hier ergänzen – ein unbekannter Typ gilt als offen.
-    """
-    steps = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == order.article_id,
-                ArticleProcessStep.is_active == True)
-        .all()
-    )
-    if not steps:
-        return False
-    for st in steps:
-        if st.step_type == "purchase":
-            po = (
-                db.query(PurchaseOrder)
-                .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-                .first()
-            )
-            if not po or po.status != "received":
-                return False
-        else:
-            return False
-    return True
-
-
 def maybe_complete_order(db: Session, order: Order) -> None:
-    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
-    if order.status != "completed" and _order_steps_done(db, order):
+    """Auftrag automatisch abschliessen, wenn die Bestellung im Wareneingang ist.
+
+    Aktuell besteht der Auftragsprozess aus genau einem Schritt (Beschaffung).
+    Kommt ein zweiter Schritttyp hinzu, hier um dessen Abschluss erweitern.
+    """
+    if order.status == "completed":
+        return
+    po = (
+        db.query(PurchaseOrder)
+        .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
+        .first()
+    )
+    if po and po.status == "received":
         order.status = "completed"
 
 
 def _editable_fields(po: PurchaseOrder, user: UserProfile) -> set[str]:
     """Felder, die der Aufrufer in diesem Status setzen darf.
 
-    Nur die für die Offerte/Bestätigung zuständige Seite (Lieferant bzw. im
-    Webshop-Modus der Mitarbeiter) darf diese Felder bearbeiten. Der Besteller
-    gibt sie NICHT ein – saubere Trennung der Verantwortlichkeiten.
+    Nur die Offerte-/Bestell-Seite (Lieferant bzw. im Webshop-Modus der
+    Mitarbeiter) darf etwas eingeben – saubere Trennung der Verantwortlichkeiten.
+    Die Offerte ist nach dem Absenden (≠ requested) gesperrt.
     """
     fields: set[str] = set()
     if _offer_editor(po, user):
-        if po.status in ("requested", "quoted"):
+        if po.status == "requested":
             fields |= _OFFER_FIELDS
-        if po.status in ("approved", "confirmed"):
-            fields |= _CONFIRM_FIELDS
+        if po.status == "ordered":
+            fields |= _TRACKING_FIELDS
     return fields
 
 
@@ -160,10 +139,10 @@ def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bo
         # kein externer Lieferant – der Mitarbeiter führt den ganzen Schritt
         return _is_staff(user)
     # supplier-Modus: saubere Trennung der Verantwortlichkeiten
-    if target in ("quoted", "confirmed"):
-        return _is_owner_supplier(po, user)        # Lieferant
-    if target in ("approved", "rejected", "received"):
-        return _is_staff(user)                      # Besteller
+    if target == "quoted":
+        return _is_owner_supplier(po, user)              # Lieferant offeriert
+    if target in ("ordered", "rejected", "received"):
+        return _is_staff(user)                           # Besteller
     return False
 
 
@@ -174,22 +153,21 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
         raise HTTPException(400, detail=f"Übergang {po.status} → {target} ist nicht erlaubt")
     if not _transition_allowed(po, target, user):
         raise HTTPException(403, detail="Keine Berechtigung für diesen Schritt")
-    if target == "quoted":
-        if po.order_total is None:
-            raise HTTPException(400, detail="Bestellsumme ist für die Offerte erforderlich")
-        po.unit_price = compute_unit_price(po)
-    if target == "approved":
+    if target in ("quoted", "ordered") and po.order_total is None:
+        raise HTTPException(400, detail="Bestellsumme ist erforderlich")
+    if target == "ordered":
         lc = compute_landed_unit_cost(po)
         po.landed_unit_cost = lc
         if lc is not None:
             art = db.query(Article).filter(Article.id == po.article_id).first()
             if art:
                 art.landed_unit_cost = lc
+        po.ordered_at = utcnow()
     old = po.status
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
-    # Auftrag automatisch abschliessen, wenn damit alle Schritte erledigt sind
+    # Auftrag automatisch abschliessen, wenn die Ware eingegangen ist
     maybe_complete_order(db, order)
     # TODO(E-Mail): Statuswechsel an Lieferant/uns melden (Gmail API, Phase 2)
 

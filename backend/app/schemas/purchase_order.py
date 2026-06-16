@@ -4,8 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-# requested → quoted → approved | rejected → confirmed → received
-ALLOWED_STATUS = ("requested", "quoted", "approved", "rejected", "confirmed", "received")
+# requested → quoted → ordered → received  (+ rejected); webshop: requested → ordered → received
+ALLOWED_STATUS = ("requested", "quoted", "ordered", "received", "rejected")
 
 
 class PurchaseOrderUpdate(BaseModel):
@@ -58,11 +58,20 @@ class PurchaseOrderUpdate(BaseModel):
         return v.strip() or None
 
 
+class PurchaseHistoryEntry(BaseModel):
+    """Audit-Eintrag eines Statuswechsels (für Hover-Anzeige im Stepper)."""
+
+    status: str
+    at: datetime
+    by: Optional[str] = None
+
+
 class PurchaseEmbed(BaseModel):
     """Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.
 
     Bewusst OHNE eigene Objektnummer: die Bestellung läuft unter der
-    Auftragsnummer und ist kein eigenständiges Objekt.
+    Auftragsnummer und ist kein eigenständiges Objekt. Der Stückpreis wird aus
+    ``order_total ÷ Menge`` berechnet (nicht gespeichert).
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -73,10 +82,10 @@ class PurchaseEmbed(BaseModel):
     status: str
 
     order_total: Optional[Decimal]
-    unit_price: Optional[Decimal]      # = order_total / Menge (berechnet)
     lead_time_days: Optional[int]
     payment_terms_days: Optional[int]
     tracking_number: Optional[str]
+    ordered_at: Optional[datetime]
     landed_unit_cost: Optional[Decimal]
     webshop_url: Optional[str]
 
@@ -87,3 +96,5 @@ class PurchaseEmbed(BaseModel):
     supplier_name: Optional[str] = None
     # Artikel-Stammdaten-Keys, die der Lieferant sehen darf
     shared_fields: list[str] = []
+    # Audit-Verlauf der Statuswechsel (Wer/Wann)
+    history: list[PurchaseHistoryEntry] = []

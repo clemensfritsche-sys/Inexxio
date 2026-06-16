@@ -1631,10 +1631,6 @@
             "type": "integer",
             "title": "Article Id"
           },
-          "position": {
-            "type": "integer",
-            "title": "Position"
-          },
           "step_type": {
             "type": "string",
             "title": "Step Type"
@@ -1703,7 +1699,6 @@
         "required": [
           "id",
           "article_id",
-          "position",
           "step_type",
           "mode",
           "supplier_id",
@@ -1762,17 +1757,6 @@
               }
             ],
             "title": "Shared Fields"
-          },
-          "position": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Position"
           },
           "is_active": {
             "anyOf": [
@@ -3087,17 +3071,6 @@
             ],
             "title": "Order Total"
           },
-          "unit_price": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unit Price"
-          },
           "lead_time_days": {
             "anyOf": [
               {
@@ -3130,6 +3103,18 @@
               }
             ],
             "title": "Tracking Number"
+          },
+          "ordered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ordered At"
           },
           "landed_unit_cost": {
             "anyOf": [
@@ -3181,6 +3166,14 @@
             "type": "array",
             "title": "Shared Fields",
             "default": []
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseHistoryEntry"
+            },
+            "type": "array",
+            "title": "History",
+            "default": []
           }
         },
         "type": "object",
@@ -3190,17 +3183,48 @@
           "supplier_id",
           "status",
           "order_total",
-          "unit_price",
           "lead_time_days",
           "payment_terms_days",
           "tracking_number",
+          "ordered_at",
           "landed_unit_cost",
           "webshop_url",
           "created_at",
           "updated_at"
         ],
         "title": "PurchaseEmbed",
-        "description": "Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.\n\nBewusst OHNE eigene Objektnummer: die Bestellung läuft unter der\nAuftragsnummer und ist kein eigenständiges Objekt."
+        "description": "Ausführungsstand des Beschaffungsschritts – eingebettet in den Auftrag.\n\nBewusst OHNE eigene Objektnummer: die Bestellung läuft unter der\nAuftragsnummer und ist kein eigenständiges Objekt. Der Stückpreis wird aus\n``order_total ÷ Menge`` berechnet (nicht gespeichert)."
+      },
+      "PurchaseHistoryEntry": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "at"
+        ],
+        "title": "PurchaseHistoryEntry",
+        "description": "Audit-Eintrag eines Statuswechsels (für Hover-Anzeige im Stepper)."
       },
       "PurchaseOrderUpdate": {
         "properties": {

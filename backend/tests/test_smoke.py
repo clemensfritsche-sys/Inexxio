@@ -99,20 +99,17 @@ def test_object_id_allocator_shared_across_types():
 
 
 def test_landed_unit_cost_calculation():
-    """Einstandspreis & Stückpreis netto = Bestellsumme ÷ Menge."""
+    """Einstandspreis netto/Stück = Bestellsumme ÷ Menge."""
     from decimal import Decimal
 
     from app.models import PurchaseOrder
-    from app.services.purchase import compute_landed_unit_cost, compute_unit_price
+    from app.services.purchase import compute_landed_unit_cost
 
     po = PurchaseOrder(order_id=1, article_id=1, quantity=5, order_total=Decimal("75.00"))
-    # 75 / 5 = 15
-    assert compute_landed_unit_cost(po) == Decimal("15.0000")
-    assert compute_unit_price(po) == Decimal("15.00")
+    assert compute_landed_unit_cost(po) == Decimal("15.0000")  # 75 / 5
 
     po.order_total = None  # ohne Bestellsumme kein Preis
     assert compute_landed_unit_cost(po) is None
-    assert compute_unit_price(po) is None
 
 
 def test_supplier_fields_mandatory_always_included():
@@ -135,26 +132,30 @@ def test_purchase_responsibility_separation():
     supplier = UserProfile(role="supplier", id=2)
     po = PurchaseOrder(order_id=1, article_id=1, quantity=1, mode="supplier", supplier_id=2)
 
+    # Lieferant offeriert, Besteller bestellt/lehnt ab/nimmt Ware an
     assert _transition_allowed(po, "quoted", supplier) is True
     assert _transition_allowed(po, "quoted", staff) is False
-    assert _transition_allowed(po, "approved", staff) is True
-    assert _transition_allowed(po, "approved", supplier) is False
+    assert _transition_allowed(po, "ordered", staff) is True
+    assert _transition_allowed(po, "ordered", supplier) is False
+    assert _transition_allowed(po, "rejected", staff) is True
     assert _transition_allowed(po, "received", staff) is True
     assert _transition_allowed(po, "received", supplier) is False
 
+    # Webshop: Mitarbeiter macht alles, keine Lieferanten-Offerte
     po.mode = "webshop"
     po.supplier_id = None
-    assert _transition_allowed(po, "quoted", staff) is True
-    assert _transition_allowed(po, "approved", staff) is True
+    assert _transition_allowed(po, "ordered", staff) is True
+    assert _transition_allowed(po, "received", staff) is True
 
 
 def test_purchase_order_transitions_map():
-    """Statusübergänge sind eng definiert (kein Sprung über Stufen)."""
+    """Verschlankter Ablauf: requested→quoted→ordered→received (+rejected)."""
     from app.services.purchase import _FROM
 
-    assert _FROM["approved"] == {"quoted"}
-    assert _FROM["received"] == {"confirmed"}
-    assert "received" not in _FROM["approved"]
+    assert _FROM["quoted"] == {"requested"}
+    assert _FROM["ordered"] == {"quoted", "requested"}   # supplier + webshop
+    assert _FROM["received"] == {"ordered"}
+    assert "confirmed" not in _FROM and "approved" not in _FROM
 
 
 def test_purchase_order_update_schema_validates_status():
@@ -165,9 +166,9 @@ def test_purchase_order_update_schema_validates_status():
 
     from app.schemas.purchase_order import PurchaseOrderUpdate
 
-    assert PurchaseOrderUpdate(status="approved").status == "approved"
+    assert PurchaseOrderUpdate(status="ordered").status == "ordered"
     with pytest.raises(ValueError):
-        PurchaseOrderUpdate(status="erledigt")
+        PurchaseOrderUpdate(status="approved")  # altes Modell – nicht mehr erlaubt
     with pytest.raises(ValueError):
         PurchaseOrderUpdate(order_total=Decimal("-1"))
 

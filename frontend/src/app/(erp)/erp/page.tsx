@@ -198,6 +198,8 @@ export default function ErpPage() {
     setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
     setCreating(null);
     if (o.object_id != null) setSel({ type: 'order', objectId: o.object_id });
+    // Bestellungen beeinflussen die Stückpreis-Spanne der Artikel → neu laden
+    api.getArticles().then(setArticles).catch(() => {});
   }
 
   function handleStorageSaved(loc: StorageLocation) {

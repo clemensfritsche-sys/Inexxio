@@ -102,14 +102,13 @@ export interface ArticleProcessStepUpdateInput {
   supplier_id?: number | null;
   webshop_url?: string | null;
   shared_fields?: string[] | null;
-  position?: number;
   is_active?: boolean;
 }
 
 // ─── Beschaffungsschritt (läuft unter dem Auftrag, keine eigene Nummer) ────────
 
 export type PurchaseOrderStatus =
-  | 'requested' | 'quoted' | 'approved' | 'rejected' | 'confirmed' | 'received';
+  | 'requested' | 'quoted' | 'ordered' | 'received' | 'rejected';
 
 export interface PurchaseOrderUpdateInput {
   status?: PurchaseOrderStatus;

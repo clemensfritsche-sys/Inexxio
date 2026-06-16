@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy import BigInteger, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,7 +24,6 @@ class ArticleProcessStep(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    position: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
 
     # Konfiguration des purchase-Schritts

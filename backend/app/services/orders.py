@@ -4,12 +4,14 @@ rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
-from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
+from ..models import Article, ArticleProcessStep, AuditLog, Order, PurchaseOrder, UserProfile
 from ..schemas.order import OrderResponse
-from ..schemas.purchase_order import PurchaseEmbed
+from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from .article_fields import normalize_shared_fields
 
 _STAFF_ROLES = ("admin", "employee")
+# alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
+_STATUS_ALIASES = {"approved": "ordered", "confirmed": "ordered"}
 
 
 def _purchase_shared_fields(db: Session, article_id: int) -> list[str]:
@@ -21,7 +23,7 @@ def _purchase_shared_fields(db: Session, article_id: int) -> list[str]:
             ArticleProcessStep.step_type == "purchase",
             ArticleProcessStep.is_active == True,
         )
-        .order_by(ArticleProcessStep.position)
+        .order_by(ArticleProcessStep.id)
         .first()
     )
     return normalize_shared_fields(step.shared_fields if step else None)
@@ -32,6 +34,37 @@ def _supplier_name(u: UserProfile | None) -> str | None:
         return None
     name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
     return u.company_name or name or u.email
+
+
+def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
+    """Audit-Verlauf der Bestellung (Statuswechsel mit Wer/Wann) für den Stepper."""
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.object_id == order.object_id, AuditLog.table_name == "purchase_orders")
+        .order_by(AuditLog.changed_at_utc)
+        .all()
+    )
+    names: dict[int, str | None] = {}
+    out: list[PurchaseHistoryEntry] = []
+    for lg in logs:
+        if lg.field_name == "status":
+            status = lg.new_value
+        elif lg.field_name is None:
+            status = "requested"   # Anlage = «Angefragt»
+        else:
+            continue
+        if not status:
+            continue
+        status = _STATUS_ALIASES.get(status, status)
+        if lg.user_id is not None and lg.user_id not in names:
+            names[lg.user_id] = _supplier_name(
+                db.query(UserProfile).filter(UserProfile.id == lg.user_id).first()
+            )
+        out.append(PurchaseHistoryEntry(
+            status=status, at=lg.changed_at_utc,
+            by=names.get(lg.user_id) if lg.user_id is not None else None,
+        ))
+    return out
 
 
 def to_order_response(db: Session, order: Order) -> OrderResponse:
@@ -59,6 +92,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             )
         if order.article_id:
             emb.shared_fields = _purchase_shared_fields(db, order.article_id)
+        emb.history = _purchase_history(db, order)
         resp.purchase = emb
     return resp
 

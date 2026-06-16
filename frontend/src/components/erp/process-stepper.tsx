@@ -3,39 +3,43 @@
 import { Check, X } from 'lucide-react';
 
 export type StepState = 'done' | 'active' | 'pending' | 'rejected';
-export interface StepNode { key: string; label: string; state: StepState }
+export interface StepNode { key: string; label: string; state: StepState; hint?: string }
 
-const TONE: Record<StepState, { bg: string; color: string; line: string }> = {
-  done:     { bg: '#0f766e', color: '#fff', line: '#0f766e' },
-  active:   { bg: '#2563eb', color: '#fff', line: '#2563eb' },
-  pending:  { bg: '#f1f5f9', color: '#94a3b8', line: '#e2e8f0' },
-  rejected: { bg: '#dc2626', color: '#fff', line: '#dc2626' },
+const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
+  done:     { bg: '#0f766e', color: '#fff', ring: 'transparent' },
+  active:   { bg: '#2563eb', color: '#fff', ring: '#dbeafe' },
+  pending:  { bg: '#f1f5f9', color: '#94a3b8', ring: 'transparent' },
+  rejected: { bg: '#dc2626', color: '#fff', ring: 'transparent' },
 };
 
-/** Horizontaler Prozess-Stepper: zeigt erledigte / aktuelle / offene Schritte. */
+const LINE_DONE = '#0f766e';
+const LINE_PENDING = '#e2e8f0';
+
+/** Horizontaler Prozess-Stepper. Eine Linie zwischen zwei Knoten gilt als
+ *  erledigt, sobald der LINKE Knoten erledigt ist – beide Hälften nutzen
+ *  dieselbe Regel, daher keine inkonsistenten Farben mehr. */
 export function ProcessStepper({ nodes }: { nodes: StepNode[] }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       {nodes.map((n, i) => {
-        const tone = TONE[n.state];
-        const prev = i > 0 ? nodes[i - 1] : null;
+        const node = NODE[n.state];
+        const leftDone = i > 0 && nodes[i - 1].state === 'done';
+        const rightDone = n.state === 'done';
         return (
-          <div key={n.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0 }}>
-            {/* Knoten + Verbindungslinien */}
+          <div key={n.key} title={n.hint} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: n.hint ? 'help' : 'default' }}>
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <div style={{ flex: 1, height: 2, background: prev ? TONE[prev.state].line : 'transparent' }} />
+              <div style={{ flex: 1, height: 2, background: i === 0 ? 'transparent' : (leftDone ? LINE_DONE : LINE_PENDING) }} />
               <div style={{
                 width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                background: tone.bg, color: tone.color,
+                background: node.bg, color: node.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700,
-                boxShadow: n.state === 'active' ? '0 0 0 4px #dbeafe' : 'none',
+                boxShadow: n.state === 'active' ? `0 0 0 4px ${node.ring}` : 'none',
               }}>
                 {n.state === 'done' ? <Check size={14} /> : n.state === 'rejected' ? <X size={14} /> : i + 1}
               </div>
-              <div style={{ flex: 1, height: 2, background: i < nodes.length - 1 ? TONE[nodes[i + 1].state].line : 'transparent' }} />
+              <div style={{ flex: 1, height: 2, background: i === nodes.length - 1 ? 'transparent' : (rightDone ? LINE_DONE : LINE_PENDING) }} />
             </div>
-            {/* Label */}
             <div style={{
               marginTop: 5, fontSize: 10, lineHeight: 1.2, textAlign: 'center',
               fontWeight: n.state === 'active' ? 700 : 500,

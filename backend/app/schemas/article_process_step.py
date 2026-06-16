@@ -64,7 +64,6 @@ class ArticleProcessStepUpdate(BaseModel):
     supplier_id: Optional[int] = None
     webshop_url: Optional[str] = None
     shared_fields: Optional[list[str]] = None
-    position: Optional[int] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -94,7 +93,6 @@ class ArticleProcessStepResponse(BaseModel):
 
     id: int
     article_id: int
-    position: int
     step_type: str
     mode: str
     supplier_id: Optional[int]
