@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..models import Article, Instance, Order
 from . import process
 from .admin import log_audit
+from .locations import ensure_receiving_location
 from .objects import next_object_id
 
 
@@ -31,11 +32,15 @@ def serialize_for_order(db: Session, order: Order, actor_id: int) -> list[Instan
     # Ohne nachgelagerte Eingangskontrolle gilt die Ware direkt als freigegeben
     qc = "pending" if process.has_step(db, order, "inspection") else "passed"
 
+    # Neue Instanzen starten IMMER mit einem Standort – dem Wareneingang.
+    recv_id = ensure_receiving_location(db)
+
     created: list[Instance] = []
     if art.serialization == "batch":
         created.append(Instance(
             object_id=next_object_id(db), article_id=art.id, order_id=order.id,
             kind="batch", quantity=order.quantity, qc_status=qc,
+            location_type="lagerplatz", location_id=recv_id,
         ))
         db.add(created[-1]); db.flush()
     else:  # unit → je Stück eine Instanz
@@ -43,6 +48,7 @@ def serialize_for_order(db: Session, order: Order, actor_id: int) -> list[Instan
             inst = Instance(
                 object_id=next_object_id(db), article_id=art.id, order_id=order.id,
                 kind="unit", quantity=1, qc_status=qc,
+                location_type="lagerplatz", location_id=recv_id,
             )
             db.add(inst); db.flush()
             created.append(inst)

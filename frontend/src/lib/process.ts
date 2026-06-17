@@ -1,12 +1,24 @@
-import { ShoppingCart, Hash, ClipboardCheck } from 'lucide-react';
-import type { StepType, InstanceQcStatus } from '@/types';
+import { ShoppingCart, Hash, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes } from 'lucide-react';
+import type { StepType, InstanceQcStatus, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 
 export const STEP_META: Record<StepType, { label: string; icon: React.ElementType }> = {
   purchase:      { label: 'Beschaffung',    icon: ShoppingCart },
   serialization: { label: 'Serialisierung', icon: Hash },
   inspection:    { label: 'Datenerfassung', icon: ClipboardCheck },
+  movement:      { label: 'Bewegung',       icon: ArrowLeftRight },
 };
+
+// Standort-Typen (Bewegung): Label + Icon
+export const LOCATION_META: Record<LocationType, { label: string; icon: React.ElementType }> = {
+  lagerplatz: { label: 'Lagerplatz', icon: Warehouse },
+  user:       { label: 'Person',     icon: UserIcon },
+  instance:   { label: 'Instanz',    icon: Boxes },
+};
+
+export function locationTypeLabel(type: string | null | undefined): string {
+  return type ? (LOCATION_META[type as LocationType]?.label ?? type) : '—';
+}
 
 export function stepLabel(type: string): string {
   return STEP_META[type as StepType]?.label ?? type;

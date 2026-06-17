@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcessStep, CaptureField, ProcessStepMode, StepType, UserProfile } from '@/types';
+import type { ArticleProcessStep, CaptureField, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
-import { STEP_META } from '@/lib/process';
+import { STEP_META, locationTypeLabel } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SelectField, TextField } from '@/components/erp/fields';
+import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 
-const STEP_ORDER: StepType[] = ['purchase', 'serialization', 'inspection'];
+const STEP_ORDER: StepType[] = ['purchase', 'serialization', 'inspection', 'movement'];
 
 export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
   articleObjectId: number | null;
@@ -28,6 +29,9 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
   const [shared, setShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
   const [samplePercent, setSamplePercent] = useState('100');
   const [wfields, setWfields] = useState<WField[]>([]);
+  const [targetLocType, setTargetLocType] = useState<'' | LocationType>('');
+  const [targetLocId, setTargetLocId] = useState('');
+  const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -41,6 +45,13 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
     api.getArticleProcessSteps(articleObjectId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
   }, [articleObjectId]);
 
+  // Lagerplätze erst laden, wenn die Bewegungs-Konfiguration ein festes Ziel braucht
+  useEffect(() => {
+    if (adding === 'movement' && storageLocs.length === 0) {
+      api.getStorageLocations().then(setStorageLocs).catch(() => {});
+    }
+  }, [adding, storageLocs.length]);
+
   if (articleObjectId == null) {
     return (
       <div style={noticeStyle}>
@@ -53,7 +64,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
 
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
-    setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]); setError(null);
+    setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
+    setTargetLocType(''); setTargetLocId(''); setError(null);
   }
 
   function buildCaptureFields(): CaptureField[] {
@@ -87,6 +99,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
         shared_fields: type === 'purchase' ? shared : null,
         sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
+        target_location_type: type === 'movement' && targetLocType ? targetLocType : null,
+        target_location_id: type === 'movement' && targetLocType === 'lagerplatz' && targetLocId ? Number(targetLocId) : null,
       });
       setSteps((p) => [...p, created]);
       resetForm();
@@ -184,6 +198,9 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
                     )}
                     {s.step_type === 'serialization' && 'Erzeugt Bestands-Instanzen (Einzelteil/Charge)'}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
+                    {s.step_type === 'movement' && (s.target_location_type
+                      ? `Ziel: ${locationTypeLabel(s.target_location_type)}${s.target_location_id ? ' (fest)' : ''}`
+                      : 'Lagerist entscheidet beim Einlagern')}
                   </div>
                 </div>
                 {!readOnly && (
@@ -297,6 +314,31 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
                 </>
               )}
 
+              {adding === 'movement' && (
+                <>
+                  <SelectField label="Zielstandort" value={targetLocType}
+                    onChange={(v) => { setTargetLocType(v as '' | LocationType); setTargetLocId(''); }}
+                    options={[
+                      { value: '', label: 'Lagerist entscheidet beim Einlagern' },
+                      { value: 'lagerplatz', label: 'Lagerplatz' },
+                      { value: 'user', label: 'Person (Mitarbeiter / Kunde / Lieferant)' },
+                      { value: 'instance', label: 'Andere Instanz (z. B. Einbau)' },
+                    ]} />
+                  {targetLocType === 'lagerplatz' && (
+                    <SelectField label="Fester Lagerplatz (optional)" value={targetLocId} onChange={setTargetLocId}
+                      options={[
+                        { value: '', label: '— beim Einlagern wählen —' },
+                        ...storageLocs.filter((l) => l.status === 'released').map((l) => ({
+                          value: String(l.object_id), label: `${l.name} · ${fmtObjId(l.object_id)}`,
+                        })),
+                      ]} />
+                  )}
+                  <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>Bringt die serialisierten Instanzen an ihren Standort. Ohne Vorgabe entscheidet der
+                      Lagerist beim Einlagern – auch unterschiedliche Standorte je Instanz sind möglich.</span></div>
+                </>
+              )}
+
               {error && <ErrorText msg={error} />}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={resetForm} style={secondaryBtn}>Abbrechen</button>
@@ -314,6 +356,7 @@ const STEP_HINT: Record<StepType, string> = {
   purchase: 'Bestellung bei Lieferant oder Webshop',
   serialization: 'Instanzen/Chargen mit Nummer anlegen',
   inspection: 'Stichprobe prüfen & Werte erfassen',
+  movement: 'Instanzen an ihren Standort bringen',
 };
 
 // ─── Datenerfassungs-Maske bearbeiten ─────────────────────────────────────────

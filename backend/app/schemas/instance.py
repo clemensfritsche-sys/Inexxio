@@ -15,6 +15,8 @@ class InstanceResponse(BaseModel):
     quantity: int
     serial_number: Optional[str]
     qc_status: str
+    location_type: Optional[str] = None
+    location_id: Optional[int] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -22,10 +24,11 @@ class InstanceResponse(BaseModel):
     # Denormalisiert vom Router
     order_object_id: Optional[int] = None
     article_name: Optional[str] = None
+    location_label: Optional[str] = None
 
 
 class InstanceEmbed(BaseModel):
-    """Kurzform für die Einbettung in den Auftrag (Serialisierungs-Panel)."""
+    """Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,3 +37,6 @@ class InstanceEmbed(BaseModel):
     kind: str
     quantity: int
     qc_status: str
+    location_type: Optional[str] = None
+    location_id: Optional[int] = None
+    location_label: Optional[str] = None   # vom Router denormalisiert

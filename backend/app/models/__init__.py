@@ -7,6 +7,7 @@ from .order import Order
 from .purchase_order import PurchaseOrder
 from .instance import Instance
 from .inspection import Inspection
+from .movement import Movement
 from .storage_location import StorageLocation
 from .audit import AuditLog
 from .notification import Notification
@@ -14,5 +15,5 @@ from .notification import Notification
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticleProcessStep", "Order", "PurchaseOrder", "Instance", "Inspection",
-    "StorageLocation", "AuditLog", "Notification",
+    "Movement", "StorageLocation", "AuditLog", "Notification",
 ]

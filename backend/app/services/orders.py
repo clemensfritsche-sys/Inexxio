@@ -5,17 +5,19 @@ from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
 from ..models import (
-    Article, ArticleProcessStep, AuditLog, Inspection, Instance, Order,
+    Article, ArticleProcessStep, AuditLog, Inspection, Instance, Movement, Order,
     PurchaseOrder, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed
 from ..schemas.instance import InstanceEmbed
+from ..schemas.movement import MovementEmbed
 from ..schemas.order import OrderResponse, OrderStepInfo
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from . import process
 from .article_fields import normalize_shared_fields
 from .inspection import required_count
+from .locations import location_label
 
 _STAFF_ROLES = ("admin", "employee")
 # alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
@@ -103,14 +105,19 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         emb.history = _purchase_history(db, order)
         resp.purchase = emb
 
-    # Serialisierung: erzeugte Instanzen
+    # Serialisierung: erzeugte Instanzen (inkl. aktuellem Standort)
     instances = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True)
         .order_by(Instance.object_id)
         .all()
     )
-    resp.instances = [InstanceEmbed.model_validate(i) for i in instances]
+    instance_embeds: list[InstanceEmbed] = []
+    for i in instances:
+        emb = InstanceEmbed.model_validate(i)
+        emb.location_label = location_label(db, i.location_type, i.location_id)
+        instance_embeds.append(emb)
+    resp.instances = instance_embeds
 
     # Eingangskontrolle: Embed sobald der Schritt definiert ist (auch ohne Erfassung,
     # damit der Prüfumfang vorab sichtbar ist)
@@ -131,6 +138,26 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
                 db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first()
             )
         resp.inspection = ie
+
+    # Bewegung: Embed sobald der Schritt definiert ist (Vorgabe-Ziel + Abschluss)
+    mv_step = _step(db, order.article_id, "movement")
+    if mv_step:
+        mv = (
+            db.query(Movement)
+            .filter(Movement.order_id == order.id, Movement.is_active == True)
+            .first()
+        )
+        me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None,
+                           note=mv.note if mv else None)
+        me.target_location_type = mv_step.target_location_type
+        me.target_location_id = mv_step.target_location_id
+        me.target_location_label = location_label(
+            db, mv_step.target_location_type, mv_step.target_location_id)
+        if mv and mv.moved_by_id:
+            me.moved_by_name = _supplier_name(
+                db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first()
+            )
+        resp.movement = me
 
     # Auftrag-Stepper
     resp.steps = [OrderStepInfo(**i) for i in process.order_step_infos(db, order)]

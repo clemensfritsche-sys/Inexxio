@@ -7,6 +7,7 @@ jeweiligen Fachtabelle abgeleitet – KEINE eigene Orchestrierungstabelle:
     purchase       → purchase_orders.status   (erledigt = received, fehlgeschlagen = rejected)
     serialization  → instances vorhanden      (erledigt = Instanzen erzeugt)
     inspection     → inspections.result        (erledigt = passed, fehlgeschlagen = failed)
+    movement       → movements vorhanden       (erledigt = Einlagerung bestätigt)
 
 Ein Schritt ist «aktiv», sobald alle vorherigen erledigt sind. Der Auftrag wird
 automatisch ``completed``, wenn alle definierten Schritte erledigt sind.
@@ -16,12 +17,15 @@ from math import ceil
 
 from sqlalchemy.orm import Session
 
-from ..models import ArticleProcessStep, Inspection, Instance, Order, PurchaseOrder
+from ..models import (
+    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder,
+)
 
 STEP_LABELS = {
     "purchase": "Beschaffung",
     "serialization": "Serialisierung",
     "inspection": "Datenerfassung",
+    "movement": "Bewegung",
 }
 
 
@@ -59,6 +63,14 @@ def _inspection(db: Session, order: Order) -> Inspection | None:
     )
 
 
+def _movement(db: Session, order: Order) -> Movement | None:
+    return (
+        db.query(Movement)
+        .filter(Movement.order_id == order.id, Movement.is_active == True)
+        .first()
+    )
+
+
 def _raw_status(db: Session, order: Order, step_type: str) -> str:
     """Roh-Status eines Schritts: 'done' | 'open' | 'failed'."""
     if step_type == "purchase":
@@ -79,6 +91,8 @@ def _raw_status(db: Session, order: Order, step_type: str) -> str:
         if insp and insp.result == "failed":
             return "failed"
         return "open"
+    if step_type == "movement":
+        return "done" if _movement(db, order) else "open"
     return "open"
 
 

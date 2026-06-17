@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, Integer, Numeric, String, Text
+from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -46,3 +46,8 @@ class CompanySettings(Base):
     plausible_domain: Mapped[Optional[str]] = mapped_column(String(255))
     hcaptcha_site_key: Mapped[Optional[str]] = mapped_column(String(255))
     google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))
+
+    # Lager & Logistik: Standard-Wareneingang (Objektnummer eines Lagerplatzes).
+    # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
+    # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
+    default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)

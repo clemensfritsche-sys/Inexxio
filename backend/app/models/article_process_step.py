@@ -12,10 +12,10 @@ class ArticleProcessStep(Base, TimestampMixin):
     """Definition eines Prozessschritts am Artikel (Reiter «Prozess»).
 
     Unterstützte Typen (``step_type``): ``purchase`` (Beschaffung),
-    ``serialization`` (Serialisierung), ``inspection`` (Eingangskontrolle).
-    Die Reihenfolge bestimmt ``position`` (pro Artikel frei sortierbar); welche
-    Schritte vorhanden sind, ist pro Artikel optional. Kind-Objekt des Artikels –
-    KEINE eigene Objektnummer.
+    ``serialization`` (Serialisierung), ``inspection`` (Eingangskontrolle),
+    ``movement`` (Bewegung). Die Reihenfolge bestimmt ``position`` (pro Artikel
+    frei sortierbar); welche Schritte vorhanden sind, ist pro Artikel optional.
+    Kind-Objekt des Artikels – KEINE eigene Objektnummer.
 
     Wird ein Auftrag freigegeben, instanziiert das System aus diesen Schritten
     den Prozess (siehe ``services/process.py``).
@@ -39,4 +39,9 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Menge + Erfassungsfelder (Soll-Ist mit Toleranz, Gut/Schlecht, Text).
     sample_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+
+    # Konfiguration «movement» (Bewegung): optionales Vorgabe-Ziel. Beides NULL =
+    # der Lagerist entscheidet beim Ausführen frei je Instanz.
+    target_location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    target_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 

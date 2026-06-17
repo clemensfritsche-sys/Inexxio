@@ -66,11 +66,26 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
 };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-export type StepType = 'purchase' | 'serialization' | 'inspection';
+export type StepType = 'purchase' | 'serialization' | 'inspection' | 'movement';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderInspection = NonNullable<OrderApi['inspection']>;
+export type OrderMovement = NonNullable<OrderApi['movement']>;
+
+// Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
+export type LocationType = 'lagerplatz' | 'user' | 'instance';
+
+export interface MovementTargetInput {
+  instance_id: number;       // object_id der Instanz
+  location_type: LocationType;
+  location_id: number;       // object_id des Zielobjekts
+}
+
+export interface MovementUpdateInput {
+  targets: MovementTargetInput[];
+  note?: string | null;
+}
 
 export type CaptureField = components['schemas']['CaptureField'];
 export type CaptureFieldType = 'measure' | 'bool' | 'text';
@@ -120,6 +135,8 @@ export interface ArticleProcessStepInput {
   shared_fields?: string[] | null;
   sample_percent?: number | null;
   capture_fields?: CaptureField[] | null;
+  target_location_type?: LocationType | null;
+  target_location_id?: number | null;
 }
 
 export interface ArticleProcessStepUpdateInput {
@@ -130,6 +147,8 @@ export interface ArticleProcessStepUpdateInput {
   shared_fields?: string[] | null;
   sample_percent?: number | null;
   capture_fields?: CaptureField[] | null;
+  target_location_type?: LocationType | null;
+  target_location_id?: number | null;
   is_active?: boolean;
 }
 
@@ -243,6 +262,7 @@ export interface CompanySettings {
   plausible_domain: string | null;
   hcaptcha_site_key: string | null;
   google_maps_api_key: string | null;
+  default_receiving_location_id: number | null;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

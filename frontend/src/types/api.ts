@@ -454,6 +454,26 @@ export interface paths {
         patch: operations["update_order_inspection_api_v1_erp_orders__object_id__inspection_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/movement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Movement
+         * @description Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz).
+         */
+        patch: operations["update_order_movement_api_v1_erp_orders__object_id__movement_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -588,6 +608,10 @@ export interface components {
             sample_percent?: number | null;
             /** Capture Fields */
             capture_fields?: components["schemas"]["CaptureField"][] | null;
+            /** Target Location Type */
+            target_location_type?: string | null;
+            /** Target Location Id */
+            target_location_id?: number | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -619,6 +643,10 @@ export interface components {
              * @default []
              */
             capture_fields: components["schemas"]["CaptureField"][];
+            /** Target Location Type */
+            target_location_type?: string | null;
+            /** Target Location Id */
+            target_location_id?: number | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -651,6 +679,10 @@ export interface components {
             sample_percent?: number | null;
             /** Capture Fields */
             capture_fields?: components["schemas"]["CaptureField"][] | null;
+            /** Target Location Type */
+            target_location_type?: string | null;
+            /** Target Location Id */
+            target_location_id?: number | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -803,6 +835,8 @@ export interface components {
             hcaptcha_site_key: string | null;
             /** Google Maps Api Key */
             google_maps_api_key: string | null;
+            /** Default Receiving Location Id */
+            default_receiving_location_id?: number | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -868,6 +902,8 @@ export interface components {
             hcaptcha_site_key?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
+            /** Default Receiving Location Id */
+            default_receiving_location_id?: number | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -955,7 +991,7 @@ export interface components {
         };
         /**
          * InstanceEmbed
-         * @description Kurzform für die Einbettung in den Auftrag (Serialisierungs-Panel).
+         * @description Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel).
          */
         InstanceEmbed: {
             /** Id */
@@ -968,6 +1004,12 @@ export interface components {
             quantity: number;
             /** Qc Status */
             qc_status: string;
+            /** Location Type */
+            location_type?: string | null;
+            /** Location Id */
+            location_id?: number | null;
+            /** Location Label */
+            location_label?: string | null;
         };
         /** InstanceResponse */
         InstanceResponse: {
@@ -987,6 +1029,10 @@ export interface components {
             serial_number: string | null;
             /** Qc Status */
             qc_status: string;
+            /** Location Type */
+            location_type?: string | null;
+            /** Location Id */
+            location_id?: number | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -1003,6 +1049,63 @@ export interface components {
             order_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
+            /** Location Label */
+            location_label?: string | null;
+        };
+        /**
+         * MovementEmbed
+         * @description Eingebetteter Stand der Bewegung (im Auftrag).
+         *
+         *     Die aktuellen Standorte der Instanzen stehen in ``OrderResponse.instances``;
+         *     dieser Embed trägt nur den Abschluss-Status und das (optionale) Vorgabe-Ziel
+         *     aus der Prozessdefinition.
+         */
+        MovementEmbed: {
+            /**
+             * Id
+             * @default 0
+             */
+            id: number;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /** Note */
+            note?: string | null;
+            /** Moved By Name */
+            moved_by_name?: string | null;
+            /** Target Location Type */
+            target_location_type?: string | null;
+            /** Target Location Id */
+            target_location_id?: number | null;
+            /** Target Location Label */
+            target_location_label?: string | null;
+        };
+        /**
+         * MovementTarget
+         * @description Zielstandort einer einzelnen Instanz (per Objektnummer adressiert).
+         */
+        MovementTarget: {
+            /** Instance Id */
+            instance_id: number;
+            /** Location Type */
+            location_type: string;
+            /** Location Id */
+            location_id: number;
+        };
+        /**
+         * MovementUpdate
+         * @description Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.
+         */
+        MovementUpdate: {
+            /**
+             * Targets
+             * @default []
+             */
+            targets: components["schemas"]["MovementTarget"][];
+            /** Note */
+            note?: string | null;
         };
         /**
          * OrderCreate
@@ -1064,6 +1167,7 @@ export interface components {
              */
             instances: components["schemas"]["InstanceEmbed"][];
             inspection?: components["schemas"]["InspectionEmbed"] | null;
+            movement?: components["schemas"]["MovementEmbed"] | null;
             /**
              * Steps
              * @default []
@@ -2508,6 +2612,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["InspectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_movement_api_v1_erp_orders__object_id__movement_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MovementUpdate"];
             };
         };
         responses: {

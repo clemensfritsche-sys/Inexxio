@@ -193,13 +193,64 @@ def test_process_step_types_and_optional_config():
     """Serialisierung/Eingangskontrolle brauchen keinen Lieferanten; % default 100."""
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "serialization", "inspection"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "serialization", "inspection", "movement"}
     ser = ArticleProcessStepCreate(step_type="serialization")
     assert ser.step_type == "serialization"          # kein supplier_id nötig
     insp = ArticleProcessStepCreate(step_type="inspection")
     assert insp.sample_percent == 100                 # Default: ganze Menge
     insp2 = ArticleProcessStepCreate(step_type="inspection", sample_percent=10)
     assert insp2.sample_percent == 10
+
+
+def test_movement_step_target_config():
+    """Bewegung: Zieltyp wird validiert; ohne Typ kein festes Zielobjekt."""
+    import pytest
+
+    from app.schemas.article_process_step import ArticleProcessStepCreate
+
+    # Ohne Vorgabe (Lagerist entscheidet)
+    free = ArticleProcessStepCreate(step_type="movement")
+    assert free.target_location_type is None and free.target_location_id is None
+
+    # Festes Ziel
+    fixed = ArticleProcessStepCreate(step_type="movement", target_location_type="lagerplatz", target_location_id=100_000_500)
+    assert fixed.target_location_type == "lagerplatz"
+    assert fixed.target_location_id == 100_000_500
+
+    # Zielobjekt ohne Typ → wird verworfen
+    dangling = ArticleProcessStepCreate(step_type="movement", target_location_id=100_000_500)
+    assert dangling.target_location_id is None
+
+    with pytest.raises(ValueError):
+        ArticleProcessStepCreate(step_type="movement", target_location_type="unsinn")
+
+
+def test_movement_target_validates_location_type():
+    """Ein Zielstandort muss lagerplatz | user | instance sein."""
+    import pytest
+
+    from app.schemas.movement import LOCATION_TYPES, MovementTarget
+
+    assert set(LOCATION_TYPES) == {"lagerplatz", "user", "instance"}
+    ok = MovementTarget(instance_id=100_000_010, location_type="lagerplatz", location_id=100_000_002)
+    assert ok.location_type == "lagerplatz"
+    with pytest.raises(ValueError):
+        MovementTarget(instance_id=1, location_type="strasse", location_id=2)
+
+
+def test_movement_in_process_engine():
+    """Die Prozess-Engine kennt den Bewegungsschritt (Label + Raw-Status)."""
+    from app.services.process import STEP_LABELS
+
+    assert STEP_LABELS["movement"] == "Bewegung"
+
+
+def test_instance_always_has_location_field():
+    """Instanzen tragen einen Standort (location_type/location_id)."""
+    from app.models import Instance
+
+    assert hasattr(Instance, "location_type")
+    assert hasattr(Instance, "location_id")
 
 
 def test_capture_field_evaluation():

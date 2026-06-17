@@ -54,6 +54,7 @@ def _bootstrap_admin() -> None:
 # create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
 _COLUMN_SAFETY_NET = (
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
+    ("company_settings", "default_receiving_location_id", "BIGINT"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "INTEGER"),
@@ -64,7 +65,11 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "position", "INTEGER DEFAULT 1"),
     ("article_process_steps", "sample_percent", "INTEGER"),
     ("article_process_steps", "capture_fields", "JSONB"),
+    ("article_process_steps", "target_location_type", "VARCHAR(20)"),
+    ("article_process_steps", "target_location_id", "BIGINT"),
     ("inspections", "values", "JSONB"),
+    ("instances", "location_type", "VARCHAR(20)"),
+    ("instances", "location_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

@@ -2,6 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
+  MovementUpdateInput,
   Instance, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
@@ -186,6 +187,11 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);
   }
 
+  // Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)
+  updateOrderMovement(objectId: number, data: MovementUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/movement`, data);
+  }
+
   // Bestand (Instanzen) eines Artikels
   getArticleInstances(objectId: number): Promise<Instance[]> {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
@@ -269,6 +275,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     plausible_domain: (s.plausible_domain as string | null) ?? null,
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
+    default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
   };
 }
 

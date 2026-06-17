@@ -37,6 +37,7 @@ class CompanySettingsUpdate(BaseModel):
     plausible_domain: Optional[str] = None
     hcaptcha_site_key: Optional[str] = None
     google_maps_api_key: Optional[str] = None
+    default_receiving_location_id: Optional[int] = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -75,6 +76,7 @@ class CompanySettingsResponse(BaseModel):
     plausible_domain: Optional[str]
     hcaptcha_site_key: Optional[str]
     google_maps_api_key: Optional[str]
+    default_receiving_location_id: Optional[int] = None
 
 
 class UserProfileResponse(BaseModel):

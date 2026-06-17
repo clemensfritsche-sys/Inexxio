@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
+from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
 
 
@@ -108,4 +109,5 @@ class OrderResponse(BaseModel):
     purchase: Optional[PurchaseEmbed] = None
     instances: list[InstanceEmbed] = []
     inspection: Optional[InspectionEmbed] = None
+    movement: Optional[MovementEmbed] = None
     steps: list[OrderStepInfo] = []

@@ -1490,6 +1490,64 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/movement": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Movement",
+        "description": "Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz).",
+        "operationId": "update_order_movement_api_v1_erp_orders__object_id__movement_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MovementUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -1886,6 +1944,28 @@
               }
             ],
             "title": "Capture Fields"
+          },
+          "target_location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Type"
+          },
+          "target_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Id"
           }
         },
         "type": "object",
@@ -1973,6 +2053,28 @@
             "type": "array",
             "title": "Capture Fields",
             "default": []
+          },
+          "target_location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Type"
+          },
+          "target_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Id"
           },
           "is_active": {
             "type": "boolean",
@@ -2088,6 +2190,28 @@
               }
             ],
             "title": "Capture Fields"
+          },
+          "target_location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Type"
+          },
+          "target_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Id"
           },
           "is_active": {
             "anyOf": [
@@ -2641,6 +2765,17 @@
               }
             ],
             "title": "Google Maps Api Key"
+          },
+          "default_receiving_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Receiving Location Id"
           }
         },
         "type": "object",
@@ -3024,6 +3159,17 @@
               }
             ],
             "title": "Google Maps Api Key"
+          },
+          "default_receiving_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Receiving Location Id"
           }
         },
         "type": "object",
@@ -3316,6 +3462,39 @@
           "qc_status": {
             "type": "string",
             "title": "Qc Status"
+          },
+          "location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Type"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
           }
         },
         "type": "object",
@@ -3327,7 +3506,7 @@
           "qc_status"
         ],
         "title": "InstanceEmbed",
-        "description": "Kurzform für die Einbettung in den Auftrag (Serialisierungs-Panel)."
+        "description": "Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."
       },
       "InstanceResponse": {
         "properties": {
@@ -3377,6 +3556,28 @@
             "type": "string",
             "title": "Qc Status"
           },
+          "location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Type"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
@@ -3412,6 +3613,17 @@
               }
             ],
             "title": "Article Name"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
           }
         },
         "type": "object",
@@ -3429,6 +3641,128 @@
           "updated_at"
         ],
         "title": "InstanceResponse"
+      },
+      "MovementEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "default": 0
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "moved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moved By Name"
+          },
+          "target_location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Type"
+          },
+          "target_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Id"
+          },
+          "target_location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Location Label"
+          }
+        },
+        "type": "object",
+        "title": "MovementEmbed",
+        "description": "Eingebetteter Stand der Bewegung (im Auftrag).\n\nDie aktuellen Standorte der Instanzen stehen in ``OrderResponse.instances``;\ndieser Embed trägt nur den Abschluss-Status und das (optionale) Vorgabe-Ziel\naus der Prozessdefinition."
+      },
+      "MovementTarget": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "location_type": {
+            "type": "string",
+            "title": "Location Type"
+          },
+          "location_id": {
+            "type": "integer",
+            "title": "Location Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "location_type",
+          "location_id"
+        ],
+        "title": "MovementTarget",
+        "description": "Zielstandort einer einzelnen Instanz (per Objektnummer adressiert)."
+      },
+      "MovementUpdate": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/MovementTarget"
+            },
+            "type": "array",
+            "title": "Targets",
+            "default": []
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "MovementUpdate",
+        "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz."
       },
       "OrderCreate": {
         "properties": {
@@ -3639,6 +3973,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/InspectionEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "movement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MovementEmbed"
               },
               {
                 "type": "null"

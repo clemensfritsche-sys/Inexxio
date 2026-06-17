@@ -3,13 +3,13 @@
 import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, Warehouse,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations';
+type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'logistics';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -21,6 +21,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_discount_percent: null, default_discount_days: null, oss_active: false,
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
+  default_receiving_location_id: null,
 };
 
 export function SystemConfigSection() {
@@ -32,6 +33,11 @@ export function SystemConfigSection() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.getSettings(),
+  });
+
+  const { data: storageLocations } = useQuery({
+    queryKey: ['storage-locations'],
+    queryFn: () => api.getStorageLocations(),
   });
 
   const mutation = useMutation({
@@ -177,6 +183,24 @@ export function SystemConfigSection() {
           <Field label="Plausible Domain" name="plausible_domain" defaultValue={s.plausible_domain ?? ''} placeholder="inexxio.com" />
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
           <Field label="Google Maps API Key" name="google_maps_api_key" defaultValue={s.google_maps_api_key ?? ''} placeholder="AIza…" hint="Für Lagerplatz-Karte; Maps JavaScript API + Geocoding API aktivieren, auf Domain einschränken" className="sm:col-span-2" />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard icon={<Warehouse className="h-5 w-5" />} title="Lager & Logistik"
+        saved={saved === 'logistics'} saving={saving === 'logistics'}
+        onSave={(d) => saveSection('logistics', { default_receiving_location_id: d.default_receiving_location_id ? Number(d.default_receiving_location_id) : null })}>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Standard-Wareneingang</label>
+          <select name="default_receiving_location_id" defaultValue={String(s.default_receiving_location_id ?? '')} className="form-input">
+            <option value="">Automatisch (Lagerplatz «Wareneingang» wird angelegt)</option>
+            {(storageLocations ?? []).filter((l) => l.status === 'released' && l.object_id != null).map((l) => (
+              <option key={l.object_id} value={String(l.object_id)}>{l.name} · {l.object_id}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Beim Serialisieren landen neue Instanzen an diesem Lagerplatz. Von hier verteilt sie der
+            Bewegungs-Schritt an ihren Zielstandort. Nur freigegebene Lagerplätze wählbar.
+          </p>
         </div>
       </SettingsCard>
     </div>

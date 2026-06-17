@@ -165,6 +165,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     konfigurierbarer Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht / Text). Ergebnis
     (passed/failed) wird aus den erfassten Werten abgeleitet und auf `instances.qc_status` übertragen
     (`services/inspection.py`).
+  - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
+    Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
+    Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
+    optionales Vorgabe-Ziel am Schritt (`target_location_type`/`_id`). Abschluss-Marker = `movements`
+    (analog inspection, keine eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`,
+    `services/locations.py`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
@@ -174,14 +180,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Instanzen. Auftrag heisst starr «Auftrag», nur **freigegebene** Artikel referenzierbar, Menge mit
   Artikel-Einheit, Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe
   read-only. Auftrag-Detail: **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts
-  (Beschaffung/Serialisierung/Eingangskontrolle); Lieferant sieht nur die Beschaffung seiner Aufträge.
+  (Beschaffung/Serialisierung/Datenerfassung/Bewegung); Lieferant sieht nur die Beschaffung seiner Aufträge.
+- **Standorte**: jede Instanz hat immer einen Standort. Bei der Serialisierung landen Instanzen im
+  **Wareneingang** (Systemkonfiguration `company_settings.default_receiving_location_id`; fehlt der
+  Eintrag, wird automatisch ein Lagerplatz «Wareneingang» angelegt). Admin → Einstellungen → «Lager &
+  Logistik» wählt den Standard-Wareneingang. Der **Bewegungs**-Schritt verteilt von dort weiter – das
+  PO-Modul bleibt standort-agnostisch (mehrere Lager = mehrere Lagerplätze als Bewegungsziele).
 
-> **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen) sind gefüllt. Prozess-
-> Schritttypen: purchase, serialization, inspection. E-Mail-Versand ist nur als TODO vermerkt
-> (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne, Lagerplatz-Zuweisung der Instanzen und Stripe
-> sind **noch nicht** implementiert.
+> **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
+> Prozess-Schritttypen: purchase, serialization, inspection, movement. E-Mail-Versand ist nur als TODO
+> vermerkt (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
 
-Nächste Aufgabe: Lagerplatz-Zuweisung/Bestandsbewegungen der Instanzen; E-Mail-Versand (Gmail API); Stückliste/BOM; Stripe
+Nächste Aufgabe: E-Mail-Versand (Gmail API); Stückliste/BOM; Arbeitspläne; Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

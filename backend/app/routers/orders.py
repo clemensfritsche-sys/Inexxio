@@ -5,11 +5,13 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Order, PurchaseOrder, UserProfile
 from ..schemas.inspection import InspectionUpdate
+from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..services.admin import log_audit
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable
+from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
@@ -166,5 +168,19 @@ async def update_order_inspection(
     """Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed)."""
     order = _get_staff_order(db, object_id)
     record_inspection(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/movement", response_model=OrderResponse)
+async def update_order_movement(
+    object_id: int,
+    data: MovementUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)."""
+    order = _get_staff_order(db, object_id)
+    record_movement(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)

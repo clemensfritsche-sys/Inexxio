@@ -4,10 +4,20 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from ..services.article_fields import normalize_shared_fields
+from .movement import LOCATION_TYPES
 
-ALLOWED_STEP_TYPES = ("purchase", "serialization", "inspection")
+ALLOWED_STEP_TYPES = ("purchase", "serialization", "inspection", "movement")
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
+
+
+def _check_target_location_type(v: Optional[str]) -> Optional[str]:
+    """Vorgabe-Zieltyp der Bewegung (leer = Lagerist entscheidet frei)."""
+    if v is None or v == "":
+        return None
+    if v not in LOCATION_TYPES:
+        raise ValueError(f"Zieltyp muss eine von {', '.join(LOCATION_TYPES)} sein")
+    return v
 
 
 class CaptureField(BaseModel):
@@ -80,11 +90,18 @@ class ArticleProcessStepCreate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
+    target_location_type: Optional[str] = None
+    target_location_id: Optional[int] = None
 
     @field_validator("shared_fields")
     @classmethod
     def _shared_ok(cls, v: Optional[list[str]]) -> list[str]:
         return normalize_shared_fields(v)
+
+    @field_validator("target_location_type")
+    @classmethod
+    def _target_type_ok(cls, v: Optional[str]) -> Optional[str]:
+        return _check_target_location_type(v)
 
     @field_validator("step_type")
     @classmethod
@@ -120,6 +137,10 @@ class ArticleProcessStepCreate(BaseModel):
                 raise ValueError("Im Modus 'Webshop' muss ein Link hinterlegt sein")
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
+        if self.step_type == "movement":
+            # Ohne Zieltyp gibt es kein festes Zielobjekt
+            if self.target_location_type is None:
+                self.target_location_id = None
         return self
 
 
@@ -133,6 +154,8 @@ class ArticleProcessStepUpdate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
+    target_location_type: Optional[str] = None
+    target_location_id: Optional[int] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -141,6 +164,11 @@ class ArticleProcessStepUpdate(BaseModel):
         if v is None:
             return None
         return normalize_shared_fields(v)
+
+    @field_validator("target_location_type")
+    @classmethod
+    def _target_type_ok(cls, v: Optional[str]) -> Optional[str]:
+        return _check_target_location_type(v)
 
     @field_validator("mode")
     @classmethod
@@ -176,6 +204,8 @@ class ArticleProcessStepResponse(BaseModel):
     shared_fields: list[str] = []
     sample_percent: Optional[int] = None
     capture_fields: list[CaptureField] = []
+    target_location_type: Optional[str] = None
+    target_location_id: Optional[int] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

@@ -14,6 +14,7 @@ import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { SerializationPanel } from '@/components/erp/serialization-panel';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
+import { MovementPanel } from '@/components/erp/movement-panel';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -307,6 +308,9 @@ function StepPanel({ type, stepState, order, viewerRole, onSaved }: {
   }
   if (type === 'inspection') {
     return <InspectionPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  }
+  if (type === 'movement') {
+    return <MovementPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
   }
   return null;
 }

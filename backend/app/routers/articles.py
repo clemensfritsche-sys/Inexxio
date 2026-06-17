@@ -9,6 +9,7 @@ from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.instance import InstanceResponse
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable
+from ..services.locations import location_label
 from ..services.objects import next_object_id
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
@@ -160,5 +161,6 @@ async def list_article_instances(
         resp = InstanceResponse.model_validate(r)
         resp.order_object_id = order_map.get(r.order_id)
         resp.article_name = article.name
+        resp.location_label = location_label(db, r.location_type, r.location_id)
         out.append(resp)
     return out
