@@ -17,6 +17,8 @@ class OrderStepInfo(BaseModel):
     position: int
     label: str
     state: str   # done | active | locked | failed
+    completed_by: Optional[str] = None   # wer hat den Schritt abgeschlossen
+    completed_at: Optional[datetime] = None  # wann
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")

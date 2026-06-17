@@ -1,17 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes } from 'lucide-react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { lifecycleActions } from '@/lib/status-flow';
+import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
 type Form = {
-  max_load_kg: string; dimensions: string; note: string;
+  max_load_kg: string; dimensions: string;
   latitude: string; longitude: string;
   address_street: string; address_zip: string; address_city: string; address_country: string;
 };
@@ -27,12 +28,12 @@ function joinDims(record: StorageLocation): string {
 function seedFrom(record: StorageLocation | null): Form {
   if (!record) {
     return {
-      max_load_kg: '', dimensions: '', note: '',
+      max_load_kg: '', dimensions: '',
       latitude: '', longitude: '', address_street: '', address_zip: '', address_city: '', address_country: '',
     };
   }
   return {
-    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record), note: s(record.note),
+    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record),
     latitude: s(record.latitude), longitude: s(record.longitude),
     address_street: s(record.address_street), address_zip: s(record.address_zip),
     address_city: s(record.address_city), address_country: s(record.address_country),
@@ -76,7 +77,6 @@ function buildInput(form: Form): StorageLocationInput {
   return {
     max_load_kg: num(form.max_load_kg),
     width_mm: dims?.w ?? null, depth_mm: dims?.d ?? null, height_mm: dims?.h ?? null,
-    note: strOrNull(form.note),
     latitude: num(form.latitude), longitude: num(form.longitude),
     address_street: strOrNull(form.address_street), address_zip: strOrNull(form.address_zip),
     address_city: strOrNull(form.address_city), address_country: strOrNull(form.address_country),
@@ -96,9 +96,9 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 }) {
   const isCreate = record === null;
   const [form, setForm] = useState<Form>(() => seedFrom(record));
-  const [dirty, setDirty] = useState(false);
-  const [touched, setTouched] = useState(false);
+  const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,7 +117,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
-    setDirty(true);
   }
 
   function handlePick(la: number, ln: number, address?: ParsedAddress) {
@@ -129,7 +128,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       address_city: address?.city || p.address_city,
       address_country: address?.country || p.address_country,
     }));
-    setDirty(true);
   }
 
   const errs = {
@@ -138,11 +136,19 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
     gps: form.latitude.trim() && form.longitude.trim() ? null : 'Standort (GPS) ist ein Pflichtfeld',
   };
   const valid = !errs.weight && !errs.dimensions && !errs.gps;
-  const showErrors = !isCreate || touched;
+
+  const latNum = form.latitude.trim() ? Number(form.latitude) : null;
+  const lngNum = form.longitude.trim() ? Number(form.longitude) : null;
+
+  // Nach der Freigabe ist der Lagerplatz schreibgeschützt.
+  const locked = !isCreate && record !== null && record.status !== 'draft';
+
+  const sig = JSON.stringify(form);
+  const canSave = !locked && valid && sig !== savedSig && !saving;
 
   async function save() {
-    setTouched(true);
     if (!valid) return;
+    const current = sig;
     setSaving(true);
     setError(null);
     try {
@@ -151,6 +157,9 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
         onSaved(await api.createStorageLocation(input));
       } else {
         onSaved(await api.updateStorageLocation(record.object_id as number, input));
+        setSavedSig(current);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -159,11 +168,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
     }
   }
 
-  const latNum = form.latitude.trim() ? Number(form.latitude) : null;
-  const lngNum = form.longitude.trim() ? Number(form.longitude) : null;
-
-  // Nach der Freigabe ist der Lagerplatz schreibgeschützt.
-  const locked = !isCreate && record !== null && record.status !== 'draft';
+  const flush = useAutosave(sig, canSave, save);
 
   return (
     <div className="flex flex-col h-full">
@@ -177,15 +182,14 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             <Warehouse size={20} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>
-              Lagerplatz
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Lagerplatz</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               {isCreate ? (
                 <StatusBadge cfg={storageStatusConfig('draft')} />
               ) : (
                 <StatusFlow cfg={storageStatusConfig(record.status)} actions={lifecycleActions(record.status)} busy={statusBusy} onAction={changeStatus} />
               )}
+              <SaveIndicator saving={saving} flash={flash} />
             </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -205,7 +209,8 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {locked ? (
           <>
             <SectionTitle icon={MapPin}>Standort</SectionTitle>
@@ -221,12 +226,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
               <Row k="Max. Traglast" v={record!.max_load_kg != null ? `${record!.max_load_kg} kg` : '—'} />
               <Row k="Abmessungen (B×L×H)" v={joinDims(record!) ? `${joinDims(record!)} mm` : '—'} />
             </Card>
-            {record!.note && (
-              <>
-                <SectionTitle icon={FileText}>Bemerkung</SectionTitle>
-                <Card><div style={{ fontSize: 13, color: '#0F172A', whiteSpace: 'pre-wrap' }}>{record!.note}</div></Card>
-              </>
-            )}
           </>
         ) : (
           <>
@@ -234,7 +233,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             <SectionTitle icon={MapPin}>Standort *</SectionTitle>
             <Card>
               <MapPicker apiKey={mapsApiKey} lat={latNum} lng={lngNum} onPick={handlePick} />
-              {showErrors && errs.gps && <ErrorText msg={errs.gps} />}
+              {!valid && errs.gps && <ErrorText msg={errs.gps} />}
               <div style={{ fontSize: 11, color: '#94a3b8' }}>Adresse (wird aus Karte/GPS ermittelt, anpassbar):</div>
               <TextField label="Strasse & Nr." value={form.address_street} onChange={(v) => set('address_street', v)} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
@@ -247,15 +246,8 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             {/* Kapazität */}
             <SectionTitle icon={Boxes}>Kapazität</SectionTitle>
             <Card>
-              <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={showErrors ? errs.weight : null} />
-              <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={showErrors ? errs.dimensions : null} />
-            </Card>
-
-            {/* Bemerkung */}
-            <SectionTitle icon={FileText}>Bemerkung</SectionTitle>
-            <Card>
-              <textarea value={form.note} onChange={(e) => set('note', e.target.value)} rows={3} placeholder="Optionale Bemerkung zum Lagerplatz"
-                className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
+              <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={errs.weight} />
+              <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={errs.dimensions} />
             </Card>
           </>
         )}
@@ -267,29 +259,28 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
         )}
       </div>
 
-      {/* Save bar */}
-      {!locked && (isCreate || dirty || error) && (
+      {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
+      {!locked && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : (showErrors && !valid) ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (showErrors && !valid ? 'Pflichtfelder: Traglast, Abmessungen, Standort' : isCreate ? 'Neuen Lagerplatz erfassen' : 'Ungespeicherte Änderungen')}
+          <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {error ?? (!valid ? 'Pflichtfelder: Traglast, Abmessungen, Standort' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
           </span>
-          <button
-            onClick={isCreate ? onCancel : () => { setForm(seedFrom(record)); setDirty(false); setError(null); setTouched(false); }}
-            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}
-          >
-            {isCreate ? 'Abbrechen' : 'Verwerfen'}
-          </button>
-          <button
-            onClick={save}
-            disabled={saving || (showErrors && !valid)}
-            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving || (showErrors && !valid) ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}
-          >
-            {saving ? 'Speichern…' : isCreate ? 'Anlegen' : 'Speichern'}
-          </button>
+          {isCreate && (
+            <button onClick={onCancel}
+              style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
+              Abbrechen
+            </button>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
+  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
+  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
+  return null;
 }
 
 function Card({ children }: { children: React.ReactNode }) {

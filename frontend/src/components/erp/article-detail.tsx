@@ -1,19 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleUpdateInput, UserProfile } from '@/types';
+import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile } from '@/types';
 import {
   ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
+import type { StatusAction } from '@/lib/status-flow';
 import { lifecycleActions } from '@/lib/status-flow';
+import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
+
+// Artikel-Lebenszyklus: Freigabe erst möglich, wenn mindestens ein Prozessschritt existiert.
+function articleActions(status: string, canRelease: boolean): StatusAction[] {
+  if (status === 'draft')
+    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
+      hint: canRelease ? undefined : 'Erst einen Prozessschritt hinzufügen' }];
+  return lifecycleActions(status);
+}
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
 
@@ -48,14 +58,22 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
   const [form, setForm] = useState<Form>(() => seedFrom(record));
-  const [touched, setTouched] = useState(false);
+  const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stepCount, setStepCount] = useState<number | null>(isCreate ? 0 : null);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
   }
+
+  // Anzahl Prozessschritte für die Freigabe-Bedingung laden
+  useEffect(() => {
+    if (record?.object_id == null) return;
+    api.getArticleProcessSteps(record.object_id).then((s) => setStepCount(s.length)).catch(() => {});
+  }, [record?.object_id]);
 
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
   const locked = !isCreate && record !== null && record.status !== 'draft';
@@ -66,15 +84,13 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     weight: validateWeight(form.weight_kg),
   };
   const valid = !errs.name && !errs.size && !errs.weight;
-  const showErrors = !isCreate || touched;
+  const canRelease = (stepCount ?? 0) > 0;
 
-  const dirty = isCreate || (record !== null && (
-    form.name !== record.name ||
-    form.unit !== record.unit ||
-    form.serialization !== record.serialization ||
-    normalizeSize(form.size) !== record.size ||
-    normalizeWeight(form.weight_kg) !== record.weight_kg
-  ));
+  const sig = JSON.stringify({
+    name: form.name.trim(), unit: form.unit, serialization: form.serialization,
+    size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg),
+  });
+  const canSave = !locked && valid && sig !== savedSig && !saving;
 
   async function changeStatus(target: string) {
     if (!record) return;
@@ -90,29 +106,25 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   }
 
   async function save() {
-    setTouched(true);
     if (!valid) return;
+    const current = sig;
     setSaving(true);
     setError(null);
     try {
+      const payload = {
+        name: form.name.trim(),
+        unit: form.unit as ArticleUnit,
+        serialization: form.serialization as ArticleSerialization,
+        size: normalizeSize(form.size),
+        weight_kg: normalizeWeight(form.weight_kg),
+      };
       if (isCreate) {
-        const created = await api.createArticle({
-          name: form.name.trim(),
-          unit: form.unit as ArticleUnit,
-          serialization: form.serialization as ArticleSerialization,
-          size: normalizeSize(form.size),
-          weight_kg: normalizeWeight(form.weight_kg),
-        });
-        onSaved(created);
+        onSaved(await api.createArticle(payload));
       } else {
-        const payload: ArticleUpdateInput = {};
-        if (form.name !== record.name) payload.name = form.name.trim();
-        if (form.unit !== record.unit) payload.unit = form.unit as ArticleUnit;
-        if (form.serialization !== record.serialization) payload.serialization = form.serialization as ArticleSerialization;
-        if (normalizeSize(form.size) !== record.size) payload.size = normalizeSize(form.size);
-        if (normalizeWeight(form.weight_kg) !== record.weight_kg) payload.weight_kg = normalizeWeight(form.weight_kg);
-        const updated = await api.updateArticle(record.object_id as number, payload);
-        onSaved(updated);
+        onSaved(await api.updateArticle(record.object_id as number, payload));
+        setSavedSig(current);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -120,6 +132,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       setSaving(false);
     }
   }
+
+  const flush = useAutosave(sig, canSave, save);
 
   return (
     <div className="flex flex-col h-full">
@@ -140,8 +154,9 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={lifecycleActions(record.status)} busy={statusBusy} onAction={changeStatus} />
+                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, canRelease)} busy={statusBusy} onAction={changeStatus} />
               )}
+              <SaveIndicator saving={saving} flash={flash} />
             </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -178,7 +193,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'stammdaten' && (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {locked ? (
@@ -207,21 +223,21 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                       Keine Artikelnamen hinterlegt – bitte in Admin → Einstellungen → «Artikelnamen» anlegen.
                     </div>
                   )}
-                  {showErrors && errs.name && <ErrorText msg={errs.name} />}
+                  {errs.name && form.name !== '' && <ErrorText msg={errs.name} />}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
                 </div>
-                <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={showErrors ? errs.size : null} />
-                <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={showErrors ? errs.weight : null} />
+                <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
+                <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
               </>
             )}
             {!isCreate && <PriceRange record={record!} />}
           </div>
         )}
         {tab === 'prozess' && (
-          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} />
+          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} onStepsCount={setStepCount} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
@@ -237,29 +253,28 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         </div>
       )}
 
-      {/* Save bar */}
-      {!locked && (isCreate || dirty || error) && (
+      {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
+      {!locked && tab === 'stammdaten' && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : (showErrors && !valid) ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (isCreate ? 'Neuen Artikel erfassen' : (showErrors && !valid) ? 'Bitte Eingaben prüfen' : 'Ungespeicherte Änderungen')}
+          <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {error ?? (!valid ? 'Pflichtfelder: Name, Grösse, Gewicht' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
           </span>
-          <button
-            onClick={isCreate ? onCancel : () => { setForm(seedFrom(record)); setError(null); setTouched(false); }}
-            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}
-          >
-            {isCreate ? 'Abbrechen' : 'Verwerfen'}
-          </button>
-          <button
-            onClick={save}
-            disabled={saving || (showErrors && !valid)}
-            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving || (showErrors && !valid) ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}
-          >
-            {saving ? 'Speichern…' : isCreate ? 'Anlegen' : 'Speichern'}
-          </button>
+          {isCreate && (
+            <button onClick={onCancel}
+              style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
+              Abbrechen
+            </button>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
+  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
+  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
+  return null;
 }
 
 const lockedNotice: React.CSSProperties = {

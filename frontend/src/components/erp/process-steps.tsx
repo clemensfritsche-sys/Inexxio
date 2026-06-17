@@ -6,19 +6,20 @@ import { api } from '@/lib/api';
 import type { ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
-import { STEP_META, locationTypeLabel } from '@/lib/process';
+import { STEP_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, Label, Segmented, SelectField, TextField } from '@/components/erp/fields';
+import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 
 const STEP_ORDER: StepType[] = ['purchase', 'serialization', 'inspection', 'movement'];
 
-export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
+export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onStepsCount }: {
   articleObjectId: number | null;
   suppliers: UserProfile[];
   readOnly?: boolean;
+  onStepsCount?: (n: number) => void;
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +46,9 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
     setLoading(true);
     api.getArticleProcessSteps(articleObjectId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
   }, [articleObjectId]);
+
+  // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
+  useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
 
   // Auswahllisten (Lagerplätze, Personen, Instanzen) erst bei der Bewegungs-Konfiguration laden
   useEffect(() => {
@@ -287,8 +291,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
                     options={[{ value: 'supplier', label: 'Lieferant' }, { value: 'webshop', label: 'Webshop-Link' }]} required />
                   {mode === 'supplier' ? (
                     suppliers.length > 0 ? (
-                      <SelectField label="Lieferant" value={supplierId} onChange={setSupplierId} required
-                        options={[{ value: '', label: '— wählen —' }, ...suppliers.map((u) => ({ value: String(u.id), label: userDisplayName(u) }))]} />
+                      <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId} required
+                        options={[{ value: '', label: '— wählen —' }, ...suppliers.map((u) => ({ value: String(u.id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id)}` }))]} />
                     ) : (
                       <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Keine Lieferanten vorhanden. Bitte zuerst anlegen oder Webshop-Link nutzen.</span></div>
                     )
@@ -314,28 +318,17 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
 
               {adding === 'movement' && (
                 <>
-                  <div>
-                    <Label>Zielstandort (optional)</Label>
-                    <select value={targetSel} onChange={(e) => setTargetSel(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0' }}>
-                      <option value="">Nicht definiert – Lagerist wählt beim Einlagern</option>
-                      <optgroup label="Lagerplätze">
-                        {storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => (
-                          <option key={`l${l.object_id}`} value={`lagerplatz:${l.object_id}`}>{fmtObjId(l.object_id)}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Personen">
-                        {allUsers.filter((u) => u.object_id != null).map((u) => (
-                          <option key={`u${u.object_id}`} value={`user:${u.object_id}`}>{userDisplayName(u)}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Instanzen">
-                        {allInstances.filter((i) => i.object_id != null).map((i) => (
-                          <option key={`i${i.object_id}`} value={`instance:${i.object_id}`}>{fmtObjId(i.object_id)}</option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
+                  <SearchSelect label="Zielstandort (optional)" value={targetSel} onChange={setTargetSel}
+                    placeholder="Nicht definiert – Lagerist wählt beim Einlagern"
+                    options={[
+                      { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
+                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+                      ...allUsers.filter((u) => u.object_id != null).map((u) => ({
+                        value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
+                      ...allInstances.filter((i) => i.object_id != null).map((i) => ({
+                        value: `instance:${i.object_id}`, label: `${instanceKindLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
+                    ]} />
                   <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>Bringt die serialisierten Instanzen an ihren Standort. Ohne Vorgabe ist der Standort
                       nicht definiert und frei wählbar – der Lagerist entscheidet beim Einlagern (auch

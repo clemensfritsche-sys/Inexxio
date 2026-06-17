@@ -284,12 +284,28 @@ def test_article_names_catalog_normalized():
 
 
 def test_storage_location_has_note():
-    """Lagerplatz trägt eine optionale Bemerkung."""
+    """Lagerplatz trägt eine optionale Bemerkung (Spalte bleibt, UI entfernt)."""
     from app.models import StorageLocation
     from app.schemas.storage_location import StorageLocationCreate
 
     assert hasattr(StorageLocation, "note")
     assert "note" in StorageLocationCreate.model_fields
+
+
+def test_order_step_info_carries_completion():
+    """Stepper-Schritt trägt Abschluss-Info (wer/wann) für den Hover-Tooltip."""
+    from app.schemas.order import OrderStepInfo
+
+    assert "completed_by" in OrderStepInfo.model_fields
+    assert "completed_at" in OrderStepInfo.model_fields
+
+
+def test_instance_reference_schema():
+    """Verwendungsnachweis-Schema enthält Typ, Objektnummer, Label und Zeit."""
+    from app.schemas.instance import InstanceReference
+
+    for f in ("kind", "ref_type", "object_id", "label", "at"):
+        assert f in InstanceReference.model_fields
 
 
 def test_capture_field_evaluation():

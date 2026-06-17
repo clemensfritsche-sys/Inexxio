@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertCircle, ChevronDown, Search } from 'lucide-react';
 import type { StatusAction, StatusTone } from '@/lib/status-flow';
 
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
@@ -52,6 +53,63 @@ export function SelectField({ label, value, onChange, options, required }: {
       <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} style={{ borderColor: '#e2e8f0' }}>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
+    </div>
+  );
+}
+
+/** Durchsuchbare Referenz-Auswahl (Combobox). Filtert Optionen per Tippen –
+ *  z. B. «003» findet die Objektnummer 100000003. */
+export function SearchSelect({ label, value, onChange, options, required, placeholder }: {
+  label?: string; value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[]; required?: boolean; placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setQuery(''); }
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+
+  function pick(v: string) { onChange(v); setOpen(false); setQuery(''); }
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      {label && <Label required={required}>{label}</Label>}
+      <div style={{ position: 'relative' }}>
+        <input
+          value={open ? query : (selected?.label ?? '')}
+          placeholder={placeholder ?? '— wählen —'}
+          onFocus={() => { setOpen(true); setQuery(''); }}
+          onChange={(e) => { setQuery(e.target.value); if (!open) setOpen(true); }}
+          className={inputCls}
+          style={{ borderColor: '#e2e8f0', paddingRight: 28 }}
+        />
+        {open
+          ? <Search size={14} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+          : <ChevronDown size={14} style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />}
+      </div>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 40, top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: 240, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>Keine Treffer</div>
+          ) : filtered.map((o) => (
+            <button key={o.value} type="button" onClick={() => pick(o.value)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none',
+                background: o.value === value ? '#eff6ff' : '#fff', color: o.value === value ? '#2563eb' : '#0f172a', cursor: 'pointer' }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

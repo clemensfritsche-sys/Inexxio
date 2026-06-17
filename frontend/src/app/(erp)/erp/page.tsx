@@ -11,6 +11,7 @@ import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
+import { ErpNavContext } from '@/components/erp/obj-id';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
@@ -191,6 +192,12 @@ export default function ErpPage() {
     setMobileView('detail');
   }
 
+  // Klick auf eine referenzierte Objektnummer → zugehörigen Datensatz öffnen
+  function openByObjectId(objectId: number) {
+    const row = rows.find((r) => r.objectId === objectId);
+    if (row) handleSelect(row.type, objectId);
+  }
+
   function startCreate(type: 'article' | 'order' | 'storage_location') {
     setPlusOpen(false);
     setSel(null);
@@ -232,6 +239,7 @@ export default function ErpPage() {
   const hasDetail = creating !== null || selectedRow !== null;
 
   return (
+    <ErpNavContext.Provider value={openByObjectId}>
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 72px)' }}>
       <div className="flex overflow-hidden" style={{ flex: 1, minHeight: 0 }}>
 
@@ -362,6 +370,7 @@ export default function ErpPage() {
         </div>
       </div>
     </div>
+    </ErpNavContext.Provider>
   );
 }
 

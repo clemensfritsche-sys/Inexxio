@@ -508,6 +508,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/instances/{object_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Instance References
+         * @description Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt).
+         */
+        get: operations["list_instance_references_api_v1_erp_instances__object_id__references_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/storage-locations": {
         parameters: {
             query?: never;
@@ -1035,6 +1055,25 @@ export interface components {
             /** Location Label */
             location_label?: string | null;
         };
+        /**
+         * InstanceReference
+         * @description Ein Verwendungsnachweis: wo wird diese Instanz referenziert?
+         */
+        InstanceReference: {
+            /** Kind */
+            kind: string;
+            /** Ref Type */
+            ref_type: string;
+            /** Object Id */
+            object_id: number;
+            /** Label */
+            label: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+        };
         /** InstanceResponse */
         InstanceResponse: {
             /** Id */
@@ -1211,6 +1250,10 @@ export interface components {
             label: string;
             /** State */
             state: string;
+            /** Completed By */
+            completed_by?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -2738,6 +2781,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_instance_references_api_v1_erp_instances__object_id__references_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceReference"][];
                 };
             };
             /** @description Validation Error */

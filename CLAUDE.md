@@ -191,6 +191,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz.
 - **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
   Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
+- **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
+  grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
+  durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern
+  sind klickbar** und öffnen den Datensatz (`components/erp/obj-id.tsx` + `ErpNavContext`). Artikel ohne
+  Prozessschritt sind **nicht freigebbar**. Auftrag-Stepper zeigt beim Hover Wer/Wann je erledigtem
+  Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
 > Prozess-Schritttypen: purchase, serialization, inspection, movement. E-Mail-Versand ist nur als TODO

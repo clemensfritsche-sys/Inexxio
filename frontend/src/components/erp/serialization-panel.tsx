@@ -5,7 +5,7 @@ import { Hash, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order } from '@/types';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 
 export function SerializationPanel({ order, stepState, onOrderUpdated }: {
@@ -49,7 +49,7 @@ export function SerializationPanel({ order, stepState, onOrderUpdated }: {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
             {instances.map((i) => (
               <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
-                <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(i.object_id ?? null)}</span>
+                <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
                 <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
                   {i.kind === 'batch' ? `Charge · ${i.quantity} ${order.article_unit ?? ''}`.trim() : instanceKindLabel(i.kind)}
                 </span>

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { Instance } from '@/types';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge, Placeholder } from '@/components/erp/fields';
 
 export function InstanceList({ articleObjectId, unit }: { articleObjectId: number | null; unit?: string }) {
@@ -40,7 +41,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
       </div>
       {items.map((i) => (
         <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 12px' }}>
-          <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(i.object_id ?? null)}</span>
+          <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
           <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
             {i.kind === 'batch' ? `Charge · ${i.quantity} ${unit ?? ''}`.trim() : instanceKindLabel(i.kind)}
             {i.order_object_id ? ` · Auftrag ${fmtObjId(i.order_object_id)}` : ''}

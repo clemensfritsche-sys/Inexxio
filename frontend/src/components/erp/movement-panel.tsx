@@ -7,9 +7,10 @@ import type { Instance, LocationType, Order, StorageLocation, UserProfile } from
 import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label } from '@/components/erp/fields';
+import { Label, SearchSelect } from '@/components/erp/fields';
+import { ObjId } from '@/components/erp/obj-id';
 
-type Opt = { value: string; label: string; group: string };
+type Opt = { value: string; label: string };
 
 function encode(type: LocationType, id: number): string { return `${type}:${id}`; }
 function decode(v: string): { type: LocationType; id: number } | null {
@@ -33,7 +34,6 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [targets, setTargets] = useState<Record<number, string>>({});
-  const [note, setNote] = useState(mv?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,29 +62,23 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
   const ownObjIds = useMemo(() => new Set(instances.map((i) => i.object_id)), [instances]);
   const fixedType = mv?.target_location_type as LocationType | null | undefined;
 
-  // Zieloptionen, gruppiert. Bei fest vorgegebenem Typ nur diesen anbieten.
+  // Flache, durchsuchbare Zieloptionen (Typ-Präfix + Objektnummer/Name).
   const options = useMemo<Opt[]>(() => {
     const out: Opt[] = [];
     if (!fixedType || fixedType === 'lagerplatz') {
       storageLocs.filter((l) => l.status === 'released' && l.object_id != null).forEach((l) =>
-        out.push({ value: encode('lagerplatz', l.object_id as number), label: fmtObjId(l.object_id), group: 'Lagerplätze' }));
+        out.push({ value: encode('lagerplatz', l.object_id as number), label: `Lagerplatz ${fmtObjId(l.object_id)}` }));
     }
     if (!fixedType || fixedType === 'user') {
       users.filter((u) => u.object_id != null).forEach((u) =>
-        out.push({ value: encode('user', u.object_id as number), label: userDisplayName(u), group: 'Personen' }));
+        out.push({ value: encode('user', u.object_id as number), label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` }));
     }
     if (!fixedType || fixedType === 'instance') {
       allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) =>
-        out.push({ value: encode('instance', i.object_id as number), label: `${instanceKindLabel(i.kind)} · ${fmtObjId(i.object_id)}`, group: 'Instanzen' }));
+        out.push({ value: encode('instance', i.object_id as number), label: `${instanceKindLabel(i.kind)} ${fmtObjId(i.object_id)}` }));
     }
     return out;
   }, [storageLocs, users, allInstances, ownObjIds, fixedType]);
-
-  const groups = useMemo(() => {
-    const g: Record<string, Opt[]> = {};
-    options.forEach((o) => { (g[o.group] ??= []).push(o); });
-    return g;
-  }, [options]);
 
   function setAll(v: string) {
     if (!v) return;
@@ -106,7 +100,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
     if (list.length < instances.length) { setError('Bitte für jede Instanz einen Zielstandort wählen'); return; }
     setSaving(true); setError(null);
     try {
-      onOrderUpdated(await api.updateOrderMovement(order.object_id as number, { targets: list, note: note.trim() || null }));
+      onOrderUpdated(await api.updateOrderMovement(order.object_id as number, { targets: list }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
     } finally { setSaving(false); }
@@ -147,7 +141,6 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
           {instances.map((i) => <InstanceRow key={i.id} instance={i} />)}
         </div>
-        {mv?.note && <div style={{ fontSize: 12, color: '#64748b' }}>Notiz: {mv.note}</div>}
       </div>
     );
   }
@@ -165,7 +158,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
       {instances.length > 1 && (
         <div>
           <Label>Ziel für alle Instanzen</Label>
-          <GroupedSelect value="" placeholder="— alle gemeinsam setzen —" groups={groups} onChange={setAll} />
+          <SearchSelect value="" placeholder="— alle gemeinsam setzen —" options={options} onChange={setAll} />
         </div>
       )}
 
@@ -174,23 +167,19 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
         {instances.map((i) => (
           <div key={i.id} style={{ border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(i.object_id ?? null)}</span>
+              <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(i.kind)}</span>
               <CurrentLocation instance={i} />
             </div>
-            <GroupedSelect
+            <SearchSelect
               value={i.object_id != null ? (targets[i.object_id] ?? '') : ''}
               placeholder="— Zielstandort wählen —"
-              groups={groups}
+              options={options}
               onChange={(v) => { if (i.object_id != null) setTargets((p) => ({ ...p, [i.object_id as number]: v })); }}
             />
           </div>
         ))}
       </div>
-
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notiz (optional)" rows={2}
-        className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
@@ -201,23 +190,6 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
         </button>
       </div>
     </div>
-  );
-}
-
-function GroupedSelect({ value, placeholder, groups, onChange }: {
-  value: string; placeholder: string; groups: Record<string, Opt[]>; onChange: (v: string) => void;
-}) {
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      style={{ borderColor: '#e2e8f0' }}>
-      <option value="">{placeholder}</option>
-      {Object.entries(groups).map(([g, opts]) => (
-        <optgroup key={g} label={g}>
-          {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </optgroup>
-      ))}
-    </select>
   );
 }
 
@@ -235,7 +207,7 @@ function InstanceRow({ instance }: { instance: NonNullable<Order['instances']>[n
   const Icon = LOCATION_META[(instance.location_type as LocationType)]?.icon ?? MapPin;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
-      <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(instance.object_id ?? null)}</span>
+      <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
       <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(instance.kind)}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
         <Icon size={13} style={{ color: '#2563eb' }} /> {instance.location_label ?? '—'}

@@ -1,15 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, ArrowLeft, Rocket, Workflow, MapPin, CheckCircle2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Rocket, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Order, OrderStep, OrderUpdateInput } from '@/types';
+import type { Article, CompanySettings, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState } from '@/lib/process';
+import { useAutosave } from '@/lib/use-autosave';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { SelectField, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { ObjId } from '@/components/erp/obj-id';
+import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { SerializationPanel } from '@/components/erp/serialization-panel';
@@ -60,7 +62,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const isStaff = viewerRole === 'staff';
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [dateOpen, setDateOpen] = useState<boolean>(!!record?.desired_delivery_date);
+  const [savedSig, setSavedSig] = useState<string>(() => (record === null ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
@@ -83,12 +87,13 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const currentStep = selStep ?? activeStepType;
   const currentStepState = steps.find((s) => s.step_type === currentStep)?.state ?? 'locked';
 
-  const seed = seedFrom(record);
-  const dirty = isCreate || (Object.keys(form) as (keyof Form)[]).some((k) => form[k] !== seed[k]);
-
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
+  const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
+  const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
+  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate });
+  const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
   // Freigabe erst möglich, wenn Artikel + Menge gespeichert sind (keine offenen Änderungen)
-  const canRelease = !!record?.article_id && !!record?.quantity && !dirty;
+  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
 
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
@@ -96,26 +101,35 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const qtyUnit = selectedArticle ? unitLabel(selectedArticle.unit) : (record?.article_unit ? unitLabel(record.article_unit) : '');
 
   async function save() {
+    if (!demandValid) return;
+    const current = sig;
     setSaving(true);
     setError(null);
     try {
       const article_id = form.article_id ? Number(form.article_id) : null;
-      const quantity = qtyNum;
-      const desired_delivery_date = dateOpen ? (form.desired_delivery_date || null) : null;
+      const payload = { article_id, quantity: qtyNum, desired_delivery_date: effectiveDate };
       if (isCreate) {
-        onSaved(await api.createOrder({ article_id, quantity, desired_delivery_date }));
+        onSaved(await api.createOrder(payload));
       } else {
-        const payload: OrderUpdateInput = {};
-        if (article_id !== (record.article_id ?? null)) payload.article_id = article_id;
-        if (quantity !== (record.quantity ?? null)) payload.quantity = quantity;
-        if (desired_delivery_date !== (record.desired_delivery_date ?? null)) payload.desired_delivery_date = desired_delivery_date;
         onSaved(await api.updateOrder(record.object_id as number, payload));
+        setSavedSig(current);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
     } finally {
       setSaving(false);
     }
+  }
+
+  const flush = useAutosave(sig, canSave, save);
+
+  // Nach Abschluss eines Prozessschritts automatisch zum nächsten aktiven springen
+  function afterStep(o: Order) {
+    onSaved(o);
+    const next = (o.steps ?? []).find((s) => s.state === 'active');
+    if (next) setSelStep(next.step_type);
   }
 
   async function changeStatus(target: string) {
@@ -135,9 +149,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` })),
   ];
-  const articleLabel = record?.article_object_id != null ? fmtObjId(record.article_object_id) : '—';
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
-  const showSaveBar = isStaff && demandEditable && (isCreate || dirty || !!error);
 
   return (
     <div className="flex flex-col h-full">
@@ -160,6 +172,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               ) : (
                 <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease)} busy={statusBusy} onAction={changeStatus} />
               )}
+              {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
             </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -172,7 +185,8 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {isCompleted && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
             <CheckCircle2 size={16} /> Auftrag abgeschlossen – alle Prozessschritte erledigt.
@@ -184,7 +198,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         <div style={cardStyle}>
           {demandEditable ? (
             <>
-              <SelectField label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
+              <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
               {releasedArticles.length === 0 && (
                 <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
                   Kein freigegebener Artikel vorhanden. Nur Artikel im Status «Freigegeben» können referenziert werden.
@@ -212,7 +226,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </>
           ) : (
             <>
-              <Row k="Artikel" v={articleLabel} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+                <span style={{ color: '#94a3b8', flexShrink: 0 }}>Artikel</span>
+                <span style={{ textAlign: 'right' }}>
+                  {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
+                </span>
+              </div>
               <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
             </>
@@ -236,12 +255,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
               <ProcessStepper
-                nodes={steps.map((s) => ({ key: s.step_type, label: s.label, state: toStepperState(s.state) }))}
+                nodes={steps.map((s) => ({ key: s.step_type, label: s.label, state: toStepperState(s.state), hint: stepHint(s) }))}
                 selectedKey={currentStep ?? undefined}
                 onSelect={setSelStep}
               />
             </div>
-            <StepPanel type={currentStep} stepState={currentStepState} order={record as Order} viewerRole={viewerRole} onSaved={onSaved} />
+            <StepPanel type={currentStep} stepState={currentStepState} order={record as Order} viewerRole={viewerRole} onSaved={afterStep} />
           </>
         ) : !isStaff && hasPurchase ? (
           <>
@@ -265,29 +284,34 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         </div>
       )}
 
-      {/* Save bar (Bedarf erfassen/ändern, nur im Entwurf) */}
-      {showSaveBar && (
+      {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
+      {demandEditable && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (isCreate ? 'Neuen Auftrag erfassen' : 'Ungespeicherte Änderungen')}
+          <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {error ?? (!demandValid ? 'Pflichtfelder: Artikel und Menge' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
           </span>
-          <button
-            onClick={isCreate ? onCancel : () => { setForm(seedFrom(record)); setDateOpen(!!record?.desired_delivery_date); setError(null); }}
-            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}
-          >
-            {isCreate ? 'Abbrechen' : 'Verwerfen'}
-          </button>
-          <button
-            onClick={save}
-            disabled={saving}
-            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}
-          >
-            {saving ? 'Speichern…' : isCreate ? 'Anlegen' : 'Speichern'}
-          </button>
+          {isCreate && (
+            <button onClick={onCancel}
+              style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
+              Abbrechen
+            </button>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
+  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
+  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
+  return null;
+}
+
+function stepHint(s: OrderStep): string | undefined {
+  if (s.state !== 'done' || !s.completed_at) return undefined;
+  const who = s.completed_by ?? 'System';
+  return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
 // Rendert das Panel des gewählten Prozessschritts

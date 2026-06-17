@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
-from ..schemas.instance import InstanceResponse
+from ..schemas.instance import InstanceReference, InstanceResponse
 from ..services.locations import location_label
+from ..services.references import instance_references
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -53,3 +54,20 @@ async def get_instance(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     return _denorm(db, [inst])[0]
+
+
+@router.get("/{object_id}/references", response_model=list[InstanceReference])
+async def list_instance_references(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt)."""
+    inst = (
+        db.query(Instance)
+        .filter(Instance.object_id == object_id, Instance.is_active == True)
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, detail="Instanz nicht gefunden")
+    return [InstanceReference(**r) for r in instance_references(db, inst)]

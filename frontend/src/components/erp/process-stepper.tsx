@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 
 export type StepState = 'done' | 'active' | 'pending' | 'rejected';
@@ -24,6 +25,7 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
   selectedKey?: string;
   onSelect?: (key: string) => void;
 }) {
+  const [hover, setHover] = useState<string | null>(null);
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start' }}>
       {nodes.map((n, i) => {
@@ -32,10 +34,17 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
         const rightDone = n.state === 'done';
         const selected = selectedKey === n.key;
         const clickable = !!onSelect;
+        const showHint = hover === n.key && !!n.hint;
         return (
-          <div key={n.key} title={n.hint}
+          <div key={n.key}
             onClick={clickable ? () => onSelect(n.key) : undefined}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: clickable ? 'pointer' : (n.hint ? 'help' : 'default') }}>
+            onMouseEnter={() => setHover(n.key)} onMouseLeave={() => setHover((h) => (h === n.key ? null : h))}
+            style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: clickable ? 'pointer' : (n.hint ? 'help' : 'default') }}>
+            {showHint && (
+              <div style={{ position: 'absolute', bottom: '100%', marginBottom: 6, zIndex: 20, padding: '5px 9px', borderRadius: 6, background: '#0f172a', color: '#fff', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', pointerEvents: 'none' }}>
+                {n.hint}
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <div style={{ flex: 1, height: 2, background: i === 0 ? 'transparent' : (leftDone ? LINE_DONE : LINE_PENDING) }} />
               <div style={{

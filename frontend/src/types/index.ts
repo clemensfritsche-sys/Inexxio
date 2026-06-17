@@ -108,6 +108,7 @@ export interface InspectionUpdateInput {
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
 export type InstanceQcStatus = 'pending' | 'passed' | 'failed';
+export type InstanceReference = components['schemas']['InstanceReference'];
 
 export interface OrderInput {
   article_id?: number | null;

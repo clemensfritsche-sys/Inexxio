@@ -1625,6 +1625,58 @@
         }
       }
     },
+    "/api/v1/erp/instances/{object_id}/references": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "List Instance References",
+        "description": "Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt).",
+        "operationId": "list_instance_references_api_v1_erp_instances__object_id__references_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceReference"
+                  },
+                  "title": "Response List Instance References Api V1 Erp Instances  Object Id  References Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/storage-locations": {
       "get": {
         "tags": [
@@ -3532,6 +3584,41 @@
         "title": "InstanceEmbed",
         "description": "Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."
       },
+      "InstanceReference": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "ref_type": {
+            "type": "string",
+            "title": "Ref Type"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "ref_type",
+          "object_id",
+          "label",
+          "at"
+        ],
+        "title": "InstanceReference",
+        "description": "Ein Verwendungsnachweis: wo wird diese Instanz referenziert?"
+      },
       "InstanceResponse": {
         "properties": {
           "id": {
@@ -4054,6 +4141,29 @@
           "state": {
             "type": "string",
             "title": "State"
+          },
+          "completed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed By"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
           }
         },
         "type": "object",

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
+from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder, UserProfile
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.instance import InstanceResponse
 from ..services.admin import log_audit
@@ -124,6 +124,15 @@ async def update_article(
     article = _get_active(db, object_id)
     payload = data.model_dump(exclude_unset=True)
     ensure_mutable(article.status, payload, "Artikel")
+    # Freigabe nur mit mindestens einem Prozessschritt
+    if payload.get("status") == "released" and article.status != "released":
+        has_step = (
+            db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
+            .first()
+        )
+        if not has_step:
+            raise HTTPException(400, detail="Artikel kann ohne Prozessschritt nicht freigegeben werden")
     for key, value in payload.items():
         old_val = getattr(article, key, None)
         old_str = str(old_val) if old_val is not None else None

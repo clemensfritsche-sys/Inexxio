@@ -27,6 +27,16 @@ class InstanceResponse(BaseModel):
     location_label: Optional[str] = None
 
 
+class InstanceReference(BaseModel):
+    """Ein Verwendungsnachweis: wo wird diese Instanz referenziert?"""
+
+    kind: str          # Herkunftsauftrag | Datenerfassung | Eingebaut in | Enthält Instanz | Aktueller Standort
+    ref_type: str      # order | instance | lagerplatz | user
+    object_id: int
+    label: str
+    at: datetime
+
+
 class InstanceEmbed(BaseModel):
     """Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."""
 

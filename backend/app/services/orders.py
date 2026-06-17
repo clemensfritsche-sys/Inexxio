@@ -77,6 +77,37 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
     return out
 
 
+def _step_completion(db: Session, order: Order) -> dict[str, dict]:
+    """Pro Schritt-Typ: wer/wann den Schritt abgeschlossen hat (aus dem Audit-Log)."""
+    logs = (
+        db.query(AuditLog)
+        .filter(AuditLog.object_id == order.object_id)
+        .order_by(AuditLog.changed_at_utc)
+        .all()
+    )
+    out: dict[str, dict] = {}
+    for lg in logs:
+        if lg.table_name == "purchase_orders" and lg.new_value == "received":
+            st = "purchase"
+        elif lg.table_name == "instances":
+            st = "serialization"
+        elif lg.table_name == "inspections" and lg.new_value in ("passed", "failed"):
+            st = "inspection"
+        elif lg.table_name == "movements":
+            st = "movement"
+        else:
+            continue
+        out[st] = {"by_id": lg.user_id, "at": lg.changed_at_utc}
+    ids = {v["by_id"] for v in out.values() if v["by_id"]}
+    names: dict[int, str | None] = {}
+    if ids:
+        for u in db.query(UserProfile).filter(UserProfile.id.in_(ids)).all():
+            names[u.id] = _supplier_name(u)
+    for v in out.values():
+        v["by"] = names.get(v["by_id"]) if v["by_id"] else None
+    return out
+
+
 def to_order_response(db: Session, order: Order) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel und eingebettetem Beschaffungsschritt."""
     resp = OrderResponse.model_validate(order)
@@ -167,8 +198,15 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             )
         resp.movement = me
 
-    # Auftrag-Stepper
-    resp.steps = [OrderStepInfo(**i) for i in process.order_step_infos(db, order)]
+    # Auftrag-Stepper (mit Abschluss-Info wer/wann für erledigte Schritte)
+    completion = _step_completion(db, order)
+    steps: list[OrderStepInfo] = []
+    for info in process.order_step_infos(db, order):
+        if info["state"] == "done" and info["step_type"] in completion:
+            c = completion[info["step_type"]]
+            info = {**info, "completed_by": c.get("by"), "completed_at": c.get("at")}
+        steps.append(OrderStepInfo(**info))
+    resp.steps = steps
     return resp
 
 

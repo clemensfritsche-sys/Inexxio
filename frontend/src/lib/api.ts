@@ -3,7 +3,7 @@ import type {
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput,
-  Instance, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
 
@@ -204,6 +204,11 @@ class ApiClient {
 
   getInstance(objectId: number): Promise<Instance> {
     return this.get(`/api/v1/erp/instances/${objectId}`);
+  }
+
+  // Verwendungsnachweise (Referenzen) einer Instanz
+  getInstanceReferences(objectId: number): Promise<InstanceReference[]> {
+    return this.get(`/api/v1/erp/instances/${objectId}/references`);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
