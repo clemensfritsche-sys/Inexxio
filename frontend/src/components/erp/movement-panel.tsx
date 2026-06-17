@@ -48,17 +48,13 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
       });
   }, [stepState, done]);
 
-  // Vorbelegung: aktueller Standort, sonst Vorgabe-Ziel aus der Prozessdefinition
+  // Vorbelegung mit dem Vorgabe-Ziel aus der Prozessdefinition (falls fest gesetzt);
+  // sonst leer – der Lagerist wählt bewusst. Der aktuelle Standort wird separat angezeigt.
   useEffect(() => {
     const fixed = mv?.target_location_type && mv?.target_location_id
       ? encode(mv.target_location_type as LocationType, mv.target_location_id) : '';
     const seed: Record<number, string> = {};
-    instances.forEach((i) => {
-      if (i.object_id == null) return;
-      seed[i.object_id] = i.location_type && i.location_id
-        ? encode(i.location_type as LocationType, i.location_id)
-        : fixed;
-    });
+    instances.forEach((i) => { if (i.object_id != null) seed[i.object_id] = fixed; });
     setTargets(seed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.object_id, done]);
