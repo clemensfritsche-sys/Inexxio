@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -51,3 +52,7 @@ class CompanySettings(Base):
     # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
     # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
     default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+
+    # Artikel: Katalog wählbarer Artikelnamen (Pflege durch den Admin). Beim
+    # Anlegen eines Artikels wird der Name aus dieser Liste gewählt.
+    article_names: Mapped[Optional[list]] = mapped_column(JSONB)

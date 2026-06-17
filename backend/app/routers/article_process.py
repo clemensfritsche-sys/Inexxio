@@ -91,6 +91,7 @@ async def create_step(
             .scalar()
         )
         position = (max_pos or 0) + 1
+    is_movement = data.step_type == "movement"
     step = ArticleProcessStep(
         article_id=article.id,
         position=position,
@@ -101,6 +102,8 @@ async def create_step(
         shared_fields=data.shared_fields if is_purchase else None,
         sample_percent=data.sample_percent if data.step_type == "inspection" else None,
         capture_fields=normalize_capture_fields(data.capture_fields) if data.step_type == "inspection" else None,
+        target_location_type=data.target_location_type if is_movement else None,
+        target_location_id=data.target_location_id if is_movement else None,
     )
     db.add(step)
     db.flush()

@@ -11,7 +11,7 @@ import {
 } from '@/lib/article';
 import { lifecycleActions } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 
@@ -37,9 +37,10 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack }: {
+export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
+  articleNames?: string[];         // wählbare Artikelnamen (Systemkonfiguration)
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -194,7 +195,20 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               </>
             ) : (
               <>
-                <TextField label="Name" value={form.name} onChange={(v) => set('name', v)} required placeholder="z. B. Welle Antrieb" error={showErrors ? errs.name : null} />
+                <div>
+                  <SelectField label="Name" value={form.name} onChange={(v) => set('name', v)} required
+                    options={[
+                      { value: '', label: '— Artikelname wählen —' },
+                      ...(form.name && !articleNames.includes(form.name) ? [{ value: form.name, label: form.name }] : []),
+                      ...articleNames.map((n) => ({ value: n, label: n })),
+                    ]} />
+                  {articleNames.length === 0 && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#92400e' }}>
+                      Keine Artikelnamen hinterlegt – bitte in Admin → Einstellungen → «Artikelnamen» anlegen.
+                    </div>
+                  )}
+                  {showErrors && errs.name && <ErrorText msg={errs.name} />}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />

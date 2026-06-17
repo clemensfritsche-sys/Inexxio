@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, StorageLocation, UserProfile } from '@/types';
-import { LOCATION_META, locationTypeLabel } from '@/lib/process';
+import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { Label } from '@/components/erp/fields';
@@ -67,7 +67,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
     const out: Opt[] = [];
     if (!fixedType || fixedType === 'lagerplatz') {
       storageLocs.filter((l) => l.status === 'released' && l.object_id != null).forEach((l) =>
-        out.push({ value: encode('lagerplatz', l.object_id as number), label: `${l.name} · ${fmtObjId(l.object_id)}`, group: 'Lagerplätze' }));
+        out.push({ value: encode('lagerplatz', l.object_id as number), label: fmtObjId(l.object_id), group: 'Lagerplätze' }));
     }
     if (!fixedType || fixedType === 'user') {
       users.filter((u) => u.object_id != null).forEach((u) =>
@@ -75,7 +75,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
     }
     if (!fixedType || fixedType === 'instance') {
       allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) =>
-        out.push({ value: encode('instance', i.object_id as number), label: `${i.kind === 'batch' ? 'Charge' : 'Einzelteil'} · ${fmtObjId(i.object_id)}`, group: 'Instanzen' }));
+        out.push({ value: encode('instance', i.object_id as number), label: `${instanceKindLabel(i.kind)} · ${fmtObjId(i.object_id)}`, group: 'Instanzen' }));
     }
     return out;
   }, [storageLocs, users, allInstances, ownObjIds, fixedType]);
@@ -175,7 +175,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
           <div key={i.id} style={{ border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(i.object_id ?? null)}</span>
-              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{i.kind === 'batch' ? 'Charge' : 'Einzelteil'}</span>
+              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(i.kind)}</span>
               <CurrentLocation instance={i} />
             </div>
             <GroupedSelect
@@ -236,7 +236,7 @@ function InstanceRow({ instance }: { instance: NonNullable<Order['instances']>[n
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
       <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(instance.object_id ?? null)}</span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instance.kind === 'batch' ? 'Charge' : 'Einzelteil'}</span>
+      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(instance.kind)}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
         <Icon size={13} style={{ color: '#2563eb' }} /> {instance.location_label ?? '—'}
       </span>

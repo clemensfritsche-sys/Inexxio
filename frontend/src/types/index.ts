@@ -90,11 +90,18 @@ export interface MovementUpdateInput {
 export type CaptureField = components['schemas']['CaptureField'];
 export type CaptureFieldType = 'measure' | 'bool' | 'text';
 
+// Konkrete Stichprobe der Datenerfassung (Instanz + erfasste Werte)
+export type InspectionSample = NonNullable<OrderApi['inspection']>['samples'][number];
+
+export interface InspectionSampleInput {
+  instance_id: number;
+  slot: number;
+  values: Record<string, unknown>;
+}
+
 export interface InspectionUpdateInput {
-  result?: 'passed' | 'failed' | null;
-  checked_count?: number | null;
+  samples: InspectionSampleInput[];
   note?: string | null;
-  values?: Record<string, unknown> | null;
 }
 
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
@@ -179,6 +186,7 @@ export type StorageLocation = Omit<StorageLocationApi, 'status'> & {
 export interface StorageLocationInput {
   code?: string | null;
   location_type?: string | null;
+  note?: string | null;
   max_load_kg?: number | string | null;
   width_mm?: number | null;
   depth_mm?: number | null;
@@ -200,6 +208,7 @@ export interface StorageLocationUpdateInput {
   name?: string;
   code?: string | null;
   location_type?: string | null;
+  note?: string | null;
   max_load_kg?: number | string | null;
   width_mm?: number | null;
   depth_mm?: number | null;
@@ -263,6 +272,7 @@ export interface CompanySettings {
   hcaptcha_site_key: string | null;
   google_maps_api_key: string | null;
   default_receiving_location_id: number | null;
+  article_names: string[];
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

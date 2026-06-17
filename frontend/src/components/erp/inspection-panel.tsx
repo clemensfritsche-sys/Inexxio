@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle } from 'lucide-react';
+import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CaptureField, Order } from '@/types';
-import { TextField, Label } from '@/components/erp/fields';
+import type { CaptureField, InspectionSampleInput, Order } from '@/types';
+import { fmtObjId } from '@/components/erp/user-detail';
+import { Label } from '@/components/erp/fields';
 
-type Val = string | boolean | undefined;
+type Val = string | number | boolean | undefined;
 
 function measureOk(f: CaptureField, v: Val): boolean {
   if (v == null || v === '') return false;
@@ -21,6 +22,9 @@ function fieldOk(f: CaptureField, v: Val): boolean {
   return true; // text
 }
 
+// Schlüssel je Stichprobe (Instanz + Probe-Nr.)
+const sKey = (instanceId: number, slot: number) => `${instanceId}:${slot}`;
+
 export function InspectionPanel({ order, stepState, onOrderUpdated }: {
   order: Order;
   stepState: string;
@@ -28,51 +32,53 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
 }) {
   const insp = order.inspection;
   const fields = (insp?.fields ?? []) as CaptureField[];
+  const samples = insp?.samples ?? [];
   const required = insp?.required_count ?? 0;
   const pct = insp?.sample_percent ?? 100;
   const result = insp?.result ?? 'pending';
   const done = result === 'passed' || result === 'failed';
   const qty = order.quantity || 0;
+  const isBatch = order.article_serialization === 'batch';
 
-  const [values, setValues] = useState<Record<string, Val>>(() => ({ ...(insp?.values ?? {}) }));
-  const [checked, setChecked] = useState(insp?.checked_count != null ? String(insp.checked_count) : '');
+  // Werte je Stichprobe: { "instanceId:slot": { fieldKey: value } }
+  const [values, setValues] = useState<Record<string, Record<string, Val>>>(() => {
+    const init: Record<string, Record<string, Val>> = {};
+    samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = { ...(s.values as Record<string, Val>) }; });
+    return init;
+  });
   const [note, setNote] = useState(insp?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function setVal(key: string, v: Val) { setValues((p) => ({ ...p, [key]: v })); }
-
-  const allOk = fields.every((f) => fieldOk(f, values[f.key]));
-
-  async function submitTemplated() {
-    const checkedNum = checked.trim() === '' ? 0 : Math.trunc(Number(checked));
-    if (allOk && checkedNum < required) { setError(`Bei Freigabe mindestens ${required} Stück prüfen`); return; }
-    setSaving(true); setError(null);
-    try {
-      const payloadValues: Record<string, unknown> = {};
-      fields.forEach((f) => {
-        const v = values[f.key];
-        if (f.type === 'measure') payloadValues[f.key] = v === '' || v == null ? null : Number(v);
-        else if (f.type === 'bool') payloadValues[f.key] = v === true;
-        else payloadValues[f.key] = v ?? '';
-      });
-      onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
-        values: payloadValues,
-        checked_count: checked.trim() === '' ? null : checkedNum,
-        note: note.trim() || null,
-      }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
-    } finally { setSaving(false); }
+  function setVal(key: string, fieldKey: string, v: Val) {
+    setValues((p) => ({ ...p, [key]: { ...(p[key] ?? {}), [fieldKey]: v } }));
   }
 
-  async function submitSimple(res: 'passed' | 'failed') {
-    const checkedNum = checked.trim() === '' ? 0 : Math.trunc(Number(checked));
-    if (res === 'passed' && checkedNum < required) { setError(`Bei Freigabe mindestens ${required} Stück prüfen`); return; }
+  function sampleOk(key: string): boolean {
+    return fields.every((f) => fieldOk(f, values[key]?.[f.key]));
+  }
+  const allOk = samples.every((s) => sampleOk(sKey(s.instance_id, s.slot)));
+
+  function sampleLabel(instanceId: number, slot: number): string {
+    return isBatch ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Unit ${fmtObjId(instanceId)}`;
+  }
+
+  async function submit() {
     setSaving(true); setError(null);
     try {
+      const payload: InspectionSampleInput[] = samples.map((s) => {
+        const key = sKey(s.instance_id, s.slot);
+        const out: Record<string, unknown> = {};
+        fields.forEach((f) => {
+          const v = values[key]?.[f.key];
+          if (f.type === 'measure') out[f.key] = v === '' || v == null ? null : Number(v);
+          else if (f.type === 'bool') out[f.key] = v === true;
+          else out[f.key] = v ?? '';
+        });
+        return { instance_id: s.instance_id, slot: s.slot, values: out };
+      });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
-        result: res, checked_count: checked.trim() === '' ? null : checkedNum, note: note.trim() || null,
+        samples: payload, note: note.trim() || null,
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -96,6 +102,7 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
 
       <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#374151' }}>
         Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: '#94a3b8' }}>({pct}% Stichprobe)</span>
+        {isBatch && required > 1 && <span style={{ color: '#94a3b8' }}> · {required} Proben aus der Charge</span>}
       </div>
 
       {/* Ergebnis-Banner */}
@@ -109,43 +116,49 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
         </div>
       )}
 
-      {/* Erfassungsfelder (Maske) */}
-      {fields.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {fields.map((f) => (
-            <CaptureRow key={f.key} field={f} value={values[f.key]} onChange={(v) => setVal(f.key, v)} ok={fieldOk(f, values[f.key])} />
-          ))}
+      {samples.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
+          <Info size={14} /> Noch keine Instanzen vorhanden – zuerst serialisieren.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto' }}>
+          {samples.map((s) => {
+            const key = sKey(s.instance_id, s.slot);
+            const ok = sampleOk(key);
+            return (
+              <div key={key} style={{ border: `1px solid ${done ? (ok ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`, borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
+                  {!done && (ok ? <CheckCircle2 size={15} style={{ color: '#16a34a' }} /> : <XCircle size={15} style={{ color: '#cbd5e1' }} />)}
+                </div>
+                {fields.map((f) => (
+                  <CaptureRow key={f.key} field={f} value={values[key]?.[f.key]} ok={fieldOk(f, values[key]?.[f.key])}
+                    readOnly={done} onChange={(v) => setVal(key, f.key, v)} />
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Stichprobe + Notiz */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
-        <TextField label="Geprüft (Stück)" value={checked} onChange={setChecked} placeholder={String(required)} />
-        <TextField label="Notiz (optional)" value={note} onChange={setNote} placeholder="Bemerkung" />
-      </div>
+      {/* Notiz */}
+      {!done && samples.length > 0 && (
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notiz (optional)"
+          className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
+      )}
+      {done && insp?.note && <div style={{ fontSize: 12, color: '#64748b' }}>Notiz: {insp.note}</div>}
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      {/* Aktionen */}
-      {fields.length > 0 ? (
+      {/* Aktion */}
+      {!done && samples.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
           <span style={{ flex: 1, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
             Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}
           </span>
-          <button onClick={submitTemplated} disabled={saving}
+          <button onClick={submit} disabled={saving}
             style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
             {saving ? '…' : 'Erfassung abschliessen'}
-          </button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={() => submitSimple('failed')} disabled={saving}
-            style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-            Durchgefallen
-          </button>
-          <button onClick={() => submitSimple('passed')} disabled={saving}
-            style={{ padding: '7px 14px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-            {saving ? '…' : 'Bestanden'}
           </button>
         </div>
       )}
@@ -153,8 +166,8 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
   );
 }
 
-function CaptureRow({ field, value, onChange, ok }: {
-  field: CaptureField; value: Val; onChange: (v: Val) => void; ok: boolean;
+function CaptureRow({ field, value, onChange, ok, readOnly }: {
+  field: CaptureField; value: Val; onChange: (v: Val) => void; ok: boolean; readOnly?: boolean;
 }) {
   const filled = value != null && value !== '';
   if (field.type === 'bool') {
@@ -162,8 +175,8 @@ function CaptureRow({ field, value, onChange, ok }: {
       <div>
         <Label>{field.label}</Label>
         <div style={{ display: 'flex', gap: 6 }}>
-          <Toggle label="Gut" active={value === true} tone="ok" onClick={() => onChange(true)} />
-          <Toggle label="Schlecht" active={value === false} tone="bad" onClick={() => onChange(false)} />
+          <Toggle label="Gut" active={value === true} tone="ok" disabled={readOnly} onClick={() => onChange(true)} />
+          <Toggle label="Schlecht" active={value === false} tone="bad" disabled={readOnly} onClick={() => onChange(false)} />
         </div>
       </div>
     );
@@ -172,7 +185,7 @@ function CaptureRow({ field, value, onChange, ok }: {
     return (
       <div>
         <Label>{field.label}</Label>
-        <input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)}
+        <input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} disabled={readOnly}
           className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
       </div>
     );
@@ -183,7 +196,7 @@ function CaptureRow({ field, value, onChange, ok }: {
     <div>
       <Label>{field.label}</Label>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} inputMode="decimal" placeholder={field.unit ? `Ist (${field.unit})` : 'Ist'}
+        <input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} inputMode="decimal" disabled={readOnly} placeholder={field.unit ? `Ist (${field.unit})` : 'Ist'}
           className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ borderColor: filled && field.target != null ? (ok ? '#86efac' : '#fca5a5') : '#e2e8f0', width: 120 }} />
         <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{soll}</span>
@@ -195,12 +208,12 @@ function CaptureRow({ field, value, onChange, ok }: {
   );
 }
 
-function Toggle({ label, active, tone, onClick }: { label: string; active: boolean; tone: 'ok' | 'bad'; onClick: () => void }) {
+function Toggle({ label, active, tone, onClick, disabled }: { label: string; active: boolean; tone: 'ok' | 'bad'; onClick: () => void; disabled?: boolean }) {
   const color = tone === 'ok' ? '#16a34a' : '#dc2626';
   const bg = tone === 'ok' ? '#f0fdf4' : '#fef2f2';
   return (
-    <button type="button" onClick={onClick}
-      style={{ padding: '6px 14px', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{ padding: '6px 14px', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
         border: `1px solid ${active ? color : '#e2e8f0'}`, background: active ? bg : '#fff', color: active ? color : '#64748b' }}>
       {label}
     </button>

@@ -78,6 +78,7 @@ async def get_public_settings(db: Session = Depends(get_db)):
         "trade_register_canton": s.trade_register_canton, "share_capital": s.share_capital,
         "email": s.email, "phone": s.phone, "website": s.website,
         "google_maps_api_key": s.google_maps_api_key,
+        "article_names": s.article_names or [],
     }
 
 

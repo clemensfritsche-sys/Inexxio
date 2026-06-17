@@ -2776,6 +2776,14 @@
               }
             ],
             "title": "Default Receiving Location Id"
+          },
+          "article_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Article Names",
+            "default": []
           }
         },
         "type": "object",
@@ -3170,6 +3178,20 @@
               }
             ],
             "title": "Default Receiving Location Id"
+          },
+          "article_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Names"
           }
         },
         "type": "object",
@@ -3326,11 +3348,6 @@
             ],
             "title": "Note"
           },
-          "values": {
-            "type": "object",
-            "title": "Values",
-            "default": {}
-          },
           "sample_percent": {
             "anyOf": [
               {
@@ -3371,6 +3388,14 @@
             "type": "array",
             "title": "Fields",
             "default": []
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionSample"
+            },
+            "type": "array",
+            "title": "Samples",
+            "default": []
           }
         },
         "type": "object",
@@ -3383,29 +3408,39 @@
         "title": "InspectionEmbed",
         "description": "Eingebetteter Stand der Datenerfassung (im Auftrag)."
       },
+      "InspectionSample": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "slot": {
+            "type": "integer",
+            "title": "Slot",
+            "default": 1
+          },
+          "values": {
+            "type": "object",
+            "title": "Values",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id"
+        ],
+        "title": "InspectionSample",
+        "description": "Eine zu prüfende Stichprobe: konkrete Instanz (+ Probe-Nr. bei Charge)."
+      },
       "InspectionUpdate": {
         "properties": {
-          "result": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Result"
-          },
-          "checked_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checked Count"
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/InspectionSample"
+            },
+            "type": "array",
+            "title": "Samples",
+            "default": []
           },
           "note": {
             "anyOf": [
@@ -3417,22 +3452,11 @@
               }
             ],
             "title": "Note"
-          },
-          "values": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Values"
           }
         },
         "type": "object",
         "title": "InspectionUpdate",
-        "description": "Erfassung der Datenerfassung/Eingangskontrolle.\n\nBei Schritten mit Maske (``capture_fields``) leiten die erfassten ``values``\ndas Ergebnis ab; ohne Maske wird ``result`` direkt gesetzt (passed/failed)."
+        "description": "Erfassung der Datenerfassung – je aufgeführter Stichprobe ein Wertesatz.\n\nDas Ergebnis (passed/failed) leitet sich aus allen Stichproben ab: bestanden,\nwenn jede Probe alle bewertbaren Felder erfüllt."
       },
       "InstanceEmbed": {
         "properties": {
@@ -4384,6 +4408,17 @@
             ],
             "title": "Location Type"
           },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
           "max_load_kg": {
             "anyOf": [
               {
@@ -4599,6 +4634,17 @@
             ],
             "title": "Location Type"
           },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
           "max_load_kg": {
             "anyOf": [
               {
@@ -4748,6 +4794,7 @@
           "name",
           "code",
           "location_type",
+          "note",
           "max_load_kg",
           "width_mm",
           "depth_mm",
@@ -4813,6 +4860,17 @@
               }
             ],
             "title": "Location Type"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "max_load_kg": {
             "anyOf": [

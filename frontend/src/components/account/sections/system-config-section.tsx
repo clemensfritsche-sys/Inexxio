@@ -3,13 +3,14 @@
 import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock, Warehouse,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, Warehouse, Package, Plus, X,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { formatObjectId } from '@/lib/utils';
 import type { CompanySettings } from '@/types';
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'logistics';
+type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'logistics' | 'articles';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -21,7 +22,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_discount_percent: null, default_discount_days: null, oss_active: false,
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
-  default_receiving_location_id: null,
+  default_receiving_location_id: null, article_names: [],
 };
 
 export function SystemConfigSection() {
@@ -194,7 +195,7 @@ export function SystemConfigSection() {
           <select name="default_receiving_location_id" defaultValue={String(s.default_receiving_location_id ?? '')} className="form-input">
             <option value="">Automatisch (Lagerplatz «Wareneingang» wird angelegt)</option>
             {(storageLocations ?? []).filter((l) => l.status === 'released' && l.object_id != null).map((l) => (
-              <option key={l.object_id} value={String(l.object_id)}>{l.name} · {l.object_id}</option>
+              <option key={l.object_id} value={String(l.object_id)}>{formatObjectId(l.object_id as number)}</option>
             ))}
           </select>
           <p className="mt-1 text-xs text-slate-500">
@@ -203,6 +204,72 @@ export function SystemConfigSection() {
           </p>
         </div>
       </SettingsCard>
+
+      <ArticleNamesCard
+        names={s.article_names ?? []}
+        saving={saving === 'articles'}
+        saved={saved === 'articles'}
+        onSave={(names) => saveSection('articles', { article_names: names })}
+      />
+    </div>
+  );
+}
+
+// ─── Artikelnamen-Katalog ─────────────────────────────────────────────────────
+
+function ArticleNamesCard({ names, onSave, saving, saved }: {
+  names: string[]; onSave: (names: string[]) => void; saving: boolean; saved: boolean;
+}) {
+  const [input, setInput] = useState('');
+
+  function add() {
+    const n = input.trim();
+    if (!n) return;
+    if (names.includes(n)) { setInput(''); return; }
+    onSave([...names, n]);
+    setInput('');
+  }
+  function remove(name: string) { onSave(names.filter((x) => x !== name)); }
+
+  return (
+    <div className="card p-4 sm:p-6">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Package className="h-5 w-5" /></div>
+          <h2 className="text-base font-semibold text-slate-900">Artikelnamen</h2>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /><span className="text-slate-400">Speichert…</span></>}
+          {saved && !saving && <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /><span className="text-green-600">Gespeichert</span></>}
+        </div>
+      </div>
+      <p className="mb-3 text-xs text-slate-500">
+        Beim Anlegen eines Artikels wird der Name aus dieser Liste gewählt. Hier Namen hinzufügen oder entfernen.
+      </p>
+      <div className="flex gap-2">
+        <input value={input} onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+          placeholder="Neuer Artikelname, z. B. Welle Antrieb" className="form-input flex-1" />
+        <button type="button" onClick={add} disabled={!input.trim()}
+          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <Plus className="h-4 w-4" /> Hinzufügen
+        </button>
+      </div>
+      {names.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-400">Noch keine Artikelnamen angelegt.</p>
+      ) : (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {names.map((name) => (
+            <span key={name} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-1.5 text-sm text-slate-700">
+              {name}
+              <button type="button" onClick={() => remove(name)} aria-label={`${name} entfernen`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

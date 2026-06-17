@@ -68,8 +68,11 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "target_location_type", "VARCHAR(20)"),
     ("article_process_steps", "target_location_id", "BIGINT"),
     ("inspections", "values", "JSONB"),
+    ("inspections", "samples", "JSONB"),
     ("instances", "location_type", "VARCHAR(20)"),
     ("instances", "location_id", "BIGINT"),
+    ("storage_locations", "note", "VARCHAR(500)"),
+    ("company_settings", "article_names", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

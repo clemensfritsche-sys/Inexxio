@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Lock } from 'lucide-react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -11,7 +11,7 @@ import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
 type Form = {
-  max_load_kg: string; dimensions: string;
+  max_load_kg: string; dimensions: string; note: string;
   latitude: string; longitude: string;
   address_street: string; address_zip: string; address_city: string; address_country: string;
 };
@@ -27,12 +27,12 @@ function joinDims(record: StorageLocation): string {
 function seedFrom(record: StorageLocation | null): Form {
   if (!record) {
     return {
-      max_load_kg: '', dimensions: '',
+      max_load_kg: '', dimensions: '', note: '',
       latitude: '', longitude: '', address_street: '', address_zip: '', address_city: '', address_country: '',
     };
   }
   return {
-    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record),
+    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record), note: s(record.note),
     latitude: s(record.latitude), longitude: s(record.longitude),
     address_street: s(record.address_street), address_zip: s(record.address_zip),
     address_city: s(record.address_city), address_country: s(record.address_country),
@@ -76,6 +76,7 @@ function buildInput(form: Form): StorageLocationInput {
   return {
     max_load_kg: num(form.max_load_kg),
     width_mm: dims?.w ?? null, depth_mm: dims?.d ?? null, height_mm: dims?.h ?? null,
+    note: strOrNull(form.note),
     latitude: num(form.latitude), longitude: num(form.longitude),
     address_street: strOrNull(form.address_street), address_zip: strOrNull(form.address_zip),
     address_city: strOrNull(form.address_city), address_country: strOrNull(form.address_country),
@@ -207,12 +208,9 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         {locked ? (
           <>
-            <div style={lockedNotice}>
-              <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-              <span>Lagerplatz ist freigegeben und schreibgeschützt.</span>
-            </div>
             <SectionTitle icon={MapPin}>Standort</SectionTitle>
             <Card>
+              <MapPicker apiKey={mapsApiKey} lat={latNum} lng={lngNum} onPick={() => {}} readOnly />
               <Row k="Adresse" v={record!.address_street || '—'} />
               <Row k="PLZ / Ort" v={`${record!.address_zip ?? ''} ${record!.address_city ?? ''}`.trim() || '—'} />
               <Row k="Land" v={record!.address_country || '—'} />
@@ -223,6 +221,12 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
               <Row k="Max. Traglast" v={record!.max_load_kg != null ? `${record!.max_load_kg} kg` : '—'} />
               <Row k="Abmessungen (B×L×H)" v={joinDims(record!) ? `${joinDims(record!)} mm` : '—'} />
             </Card>
+            {record!.note && (
+              <>
+                <SectionTitle icon={FileText}>Bemerkung</SectionTitle>
+                <Card><div style={{ fontSize: 13, color: '#0F172A', whiteSpace: 'pre-wrap' }}>{record!.note}</div></Card>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -245,6 +249,13 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             <Card>
               <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={showErrors ? errs.weight : null} />
               <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={showErrors ? errs.dimensions : null} />
+            </Card>
+
+            {/* Bemerkung */}
+            <SectionTitle icon={FileText}>Bemerkung</SectionTitle>
+            <Card>
+              <textarea value={form.note} onChange={(e) => set('note', e.target.value)} rows={3} placeholder="Optionale Bemerkung zum Lagerplatz"
+                className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
             </Card>
           </>
         )}
@@ -297,11 +308,6 @@ function SectionTitle({ icon: Icon, children }: { icon: React.ElementType; child
     </div>
   );
 }
-
-const lockedNotice: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', marginBottom: 12,
-  background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#475569',
-};
 
 function Row({ k, v }: { k: string; v: string }) {
   return (

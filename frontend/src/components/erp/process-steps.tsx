@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcessStep, CaptureField, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { STEP_META, locationTypeLabel } from '@/lib/process';
@@ -29,9 +29,10 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
   const [shared, setShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
   const [samplePercent, setSamplePercent] = useState('100');
   const [wfields, setWfields] = useState<WField[]>([]);
-  const [targetLocType, setTargetLocType] = useState<'' | LocationType>('');
-  const [targetLocId, setTargetLocId] = useState('');
+  const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -45,12 +46,13 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
     api.getArticleProcessSteps(articleObjectId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
   }, [articleObjectId]);
 
-  // Lagerplätze erst laden, wenn die Bewegungs-Konfiguration ein festes Ziel braucht
+  // Auswahllisten (Lagerplätze, Personen, Instanzen) erst bei der Bewegungs-Konfiguration laden
   useEffect(() => {
-    if (adding === 'movement' && storageLocs.length === 0) {
-      api.getStorageLocations().then(setStorageLocs).catch(() => {});
-    }
-  }, [adding, storageLocs.length]);
+    if (adding !== 'movement') return;
+    api.getStorageLocations().then(setStorageLocs).catch(() => {});
+    api.getUsers().then(setAllUsers).catch(() => {});
+    api.getInstances().then(setAllInstances).catch(() => {});
+  }, [adding]);
 
   if (articleObjectId == null) {
     return (
@@ -65,7 +67,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
     setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
-    setTargetLocType(''); setTargetLocId(''); setError(null);
+    setTargetSel(''); setError(null);
   }
 
   function buildCaptureFields(): CaptureField[] {
@@ -89,6 +91,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
+    const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
       const created = await api.createArticleProcessStep(aid, {
@@ -99,8 +102,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
         shared_fields: type === 'purchase' ? shared : null,
         sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
-        target_location_type: type === 'movement' && targetLocType ? targetLocType : null,
-        target_location_id: type === 'movement' && targetLocType === 'lagerplatz' && targetLocId ? Number(targetLocId) : null,
+        target_location_type: tgt ? (tgt[0] as LocationType) : null,
+        target_location_id: tgt ? Number(tgt[1]) : null,
       });
       setSteps((p) => [...p, created]);
       resetForm();
@@ -146,12 +149,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {readOnly ? (
-        <div style={{ ...noticeStyle, marginBottom: 12 }}>
-          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>Artikel ist freigegeben – die Prozessdefinition ist schreibgeschützt.</span>
-        </div>
-      ) : (
+      {!readOnly && (
         <div style={{ ...infoStyle, marginBottom: 12 }}>
           <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
           <span>Prozess als Ablauf von oben nach unten. Schritte per Drag&Drop (Griff links) sortieren.</span>
@@ -198,9 +196,9 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
                     )}
                     {s.step_type === 'serialization' && 'Erzeugt Bestands-Instanzen (Einzelteil/Charge)'}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
-                    {s.step_type === 'movement' && (s.target_location_type
-                      ? `Ziel: ${locationTypeLabel(s.target_location_type)}${s.target_location_id ? ' (fest)' : ''}`
-                      : 'Lagerist entscheidet beim Einlagern')}
+                    {s.step_type === 'movement' && (s.target_location_id
+                      ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
+                      : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                   </div>
                 </div>
                 {!readOnly && (
@@ -316,26 +314,32 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false }: {
 
               {adding === 'movement' && (
                 <>
-                  <SelectField label="Zielstandort" value={targetLocType}
-                    onChange={(v) => { setTargetLocType(v as '' | LocationType); setTargetLocId(''); }}
-                    options={[
-                      { value: '', label: 'Lagerist entscheidet beim Einlagern' },
-                      { value: 'lagerplatz', label: 'Lagerplatz' },
-                      { value: 'user', label: 'Person (Mitarbeiter / Kunde / Lieferant)' },
-                      { value: 'instance', label: 'Andere Instanz (z. B. Einbau)' },
-                    ]} />
-                  {targetLocType === 'lagerplatz' && (
-                    <SelectField label="Fester Lagerplatz (optional)" value={targetLocId} onChange={setTargetLocId}
-                      options={[
-                        { value: '', label: '— beim Einlagern wählen —' },
-                        ...storageLocs.filter((l) => l.status === 'released').map((l) => ({
-                          value: String(l.object_id), label: `${l.name} · ${fmtObjId(l.object_id)}`,
-                        })),
-                      ]} />
-                  )}
+                  <div>
+                    <Label>Zielstandort (optional)</Label>
+                    <select value={targetSel} onChange={(e) => setTargetSel(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0' }}>
+                      <option value="">Nicht definiert – Lagerist wählt beim Einlagern</option>
+                      <optgroup label="Lagerplätze">
+                        {storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => (
+                          <option key={`l${l.object_id}`} value={`lagerplatz:${l.object_id}`}>{fmtObjId(l.object_id)}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Personen">
+                        {allUsers.filter((u) => u.object_id != null).map((u) => (
+                          <option key={`u${u.object_id}`} value={`user:${u.object_id}`}>{userDisplayName(u)}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Instanzen">
+                        {allInstances.filter((i) => i.object_id != null).map((i) => (
+                          <option key={`i${i.object_id}`} value={`instance:${i.object_id}`}>{fmtObjId(i.object_id)}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
                   <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Bringt die serialisierten Instanzen an ihren Standort. Ohne Vorgabe entscheidet der
-                      Lagerist beim Einlagern – auch unterschiedliche Standorte je Instanz sind möglich.</span></div>
+                    <span>Bringt die serialisierten Instanzen an ihren Standort. Ohne Vorgabe ist der Standort
+                      nicht definiert und frei wählbar – der Lagerist entscheidet beim Einlagern (auch
+                      unterschiedliche Standorte je Instanz möglich).</span></div>
                 </>
               )}
 

@@ -24,10 +24,12 @@ class StorageLocation(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
 
-    # Identifikation
+    # Identifikation (Lagerplätze werden über die Objektnummer angesprochen –
+    # der Name ist nur ein interner Default; ``note`` ist eine freie Bemerkung)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     code: Mapped[Optional[str]] = mapped_column(String(100))
     location_type: Mapped[Optional[str]] = mapped_column(String(30))
+    note: Mapped[Optional[str]] = mapped_column(String(500))
 
     # Kapazität & Eigenschaften
     max_load_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3))

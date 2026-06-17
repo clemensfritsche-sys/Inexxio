@@ -9,14 +9,14 @@ from ..models import (
     PurchaseOrder, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
-from ..schemas.inspection import InspectionEmbed
+from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import OrderResponse, OrderStepInfo
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from . import process
 from .article_fields import normalize_shared_fields
-from .inspection import required_count
+from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label
 
 _STAFF_ROLES = ("admin", "employee")
@@ -119,8 +119,8 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         instance_embeds.append(emb)
     resp.instances = instance_embeds
 
-    # Eingangskontrolle: Embed sobald der Schritt definiert ist (auch ohne Erfassung,
-    # damit der Prüfumfang vorab sichtbar ist)
+    # Datenerfassung: Embed sobald der Schritt definiert ist (auch ohne Erfassung,
+    # damit Prüfumfang + konkrete Stichproben vorab sichtbar sind)
     insp_step = _step(db, order.article_id, "inspection")
     if insp_step:
         insp = (
@@ -132,7 +132,15 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
               else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
         ie.sample_percent = insp_step.sample_percent
         ie.required_count = required_count(db, order)
-        ie.fields = [CaptureField(**f) for f in (insp_step.capture_fields or [])]
+        ie.fields = [CaptureField(**f) for f in eval_fields(insp_step)]
+        # Konkrete Stichproben (Instanz + Probe-Nr.) inkl. bereits erfasster Werte
+        stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
+                  for s in (insp.samples or [])} if insp else {}
+        ie.samples = [
+            InspectionSample(instance_id=t["instance_id"], slot=t["slot"],
+                             values=stored.get((t["instance_id"], t["slot"]), {}))
+            for t in sample_targets(db, order)
+        ]
         if insp and insp.inspector_id:
             ie.inspector_name = _supplier_name(
                 db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first()

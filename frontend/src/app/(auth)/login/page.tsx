@@ -72,10 +72,23 @@ export default function LoginPage() {
   }
 
   async function handleGoogleLogin() {
+    if (googleLoading) return;
     setError('');
     setGoogleLoading(true);
+
+    // Watchdog: Schliesst der Nutzer das Popup (X), meldet Firebase das nicht in
+    // allen Browsern zuverlässig zurück – der Button bliebe sonst ewig im
+    // Ladezustand. Kehrt der Fokus ins Hauptfenster zurück und ist nach kurzer
+    // Frist nichts passiert, den Ladezustand wieder freigeben.
+    let settled = false;
+    const onFocus = () => {
+      window.setTimeout(() => { if (!settled) setGoogleLoading(false); }, 1500);
+    };
+    window.addEventListener('focus', onFocus, { once: true });
+
     try {
       const { token } = await signInWithGoogle();
+      settled = true;
       api.setToken(token);
       localStorage.setItem('inexxio_token', token);
       try {
@@ -90,9 +103,15 @@ export default function LoginPage() {
       localStorage.removeItem(REDIRECT_KEY);
       router.push(redirect);
     } catch (err: unknown) {
+      settled = true;
       setGoogleLoading(false);
       const code = (err as FirebaseError).code ?? '';
-      setError(getGoogleErrorMessage(code));
+      // Vom Nutzer bewusst abgebrochen (Popup geschlossen) → keine Fehlermeldung
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        setError(getGoogleErrorMessage(code));
+      }
+    } finally {
+      window.removeEventListener('focus', onFocus);
     }
   }
 

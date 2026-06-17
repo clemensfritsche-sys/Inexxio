@@ -5,31 +5,28 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from .article_process_step import CaptureField
 
 
-class InspectionUpdate(BaseModel):
-    """Erfassung der Datenerfassung/Eingangskontrolle.
+class InspectionSample(BaseModel):
+    """Eine zu prüfende Stichprobe: konkrete Instanz (+ Probe-Nr. bei Charge)."""
 
-    Bei Schritten mit Maske (``capture_fields``) leiten die erfassten ``values``
-    das Ergebnis ab; ohne Maske wird ``result`` direkt gesetzt (passed/failed).
+    instance_id: int            # object_id der Instanz
+    slot: int = 1               # 1 bei Einzelteil; 1..N bei Charge (mehrere Proben)
+    values: dict = {}           # erfasste Werte der Maske {field_key: value}
+
+    @field_validator("values", mode="before")
+    @classmethod
+    def _values_default(cls, v: Optional[dict]) -> dict:
+        return v or {}
+
+
+class InspectionUpdate(BaseModel):
+    """Erfassung der Datenerfassung – je aufgeführter Stichprobe ein Wertesatz.
+
+    Das Ergebnis (passed/failed) leitet sich aus allen Stichproben ab: bestanden,
+    wenn jede Probe alle bewertbaren Felder erfüllt.
     """
 
-    result: Optional[str] = None
-    checked_count: Optional[int] = None
+    samples: list[InspectionSample] = []
     note: Optional[str] = None
-    values: Optional[dict] = None
-
-    @field_validator("result")
-    @classmethod
-    def _result_ok(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in ("passed", "failed"):
-            raise ValueError("Ergebnis muss 'passed' oder 'failed' sein")
-        return v
-
-    @field_validator("checked_count")
-    @classmethod
-    def _count_ok(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v < 0:
-            raise ValueError("Anzahl darf nicht negativ sein")
-        return v
 
 
 class InspectionEmbed(BaseModel):
@@ -41,15 +38,15 @@ class InspectionEmbed(BaseModel):
     result: str
     checked_count: Optional[int]
     note: Optional[str]
-    values: dict = {}
 
     # Vom Router berechnet/denormalisiert
     sample_percent: Optional[int] = None
     required_count: Optional[int] = None
     inspector_name: Optional[str] = None
-    fields: list[CaptureField] = []   # Maske (aus der Prozessdefinition)
+    fields: list[CaptureField] = []     # Maske (aus der Prozessdefinition)
+    samples: list[InspectionSample] = []  # konkrete Stichproben (Instanz + erfasste Werte)
 
-    @field_validator("values", mode="before")
+    @field_validator("samples", mode="before")
     @classmethod
-    def _values_default(cls, v: Optional[dict]) -> dict:
-        return v or {}
+    def _samples_default(cls, v: Optional[list]) -> list:
+        return v or []

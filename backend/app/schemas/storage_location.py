@@ -55,6 +55,7 @@ class StorageLocationCreate(BaseModel):
 
     code: Optional[str] = None
     location_type: Optional[str] = None
+    note: Optional[str] = None
 
     max_load_kg: Optional[Decimal] = None
     width_mm: Optional[int] = None
@@ -98,6 +99,7 @@ class StorageLocationUpdate(BaseModel):
     name: Optional[str] = None
     code: Optional[str] = None
     location_type: Optional[str] = None
+    note: Optional[str] = None
 
     max_load_kg: Optional[Decimal] = None
     width_mm: Optional[int] = None
@@ -162,6 +164,7 @@ class StorageLocationResponse(BaseModel):
     name: str
     code: Optional[str]
     location_type: Optional[str]
+    note: Optional[str]
 
     max_load_kg: Optional[Decimal]
     width_mm: Optional[int]

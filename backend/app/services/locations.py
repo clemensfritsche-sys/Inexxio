@@ -30,8 +30,15 @@ def _user_label(u: UserProfile) -> str:
     return u.company_name or name or u.email
 
 
+def _obj_nr(lid: int) -> str:
+    """9-stellige Objektnummer (analog Frontend fmtObjId)."""
+    return str(lid).zfill(9)
+
+
 def location_label(db: Session, ltype: str | None, lid: int | None) -> str | None:
-    """Menschenlesbarer Name eines Standorts (oder None, wenn er nicht existiert)."""
+    """Anzeige eines Standorts: Lagerplatz/Instanz → Objektnummer, User → Name.
+
+    Lagerplätze werden über die Objektnummer angesprochen (kein Name mehr)."""
     if not ltype or lid is None:
         return None
     if ltype == "lagerplatz":
@@ -40,7 +47,7 @@ def location_label(db: Session, ltype: str | None, lid: int | None) -> str | Non
             .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
             .first()
         )
-        return loc.name if loc else None
+        return _obj_nr(lid) if loc else None
     if ltype == "user":
         u = (
             db.query(UserProfile)
@@ -54,9 +61,7 @@ def location_label(db: Session, ltype: str | None, lid: int | None) -> str | Non
             .filter(Instance.object_id == lid, Instance.is_active == True)
             .first()
         )
-        if not inst:
-            return None
-        return "Charge" if inst.kind == "batch" else "Einzelteil"
+        return _obj_nr(lid) if inst else None
     return None
 
 

@@ -276,6 +276,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
     default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
+    article_names: (s.article_names as string[] | null) ?? [],
   };
 }
 

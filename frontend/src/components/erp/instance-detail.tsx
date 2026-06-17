@@ -2,7 +2,7 @@
 
 import { Boxes, ArrowLeft } from 'lucide-react';
 import type { Instance } from '@/types';
-import { qcStatusConfig } from '@/lib/process';
+import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { StatusBadge } from '@/components/erp/fields';
 
@@ -23,7 +23,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>
-              {record.kind === 'batch' ? 'Charge' : 'Einzelteil'}
+              {instanceKindLabel(record.kind)}
             </div>
             <div style={{ marginTop: 4 }}><StatusBadge cfg={qcStatusConfig(record.qc_status)} /></div>
           </div>

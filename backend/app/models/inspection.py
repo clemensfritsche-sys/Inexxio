@@ -27,5 +27,7 @@ class Inspection(Base, TimestampMixin):
     checked_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     inspector_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    # Erfasste Werte der Maske: {field_key: value}
+    # Erfasste Werte der Maske (Altformat, einzelne Erfassung): {field_key: value}
     values: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Stichproben je Instanz: [{instance_id, slot, values:{field_key: value}}]
+    samples: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)

@@ -161,16 +161,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an).
   - **serialization** (Serialisierung): erzeugt **Instanzen** (`instances`, eigene Objektnummer) –
     Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N. Speist den **Bestand** (`services/serialization.py`).
-  - **inspection** = «**Datenerfassung**»: Stichprobenprüfung (Prüfumfang % via `sample_percent`) mit
-    konfigurierbarer Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht / Text). Ergebnis
-    (passed/failed) wird aus den erfassten Werten abgeleitet und auf `instances.qc_status` übertragen
-    (`services/inspection.py`).
+  - **inspection** = «**Datenerfassung**»: nennt **konkret die zu prüfenden Instanzen** (Stichprobe).
+    Prüfumfang % via `sample_percent`: Einzelteil → N zufällig (stabil) ausgewählte Instanzen; Charge →
+    eine Instanz mit N Proben. Je Stichprobe ein Wertesatz (`inspections.samples`), konfigurierbare Maske
+    (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht / Text; ohne Maske synthetisches Gut-Schlecht).
+    Ergebnis (passed/failed) = alle Proben ok, wird auf `instances.qc_status` übertragen (`services/inspection.py`).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
     Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
-    optionales Vorgabe-Ziel am Schritt (`target_location_type`/`_id`). Abschluss-Marker = `movements`
-    (analog inspection, keine eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`,
-    `services/locations.py`).
+    optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Lagerplatz/Person/Instanz),
+    leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
+    eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
@@ -186,6 +187,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Eintrag, wird automatisch ein Lagerplatz «Wareneingang» angelegt). Admin → Einstellungen → «Lager &
   Logistik» wählt den Standard-Wareneingang. Der **Bewegungs**-Schritt verteilt von dort weiter – das
   PO-Modul bleibt standort-agnostisch (mehrere Lager = mehrere Lagerplätze als Bewegungsziele).
+  Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name); freigegebene
+  Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz.
+- **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
+  Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
 > Prozess-Schritttypen: purchase, serialization, inspection, movement. E-Mail-Versand ist nur als TODO

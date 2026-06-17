@@ -253,6 +253,45 @@ def test_instance_always_has_location_field():
     assert hasattr(Instance, "location_id")
 
 
+def test_inspection_capture_is_per_sample():
+    """Datenerfassung erfasst je Stichprobe (Instanz) einen Wertesatz."""
+    from app.schemas.inspection import InspectionUpdate, InspectionSample
+
+    upd = InspectionUpdate(samples=[
+        InspectionSample(instance_id=100_000_010, slot=1, values={"len": 10.1}),
+        InspectionSample(instance_id=100_000_010, slot=2, values={"len": 9.9}),
+    ], note="ok")
+    assert len(upd.samples) == 2 and upd.samples[1].slot == 2
+    # Altfelder gibt es nicht mehr
+    assert "values" not in InspectionUpdate.model_fields
+    assert "checked_count" not in InspectionUpdate.model_fields
+
+
+def test_eval_fields_falls_back_to_gut_schlecht():
+    """Ohne Maske wird je Probe ein synthetisches Gut/Schlecht (_ok) bewertet."""
+    from app.services.inspection import eval_fields, DEFAULT_OK_FIELD
+
+    fields = eval_fields(None)
+    assert fields == [DEFAULT_OK_FIELD] and fields[0]["type"] == "bool"
+
+
+def test_article_names_catalog_normalized():
+    """Artikelnamen-Katalog: getrimmt, eindeutig, leere verworfen."""
+    from app.schemas.admin import CompanySettingsUpdate
+
+    upd = CompanySettingsUpdate(article_names=["  Welle  ", "Welle", "", "Bolzen"])
+    assert upd.article_names == ["Welle", "Bolzen"]
+
+
+def test_storage_location_has_note():
+    """Lagerplatz trägt eine optionale Bemerkung."""
+    from app.models import StorageLocation
+    from app.schemas.storage_location import StorageLocationCreate
+
+    assert hasattr(StorageLocation, "note")
+    assert "note" in StorageLocationCreate.model_fields
+
+
 def test_capture_field_evaluation():
     """Soll-Ist mit Toleranz, Gut/Schlecht, Text werden korrekt bewertet."""
     from app.services.inspection import evaluate, field_ok

@@ -18,11 +18,12 @@ function parseAddress(components: google.maps.GeocoderAddressComponent[]): Parse
   return { street, zip: get('postal_code'), city, country: get('country') };
 }
 
-export function MapPicker({ apiKey, lat, lng, onPick }: {
+export function MapPicker({ apiKey, lat, lng, onPick, readOnly = false }: {
   apiKey: string | null;
   lat: number | null;
   lng: number | null;
   onPick: (lat: number, lng: number, address?: ParsedAddress) => void;
+  readOnly?: boolean;
 }) {
   const { loaded, error } = useGoogleMaps(apiKey);
   const mapAvailable = !!apiKey && !error;
@@ -50,11 +51,13 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
   function placeMarker(p: google.maps.LatLngLiteral, pan: boolean) {
     if (!map.current) return;
     if (!marker.current) {
-      marker.current = new google.maps.Marker({ map: map.current, draggable: true, position: p });
-      marker.current.addListener('dragend', () => {
-        const pos = marker.current?.getPosition();
-        if (pos) reverseGeocode({ lat: pos.lat(), lng: pos.lng() });
-      });
+      marker.current = new google.maps.Marker({ map: map.current, draggable: !readOnly, position: p });
+      if (!readOnly) {
+        marker.current.addListener('dragend', () => {
+          const pos = marker.current?.getPosition();
+          if (pos) reverseGeocode({ lat: pos.lat(), lng: pos.lng() });
+        });
+      }
     } else {
       marker.current.setPosition(p);
     }
@@ -72,12 +75,14 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
     });
     geocoder.current = new google.maps.Geocoder();
     if (hasCoords) placeMarker({ lat: lat as number, lng: lng as number }, false);
-    map.current.addListener('click', (e: google.maps.MapMouseEvent) => {
-      if (!e.latLng) return;
-      const p = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-      placeMarker(p, false);
-      reverseGeocode(p);
-    });
+    if (!readOnly) {
+      map.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return;
+        const p = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+        placeMarker(p, false);
+        reverseGeocode(p);
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
@@ -119,7 +124,7 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8' }}>Standort (Karte)</span>
-        {hasGeo && (
+        {hasGeo && !readOnly && (
           <button
             type="button"
             onClick={useGps}
@@ -156,10 +161,12 @@ export function MapPicker({ apiKey, lat, lng, onPick }: {
 
       <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
         {lat != null && lng != null
-          ? `Koordinaten: ${lat.toFixed(6)}, ${lng.toFixed(6)}${mapAvailable ? ' — Marker ziehen oder auf die Karte klicken' : ''}`
-          : mapAvailable
-            ? 'Auf die Karte klicken, Marker ziehen oder GPS verwenden — die Adresse wird automatisch ermittelt.'
-            : 'GPS verwenden, um die Koordinaten zu erfassen.'}
+          ? `Koordinaten: ${lat.toFixed(6)}, ${lng.toFixed(6)}${mapAvailable && !readOnly ? ' — Marker ziehen oder auf die Karte klicken' : ''}`
+          : readOnly
+            ? 'Kein Standort hinterlegt.'
+            : mapAvailable
+              ? 'Auf die Karte klicken, Marker ziehen oder GPS verwenden — die Adresse wird automatisch ermittelt.'
+              : 'GPS verwenden, um die Koordinaten zu erfassen.'}
       </div>
     </div>
   );

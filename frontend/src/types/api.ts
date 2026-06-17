@@ -837,6 +837,11 @@ export interface components {
             google_maps_api_key: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
+            /**
+             * Article Names
+             * @default []
+             */
+            article_names: string[];
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -904,6 +909,8 @@ export interface components {
             google_maps_api_key?: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
+            /** Article Names */
+            article_names?: string[] | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -955,11 +962,6 @@ export interface components {
             checked_count: number | null;
             /** Note */
             note: string | null;
-            /**
-             * Values
-             * @default {}
-             */
-            values: Record<string, never>;
             /** Sample Percent */
             sample_percent?: number | null;
             /** Required Count */
@@ -971,23 +973,45 @@ export interface components {
              * @default []
              */
             fields: components["schemas"]["CaptureField"][];
+            /**
+             * Samples
+             * @default []
+             */
+            samples: components["schemas"]["InspectionSample"][];
+        };
+        /**
+         * InspectionSample
+         * @description Eine zu prüfende Stichprobe: konkrete Instanz (+ Probe-Nr. bei Charge).
+         */
+        InspectionSample: {
+            /** Instance Id */
+            instance_id: number;
+            /**
+             * Slot
+             * @default 1
+             */
+            slot: number;
+            /**
+             * Values
+             * @default {}
+             */
+            values: Record<string, never>;
         };
         /**
          * InspectionUpdate
-         * @description Erfassung der Datenerfassung/Eingangskontrolle.
+         * @description Erfassung der Datenerfassung – je aufgeführter Stichprobe ein Wertesatz.
          *
-         *     Bei Schritten mit Maske (``capture_fields``) leiten die erfassten ``values``
-         *     das Ergebnis ab; ohne Maske wird ``result`` direkt gesetzt (passed/failed).
+         *     Das Ergebnis (passed/failed) leitet sich aus allen Stichproben ab: bestanden,
+         *     wenn jede Probe alle bewertbaren Felder erfüllt.
          */
         InspectionUpdate: {
-            /** Result */
-            result?: string | null;
-            /** Checked Count */
-            checked_count?: number | null;
+            /**
+             * Samples
+             * @default []
+             */
+            samples: components["schemas"]["InspectionSample"][];
             /** Note */
             note?: string | null;
-            /** Values */
-            values?: Record<string, never> | null;
         };
         /**
          * InstanceEmbed
@@ -1301,6 +1325,8 @@ export interface components {
             code?: string | null;
             /** Location Type */
             location_type?: string | null;
+            /** Note */
+            note?: string | null;
             /** Max Load Kg */
             max_load_kg?: number | string | null;
             /** Width Mm */
@@ -1344,6 +1370,8 @@ export interface components {
             code: string | null;
             /** Location Type */
             location_type: string | null;
+            /** Note */
+            note: string | null;
             /** Max Load Kg */
             max_load_kg: string | null;
             /** Width Mm */
@@ -1395,6 +1423,8 @@ export interface components {
             code?: string | null;
             /** Location Type */
             location_type?: string | null;
+            /** Note */
+            note?: string | null;
             /** Max Load Kg */
             max_load_kg?: number | string | null;
             /** Width Mm */

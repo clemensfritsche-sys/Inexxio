@@ -9,7 +9,7 @@ import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
-import { qcStatusConfig } from '@/lib/process';
+import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
@@ -38,7 +38,7 @@ type Row =
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
-  if (row.type === 'instance') return row.data.kind === 'batch' ? 'Charge' : 'Instanz';
+  if (row.type === 'instance') return instanceKindLabel(row.data.kind);
   if (row.type === 'storage_location') return 'Lagerplatz';
   return row.data.name; // article
 }
@@ -330,7 +330,7 @@ export default function ErpPage() {
           !showList ? 'flex' : 'hidden md:flex',
         )}>
           {creating === 'article' && (
-            <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <ArticleDetail key="new-article" record={null} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
@@ -342,7 +342,7 @@ export default function ErpPage() {
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'order' && (
             <OrderDetail key={selectedRow.key} record={selectedRow.data} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
