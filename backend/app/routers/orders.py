@@ -15,7 +15,7 @@ from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
-from ..services.serialization import serialize_for_order
+from ..services.serialization import create_instances_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -110,11 +110,13 @@ async def update_order(
                       object_id=order.object_id, old_value=old_str)
         setattr(order, key, value)
 
-    # Freigabe (draft → released) stösst den Artikel-Prozess an
+    # Freigabe (draft → released) stösst den Artikel-Prozess an und legt sofort
+    # die Bestands-Instanzen an (kein eigener Serialisierungs-Schritt mehr).
     if order.status == "released" and not was_released:
         if not order.article_id or not order.quantity:
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
         instantiate_for_order(db, order, current_user.id)
+        create_instances_for_order(db, order, current_user.id)
 
     db.commit()
     db.refresh(order)
@@ -141,19 +143,6 @@ async def update_order_purchase(
     if not po:
         raise HTTPException(404, detail="Für diesen Auftrag existiert keine Bestellung")
     apply_update(db, po, data, user)
-    db.refresh(order)
-    return to_order_response(db, order)
-
-
-@router.post("/{object_id}/serialize", response_model=OrderResponse)
-async def serialize_order(
-    object_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge)."""
-    order = _get_staff_order(db, object_id)
-    serialize_for_order(db, order, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
 

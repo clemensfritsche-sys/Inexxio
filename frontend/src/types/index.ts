@@ -66,7 +66,7 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
 };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-export type StepType = 'purchase' | 'serialization' | 'inspection' | 'movement';
+export type StepType = 'purchase' | 'inspection' | 'movement';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];

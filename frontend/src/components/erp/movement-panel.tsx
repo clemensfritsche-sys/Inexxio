@@ -122,7 +122,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
       <div style={cardStyle}>
         <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
-          <Info size={14} /> Noch keine Instanzen vorhanden – zuerst serialisieren.
+          <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
       </div>
     );

@@ -14,7 +14,7 @@ import { ObjId } from '@/components/erp/obj-id';
 import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
-import { SerializationPanel } from '@/components/erp/serialization-panel';
+import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 
@@ -249,6 +249,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </>
         )}
 
+        {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
+        {record && <OrderInstances order={record} />}
+
         {/* Prozess */}
         {showProcess ? (
           <>
@@ -270,8 +273,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         ) : isStaff && demandEditable ? (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 4, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1e40af' }}>
             <Rocket size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span><b>Freigeben</b> startet den hinterlegten Prozess des Artikels (Beschaffung,
-              Serialisierung, Eingangskontrolle – je nach Artikel-Definition).</span>
+            <span><b>Freigeben</b> legt sofort die Bestands-Instanzen an und startet den
+              hinterlegten Prozess des Artikels (Beschaffung, Datenerfassung, Bewegung –
+              je nach Artikel-Definition).</span>
           </div>
         ) : null}
       </div>
@@ -326,9 +330,6 @@ function StepPanel({ type, stepState, order, viewerRole, onSaved }: {
     return order.purchase
       ? <PurchaseStepPanel order={order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
       : null;
-  }
-  if (type === 'serialization') {
-    return <SerializationPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
   }
   if (type === 'inspection') {
     return <InspectionPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;

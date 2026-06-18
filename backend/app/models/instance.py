@@ -9,7 +9,7 @@ from .base import TimestampMixin
 
 
 class Instance(Base, TimestampMixin):
-    """Serialisiertes Bestandsobjekt – Ergebnis des Schritts «Serialisierung».
+    """Bestandsobjekt – entsteht bei der **Auftragsfreigabe**.
 
     Aus der Artikel-Einstellung ``serialization`` abgeleitet:
         unit  → je Stück eine eigene Instanz (quantity = 1, eigene Nummer)
@@ -34,7 +34,7 @@ class Instance(Base, TimestampMixin):
     # Qualitätsstatus: pending (Eingangskontrolle offen) | passed | failed
     qc_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
 
-    # Standort – eine Instanz hat IMMER einen Standort (ab Serialisierung: Wareneingang).
+    # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:
     #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

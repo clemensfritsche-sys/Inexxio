@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
 
-ALLOWED_STEP_TYPES = ("purchase", "serialization", "inspection", "movement")
+ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement")
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
 

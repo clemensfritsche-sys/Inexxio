@@ -152,7 +152,7 @@ async def list_article_instances(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»)."""
+    """Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»)."""
     article = _get_active(db, object_id)
     rows = (
         db.query(Instance)

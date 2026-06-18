@@ -7,8 +7,9 @@ Datensatzobjekt mit 9-stelliger Nummer:
     user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
     instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
 
-Beim Serialisieren landet jede neue Instanz im Wareneingang. Welcher Lagerplatz
-das ist, steht in den Systemkonfigurationen
+Bei der Auftragsfreigabe erhält jede neue Instanz einen Startstandort (Lieferant
+bzw. Wareneingang); spätestens mit dem Wareneingang («received») liegt sie im
+Wareneingang. Welcher Lagerplatz das ist, steht in den Systemkonfigurationen
 (``company_settings.default_receiving_location_id``); fehlt der Eintrag, wird
 automatisch ein Lagerplatz «Wareneingang» angelegt – so ist die Regel
 „nie ohne Standort" garantiert, ohne dass vorab etwas konfiguriert sein muss.

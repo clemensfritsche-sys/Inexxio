@@ -16,10 +16,11 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
+from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
+from .locations import ensure_receiving_location
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
 _FROM = {
@@ -130,6 +131,27 @@ def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bo
     return False
 
 
+def _relocate_to_receiving(db: Session, order: Order, actor_id: int) -> None:
+    """Wareneingang: bei «received» wechseln die Instanzen an den Wareneingang.
+
+    Damit bildet der Beschaffungsschritt den physischen Wareneingang ab – die
+    Instanzen verlassen den Lieferanten-Standort und liegen anschliessend im
+    Wareneingang, von wo der Bewegungs-Schritt sie weiterverteilt."""
+    recv_id = ensure_receiving_location(db)
+    instances = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True)
+        .all()
+    )
+    for inst in instances:
+        if (inst.location_type, inst.location_id) != ("lagerplatz", recv_id):
+            log_audit(db, "instances", "location", f"lagerplatz:{recv_id}",
+                      actor_id, object_id=inst.object_id,
+                      old_value=f"{inst.location_type}:{inst.location_id}")
+            inst.location_type = "lagerplatz"
+            inst.location_id = recv_id
+
+
 def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str, user: UserProfile) -> None:
     if target not in _FROM:
         raise HTTPException(400, detail="Unbekannter Zielstatus")
@@ -151,6 +173,9 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
+    # Wareneingang: bei «received» wechseln die Instanzen an den Wareneingang
+    if target == "received":
+        _relocate_to_receiving(db, order, user.id)
     # Auftrag ggf. automatisch abschliessen (alle Prozessschritte erledigt)
     process.recompute_completion(db, order)
     # TODO(E-Mail): Statuswechsel an Lieferant/uns melden (Gmail API, Phase 2)

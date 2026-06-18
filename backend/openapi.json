@@ -880,7 +880,7 @@
           "articles"
         ],
         "summary": "List Article Instances",
-        "description": "Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»).",
+        "description": "Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).",
         "operationId": "list_article_instances_api_v1_erp_articles__object_id__instances_get",
         "security": [
           {
@@ -1360,54 +1360,6 @@
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/orders/{object_id}/serialize": {
-      "post": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Serialize Order",
-        "description": "Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge).",
-        "operationId": "serialize_order_api_v1_erp_orders__object_id__serialize_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4141,7 +4093,7 @@
           "qc_status"
         ],
         "title": "InstanceEmbed",
-        "description": "Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."
+        "description": "Kurzform für die Einbettung in den Auftrag (Instanzen-/Bewegungs-Panel)."
       },
       "InstanceReference": {
         "properties": {

@@ -89,8 +89,6 @@ def _step_completion(db: Session, order: Order) -> dict[str, dict]:
     for lg in logs:
         if lg.table_name == "purchase_orders" and lg.new_value == "received":
             st = "purchase"
-        elif lg.table_name == "instances":
-            st = "serialization"
         elif lg.table_name == "inspections" and lg.new_value in ("passed", "failed"):
             st = "inspection"
         elif lg.table_name == "movements":
@@ -136,7 +134,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         emb.history = _purchase_history(db, order)
         resp.purchase = emb
 
-    # Serialisierung: erzeugte Instanzen (inkl. aktuellem Standort)
+    # Bestands-Instanzen (bei Freigabe erzeugt, inkl. aktuellem Standort)
     instances = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True)

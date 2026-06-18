@@ -193,16 +193,31 @@ def test_process_step_requires_consistent_mode():
 
 
 def test_process_step_types_and_optional_config():
-    """Serialisierung/Eingangskontrolle brauchen keinen Lieferanten; % default 100."""
+    """Datenerfassung/Bewegung brauchen keinen Lieferanten; Prüfumfang default 100 %."""
+    import pytest
+
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "serialization", "inspection", "movement"}
-    ser = ArticleProcessStepCreate(step_type="serialization")
-    assert ser.step_type == "serialization"          # kein supplier_id nötig
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement"}
+    # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
+    with pytest.raises(ValueError):
+        ArticleProcessStepCreate(step_type="serialization")
     insp = ArticleProcessStepCreate(step_type="inspection")
     assert insp.sample_percent == 100                 # Default: ganze Menge
     insp2 = ArticleProcessStepCreate(step_type="inspection", sample_percent=10)
     assert insp2.sample_percent == 10
+
+
+def test_instances_created_at_release_not_as_step():
+    """Bestands-Instanzen entstehen bei der Freigabe – «serialization» ist kein Schritt."""
+    from app.schemas.article_process_step import ALLOWED_STEP_TYPES
+    from app.services import process, serialization
+
+    assert "serialization" not in ALLOWED_STEP_TYPES
+    assert "serialization" not in process.STEP_LABELS
+    # Neue API: Instanzen werden bei der Freigabe erzeugt (kein /serialize-Schritt)
+    assert callable(serialization.create_instances_for_order)
+    assert not hasattr(serialization, "serialize_for_order")
 
 
 def test_movement_step_target_config():
@@ -246,6 +261,7 @@ def test_movement_in_process_engine():
     from app.services.process import STEP_LABELS
 
     assert STEP_LABELS["movement"] == "Bewegung"
+    assert "serialization" not in STEP_LABELS    # kein eigener Schritt mehr
 
 
 def test_instance_always_has_location_field():

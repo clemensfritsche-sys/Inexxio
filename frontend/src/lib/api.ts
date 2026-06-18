@@ -178,11 +178,6 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
   }
 
-  // Schritt «Serialisierung»: Instanzen erzeugen
-  serializeOrder(objectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/serialize`, {});
-  }
-
   // Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen
   updateOrderInspection(objectId: number, data: InspectionUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);

@@ -154,13 +154,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
   Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
   `position`). Schritt-Status wird aus der Fachtabelle abgeleitet (keine Orchestrierungstabelle);
-  Auftrag wird **automatisch `completed`**, wenn alle Schritte erledigt sind. Schritttypen:
+  Auftrag wird **automatisch `completed`**, wenn alle Schritte erledigt sind.
+  **Bestands-Instanzen entstehen direkt bei der Auftragsfreigabe** (kein eigener Schritt mehr,
+  `services/serialization.py`): Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N (`instances`,
+  eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
+  volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation). Schritttypen:
   - **purchase** (Beschaffung): Bestellung `purchase_orders` unter dem Auftrag (keine eigene Nummer),
     Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
-    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an).
-  - **serialization** (Serialisierung): erzeugt **Instanzen** (`instances`, eigene Objektnummer) –
-    Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N. Speist den **Bestand** (`services/serialization.py`).
+    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). **`received` = Wareneingang**:
+    die Instanzen wechseln vom Lieferanten an den Wareneingang (`services/purchase.py`).
   - **inspection** = «**Datenerfassung**»: nennt **konkret die zu prüfenden Instanzen** (Stichprobe).
     Prüfumfang % via `sample_percent`: Einzelteil → N zufällig (stabil) ausgewählte Instanzen; Charge →
     eine Instanz mit N Proben. Je Stichprobe ein Wertesatz (`inspections.samples`), konfigurierbare Maske
@@ -180,11 +183,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: Artikel-«Prozess»-Reiter (Schritttypen hinzufügen/sortieren), **Bestand**-Reiter zeigt die
   Instanzen. Auftrag heisst starr «Auftrag», nur **freigegebene** Artikel referenzierbar, Menge mit
   Artikel-Einheit, Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe
-  read-only. Auftrag-Detail: **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts
-  (Beschaffung/Serialisierung/Datenerfassung/Bewegung); Lieferant sieht nur die Beschaffung seiner Aufträge.
-- **Standorte**: jede Instanz hat immer einen Standort. Bei der Serialisierung landen Instanzen im
-  **Wareneingang** (Systemkonfiguration `company_settings.default_receiving_location_id`; fehlt der
-  Eintrag, wird automatisch ein Lagerplatz «Wareneingang» angelegt). Admin → Einstellungen → «Lager &
+  read-only. Auftrag-Detail: Sektion **Instanzen** (bei Freigabe erzeugt, mit Standort/QC) +
+  **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts (Beschaffung/Datenerfassung/
+  Bewegung); Lieferant sieht nur die Beschaffung seiner Aufträge.
+- **Standorte**: jede Instanz hat immer einen Standort. Neue Instanzen starten bei der Freigabe beim
+  **Lieferanten** (Beschaffung mit Lieferant) bzw. im **Wareneingang**; mit dem Wareneingang («received»)
+  liegen sie im **Wareneingang** (Systemkonfiguration `company_settings.default_receiving_location_id`;
+  fehlt der Eintrag, wird automatisch ein Lagerplatz «Wareneingang» angelegt). Admin → Einstellungen → «Lager &
   Logistik» wählt den Standard-Wareneingang. Der **Bewegungs**-Schritt verteilt von dort weiter – das
   PO-Modul bleibt standort-agnostisch (mehrere Lager = mehrere Lagerplätze als Bewegungsziele).
   Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name); freigegebene
@@ -208,7 +213,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
-> Prozess-Schritttypen: purchase, serialization, inspection, movement. **Reklamation (RMA)** ist als
+> Prozess-Schritttypen: purchase, inspection, movement (Bestands-Instanzen entstehen bei der Freigabe).
+> **Reklamation (RMA)** ist als
 > eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte). E-Mail-Versand ist nur als TODO
 > vermerkt (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
 

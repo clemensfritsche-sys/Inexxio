@@ -12,9 +12,10 @@ class ArticleProcessStep(Base, TimestampMixin):
     """Definition eines Prozessschritts am Artikel (Reiter «Prozess»).
 
     Unterstützte Typen (``step_type``): ``purchase`` (Beschaffung),
-    ``serialization`` (Serialisierung), ``inspection`` (Eingangskontrolle),
-    ``movement`` (Bewegung). Die Reihenfolge bestimmt ``position`` (pro Artikel
-    frei sortierbar); welche Schritte vorhanden sind, ist pro Artikel optional.
+    ``inspection`` (Datenerfassung), ``movement`` (Bewegung). Die Reihenfolge
+    bestimmt ``position`` (pro Artikel frei sortierbar); welche Schritte
+    vorhanden sind, ist pro Artikel optional. Die Bestands-Instanzen entstehen
+    bereits bei der Auftragsfreigabe (kein eigener Serialisierungs-Schritt).
     Kind-Objekt des Artikels – KEINE eigene Objektnummer.
 
     Wird ein Auftrag freigegeben, instanziiert das System aus diesen Schritten
