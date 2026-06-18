@@ -227,9 +227,46 @@ export interface StorageLocationUpdateInput {
   is_active?: boolean;
 }
 
+// ─── Claim (Reklamation / RMA) ────────────────────────────────────────────────
+
+export type ClaimStatus = 'open' | 'accepted' | 'rejected' | 'closed';
+export type ClaimDirection = 'internal' | 'supplier' | 'customer';
+export type ClaimReason = 'defect' | 'damage' | 'wrong_item' | 'quantity' | 'documentation' | 'other';
+export type ClaimResolution = 'none' | 'rework' | 'replace' | 'return' | 'credit';
+
+type ClaimApi = components['schemas']['ClaimResponse'];
+
+export type Claim = Omit<ClaimApi, 'status' | 'direction' | 'reason' | 'resolution'> & {
+  status: ClaimStatus;
+  direction: ClaimDirection;
+  reason: ClaimReason;
+  resolution: ClaimResolution;
+};
+
+export interface ClaimInput {
+  instance_object_id: number;
+  direction?: ClaimDirection;
+  reason?: ClaimReason;
+  title?: string | null;
+  description?: string | null;
+  quantity?: number | null;
+}
+
+export interface ClaimUpdateInput {
+  status?: ClaimStatus;
+  direction?: ClaimDirection;
+  reason?: ClaimReason;
+  title?: string | null;
+  description?: string | null;
+  quantity?: number | null;
+  resolution?: ClaimResolution;
+  resolution_note?: string | null;
+  is_active?: boolean;
+}
+
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

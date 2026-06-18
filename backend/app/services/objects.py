@@ -8,19 +8,20 @@ Maximum über alle Objekttabellen + 1 – so kollidieren verschiedene Typen nich
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Article, Instance, Order, StorageLocation, UserProfile
+from ..models import Article, Claim, Instance, Order, StorageLocation, UserProfile
 
 OBJ_ID_START = 100_000_001
 
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.
 # Bestellungen/Eingangskontrollen bekommen KEINE eigene Nummer (laufen unter dem
-# Auftrag); Instanzen hingegen sind eigenständige, etikettierbare Objekte.
+# Auftrag); Instanzen und Reklamationen hingegen sind eigenständige Objekte.
 _OBJECT_ID_COLUMNS = (
     UserProfile.object_id,
     Article.object_id,
     Order.object_id,
     Instance.object_id,
     StorageLocation.object_id,
+    Claim.object_id,
 )
 
 

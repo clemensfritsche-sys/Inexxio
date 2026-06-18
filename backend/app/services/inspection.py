@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from ..models import ArticleProcessStep, Inspection, Instance, Order
 from . import process
 from .admin import log_audit
+from .claims import auto_claim_from_inspection
 
 # Synthetisches Bewertungsfeld, wenn keine Maske definiert ist (reines Gut/Schlecht).
 DEFAULT_OK_FIELD = {"key": "_ok", "label": "Ergebnis", "type": "bool"}
@@ -151,6 +152,9 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
         inst.qc_status = result
 
     log_audit(db, "inspections", "result", result, actor_id, object_id=order.object_id)
+    # Bei Nichtbestehen automatisch eine interne Reklamation eröffnen (idempotent)
+    if result == "failed":
+        auto_claim_from_inspection(db, order, actor_id)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(insp)

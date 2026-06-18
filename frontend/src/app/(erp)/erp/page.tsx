@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, ChevronDown } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Claim, Instance, Order, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
+import { claimStatusConfig } from '@/lib/claim';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
@@ -16,31 +17,35 @@ import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
+import { ClaimDetail } from '@/components/erp/claim-detail';
 
 // ─── Type metadata ───────────────────────────────────────────────────────────
 
 const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType }> = {
-  user:             { label: 'Benutzer',   icon: Users },
-  article:          { label: 'Artikel',    icon: Package },
-  order:            { label: 'Auftrag',    icon: ClipboardList },
-  instance:         { label: 'Instanzen',  icon: Boxes },
-  storage_location: { label: 'Lagerplatz', icon: Warehouse },
+  user:             { label: 'Benutzer',     icon: Users },
+  article:          { label: 'Artikel',      icon: Package },
+  order:            { label: 'Auftrag',      icon: ClipboardList },
+  instance:         { label: 'Instanzen',    icon: Boxes },
+  storage_location: { label: 'Lagerplatz',   icon: Warehouse },
+  claim:            { label: 'Reklamationen', icon: AlertTriangle },
 };
 
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location'];
+const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim'];
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
   | { type: 'article'; key: string; objectId: number | null; data: Article }
   | { type: 'order'; key: string; objectId: number | null; data: Order }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
-  | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation };
+  | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
+  | { type: 'claim'; key: string; objectId: number | null; data: Claim };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
   if (row.type === 'instance') return instanceKindLabel(row.data.kind);
   if (row.type === 'storage_location') return 'Lagerplatz';
+  if (row.type === 'claim') return row.data.title || 'Reklamation';
   return row.data.name; // article
 }
 
@@ -50,6 +55,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'article') return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
+  if (row.type === 'claim') return `reklamation rma ${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -69,6 +75,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
       : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
+  else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -122,12 +129,13 @@ export default function ErpPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
+  const [claims, setClaims] = useState<Claim[]>([]);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | 'claim' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -140,13 +148,14 @@ export default function ErpPage() {
   useEffect(() => {
     Promise.allSettled([
       api.getErpRecords(), api.getArticles(), api.getOrders(),
-      api.getStorageLocations(), api.getMe(), api.getInstances(),
-    ]).then(([u, a, o, sl, me, inst]) => {
+      api.getStorageLocations(), api.getMe(), api.getInstances(), api.getClaims(),
+    ]).then(([u, a, o, sl, me, inst, cl]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
       if (o.status === 'fulfilled') setOrders(o.value);
       if (sl.status === 'fulfilled') setStorageLocations(sl.value);
       if (inst.status === 'fulfilled') setInstances(inst.value);
+      if (cl.status === 'fulfilled') setClaims(cl.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
@@ -170,6 +179,7 @@ export default function ErpPage() {
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
+    ...claims.map((c): Row => ({ type: 'claim', key: `c${c.id}`, objectId: c.object_id, data: c })),
   ].sort((x, y) => (y.objectId ?? -Infinity) - (x.objectId ?? -Infinity));   // höchste Nummer zuerst
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
@@ -198,7 +208,7 @@ export default function ErpPage() {
     if (row) handleSelect(row.type, objectId);
   }
 
-  function startCreate(type: 'article' | 'order' | 'storage_location') {
+  function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim') {
     setPlusOpen(false);
     setSel(null);
     setCreating(type);
@@ -215,15 +225,23 @@ export default function ErpPage() {
     setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
     setCreating(null);
     if (o.object_id != null) setSel({ type: 'order', objectId: o.object_id });
-    // Prozessschritte beeinflussen Artikel-Preisspanne & Instanzen → neu laden
+    // Prozessschritte beeinflussen Artikel-Preisspanne, Instanzen & ggf. Reklamationen
+    // (fehlgeschlagene Datenerfassung erzeugt automatisch eine Reklamation) → neu laden
     api.getArticles().then(setArticles).catch(() => {});
     api.getInstances().then(setInstances).catch(() => {});
+    api.getClaims().then(setClaims).catch(() => {});
   }
 
   function handleStorageSaved(loc: StorageLocation) {
     setStorageLocations((prev) => (prev.some((x) => x.id === loc.id) ? prev.map((x) => (x.id === loc.id ? loc : x)) : [...prev, loc]));
     setCreating(null);
     if (loc.object_id != null) setSel({ type: 'storage_location', objectId: loc.object_id });
+  }
+
+  function handleClaimSaved(c: Claim) {
+    setClaims((prev) => (prev.some((x) => x.id === c.id) ? prev.map((x) => (x.id === c.id ? c : x)) : [...prev, c]));
+    setCreating(null);
+    if (c.object_id != null) setSel({ type: 'claim', objectId: c.object_id });
   }
 
   function handleUserSaved(u: UserProfile) {
@@ -270,6 +288,9 @@ export default function ErpPage() {
                     </button>
                     <button onClick={() => startCreate('storage_location')} style={menuItemStyle}>
                       <Warehouse size={15} style={{ color: '#64748b' }} /> Lagerplatz
+                    </button>
+                    <button onClick={() => startCreate('claim')} style={menuItemStyle}>
+                      <AlertTriangle size={15} style={{ color: '#64748b' }} /> Reklamation
                     </button>
                   </div>
                 )}
@@ -346,6 +367,9 @@ export default function ErpPage() {
           {creating === 'storage_location' && (
             <StorageLocationDetail key="new-storage" record={null} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
+          {creating === 'claim' && (
+            <ClaimDetail key="new-claim" record={null} instances={instances} onSaved={handleClaimSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+          )}
           {!creating && selectedRow?.type === 'user' && (
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
@@ -360,6 +384,9 @@ export default function ErpPage() {
           )}
           {!creating && selectedRow?.type === 'storage_location' && (
             <StorageLocationDetail key={selectedRow.key} record={selectedRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          )}
+          {!creating && selectedRow?.type === 'claim' && (
+            <ClaimDetail key={selectedRow.key} record={selectedRow.data} instances={instances} onSaved={handleClaimSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>

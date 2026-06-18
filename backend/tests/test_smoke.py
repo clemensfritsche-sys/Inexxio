@@ -3,7 +3,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.routers import (
-    admin, article_process, articles, auth, contact, erp, health,
+    admin, article_process, articles, auth, claims, contact, erp, health,
     orders, storage_locations,
 )
 
@@ -19,6 +19,7 @@ def test_routers_importable():
     assert hasattr(article_process, "router")
     assert hasattr(orders, "router")
     assert hasattr(storage_locations, "router")
+    assert hasattr(claims, "router")
     assert hasattr(auth, "router")
     assert hasattr(contact, "router")
     assert hasattr(erp, "router")
@@ -94,6 +95,8 @@ def test_object_id_allocator_shared_across_types():
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS
+    # Reklamationen sind eigenständige Objekte mit eigener Nummer (RMA-Nr.)
+    assert objects.Claim.object_id in objects._OBJECT_ID_COLUMNS
     # Bestellungen laufen unter der Auftragsnummer → KEINE eigene Objektnummer
     assert not hasattr(objects, "PurchaseOrder")
 
@@ -399,3 +402,65 @@ def test_purchase_runs_under_order_without_own_number():
     assert "object_id" not in PurchaseEmbed.model_fields
     # Auftrag bettet den Beschaffungsschritt ein
     assert "purchase" in OrderResponse.model_fields
+
+
+def test_claim_is_standalone_object_with_number():
+    """Reklamation ist ein eigenständiges Objekt mit eigener Nummer (RMA-Nr.)."""
+    from app.models import Claim
+
+    assert Claim.__tablename__ == "claims"
+    assert hasattr(Claim, "object_id")
+    # Bezug auf genau eine Instanz; Artikel/Auftrag werden denormalisiert geführt
+    for f in ("instance_object_id", "article_object_id", "order_object_id",
+              "direction", "reason", "resolution", "source"):
+        assert hasattr(Claim, f)
+
+
+def test_claim_schema_validates_enums():
+    """Reklamation: Richtung/Grund/Status/Lösung werden gegen Whitelist geprüft."""
+    import pytest
+
+    from app.schemas.claim import ClaimCreate, ClaimUpdate
+
+    ok = ClaimCreate(instance_object_id=100_000_010, direction="supplier",
+                     reason="damage", title="  kaputt  ")
+    assert ok.direction == "supplier" and ok.reason == "damage"
+    assert ok.title == "kaputt"   # getrimmt
+
+    assert ClaimUpdate(status="accepted").status == "accepted"
+    assert ClaimUpdate(resolution="replace").resolution == "replace"
+    with pytest.raises(ValueError):
+        ClaimCreate(instance_object_id=1, direction="unsinn")
+    with pytest.raises(ValueError):
+        ClaimUpdate(status="erledigt")    # kein gültiger Status
+    with pytest.raises(ValueError):
+        ClaimUpdate(resolution="zauberei")
+    with pytest.raises(ValueError):
+        ClaimCreate(instance_object_id=1, quantity=0)   # Menge > 0
+
+
+def test_claim_locks_after_terminal_status():
+    """Abgeschlossene/abgelehnte Reklamationen sind inhaltlich gesperrt."""
+    import pytest
+
+    from app.services.claims import ensure_claim_mutable
+
+    # Offen/angenommen: Inhalte änderbar
+    ensure_claim_mutable("open", {"description": "x", "resolution": "rework"})
+    ensure_claim_mutable("accepted", {"resolution_note": "ok"})
+    # Terminal: nur Status/is_active
+    ensure_claim_mutable("closed", {"status": "open"})
+    ensure_claim_mutable("rejected", {"is_active": False})
+    with pytest.raises(Exception):
+        ensure_claim_mutable("closed", {"description": "neu"})
+    with pytest.raises(Exception):
+        ensure_claim_mutable("rejected", {"resolution": "credit"})
+
+
+def test_failed_inspection_triggers_claim():
+    """Die Datenerfassung eröffnet bei Nichtbestehen automatisch eine Reklamation."""
+    from app.services import claims, inspection
+
+    assert callable(claims.auto_claim_from_inspection)
+    # Der Auto-Trigger ist in der Datenerfassung verdrahtet
+    assert inspection.auto_claim_from_inspection is claims.auto_claim_from_inspection

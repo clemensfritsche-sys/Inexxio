@@ -7,7 +7,7 @@ hier eingelagerte Instanzen sowie der aktuelle Standort (Lagerplatz/Person).
 
 from sqlalchemy.orm import Session
 
-from ..models import Inspection, Instance, Order
+from ..models import Claim, Inspection, Instance, Order
 from .locations import _obj_nr, location_label
 
 
@@ -62,6 +62,18 @@ def instance_references(db: Session, instance: Instance) -> list[dict]:
                      "object_id": instance.location_id,
                      "label": location_label(db, instance.location_type, instance.location_id) or _obj_nr(instance.location_id),
                      "at": instance.updated_at})
+
+    # Reklamationen zu dieser Instanz
+    claims = (
+        db.query(Claim)
+        .filter(Claim.is_active == True, Claim.instance_object_id == oid)
+        .all()
+    )
+    for cl in claims:
+        if cl.object_id:
+            refs.append({"kind": "Reklamation", "ref_type": "claim",
+                         "object_id": cl.object_id, "label": _obj_nr(cl.object_id),
+                         "at": cl.created_at})
 
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs

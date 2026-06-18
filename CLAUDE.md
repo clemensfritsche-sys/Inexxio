@@ -191,6 +191,15 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz.
 - **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
   Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
+- **Reklamation (RMA)**: eigenständiger ERP-Objekttyp mit eigener Objektnummer (= RMA-Nr., Tabelle
+  `claims`, Feed-Typ «Reklamationen»). Bezieht sich auf **genau eine Instanz**; Artikel/Auftrag werden
+  daraus abgeleitet. `direction` (intern/Lieferant/Kunde), `reason` (Defekt/Schaden/Falschlieferung/
+  Menge/Doku/Sonstiges), `resolution` (Nacharbeit/Ersatz/Rücksendung/Gutschrift). Status als **Prozess**:
+  Offen →[Annehmen]→ Angenommen →[Abschliessen]→ Abgeschlossen (+[Ablehnen]→ Abgelehnt, Wiedereröffnen).
+  Inhalte nach Abschluss/Ablehnung gesperrt. **Auto-Trigger**: fehlgeschlagene Datenerfassung legt
+  automatisch eine interne Reklamation an (idempotent, `source='inspection'`). Instanz-«Verwendung» listet
+  zugehörige Reklamationen (`services/claims.py`, `routers/claims.py`). **Konfigurierbare
+  Prozessschritte je RMA sind bewusst noch nicht umgesetzt** (späterer Ausbau).
 - **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
   grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
   durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern
@@ -199,10 +208,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
-> Prozess-Schritttypen: purchase, serialization, inspection, movement. E-Mail-Versand ist nur als TODO
+> Prozess-Schritttypen: purchase, serialization, inspection, movement. **Reklamation (RMA)** ist als
+> eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte). E-Mail-Versand ist nur als TODO
 > vermerkt (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
 
-Nächste Aufgabe: E-Mail-Versand (Gmail API); Stückliste/BOM; Arbeitspläne; Stripe
+Nächste Aufgabe: Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API);
+Stückliste/BOM; Arbeitspläne; Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

@@ -4,6 +4,7 @@ import type {
   Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile,
 } from '@/types';
 
@@ -227,6 +228,24 @@ class ApiClient {
 
   updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
     return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
+  }
+
+  // ─── ERP Claims (Reklamationen) ──────────────────────────────────────────────
+
+  getClaims(): Promise<Claim[]> {
+    return this.get('/api/v1/erp/claims');
+  }
+
+  getClaim(objectId: number): Promise<Claim> {
+    return this.get(`/api/v1/erp/claims/${objectId}`);
+  }
+
+  createClaim(data: ClaimInput): Promise<Claim> {
+    return this.post('/api/v1/erp/claims', data);
+  }
+
+  updateClaim(objectId: number, data: ClaimUpdateInput): Promise<Claim> {
+    return this.patch(`/api/v1/erp/claims/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────
