@@ -2138,6 +2138,67 @@
               }
             ],
             "title": "Weight Kg"
+          },
+          "material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material"
+          },
+          "cad_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cad Url"
+          },
+          "surface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface"
+          },
+          "min_order_qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Order Qty"
+          },
+          "safety_stock": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Stock"
           }
         },
         "type": "object",
@@ -2596,6 +2657,61 @@
             "type": "string",
             "title": "Weight Kg"
           },
+          "material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material"
+          },
+          "cad_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cad Url"
+          },
+          "surface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface"
+          },
+          "min_order_qty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Order Qty"
+          },
+          "safety_stock": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Stock"
+          },
           "landed_unit_cost": {
             "anyOf": [
               {
@@ -2628,6 +2744,28 @@
               }
             ],
             "title": "Unit Cost High"
+          },
+          "lead_time_days_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Time Days Low"
+          },
+          "lead_time_days_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Time Days High"
           },
           "is_active": {
             "type": "boolean",
@@ -2730,6 +2868,67 @@
               }
             ],
             "title": "Weight Kg"
+          },
+          "material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material"
+          },
+          "cad_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cad Url"
+          },
+          "surface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surface"
+          },
+          "min_order_qty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Order Qty"
+          },
+          "safety_stock": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Safety Stock"
           },
           "is_active": {
             "anyOf": [
@@ -4166,6 +4365,17 @@
               }
             ],
             "title": "Note"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
           }
         },
         "type": "object",
@@ -4531,6 +4741,17 @@
               }
             ],
             "title": "Note"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
           }
         },
         "type": "object",
@@ -4798,6 +5019,11 @@
       },
       "OrderStepInfo": {
         "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "default": 0
+          },
           "step_type": {
             "type": "string",
             "title": "Step Type"
@@ -4836,6 +5062,46 @@
               }
             ],
             "title": "Completed At"
+          },
+          "purchase": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InspectionEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "movement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MovementEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4846,7 +5112,7 @@
           "state"
         ],
         "title": "OrderStepInfo",
-        "description": "Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung)."
+        "description": "Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).\n\nMehr-Operationen-Routing: ``id`` (Schritt-Definition) ist der eindeutige\nSchlüssel; je Schritt ist – passend zum Typ – genau ein Ausführungs-Embed\ngesetzt, damit mehrere gleichartige Schritte unabhängig bedient werden."
       },
       "OrderUpdate": {
         "properties": {
@@ -5182,6 +5448,17 @@
               }
             ],
             "title": "Tracking Number"
+          },
+          "receiving_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receiving Location Id"
           }
         },
         "type": "object",
@@ -5206,6 +5483,52 @@
         ],
         "title": "ResourceCandidate",
         "description": "Wählbares Betriebsmittel (freigegebene Instanz des Werkzeug-Artikels)."
+      },
+      "ResourceComponentPick": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "split_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id",
+          "instance_id",
+          "quantity"
+        ],
+        "title": "ResourceComponentPick",
+        "description": "Welche Komponenten-Instanz (+ Menge) in eine Produkt-Instanz geht."
       },
       "ResourceEmbed": {
         "properties": {
@@ -5242,6 +5565,14 @@
             },
             "type": "array",
             "title": "Lines",
+            "default": []
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceProductPlan"
+            },
+            "type": "array",
+            "title": "Products",
             "default": []
           }
         },
@@ -5475,6 +5806,28 @@
           "quantity": {
             "type": "integer",
             "title": "Quantity"
+          },
+          "into_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Into Instance Id"
+          },
+          "split_from": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split From"
           }
         },
         "type": "object",
@@ -5483,7 +5836,45 @@
           "quantity"
         ],
         "title": "ResourcePlanItem",
-        "description": "Eine FIFO-Verbrauchsposition (Vorschau): Quelle + Menge."
+        "description": "Eine FIFO-Verbrauchsposition (Vorschau/Protokoll): Quelle + Menge + Ziel-Instanz."
+      },
+      "ResourceProductPlan": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceComponentPick"
+            },
+            "type": "array",
+            "title": "Components",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id"
+        ],
+        "title": "ResourceProductPlan",
+        "description": "Verbrauch je Produkt-Instanz: welche Komponenten konkret eingebaut werden.\n\nMacht den Verbrauch greifbar – «welche Instanz wird in welche Produkt-Instanz\nverbaut» statt nur einer Gesamtmenge."
       },
       "ResourceToolPick": {
         "properties": {
@@ -5527,6 +5918,17 @@
               }
             ],
             "title": "Note"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
           }
         },
         "type": "object",

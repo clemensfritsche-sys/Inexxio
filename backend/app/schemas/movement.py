@@ -29,6 +29,7 @@ class MovementUpdate(BaseModel):
 
     targets: list[MovementTarget] = []
     note: Optional[str] = None
+    step_id: Optional[int] = None   # konkrete Schritt-Definition (Mehr-Operationen-Routing)
 
 
 class MovementEmbed(BaseModel):

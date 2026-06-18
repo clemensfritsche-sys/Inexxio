@@ -23,6 +23,8 @@ class ResourceUsage(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    # Routing: an welche Prozessschritt-Definition gebunden (mehrere Operationen).
+    step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     used_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # Protokoll: {"consume": [{article_id, picks:[{instance_id, quantity, into_instance_id, split_from?}]}],

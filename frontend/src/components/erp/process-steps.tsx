@@ -55,15 +55,14 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
   useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
 
-  // Lagerplätze für Beschaffung (Lieferadresse) & Bewegung laden; Personen/Instanzen nur für die Bewegung
+  // Bewegung braucht Lagerplätze/Personen/Instanzen als Zielauswahl; Ressource die Artikel.
+  // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
   useEffect(() => {
     if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
-    if (adding !== 'purchase' && adding !== 'movement') return;
+    if (adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
-    if (adding === 'movement') {
-      api.getUsers().then(setAllUsers).catch(() => {});
-      api.getInstances().then(setAllInstances).catch(() => {});
-    }
+    api.getUsers().then(setAllUsers).catch(() => {});
+    api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
 
   if (articleObjectId == null) {
@@ -110,7 +109,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
         .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
       if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
     }
-    const tgt = (type === 'movement' || type === 'purchase') && targetSel ? targetSel.split(':') : null;
+    const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
       const created = await api.createArticleProcessStep(aid, {
@@ -206,9 +205,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                       s.mode === 'supplier'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Link2 size={12} /> {PROCESS_MODE_LABEL.webshop}</span>
-                    )}
-                    {s.step_type === 'purchase' && s.target_location_id != null && (
-                      <span style={{ display: 'block', marginTop: 2 }}>Lieferadresse: {fmtObjId(s.target_location_id)}</span>
                     )}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
                     {s.step_type === 'movement' && (s.target_location_id
@@ -324,13 +320,10 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                   ) : (
                     <TextField label="Webshop-Link" value={url} onChange={setUrl} required placeholder="https://shop.example.com/artikel" />
                   )}
-                  <SearchSelect label="Lieferadresse / Wareneingang (Lagerplatz)" value={targetSel} onChange={setTargetSel}
-                    placeholder="Automatisch (Wareneingang)"
-                    options={[
-                      { value: '', label: 'Automatisch (Wareneingang)' },
-                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
-                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
-                    ]} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>Lieferadresse aus der Systemkonfiguration. Der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
+                  </div>
                   <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} /></div>
                 </>
               )}

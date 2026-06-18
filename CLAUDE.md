@@ -158,14 +158,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Bestands-Instanzen entstehen direkt bei der Auftragsfreigabe** (kein eigener Schritt mehr,
   `services/serialization.py`): Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N (`instances`,
   eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
-  volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation). Schritttypen:
+  volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
+  **Mehr-Operationen-Routing:** mehrere gleichartige Schritte (z. B. mehrere `resource`-Operationen)
+  sind hintereinander möglich – jede Fachzeile trägt die `step_id` ihrer Schritt-Definition, der
+  Status wird **pro Schritt** abgeleitet (`process.fact_for_step`/`resolve_exec_step`). Schritttypen:
   - **purchase** (Beschaffung): Bestellung `purchase_orders` unter dem Auftrag (keine eigene Nummer),
     Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
-    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse /
-    der Wareneingang** (Ziel-Lagerplatz) wird **am Beschaffungsschritt** definiert
-    (`receiving_location_id`, Default = Auto-Wareneingang). **`received` = Wareneingang**: die Instanzen
-    wechseln vom Lieferanten an diese Lieferadresse (`services/purchase.py`).
+    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse**
+    kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); beim
+    **Wareneingang («received») ist der aktuelle Lagerort Pflichteingabe** des Bestellers
+    (`receiving_location_id`) – dorthin wechseln die Instanzen (`services/purchase.py`).
   - **inspection** = «**Datenerfassung**»: allgemeine Werterfassung (nicht nur QC) – nennt **konkret die
     zu prüfenden Instanzen** (Stichprobe). Prüfumfang % via `sample_percent`: Einzelteil → N zufällig
     (stabil) ausgewählte Instanzen; Charge → eine Instanz mit N Proben. Je Stichprobe ein Wertesatz
@@ -186,7 +189,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Modus **tool** (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein FIFO,
     freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit wird
     geprüft. Abschluss-Marker = `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
-    «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`.
+    «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`. Das Panel
+    zeigt den Verbrauch **je Produkt-Instanz** (welche Komponenten-Instanz in welche Produkt-Instanz
+    verbaut wird; Vorschau = FIFO-Plan, danach das Protokoll) – `ResourceEmbed.products`.
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
@@ -196,18 +201,26 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Instanzen. Auftrag heisst starr «Auftrag», nur **freigegebene** Artikel referenzierbar, Menge mit
   Artikel-Einheit, Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe
   read-only. Auftrag-Detail: Sektion **Instanzen** (bei Freigabe erzeugt, mit Standort/QC) +
-  **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts (Beschaffung/Datenerfassung/
-  Bewegung); Lieferant sieht nur die Beschaffung seiner Aufträge.
+  **Auftrag-Stepper** über alle Schritte (Schlüssel = Schritt-id, mehrere gleichartige möglich) + Panel
+  des gewählten Schritts (Beschaffung/Datenerfassung/Bewegung/Ressource); Lieferant sieht nur die
+  Beschaffung seiner Aufträge.
 - **Standorte**: jede Instanz hat immer einen Standort. Neue Instanzen starten bei der Freigabe beim
-  **Lieferanten** (Beschaffung mit Lieferant) bzw. an der **Lieferadresse/Wareneingang**; mit dem
-  Wareneingang («received») liegen sie an der **am Beschaffungsschritt definierten Lieferadresse**
-  (`purchase_orders.receiving_location_id`; fehlt sie, wird automatisch ein Lagerplatz «Wareneingang»
-  angelegt – `services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt verteilt von
-  dort weiter. Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name); freigegebene
-  Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
+  **Lieferanten** (Beschaffung mit Lieferant) bzw. an der **Lieferadresse** aus der Systemkonfiguration.
+  Beim **Wareneingang («received»)** gibt der Besteller den **aktuellen Lagerort verpflichtend** an
+  (`purchase_orders.receiving_location_id`); fehlt eine Vorgabe, wird automatisch ein Lagerplatz
+  «Wareneingang» angelegt (`services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt
+  verteilt von dort weiter. Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name);
+  freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
+  Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
 - **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
   Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
+- **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
+  (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand). Im
+  Stammdaten-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden gespeichert/angezeigt.
+- **Durchlaufzeit** je Artikel (read-only, analog Preisspanne): kürzeste–längste Zeit zwischen Freigabe
+  (`orders.released_at`) und Abschluss (`orders.completed_at`) über erledigte Aufträge
+  (`ArticleResponse.lead_time_days_low/high`, berechnet in `routers/articles.py`).
 - **Reklamation (RMA)**: eigenständiger ERP-Objekttyp mit eigener Objektnummer (= RMA-Nr., Tabelle
   `claims`, Feed-Typ «Reklamationen»). Bezieht sich auf **genau eine Instanz**; Artikel/Auftrag werden
   daraus abgeleitet. `direction` (intern/Lieferant/Kunde), `reason` (Defekt/Schaden/Falschlieferung/
@@ -229,10 +242,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > Freigabe; Ressource = Verbrauch FIFO/Chargen-Teilentnahme + Betriebsmittel).
 > **Reklamation (RMA)** ist als
 > eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte). E-Mail-Versand ist nur als TODO
-> vermerkt (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
+> vermerkt (Gmail API, Phase 2). Stückliste/BOM und Stripe sind **noch nicht** implementiert.
+> **Mehr-Operationen-Routing** ist vorbereitet: mehrere gleichartige Prozessschritte (inkl. mehrerer
+> `resource`-Operationen) laufen unabhängig (`step_id` auf den Fachtabellen).
 
 Nächste Aufgabe: Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API);
-Arbeitspläne (Mehr-Operationen-Routing, baut auf dem Ressource-Schritt auf); Stripe
+Arbeitspläne (vollständiges Routing-UI auf Basis des Mehr-Operationen-Routings); Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

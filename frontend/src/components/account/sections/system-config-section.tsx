@@ -3,13 +3,15 @@
 import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package, Plus, X,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package, Plus, X, Warehouse,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CompanySettings } from '@/types';
+import type { CompanySettings, StorageLocation } from '@/types';
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'articles';
+const fmtObjId = (id: number | null | undefined) => (id == null ? '—' : String(id).padStart(9, '0'));
+
+type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'articles' | 'receiving';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -33,6 +35,11 @@ export function SystemConfigSection() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.getSettings(),
+  });
+
+  const { data: storageLocations } = useQuery({
+    queryKey: ['storage-locations'],
+    queryFn: () => api.getStorageLocations(),
   });
 
   const mutation = useMutation({
@@ -181,12 +188,58 @@ export function SystemConfigSection() {
         </div>
       </SettingsCard>
 
+      <ReceivingLocationCard
+        locations={storageLocations ?? []}
+        value={s.default_receiving_location_id}
+        saving={saving === 'receiving'}
+        saved={saved === 'receiving'}
+        onSave={(id) => saveSection('receiving', { default_receiving_location_id: id })}
+      />
+
       <ArticleNamesCard
         names={s.article_names ?? []}
         saving={saving === 'articles'}
         saved={saved === 'articles'}
         onSave={(names) => saveSection('articles', { article_names: names })}
       />
+    </div>
+  );
+}
+
+// ─── Lieferadresse / Wareneingang ─────────────────────────────────────────────
+
+function ReceivingLocationCard({ locations, value, onSave, saving, saved }: {
+  locations: StorageLocation[]; value: number | null;
+  onSave: (id: number | null) => void; saving: boolean; saved: boolean;
+}) {
+  const released = locations.filter((l) => l.status === 'released' && l.object_id != null);
+  return (
+    <div className="card p-4 sm:p-6">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><Warehouse className="h-5 w-5" /></div>
+          <h2 className="text-base font-semibold text-slate-900">Lieferadresse / Wareneingang</h2>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /><span className="text-slate-400">Speichert…</span></>}
+          {saved && !saving && <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /><span className="text-green-600">Gespeichert</span></>}
+        </div>
+      </div>
+      <p className="mb-3 text-xs text-slate-500">
+        Standard-Lagerplatz, an den Lieferanten liefern (Lieferadresse im Beschaffungsschritt).
+        Beim Wareneingang wird der tatsächliche Lagerort erfasst. Ist hier nichts gewählt, legt das
+        System automatisch einen Lagerplatz «Wareneingang» an.
+      </p>
+      <select
+        value={value ?? ''}
+        onChange={(e) => onSave(e.target.value ? Number(e.target.value) : null)}
+        className="form-input"
+      >
+        <option value="">Automatisch (Wareneingang)</option>
+        {released.map((l) => (
+          <option key={l.object_id} value={l.object_id as number}>Lagerplatz {fmtObjId(l.object_id)}</option>
+        ))}
+      </select>
     </div>
   );
 }

@@ -17,8 +17,7 @@ from .locations import validate_location
 
 
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
-    if not process.is_step_active(db, order, "movement"):
-        raise HTTPException(409, detail="Bewegung ist (noch) nicht an der Reihe")
+    step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
     instances = (
         db.query(Instance)
@@ -43,13 +42,9 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
             inst.location_type = t.location_type
             inst.location_id = t.location_id
 
-    mv = (
-        db.query(Movement)
-        .filter(Movement.order_id == order.id, Movement.is_active == True)
-        .first()
-    )
+    mv = process.fact_for_step(db, order, step)
     if not mv:
-        mv = Movement(order_id=order.id)
+        mv = Movement(order_id=order.id, step_id=step.id)
         db.add(mv)
     mv.note = (data.note or "").strip() or None
     mv.moved_by_id = actor_id

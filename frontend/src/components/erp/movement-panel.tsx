@@ -21,9 +21,10 @@ function decode(v: string): { type: LocationType; id: number } | null {
   return Number.isFinite(id) ? { type, id } : null;
 }
 
-export function MovementPanel({ order, stepState, onOrderUpdated }: {
+export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
   stepState: string;
+  stepId?: number | null;
   onOrderUpdated: (o: Order) => void;
 }) {
   const mv = order.movement;
@@ -100,7 +101,7 @@ export function MovementPanel({ order, stepState, onOrderUpdated }: {
     if (list.length < instances.length) { setError('Bitte für jede Instanz einen Zielstandort wählen'); return; }
     setSaving(true); setError(null);
     try {
-      onOrderUpdated(await api.updateOrderMovement(order.object_id as number, { targets: list }));
+      onOrderUpdated(await api.updateOrderMovement(order.object_id as number, { targets: list, step_id: stepId ?? null }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
     } finally { setSaving(false); }

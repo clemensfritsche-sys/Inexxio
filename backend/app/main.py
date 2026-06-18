@@ -77,6 +77,20 @@ _COLUMN_SAFETY_NET = (
     ("purchase_orders", "receiving_location_id", "BIGINT"),
     ("instances", "released_at", "TIMESTAMP WITH TIME ZONE"),
     ("article_process_steps", "resource_lines", "JSONB"),
+    # Optionale Artikel-Stammdaten (dynamische Feldliste)
+    ("articles", "material", "VARCHAR(255)"),
+    ("articles", "cad_url", "VARCHAR(500)"),
+    ("articles", "surface", "VARCHAR(255)"),
+    ("articles", "min_order_qty", "NUMERIC(12,3)"),
+    ("articles", "safety_stock", "NUMERIC(12,3)"),
+    # Durchlaufzeit (Freigabe → Abschluss)
+    ("orders", "released_at", "TIMESTAMP WITH TIME ZONE"),
+    ("orders", "completed_at", "TIMESTAMP WITH TIME ZONE"),
+    # Mehr-Operationen-Routing: Fachzeilen an ihre Schritt-Definition binden
+    ("purchase_orders", "step_id", "BIGINT"),
+    ("inspections", "step_id", "BIGINT"),
+    ("movements", "step_id", "BIGINT"),
+    ("resource_usages", "step_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

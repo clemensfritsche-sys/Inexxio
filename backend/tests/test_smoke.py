@@ -576,3 +576,81 @@ def test_failed_inspection_triggers_claim():
     assert callable(claims.auto_claim_from_inspection)
     # Der Auto-Trigger ist in der Datenerfassung verdrahtet
     assert inspection.auto_claim_from_inspection is claims.auto_claim_from_inspection
+
+
+def test_article_optional_fields_validation():
+    """Optionale Stammdaten: Text getrimmt, leere → None, Mengen ≥ 0."""
+    from decimal import Decimal
+
+    import pytest
+
+    from app.schemas.article import ArticleCreate, ArticleResponse
+
+    base = dict(name="Welle", unit="Stk", serialization="unit", size="1x2", weight_kg=Decimal("1"))
+    a = ArticleCreate(**base, material="  Stahl 1.4301  ", cad_url="", min_order_qty=Decimal("50"))
+    assert a.material == "Stahl 1.4301"     # getrimmt
+    assert a.cad_url is None                 # leer → None
+    assert a.min_order_qty == Decimal("50")
+    with pytest.raises(ValueError):
+        ArticleCreate(**base, safety_stock=Decimal("-1"))   # negativ verboten
+    # Response trägt optionale Felder + Durchlaufzeit-Spanne
+    for f in ("material", "cad_url", "surface", "min_order_qty", "safety_stock",
+              "lead_time_days_low", "lead_time_days_high"):
+        assert f in ArticleResponse.model_fields
+
+
+def test_order_has_lead_time_timestamps():
+    """Auftrag trägt Eckdaten für die Durchlaufzeit (Freigabe → Abschluss)."""
+    from app.models import Order
+
+    assert hasattr(Order, "released_at")
+    assert hasattr(Order, "completed_at")
+
+
+def test_fact_tables_carry_step_id_for_routing():
+    """Mehr-Operationen-Routing: jede Fachzeile ist an ihre Schritt-Definition gebunden."""
+    from app.models import Inspection, Movement, PurchaseOrder, ResourceUsage
+
+    for model in (PurchaseOrder, Inspection, Movement, ResourceUsage):
+        assert hasattr(model, "step_id")
+    # Ausführungs-Schemas erlauben die explizite Schritt-Wahl
+    from app.schemas.inspection import InspectionUpdate
+    from app.schemas.movement import MovementUpdate
+    from app.schemas.resource import ResourceUpdate
+    for schema in (InspectionUpdate, MovementUpdate, ResourceUpdate):
+        assert "step_id" in schema.model_fields
+
+
+def test_process_engine_routing_helpers():
+    """Engine kann Status/Embed pro Schritt-Definition auflösen (nicht nur pro Typ)."""
+    from app.services import process
+
+    assert callable(process.fact_for_step)
+    assert callable(process.resolve_exec_step)
+    assert callable(process.step_state)
+    # Stepper-Infos tragen die Schritt-id (eindeutiger Routing-Schlüssel)
+    from app.schemas.order import OrderStepInfo
+    assert "id" in OrderStepInfo.model_fields
+    for embed in ("purchase", "inspection", "movement", "resource"):
+        assert embed in OrderStepInfo.model_fields
+
+
+def test_received_requires_storage_location():
+    """Wareneingang: der aktuelle Lagerort ist Pflicht (ohne Angabe → Fehler)."""
+    import pytest
+    from fastapi import HTTPException
+
+    from app.services.purchase import _resolve_received_location
+
+    with pytest.raises(HTTPException):
+        _resolve_received_location(None, None)   # ohne Lagerort nicht erlaubt
+
+
+def test_resource_embed_per_product_breakdown():
+    """Ressource-Embed zeigt den Verbrauch je Produkt-Instanz (welche Instanz wohin)."""
+    from app.schemas.resource import ResourceEmbed, ResourcePlanItem, ResourceProductPlan
+
+    assert "products" in ResourceEmbed.model_fields
+    assert "into_instance_id" in ResourcePlanItem.model_fields
+    plan = ResourceProductPlan(instance_id=100_000_050, kind="unit", quantity=1)
+    assert plan.components == []

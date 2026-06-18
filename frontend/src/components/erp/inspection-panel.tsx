@@ -25,9 +25,10 @@ function fieldOk(f: CaptureField, v: Val): boolean {
 // Schlüssel je Stichprobe (Instanz + Probe-Nr.)
 const sKey = (instanceId: number, slot: number) => `${instanceId}:${slot}`;
 
-export function InspectionPanel({ order, stepState, onOrderUpdated }: {
+export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
   stepState: string;
+  stepId?: number | null;
   onOrderUpdated: (o: Order) => void;
 }) {
   const insp = order.inspection;
@@ -79,7 +80,7 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
         return { instance_id: s.instance_id, slot: s.slot, values: out };
       });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
-        samples: payload, note: note.trim() || null,
+        samples: payload, note: note.trim() || null, step_id: stepId ?? null,
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');

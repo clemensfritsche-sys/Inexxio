@@ -40,6 +40,12 @@ export interface ArticleInput {
   serialization: ArticleSerialization;
   size: string;
   weight_kg: string;
+  // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
+  material?: string | null;
+  cad_url?: string | null;
+  surface?: string | null;
+  min_order_qty?: string | null;
+  safety_stock?: string | null;
 }
 
 export type ArticleUpdateInput = Partial<ArticleInput> & {
@@ -84,7 +90,12 @@ export interface ResourceToolPickInput {
 export interface ResourceUpdateInput {
   tools: ResourceToolPickInput[];
   note?: string | null;
+  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
+
+// Verbrauch je Produkt-Instanz (welche Komponenten-Instanz wird wohin verbaut)
+export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
+export type OrderResourceComponent = NonNullable<OrderResourceProduct['components']>[number];
 
 // Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
 export type LocationType = 'lagerplatz' | 'user' | 'instance';
@@ -98,6 +109,7 @@ export interface MovementTargetInput {
 export interface MovementUpdateInput {
   targets: MovementTargetInput[];
   note?: string | null;
+  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
 export type CaptureField = components['schemas']['CaptureField'];
@@ -115,6 +127,7 @@ export interface InspectionSampleInput {
 export interface InspectionUpdateInput {
   samples: InspectionSampleInput[];
   note?: string | null;
+  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
@@ -195,6 +208,7 @@ export interface PurchaseOrderUpdateInput {
   lead_time_days?: number | null;
   payment_terms_days?: number | null;
   tracking_number?: string | null;
+  receiving_location_id?: number | null;   // Pflicht beim Wareneingang («received»)
 }
 
 // ─── Storage Location (Lagerplatz) ────────────────────────────────────────────

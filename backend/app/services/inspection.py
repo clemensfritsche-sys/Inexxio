@@ -31,25 +31,11 @@ from .claims import auto_claim_from_inspection
 DEFAULT_OK_FIELD = {"key": "_ok", "label": "Ergebnis", "type": "bool"}
 
 
-def _inspection_step(db: Session, article_id: int) -> ArticleProcessStep | None:
-    return (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == article_id,
-            ArticleProcessStep.step_type == "inspection",
-            ArticleProcessStep.is_active == True,
-        )
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
-        .first()
-    )
-
-
-def _current_inspection(db: Session, order: Order) -> Inspection | None:
-    return (
-        db.query(Inspection)
-        .filter(Inspection.order_id == order.id, Inspection.is_active == True)
-        .first()
-    )
+def _current_inspection(db: Session, order: Order, step: ArticleProcessStep | None) -> Inspection | None:
+    """Datenerfassung dieses konkreten Schritts (Routing über ``step_id``)."""
+    if not step:
+        return None
+    return process.fact_for_step(db, order, step)
 
 
 def escalate_decision(currently_escalated: bool, step_percent: int | None, all_ok: bool) -> str:
@@ -64,9 +50,8 @@ def escalate_decision(currently_escalated: bool, step_percent: int | None, all_o
     return "failed" if (currently_escalated or pct >= 100) else "escalate"
 
 
-def required_count(db: Session, order: Order) -> int:
-    step = _inspection_step(db, order.article_id) if order.article_id else None
-    insp = _current_inspection(db, order)
+def required_count(db: Session, order: Order, step: ArticleProcessStep | None) -> int:
+    insp = _current_inspection(db, order, step)
     # Nach Hochstufung wird zu 100 % geprüft, sonst gemäss Stichprobenumfang.
     pct = 100 if (insp and insp.escalated) else (step.sample_percent if step else None)
     return process.required_sample(order.quantity, pct)
@@ -113,13 +98,13 @@ def _shuffle_key(object_id: int, seed: int) -> int:
     return int(hashlib.md5(f"{seed}:{object_id}".encode()).hexdigest(), 16)
 
 
-def sample_targets(db: Session, order: Order) -> list[dict]:
+def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -> list[dict]:
     """Konkrete Stichproben [{instance_id, slot}] gemäss Prüfumfang.
 
     Charge → eine Instanz mit mehreren Proben (slot 1..N); Einzelteil → N zufällig
     ausgewählte Instanzen (je slot 1)."""
     insts = _order_instances(db, order)
-    need = required_count(db, order)
+    need = required_count(db, order, step)
     if not insts or need <= 0:
         return []
     if len(insts) == 1 and insts[0].kind == "batch":
@@ -156,12 +141,9 @@ def evaluate(fields: list[dict], values: dict) -> bool:
 
 
 def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspection:
-    if not process.is_step_active(db, order, "inspection"):
-        raise HTTPException(409, detail="Datenerfassung ist (noch) nicht an der Reihe")
-
-    step = _inspection_step(db, order.article_id) if order.article_id else None
+    step = process.resolve_exec_step(db, order, "inspection", getattr(data, "step_id", None))
     fields = eval_fields(step)
-    targets = sample_targets(db, order)
+    targets = sample_targets(db, order, step)
     need = len(targets)
 
     submitted = {(s.instance_id, s.slot): (s.values or {}) for s in (data.samples or [])}
@@ -174,12 +156,12 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
         all_ok = all_ok and evaluate(fields, vals)
         stored.append({"instance_id": t["instance_id"], "slot": t["slot"], "values": vals})
 
-    insp = _current_inspection(db, order)
+    insp = _current_inspection(db, order, step)
     if not insp:
-        insp = Inspection(order_id=order.id, article_id=order.article_id)
+        insp = Inspection(order_id=order.id, article_id=order.article_id, step_id=step.id)
         db.add(insp)
 
-    step_pct = step.sample_percent if step else None
+    step_pct = step.sample_percent
     decision = escalate_decision(insp.escalated, step_pct, all_ok)
 
     insp.checked_count = need

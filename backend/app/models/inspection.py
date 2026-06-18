@@ -25,6 +25,9 @@ class Inspection(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    # Welcher Prozessschritt-Definition (Routing): erlaubt mehrere gleichartige
+    # Schritte hintereinander. NULL = Altdaten (einziger Schritt seines Typs).
+    step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     result: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)  # pending|passed|failed
     checked_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

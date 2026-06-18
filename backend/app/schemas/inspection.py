@@ -27,6 +27,7 @@ class InspectionUpdate(BaseModel):
 
     samples: list[InspectionSample] = []
     note: Optional[str] = None
+    step_id: Optional[int] = None   # konkrete Schritt-Definition (Mehr-Operationen-Routing)
 
 
 class InspectionEmbed(BaseModel):

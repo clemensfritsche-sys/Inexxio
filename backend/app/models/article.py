@@ -36,6 +36,13 @@ class Article(Base, TimestampMixin):
     size: Mapped[str] = mapped_column(String(100), nullable=False)  # z. B. 3x40x600
     weight_kg: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
 
+    # Optionale Stammdaten – nur bei Bedarf gepflegt (dynamische Feldliste im UI).
+    material: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    cad_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # CAD-Link
+    surface: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Oberfläche
+    min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
+    safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
+
     # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
     # Bestellung (Purchase Order) automatisch zurückgeschrieben.
     landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)

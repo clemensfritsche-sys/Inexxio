@@ -656,6 +656,16 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: number | string;
+            /** Material */
+            material?: string | null;
+            /** Cad Url */
+            cad_url?: string | null;
+            /** Surface */
+            surface?: string | null;
+            /** Min Order Qty */
+            min_order_qty?: number | string | null;
+            /** Safety Stock */
+            safety_stock?: number | string | null;
         };
         /**
          * ArticleProcessStepCreate
@@ -789,12 +799,26 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: string;
+            /** Material */
+            material?: string | null;
+            /** Cad Url */
+            cad_url?: string | null;
+            /** Surface */
+            surface?: string | null;
+            /** Min Order Qty */
+            min_order_qty?: string | null;
+            /** Safety Stock */
+            safety_stock?: string | null;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
             /** Unit Cost Low */
             unit_cost_low?: string | null;
             /** Unit Cost High */
             unit_cost_high?: string | null;
+            /** Lead Time Days Low */
+            lead_time_days_low?: number | null;
+            /** Lead Time Days High */
+            lead_time_days_high?: number | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -825,6 +849,16 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: number | string | null;
+            /** Material */
+            material?: string | null;
+            /** Cad Url */
+            cad_url?: string | null;
+            /** Surface */
+            surface?: string | null;
+            /** Min Order Qty */
+            min_order_qty?: number | string | null;
+            /** Safety Stock */
+            safety_stock?: number | string | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -1203,6 +1237,8 @@ export interface components {
             samples: components["schemas"]["InspectionSample"][];
             /** Note */
             note?: string | null;
+            /** Step Id */
+            step_id?: number | null;
         };
         /**
          * InstanceEmbed
@@ -1340,6 +1376,8 @@ export interface components {
             targets: components["schemas"]["MovementTarget"][];
             /** Note */
             note?: string | null;
+            /** Step Id */
+            step_id?: number | null;
         };
         /**
          * OrderCreate
@@ -1412,8 +1450,17 @@ export interface components {
         /**
          * OrderStepInfo
          * @description Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).
+         *
+         *     Mehr-Operationen-Routing: ``id`` (Schritt-Definition) ist der eindeutige
+         *     Schlüssel; je Schritt ist – passend zum Typ – genau ein Ausführungs-Embed
+         *     gesetzt, damit mehrere gleichartige Schritte unabhängig bedient werden.
          */
         OrderStepInfo: {
+            /**
+             * Id
+             * @default 0
+             */
+            id: number;
             /** Step Type */
             step_type: string;
             /** Position */
@@ -1426,6 +1473,10 @@ export interface components {
             completed_by?: string | null;
             /** Completed At */
             completed_at?: string | null;
+            purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            inspection?: components["schemas"]["InspectionEmbed"] | null;
+            movement?: components["schemas"]["MovementEmbed"] | null;
+            resource?: components["schemas"]["ResourceEmbed"] | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -1533,6 +1584,8 @@ export interface components {
             payment_terms_days?: number | null;
             /** Tracking Number */
             tracking_number?: string | null;
+            /** Receiving Location Id */
+            receiving_location_id?: number | null;
         };
         /**
          * ResourceCandidate
@@ -1543,6 +1596,22 @@ export interface components {
             object_id: number;
             /** Label */
             label: string;
+        };
+        /**
+         * ResourceComponentPick
+         * @description Welche Komponenten-Instanz (+ Menge) in eine Produkt-Instanz geht.
+         */
+        ResourceComponentPick: {
+            /** Article Id */
+            article_id: number;
+            /** Article Name */
+            article_name?: string | null;
+            /** Instance Id */
+            instance_id: number;
+            /** Quantity */
+            quantity: number;
+            /** Split From */
+            split_from?: number | null;
         };
         /**
          * ResourceEmbed
@@ -1563,6 +1632,11 @@ export interface components {
              * @default []
              */
             lines: components["schemas"]["ResourceLineExec"][];
+            /**
+             * Products
+             * @default []
+             */
+            products: components["schemas"]["ResourceProductPlan"][];
         };
         /**
          * ResourceLine
@@ -1658,13 +1732,40 @@ export interface components {
         };
         /**
          * ResourcePlanItem
-         * @description Eine FIFO-Verbrauchsposition (Vorschau): Quelle + Menge.
+         * @description Eine FIFO-Verbrauchsposition (Vorschau/Protokoll): Quelle + Menge + Ziel-Instanz.
          */
         ResourcePlanItem: {
             /** Instance Id */
             instance_id: number;
             /** Quantity */
             quantity: number;
+            /** Into Instance Id */
+            into_instance_id?: number | null;
+            /** Split From */
+            split_from?: number | null;
+        };
+        /**
+         * ResourceProductPlan
+         * @description Verbrauch je Produkt-Instanz: welche Komponenten konkret eingebaut werden.
+         *
+         *     Macht den Verbrauch greifbar – «welche Instanz wird in welche Produkt-Instanz
+         *     verbaut» statt nur einer Gesamtmenge.
+         */
+        ResourceProductPlan: {
+            /** Instance Id */
+            instance_id: number;
+            /** Kind */
+            kind?: string | null;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ResourceComponentPick"][];
         };
         /**
          * ResourceToolPick
@@ -1692,6 +1793,8 @@ export interface components {
             tools: components["schemas"]["ResourceToolPick"][];
             /** Note */
             note?: string | null;
+            /** Step Id */
+            step_id?: number | null;
         };
         /**
          * StorageLocationCreate

@@ -16,7 +16,9 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder, UserProfile
+from ..models import (
+    Article, ArticleProcessStep, Instance, Order, PurchaseOrder, StorageLocation, UserProfile,
+)
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
@@ -90,13 +92,13 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
         order_id=order.id,
         article_id=order.article_id,
         quantity=order.quantity,
+        step_id=step.id,
         mode=step.mode,
         supplier_id=step.supplier_id,
         webshop_url=step.webshop_url,
         status="requested",
-        # Lieferadresse/Wareneingang aus dem Beschaffungsschritt (Lagerplatz)
-        receiving_location_id=(
-            step.target_location_id if step.target_location_type == "lagerplatz" else None),
+        # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
+        receiving_location_id=None,
     )
     db.add(po)
     db.flush()
@@ -156,7 +158,22 @@ def _relocate_to_receiving(db: Session, po: PurchaseOrder, order: Order, actor_i
             inst.location_id = recv_id
 
 
-def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str, user: UserProfile) -> None:
+def _resolve_received_location(db: Session, recv_id: int | None) -> int:
+    """Beim Wareneingang ist der aktuelle Lagerort PFLICHT (freigegebener Lagerplatz)."""
+    if not recv_id:
+        raise HTTPException(400, detail="Bitte den aktuellen Lagerort des Wareneingangs angeben")
+    loc = (
+        db.query(StorageLocation)
+        .filter(StorageLocation.object_id == recv_id, StorageLocation.is_active == True)
+        .first()
+    )
+    if not loc or loc.status != "released":
+        raise HTTPException(400, detail="Lagerort muss ein freigegebener Lagerplatz sein")
+    return recv_id
+
+
+def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
+                      user: UserProfile, receiving_location_id: int | None = None) -> None:
     if target not in _FROM:
         raise HTTPException(400, detail="Unbekannter Zielstatus")
     if po.status not in _FROM[target]:
@@ -173,11 +190,13 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
             if art:
                 art.landed_unit_cost = lc
         po.ordered_at = utcnow()
+    # Wareneingang: aktuellen Lagerort verpflichtend festhalten, dann Instanzen umlagern
+    if target == "received":
+        po.receiving_location_id = _resolve_received_location(db, receiving_location_id)
     old = po.status
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
-    # Wareneingang: bei «received» wechseln die Instanzen an die Lieferadresse
     if target == "received":
         _relocate_to_receiving(db, po, order, user.id)
     # Auftrag ggf. automatisch abschliessen (alle Prozessschritte erledigt)
@@ -195,6 +214,9 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
 
     payload = data.model_dump(exclude_unset=True)
     target = payload.pop("status", None)
+    # Lagerort des Wareneingangs: kein frei editierbares Feld, sondern Pflichteingabe
+    # beim Übergang auf «received» (vom Besteller erfasst).
+    receiving_location_id = payload.pop("receiving_location_id", None)
 
     editable = _editable_fields(po, user)
     for key, value in payload.items():
@@ -203,7 +225,7 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
         setattr(po, key, value)
 
     if target and target != po.status:
-        _apply_transition(db, po, order, target, user)
+        _apply_transition(db, po, order, target, user, receiving_location_id)
 
     db.commit()
     db.refresh(po)

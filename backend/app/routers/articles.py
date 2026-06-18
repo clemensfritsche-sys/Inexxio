@@ -53,7 +53,34 @@ def _price_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
     return {aid: (low, high) for aid, low, high in rows}
 
 
-def _to_response(article: Article, price_range: tuple | None) -> ArticleResponse:
+def _lead_time_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
+    """Min/Max Durchlaufzeit in Tagen (Freigabe → Abschluss) je Artikel über
+    erledigte Aufträge. Klein genug, um in Python aggregiert zu werden."""
+    if not article_ids:
+        return {}
+    rows = (
+        db.query(Order.article_id, Order.released_at, Order.completed_at)
+        .filter(
+            Order.article_id.in_(article_ids),
+            Order.is_active == True,
+            Order.released_at.isnot(None),
+            Order.completed_at.isnot(None),
+        )
+        .all()
+    )
+    out: dict[int, tuple] = {}
+    for aid, released_at, completed_at in rows:
+        days = (completed_at - released_at).total_seconds() / 86400.0
+        if days < 0:
+            continue
+        lo, hi = out.get(aid, (None, None))
+        out[aid] = (days if lo is None else min(lo, days),
+                    days if hi is None else max(hi, days))
+    return out
+
+
+def _to_response(article: Article, price_range: tuple | None,
+                 lead_range: tuple | None = None) -> ArticleResponse:
     resp = ArticleResponse.model_validate(article)
     if price_range:
         low, high = price_range
@@ -62,6 +89,8 @@ def _to_response(article: Article, price_range: tuple | None) -> ArticleResponse
     elif article.landed_unit_cost is not None:
         resp.unit_cost_low = article.landed_unit_cost
         resp.unit_cost_high = article.landed_unit_cost
+    if lead_range:
+        resp.lead_time_days_low, resp.lead_time_days_high = lead_range
     return resp
 
 
@@ -77,7 +106,8 @@ async def list_articles(
         .all()
     )
     ranges = _price_ranges(db, [a.id for a in articles])
-    return [_to_response(a, ranges.get(a.id)) for a in articles]
+    leads = _lead_time_ranges(db, [a.id for a in articles])
+    return [_to_response(a, ranges.get(a.id), leads.get(a.id)) for a in articles]
 
 
 @router.post("", response_model=ArticleResponse, status_code=201)
@@ -94,6 +124,11 @@ async def create_article(
         serialization=data.serialization,
         size=data.size,
         weight_kg=data.weight_kg,
+        material=data.material,
+        cad_url=data.cad_url,
+        surface=data.surface,
+        min_order_qty=data.min_order_qty,
+        safety_stock=data.safety_stock,
     )
     db.add(article)
     db.flush()
@@ -111,7 +146,8 @@ async def get_article(
     _: UserProfile = Depends(require_employee),
 ):
     article = _get_active(db, object_id)
-    return _to_response(article, _price_ranges(db, [article.id]).get(article.id))
+    return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
+                        _lead_time_ranges(db, [article.id]).get(article.id))
 
 
 @router.patch("/{object_id}", response_model=ArticleResponse)
@@ -143,7 +179,8 @@ async def update_article(
         setattr(article, key, value)
     db.commit()
     db.refresh(article)
-    return _to_response(article, _price_ranges(db, [article.id]).get(article.id))
+    return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
+                        _lead_time_ranges(db, [article.id]).get(article.id))
 
 
 @router.get("/{object_id}/instances", response_model=list[InstanceResponse])

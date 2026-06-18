@@ -20,6 +20,8 @@ class Movement(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    # Routing: an welche Prozessschritt-Definition gebunden (mehrere möglich).
+    step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     moved_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

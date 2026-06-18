@@ -12,14 +12,25 @@ from .resource import ResourceEmbed
 
 
 class OrderStepInfo(BaseModel):
-    """Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung)."""
+    """Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).
 
+    Mehr-Operationen-Routing: ``id`` (Schritt-Definition) ist der eindeutige
+    Schlüssel; je Schritt ist – passend zum Typ – genau ein Ausführungs-Embed
+    gesetzt, damit mehrere gleichartige Schritte unabhängig bedient werden."""
+
+    id: int = 0
     step_type: str
     position: int
     label: str
     state: str   # done | active | locked | failed
     completed_by: Optional[str] = None   # wer hat den Schritt abgeschlossen
     completed_at: Optional[datetime] = None  # wann
+
+    # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt)
+    purchase: Optional[PurchaseEmbed] = None
+    inspection: Optional[InspectionEmbed] = None
+    movement: Optional[MovementEmbed] = None
+    resource: Optional[ResourceEmbed] = None
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")

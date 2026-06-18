@@ -35,6 +35,8 @@ class PurchaseOrder(Base, TimestampMixin):
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Routing: an welche Prozessschritt-Definition gebunden (mehrere möglich).
+    step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     # Bezugsquelle (aus dem Prozessschritt kopiert)
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)

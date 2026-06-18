@@ -79,14 +79,15 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
 
-  // Auftrag-Prozess (mehrere Schritte) – nur für Mitarbeiter nach Freigabe
+  // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
+  // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
   const steps = (record?.steps ?? []) as OrderStep[];
   const showProcess = isStaff && !!record && record.status !== 'draft' && steps.length > 0;
-  const activeStepType = steps.find((s) => s.state === 'active')?.step_type
-    ?? steps.find((s) => s.state === 'failed')?.step_type
-    ?? steps[steps.length - 1]?.step_type ?? null;
-  const currentStep = selStep ?? activeStepType;
-  const currentStepState = steps.find((s) => s.step_type === currentStep)?.state ?? 'locked';
+  const activeStepId = steps.find((s) => s.state === 'active')?.id
+    ?? steps.find((s) => s.state === 'failed')?.id
+    ?? steps[steps.length - 1]?.id ?? null;
+  const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
+  const currentStepObj = steps.find((s) => String(s.id) === currentStepId) ?? null;
 
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
   const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
@@ -130,7 +131,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   function afterStep(o: Order) {
     onSaved(o);
     const next = (o.steps ?? []).find((s) => s.state === 'active');
-    if (next) setSelStep(next.step_type);
+    if (next) setSelStep(String(next.id));
   }
 
   async function changeStatus(target: string) {
@@ -259,12 +260,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
               <ProcessStepper
-                nodes={steps.map((s) => ({ key: s.step_type, label: s.label, state: toStepperState(s.state), hint: stepHint(s) }))}
-                selectedKey={currentStep ?? undefined}
+                nodes={steps.map((s) => ({ key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s) }))}
+                selectedKey={currentStepId ?? undefined}
                 onSelect={setSelStep}
               />
             </div>
-            <StepPanel type={currentStep} stepState={currentStepState} order={record as Order} viewerRole={viewerRole} onSaved={afterStep} />
+            <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} onSaved={afterStep} />
           </>
         ) : !isStaff && hasPurchase ? (
           <>
@@ -312,27 +313,38 @@ function stepHint(s: OrderStep): string | undefined {
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
-// Rendert das Panel des gewählten Prozessschritts
-function StepPanel({ type, stepState, order, viewerRole, onSaved }: {
-  type: string | null;
-  stepState: string;
+// Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed
+// des konkreten Schritts wird auf die Top-Level-Felder gelegt, damit die Panels
+// unverändert lesen können; die Schritt-id wird für das Routing weitergereicht.
+function StepPanel({ step, order, viewerRole, onSaved }: {
+  step: OrderStep | null;
   order: Order;
   viewerRole: ViewerRole;
   onSaved: (o: Order) => void;
 }) {
-  if (type === 'purchase') {
-    return order.purchase
-      ? <PurchaseStepPanel order={order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
+  if (!step) return null;
+  const stepOrder: Order = {
+    ...order,
+    purchase: (step.purchase ?? order.purchase) as Order['purchase'],
+    inspection: step.inspection ?? order.inspection,
+    movement: step.movement ?? order.movement,
+    resource: step.resource ?? order.resource,
+  };
+  const stepState = step.state;
+  const stepId = step.id;
+  if (step.step_type === 'purchase') {
+    return stepOrder.purchase
+      ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} onOrderUpdated={onSaved} />
       : null;
   }
-  if (type === 'inspection') {
-    return <InspectionPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  if (step.step_type === 'inspection') {
+    return <InspectionPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (type === 'movement') {
-    return <MovementPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  if (step.step_type === 'movement') {
+    return <MovementPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (type === 'resource') {
-    return <ResourcePanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  if (step.step_type === 'resource') {
+    return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return null;
 }

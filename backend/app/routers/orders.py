@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Order, PurchaseOrder, UserProfile
+from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
@@ -117,6 +118,8 @@ async def update_order(
     if order.status == "released" and not was_released:
         if not order.article_id or not order.quantity:
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        if order.released_at is None:
+            order.released_at = utcnow()   # Start der Durchlaufzeit
         instantiate_for_order(db, order, current_user.id)
         create_instances_for_order(db, order, current_user.id)
 

@@ -5,8 +5,8 @@ from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
 from ..models import (
-    Article, ArticleProcessStep, AuditLog, Inspection, Instance, Movement, Order,
-    PurchaseOrder, UserProfile,
+    Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection, Instance,
+    Movement, Order, PurchaseOrder, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed, InspectionSample
@@ -78,39 +78,71 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
     return out
 
 
-def _step_completion(db: Session, order: Order) -> dict[str, dict]:
-    """Pro Schritt-Typ: wer/wann den Schritt abgeschlossen hat (aus dem Audit-Log)."""
-    logs = (
-        db.query(AuditLog)
-        .filter(AuditLog.object_id == order.object_id)
-        .order_by(AuditLog.changed_at_utc)
-        .all()
-    )
-    out: dict[str, dict] = {}
-    for lg in logs:
-        if lg.table_name == "purchase_orders" and lg.new_value == "received":
-            st = "purchase"
-        elif lg.table_name == "inspections" and lg.new_value in ("passed", "failed"):
-            st = "inspection"
-        elif lg.table_name == "movements":
-            st = "movement"
-        elif lg.table_name == "resource_usages":
-            st = "resource"
-        else:
-            continue
-        out[st] = {"by_id": lg.user_id, "at": lg.changed_at_utc}
-    ids = {v["by_id"] for v in out.values() if v["by_id"]}
-    names: dict[int, str | None] = {}
-    if ids:
-        for u in db.query(UserProfile).filter(UserProfile.id.in_(ids)).all():
-            names[u.id] = _supplier_name(u)
-    for v in out.values():
-        v["by"] = names.get(v["by_id"]) if v["by_id"] else None
-    return out
+def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
+    """Lieferadresse/Wareneingang: gesetzter Lagerort (nach Wareneingang) oder die
+    in der Systemkonfiguration hinterlegte Vorgabe-Lieferadresse."""
+    recv = po.receiving_location_id
+    if not recv:
+        st = db.query(CompanySettings).first()
+        recv = st.default_receiving_location_id if st else None
+    return location_label(db, "lagerplatz", recv) if recv else None
+
+
+def _purchase_embed(db: Session, order: Order, po: PurchaseOrder) -> PurchaseEmbed:
+    emb = PurchaseEmbed.model_validate(po)
+    if po.supplier_id:
+        emb.supplier_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first())
+    emb.receiving_location_label = _receiving_label(db, po)
+    if order.article_id:
+        emb.shared_fields = _purchase_shared_fields(db, order.article_id)
+    emb.history = _purchase_history(db, order)
+    return emb
+
+
+def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
+                      insp: Inspection | None) -> InspectionEmbed:
+    ie = (InspectionEmbed.model_validate(insp) if insp
+          else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
+    ie.sample_percent = step.sample_percent
+    ie.required_count = required_count(db, order, step)
+    ie.fields = [CaptureField(**f) for f in eval_fields(step)]
+    stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
+              for s in (insp.samples or [])} if insp else {}
+    ie.samples = [
+        InspectionSample(instance_id=t["instance_id"], slot=t["slot"],
+                         values=stored.get((t["instance_id"], t["slot"]), {}))
+        for t in sample_targets(db, order, step)
+    ]
+    if insp and insp.inspector_id:
+        ie.inspector_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first())
+    return ie
+
+
+def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
+                    mv: Movement | None) -> MovementEmbed:
+    me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None, note=mv.note if mv else None)
+    me.target_location_type = step.target_location_type
+    me.target_location_id = step.target_location_id
+    me.target_location_label = location_label(db, step.target_location_type, step.target_location_id)
+    if mv and mv.moved_by_id:
+        me.moved_by_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
+    return me
+
+
+def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
+    """Wer/Wann den Wareneingang bestätigt hat (aus dem Bestell-Verlauf)."""
+    for h in po_embed.history:
+        if h.status == "received":
+            return h.by, h.at
+    return None, None
 
 
 def to_order_response(db: Session, order: Order) -> OrderResponse:
-    """OrderResponse inkl. denormalisiertem Artikel und eingebettetem Beschaffungsschritt."""
+    """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
+    dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
     resp = OrderResponse.model_validate(order)
     if order.article_id:
         art = db.query(Article).filter(Article.id == order.article_id).first()
@@ -121,23 +153,6 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             resp.article_unit = art.unit
             resp.article_weight_kg = art.weight_kg
             resp.article_serialization = art.serialization
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-        .first()
-    )
-    if po:
-        emb = PurchaseEmbed.model_validate(po)
-        if po.supplier_id:
-            emb.supplier_name = _supplier_name(
-                db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first()
-            )
-        if po.receiving_location_id:
-            emb.receiving_location_label = location_label(db, "lagerplatz", po.receiving_location_id)
-        if order.article_id:
-            emb.shared_fields = _purchase_shared_fields(db, order.article_id)
-        emb.history = _purchase_history(db, order)
-        resp.purchase = emb
 
     # Bestands-Instanzen (bei Freigabe erzeugt, inkl. aktuellem Standort)
     instances = (
@@ -153,82 +168,56 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         instance_embeds.append(emb)
     resp.instances = instance_embeds
 
-    # Datenerfassung: Embed sobald der Schritt definiert ist (auch ohne Erfassung,
-    # damit Prüfumfang + konkrete Stichproben vorab sichtbar sind)
-    insp_step = _step(db, order.article_id, "inspection")
-    if insp_step:
-        insp = (
-            db.query(Inspection)
-            .filter(Inspection.order_id == order.id, Inspection.is_active == True)
-            .first()
-        )
-        ie = (InspectionEmbed.model_validate(insp) if insp
-              else InspectionEmbed(id=0, result="pending", checked_count=None, note=None))
-        ie.sample_percent = insp_step.sample_percent
-        ie.required_count = required_count(db, order)
-        ie.fields = [CaptureField(**f) for f in eval_fields(insp_step)]
-        # Konkrete Stichproben (Instanz + Probe-Nr.) inkl. bereits erfasster Werte
-        stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
-                  for s in (insp.samples or [])} if insp else {}
-        ie.samples = [
-            InspectionSample(instance_id=t["instance_id"], slot=t["slot"],
-                             values=stored.get((t["instance_id"], t["slot"]), {}))
-            for t in sample_targets(db, order)
-        ]
-        if insp and insp.inspector_id:
-            ie.inspector_name = _supplier_name(
-                db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first()
-            )
-        resp.inspection = ie
-
-    # Bewegung: Embed sobald der Schritt definiert ist (Vorgabe-Ziel + Abschluss)
-    mv_step = _step(db, order.article_id, "movement")
-    if mv_step:
-        mv = (
-            db.query(Movement)
-            .filter(Movement.order_id == order.id, Movement.is_active == True)
-            .first()
-        )
-        me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None,
-                           note=mv.note if mv else None)
-        me.target_location_type = mv_step.target_location_type
-        me.target_location_id = mv_step.target_location_id
-        me.target_location_label = location_label(
-            db, mv_step.target_location_type, mv_step.target_location_id)
-        if mv and mv.moved_by_id:
-            me.moved_by_name = _supplier_name(
-                db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first()
-            )
-        resp.movement = me
-
-    # Ressource: Verbrauch (FIFO/Verfügbarkeit) + Betriebsmittel
-    resp.resource = build_resource_embed(db, order)
-
-    # Auftrag-Stepper (mit Abschluss-Info wer/wann für erledigte Schritte)
-    completion = _step_completion(db, order)
+    # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
+    # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)
+    # zusätzlich gesetzt.
     steps: list[OrderStepInfo] = []
+    first: dict[str, object] = {}
     for info in process.order_step_infos(db, order):
-        if info["state"] == "done" and info["step_type"] in completion:
-            c = completion[info["step_type"]]
-            info = {**info, "completed_by": c.get("by"), "completed_at": c.get("at")}
-        steps.append(OrderStepInfo(**info))
+        step = db.query(ArticleProcessStep).filter(ArticleProcessStep.id == info["id"]).first()
+        si = OrderStepInfo(**info)
+        if step is None:
+            steps.append(si)
+            continue
+        fact = process.fact_for_step(db, order, step)
+        done = info["state"] == "done"
+        by_name: str | None = None
+        at = None
+        if step.step_type == "purchase" and fact:
+            emb = _purchase_embed(db, order, fact)
+            si.purchase = emb
+            first.setdefault("purchase", emb)
+            if done:
+                by_name, at = _purchase_received(emb)
+        elif step.step_type == "inspection":
+            emb = _inspection_embed(db, order, step, fact)
+            si.inspection = emb
+            first.setdefault("inspection", emb)
+            if done:
+                by_name, at = emb.inspector_name, (fact.updated_at if fact else None)
+        elif step.step_type == "movement":
+            emb = _movement_embed(db, order, step, fact)
+            si.movement = emb
+            first.setdefault("movement", emb)
+            if done:
+                by_name, at = emb.moved_by_name, (fact.updated_at if fact else None)
+        elif step.step_type == "resource":
+            emb = build_resource_embed(db, order, step)
+            si.resource = emb
+            first.setdefault("resource", emb)
+            if done and emb:
+                by_name, at = emb.used_by_name, (fact.updated_at if fact else None)
+        if done:
+            si.completed_by = by_name
+            si.completed_at = at
+        steps.append(si)
+
     resp.steps = steps
+    resp.purchase = first.get("purchase")          # Lieferanten-Sicht / Kurzform
+    resp.inspection = first.get("inspection")
+    resp.movement = first.get("movement")
+    resp.resource = first.get("resource")
     return resp
-
-
-def _step(db: Session, article_id: int | None, step_type: str) -> ArticleProcessStep | None:
-    if not article_id:
-        return None
-    return (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == article_id,
-            ArticleProcessStep.step_type == step_type,
-            ArticleProcessStep.is_active == True,
-        )
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
-        .first()
-    )
 
 
 def visible_orders(db: Session, user: UserProfile) -> Query:

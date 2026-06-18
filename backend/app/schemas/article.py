@@ -48,6 +48,33 @@ def validate_weight(value: Decimal) -> Decimal:
     return d
 
 
+def _opt_text(v: Optional[str]) -> Optional[str]:
+    """Optionales Textfeld: leeren String zu None normalisieren."""
+    if v is None:
+        return None
+    return v.strip() or None
+
+
+def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
+    """Optionale Mengenangabe (MOQ/Sicherheitsbestand): ≥ 0, max. 3 Nachkommastellen."""
+    if v is None:
+        return None
+    try:
+        d = Decimal(v)
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError("Wert muss eine Zahl sein")
+    if d < 0:
+        raise ValueError("Wert darf nicht negativ sein")
+    if d.as_tuple().exponent < -3:
+        raise ValueError("Höchstens 3 Nachkommastellen erlaubt")
+    return d
+
+
+# Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
+_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface")
+_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
+
+
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
 class ArticleCreate(BaseModel):
@@ -58,6 +85,22 @@ class ArticleCreate(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
+    # Optionale Stammdaten (nur bei Bedarf gepflegt)
+    material: Optional[str] = None
+    cad_url: Optional[str] = None
+    surface: Optional[str] = None
+    min_order_qty: Optional[Decimal] = None
+    safety_stock: Optional[Decimal] = None
+
+    @field_validator(*_OPTIONAL_TEXT_FIELDS)
+    @classmethod
+    def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
+        return _opt_text(v)
+
+    @field_validator(*_OPTIONAL_QTY_FIELDS)
+    @classmethod
+    def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return _opt_qty(v)
 
     @field_validator("name")
     @classmethod
@@ -101,7 +144,22 @@ class ArticleUpdate(BaseModel):
     serialization: Optional[str] = None
     size: Optional[str] = None
     weight_kg: Optional[Decimal] = None
+    material: Optional[str] = None
+    cad_url: Optional[str] = None
+    surface: Optional[str] = None
+    min_order_qty: Optional[Decimal] = None
+    safety_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
+
+    @field_validator(*_OPTIONAL_TEXT_FIELDS)
+    @classmethod
+    def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
+        return _opt_text(v)
+
+    @field_validator(*_OPTIONAL_QTY_FIELDS)
+    @classmethod
+    def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        return _opt_qty(v)
 
     @field_validator("status")
     @classmethod
@@ -166,10 +224,19 @@ class ArticleResponse(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
+    # Optionale Stammdaten (dynamische Feldliste)
+    material: Optional[str] = None
+    cad_url: Optional[str] = None
+    surface: Optional[str] = None
+    min_order_qty: Optional[Decimal] = None
+    safety_stock: Optional[Decimal] = None
     landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe
     # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
     unit_cost_low: Optional[Decimal] = None
     unit_cost_high: Optional[Decimal] = None
+    # Durchlaufzeit-Spanne in Tagen (Freigabe → Abschluss) über erledigte Aufträge
+    lead_time_days_low: Optional[float] = None
+    lead_time_days_high: Optional[float] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

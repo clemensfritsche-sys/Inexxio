@@ -20,7 +20,8 @@ from sqlalchemy.orm import Session
 from ..models import Article, ArticleProcessStep, Instance, Order, ResourceUsage, UserProfile
 from ..models.base import utcnow
 from ..schemas.resource import (
-    ResourceCandidate, ResourceEmbed, ResourceLineExec, ResourcePlanItem,
+    ResourceCandidate, ResourceComponentPick, ResourceEmbed, ResourceLineExec,
+    ResourcePlanItem, ResourceProductPlan,
 )
 from . import process
 from .admin import log_audit
@@ -28,27 +29,11 @@ from .locations import _obj_nr, location_label
 from .objects import next_object_id
 
 
-def _resource_step(db: Session, article_id: int | None) -> ArticleProcessStep | None:
-    if not article_id:
+def _current_usage(db: Session, order: Order, step: ArticleProcessStep | None) -> ResourceUsage | None:
+    """Ressourcen-Buchung dieses konkreten Schritts (Routing über ``step_id``)."""
+    if not step:
         return None
-    return (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == article_id,
-            ArticleProcessStep.step_type == "resource",
-            ArticleProcessStep.is_active == True,
-        )
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
-        .first()
-    )
-
-
-def _current_usage(db: Session, order: Order) -> ResourceUsage | None:
-    return (
-        db.query(ResourceUsage)
-        .filter(ResourceUsage.order_id == order.id, ResourceUsage.is_active == True)
-        .first()
-    )
+    return process.fact_for_step(db, order, step)
 
 
 def _order_instances(db: Session, order: Order) -> list[Instance]:
@@ -203,9 +188,7 @@ def _validate_tools(db: Session, article_db_id: int, instance_ids: list[int]) ->
 
 
 def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceUsage:
-    if not process.is_step_active(db, order, "resource"):
-        raise HTTPException(409, detail="Ressource ist (noch) nicht an der Reihe")
-    step = _resource_step(db, order.article_id)
+    step = process.resolve_exec_step(db, order, "resource", getattr(data, "step_id", None))
     lines = (step.resource_lines if step else None) or []
     if not lines:
         raise HTTPException(400, detail="Für diesen Auftrag sind keine Ressourcen definiert")
@@ -228,7 +211,7 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
             details["consume"].append({"article_id": art_id, "picks": picks})
 
     usage = ResourceUsage(
-        order_id=order.id, used_by_id=actor_id,
+        order_id=order.id, step_id=step.id, used_by_id=actor_id,
         note=(data.note or "").strip() or None, details=details,
     )
     db.add(usage)
@@ -255,11 +238,38 @@ def _line_view(db: Session, line: dict) -> dict:
     }
 
 
-def build_resource_embed(db: Session, order: Order) -> ResourceEmbed | None:
-    step = _resource_step(db, order.article_id)
+def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
+                     per_unit: int) -> dict[int, list[dict]]:
+    """FIFO-Vorschau OHNE Mutation: {produkt_obj_id: [{instance_id, quantity, split_from?}]}.
+
+    Bildet ``_consume_line`` nach, damit vorab sichtbar ist, welche Instanz in
+    welche Produkt-Instanz wandert."""
+    cands = fifo_candidates(db, article_db_id)
+    remaining = [[c.object_id or 0, c.quantity] for c in cands]
+    out: dict[int, list[dict]] = {}
+    idx = 0
+    for product in products:
+        need = per_unit * product.quantity
+        picks: list[dict] = []
+        while need > 0 and idx < len(remaining):
+            oid, avail = remaining[idx]
+            take = min(avail, need)
+            whole = take == avail
+            picks.append({"instance_id": oid, "quantity": take,
+                          "split_from": None if whole else oid})
+            if whole:
+                idx += 1
+            else:
+                remaining[idx][1] = avail - take
+            need -= take
+        out[product.object_id or 0] = picks
+    return out
+
+
+def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep) -> ResourceEmbed | None:
     if not step or not step.resource_lines:
         return None
-    usage = _current_usage(db, order)
+    usage = _current_usage(db, order, step)
     done = usage is not None
     details = usage.details if usage else {}
     consumed_by_art: dict[int, list[int]] = {}
@@ -271,38 +281,70 @@ def build_resource_embed(db: Session, order: Order) -> ResourceEmbed | None:
         for t in (details.get("tools", []) if details else [])
     }
 
-    total_units = order.quantity or 0
+    products = _order_instances(db, order)
+    art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
+                 for raw in step.resource_lines}
+    # Verbrauch je Produkt-Instanz: aus dem Protokoll (done) oder als FIFO-Vorschau.
+    per_product: dict[int, list[ResourceComponentPick]] = {p.object_id or 0: [] for p in products}
+
     lines: list[ResourceLineExec] = []
     for raw in step.resource_lines:
         view = _line_view(db, raw)
         exec_line = ResourceLineExec(**view)
+        art_id = raw["article_id"]
         if view["mode"] == "tool":
-            cands = _tool_candidates(db, raw["article_id"])
+            cands = _tool_candidates(db, art_id)
             exec_line.candidates = [
                 ResourceCandidate(object_id=c.object_id, label=_obj_nr(c.object_id or 0))
                 for c in cands if c.object_id
             ]
-            exec_line.picked = tools_by_art.get(raw["article_id"], [])
+            exec_line.picked = tools_by_art.get(art_id, [])
         else:
-            need = view["quantity"] * total_units
-            cands = fifo_candidates(db, raw["article_id"])
+            need = view["quantity"] * (order.quantity or 0)
+            cands = fifo_candidates(db, art_id)
             have = available_qty(cands)
             exec_line.need = need
             exec_line.available = have
             exec_line.sufficient = have >= need
-            plan: list[ResourcePlanItem] = []
-            rem = need
-            for c in cands:
-                if rem <= 0:
-                    break
-                take = min(c.quantity, rem)
-                plan.append(ResourcePlanItem(instance_id=c.object_id or 0, quantity=take))
-                rem -= take
-            exec_line.plan = plan
-            exec_line.picked = consumed_by_art.get(raw["article_id"], [])
+            exec_line.picked = consumed_by_art.get(art_id, [])
+            name = art_names[art_id].name if art_names[art_id] else None
+            if done:
+                # Tatsächliche Picks aus dem Protokoll (mit Ziel-Produkt-Instanz)
+                rec = next((c for c in details.get("consume", []) if c["article_id"] == art_id), None)
+                for p in (rec.get("picks", []) if rec else []):
+                    tgt = p.get("into_instance_id")
+                    if tgt in per_product:
+                        per_product[tgt].append(ResourceComponentPick(
+                            article_id=art_id, article_name=name,
+                            instance_id=p["instance_id"], quantity=p["quantity"],
+                            split_from=p.get("split_from")))
+                exec_line.plan = [
+                    ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
+                                     into_instance_id=p.get("into_instance_id"),
+                                     split_from=p.get("split_from"))
+                    for p in (rec.get("picks", []) if rec else [])]
+            else:
+                preview = _preview_consume(db, products, art_id, view["quantity"])
+                for prod_oid, picks in preview.items():
+                    for p in picks:
+                        per_product[prod_oid].append(ResourceComponentPick(
+                            article_id=art_id, article_name=name,
+                            instance_id=p["instance_id"], quantity=p["quantity"],
+                            split_from=p.get("split_from")))
+                exec_line.plan = [
+                    ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
+                                     into_instance_id=prod_oid, split_from=p.get("split_from"))
+                    for prod_oid, picks in preview.items() for p in picks]
         lines.append(exec_line)
 
-    emb = ResourceEmbed(done=done, note=usage.note if usage else None, lines=lines)
+    product_plans = [
+        ResourceProductPlan(instance_id=p.object_id or 0, kind=p.kind,
+                            quantity=p.quantity, components=per_product.get(p.object_id or 0, []))
+        for p in products
+    ]
+
+    emb = ResourceEmbed(done=done, note=usage.note if usage else None,
+                        lines=lines, products=product_plans)
     if usage and usage.used_by_id:
         emb.used_by_name = _user_name(
             db.query(UserProfile).filter(UserProfile.id == usage.used_by_id).first())

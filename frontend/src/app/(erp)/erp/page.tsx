@@ -45,7 +45,7 @@ function rowTitle(row: Row): string {
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
   if (row.type === 'instance') return instanceKindLabel(row.data.kind);
   if (row.type === 'storage_location') return 'Lagerplatz';
-  if (row.type === 'claim') return row.data.title || 'Reklamation';
+  if (row.type === 'claim') return 'Reklamation';   // starr – wie Auftrag/Lagerplatz
   return row.data.name; // article
 }
 

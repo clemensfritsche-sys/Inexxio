@@ -1,13 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link2, Calculator, User as UserIcon, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
+import type { Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput, StorageLocation } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
-import { TextField, StatusBadge } from '@/components/erp/fields';
+import { TextField, StatusBadge, SearchSelect, Label } from '@/components/erp/fields';
+import { fmtObjId } from '@/components/erp/user-detail';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 
 type ViewerRole = 'staff' | 'supplier';
@@ -48,6 +49,15 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
   const [saving, setSaving] = useState(false);
   const [trackingSaved, setTrackingSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recvLoc, setRecvLoc] = useState('');
+  const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
+
+  // Beim Wareneingang ist der aktuelle Lagerort PFLICHT → Lagerplätze laden
+  const needsReceiving = !!po && po.status === 'ordered' && viewerRole === 'staff';
+  useEffect(() => {
+    if (!needsReceiving) return;
+    api.getStorageLocations().then(setStorageLocs).catch(() => {});
+  }, [needsReceiving]);
 
   if (!po) return null;
 
@@ -103,9 +113,12 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
 
   async function run(target: PurchaseOrderStatus, needsTotal?: boolean) {
     if (needsTotal && !form.order_total.trim()) { setError('Bitte eine Bestellsumme erfassen'); return; }
+    if (target === 'received' && !recvLoc) { setError('Bitte den aktuellen Lagerort des Wareneingangs wählen'); return; }
     setSaving(true); setError(null);
     try {
-      onOrderUpdated(await api.updateOrderPurchase(order.object_id as number, { ...buildEditable(), status: target }));
+      const payload: PurchaseOrderUpdateInput = { ...buildEditable(), status: target };
+      if (target === 'received') payload.receiving_location_id = Number(recvLoc);
+      onOrderUpdated(await api.updateOrderPurchase(order.object_id as number, payload));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
     } finally {
@@ -235,6 +248,23 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
           </div>
         ) : (
           po.tracking_number && <Row k="Tracking-Nummer" v={po.tracking_number} />
+        )}
+
+        {/* Wareneingang: aktueller Lagerort ist Pflicht (wo liegt die Ware jetzt?) */}
+        {needsReceiving && (
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+            <Label required>Aktueller Lagerort (Wareneingang)</Label>
+            <SearchSelect value={recvLoc} onChange={setRecvLoc}
+              placeholder="— Lagerplatz wählen —"
+              options={[
+                { value: '', label: '— Lagerplatz wählen —' },
+                ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                  value: String(l.object_id), label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+              ]} />
+            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+              Wohin die Ware beim Wareneingang gelegt wird – die Instanzen wechseln an diesen Standort.
+            </div>
+          </div>
         )}
 
         {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick */}

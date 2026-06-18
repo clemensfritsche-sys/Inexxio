@@ -122,8 +122,9 @@ async def create_step(
         position = (max_pos or 0) + 1
     is_movement = data.step_type == "movement"
     is_resource = data.step_type == "resource"
-    # Zielstandort: Bewegung (Ziel) und Beschaffung (Lieferadresse/Wareneingang)
-    keeps_target = is_movement or is_purchase
+    # Zielstandort nur bei der Bewegung. Die Lieferadresse/der Wareneingang kommt
+    # bei der Beschaffung aus der Systemkonfiguration bzw. wird beim Wareneingang erfasst.
+    keeps_target = is_movement
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:
         _validate_resource_lines(db, resource_raw)

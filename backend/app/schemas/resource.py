@@ -6,10 +6,12 @@ from .article_process_step import ResourceLineView
 
 
 class ResourcePlanItem(BaseModel):
-    """Eine FIFO-Verbrauchsposition (Vorschau): Quelle + Menge."""
+    """Eine FIFO-Verbrauchsposition (Vorschau/Protokoll): Quelle + Menge + Ziel-Instanz."""
 
     instance_id: int
     quantity: int
+    into_instance_id: Optional[int] = None   # in welche Produkt-Instanz verbaut
+    split_from: Optional[int] = None          # Teilcharge aus dieser Instanz
 
 
 class ResourceCandidate(BaseModel):
@@ -34,6 +36,28 @@ class ResourceLineExec(ResourceLineView):
     picked: list[int] = []
 
 
+class ResourceComponentPick(BaseModel):
+    """Welche Komponenten-Instanz (+ Menge) in eine Produkt-Instanz geht."""
+
+    article_id: int
+    article_name: Optional[str] = None
+    instance_id: int
+    quantity: int
+    split_from: Optional[int] = None
+
+
+class ResourceProductPlan(BaseModel):
+    """Verbrauch je Produkt-Instanz: welche Komponenten konkret eingebaut werden.
+
+    Macht den Verbrauch greifbar – «welche Instanz wird in welche Produkt-Instanz
+    verbaut» statt nur einer Gesamtmenge."""
+
+    instance_id: int            # Objektnummer der Produkt-Instanz
+    kind: Optional[str] = None  # unit | batch
+    quantity: int = 1
+    components: list[ResourceComponentPick] = []
+
+
 class ResourceEmbed(BaseModel):
     """Eingebetteter Stand des Ressource-Schritts (im Auftrag)."""
 
@@ -41,6 +65,8 @@ class ResourceEmbed(BaseModel):
     used_by_name: Optional[str] = None
     note: Optional[str] = None
     lines: list[ResourceLineExec] = []
+    # Verbrauch je Produkt-Instanz (Vorschau bzw. Protokoll) – Kernsicht der Ausführung
+    products: list[ResourceProductPlan] = []
 
 
 class ResourceToolPick(BaseModel):
@@ -56,3 +82,4 @@ class ResourceUpdate(BaseModel):
 
     tools: list[ResourceToolPick] = []
     note: Optional[str] = None
+    step_id: Optional[int] = None   # konkrete Schritt-Definition (Mehr-Operationen-Routing)

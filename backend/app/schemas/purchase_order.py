@@ -22,6 +22,8 @@ class PurchaseOrderUpdate(BaseModel):
     lead_time_days: Optional[int] = None
     payment_terms_days: Optional[int] = None
     tracking_number: Optional[str] = None
+    # Aktueller Lagerort beim Wareneingang (Pflicht beim Übergang auf «received»)
+    receiving_location_id: Optional[int] = None
 
     @field_validator("status")
     @classmethod
