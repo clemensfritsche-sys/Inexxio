@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { StorageLocation, StorageLocationStatus, StorageLocationInput } from '@/types';
+import type { StorageLocation, StorageLocationStatus, StorageLocationInput, InstanceReference } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
+import { ObjId } from '@/components/erp/obj-id';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
+
+type TabKey = 'stammdaten' | 'verwendung';
 
 type Form = {
   max_load_kg: string; dimensions: string;
@@ -95,7 +98,15 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   onBack: () => void;
 }) {
   const isCreate = record === null;
+  const [tab, setTab] = useState<TabKey>('stammdaten');
+  const [refs, setRefs] = useState<InstanceReference[] | null>(null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
+
+  // Verwendung (lagernde Instanzen + referenzierende Artikel) bei Bedarf laden
+  useEffect(() => {
+    if (tab !== 'verwendung' || refs !== null || record?.object_id == null) return;
+    api.getStorageLocationReferences(record.object_id).then(setRefs).catch(() => setRefs([]));
+  }, [tab, refs, record?.object_id]);
   const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
@@ -200,17 +211,32 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
           </div>
         </div>
 
-        {/* Tab */}
+        {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginTop: 12 }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', fontSize: 13, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', borderBottom: '2px solid #2563eb', marginBottom: -13 }}>
-            <FileText size={14} /> Stammdaten
-          </button>
+          {([
+            ['stammdaten', 'Stammdaten', FileText] as const,
+            ...(!isCreate ? [['verwendung', 'Verwendung', Link2] as const] : []),
+          ]).map(([key, label, Icon]) => {
+            const active = tab === key;
+            return (
+              <button key={key} onClick={() => setTab(key)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  color: active ? '#2563eb' : '#64748b', background: 'none', border: 'none',
+                  borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`, marginBottom: -13 }}>
+                <Icon size={14} /> {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Content */}
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        {tab === 'verwendung' ? (
+          <UsageList refs={refs} />
+        ) : (
+        <>
         {locked ? (
           <>
             <SectionTitle icon={MapPin}>Standort</SectionTitle>
@@ -257,10 +283,12 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             Erstellt: {localDate(record.created_at)} · Zuletzt geändert: {localDate(record.updated_at)}
           </div>
         )}
+        </>
+        )}
       </div>
 
       {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
-      {!locked && (
+      {!locked && tab === 'stammdaten' && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? (!valid ? 'Pflichtfelder: Traglast, Abmessungen, Standort' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
@@ -305,6 +333,30 @@ function Row({ k, v }: { k: string; v: string }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
       <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
       <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    </div>
+  );
+}
+
+// Reiter «Verwendung»: lagernde Instanzen + Artikel, die diesen Lagerplatz referenzieren
+function UsageList({ refs }: { refs: InstanceReference[] | null }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 2 }}>
+        Referenz / Verwendung
+      </div>
+      {refs === null ? (
+        <div style={{ fontSize: 13, color: '#94a3b8' }}>Laden…</div>
+      ) : refs.length === 0 ? (
+        <div style={{ fontSize: 13, color: '#94a3b8' }}>Keine Instanzen lagernd, kein Artikel referenziert diesen Lagerplatz.</div>
+      ) : refs.map((r, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{r.kind}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>{localDate(r.at)}</div>
+          </div>
+          <span style={{ fontSize: 12 }}><ObjId value={r.object_id} /></span>
+        </div>
+      ))}
     </div>
   );
 }

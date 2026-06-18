@@ -73,6 +73,8 @@ _COLUMN_SAFETY_NET = (
     ("instances", "location_id", "BIGINT"),
     ("storage_locations", "note", "VARCHAR(500)"),
     ("company_settings", "article_names", "JSONB"),
+    ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("purchase_orders", "receiving_location_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

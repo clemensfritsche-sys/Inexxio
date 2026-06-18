@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, User as UserIcon, FileText } from 'lucide-react';
+import { Link2, Calculator, User as UserIcon, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
@@ -184,6 +184,13 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
                 ? <a href={po.webshop_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', wordBreak: 'break-all' }}>Webshop öffnen</a>
                 : 'Webshop'}</>}
         </div>
+
+        {/* Lieferadresse / Wareneingang (aus dem Beschaffungsschritt) */}
+        {po.receiving_location_label && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
+            <MapPin size={12} /> Lieferadresse: {po.receiving_location_label}
+          </div>
+        )}
 
         {/* Offerte / Bestellsumme */}
         {canEditOffer ? (

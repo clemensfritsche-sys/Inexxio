@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import StorageLocation, UserProfile
+from ..schemas.instance import InstanceReference
 from ..schemas.storage_location import (
     StorageLocationCreate,
     StorageLocationResponse,
@@ -12,6 +13,7 @@ from ..schemas.storage_location import (
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable
 from ..services.objects import next_object_id
+from ..services.references import storage_location_references
 
 router = APIRouter(prefix="/api/v1/erp/storage-locations", tags=["storage-locations"])
 
@@ -69,6 +71,17 @@ async def get_storage_location(
     _: UserProfile = Depends(require_employee),
 ):
     return StorageLocationResponse.model_validate(_get_active(db, object_id))
+
+
+@router.get("/{object_id}/references", response_model=list[InstanceReference])
+async def list_storage_location_references(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Verwendung des Lagerplatzes: lagernde Instanzen + referenzierende Artikel."""
+    loc = _get_active(db, object_id)
+    return storage_location_references(db, loc)
 
 
 @router.patch("/{object_id}", response_model=StorageLocationResponse)

@@ -129,6 +129,8 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             emb.supplier_name = _supplier_name(
                 db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first()
             )
+        if po.receiving_location_id:
+            emb.receiving_location_label = location_label(db, "lagerplatz", po.receiving_location_id)
         if order.article_id:
             emb.shared_fields = _purchase_shared_fields(db, order.article_id)
         emb.history = _purchase_history(db, order)

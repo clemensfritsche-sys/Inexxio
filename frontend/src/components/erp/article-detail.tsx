@@ -284,7 +284,7 @@ const lockedNotice: React.CSSProperties = {
 };
 
 function fmtChf(v: string | number): string {
-  return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2 });
+  return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function PriceRange({ record }: { record: Article }) {

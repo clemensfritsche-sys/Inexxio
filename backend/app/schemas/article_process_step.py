@@ -137,10 +137,10 @@ class ArticleProcessStepCreate(BaseModel):
                 raise ValueError("Im Modus 'Webshop' muss ein Link hinterlegt sein")
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
-        if self.step_type == "movement":
-            # Ohne Zieltyp gibt es kein festes Zielobjekt
-            if self.target_location_type is None:
-                self.target_location_id = None
+        # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.
+        # Ohne Zieltyp gibt es kein festes Zielobjekt.
+        if self.target_location_type is None:
+            self.target_location_id = None
         return self
 
 

@@ -43,9 +43,31 @@ def _inspection_step(db: Session, article_id: int) -> ArticleProcessStep | None:
     )
 
 
+def _current_inspection(db: Session, order: Order) -> Inspection | None:
+    return (
+        db.query(Inspection)
+        .filter(Inspection.order_id == order.id, Inspection.is_active == True)
+        .first()
+    )
+
+
+def escalate_decision(currently_escalated: bool, step_percent: int | None, all_ok: bool) -> str:
+    """Folgezustand der Datenerfassung: 'passed' | 'failed' | 'escalate'.
+
+    Eine ungenügende Teil-Stichprobe stuft auf 100 % hoch ('escalate'); erst bei
+    vollem Prüfumfang (bereits hochgestuft oder von Beginn 100 %) wird endgültig
+    'failed'."""
+    if all_ok:
+        return "passed"
+    pct = step_percent if step_percent else 100
+    return "failed" if (currently_escalated or pct >= 100) else "escalate"
+
+
 def required_count(db: Session, order: Order) -> int:
     step = _inspection_step(db, order.article_id) if order.article_id else None
-    pct = step.sample_percent if step else None
+    insp = _current_inspection(db, order)
+    # Nach Hochstufung wird zu 100 % geprüft, sonst gemäss Stichprobenumfang.
+    pct = 100 if (insp and insp.escalated) else (step.sample_percent if step else None)
     return process.required_sample(order.quantity, pct)
 
 
@@ -62,6 +84,21 @@ def _order_instances(db: Session, order: Order) -> list[Instance]:
         .order_by(Instance.object_id)
         .all()
     )
+
+
+def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
+    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes (failed)."""
+    insts = _order_instances(db, order)
+    if len(insts) == 1 and insts[0].kind == "batch":
+        insts[0].qc_status = "failed"
+        return
+    ok_by_inst: dict[int, bool] = {}
+    for s in stored:
+        ok = evaluate(fields, s.get("values") or {})
+        iid = s.get("instance_id")
+        ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
+    for inst in insts:
+        inst.qc_status = "passed" if ok_by_inst.get(inst.object_id, False) else "failed"
 
 
 def _shuffle_key(object_id: int, seed: int) -> int:
@@ -130,30 +167,41 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
         all_ok = all_ok and evaluate(fields, vals)
         stored.append({"instance_id": t["instance_id"], "slot": t["slot"], "values": vals})
 
-    result = "passed" if all_ok else "failed"
-
-    insp = (
-        db.query(Inspection)
-        .filter(Inspection.order_id == order.id, Inspection.is_active == True)
-        .first()
-    )
+    insp = _current_inspection(db, order)
     if not insp:
         insp = Inspection(order_id=order.id, article_id=order.article_id)
         db.add(insp)
-    insp.result = result
+
+    step_pct = step.sample_percent if step else None
+    decision = escalate_decision(insp.escalated, step_pct, all_ok)
+
     insp.checked_count = need
     insp.note = (data.note or "").strip() or None
     insp.samples = stored
     insp.inspector_id = actor_id
+
+    # Ungenügende Teil-Stichprobe → auf 100 % hochstufen, noch NICHT abschliessen.
+    if decision == "escalate":
+        insp.escalated = True
+        insp.result = "pending"
+        db.flush()
+        log_audit(db, "inspections", "escalated", "100", actor_id, object_id=order.object_id)
+        db.commit()
+        db.refresh(insp)
+        return insp
+
+    insp.result = "passed" if decision == "passed" else "failed"
     db.flush()
+    if decision == "passed":
+        for inst in _order_instances(db, order):
+            inst.qc_status = "passed"
+    else:
+        # Bei 100 %-Prüfung je Instanz bewerten (gut/schlecht trennen)
+        _apply_per_instance_qc(db, order, fields, stored)
 
-    # Stichprobenentscheid gilt für das ganze Los
-    for inst in _order_instances(db, order):
-        inst.qc_status = result
-
-    log_audit(db, "inspections", "result", result, actor_id, object_id=order.object_id)
+    log_audit(db, "inspections", "result", insp.result, actor_id, object_id=order.object_id)
     # Bei Nichtbestehen automatisch eine interne Reklamation eröffnen (idempotent)
-    if result == "failed":
+    if insp.result == "failed":
         auto_claim_from_inspection(db, order, actor_id)
     process.recompute_completion(db, order)
     db.commit()

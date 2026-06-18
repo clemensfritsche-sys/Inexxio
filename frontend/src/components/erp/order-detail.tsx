@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, ArrowLeft, Rocket, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -270,13 +270,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <PurchaseStepPanel order={record as Order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
           </>
-        ) : isStaff && demandEditable ? (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 4, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1e40af' }}>
-            <Rocket size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span><b>Freigeben</b> legt sofort die Bestands-Instanzen an und startet den
-              hinterlegten Prozess des Artikels (Beschaffung, Datenerfassung, Bewegung –
-              je nach Artikel-Definition).</span>
-          </div>
         ) : null}
       </div>
 

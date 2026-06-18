@@ -357,6 +357,43 @@ def test_capture_field_normalize_assigns_keys():
     assert out[1]["target"] is None  # bool → kein Sollwert
 
 
+def test_inspection_escalation_decision():
+    """Ungenügende Teil-Stichprobe stuft auf 100 % hoch; bei vollem Umfang endgültig failed."""
+    from app.services.inspection import escalate_decision
+
+    assert escalate_decision(False, 10, True) == "passed"      # alles ok
+    assert escalate_decision(True, 100, True) == "passed"
+    assert escalate_decision(False, 10, False) == "escalate"   # Teilstichprobe ungenügend
+    assert escalate_decision(True, 10, False) == "failed"      # bereits hochgestuft → failed
+    assert escalate_decision(False, 100, False) == "failed"    # von Beginn 100 %
+    assert escalate_decision(False, None, False) == "failed"   # None = 100 %
+
+
+def test_inspection_model_and_embed_have_escalated():
+    """Datenerfassung trägt das Hochstufungs-Flag (Modell + Embed)."""
+    from app.models import Inspection
+    from app.schemas.inspection import InspectionEmbed
+
+    assert hasattr(Inspection, "escalated")
+    assert "escalated" in InspectionEmbed.model_fields
+
+
+def test_purchase_step_defines_receiving_location():
+    """Lieferadresse/Wareneingang wird im Beschaffungsschritt geführt (PO + Embed)."""
+    from app.models import PurchaseOrder
+    from app.schemas.purchase_order import PurchaseEmbed
+
+    assert hasattr(PurchaseOrder, "receiving_location_id")
+    assert "receiving_location_id" in PurchaseEmbed.model_fields
+
+
+def test_storage_location_references_callable():
+    """Lagerplatz hat einen Verwendungsnachweis (lagernde Instanzen + Artikel-Referenzen)."""
+    from app.services import references
+
+    assert callable(references.storage_location_references)
+
+
 def test_required_sample_math():
     """Prüfumfang = aufgerundet Menge × % (mind. 1, höchstens Menge)."""
     from app.services.process import required_sample

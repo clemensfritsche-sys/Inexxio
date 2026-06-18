@@ -7,7 +7,7 @@ hier eingelagerte Instanzen sowie der aktuelle Standort (Lagerplatz/Person).
 
 from sqlalchemy.orm import Session
 
-from ..models import Claim, Inspection, Instance, Order
+from ..models import Article, ArticleProcessStep, Claim, Inspection, Instance, Order, StorageLocation
 from .locations import _obj_nr, location_label
 
 
@@ -74,6 +74,47 @@ def instance_references(db: Session, instance: Instance) -> list[dict]:
             refs.append({"kind": "Reklamation", "ref_type": "claim",
                          "object_id": cl.object_id, "label": _obj_nr(cl.object_id),
                          "at": cl.created_at})
+
+    refs.sort(key=lambda r: r["at"], reverse=True)
+    return refs
+
+
+def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
+    """Verwendung eines Lagerplatzes: aktuell lagernde Instanzen + Artikel, deren
+    Prozessschritte hierher referenzieren (Lieferadresse/Bewegungsziel), neueste zuerst."""
+    lid = loc.object_id
+    refs: list[dict] = []
+
+    # Aktuell hier lagernde Instanzen (mit Artikelbezug)
+    insts = (
+        db.query(Instance)
+        .filter(Instance.is_active == True, Instance.location_type == "lagerplatz",
+                Instance.location_id == lid)
+        .all()
+    )
+    for i in insts:
+        art = db.query(Article).filter(Article.id == i.article_id).first()
+        name = art.name if art else "Instanz"
+        refs.append({"kind": f"{name} · lagernd", "ref_type": "instance",
+                     "object_id": i.object_id, "label": _obj_nr(i.object_id or 0),
+                     "at": i.updated_at})
+
+    # Artikel-Prozessschritte, die diesen Lagerplatz als Ziel referenzieren
+    steps = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.is_active == True,
+                ArticleProcessStep.target_location_type == "lagerplatz",
+                ArticleProcessStep.target_location_id == lid)
+        .all()
+    )
+    role = {"purchase": "Lieferadresse", "movement": "Bewegungsziel"}
+    for st in steps:
+        art = db.query(Article).filter(Article.id == st.article_id).first()
+        if not art:
+            continue
+        refs.append({"kind": f"{art.name} · {role.get(st.step_type, 'Prozessschritt')}",
+                     "ref_type": "article", "object_id": art.object_id,
+                     "label": _obj_nr(art.object_id or 0), "at": st.updated_at})
 
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs

@@ -225,6 +225,11 @@ class ApiClient {
     return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
   }
 
+  // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
+  getStorageLocationReferences(objectId: number): Promise<InstanceReference[]> {
+    return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
+  }
+
   // ─── ERP Claims (Reklamationen) ──────────────────────────────────────────────
 
   getClaims(): Promise<Claim[]> {

@@ -42,6 +42,7 @@ class InspectionEmbed(BaseModel):
     # Vom Router berechnet/denormalisiert
     sample_percent: Optional[int] = None
     required_count: Optional[int] = None
+    escalated: bool = False             # auf 100 % hochgestuft (Stichprobe ungenügend)
     inspector_name: Optional[str] = None
     fields: list[CaptureField] = []     # Maske (aus der Prozessdefinition)
     samples: list[InspectionSample] = []  # konkrete Stichproben (Instanz + erfasste Werte)

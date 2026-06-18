@@ -50,12 +50,14 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
   useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
 
-  // Auswahllisten (Lagerplätze, Personen, Instanzen) erst bei der Bewegungs-Konfiguration laden
+  // Lagerplätze für Beschaffung (Lieferadresse) & Bewegung laden; Personen/Instanzen nur für die Bewegung
   useEffect(() => {
-    if (adding !== 'movement') return;
+    if (adding !== 'purchase' && adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
-    api.getUsers().then(setAllUsers).catch(() => {});
-    api.getInstances().then(setAllInstances).catch(() => {});
+    if (adding === 'movement') {
+      api.getUsers().then(setAllUsers).catch(() => {});
+      api.getInstances().then(setAllInstances).catch(() => {});
+    }
   }, [adding]);
 
   if (articleObjectId == null) {
@@ -95,7 +97,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
-    const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
+    const tgt = (type === 'movement' || type === 'purchase') && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
       const created = await api.createArticleProcessStep(aid, {
@@ -153,13 +155,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {!readOnly && (
-        <div style={{ ...infoStyle, marginBottom: 12 }}>
-          <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>Prozess als Ablauf von oben nach unten. Schritte per Drag&Drop (Griff links) sortieren.</span>
-        </div>
-      )}
-
       {loading && <div style={{ fontSize: 13, color: '#94a3b8' }}>Laden…</div>}
 
       {/* Start-Knoten (BPMN) */}
@@ -197,6 +192,9 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                       s.mode === 'supplier'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Link2 size={12} /> {PROCESS_MODE_LABEL.webshop}</span>
+                    )}
+                    {s.step_type === 'purchase' && s.target_location_id != null && (
+                      <span style={{ display: 'block', marginTop: 2 }}>Lieferadresse: {fmtObjId(s.target_location_id)}</span>
                     )}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
                     {s.step_type === 'movement' && (s.target_location_id
@@ -298,6 +296,13 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                   ) : (
                     <TextField label="Webshop-Link" value={url} onChange={setUrl} required placeholder="https://shop.example.com/artikel" />
                   )}
+                  <SearchSelect label="Lieferadresse / Wareneingang (Lagerplatz)" value={targetSel} onChange={setTargetSel}
+                    placeholder="Automatisch (Wareneingang)"
+                    options={[
+                      { value: '', label: 'Automatisch (Wareneingang)' },
+                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+                    ]} />
                   <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} /></div>
                 </>
               )}
@@ -323,10 +328,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({
                         value: `instance:${i.object_id}`, label: `${instanceKindLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
                     ]} />
-                  <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Bringt die serialisierten Instanzen an ihren Standort. Ohne Vorgabe ist der Standort
-                      nicht definiert und frei wählbar – der Lagerist entscheidet beim Einlagern (auch
-                      unterschiedliche Standorte je Instanz möglich).</span></div>
                 </>
               )}
 
@@ -452,10 +453,6 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
 const cardStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, background: '#fff',
   border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px',
-};
-const infoStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
-  background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 12, color: '#1e40af',
 };
 const noticeStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start', gap: 8, padding: '12px 14px',

@@ -162,13 +162,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   - **purchase** (Beschaffung): Bestellung `purchase_orders` unter dem Auftrag (keine eigene Nummer),
     Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
-    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). **`received` = Wareneingang**:
-    die Instanzen wechseln vom Lieferanten an den Wareneingang (`services/purchase.py`).
-  - **inspection** = «**Datenerfassung**»: nennt **konkret die zu prüfenden Instanzen** (Stichprobe).
-    Prüfumfang % via `sample_percent`: Einzelteil → N zufällig (stabil) ausgewählte Instanzen; Charge →
-    eine Instanz mit N Proben. Je Stichprobe ein Wertesatz (`inspections.samples`), konfigurierbare Maske
-    (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht / Text; ohne Maske synthetisches Gut-Schlecht).
-    Ergebnis (passed/failed) = alle Proben ok, wird auf `instances.qc_status` übertragen (`services/inspection.py`).
+    Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse /
+    der Wareneingang** (Ziel-Lagerplatz) wird **am Beschaffungsschritt** definiert
+    (`receiving_location_id`, Default = Auto-Wareneingang). **`received` = Wareneingang**: die Instanzen
+    wechseln vom Lieferanten an diese Lieferadresse (`services/purchase.py`).
+  - **inspection** = «**Datenerfassung**»: allgemeine Werterfassung (nicht nur QC) – nennt **konkret die
+    zu prüfenden Instanzen** (Stichprobe). Prüfumfang % via `sample_percent`: Einzelteil → N zufällig
+    (stabil) ausgewählte Instanzen; Charge → eine Instanz mit N Proben. Je Stichprobe ein Wertesatz
+    (`inspections.samples`), konfigurierbare Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht /
+    Text; ohne Maske synthetisches Gut-Schlecht). **Ungenügende Teil-Stichprobe → Hochstufung auf 100 %**
+    (`inspections.escalated`); erst bei vollem Umfang endgültig `failed`, dann je Instanz bewertet (Charge
+    als Ganzes). Ergebnis wird auf `instances.qc_status` übertragen (`services/inspection.py`).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
     Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
@@ -187,13 +191,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Auftrag-Stepper** über alle Schritte + Panel des gewählten Schritts (Beschaffung/Datenerfassung/
   Bewegung); Lieferant sieht nur die Beschaffung seiner Aufträge.
 - **Standorte**: jede Instanz hat immer einen Standort. Neue Instanzen starten bei der Freigabe beim
-  **Lieferanten** (Beschaffung mit Lieferant) bzw. im **Wareneingang**; mit dem Wareneingang («received»)
-  liegen sie im **Wareneingang** (Systemkonfiguration `company_settings.default_receiving_location_id`;
-  fehlt der Eintrag, wird automatisch ein Lagerplatz «Wareneingang» angelegt). Admin → Einstellungen → «Lager &
-  Logistik» wählt den Standard-Wareneingang. Der **Bewegungs**-Schritt verteilt von dort weiter – das
-  PO-Modul bleibt standort-agnostisch (mehrere Lager = mehrere Lagerplätze als Bewegungsziele).
-  Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name); freigegebene
-  Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz.
+  **Lieferanten** (Beschaffung mit Lieferant) bzw. an der **Lieferadresse/Wareneingang**; mit dem
+  Wareneingang («received») liegen sie an der **am Beschaffungsschritt definierten Lieferadresse**
+  (`purchase_orders.receiving_location_id`; fehlt sie, wird automatisch ein Lagerplatz «Wareneingang»
+  angelegt – `services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt verteilt von
+  dort weiter. Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name); freigegebene
+  Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
+  **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
 - **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
   Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
 - **Reklamation (RMA)**: eigenständiger ERP-Objekttyp mit eigener Objektnummer (= RMA-Nr., Tabelle

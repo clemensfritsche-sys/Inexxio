@@ -88,12 +88,14 @@ class PurchaseEmbed(BaseModel):
     ordered_at: Optional[datetime]
     landed_unit_cost: Optional[Decimal]
     webshop_url: Optional[str]
+    receiving_location_id: Optional[int] = None
 
     created_at: datetime
     updated_at: datetime
 
     # Denormalisiert vom Router
     supplier_name: Optional[str] = None
+    receiving_location_label: Optional[str] = None   # Lieferadresse/Wareneingang (Objektnr.)
     # Artikel-Stammdaten-Keys, die der Lieferant sehen darf
     shared_fields: list[str] = []
     # Audit-Verlauf der Statuswechsel (Wer/Wann)

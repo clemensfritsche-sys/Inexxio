@@ -20,7 +20,7 @@ from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
-from .locations import ensure_receiving_location
+from .locations import resolve_receiving_location
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
 _FROM = {
@@ -94,6 +94,9 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
         supplier_id=step.supplier_id,
         webshop_url=step.webshop_url,
         status="requested",
+        # Lieferadresse/Wareneingang aus dem Beschaffungsschritt (Lagerplatz)
+        receiving_location_id=(
+            step.target_location_id if step.target_location_type == "lagerplatz" else None),
     )
     db.add(po)
     db.flush()
@@ -131,13 +134,14 @@ def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bo
     return False
 
 
-def _relocate_to_receiving(db: Session, order: Order, actor_id: int) -> None:
-    """Wareneingang: bei «received» wechseln die Instanzen an den Wareneingang.
+def _relocate_to_receiving(db: Session, po: PurchaseOrder, order: Order, actor_id: int) -> None:
+    """Wareneingang: bei «received» wechseln die Instanzen an die Lieferadresse.
 
     Damit bildet der Beschaffungsschritt den physischen Wareneingang ab – die
-    Instanzen verlassen den Lieferanten-Standort und liegen anschliessend im
-    Wareneingang, von wo der Bewegungs-Schritt sie weiterverteilt."""
-    recv_id = ensure_receiving_location(db)
+    Instanzen verlassen den Lieferanten-Standort und liegen anschliessend an der
+    im Schritt definierten Lieferadresse (sonst automatischer Wareneingang), von
+    wo der Bewegungs-Schritt sie weiterverteilt."""
+    recv_id = resolve_receiving_location(db, po)
     instances = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True)
@@ -173,9 +177,9 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
-    # Wareneingang: bei «received» wechseln die Instanzen an den Wareneingang
+    # Wareneingang: bei «received» wechseln die Instanzen an die Lieferadresse
     if target == "received":
-        _relocate_to_receiving(db, order, user.id)
+        _relocate_to_receiving(db, po, order, user.id)
     # Auftrag ggf. automatisch abschliessen (alle Prozessschritte erledigt)
     process.recompute_completion(db, order)
     # TODO(E-Mail): Statuswechsel an Lieferant/uns melden (Gmail API, Phase 2)

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
 from . import process
 from .admin import log_audit
-from .locations import ensure_receiving_location
+from .locations import resolve_receiving_location
 from .objects import next_object_id
 
 
@@ -40,7 +40,7 @@ def _initial_location(db: Session, order: Order) -> tuple[str, int]:
         )
         if sup and sup.object_id:
             return ("user", sup.object_id)
-    return ("lagerplatz", ensure_receiving_location(db))
+    return ("lagerplatz", resolve_receiving_location(db, po))
 
 
 def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list[Instance]:

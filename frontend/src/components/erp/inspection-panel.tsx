@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info } from 'lucide-react';
+import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -39,6 +39,7 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
   const done = result === 'passed' || result === 'failed';
   const qty = order.quantity || 0;
   const isBatch = order.article_serialization === 'batch';
+  const escalated = insp?.escalated ?? false;
 
   // Werte je Stichprobe: { "instanceId:slot": { fieldKey: value } }
   const [values, setValues] = useState<Record<string, Record<string, Val>>>(() => {
@@ -101,9 +102,16 @@ export function InspectionPanel({ order, stepState, onOrderUpdated }: {
       <Header />
 
       <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#374151' }}>
-        Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: '#94a3b8' }}>({pct}% Stichprobe)</span>
+        Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: '#94a3b8' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
         {isBatch && required > 1 && <span style={{ color: '#94a3b8' }}> · {required} Proben aus der Charge</span>}
       </div>
+
+      {escalated && !done && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Eine Stichprobe war ungenügend – die Prüfung wurde auf <b>100 %</b> hochgestuft. Bitte alle aufgeführten Instanzen erfassen.</span>
+        </div>
+      )}
 
       {/* Ergebnis-Banner */}
       {done && (

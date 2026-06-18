@@ -1805,6 +1805,58 @@
         }
       }
     },
+    "/api/v1/erp/storage-locations/{object_id}/references": {
+      "get": {
+        "tags": [
+          "storage-locations"
+        ],
+        "summary": "List Storage Location References",
+        "description": "Verwendung des Lagerplatzes: lagernde Instanzen + referenzierende Artikel.",
+        "operationId": "list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceReference"
+                  },
+                  "title": "Response List Storage Location References Api V1 Erp Storage Locations  Object Id  References Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/claims": {
       "get": {
         "tags": [
@@ -3933,6 +3985,11 @@
             ],
             "title": "Required Count"
           },
+          "escalated": {
+            "type": "boolean",
+            "title": "Escalated",
+            "default": false
+          },
           "inspector_name": {
             "anyOf": [
               {
@@ -4852,6 +4909,17 @@
             ],
             "title": "Webshop Url"
           },
+          "receiving_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receiving Location Id"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -4872,6 +4940,17 @@
               }
             ],
             "title": "Supplier Name"
+          },
+          "receiving_location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receiving Location Label"
           },
           "shared_fields": {
             "items": {

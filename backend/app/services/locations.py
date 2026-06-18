@@ -95,3 +95,19 @@ def ensure_receiving_location(db: Session) -> int:
     db.flush()
     settings.default_receiving_location_id = loc.object_id
     return loc.object_id
+
+
+def resolve_receiving_location(db: Session, po) -> int:
+    """Wareneingang/Lieferadresse einer Bestellung: bevorzugt der im Beschaffungs-
+    schritt definierte Lagerplatz (``po.receiving_location_id``); sonst der
+    automatische Wareneingang. So ist „nie ohne Standort" garantiert."""
+    lid = getattr(po, "receiving_location_id", None) if po else None
+    if lid:
+        loc = (
+            db.query(StorageLocation)
+            .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
+            .first()
+        )
+        if loc:
+            return lid
+    return ensure_receiving_location(db)

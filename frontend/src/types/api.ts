@@ -544,6 +544,26 @@ export interface paths {
         patch: operations["update_storage_location_api_v1_erp_storage_locations__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/storage-locations/{object_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Storage Location References
+         * @description Verwendung des Lagerplatzes: lagernde Instanzen + referenzierende Artikel.
+         */
+        get: operations["list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/claims": {
         parameters: {
             query?: never;
@@ -1103,6 +1123,11 @@ export interface components {
             sample_percent?: number | null;
             /** Required Count */
             required_count?: number | null;
+            /**
+             * Escalated
+             * @default false
+             */
+            escalated: boolean;
             /** Inspector Name */
             inspector_name?: string | null;
             /**
@@ -1416,6 +1441,8 @@ export interface components {
             landed_unit_cost: string | null;
             /** Webshop Url */
             webshop_url: string | null;
+            /** Receiving Location Id */
+            receiving_location_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -1428,6 +1455,8 @@ export interface components {
             updated_at: string;
             /** Supplier Name */
             supplier_name?: string | null;
+            /** Receiving Location Label */
+            receiving_location_label?: string | null;
             /**
              * Shared Fields
              * @default []
@@ -3017,6 +3046,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceReference"][];
                 };
             };
             /** @description Validation Error */
