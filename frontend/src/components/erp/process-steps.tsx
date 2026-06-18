@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 
-const STEP_ORDER: StepType[] = ['purchase', 'serialization', 'inspection', 'movement'];
+const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement'];
 
 export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onStepsCount }: {
   articleObjectId: number | null;
@@ -198,7 +198,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Link2 size={12} /> {PROCESS_MODE_LABEL.webshop}</span>
                     )}
-                    {s.step_type === 'serialization' && 'Erzeugt Bestands-Instanzen (Einzelteil/Charge)'}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
                     {s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
@@ -303,11 +302,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                 </>
               )}
 
-              {adding === 'serialization' && (
-                <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Erzeugt nach dem Wareneingang Bestands-Instanzen gemäss Artikel-Einstellung (Einzelteil/Charge). Keine weitere Konfiguration.</span></div>
-              )}
-
               {adding === 'inspection' && (
                 <>
                   <TextField label="Prüfumfang (% der Menge)" value={samplePercent} onChange={setSamplePercent}
@@ -351,7 +345,6 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
 const STEP_HINT: Record<StepType, string> = {
   purchase: 'Bestellung bei Lieferant oder Webshop',
-  serialization: 'Instanzen/Chargen mit Nummer anlegen',
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
 };

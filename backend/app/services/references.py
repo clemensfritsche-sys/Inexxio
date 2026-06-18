@@ -20,7 +20,7 @@ def instance_references(db: Session, instance: Instance) -> list[dict]:
     oid = instance.object_id
     refs: list[dict] = []
 
-    # Herkunftsauftrag (Serialisierung)
+    # Herkunftsauftrag (bei Freigabe erzeugt)
     onum = _order_obj_id(db, instance.order_id)
     if onum:
         refs.append({"kind": "Herkunftsauftrag", "ref_type": "order",

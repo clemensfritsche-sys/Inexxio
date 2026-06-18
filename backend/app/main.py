@@ -93,6 +93,12 @@ _DATA_FIXES = (
     "UPDATE purchase_orders SET status='ordered' WHERE status IN ('approved','confirmed')",
 )
 
+# «serialization» ist kein eigener Prozessschritt mehr – die Bestands-Instanzen
+# entstehen bei der Auftragsfreigabe. Bestehende Definitionen soft-löschen.
+_STEP_DATA_FIXES = (
+    "UPDATE article_process_steps SET is_active=false WHERE step_type='serialization'",
+)
+
 
 def _ensure_columns() -> None:
     """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
@@ -114,6 +120,9 @@ def _ensure_columns() -> None:
                     conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
             if "purchase_orders" in tables:
                 for stmt in _DATA_FIXES:
+                    conn.execute(text(stmt))
+            if "article_process_steps" in tables:
+                for stmt in _STEP_DATA_FIXES:
                     conn.execute(text(stmt))
             conn.commit()
     except Exception as e:

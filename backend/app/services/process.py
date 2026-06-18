@@ -5,9 +5,11 @@ Der Auftrag führt eine geordnete Liste von Prozessschritten (Definition in
 jeweiligen Fachtabelle abgeleitet – KEINE eigene Orchestrierungstabelle:
 
     purchase       → purchase_orders.status   (erledigt = received, fehlgeschlagen = rejected)
-    serialization  → instances vorhanden      (erledigt = Instanzen erzeugt)
     inspection     → inspections.result        (erledigt = passed, fehlgeschlagen = failed)
     movement       → movements vorhanden       (erledigt = Einlagerung bestätigt)
+
+Die Bestands-Instanzen entstehen bereits bei der Auftragsfreigabe (kein eigener
+Schritt mehr, siehe ``services/serialization.py``).
 
 Ein Schritt ist «aktiv», sobald alle vorherigen erledigt sind. Der Auftrag wird
 automatisch ``completed``, wenn alle definierten Schritte erledigt sind.
@@ -18,12 +20,11 @@ from math import ceil
 from sqlalchemy.orm import Session
 
 from ..models import (
-    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder,
+    ArticleProcessStep, Inspection, Movement, Order, PurchaseOrder,
 )
 
 STEP_LABELS = {
     "purchase": "Beschaffung",
-    "serialization": "Serialisierung",
     "inspection": "Datenerfassung",
     "movement": "Bewegung",
 }
@@ -44,14 +45,6 @@ def _purchase(db: Session, order: Order) -> PurchaseOrder | None:
         db.query(PurchaseOrder)
         .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
         .first()
-    )
-
-
-def _instances(db: Session, order: Order) -> list[Instance]:
-    return (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .all()
     )
 
 
@@ -82,8 +75,6 @@ def _raw_status(db: Session, order: Order, step_type: str) -> str:
         if po.status == "rejected":
             return "failed"
         return "open"
-    if step_type == "serialization":
-        return "done" if _instances(db, order) else "open"
     if step_type == "inspection":
         insp = _inspection(db, order)
         if insp and insp.result == "passed":

@@ -26,7 +26,7 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
         .all()
     )
     if not instances:
-        raise HTTPException(409, detail="Keine Instanzen zum Bewegen – zuerst serialisieren")
+        raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
     by_obj = {i.object_id: i for i in instances}
     for t in (data.targets or []):

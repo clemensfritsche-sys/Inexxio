@@ -310,7 +310,7 @@ export interface paths {
         };
         /**
          * List Article Instances
-         * @description Bestand des Artikels: alle serialisierten Instanzen (Reiter «Bestand»).
+         * @description Bestand des Artikels: alle Bestands-Instanzen (Reiter «Bestand»).
          */
         get: operations["list_article_instances_api_v1_erp_articles__object_id__instances_get"];
         put?: never;
@@ -412,26 +412,6 @@ export interface paths {
          *     der Auftragsnummer – keine eigene Bestellnummer).
          */
         patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
-        trace?: never;
-    };
-    "/api/v1/erp/orders/{object_id}/serialize": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Serialize Order
-         * @description Schritt «Serialisierung»: Bestands-Instanzen erzeugen (Einzelteil/Charge).
-         */
-        post: operations["serialize_order_api_v1_erp_orders__object_id__serialize_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/orders/{object_id}/inspection": {
@@ -1172,7 +1152,7 @@ export interface components {
         };
         /**
          * InstanceEmbed
-         * @description Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel).
+         * @description Kurzform für die Einbettung in den Auftrag (Instanzen-/Bewegungs-Panel).
          */
         InstanceEmbed: {
             /** Id */
@@ -2758,37 +2738,6 @@ export interface operations {
                 "application/json": components["schemas"]["PurchaseOrderUpdate"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    serialize_order_api_v1_erp_orders__object_id__serialize_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

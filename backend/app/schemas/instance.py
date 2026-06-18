@@ -38,7 +38,7 @@ class InstanceReference(BaseModel):
 
 
 class InstanceEmbed(BaseModel):
-    """Kurzform für die Einbettung in den Auftrag (Serialisierungs-/Bewegungs-Panel)."""
+    """Kurzform für die Einbettung in den Auftrag (Instanzen-/Bewegungs-Panel)."""
 
     model_config = ConfigDict(from_attributes=True)
 
