@@ -19,6 +19,7 @@ Startstandort:
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
+from ..models.base import utcnow
 from . import process
 from .admin import log_audit
 from .locations import resolve_receiving_location
@@ -61,13 +62,14 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
 
     # Ohne nachgelagerte Eingangskontrolle gilt die Ware direkt als freigegeben
     qc = "pending" if process.has_step(db, order, "inspection") else "passed"
+    released = utcnow() if qc == "passed" else None   # Basis für FIFO-Verbrauch
     loc_type, loc_id = _initial_location(db, order)
 
     created: list[Instance] = []
     if art.serialization == "batch":
         inst = Instance(
             object_id=next_object_id(db), article_id=art.id, order_id=order.id,
-            kind="batch", quantity=order.quantity, qc_status=qc,
+            kind="batch", quantity=order.quantity, qc_status=qc, released_at=released,
             location_type=loc_type, location_id=loc_id,
         )
         db.add(inst); db.flush()
@@ -76,7 +78,7 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
         for _ in range(order.quantity):
             inst = Instance(
                 object_id=next_object_id(db), article_id=art.id, order_id=order.id,
-                kind="unit", quantity=1, qc_status=qc,
+                kind="unit", quantity=1, qc_status=qc, released_at=released,
                 location_type=loc_type, location_id=loc_id,
             )
             db.add(inst); db.flush()

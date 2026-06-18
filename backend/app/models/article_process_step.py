@@ -46,3 +46,7 @@ class ArticleProcessStep(Base, TimestampMixin):
     target_location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     target_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
+    # Konfiguration «resource» (Ressource): Liste der benötigten Ressourcen je
+    # Operation – [{article_id, quantity, mode}], mode ∈ consume | tool.
+    resource_lines: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+

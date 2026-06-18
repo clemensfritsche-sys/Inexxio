@@ -179,6 +179,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Lagerplatz/Person/Instanz),
     leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
     eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
+  - **resource** = «**Ressource**»: Produktions-Stückliste je Operation – Liste von Zeilen am Schritt
+    (`article_process_steps.resource_lines` = [{article_id, quantity **pro Stück**, mode}]). Modus
+    **consume** (Verbrauch): Bauteil wird in die **Produkt-Instanz eingebaut** (Standort → `instance`) =
+    Lagerabgang; Auswahl strikt **FIFO nach Freigabe** (`instances.released_at`), Chargen-**Teilentnahme**.
+    Modus **tool** (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein FIFO,
+    freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit wird
+    geprüft. Abschluss-Marker = `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
+    «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`.
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
@@ -217,13 +225,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
-> Prozess-Schritttypen: purchase, inspection, movement (Bestands-Instanzen entstehen bei der Freigabe).
+> Prozess-Schritttypen: purchase, inspection, movement, resource (Bestands-Instanzen entstehen bei der
+> Freigabe; Ressource = Verbrauch FIFO/Chargen-Teilentnahme + Betriebsmittel).
 > **Reklamation (RMA)** ist als
 > eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte). E-Mail-Versand ist nur als TODO
 > vermerkt (Gmail API, Phase 2). Stückliste/BOM, Arbeitspläne und Stripe sind **noch nicht** implementiert.
 
 Nächste Aufgabe: Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API);
-Stückliste/BOM; Arbeitspläne; Stripe
+Arbeitspläne (Mehr-Operationen-Routing, baut auf dem Ressource-Schritt auf); Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

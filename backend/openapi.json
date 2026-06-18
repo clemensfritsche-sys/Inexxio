@@ -1500,6 +1500,64 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/resource": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Resource",
+        "description": "Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel.",
+        "operationId": "update_order_resource_api_v1_erp_orders__object_id__resource_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -2198,6 +2256,20 @@
               }
             ],
             "title": "Target Location Id"
+          },
+          "resource_lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResourceLine"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Lines"
           }
         },
         "type": "object",
@@ -2307,6 +2379,14 @@
               }
             ],
             "title": "Target Location Id"
+          },
+          "resource_lines": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceLineView"
+            },
+            "type": "array",
+            "title": "Resource Lines",
+            "default": []
           },
           "is_active": {
             "type": "boolean",
@@ -2444,6 +2524,20 @@
               }
             ],
             "title": "Target Location Id"
+          },
+          "resource_lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResourceLine"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Lines"
           },
           "is_active": {
             "anyOf": [
@@ -4668,6 +4762,16 @@
               }
             ]
           },
+          "resource": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/OrderStepInfo"
@@ -5083,6 +5187,351 @@
         "type": "object",
         "title": "PurchaseOrderUpdate",
         "description": "Statusübergänge & Feldeingaben einer Bestellung.\n\nDie Offerte besteht aus EINER Bestellsumme (netto); der Stückpreis wird\nberechnet (read-only). Wer welche Felder/Übergänge setzen darf, validiert\n``services/purchase.py`` rollenabhängig (Lieferant vs. Mitarbeiter,\nsupplier- vs. webshop-Modus)."
+      },
+      "ResourceCandidate": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "label"
+        ],
+        "title": "ResourceCandidate",
+        "description": "Wählbares Betriebsmittel (freigegebene Instanz des Werkzeug-Artikels)."
+      },
+      "ResourceEmbed": {
+        "properties": {
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "used_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used By Name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceLineExec"
+            },
+            "type": "array",
+            "title": "Lines",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "ResourceEmbed",
+        "description": "Eingebetteter Stand des Ressource-Schritts (im Auftrag)."
+      },
+      "ResourceLine": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id"
+        ],
+        "title": "ResourceLine",
+        "description": "Eine Ressourcen-Zeile des «resource»-Schritts (mini-BOM / Betriebsmittel)."
+      },
+      "ResourceLineExec": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "serialization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serialization"
+          },
+          "need": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          },
+          "available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
+          "sufficient": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sufficient"
+          },
+          "plan": {
+            "items": {
+              "$ref": "#/components/schemas/ResourcePlanItem"
+            },
+            "type": "array",
+            "title": "Plan",
+            "default": []
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceCandidate"
+            },
+            "type": "array",
+            "title": "Candidates",
+            "default": []
+          },
+          "picked": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Picked",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id"
+        ],
+        "title": "ResourceLineExec",
+        "description": "Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;\nBetriebsmittel: wählbare Instanzen)."
+      },
+      "ResourceLineView": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "serialization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serialization"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id"
+        ],
+        "title": "ResourceLineView",
+        "description": "Ressourcen-Zeile mit denormalisiertem Artikel (für Responses/Embeds)."
+      },
+      "ResourcePlanItem": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id",
+          "quantity"
+        ],
+        "title": "ResourcePlanItem",
+        "description": "Eine FIFO-Verbrauchsposition (Vorschau): Quelle + Menge."
+      },
+      "ResourceToolPick": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "instance_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id"
+        ],
+        "title": "ResourceToolPick",
+        "description": "Auswahl der genutzten Betriebsmittel-Instanzen je Werkzeug-Artikel."
+      },
+      "ResourceUpdate": {
+        "properties": {
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceToolPick"
+            },
+            "type": "array",
+            "title": "Tools",
+            "default": []
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "ResourceUpdate",
+        "description": "Ausführung des Ressource-Schritts: Verbrauch läuft automatisch (FIFO),\nnur die Betriebsmittel werden aktiv gewählt."
       },
       "StorageLocationCreate": {
         "properties": {

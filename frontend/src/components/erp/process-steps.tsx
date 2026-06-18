@@ -3,17 +3,20 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
+import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
+type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
-const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement'];
+const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource'];
+const RESOURCE_MODE_LABEL: Record<ResourceMode, string> = { consume: 'Verbrauch', tool: 'Betriebsmittel' };
 
 export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onStepsCount }: {
   articleObjectId: number | null;
@@ -34,6 +37,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [resLines, setResLines] = useState<ResLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -52,6 +57,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
   // Lagerplätze für Beschaffung (Lieferadresse) & Bewegung laden; Personen/Instanzen nur für die Bewegung
   useEffect(() => {
+    if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
     if (adding !== 'purchase' && adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
     if (adding === 'movement') {
@@ -73,7 +79,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
     setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
-    setTargetSel(''); setError(null);
+    setTargetSel(''); setResLines([]); setError(null);
   }
 
   function buildCaptureFields(): CaptureField[] {
@@ -97,6 +103,13 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
+    let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
+    if (type === 'resource') {
+      resourcePayload = resLines
+        .filter((l) => l.article_id)
+        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
+      if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
+    }
     const tgt = (type === 'movement' || type === 'purchase') && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
@@ -110,6 +123,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
+        resource_lines: resourcePayload,
       });
       setSteps((p) => [...p, created]);
       resetForm();
@@ -200,6 +214,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                     {s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
+                    {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Ressource${(s.resource_lines?.length ?? 0) === 1 ? '' : 'n'}`}
                   </div>
                 </div>
                 {!readOnly && (
@@ -237,6 +252,19 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                     <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
                       • {f.label} <span style={{ color: '#94a3b8' }}>
                         {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : '(Text)'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Ressourcen: Liste (Bauteile & Betriebsmittel) */}
+              {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {s.resource_lines!.map((l, idx) => (
+                    <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
+                      • {l.article_name ?? `#${l.article_id}`} <span style={{ color: '#94a3b8' }}>
+                        ({RESOURCE_MODE_LABEL[(l.mode as ResourceMode)] ?? l.mode} · {l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk)
                       </span>
                     </div>
                   ))}
@@ -331,6 +359,11 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                 </>
               )}
 
+              {adding === 'resource' && (
+                <ResourceLinesEditor lines={resLines} onChange={setResLines}
+                  articles={articles.filter((a) => a.status === 'released' && a.object_id !== aid)} />
+              )}
+
               {error && <ErrorText msg={error} />}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={resetForm} style={secondaryBtn}>Abbrechen</button>
@@ -348,7 +381,47 @@ const STEP_HINT: Record<StepType, string> = {
   purchase: 'Bestellung bei Lieferant oder Webshop',
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
+  resource: 'Bauteile verbrauchen & Betriebsmittel nutzen',
 };
+
+// ─── Ressourcen-Zeilen bearbeiten (mini-BOM) ──────────────────────────────────
+function ResourceLinesEditor({ lines, onChange, articles }: {
+  lines: ResLine[]; onChange: (l: ResLine[]) => void; articles: Article[];
+}) {
+  function add() { onChange([...lines, { article_id: '', quantity: '1', mode: 'consume' }]); }
+  function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
+  function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
+  const options = [{ value: '', label: '— Artikel wählen —' },
+    ...articles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` }))];
+  return (
+    <div>
+      <Label>Ressourcen (Bauteile & Betriebsmittel)</Label>
+      {articles.length === 0 && (
+        <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Kein freigegebener Artikel referenzierbar.</span></div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {lines.map((l, i) => (
+          <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
+              </div>
+              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
+                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
+              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
+            </div>
+            <Segmented label="Modus" value={l.mode} onChange={(v) => upd(i, { mode: v as ResourceMode })}
+              options={[{ value: 'consume', label: 'Verbrauch' }, { value: 'tool', label: 'Betriebsmittel' }]} />
+          </div>
+        ))}
+      </div>
+      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
+      <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+        <b>Verbrauch</b>: wird verbaut (Lagerabgang, FIFO nach Freigabe). <b>Betriebsmittel</b>: wird nur genutzt (kein Lagerabgang).
+      </div>
+    </div>
+  );
+}
 
 // ─── Datenerfassungs-Maske bearbeiten ─────────────────────────────────────────
 function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange: (f: WField[]) => void }) {

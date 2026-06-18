@@ -454,6 +454,26 @@ export interface paths {
         patch: operations["update_order_movement_api_v1_erp_orders__object_id__movement_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/resource": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Resource
+         * @description Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel.
+         */
+        patch: operations["update_order_resource_api_v1_erp_orders__object_id__resource_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -668,6 +688,8 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
+            /** Resource Lines */
+            resource_lines?: components["schemas"]["ResourceLine"][] | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -703,6 +725,11 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
+            /**
+             * Resource Lines
+             * @default []
+             */
+            resource_lines: components["schemas"]["ResourceLineView"][];
             /** Is Active */
             is_active: boolean;
             /**
@@ -739,6 +766,8 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
+            /** Resource Lines */
+            resource_lines?: components["schemas"]["ResourceLine"][] | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -1373,6 +1402,7 @@ export interface components {
             instances: components["schemas"]["InstanceEmbed"][];
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
+            resource?: components["schemas"]["ResourceEmbed"] | null;
             /**
              * Steps
              * @default []
@@ -1503,6 +1533,165 @@ export interface components {
             payment_terms_days?: number | null;
             /** Tracking Number */
             tracking_number?: string | null;
+        };
+        /**
+         * ResourceCandidate
+         * @description Wählbares Betriebsmittel (freigegebene Instanz des Werkzeug-Artikels).
+         */
+        ResourceCandidate: {
+            /** Object Id */
+            object_id: number;
+            /** Label */
+            label: string;
+        };
+        /**
+         * ResourceEmbed
+         * @description Eingebetteter Stand des Ressource-Schritts (im Auftrag).
+         */
+        ResourceEmbed: {
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /** Used By Name */
+            used_by_name?: string | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Lines
+             * @default []
+             */
+            lines: components["schemas"]["ResourceLineExec"][];
+        };
+        /**
+         * ResourceLine
+         * @description Eine Ressourcen-Zeile des «resource»-Schritts (mini-BOM / Betriebsmittel).
+         */
+        ResourceLine: {
+            /** Article Id */
+            article_id: number;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
+        };
+        /**
+         * ResourceLineExec
+         * @description Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;
+         *     Betriebsmittel: wählbare Instanzen).
+         */
+        ResourceLineExec: {
+            /** Article Id */
+            article_id: number;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Unit */
+            unit?: string | null;
+            /** Serialization */
+            serialization?: string | null;
+            /** Need */
+            need?: number | null;
+            /** Available */
+            available?: number | null;
+            /** Sufficient */
+            sufficient?: boolean | null;
+            /**
+             * Plan
+             * @default []
+             */
+            plan: components["schemas"]["ResourcePlanItem"][];
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["ResourceCandidate"][];
+            /**
+             * Picked
+             * @default []
+             */
+            picked: number[];
+        };
+        /**
+         * ResourceLineView
+         * @description Ressourcen-Zeile mit denormalisiertem Artikel (für Responses/Embeds).
+         */
+        ResourceLineView: {
+            /** Article Id */
+            article_id: number;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Unit */
+            unit?: string | null;
+            /** Serialization */
+            serialization?: string | null;
+        };
+        /**
+         * ResourcePlanItem
+         * @description Eine FIFO-Verbrauchsposition (Vorschau): Quelle + Menge.
+         */
+        ResourcePlanItem: {
+            /** Instance Id */
+            instance_id: number;
+            /** Quantity */
+            quantity: number;
+        };
+        /**
+         * ResourceToolPick
+         * @description Auswahl der genutzten Betriebsmittel-Instanzen je Werkzeug-Artikel.
+         */
+        ResourceToolPick: {
+            /** Article Id */
+            article_id: number;
+            /**
+             * Instance Ids
+             * @default []
+             */
+            instance_ids: number[];
+        };
+        /**
+         * ResourceUpdate
+         * @description Ausführung des Ressource-Schritts: Verbrauch läuft automatisch (FIFO),
+         *     nur die Betriebsmittel werden aktiv gewählt.
+         */
+        ResourceUpdate: {
+            /**
+             * Tools
+             * @default []
+             */
+            tools: components["schemas"]["ResourceToolPick"][];
+            /** Note */
+            note?: string | null;
         };
         /**
          * StorageLocationCreate
@@ -2835,6 +3024,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MovementUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_resource_api_v1_erp_orders__object_id__resource_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceUpdate"];
             };
         };
         responses: {

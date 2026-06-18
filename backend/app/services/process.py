@@ -20,13 +20,14 @@ from math import ceil
 from sqlalchemy.orm import Session
 
 from ..models import (
-    ArticleProcessStep, Inspection, Movement, Order, PurchaseOrder,
+    ArticleProcessStep, Inspection, Movement, Order, PurchaseOrder, ResourceUsage,
 )
 
 STEP_LABELS = {
     "purchase": "Beschaffung",
     "inspection": "Datenerfassung",
     "movement": "Bewegung",
+    "resource": "Ressource",
 }
 
 
@@ -64,6 +65,14 @@ def _movement(db: Session, order: Order) -> Movement | None:
     )
 
 
+def _resource_usage(db: Session, order: Order) -> ResourceUsage | None:
+    return (
+        db.query(ResourceUsage)
+        .filter(ResourceUsage.order_id == order.id, ResourceUsage.is_active == True)
+        .first()
+    )
+
+
 def _raw_status(db: Session, order: Order, step_type: str) -> str:
     """Roh-Status eines Schritts: 'done' | 'open' | 'failed'."""
     if step_type == "purchase":
@@ -84,6 +93,8 @@ def _raw_status(db: Session, order: Order, step_type: str) -> str:
         return "open"
     if step_type == "movement":
         return "done" if _movement(db, order) else "open"
+    if step_type == "resource":
+        return "done" if _resource_usage(db, order) else "open"
     return "open"
 
 

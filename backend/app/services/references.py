@@ -7,7 +7,9 @@ hier eingelagerte Instanzen sowie der aktuelle Standort (Lagerplatz/Person).
 
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Claim, Inspection, Instance, Order, StorageLocation
+from ..models import (
+    Article, ArticleProcessStep, Claim, Inspection, Instance, Order, ResourceUsage, StorageLocation,
+)
 from .locations import _obj_nr, location_label
 
 
@@ -74,6 +76,15 @@ def instance_references(db: Session, instance: Instance) -> list[dict]:
             refs.append({"kind": "Reklamation", "ref_type": "claim",
                          "object_id": cl.object_id, "label": _obj_nr(cl.object_id),
                          "at": cl.created_at})
+
+    # Als Betriebsmittel genutzt (Ressource-Schritt) – kein Standortwechsel
+    for u in db.query(ResourceUsage).filter(ResourceUsage.is_active == True).all():
+        tools = (u.details or {}).get("tools", [])
+        if any(oid in (t.get("instance_ids") or []) for t in tools):
+            onum = _order_obj_id(db, u.order_id)
+            if onum:
+                refs.append({"kind": "Als Betriebsmittel genutzt", "ref_type": "order",
+                             "object_id": onum, "label": _obj_nr(onum), "at": u.updated_at})
 
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs

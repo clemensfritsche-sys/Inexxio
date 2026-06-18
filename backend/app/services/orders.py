@@ -18,6 +18,7 @@ from . import process
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label
+from .resource import build_resource_embed
 
 _STAFF_ROLES = ("admin", "employee")
 # alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
@@ -93,6 +94,8 @@ def _step_completion(db: Session, order: Order) -> dict[str, dict]:
             st = "inspection"
         elif lg.table_name == "movements":
             st = "movement"
+        elif lg.table_name == "resource_usages":
+            st = "resource"
         else:
             continue
         out[st] = {"by_id": lg.user_id, "at": lg.changed_at_utc}
@@ -197,6 +200,9 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
                 db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first()
             )
         resp.movement = me
+
+    # Ressource: Verbrauch (FIFO/Verfügbarkeit) + Betriebsmittel
+    resp.resource = build_resource_embed(db, order)
 
     # Auftrag-Stepper (mit Abschluss-Info wer/wann für erledigte Schritte)
     completion = _step_completion(db, order)

@@ -8,6 +8,7 @@ from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
 from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
+from .resource import ResourceEmbed
 
 
 class OrderStepInfo(BaseModel):
@@ -112,4 +113,5 @@ class OrderResponse(BaseModel):
     instances: list[InstanceEmbed] = []
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None
+    resource: Optional[ResourceEmbed] = None
     steps: list[OrderStepInfo] = []

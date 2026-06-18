@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy import BigInteger, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -33,6 +33,9 @@ class Instance(Base, TimestampMixin):
 
     # Qualitätsstatus: pending (Eingangskontrolle offen) | passed | failed
     qc_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    # Zeitpunkt der Freigabe (qc_status → passed). Basis für FIFO beim Verbrauch
+    # (Ressource-Schritt): ältester Freigabe-Zeitpunkt zuerst.
+    released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:

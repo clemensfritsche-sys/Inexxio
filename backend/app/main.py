@@ -75,6 +75,8 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "article_names", "JSONB"),
     ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ("purchase_orders", "receiving_location_id", "BIGINT"),
+    ("instances", "released_at", "TIMESTAMP WITH TIME ZONE"),
+    ("article_process_steps", "resource_lines", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

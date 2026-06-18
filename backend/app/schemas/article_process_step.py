@@ -6,9 +6,10 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
 
-ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement")
+ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "resource")
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
+ALLOWED_RESOURCE_MODES = ("consume", "tool")  # verbrauchend (FIFO) | Betriebsmittel
 
 
 def _check_target_location_type(v: Optional[str]) -> Optional[str]:
@@ -44,6 +45,37 @@ class CaptureField(BaseModel):
         if not v:
             raise ValueError("Bezeichnung des Erfassungsfelds fehlt")
         return v
+
+
+class ResourceLine(BaseModel):
+    """Eine Ressourcen-Zeile des «resource»-Schritts (mini-BOM / Betriebsmittel)."""
+
+    article_id: int
+    quantity: int = 1               # Menge pro Stück Produkt (BOM-Standard)
+    mode: str = "consume"           # consume (verbraucht, FIFO) | tool (Betriebsmittel)
+
+    @field_validator("mode")
+    @classmethod
+    def _mode_ok(cls, v: str) -> str:
+        if v not in ALLOWED_RESOURCE_MODES:
+            raise ValueError("Modus muss 'consume' (Verbrauch) oder 'tool' (Betriebsmittel) sein")
+        return v
+
+    @field_validator("quantity")
+    @classmethod
+    def _qty_ok(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Menge muss grösser als 0 sein")
+        return v
+
+
+class ResourceLineView(ResourceLine):
+    """Ressourcen-Zeile mit denormalisiertem Artikel (für Responses/Embeds)."""
+
+    article_name: Optional[str] = None
+    article_object_id: Optional[int] = None
+    unit: Optional[str] = None
+    serialization: Optional[str] = None
 
 
 def normalize_capture_fields(fields: Optional[list]) -> list[dict]:
@@ -92,6 +124,7 @@ class ArticleProcessStepCreate(BaseModel):
     capture_fields: Optional[list[CaptureField]] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    resource_lines: Optional[list[ResourceLine]] = None
 
     @field_validator("shared_fields")
     @classmethod
@@ -137,6 +170,8 @@ class ArticleProcessStepCreate(BaseModel):
                 raise ValueError("Im Modus 'Webshop' muss ein Link hinterlegt sein")
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
+        if self.step_type == "resource" and not self.resource_lines:
+            raise ValueError("Ein Ressource-Schritt braucht mindestens eine Ressourcen-Zeile")
         # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.
         # Ohne Zieltyp gibt es kein festes Zielobjekt.
         if self.target_location_type is None:
@@ -156,6 +191,7 @@ class ArticleProcessStepUpdate(BaseModel):
     capture_fields: Optional[list[CaptureField]] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    resource_lines: Optional[list[ResourceLine]] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -206,6 +242,7 @@ class ArticleProcessStepResponse(BaseModel):
     capture_fields: list[CaptureField] = []
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    resource_lines: list[ResourceLineView] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -218,4 +255,9 @@ class ArticleProcessStepResponse(BaseModel):
     @field_validator("capture_fields", mode="before")
     @classmethod
     def _capture_default(cls, v: Optional[list]) -> list:
+        return v or []
+
+    @field_validator("resource_lines", mode="before")
+    @classmethod
+    def _resource_default(cls, v: Optional[list]) -> list:
         return v or []

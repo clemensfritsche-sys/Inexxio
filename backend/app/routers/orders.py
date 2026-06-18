@@ -8,6 +8,7 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
+from ..schemas.resource import ResourceUpdate
 from ..services.admin import log_audit
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable
@@ -15,6 +16,7 @@ from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
+from ..services.resource import record_resource
 from ..services.serialization import create_instances_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
@@ -171,5 +173,19 @@ async def update_order_movement(
     """Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)."""
     order = _get_staff_order(db, object_id)
     record_movement(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/resource", response_model=OrderResponse)
+async def update_order_resource(
+    object_id: int,
+    data: ResourceUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel."""
+    order = _get_staff_order(db, object_id)
+    record_resource(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)

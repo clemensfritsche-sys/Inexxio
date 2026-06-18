@@ -66,12 +66,25 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
 };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-export type StepType = 'purchase' | 'inspection' | 'movement';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource';
+export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderInspection = NonNullable<OrderApi['inspection']>;
 export type OrderMovement = NonNullable<OrderApi['movement']>;
+export type OrderResource = NonNullable<OrderApi['resource']>;
+export type OrderResourceLine = OrderResource['lines'][number];
+
+export interface ResourceToolPickInput {
+  article_id: number;
+  instance_ids: number[];
+}
+
+export interface ResourceUpdateInput {
+  tools: ResourceToolPickInput[];
+  note?: string | null;
+}
 
 // Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
 export type LocationType = 'lagerplatz' | 'user' | 'instance';
@@ -134,6 +147,15 @@ export type ArticleProcessStep = Omit<ArticleProcessStepApi, 'mode'> & {
   mode: ProcessStepMode;
 };
 
+// Ressourcen-Zeile (mini-BOM/Betriebsmittel) am Schritt
+export type ResourceLineView = NonNullable<ArticleProcessStepApi['resource_lines']>[number];
+
+export interface ResourceLineInput {
+  article_id: number;
+  quantity: number;
+  mode: ResourceMode;
+}
+
 export interface ArticleProcessStepInput {
   step_type?: StepType;
   position?: number | null;
@@ -145,6 +167,7 @@ export interface ArticleProcessStepInput {
   capture_fields?: CaptureField[] | null;
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
+  resource_lines?: ResourceLineInput[] | null;
 }
 
 export interface ArticleProcessStepUpdateInput {
@@ -157,6 +180,7 @@ export interface ArticleProcessStepUpdateInput {
   capture_fields?: CaptureField[] | null;
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
+  resource_lines?: ResourceLineInput[] | null;
   is_active?: boolean;
 }
 

@@ -2,7 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
-  MovementUpdateInput,
+  MovementUpdateInput, ResourceUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile,
@@ -186,6 +186,11 @@ class ApiClient {
   // Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)
   updateOrderMovement(objectId: number, data: MovementUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/movement`, data);
+  }
+
+  // Schritt «Ressource»: Verbrauch (FIFO) + Betriebsmittel erfassen
+  updateOrderResource(objectId: number, data: ResourceUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/resource`, data);
   }
 
   // Bestand (Instanzen) eines Artikels

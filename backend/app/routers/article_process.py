@@ -9,6 +9,7 @@ from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
     ArticleProcessStepResponse,
     ArticleProcessStepUpdate,
+    ResourceLineView,
     normalize_capture_fields,
 )
 from ..services.admin import log_audit
@@ -38,9 +39,25 @@ def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
     return u.company_name or name or u.email
 
 
+def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLineView]:
+    out: list[ResourceLineView] = []
+    for line in raw_lines or []:
+        art = db.query(Article).filter(Article.id == line["article_id"]).first()
+        out.append(ResourceLineView(
+            article_id=line["article_id"], quantity=line.get("quantity", 1),
+            mode=line.get("mode", "consume"),
+            article_name=art.name if art else None,
+            article_object_id=art.object_id if art else None,
+            unit=art.unit if art else None,
+            serialization=art.serialization if art else None,
+        ))
+    return out
+
+
 def _to_response(db: Session, step: ArticleProcessStep) -> ArticleProcessStepResponse:
     resp = ArticleProcessStepResponse.model_validate(step)
     resp.supplier_name = _supplier_name(db, step.supplier_id)
+    resp.resource_lines = _resource_line_views(db, step.resource_lines)
     return resp
 
 
@@ -52,6 +69,18 @@ def _validate_supplier(db: Session, supplier_id: int | None) -> None:
     ).first()
     if not u or u.role != "supplier":
         raise HTTPException(400, detail="Gewählter Benutzer ist kein aktiver Lieferant")
+
+
+def _validate_resource_lines(db: Session, raw_lines: list | None) -> None:
+    """Nur freigegebene, existierende Artikel sind als Ressource referenzierbar."""
+    for line in raw_lines or []:
+        art = db.query(Article).filter(
+            Article.id == line["article_id"], Article.is_active == True
+        ).first()
+        if not art:
+            raise HTTPException(400, detail="Ressourcen-Artikel nicht gefunden")
+        if art.status != "released":
+            raise HTTPException(400, detail="Nur freigegebene Artikel sind als Ressource referenzierbar")
 
 
 @router.get("/{object_id}/process-steps", response_model=list[ArticleProcessStepResponse])
@@ -92,6 +121,12 @@ async def create_step(
         )
         position = (max_pos or 0) + 1
     is_movement = data.step_type == "movement"
+    is_resource = data.step_type == "resource"
+    # Zielstandort: Bewegung (Ziel) und Beschaffung (Lieferadresse/Wareneingang)
+    keeps_target = is_movement or is_purchase
+    resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
+    if is_resource:
+        _validate_resource_lines(db, resource_raw)
     step = ArticleProcessStep(
         article_id=article.id,
         position=position,
@@ -102,8 +137,9 @@ async def create_step(
         shared_fields=data.shared_fields if is_purchase else None,
         sample_percent=data.sample_percent if data.step_type == "inspection" else None,
         capture_fields=normalize_capture_fields(data.capture_fields) if data.step_type == "inspection" else None,
-        target_location_type=data.target_location_type if is_movement else None,
-        target_location_id=data.target_location_id if is_movement else None,
+        target_location_type=data.target_location_type if keeps_target else None,
+        target_location_id=data.target_location_id if keeps_target else None,
+        resource_lines=resource_raw,
     )
     db.add(step)
     db.flush()
@@ -145,6 +181,8 @@ async def update_step(
         _validate_supplier(db, payload["supplier_id"])
     if "capture_fields" in payload:
         payload["capture_fields"] = normalize_capture_fields(payload["capture_fields"])
+    if "resource_lines" in payload:
+        _validate_resource_lines(db, payload["resource_lines"])
     for key, value in payload.items():
         setattr(step, key, value)
     # Konsistenz: nur das zum Modus passende Bezugsfeld behalten

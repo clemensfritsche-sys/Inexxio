@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -392,6 +392,65 @@ def test_storage_location_references_callable():
     from app.services import references
 
     assert callable(references.storage_location_references)
+
+
+def test_resource_line_schema_validates():
+    """Ressourcen-Zeile: Modus consume|tool, Menge > 0."""
+    import pytest
+
+    from app.schemas.article_process_step import ResourceLine
+
+    assert ResourceLine(article_id=5, quantity=2, mode="consume").mode == "consume"
+    assert ResourceLine(article_id=5, mode="tool").quantity == 1   # Default
+    with pytest.raises(ValueError):
+        ResourceLine(article_id=5, mode="unsinn")
+    with pytest.raises(ValueError):
+        ResourceLine(article_id=5, quantity=0)
+
+
+def test_resource_step_requires_lines():
+    """Ein Ressource-Schritt braucht mindestens eine Zeile."""
+    import pytest
+
+    from app.schemas.article_process_step import ArticleProcessStepCreate, ResourceLine
+
+    with pytest.raises(ValueError):
+        ArticleProcessStepCreate(step_type="resource")
+    ok = ArticleProcessStepCreate(
+        step_type="resource",
+        resource_lines=[ResourceLine(article_id=5, quantity=2, mode="consume")],
+    )
+    assert ok.resource_lines[0].article_id == 5
+
+
+def test_resource_step_in_engine_and_model():
+    """Engine kennt «Ressource»; Ausführungs-Marker + released_at vorhanden."""
+    from app.models import Instance, ResourceUsage
+    from app.schemas.article_process_step import ALLOWED_STEP_TYPES
+    from app.services.process import STEP_LABELS
+
+    assert ResourceUsage.__tablename__ == "resource_usages"
+    assert STEP_LABELS["resource"] == "Ressource"
+    assert "resource" in ALLOWED_STEP_TYPES
+    assert hasattr(Instance, "released_at")     # FIFO-Basis
+
+
+def test_resource_fifo_consumer_whole_and_split():
+    """FIFO-Verbraucher: ganze Instanz umlagern vs. Charge teilentnehmen."""
+    from app.services.resource import _Fifo, available_qty
+
+    class C:
+        def __init__(self, q): self.quantity = q
+
+    a, b = C(1), C(5)
+    assert available_qty([a, b]) == 6
+    f = _Fifo([a, b])
+    assert f.take(3) == (a, 1, True)        # Einzelteil ganz verbraucht
+    cand, take, whole = f.take(2)           # Charge teilentnehmen
+    assert cand is b and take == 2 and whole is False
+    b.quantity -= 2                          # Aufrufer reduziert die Charge
+    cand, take, whole = f.take(3)           # Restcharge (3) ganz
+    assert cand is b and take == 3 and whole is True
 
 
 def test_required_sample_math():

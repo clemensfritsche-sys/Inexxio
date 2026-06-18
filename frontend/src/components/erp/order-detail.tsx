@@ -17,6 +17,7 @@ import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
+import { ResourcePanel } from '@/components/erp/resource-panel';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -329,6 +330,9 @@ function StepPanel({ type, stepState, order, viewerRole, onSaved }: {
   }
   if (type === 'movement') {
     return <MovementPanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
+  }
+  if (type === 'resource') {
+    return <ResourcePanel order={order} stepState={stepState} onOrderUpdated={onSaved} />;
   }
   return null;
 }
