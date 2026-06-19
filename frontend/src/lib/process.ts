@@ -1,6 +1,7 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus } from 'lucide-react';
 import type { StepType, InstanceQcStatus, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
+import type { StatusCfg } from '@/lib/status-flow';
 
 export const STEP_META: Record<StepType, { label: string; icon: React.ElementType }> = {
   purchase:   { label: 'Beschaffung',    icon: ShoppingCart },
@@ -37,13 +38,13 @@ export function toStepperState(state: string): StepState {
   return 'pending'; // locked
 }
 
-export const QC_STATUS: Record<InstanceQcStatus, { label: string; color: string; bg: string }> = {
-  pending:  { label: 'Im Prozess',  color: '#d97706', bg: '#fffbeb' },
-  passed:   { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4' },
-  failed:   { label: 'Gesperrt',    color: '#dc2626', bg: '#fef2f2' },
-  consumed: { label: 'Verbraucht',  color: '#7c3aed', bg: '#f5f3ff' },
+export const QC_STATUS: Record<InstanceQcStatus, StatusCfg> = {
+  pending:  { label: 'Im Prozess',  color: '#d97706', bg: '#fffbeb', icon: Clock },
+  passed:   { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
+  failed:   { label: 'Gesperrt',    color: '#dc2626', bg: '#fef2f2', icon: XCircle },
+  consumed: { label: 'Verbraucht',  color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
 };
 
-export function qcStatusConfig(status: string): { label: string; color: string; bg: string } {
+export function qcStatusConfig(status: string): StatusCfg {
   return QC_STATUS[status as InstanceQcStatus] ?? QC_STATUS.pending;
 }

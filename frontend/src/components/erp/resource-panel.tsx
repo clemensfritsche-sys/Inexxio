@@ -9,6 +9,7 @@ import type {
 import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { PrimaryButton } from '@/components/erp/fields';
 import { instanceKindLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { useScan } from '@/components/scan/scan-provider';
@@ -153,14 +154,9 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notiz (optional)"
             className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
           {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={startScan} disabled={saving || !consumeOk || !toolsOk}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 7, border: 'none',
-                background: (saving || !consumeOk || !toolsOk) ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600,
-                cursor: (saving || !consumeOk || !toolsOk) ? 'not-allowed' : 'pointer' }}>
-              <ScanLine size={15} /> {saving ? 'Speichert…' : inProgress ? `Fortsetzen (${validatedCount}/${totalToValidate})` : 'Scannen & buchen'}
-            </button>
-          </div>
+          <PrimaryButton icon={ScanLine} onClick={startScan} disabled={saving || !consumeOk || !toolsOk}>
+            {saving ? 'Speichert…' : inProgress ? `Fortsetzen (${validatedCount}/${totalToValidate})` : 'Scannen & buchen'}
+          </PrimaryButton>
         </>
       )}
     </div>

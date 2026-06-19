@@ -1,14 +1,15 @@
+import { Clock, ThumbsUp, CheckCircle2, XCircle } from 'lucide-react';
 import type { ClaimStatus, ClaimDirection, ClaimReason, ClaimResolution } from '@/types';
-import type { StatusAction } from '@/lib/status-flow';
+import type { StatusAction, StatusCfg } from '@/lib/status-flow';
 
-export const CLAIM_STATUS: Record<ClaimStatus, { label: string; color: string; bg: string }> = {
-  open:     { label: 'Offen',         color: '#d97706', bg: '#fffbeb' },
-  accepted: { label: 'Angenommen',    color: '#2563eb', bg: '#eff6ff' },
-  closed:   { label: 'Abgeschlossen', color: '#16a34a', bg: '#f0fdf4' },
-  rejected: { label: 'Abgelehnt',     color: '#64748b', bg: '#f1f5f9' },
+export const CLAIM_STATUS: Record<ClaimStatus, StatusCfg> = {
+  open:     { label: 'Offen',         color: '#d97706', bg: '#fffbeb', icon: Clock },
+  accepted: { label: 'Angenommen',    color: '#2563eb', bg: '#eff6ff', icon: ThumbsUp },
+  closed:   { label: 'Abgeschlossen', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
+  rejected: { label: 'Abgelehnt',     color: '#64748b', bg: '#f1f5f9', icon: XCircle },
 };
 
-export function claimStatusConfig(status: string): { label: string; color: string; bg: string } {
+export function claimStatusConfig(status: string): StatusCfg {
   return CLAIM_STATUS[status as ClaimStatus] ?? CLAIM_STATUS.open;
 }
 

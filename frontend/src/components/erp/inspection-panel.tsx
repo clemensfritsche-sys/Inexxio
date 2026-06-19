@@ -5,7 +5,7 @@ import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanL
 import { api } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label } from '@/components/erp/fields';
+import { Label, PrimaryButton } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 type Val = string | number | boolean | undefined;
@@ -182,14 +182,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
 
       {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind */}
       {!done && allUnlocked && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-          <span style={{ flex: 1, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
-            Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
+            {allOk ? <CheckCircle2 size={14} /> : <XCircle size={14} />} Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}
           </span>
-          <button onClick={submit} disabled={saving}
-            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-            {saving ? '…' : 'Erfassung abschliessen'}
-          </button>
+          <PrimaryButton icon={CheckCircle2} tone={allOk ? 'success' : 'primary'} onClick={submit} disabled={saving}>
+            {saving ? 'Speichert…' : 'Erfassung abschliessen'}
+          </PrimaryButton>
         </div>
       )}
     </div>

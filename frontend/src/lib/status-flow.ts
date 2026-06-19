@@ -2,7 +2,18 @@
 // Entwurf → (Freigeben) → Freigegeben → (Deaktivieren) → Inaktiv → (Reaktivieren).
 // Kein freies Status-Dropdown mehr – Statuswechsel erfolgen per Klick.
 
+import type { ElementType } from 'react';
+
 export type StatusTone = 'primary' | 'danger' | 'neutral';
+
+// Einheitliche Status-Anzeige: Label + semantische Farbe + Symbol (Symbole statt
+// Text, Farbe = Bedeutung). `icon` ist optional, damit Altaufrufe gültig bleiben.
+export interface StatusCfg {
+  label: string;
+  color: string;
+  bg: string;
+  icon?: ElementType;
+}
 
 export interface StatusAction {
   label: string;

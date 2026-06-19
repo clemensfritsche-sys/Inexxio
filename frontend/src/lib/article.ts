@@ -1,11 +1,13 @@
+import { FilePen, CheckCircle2, Ban } from 'lucide-react';
 import type { ArticleSerialization, ArticleStatus, ArticleUnit } from '@/types';
+import type { StatusCfg } from '@/lib/status-flow';
 
 // ─── Anzeige-Konfiguration ───────────────────────────────────────────────────
 
-export const ARTICLE_STATUS: Record<ArticleStatus, { label: string; color: string; bg: string }> = {
-  draft:    { label: 'Entwurf',     color: '#d97706', bg: '#fffbeb' },
-  released: { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4' },
-  inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9' },
+export const ARTICLE_STATUS: Record<ArticleStatus, StatusCfg> = {
+  draft:    { label: 'Entwurf',     color: '#d97706', bg: '#fffbeb', icon: FilePen },
+  released: { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
+  inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9', icon: Ban },
 };
 
 export const ARTICLE_STATUS_ORDER: ArticleStatus[] = ['draft', 'released', 'inactive'];
@@ -31,7 +33,7 @@ export function serializationLabel(value: string): string {
   return SERIALIZATION_OPTIONS.find((s) => s.value === value)?.label ?? value;
 }
 
-export function statusConfig(status: string): { label: string; color: string; bg: string } {
+export function statusConfig(status: string): StatusCfg {
   return ARTICLE_STATUS[status as ArticleStatus] ?? ARTICLE_STATUS.draft;
 }
 

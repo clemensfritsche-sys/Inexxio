@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase } from 'lucide-react';
+import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { UserProfile } from '@/types';
+import type { StatusCfg } from '@/lib/status-flow';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -13,11 +14,11 @@ export function fmtObjId(id: number | null | undefined): string {
   return String(id).padStart(9, '0');
 }
 
-export const ROLE_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  admin:    { label: 'Admin',       color: '#dc2626', bg: '#fef2f2' },
-  employee: { label: 'Mitarbeiter', color: '#2563eb', bg: '#eff6ff' },
-  supplier: { label: 'Lieferant',   color: '#d97706', bg: '#fffbeb' },
-  customer: { label: 'Kunde',       color: '#16a34a', bg: '#f0fdf4' },
+export const ROLE_CFG: Record<string, StatusCfg> = {
+  admin:    { label: 'Admin',       color: '#dc2626', bg: '#fef2f2', icon: Shield },
+  employee: { label: 'Mitarbeiter', color: '#2563eb', bg: '#eff6ff', icon: Briefcase },
+  supplier: { label: 'Lieferant',   color: '#d97706', bg: '#fffbeb', icon: Truck },
+  customer: { label: 'Kunde',       color: '#16a34a', bg: '#f0fdf4', icon: UserCircle },
 };
 
 const COUNTRY_NAMES: Record<string, string> = {

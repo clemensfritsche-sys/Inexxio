@@ -5,6 +5,7 @@ import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTri
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -66,7 +67,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   const title = rowTitle(row);
   const hasTitle = row.type === 'user' ? title !== row.data.email : !!title;
 
-  let badge: { label: string; color: string; bg: string };
+  let badge: StatusCfg;
   if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
@@ -115,7 +116,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
           <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>{fmtObjId(row.objectId)}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: badge.bg, color: badge.color }}>{badge.label}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: badge.bg, color: badge.color }}>
+            {badge.icon && <badge.icon size={11} strokeWidth={2.5} />}{badge.label}
+          </span>
         </div>
       </div>
     </button>

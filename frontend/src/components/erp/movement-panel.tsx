@@ -9,6 +9,7 @@ import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/proce
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
+import { PrimaryButton } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 type OrderInstance = NonNullable<Order['instances']>[number];
@@ -218,19 +219,15 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        {allScanned ? (
-          <button onClick={() => submitWith(targets)} disabled={saving}
-            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-            {saving ? 'Speichert…' : 'Bewegung buchen'}
-          </button>
-        ) : (
-          <button onClick={() => startScan()} disabled={saving}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <ScanLine size={15} /> Scannen &amp; bewegen
-          </button>
-        )}
-      </div>
+      {allScanned ? (
+        <PrimaryButton icon={CheckCircle2} tone="success" onClick={() => submitWith(targets)} disabled={saving}>
+          {saving ? 'Speichert…' : 'Bewegung buchen'}
+        </PrimaryButton>
+      ) : (
+        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving}>
+          Scannen &amp; bewegen
+        </PrimaryButton>
+      )}
     </div>
   );
 }

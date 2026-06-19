@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, Search } from 'lucide-react';
-import type { StatusAction, StatusTone } from '@/lib/status-flow';
+import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
 
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
 
@@ -146,12 +146,15 @@ export function Segmented({ label, value, onChange, options, required }: {
   );
 }
 
-export function StatusBadge({ cfg, size = 10 }: { cfg: { label: string; color: string; bg: string }; size?: number }) {
+export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number }) {
+  const Icon = cfg.icon;
   return (
     <span style={{
-      fontSize: size, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      fontSize: size, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
       background: cfg.bg, color: cfg.color, whiteSpace: 'nowrap',
     }}>
+      {Icon && <Icon size={size + 3} strokeWidth={2.5} />}
       {cfg.label}
     </span>
   );
@@ -169,7 +172,7 @@ function statusActionStyle(tone: StatusTone = 'neutral', disabled?: boolean): Re
 
 /** Status-Badge + Prozess-Buttons (Freigeben / Deaktivieren / Reaktivieren). */
 export function StatusFlow({ cfg, actions = [], busy, onAction }: {
-  cfg: { label: string; color: string; bg: string };
+  cfg: StatusCfg;
   actions?: StatusAction[];
   busy?: boolean;
   onAction?: (target: string) => void;
@@ -190,6 +193,26 @@ export function StatusFlow({ cfg, actions = [], busy, onAction }: {
         </button>
       ))}
     </div>
+  );
+}
+
+/** Grosse, eindeutige Hauptaktion (touch-first, volle Breite, ≥44 px). Ein
+ *  klarer «Was jetzt?»-Button je Prozessschritt – statt mehrerer kleiner Knöpfe. */
+export function PrimaryButton({ icon: Icon, children, onClick, disabled, tone = 'primary' }: {
+  icon?: React.ElementType; children: React.ReactNode; onClick: () => void;
+  disabled?: boolean; tone?: 'primary' | 'success';
+}) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
+        minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none',
+        background: tone === 'success' ? '#16a34a' : '#2563eb', color: '#fff',
+        fontSize: 14, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.55 : 1,
+      }}>
+      {Icon && <Icon size={18} />} {children}
+    </button>
   );
 }
 
