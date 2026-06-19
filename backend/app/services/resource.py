@@ -15,6 +15,7 @@ Nur **freigegebene** (qc ``passed``) Instanzen sind verbrauchbar/nutzbar.
 """
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import Article, ArticleProcessStep, Instance, Order, ResourceUsage, UserProfile
@@ -57,25 +58,61 @@ def _user_name(u: UserProfile | None) -> str | None:
     return u.company_name or name or u.email
 
 
-def fifo_candidates(db: Session, article_db_id: int) -> list[Instance]:
+def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
     """Verbrauchbare Instanzen eines Artikels: **freigegeben** (qc passed = Auftrag
     abgeschlossen & ab Lager verfügbar), Restmenge > 0, FIFO nach Freigabe
     (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
 
+    Reservierungen: ``for_order_id=None`` liefert nur **unreservierte** Instanzen
+    (Basis für eine neue Reservierung). Mit ``for_order_id`` kommen zusätzlich die
+    **für diesen Auftrag reservierten** Instanzen dazu (Verbrauch/Vorschau/Anzeige).
+
     Kein Standort-Filter nötig: bereits verbaute Instanzen tragen den Status
     ``consumed`` (nicht ``passed``) und fallen damit automatisch heraus."""
-    rows = (
-        db.query(Instance)
-        .filter(
-            Instance.article_id == article_db_id,
-            Instance.is_active == True,
-            Instance.qc_status == "passed",
-            Instance.quantity > 0,
-        )
-        .all()
+    q = db.query(Instance).filter(
+        Instance.article_id == article_db_id,
+        Instance.is_active == True,
+        Instance.qc_status == "passed",
+        Instance.quantity > 0,
     )
+    if for_order_id is None:
+        q = q.filter(Instance.reserved_for_order_id.is_(None))
+    else:
+        q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
+                         Instance.reserved_for_order_id == for_order_id))
+    rows = q.all()
     rows.sort(key=lambda i: (i.released_at or i.created_at, i.object_id or 0))
     return rows
+
+
+def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
+    """Bei Auftragsfreigabe die zu verbrauchenden Komponenten **reservieren**.
+
+    Über alle ``resource``-Schritte des Artikels werden die consume-Mengen summiert
+    und – FIFO, nur aus unreserviertem freigegebenem Bestand – ganze Instanzen für
+    diesen Auftrag reserviert (``reserved_for_order_id``). Andere Aufträge sehen die
+    reservierten Instanzen nicht mehr. Committet NICHT (Aufrufer schliesst ab)."""
+    if not order.article_id or not order.quantity:
+        return
+    needs: dict[int, int] = {}
+    for d in process.step_defs(db, order.article_id):
+        if d.step_type != "resource":
+            continue
+        for line in (d.resource_lines or []):
+            if line.get("mode", "consume") != "consume":
+                continue
+            aid = line["article_id"]
+            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * order.quantity
+    for art_id, need in needs.items():
+        if art_id == order.article_id:
+            continue
+        got = 0
+        for cand in fifo_candidates(db, art_id, for_order_id=None):
+            if got >= need:
+                break
+            cand.reserved_for_order_id = order.id
+            got += cand.quantity
+    log_audit(db, "instances", None, "Ressourcen reserviert", actor_id, object_id=order.object_id)
 
 
 def _tool_candidates(db: Session, article_db_id: int) -> list[Instance]:
@@ -132,7 +169,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
     """FIFO-Verbrauch eines Komponenten-Artikels in die Produkt-Instanzen."""
     if article_db_id == order.article_id:
         raise HTTPException(400, detail="Ein Artikel kann sich nicht selbst verbrauchen")
-    cands = fifo_candidates(db, article_db_id)
+    cands = fifo_candidates(db, article_db_id, order.id)
     total_need = sum(per_unit * p.quantity for p in products)
     have = available_qty(cands)
     if have < total_need:
@@ -245,12 +282,12 @@ def _line_view(db: Session, line: dict) -> dict:
 
 
 def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
-                     per_unit: int) -> dict[int, list[dict]]:
+                     per_unit: int, for_order_id: int | None = None) -> dict[int, list[dict]]:
     """FIFO-Vorschau OHNE Mutation: {produkt_obj_id: [{instance_id, quantity, split_from?}]}.
 
     Bildet ``_consume_line`` nach, damit vorab sichtbar ist, welche Instanz in
     welche Produkt-Instanz wandert."""
-    cands = fifo_candidates(db, article_db_id)
+    cands = fifo_candidates(db, article_db_id, for_order_id)
     remaining = [[c.object_id or 0, c.quantity] for c in cands]
     out: dict[int, list[dict]] = {}
     idx = 0
@@ -313,7 +350,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
             exec_line.picked = tools_by_art.get(art_id, [])
         else:
             need = view["quantity"] * (order.quantity or 0)
-            cands = fifo_candidates(db, art_id)
+            cands = fifo_candidates(db, art_id, order.id)
             have = available_qty(cands)
             exec_line.need = need
             exec_line.available = have
@@ -336,7 +373,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
                                      split_from=p.get("split_from"))
                     for p in (rec.get("picks", []) if rec else [])]
             else:
-                preview = _preview_consume(db, products, art_id, view["quantity"])
+                preview = _preview_consume(db, products, art_id, view["quantity"], order.id)
                 for prod_oid, picks in preview.items():
                     for p in picks:
                         per_product[prod_oid].append(ResourceComponentPick(

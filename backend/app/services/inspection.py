@@ -22,7 +22,6 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import ArticleProcessStep, Inspection, Instance, Order
-from ..models.base import utcnow
 from . import process
 from .admin import log_audit
 from .claims import auto_claim_from_inspection
@@ -74,7 +73,11 @@ def _order_instances(db: Session, order: Order) -> list[Instance]:
 
 
 def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
-    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes (failed)."""
+    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes (failed).
+
+    Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben
+    ``pending`` («Im Prozess») und werden erst beim Auftrags-Abschluss freigegeben
+    (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig."""
     insts = _order_instances(db, order)
     if len(insts) == 1 and insts[0].kind == "batch":
         insts[0].qc_status = "failed"
@@ -84,13 +87,8 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
         ok = evaluate(fields, s.get("values") or {})
         iid = s.get("instance_id")
         ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
-    now = utcnow()
     for inst in insts:
-        if ok_by_inst.get(inst.object_id, False):
-            inst.qc_status = "passed"
-            if inst.released_at is None:
-                inst.released_at = now
-        else:
+        if not ok_by_inst.get(inst.object_id, False):
             inst.qc_status = "failed"
 
 
@@ -182,14 +180,10 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
 
     insp.result = "passed" if decision == "passed" else "failed"
     db.flush()
-    if decision == "passed":
-        now = utcnow()
-        for inst in _order_instances(db, order):
-            inst.qc_status = "passed"
-            if inst.released_at is None:
-                inst.released_at = now
-    else:
-        # Bei 100 %-Prüfung je Instanz bewerten (gut/schlecht trennen)
+    # Bei Bestehen NICHT vorzeitig freigeben – die Instanzen werden erst beim
+    # Auftrags-Abschluss «Freigegeben» (process.release_instances). Bei Nichtbestehen
+    # die durchgefallenen Instanzen sperren (failed).
+    if decision != "passed":
         _apply_per_instance_qc(db, order, fields, stored)
 
     log_audit(db, "inspections", "result", insp.result, actor_id, object_id=order.object_id)

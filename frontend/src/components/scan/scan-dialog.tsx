@@ -20,46 +20,51 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
   const [stepIndex, setStepIndex] = useState(0);
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
+  // Refs vermeiden veraltete Closures im Kamera-Callback (robustes Weiterschalten).
+  const stepIndexRef = useRef(0);
   const results = useRef<number[]>([]);
-  const busy = useRef(false);                 // während der Erfolgs-Quittierung sperren
+  const lock = useRef(false);                 // während der Erfolgs-Quittierung sperren
+  const completed = useRef(false);
   const lastRef = useRef<{ id: number; at: number } | null>(null);
 
   const step: ScanStep | undefined = steps[stepIndex];
   const multi = steps.length > 1;
 
-  function accept(objectId: number) {
-    if (busy.current || !step) return;
-    busy.current = true;
-    setFeedback({ kind: 'ok', text: `Erkannt: ${fmtObjId(objectId)}` });
-    results.current = [...results.current, objectId];
-    window.setTimeout(() => {
-      if (stepIndex + 1 >= steps.length) {
-        onComplete(results.current);
-      } else {
-        setStepIndex((i) => i + 1);
-        setQuery('');
-        setFeedback(null);
-        lastRef.current = null;
-        busy.current = false;
-      }
-    }, 420);
-  }
-
   function handle(objectId: number) {
-    if (!step) return;
-    if (validateForStep(objectId, step)) {
-      accept(objectId);
-    } else {
-      const text = step.expected != null
+    if (lock.current || completed.current) return;
+    const cur = steps[stepIndexRef.current];
+    if (!cur) return;
+    if (!validateForStep(objectId, cur)) {
+      const text = cur.expected != null
         ? `${fmtObjId(objectId)} ist nicht das erwartete Objekt`
         : `${fmtObjId(objectId)} ist nicht im ERP`;
       setFeedback({ kind: 'bad', text });
+      return;
     }
+    // gültig → kurz grün zeigen, dann weiter / abschliessen
+    lock.current = true;
+    results.current = [...results.current, objectId];
+    setFeedback({ kind: 'ok', text: `Erkannt: ${fmtObjId(objectId)}` });
+    window.setTimeout(() => {
+      const next = stepIndexRef.current + 1;
+      if (next >= steps.length) {
+        completed.current = true;
+        onComplete(results.current);
+      } else {
+        stepIndexRef.current = next;
+        setStepIndex(next);
+        setQuery('');
+        setFeedback(null);
+        lock.current = false;
+      }
+    }, 380);
   }
 
   // Kamera-Treffer: Rohtext → Objektnummer; ungültige bleiben sichtbar, Kamera läuft weiter.
+  // lastRef wird NICHT bei Schrittwechsel zurückgesetzt → ein im Bild verbleibender
+  // (bereits quittierter) Code löst auf dem Folgeschritt keinen Fehlalarm aus.
   function handleText(raw: string) {
-    if (busy.current) return;
+    if (lock.current || completed.current) return;
     const id = parseScannedCode(raw);
     if (id == null) { setFeedback({ kind: 'bad', text: 'Kein gültiger Objekt-Code' }); return; }
     const now = Date.now();

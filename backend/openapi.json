@@ -4831,6 +4831,17 @@
             "format": "date-time",
             "title": "Updated At"
           },
+          "reserved_for_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved For Order Id"
+          },
           "order_object_id": {
             "anyOf": [
               {
@@ -4874,6 +4885,17 @@
               }
             ],
             "title": "Location Label"
+          },
+          "reserved_for_order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved For Order Object Id"
           }
         },
         "type": "object",

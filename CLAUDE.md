@@ -161,9 +161,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
   **Instanz-Lebenszyklus (qc_status):** neue Instanzen sind **`pending` («Im Prozess»)** und werden
   erst **bei Auftrags-Abschluss `passed` («Freigegeben», ab Lager verbrauchbar)** – `process.
-  recompute_completion` → `release_instances` (`released_at` = FIFO-Basis). Verbaute Instanzen werden
-  `consumed` («Verbraucht»), durchgefallene `failed` («Gesperrt»). Der Ressource-Verbrauch (FIFO)
-  greift auf **`passed`** zu (kein Standort-Filter; `consumed` fällt automatisch heraus).
+  recompute_completion` → `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT
+  vorzeitig frei (nur Durchfaller → `failed`). Verbaute Instanzen werden `consumed` («Verbraucht»). Der
+  Ressource-Verbrauch (FIFO) greift auf **`passed`** zu (kein Standort-Filter; `consumed` fällt heraus).
+  **Reservierung:** bei der Auftragsfreigabe werden die zu verbrauchenden Komponenten für genau diesen
+  Auftrag reserviert (`instances.reserved_for_order_id`); reservierte Instanzen sind für andere Aufträge
+  nicht verbrauchbar (FIFO blendet sie aus). Auflösung bei Abschluss/Deaktivierung des Auftrags.
   **Mehr-Operationen-Routing:** mehrere gleichartige Schritte (z. B. mehrere `resource`-Operationen)
   sind hintereinander möglich – jede Fachzeile trägt die `step_id` ihrer Schritt-Definition, der
   Status wird **pro Schritt** abgeleitet (`process.fact_for_step`/`resolve_exec_step`). Schritttypen:

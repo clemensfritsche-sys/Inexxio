@@ -49,23 +49,25 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
     samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = { ...(s.values as Record<string, Val>) }; });
     return init;
   });
-  const [note, setNote] = useState(insp?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scan = useScan();
-  // Vor der Datenerfassung wird die Instanznummer per Scan validiert (richtiges Teil?).
-  const [unlocked, setUnlocked] = useState(false);
+  // Datenerfassung Instanz für Instanz: erst scannen (richtiges Teil?), dann erfassen,
+  // dann die nächste. `unlocked` = bereits gescannte (freigeschaltete) Instanzen.
+  const [unlocked, setUnlocked] = useState<number[]>([]);
   const distinctInstances = Array.from(new Set(samples.map((s) => s.instance_id)));
+  const nextInstance = distinctInstances.find((iid) => !unlocked.includes(iid)) ?? null;
+  const allUnlocked = distinctInstances.length > 0 && nextInstance == null;
 
-  function startScan() {
-    if (distinctInstances.length === 0) { setUnlocked(true); return; }
+  function scanNext() {
+    if (nextInstance == null) return;
     scan({
       title: 'Instanz prüfen',
-      steps: distinctInstances.map((iid) => ({
-        label: `Instanz ${fmtObjId(iid)}`, hint: 'Zu erfassende Instanz scannen', expected: iid,
-        candidates: [{ objectId: iid, label: 'Instanz' }],
-      })),
-      onComplete: () => setUnlocked(true),
+      steps: [{
+        label: `Instanz ${fmtObjId(nextInstance)}`, hint: 'Zu erfassende Instanz scannen',
+        expected: nextInstance, candidates: [{ objectId: nextInstance, label: 'Instanz' }],
+      }],
+      onComplete: () => setUnlocked((u) => [...u, nextInstance]),
     });
   }
 
@@ -97,7 +99,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         return { instance_id: s.instance_id, slot: s.slot, values: out };
       });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
-        samples: payload, note: note.trim() || null, step_id: stepId ?? null,
+        samples: payload, note: null, step_id: stepId ?? null,
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -146,20 +148,10 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
-      ) : (!done && !unlocked) ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center', padding: '12px 8px', border: '1px dashed #cbd5e1', borderRadius: 10 }}>
-          <ScanLine size={26} style={{ color: '#2563eb' }} />
-          <span style={{ fontSize: 13, color: '#475569' }}>
-            Zuerst {distinctInstances.length === 1 ? 'die aufgeführte Instanz' : `die ${distinctInstances.length} aufgeführten Instanzen`} scannen – danach wird die Erfassung freigeschaltet.
-          </span>
-          <button onClick={startScan}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-            <ScanLine size={15} /> Instanz scannen &amp; erfassen
-          </button>
-        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto' }}>
-          {samples.map((s) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 420, overflowY: 'auto' }}>
+          {/* Nur freigeschaltete (gescannte) Instanzen erfassen – eine nach der anderen */}
+          {samples.filter((s) => done || unlocked.includes(s.instance_id)).map((s) => {
             const key = sKey(s.instance_id, s.slot);
             const ok = sampleOk(key);
             return (
@@ -175,20 +167,21 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
               </div>
             );
           })}
+
+          {/* Nächste Instanz scannen (Instanz-für-Instanz-Erfassung) */}
+          {!done && nextInstance != null && (
+            <button onClick={scanNext}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 10, border: '1px dashed #cbd5e1', background: '#fff', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <ScanLine size={16} /> {unlocked.length === 0 ? 'Erste Instanz scannen' : 'Nächste Instanz scannen'} ({unlocked.length}/{distinctInstances.length})
+            </button>
+          )}
         </div>
       )}
 
-      {/* Notiz */}
-      {!done && unlocked && samples.length > 0 && (
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notiz (optional)"
-          className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
-      )}
-      {done && insp?.note && <div style={{ fontSize: 12, color: '#64748b' }}>Notiz: {insp.note}</div>}
-
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      {/* Aktion */}
-      {!done && unlocked && samples.length > 0 && (
+      {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind */}
+      {!done && allUnlocked && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
           <span style={{ flex: 1, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
             Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}

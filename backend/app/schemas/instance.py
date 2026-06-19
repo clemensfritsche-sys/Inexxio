@@ -21,11 +21,14 @@ class InstanceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    reserved_for_order_id: Optional[int] = None
+
     # Denormalisiert vom Router
     order_object_id: Optional[int] = None
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     location_label: Optional[str] = None
+    reserved_for_order_object_id: Optional[int] = None
 
 
 class InstanceReference(BaseModel):

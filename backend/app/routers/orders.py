@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
-from ..models import Article, Order, PurchaseOrder, UserProfile
+from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
@@ -18,7 +18,7 @@ from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
-from ..services.resource import record_resource
+from ..services.resource import record_resource, reserve_resources
 from ..services.serialization import create_instances_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
@@ -129,9 +129,17 @@ async def update_order(
             order.released_at = utcnow()   # Start der Durchlaufzeit
         instantiate_for_order(db, order, current_user.id)
         create_instances_for_order(db, order, current_user.id)
+        # Zu verbrauchende Komponenten für diesen Auftrag reservieren (FIFO),
+        # damit sie kein anderer Auftrag mehr verbrauchen kann.
+        reserve_resources(db, order, current_user.id)
         emit(db, "order.released", object_type="order", object_id=order.object_id,
              payload={"article_id": order.article_id, "quantity": order.quantity},
              actor_id=current_user.id)
+
+    # Deaktivierung (released → inactive): Reservierungen dieses Auftrags freigeben.
+    if order.status == "inactive" and was_released:
+        for inst in db.query(Instance).filter(Instance.reserved_for_order_id == order.id).all():
+            inst.reserved_for_order_id = None
 
     db.commit()
     db.refresh(order)

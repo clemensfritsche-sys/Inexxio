@@ -224,6 +224,11 @@ def recompute_completion(db: Session, order: Order) -> None:
         if order.completed_at is None:
             order.completed_at = utcnow()
         release_instances(db, order)   # fertige Instanzen freigeben (verbrauchbar)
+        # Reservierungen dieses Auftrags auflösen (Verbrauch ist erfolgt / Auftrag fertig).
+        for inst in db.query(Instance).filter(
+            Instance.reserved_for_order_id == order.id, Instance.is_active == True
+        ).all():
+            inst.reserved_for_order_id = None
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
 
 

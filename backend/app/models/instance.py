@@ -42,3 +42,8 @@ class Instance(Base, TimestampMixin):
     #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+
+    # Reservierung: bei Auftragsfreigabe werden die zu verbrauchenden Komponenten-
+    # Instanzen für genau diesen Auftrag reserviert (DB-id des Auftrags). Reservierte
+    # Instanzen sind für ANDERE Aufträge nicht mehr verbrauchbar (FIFO blendet sie aus).
+    reserved_for_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)

@@ -1371,6 +1371,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Reserved For Order Id */
+            reserved_for_order_id?: number | null;
             /** Order Object Id */
             order_object_id?: number | null;
             /** Article Object Id */
@@ -1379,6 +1381,8 @@ export interface components {
             article_name?: string | null;
             /** Location Label */
             location_label?: string | null;
+            /** Reserved For Order Object Id */
+            reserved_for_order_object_id?: number | null;
         };
         /**
          * MovementEmbed

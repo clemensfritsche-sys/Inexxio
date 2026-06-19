@@ -70,6 +70,7 @@ _COLUMN_SAFETY_NET = (
     ("inspections", "samples", "JSONB"),
     ("instances", "location_type", "VARCHAR(20)"),
     ("instances", "location_id", "BIGINT"),
+    ("instances", "reserved_for_order_id", "BIGINT"),
     ("storage_locations", "note", "VARCHAR(500)"),
     ("company_settings", "article_names", "JSONB"),
     ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
@@ -129,6 +130,15 @@ _STEP_DATA_FIXES = (
     "UPDATE article_process_steps SET is_active=false WHERE step_type='serialization'",
 )
 
+# Instanz-Normalisierung (idempotent): «Freigegeben» (passed) darf es nur geben,
+# wenn der zugehörige Auftrag abgeschlossen ist. Altbestände, die bei der Anlage
+# vorzeitig auf passed gesetzt wurden, auf «Im Prozess» (pending) zurücksetzen.
+_INSTANCE_DATA_FIXES = (
+    "UPDATE instances SET qc_status='pending', released_at=NULL "
+    "WHERE qc_status='passed' AND is_active=true "
+    "AND order_id IN (SELECT id FROM orders WHERE status <> 'completed')",
+)
+
 
 def _ensure_columns() -> None:
     """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
@@ -158,6 +168,9 @@ def _ensure_columns() -> None:
                     conn.execute(text(stmt))
             if "article_process_steps" in tables:
                 for stmt in _STEP_DATA_FIXES:
+                    conn.execute(text(stmt))
+            if "instances" in tables and "orders" in tables:
+                for stmt in _INSTANCE_DATA_FIXES:
                     conn.execute(text(stmt))
             conn.commit()
     except Exception as e:

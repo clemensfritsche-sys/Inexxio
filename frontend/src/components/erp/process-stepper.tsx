@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 
 export type StepState = 'done' | 'active' | 'pending' | 'rejected';
-export interface StepNode { key: string; label: string; state: StepState; hint?: string }
+export interface StepNode { key: string; label: string; state: StepState; hint?: string; icon?: React.ElementType }
 
 const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
   done:     { bg: '#0f766e', color: '#fff', ring: 'transparent' },
@@ -15,6 +15,15 @@ const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
 
 const LINE_DONE = '#0f766e';
 const LINE_PENDING = '#e2e8f0';
+
+/** Knoten-Inhalt: erledigt → Haken, abgelehnt → X, sonst das Schritt-Symbol
+ *  (Symbole statt Zahlen – auf einen Blick erkennbar), ersatzweise die Nummer. */
+function nodeContent(n: StepNode, i: number) {
+  if (n.state === 'done') return <Check size={15} />;
+  if (n.state === 'rejected') return <X size={15} />;
+  if (n.icon) { const Icon = n.icon; return <Icon size={15} />; }
+  return i + 1;
+}
 
 /** Horizontaler Prozess-Stepper. Eine Linie zwischen zwei Knoten gilt als
  *  erledigt, sobald der LINKE Knoten erledigt ist – beide Hälften nutzen
@@ -48,13 +57,14 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <div style={{ flex: 1, height: 2, background: i === 0 ? 'transparent' : (leftDone ? LINE_DONE : LINE_PENDING) }} />
               <div style={{
-                width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
                 background: node.bg, color: node.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700,
                 boxShadow: selected ? '0 0 0 3px #0f172a' : n.state === 'active' ? `0 0 0 4px ${node.ring}` : 'none',
+                transition: 'box-shadow 0.15s',
               }}>
-                {n.state === 'done' ? <Check size={14} /> : n.state === 'rejected' ? <X size={14} /> : i + 1}
+                {nodeContent(n, i)}
               </div>
               <div style={{ flex: 1, height: 2, background: i === nodes.length - 1 ? 'transparent' : (rightDone ? LINE_DONE : LINE_PENDING) }} />
             </div>

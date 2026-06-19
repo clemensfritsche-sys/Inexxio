@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { ScanRequest } from '@/lib/scan';
 
@@ -25,16 +25,21 @@ export function useScan(): ScanFn {
 }
 
 export function ScanProvider({ children }: { children: React.ReactNode }) {
-  const [req, setReq] = useState<ScanRequest | null>(null);
-  const scan = useCallback<ScanFn>((r) => setReq(r), []);
+  // Jede Anfrage bekommt eine eigene id → der Dialog wird per `key` frisch
+  // gemountet. Wichtig für Scan-Sequenzen (Bewegung/Ressource/Datenerfassung),
+  // die `scan()` mehrfach hintereinander aufrufen: kein Zustands-Recycling.
+  const [req, setReq] = useState<{ id: number; req: ScanRequest } | null>(null);
+  const idRef = useRef(0);
+  const scan = useCallback<ScanFn>((r) => { idRef.current += 1; setReq({ id: idRef.current, req: r }); }, []);
 
   return (
     <ScanContext.Provider value={scan}>
       {children}
       {req && (
         <ScanDialog
-          {...req}
-          onComplete={(ids) => { setReq(null); req.onComplete(ids); }}
+          key={req.id}
+          {...req.req}
+          onComplete={(ids) => { setReq(null); req.req.onComplete(ids); }}
           onClose={() => setReq(null)}
         />
       )}

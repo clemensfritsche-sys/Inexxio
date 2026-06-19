@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Article, CompanySettings, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState } from '@/lib/process';
+import { toStepperState, STEP_META } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -260,7 +260,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
               <ProcessStepper
-                nodes={steps.map((s) => ({ key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s) }))}
+                nodes={steps.map((s) => ({ key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s), icon: STEP_META[s.step_type as keyof typeof STEP_META]?.icon }))}
                 selectedKey={currentStepId ?? undefined}
                 onSelect={setSelStep}
               />

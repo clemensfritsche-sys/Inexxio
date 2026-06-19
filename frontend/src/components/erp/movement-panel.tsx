@@ -94,7 +94,12 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       candidates: [{ objectId: iid, label: instanceKindLabel(inst.kind) }],
     });
     if (fixedType && fixedId) {
-      steps.push({ label: 'Zielstandort', hint: `Zugewiesenen ${locationTypeLabel(fixedType)} scannen`, expected: fixedId });
+      steps.push({
+        label: `Zielstandort ${fmtObjId(fixedId)}`,
+        hint: `Zugewiesenen ${locationTypeLabel(fixedType)} ${fmtObjId(fixedId)} scannen`,
+        expected: fixedId,
+        candidates: [{ objectId: fixedId, label: mv?.target_location_label ?? locationTypeLabel(fixedType) }],
+      });
     } else {
       steps.push({ label: 'Zielstandort', hint: 'Zielstandort scannen – wird zugewiesen', restrict: true, candidates: targetCandidates });
     }

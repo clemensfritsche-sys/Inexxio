@@ -30,53 +30,65 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Validierungs-Fortschritt bleibt bei Abbruch erhalten: bereits vollständig
+  // gescannte Produkt-Instanzen bzw. Betriebsmittel werden gemerkt; bei Wieder-
+  // aufnahme wird die nächste offene Produkt-Instanz erneut von der übergeordneten
+  // Instanz an gescannt.
+  const [vProducts, setVProducts] = useState<number[]>([]);
+  const [vTools, setVTools] = useState<Record<number, number>>({});
 
   const consumeOk = consumeLines.every((l) => l.sufficient !== false);
   const toolsOk = toolLines.every((l) => (l.candidates?.length ?? 0) > 0);
+  const productCount = consumeLines.length > 0 ? products.length : 0;
+  const validatedCount = vProducts.length + Object.keys(vTools).length;
+  const totalToValidate = productCount + toolLines.length;
+  const inProgress = validatedCount > 0 && validatedCount < totalToValidate;
 
-  // Scan-Sequenz: je Produkt-Instanz die geplanten Komponenten validieren
-  // (richtige Instanz?), danach je Betriebsmittel eine freigegebene Instanz.
-  function startScan() {
-    setError(null);
-    const steps: ScanStep[] = [];
+  // Eine Einheit (Produkt-Instanz ODER Betriebsmittel) pro Scan-Session validieren –
+  // nach jeder vollständigen Session den Fortschritt speichern und fortfahren.
+  function resume(accProducts: number[], accTools: Record<number, number>) {
     if (consumeLines.length > 0) {
-      for (const p of products) {
-        steps.push({
-          label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen',
-          expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceKindLabel(p.kind) }],
-        });
-        for (const c of (p.components ?? [])) {
-          steps.push({
+      const p = products.find((pp) => !accProducts.includes(pp.instance_id));
+      if (p) {
+        const steps: ScanStep[] = [
+          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen',
+            expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceKindLabel(p.kind) }] },
+          ...(p.components ?? []).map((c) => ({
             label: `Komponente ${fmtObjId(c.instance_id)}`,
             hint: `${c.article_name ?? ''} in ${fmtObjId(p.instance_id)} verbauen`,
             expected: c.instance_id,
             candidates: [{ objectId: c.instance_id, label: c.article_name ?? 'Komponente' }],
-          });
-        }
+          })),
+        ];
+        scan({
+          title: `Verbrauch · ${fmtObjId(p.instance_id)}`,
+          steps,
+          onComplete: () => { const np = [...accProducts, p.instance_id]; setVProducts(np); resume(np, accTools); },
+        });
+        return;
       }
     }
-    for (const l of toolLines) {
-      steps.push({
-        label: `Betriebsmittel: ${l.article_name ?? `#${l.article_id}`}`,
-        hint: 'Genutztes Betriebsmittel scannen',
-        restrict: true,
-        candidates: (l.candidates ?? []).map((c) => ({ objectId: c.object_id, label: l.article_name ?? '' })),
+    const tl = toolLines.find((l) => accTools[l.article_id] == null);
+    if (tl) {
+      scan({
+        title: `Betriebsmittel · ${tl.article_name ?? ''}`,
+        steps: [{
+          label: `Betriebsmittel: ${tl.article_name ?? `#${tl.article_id}`}`,
+          hint: 'Genutztes Betriebsmittel scannen', restrict: true,
+          candidates: (tl.candidates ?? []).map((c) => ({ objectId: c.object_id, label: tl.article_name ?? '' })),
+        }],
+        onComplete: ([id]) => { const nt = { ...accTools, [tl.article_id]: id }; setVTools(nt); resume(accProducts, nt); },
       });
+      return;
     }
-    if (steps.length === 0) { record([]); return; }
-    scan({
-      title: 'Ressourcen scannen',
-      steps,
-      onComplete: (ids) => {
-        // Die letzten N IDs gehören zu den N Betriebsmittel-Schritten (in Reihenfolge).
-        const toolIds = ids.slice(ids.length - toolLines.length);
-        const tools: ResourceToolPickInput[] = toolLines.map((l, i) => ({
-          article_id: l.article_id, instance_ids: [toolIds[i]],
-        }));
-        record(tools);
-      },
-    });
+    // Alles validiert → buchen
+    const tools: ResourceToolPickInput[] = toolLines.map((l) => ({
+      article_id: l.article_id, instance_ids: accTools[l.article_id] != null ? [accTools[l.article_id]] : [],
+    }));
+    record(tools);
   }
+
+  function startScan() { setError(null); resume(vProducts, vTools); }
 
   async function record(tools: ResourceToolPickInput[]) {
     setSaving(true); setError(null);
@@ -126,7 +138,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
-            {products.map((p) => <ProductCard key={p.instance_id} product={p} />)}
+            {products.map((p) => <ProductCard key={p.instance_id} product={p} validated={vProducts.includes(p.instance_id)} />)}
           </div>
         </div>
       )}
@@ -146,7 +158,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
               style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 7, border: 'none',
                 background: (saving || !consumeOk || !toolsOk) ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600,
                 cursor: (saving || !consumeOk || !toolsOk) ? 'not-allowed' : 'pointer' }}>
-              <ScanLine size={15} /> {saving ? 'Speichert…' : 'Scannen & buchen'}
+              <ScanLine size={15} /> {saving ? 'Speichert…' : inProgress ? `Fortsetzen (${validatedCount}/${totalToValidate})` : 'Scannen & buchen'}
             </button>
           </div>
         </>
@@ -156,15 +168,17 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 }
 
 // Verbrauch je Produkt-Instanz: Kopf = Produkt, Liste = eingebaute Komponenten
-function ProductCard({ product }: { product: OrderResourceProduct }) {
+function ProductCard({ product, validated }: { product: OrderResourceProduct; validated?: boolean }) {
   const comps = product.components ?? [];
   return (
-    <div style={lineBox}>
+    <div style={{ ...lineBox, borderColor: validated ? '#bbf7d0' : '#f1f5f9' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Boxes size={14} style={{ color: '#0f766e' }} />
         <span style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{instanceKindLabel(product.kind)}</span>
         <ObjId value={product.instance_id} />
-        <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto' }}>Produkt-Instanz</span>
+        {validated
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#16a34a', marginLeft: 'auto' }}><CheckCircle2 size={12} /> validiert</span>
+          : <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto' }}>Produkt-Instanz</span>}
       </div>
       {comps.length === 0 ? (
         <div style={{ fontSize: 12, color: '#cbd5e1' }}>Keine Komponenten.</div>

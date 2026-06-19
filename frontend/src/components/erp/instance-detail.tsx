@@ -79,6 +79,9 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
             <Row k="Menge" v={String(record.quantity)} />
             {record.serial_number && <Row k="Seriennummer" v={record.serial_number} />}
             <RowNode k="Aus Auftrag">{record.order_object_id != null ? <ObjId value={record.order_object_id} /> : '—'}</RowNode>
+            {record.reserved_for_order_object_id != null && (
+              <RowNode k="Reserviert für"><ObjId value={record.reserved_for_order_object_id} /></RowNode>
+            )}
             <RowNode k="Standort">{record.location_id != null ? <ObjId value={record.location_id} /> : 'Kein Standort'}</RowNode>
             <Row k="Status" v={qcStatusConfig(record.qc_status).label} />
             <Row k="Erstellt" v={localDate(record.created_at)} />
