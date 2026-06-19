@@ -58,15 +58,18 @@ def _user_name(u: UserProfile | None) -> str | None:
 
 
 def fifo_candidates(db: Session, article_db_id: int) -> list[Instance]:
-    """Verbrauchbare Instanzen eines Artikels: freigegeben, im Lager, FIFO nach
-    Freigabe (released_at, ersatzweise created_at), dann Objektnummer."""
+    """Verbrauchbare Instanzen eines Artikels: **freigegeben** (qc passed = Auftrag
+    abgeschlossen & ab Lager verfügbar), Restmenge > 0, FIFO nach Freigabe
+    (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
+
+    Kein Standort-Filter nötig: bereits verbaute Instanzen tragen den Status
+    ``consumed`` (nicht ``passed``) und fallen damit automatisch heraus."""
     rows = (
         db.query(Instance)
         .filter(
             Instance.article_id == article_db_id,
             Instance.is_active == True,
             Instance.qc_status == "passed",
-            Instance.location_type == "lagerplatz",
             Instance.quantity > 0,
         )
         .all()

@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
-import { Wrench, Lock, CheckCircle2, Package, Boxes } from 'lucide-react';
+import { Wrench, Lock, CheckCircle2, Package, Boxes, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
   Order, OrderResourceLine, OrderResourceProduct, ResourceToolPickInput,
 } from '@/types';
+import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
+import { fmtObjId } from '@/components/erp/user-detail';
 import { instanceKindLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
+import { useScan } from '@/components/scan/scan-provider';
 
 export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -22,29 +25,62 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   const done = !!res?.done;
   const consumeLines = lines.filter((l) => l.mode === 'consume');
   const toolLines = lines.filter((l) => l.mode === 'tool');
+  const scan = useScan();
 
-  const [picks, setPicks] = useState<Record<number, number[]>>({});
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggle(articleId: number, objId: number) {
-    setPicks((p) => {
-      const cur = p[articleId] ?? [];
-      return { ...p, [articleId]: cur.includes(objId) ? cur.filter((x) => x !== objId) : [...cur, objId] };
+  const consumeOk = consumeLines.every((l) => l.sufficient !== false);
+  const toolsOk = toolLines.every((l) => (l.candidates?.length ?? 0) > 0);
+
+  // Scan-Sequenz: je Produkt-Instanz die geplanten Komponenten validieren
+  // (richtige Instanz?), danach je Betriebsmittel eine freigegebene Instanz.
+  function startScan() {
+    setError(null);
+    const steps: ScanStep[] = [];
+    if (consumeLines.length > 0) {
+      for (const p of products) {
+        steps.push({
+          label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen',
+          expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceKindLabel(p.kind) }],
+        });
+        for (const c of (p.components ?? [])) {
+          steps.push({
+            label: `Komponente ${fmtObjId(c.instance_id)}`,
+            hint: `${c.article_name ?? ''} in ${fmtObjId(p.instance_id)} verbauen`,
+            expected: c.instance_id,
+            candidates: [{ objectId: c.instance_id, label: c.article_name ?? 'Komponente' }],
+          });
+        }
+      }
+    }
+    for (const l of toolLines) {
+      steps.push({
+        label: `Betriebsmittel: ${l.article_name ?? `#${l.article_id}`}`,
+        hint: 'Genutztes Betriebsmittel scannen',
+        restrict: true,
+        candidates: (l.candidates ?? []).map((c) => ({ objectId: c.object_id, label: l.article_name ?? '' })),
+      });
+    }
+    if (steps.length === 0) { record([]); return; }
+    scan({
+      title: 'Ressourcen scannen',
+      steps,
+      onComplete: (ids) => {
+        // Die letzten N IDs gehören zu den N Betriebsmittel-Schritten (in Reihenfolge).
+        const toolIds = ids.slice(ids.length - toolLines.length);
+        const tools: ResourceToolPickInput[] = toolLines.map((l, i) => ({
+          article_id: l.article_id, instance_ids: [toolIds[i]],
+        }));
+        record(tools);
+      },
     });
   }
 
-  const consumeOk = consumeLines.every((l) => l.sufficient !== false);
-  const toolsOk = toolLines.every((l) => (picks[l.article_id]?.length ?? 0) > 0);
-  const canConfirm = consumeOk && toolsOk && !saving;
-
-  async function confirm() {
+  async function record(tools: ResourceToolPickInput[]) {
     setSaving(true); setError(null);
     try {
-      const tools: ResourceToolPickInput[] = toolLines.map((l) => ({
-        article_id: l.article_id, instance_ids: picks[l.article_id] ?? [],
-      }));
       onOrderUpdated(await api.updateOrderResource(order.object_id as number, {
         tools, note: note.trim() || null, step_id: stepId ?? null,
       }));
@@ -76,10 +112,8 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
         </div>
       )}
 
-      {/* Betriebsmittel wählen (nicht im Done-Zustand) */}
-      {!done && toolLines.map((l, i) => (
-        <ToolLine key={`t${i}`} line={l} selected={picks[l.article_id] ?? []} onToggle={(oid) => toggle(l.article_id, oid)} />
-      ))}
+      {/* Betriebsmittel: was gebraucht wird (Auswahl erfolgt per Scan) */}
+      {!done && toolLines.map((l, i) => <ToolNeed key={`t${i}`} line={l} />)}
 
       {/* Verbrauch je Produkt-Instanz: welche Komponenten-Instanz wird wohin verbaut */}
       {consumeLines.length > 0 && (
@@ -108,9 +142,11 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
             className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
           {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={confirm} disabled={!canConfirm}
-              style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: canConfirm ? '#2563eb' : '#93c5fd', color: '#fff', fontSize: 13, fontWeight: 600, cursor: canConfirm ? 'pointer' : 'not-allowed' }}>
-              {saving ? 'Speichert…' : 'Ressourcen buchen'}
+            <button onClick={startScan} disabled={saving || !consumeOk || !toolsOk}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 7, border: 'none',
+                background: (saving || !consumeOk || !toolsOk) ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600,
+                cursor: (saving || !consumeOk || !toolsOk) ? 'not-allowed' : 'pointer' }}>
+              <ScanLine size={15} /> {saving ? 'Speichert…' : 'Scannen & buchen'}
             </button>
           </div>
         </>
@@ -157,6 +193,7 @@ function ConsumeAvailability({ line }: { line: OrderResourceLine }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
       <Package size={13} style={{ color: '#2563eb' }} />
       <span style={{ flex: 1, color: '#475569' }}>
+        {line.article_object_id != null && <span style={{ fontFamily: 'monospace', color: '#0f172a' }}>{fmtObjId(line.article_object_id)} · </span>}
         {line.article_name ?? `#${line.article_id}`}
         <span style={{ color: '#94a3b8' }}> · {line.quantity}{line.unit ? ` ${unitLabel(line.unit)}` : ''}/Stk</span>
       </span>
@@ -167,33 +204,17 @@ function ConsumeAvailability({ line }: { line: OrderResourceLine }) {
   );
 }
 
-function ToolLine({ line, selected, onToggle }: {
-  line: OrderResourceLine; selected: number[]; onToggle: (oid: number) => void;
-}) {
+function ToolNeed({ line }: { line: OrderResourceLine }) {
+  const none = (line.candidates?.length ?? 0) === 0;
   return (
     <div style={lineBox}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Wrench size={14} style={{ color: '#2563eb' }} />
         <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', flex: 1 }}>{line.article_name ?? `#${line.article_id}`}</span>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>Betriebsmittel · wählen</span>
+        <span style={{ fontSize: 11, color: none ? '#dc2626' : '#94a3b8' }}>
+          {none ? 'kein Betriebsmittel verfügbar' : 'Betriebsmittel · per Scan wählen'}
+        </span>
       </div>
-      {(line.candidates?.length ?? 0) === 0 ? (
-        <div style={{ fontSize: 12, color: '#dc2626' }}>Kein freigegebenes Betriebsmittel vorhanden.</div>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {line.candidates!.map((c) => {
-            const on = selected.includes(c.object_id);
-            return (
-              <button key={c.object_id} type="button" onClick={() => onToggle(c.object_id)}
-                style={{ padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, fontFamily: 'monospace',
-                  cursor: 'pointer', border: `1px solid ${on ? '#2563eb' : '#e2e8f0'}`,
-                  background: on ? '#eff6ff' : '#fff', color: on ? '#2563eb' : '#64748b' }}>
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

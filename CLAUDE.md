@@ -159,6 +159,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `services/serialization.py`): Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N (`instances`,
   eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
   volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
+  **Instanz-Lebenszyklus (qc_status):** neue Instanzen sind **`pending` («Im Prozess»)** und werden
+  erst **bei Auftrags-Abschluss `passed` («Freigegeben», ab Lager verbrauchbar)** – `process.
+  recompute_completion` → `release_instances` (`released_at` = FIFO-Basis). Verbaute Instanzen werden
+  `consumed` («Verbraucht»), durchgefallene `failed` («Gesperrt»). Der Ressource-Verbrauch (FIFO)
+  greift auf **`passed`** zu (kein Standort-Filter; `consumed` fällt automatisch heraus).
   **Mehr-Operationen-Routing:** mehrere gleichartige Schritte (z. B. mehrere `resource`-Operationen)
   sind hintereinander möglich – jede Fachzeile trägt die `step_id` ihrer Schritt-Definition, der
   Status wird **pro Schritt** abgeleitet (`process.fact_for_step`/`resolve_exec_step`). Schritttypen:
@@ -243,12 +248,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`services/events.py`). Schema-Management via Alembic (`start.sh`), Lifespan-Safety-Nets als Fallback.
 - **QR-Code / Kamera-Scan (zentral, Frontend-only)**: die universelle Objektnummer ist der einzige
   Code-Inhalt. `lib/scan.ts` (`encodeObjectCode`/`parseScannedCode` – tolerant ggü. nackter Nummer &
-  URL/Deep-Link). Zentraler Scanner: `ScanProvider` + `useScan({ title, expected?, onResult })` mountet
-  EINE Dialog-Instanz am ERP-Layout; `ScanDialog` ist **Kamera-first** (ZXing `@zxing/browser`, lazy
-  geladen) mit manueller Fallback-Eingabe nach ~2.5 s bzw. sofort bei fehlendem Kamerazugriff.
-  **Verifikations-Modus** (`expected`): nur ein passender Code wird grün quittiert, falscher Code rot
-  abgewiesen. Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button
-  «Scannen» öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
+  URL/Deep-Link; `validateForStep`). Zentraler Scanner: `ScanProvider` + `useScan({ title, steps,
+  onComplete })` mountet EINE Dialog-Instanz am ERP-Layout. `ScanDialog` ist **Kamera-first**
+  (ZXing `BrowserMultiFormatReader` – **alle** Code-Arten, lazy geladen) mit **sofort sichtbarer**
+  manueller **semantischer Suche** (z. B. «003» → 100000003). Ein Scan-Vorgang ist eine **Sequenz**
+  von Schritten (`steps`): je Schritt `expected` (Verifikation, grün/rot, Kamera läuft weiter) oder
+  `restrict`+`candidates` (Lookup; Code ausserhalb des ERP → Fehlermeldung). **Prozess-Quittierung
+  per Scan ist verbindlich:** Bewegung (aktueller Standort → Instanz → Zielstandort), Ressource
+  (Produkt-Instanz → Komponente; Betriebsmittel), Datenerfassung (Instanz vor Erfassung).
+  Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button «Scannen»
+  öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
 > Prozess-Schritttypen: purchase, inspection, movement, resource (Bestands-Instanzen entstehen bei der
@@ -259,10 +268,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Mehr-Operationen-Routing** ist vorbereitet: mehrere gleichartige Prozessschritte (inkl. mehrerer
 > `resource`-Operationen) laufen unabhängig (`step_id` auf den Fachtabellen).
 
-Nächste Aufgabe: Scan-Quittierung in den Prozessschritten (Kamera als Standard via `useScan({expected})`
-in Bewegung/Ressource/Datenerfassung/Wareneingang); Reklamation – konfigurierbare Prozessschritte je
-RMA; E-Mail-Versand (Gmail API); Arbeitspläne (vollständiges Routing-UI auf Basis des
-Mehr-Operationen-Routings); Stripe
+Nächste Aufgabe: Scan-Quittierung auch im Wareneingang (`purchase` «received») via `useScan`;
+Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API); Arbeitspläne
+(vollständiges Routing-UI auf Basis des Mehr-Operationen-Routings); Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

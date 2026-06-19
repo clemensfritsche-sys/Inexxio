@@ -19,8 +19,6 @@ Startstandort:
 from sqlalchemy.orm import Session
 
 from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
-from ..models.base import utcnow
-from . import process
 from .admin import log_audit
 from .events import emit
 from .locations import resolve_receiving_location
@@ -61,9 +59,9 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
     if not art or not order.quantity:
         return []
 
-    # Ohne nachgelagerte Eingangskontrolle gilt die Ware direkt als freigegeben
-    qc = "pending" if process.has_step(db, order, "inspection") else "passed"
-    released = utcnow() if qc == "passed" else None   # Basis für FIFO-Verbrauch
+    # Neue Instanzen sind «Im Prozess» (pending) – sie werden erst zu «Freigegeben»
+    # (passed, verbrauchbar), wenn ihr Auftrag vollständig abgeschlossen ist
+    # (`process.recompute_completion`) bzw. eine Eingangskontrolle sie freigibt.
     loc_type, loc_id = _initial_location(db, order)
 
     created: list[Instance] = []
@@ -78,7 +76,7 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
         inst = Instance(
             object_id=obj_ids[i], article_id=art.id, order_id=order.id,
             kind=kind, quantity=order.quantity if kind == "batch" else 1,
-            qc_status=qc, released_at=released,
+            qc_status="pending", released_at=None,
             location_type=loc_type, location_id=loc_id,
         )
         db.add(inst)

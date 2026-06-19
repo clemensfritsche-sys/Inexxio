@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
+import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 
 // Lebenszyklus der Kamera-Erfassung:
 //   starting     → Kamera wird angefragt/initialisiert
@@ -11,9 +11,10 @@ import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 export type ScanState = 'starting' | 'scanning' | 'denied' | 'unsupported';
 
 /**
- * Kapselt die gesamte Kamera-/Decode-Mechanik (ZXing). Liefert ein `videoRef`
- * für das Vorschau-Element und den aktuellen `state`. Der Callback feuert bei
- * jedem erkannten Code mit dem Rohtext – Parsing/Verifikation passiert oben.
+ * Kapselt die gesamte Kamera-/Decode-Mechanik (ZXing, **alle** Code-Arten:
+ * QR, Data Matrix, Code128/39, EAN, …). Liefert ein `videoRef` für das
+ * Vorschau-Element und den aktuellen `state`. Der Callback feuert bei jedem
+ * erkannten Code mit dem Rohtext – Parsing/Verifikation passiert oben.
  *
  * Bevorzugt die Rückkamera (`facingMode: environment`). Räumt Stream + Decode-
  * Loop beim Unmount/Deaktivieren sauber ab.
@@ -35,7 +36,7 @@ export function useBarcodeScanner(active: boolean, onText: (text: string) => voi
     let cancelled = false;
     setState('starting');
 
-    const reader = new BrowserQRCodeReader();
+    const reader = new BrowserMultiFormatReader();
     reader
       .decodeFromConstraints(
         { video: { facingMode: 'environment' } },

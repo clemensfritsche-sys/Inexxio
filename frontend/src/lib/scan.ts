@@ -35,3 +35,36 @@ export function matchesExpected(objectId: number, expected: number | number[] | 
   if (expected == null) return true;                       // kein Ziel ⇒ reiner Lookup
   return Array.isArray(expected) ? expected.includes(objectId) : expected === objectId;
 }
+
+// ─── Zentrale Scanner-Anfrage (Sequenz von Scan-Schritten) ────────────────────
+//
+// Ein Scan-Vorgang besteht aus einer Reihe von Schritten (z. B. «Aktueller
+// Standort» → «Instanz» → «Zielstandort»). Jeder Schritt validiert den Scan;
+// erst wenn alle Schritte erfolgreich sind, feuert `onComplete` mit den IDs.
+
+/** Eintrag für die semantische Suche (manueller Fallback) im Scanner. */
+export interface ScanCandidate {
+  objectId: number;
+  label: string;     // Anzeigetext (z. B. Artikelname / Typ)
+}
+
+export interface ScanStep {
+  label: string;                              // was gerade gescannt werden soll
+  hint?: string;                              // optionaler Zusatzhinweis
+  expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)
+  candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
+  restrict?: boolean;                         // nur Kandidaten-IDs zulassen (sonst: jede gültige Nr.)
+}
+
+export interface ScanRequest {
+  title?: string;
+  steps: ScanStep[];
+  onComplete: (objectIds: number[]) => void;
+}
+
+/** Bewertet einen gescannten/eingegebenen Code gegen einen Schritt. */
+export function validateForStep(objectId: number, step: ScanStep): boolean {
+  if (step.expected != null) return matchesExpected(objectId, step.expected);
+  if (step.restrict && step.candidates) return step.candidates.some((c) => c.objectId === objectId);
+  return true;   // freier Lookup: jede gültige Objektnummer zählt
+}

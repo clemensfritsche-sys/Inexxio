@@ -28,7 +28,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import (
-    ArticleProcessStep, Inspection, Movement, Order, PurchaseOrder, ResourceUsage,
+    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder, ResourceUsage,
 )
 from ..models.base import utcnow
 from .events import emit
@@ -197,12 +197,33 @@ def has_step(db: Session, order: Order, step_type: str) -> bool:
     return any(d.step_type == step_type for d in step_defs(db, order.article_id))
 
 
+def release_instances(db: Session, order: Order) -> None:
+    """Bestands-Instanzen eines abgeschlossenen Auftrags freigeben (pending → passed).
+
+    Erst ein abgeschlossener Auftrag bedeutet «fertig & ab Lager verfügbar»: die
+    Instanzen werden zu «Freigegeben» und damit für den Ressource-Verbrauch (FIFO)
+    nutzbar. ``released_at`` ist die FIFO-Basis. Bereits bewertete Instanzen
+    (failed/consumed/passed) bleiben unverändert."""
+    now = utcnow()
+    rows = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True,
+                Instance.qc_status == "pending")
+        .all()
+    )
+    for inst in rows:
+        inst.qc_status = "passed"
+        if inst.released_at is None:
+            inst.released_at = now
+
+
 def recompute_completion(db: Session, order: Order) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
     if order.status != "completed" and all_steps_done(db, order):
         order.status = "completed"
         if order.completed_at is None:
             order.completed_at = utcnow()
+        release_instances(db, order)   # fertige Instanzen freigeben (verbrauchbar)
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
 
 

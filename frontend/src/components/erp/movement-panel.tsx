@@ -1,25 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info } from 'lucide-react';
+import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, StorageLocation, UserProfile } from '@/types';
+import type { ScanCandidate, ScanStep } from '@/lib/scan';
 import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, SearchSelect } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { useScan } from '@/components/scan/scan-provider';
 
-type Opt = { value: string; label: string };
-
-function encode(type: LocationType, id: number): string { return `${type}:${id}`; }
-function decode(v: string): { type: LocationType; id: number } | null {
-  const idx = v.indexOf(':');
-  if (idx < 0) return null;
-  const type = v.slice(0, idx) as LocationType;
-  const id = Number(v.slice(idx + 1));
-  return Number.isFinite(id) ? { type, id } : null;
-}
+type OrderInstance = NonNullable<Order['instances']>[number];
 
 export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -30,15 +22,16 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const mv = order.movement;
   const done = !!mv?.done;
   const instances = useMemo(() => order.instances ?? [], [order.instances]);
+  const scan = useScan();
 
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
-  const [targets, setTargets] = useState<Record<number, string>>({});
+  const [targets, setTargets] = useState<Record<number, string>>({});   // instanceObjId → "type:id"
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auswahllisten erst laden, wenn die Bewegung aktiv ist (nicht im gesperrten Zustand)
+  // Auswahllisten erst laden, wenn die Bewegung aktiv ist (für freie Zielwahl)
   useEffect(() => {
     if (stepState === 'locked' || done) return;
     Promise.allSettled([api.getStorageLocations(), api.getUsers(), api.getInstances()])
@@ -49,56 +42,89 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       });
   }, [stepState, done]);
 
-  // Vorbelegung mit dem Vorgabe-Ziel aus der Prozessdefinition (falls fest gesetzt);
-  // sonst leer – der Lagerist wählt bewusst. Der aktuelle Standort wird separat angezeigt.
-  useEffect(() => {
-    const fixed = mv?.target_location_type && mv?.target_location_id
-      ? encode(mv.target_location_type as LocationType, mv.target_location_id) : '';
-    const seed: Record<number, string> = {};
-    instances.forEach((i) => { if (i.object_id != null) seed[i.object_id] = fixed; });
-    setTargets(seed);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.object_id, done]);
-
-  const ownObjIds = useMemo(() => new Set(instances.map((i) => i.object_id)), [instances]);
   const fixedType = mv?.target_location_type as LocationType | null | undefined;
+  const fixedId = mv?.target_location_id ?? null;
+  const ownObjIds = useMemo(() => new Set(instances.map((i) => i.object_id)), [instances]);
 
-  // Flache, durchsuchbare Zieloptionen (Typ-Präfix + Objektnummer/Name).
-  const options = useMemo<Opt[]>(() => {
-    const out: Opt[] = [];
+  // Gültige Zielorte (für freie Zielwahl): Lagerplätze, Personen, andere Instanzen.
+  const targetType = useMemo(() => new Map<number, LocationType>(), []);
+  const targetCandidates = useMemo<ScanCandidate[]>(() => {
+    targetType.clear();
+    const out: ScanCandidate[] = [];
     if (!fixedType || fixedType === 'lagerplatz') {
-      storageLocs.filter((l) => l.status === 'released' && l.object_id != null).forEach((l) =>
-        out.push({ value: encode('lagerplatz', l.object_id as number), label: `Lagerplatz ${fmtObjId(l.object_id)}` }));
+      storageLocs.filter((l) => l.status === 'released' && l.object_id != null).forEach((l) => {
+        targetType.set(l.object_id as number, 'lagerplatz');
+        out.push({ objectId: l.object_id as number, label: `Lagerplatz` });
+      });
     }
     if (!fixedType || fixedType === 'user') {
-      users.filter((u) => u.object_id != null).forEach((u) =>
-        out.push({ value: encode('user', u.object_id as number), label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` }));
+      users.filter((u) => u.object_id != null).forEach((u) => {
+        targetType.set(u.object_id as number, 'user');
+        out.push({ objectId: u.object_id as number, label: `Person ${userDisplayName(u)}` });
+      });
     }
     if (!fixedType || fixedType === 'instance') {
-      allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) =>
-        out.push({ value: encode('instance', i.object_id as number), label: `${instanceKindLabel(i.kind)} ${fmtObjId(i.object_id)}` }));
+      allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) => {
+        targetType.set(i.object_id as number, 'instance');
+        out.push({ objectId: i.object_id as number, label: instanceKindLabel(i.kind) });
+      });
     }
     return out;
-  }, [storageLocs, users, allInstances, ownObjIds, fixedType]);
+  }, [storageLocs, users, allInstances, ownObjIds, fixedType, targetType]);
 
-  function setAll(v: string) {
-    if (!v) return;
-    const next: Record<number, string> = {};
-    instances.forEach((i) => { if (i.object_id != null) next[i.object_id] = v; });
-    setTargets(next);
+  // Eine Instanz scannen: aktueller Standort → Instanz → Zielstandort (validiert),
+  // danach automatisch zur nächsten offenen Instanz; sind alle erfasst → buchen.
+  function runSequence(queue: OrderInstance[], acc: Record<number, string>) {
+    if (queue.length === 0) {
+      const allDone = instances.every((x) => x.object_id != null && acc[x.object_id as number]);
+      if (allDone) submitWith(acc);
+      return;
+    }
+    const inst = queue[0];
+    const iid = inst.object_id as number;
+    const steps: ScanStep[] = [];
+    if (inst.location_id != null) {
+      steps.push({
+        label: 'Aktueller Standort', hint: `Standort von ${fmtObjId(iid)} scannen`, expected: inst.location_id,
+        candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
+      });
+    }
+    steps.push({
+      label: 'Instanz', hint: 'Zu bewegende Instanz scannen', expected: iid,
+      candidates: [{ objectId: iid, label: instanceKindLabel(inst.kind) }],
+    });
+    if (fixedType && fixedId) {
+      steps.push({ label: 'Zielstandort', hint: `Zugewiesenen ${locationTypeLabel(fixedType)} scannen`, expected: fixedId });
+    } else {
+      steps.push({ label: 'Zielstandort', hint: 'Zielstandort scannen – wird zugewiesen', restrict: true, candidates: targetCandidates });
+    }
+    scan({
+      title: `Bewegung · ${fmtObjId(iid)}`,
+      steps,
+      onComplete: (ids) => {
+        const targetObjId = ids[ids.length - 1];
+        const type = fixedType ?? targetType.get(targetObjId) ?? 'lagerplatz';
+        const nextAcc = { ...acc, [iid]: `${type}:${targetObjId}` };
+        setTargets(nextAcc);
+        runSequence(queue.slice(1), nextAcc);
+      },
+    });
   }
 
-  async function submit() {
-    const list = instances
-      .map((i) => {
-        const dec = i.object_id != null ? decode(targets[i.object_id] ?? '') : null;
-        return dec && i.object_id != null
-          ? { instance_id: i.object_id, location_type: dec.type, location_id: dec.id }
-          : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+  function startScan(only?: OrderInstance) {
+    setError(null);
+    const queue = only ? [only] : instances.filter((i) => i.object_id != null && !targets[i.object_id as number]);
+    runSequence(queue.length ? queue : instances, targets);
+  }
 
-    if (list.length < instances.length) { setError('Bitte für jede Instanz einen Zielstandort wählen'); return; }
+  async function submitWith(acc: Record<number, string>) {
+    const list = instances.map((i) => {
+      const raw = i.object_id != null ? acc[i.object_id as number] : undefined;
+      if (!raw || i.object_id == null) return null;
+      const idx = raw.indexOf(':');
+      return { instance_id: i.object_id, location_type: raw.slice(0, idx) as LocationType, location_id: Number(raw.slice(idx + 1)) };
+    }).filter((x): x is NonNullable<typeof x> => x !== null);
+    if (list.length < instances.length) { setError('Bitte alle Instanzen scannen'); return; }
     setSaving(true); setError(null);
     try {
       onOrderUpdated(await api.updateOrderMovement(order.object_id as number, { targets: list, step_id: stepId ?? null }));
@@ -129,7 +155,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     );
   }
 
-  // Abgeschlossen → Standorte read-only anzeigen
   if (done) {
     return (
       <div style={cardStyle}>
@@ -146,55 +171,66 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     );
   }
 
+  const allScanned = instances.every((i) => i.object_id != null && targets[i.object_id as number]);
+
   return (
     <div style={cardStyle}>
       <Header />
 
-      {fixedType && (
-        <div style={infoStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>Vorgabe: Ziel ist ein <b>{locationTypeLabel(fixedType)}</b>{mv?.target_location_label ? ` (${mv.target_location_label})` : ''}.</span></div>
-      )}
+      <div style={infoStyle}>
+        <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>
+          {fixedType
+            ? <>Validierung: richtiger Standort &amp; richtige Instanz. Ziel ist fest ein <b>{locationTypeLabel(fixedType)}</b>{mv?.target_location_label ? ` (${mv.target_location_label})` : ''}.</>
+            : <>Pro Instanz scannen: aktueller Standort → Instanz → Zielstandort (wird zugewiesen).</>}
+        </span>
+      </div>
 
-      {/* Schnellauswahl für alle Instanzen */}
-      {instances.length > 1 && (
-        <div>
-          <Label>Ziel für alle Instanzen</Label>
-          <SearchSelect value="" placeholder="— alle gemeinsam setzen —" options={options} onChange={setAll} />
-        </div>
-      )}
-
-      {/* Pro Instanz ein Zielstandort */}
+      {/* Pro Instanz: Status (gescannt/offen) + Einzel-Scan */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
-        {instances.map((i) => (
-          <div key={i.id} style={{ border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {instances.map((i) => {
+          const t = i.object_id != null ? targets[i.object_id as number] : undefined;
+          const tgtId = t ? Number(t.slice(t.indexOf(':') + 1)) : null;
+          return (
+            <div key={i.id} style={{ border: `1px solid ${t ? '#bbf7d0' : '#f1f5f9'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(i.kind)}</span>
-              <CurrentLocation instance={i} />
+              {t ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#16a34a' }}>
+                  <CheckCircle2 size={13} /> Ziel {fmtObjId(tgtId)}
+                </span>
+              ) : (
+                <CurrentLocation instance={i} />
+              )}
+              <button onClick={() => startScan(i)} title="Diese Instanz scannen"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#2563eb', cursor: 'pointer', flexShrink: 0 }}>
+                <ScanLine size={15} />
+              </button>
             </div>
-            <SearchSelect
-              value={i.object_id != null ? (targets[i.object_id] ?? '') : ''}
-              placeholder="— Zielstandort wählen —"
-              options={options}
-              onChange={(v) => { if (i.object_id != null) setTargets((p) => ({ ...p, [i.object_id as number]: v })); }}
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={submit} disabled={saving}
-          style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-          {saving ? 'Speichert…' : 'Bewegung bestätigen'}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        {allScanned ? (
+          <button onClick={() => submitWith(targets)} disabled={saving}
+            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#16a34a', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
+            {saving ? 'Speichert…' : 'Bewegung buchen'}
+          </button>
+        ) : (
+          <button onClick={() => startScan()} disabled={saving}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 16px', borderRadius: 7, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <ScanLine size={15} /> Scannen &amp; bewegen
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-function CurrentLocation({ instance }: { instance: NonNullable<Order['instances']>[number] }) {
+function CurrentLocation({ instance }: { instance: OrderInstance }) {
   if (!instance.location_label) return <span style={{ fontSize: 11, color: '#cbd5e1' }}>kein Standort</span>;
   const Icon = LOCATION_META[(instance.location_type as LocationType)]?.icon ?? MapPin;
   return (
@@ -204,7 +240,7 @@ function CurrentLocation({ instance }: { instance: NonNullable<Order['instances'
   );
 }
 
-function InstanceRow({ instance }: { instance: NonNullable<Order['instances']>[number] }) {
+function InstanceRow({ instance }: { instance: OrderInstance }) {
   const Icon = LOCATION_META[(instance.location_type as LocationType)]?.icon ?? MapPin;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle } from 'lucide-react';
+import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { Label } from '@/components/erp/fields';
+import { useScan } from '@/components/scan/scan-provider';
 
 type Val = string | number | boolean | undefined;
 
@@ -51,6 +52,22 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [note, setNote] = useState(insp?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scan = useScan();
+  // Vor der Datenerfassung wird die Instanznummer per Scan validiert (richtiges Teil?).
+  const [unlocked, setUnlocked] = useState(false);
+  const distinctInstances = Array.from(new Set(samples.map((s) => s.instance_id)));
+
+  function startScan() {
+    if (distinctInstances.length === 0) { setUnlocked(true); return; }
+    scan({
+      title: 'Instanz prüfen',
+      steps: distinctInstances.map((iid) => ({
+        label: `Instanz ${fmtObjId(iid)}`, hint: 'Zu erfassende Instanz scannen', expected: iid,
+        candidates: [{ objectId: iid, label: 'Instanz' }],
+      })),
+      onComplete: () => setUnlocked(true),
+    });
+  }
 
   function setVal(key: string, fieldKey: string, v: Val) {
     setValues((p) => ({ ...p, [key]: { ...(p[key] ?? {}), [fieldKey]: v } }));
@@ -129,6 +146,17 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
+      ) : (!done && !unlocked) ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center', padding: '12px 8px', border: '1px dashed #cbd5e1', borderRadius: 10 }}>
+          <ScanLine size={26} style={{ color: '#2563eb' }} />
+          <span style={{ fontSize: 13, color: '#475569' }}>
+            Zuerst {distinctInstances.length === 1 ? 'die aufgeführte Instanz' : `die ${distinctInstances.length} aufgeführten Instanzen`} scannen – danach wird die Erfassung freigeschaltet.
+          </span>
+          <button onClick={startScan}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <ScanLine size={15} /> Instanz scannen &amp; erfassen
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 380, overflowY: 'auto' }}>
           {samples.map((s) => {
@@ -151,7 +179,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       )}
 
       {/* Notiz */}
-      {!done && samples.length > 0 && (
+      {!done && unlocked && samples.length > 0 && (
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Notiz (optional)"
           className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
       )}
@@ -160,7 +188,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
       {/* Aktion */}
-      {!done && samples.length > 0 && (
+      {!done && unlocked && samples.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
           <span style={{ flex: 1, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 600 }}>
             Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}

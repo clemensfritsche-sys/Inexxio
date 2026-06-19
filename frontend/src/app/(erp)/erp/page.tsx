@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
@@ -237,15 +237,22 @@ export default function ErpPage() {
     if (row) handleSelect(row.type, objectId);
   }
 
-  // Kamera-Scan im Feed → gescannten Datensatz öffnen (sonst als Suche anzeigen)
+  // Kamera-Scan im Feed → gescannten Datensatz öffnen. Kandidaten = alle Datensätze
+  // (restrict): ein Code ausserhalb des ERP wird im Dialog abgewiesen, Kamera läuft weiter.
   function scanToOpen() {
     scan({
       title: 'Datensatz scannen',
-      hint: 'QR-Etikett eines Datensatzes vor die Kamera halten',
-      onResult: (objectId) => {
+      steps: [{
+        label: 'Datensatz',
+        hint: 'QR-/Barcode eines beliebigen Datensatzes',
+        restrict: true,
+        candidates: rows
+          .filter((r) => r.objectId != null)
+          .map((r) => ({ objectId: r.objectId as number, label: `${rowTitle(r)} · ${TYPE_META[r.type].label}` })),
+      }],
+      onComplete: ([objectId]) => {
         const row = rows.find((r) => r.objectId === objectId);
         if (row) handleSelect(row.type, objectId);
-        else { setTypeFilter(null); setSearch(String(objectId)); }
       },
     });
   }
@@ -349,11 +356,21 @@ export default function ErpPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Name, Bezeichnung, Nummer…"
                   style={{
-                    width: '100%', paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                    width: '100%', paddingLeft: 30, paddingRight: search ? 30 : 12, paddingTop: 7, paddingBottom: 7,
                     fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8, background: '#F8FAFC',
                     outline: 'none', boxSizing: 'border-box',
                   }}
                 />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    title="Eingabe löschen"
+                    aria-label="Eingabe löschen"
+                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, border: 'none', background: '#e2e8f0', color: '#64748b', cursor: 'pointer' }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
               <button
                 onClick={scanToOpen}

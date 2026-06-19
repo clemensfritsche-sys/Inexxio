@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from 'react';
 import dynamic from 'next/dynamic';
-import type { ScanRequest } from '@/components/scan/scan-dialog';
+import type { ScanRequest } from '@/lib/scan';
 
 // Scanner-Dialog (inkl. ZXing-Decoder) erst bei Bedarf laden – hält das ERP-
 // Initialbündel schlank, der schwere Decoder kommt erst beim ersten Scan.
@@ -34,7 +34,7 @@ export function ScanProvider({ children }: { children: React.ReactNode }) {
       {req && (
         <ScanDialog
           {...req}
-          onResult={(id) => { setReq(null); req.onResult(id); }}
+          onComplete={(ids) => { setReq(null); req.onComplete(ids); }}
           onClose={() => setReq(null)}
         />
       )}
