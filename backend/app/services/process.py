@@ -24,6 +24,7 @@ automatisch ``completed``, wenn alle definierten Schritte erledigt sind.
 
 from math import ceil
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -68,27 +69,9 @@ def _facts(db: Session, order: Order, step_type: str) -> list:
     )
 
 
-def fact_for_step(db: Session, order: Order, step: ArticleProcessStep):
-    """Fachzeile, die zu genau diesem Schritt gehört (Routing über ``step_id``).
-
-    Exakter Treffer über ``step_id``; fehlt er (Altdaten), gehört eine Zeile ohne
-    ``step_id`` dem **einzigen** Schritt seines Typs."""
-    rows = _facts(db, order, step.step_type)
-    for r in rows:
-        if getattr(r, "step_id", None) == step.id:
-            return r
-    same_type = [d for d in step_defs(db, order.article_id) if d.step_type == step.step_type]
-    if len(same_type) == 1:
-        for r in rows:
-            if getattr(r, "step_id", None) is None:
-                return r
-    return None
-
-
-def _raw_status(db: Session, order: Order, step: ArticleProcessStep) -> str:
-    """Roh-Status eines konkreten Schritts: 'done' | 'open' | 'failed'."""
-    fact = fact_for_step(db, order, step)
-    if step.step_type == "purchase":
+def _fact_status(step_type: str, fact) -> str:
+    """Roh-Status aus der (bereits aufgelösten) Fachzeile: 'done'|'open'|'failed'. Rein."""
+    if step_type == "purchase":
         if not fact:
             return "open"
         if fact.status == "received":
@@ -96,28 +79,49 @@ def _raw_status(db: Session, order: Order, step: ArticleProcessStep) -> str:
         if fact.status == "rejected":
             return "failed"
         return "open"
-    if step.step_type == "inspection":
+    if step_type == "inspection":
         if fact and fact.result == "passed":
             return "done"
         if fact and fact.result == "failed":
             return "failed"
         return "open"
-    if step.step_type in ("movement", "resource"):
+    if step_type in ("movement", "resource"):
         return "done" if fact else "open"
     return "open"
 
 
-def order_step_infos(db: Session, order: Order) -> list[dict]:
-    """Schrittliste für den Auftrag-Stepper: state ∈ done|active|locked|failed.
+def _resolve_fact(step: ArticleProcessStep, rows: list, sole_of_type: bool):
+    """Fachzeile zu diesem Schritt (rein): exakt über ``step_id``; sonst – beim
+    einzigen Schritt seines Typs – eine Altzeile ohne ``step_id``."""
+    for r in rows:
+        if getattr(r, "step_id", None) == step.id:
+            return r
+    if sole_of_type:
+        for r in rows:
+            if getattr(r, "step_id", None) is None:
+                return r
+    return None
 
-    Jeder Eintrag trägt die ``id`` der Schritt-Definition (eindeutiger Schlüssel
-    für das Routing mehrerer gleichartiger Schritte)."""
+
+def build_order_steps(db: Session, order: Order) -> list[dict]:
+    """Schritte des Auftrags mit Zustand UND aufgelöster Fachzeile.
+
+    Definitionen und Fachzeilen werden **je einmal** geladen (kein O(K²) je
+    Schritt). Jeder Eintrag: id/step_type/position/label/state + ``step`` (Def) und
+    ``fact`` (aufgelöste Fachzeile) für die Weiterverwendung im Embed-Aufbau."""
     if not order.article_id:
         return []
-    infos: list[dict] = []
+    defs = step_defs(db, order.article_id)
+    counts: dict[str, int] = {}
+    for d in defs:
+        counts[d.step_type] = counts.get(d.step_type, 0) + 1
+    facts_by_type = {t: _facts(db, order, t) for t in counts}
+
+    out: list[dict] = []
     active_assigned = False
-    for d in step_defs(db, order.article_id):
-        raw = _raw_status(db, order, d)
+    for d in defs:
+        fact = _resolve_fact(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
+        raw = _fact_status(d.step_type, fact)
         if raw == "done":
             state = "done"
         elif raw == "failed":
@@ -128,62 +132,57 @@ def order_step_infos(db: Session, order: Order) -> list[dict]:
             active_assigned = True
         else:
             state = "locked"
-        infos.append({
-            "id": d.id,
-            "step_type": d.step_type,
-            "position": d.position,
-            "label": STEP_LABELS.get(d.step_type, d.step_type),
-            "state": state,
+        out.append({
+            "id": d.id, "step_type": d.step_type, "position": d.position,
+            "label": STEP_LABELS.get(d.step_type, d.step_type), "state": state,
+            "step": d, "fact": fact,
         })
-    return infos
+    return out
 
 
-def step_state(db: Session, order: Order, step_id: int) -> str | None:
-    """Zustand eines konkreten Schritts (über die Definition-id)."""
-    for i in order_step_infos(db, order):
-        if i["id"] == step_id:
-            return i["state"]
-    return None
+def order_step_infos(db: Session, order: Order) -> list[dict]:
+    """Öffentliche Schrittliste (ohne interne ``step``/``fact``-Objekte)."""
+    return [{k: s[k] for k in ("id", "step_type", "position", "label", "state")}
+            for s in build_order_steps(db, order)]
 
 
-def is_step_active(db: Session, order: Order, step_type: str) -> bool:
-    """Ist (irgend)ein Schritt dieses Typs aktiv? (Typ-basierte Kurzform)"""
-    return any(i["step_type"] == step_type and i["state"] == "active"
-               for i in order_step_infos(db, order))
+def fact_for_step(db: Session, order: Order, step: ArticleProcessStep):
+    """Fachzeile zu genau diesem Schritt (Ausführungs-Pfad/Services).
+
+    Exakter Treffer über ``step_id``; fehlt er (Altdaten), gehört eine Zeile ohne
+    ``step_id`` dem **einzigen** Schritt seines Typs."""
+    rows = _facts(db, order, step.step_type)
+    for r in rows:
+        if getattr(r, "step_id", None) == step.id:
+            return r
+    same_type = [d for d in step_defs(db, order.article_id) if d.step_type == step.step_type]
+    return _resolve_fact(step, rows, len(same_type) == 1)
 
 
 def active_step_of_type(db: Session, order: Order, step_type: str) -> ArticleProcessStep | None:
     """Die aktive Schritt-Definition des Typs (für die Ausführung ohne explizite id)."""
-    for i in order_step_infos(db, order):
-        if i["step_type"] == step_type and i["state"] == "active":
-            return (
-                db.query(ArticleProcessStep)
-                .filter(ArticleProcessStep.id == i["id"])
-                .first()
-            )
+    for s in build_order_steps(db, order):
+        if s["step_type"] == step_type and s["state"] == "active":
+            return s["step"]
     return None
 
 
 def resolve_exec_step(db: Session, order: Order, step_type: str, step_id: int | None) -> ArticleProcessStep:
     """Auszuführenden Schritt bestimmen: explizite ``step_id`` (muss aktiv sein)
     oder die aktive Schritt-Definition des Typs. Wirft, wenn nicht ausführbar."""
-    from fastapi import HTTPException
     label = STEP_LABELS.get(step_type, step_type)
+    steps = build_order_steps(db, order)
     if step_id is not None:
-        if step_state(db, order, step_id) != "active":
-            raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
-        step = (
-            db.query(ArticleProcessStep)
-            .filter(ArticleProcessStep.id == step_id, ArticleProcessStep.is_active == True)
-            .first()
-        )
-        if not step or step.step_type != step_type:
+        match = next((s for s in steps if s["id"] == step_id), None)
+        if not match or match["step"].step_type != step_type:
             raise HTTPException(404, detail="Prozessschritt nicht gefunden")
-        return step
-    step = active_step_of_type(db, order, step_type)
-    if not step:
+        if match["state"] != "active":
+            raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
+        return match["step"]
+    active = next((s for s in steps if s["step_type"] == step_type and s["state"] == "active"), None)
+    if not active:
         raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
-    return step
+    return active["step"]
 
 
 def all_steps_done(db: Session, order: Order) -> bool:

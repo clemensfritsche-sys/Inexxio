@@ -23,7 +23,7 @@ from ..models.base import utcnow
 from . import process
 from .admin import log_audit
 from .locations import resolve_receiving_location
-from .objects import next_object_id
+from .objects import next_object_ids
 
 
 def _initial_location(db: Session, order: Order) -> tuple[str, int]:
@@ -67,22 +67,22 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
 
     created: list[Instance] = []
     if art.serialization == "batch":
+        count = 1
+    else:  # unit → je Stück eine Instanz
+        count = order.quantity
+    # Objektnummern als Block vergeben (eine Query statt einer je Instanz).
+    obj_ids = next_object_ids(db, count)
+    kind = "batch" if art.serialization == "batch" else "unit"
+    for i in range(count):
         inst = Instance(
-            object_id=next_object_id(db), article_id=art.id, order_id=order.id,
-            kind="batch", quantity=order.quantity, qc_status=qc, released_at=released,
+            object_id=obj_ids[i], article_id=art.id, order_id=order.id,
+            kind=kind, quantity=order.quantity if kind == "batch" else 1,
+            qc_status=qc, released_at=released,
             location_type=loc_type, location_id=loc_id,
         )
-        db.add(inst); db.flush()
+        db.add(inst)
         created.append(inst)
-    else:  # unit → je Stück eine Instanz
-        for _ in range(order.quantity):
-            inst = Instance(
-                object_id=next_object_id(db), article_id=art.id, order_id=order.id,
-                kind="unit", quantity=1, qc_status=qc, released_at=released,
-                location_type=loc_type, location_id=loc_id,
-            )
-            db.add(inst); db.flush()
-            created.append(inst)
+    db.flush()
 
     log_audit(db, "instances", None, f"{len(created)} Instanz(en) bei Freigabe angelegt",
               actor_id, object_id=order.object_id)

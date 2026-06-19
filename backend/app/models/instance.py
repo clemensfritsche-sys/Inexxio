@@ -41,4 +41,4 @@ class Instance(Base, TimestampMixin):
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:
     #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)

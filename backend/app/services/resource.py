@@ -266,10 +266,16 @@ def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
     return out
 
 
-def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep) -> ResourceEmbed | None:
+_UNSET = object()
+
+
+def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
+                         usage=_UNSET) -> ResourceEmbed | None:
     if not step or not step.resource_lines:
         return None
-    usage = _current_usage(db, order, step)
+    # ``usage`` kann vom Aufrufer bereits aufgelöst übergeben werden (spart eine Query).
+    if usage is _UNSET:
+        usage = _current_usage(db, order, step)
     done = usage is not None
     details = usage.details if usage else {}
     consumed_by_art: dict[int, list[int]] = {}

@@ -12,8 +12,8 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    table_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    table_name: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
     field_name: Mapped[Optional[str]] = mapped_column(String(100))
     old_value: Mapped[Optional[str]] = mapped_column(Text)
     new_value: Mapped[Optional[str]] = mapped_column(Text)

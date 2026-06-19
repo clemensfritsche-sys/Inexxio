@@ -42,7 +42,7 @@ class Claim(Base, TimestampMixin):
     # Bezugsobjekte – stets über die Objektnummer angesprochen (klickbar im Frontend).
     instance_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     article_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    order_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    order_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     # Beanstandung
     reason: Mapped[str] = mapped_column(String(30), default="defect", nullable=False)

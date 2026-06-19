@@ -173,14 +173,14 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     # zusätzlich gesetzt.
     steps: list[OrderStepInfo] = []
     first: dict[str, object] = {}
-    for info in process.order_step_infos(db, order):
-        step = db.query(ArticleProcessStep).filter(ArticleProcessStep.id == info["id"]).first()
-        si = OrderStepInfo(**info)
-        if step is None:
-            steps.append(si)
-            continue
-        fact = process.fact_for_step(db, order, step)
-        done = info["state"] == "done"
+    # build_order_steps lädt Definitionen + Fachzeilen je EINMAL und liefert die
+    # aufgelöste Fachzeile gleich mit (kein erneutes Nachladen je Schritt).
+    for s in process.build_order_steps(db, order):
+        step = s["step"]
+        fact = s["fact"]
+        si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
+                           label=s["label"], state=s["state"])
+        done = s["state"] == "done"
         by_name: str | None = None
         at = None
         if step.step_type == "purchase" and fact:
@@ -202,7 +202,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             if done:
                 by_name, at = emb.moved_by_name, (fact.updated_at if fact else None)
         elif step.step_type == "resource":
-            emb = build_resource_embed(db, order, step)
+            emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
             first.setdefault("resource", emb)
             if done and emb:

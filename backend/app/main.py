@@ -67,7 +67,6 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "capture_fields", "JSONB"),
     ("article_process_steps", "target_location_type", "VARCHAR(20)"),
     ("article_process_steps", "target_location_id", "BIGINT"),
-    ("inspections", "values", "JSONB"),
     ("inspections", "samples", "JSONB"),
     ("instances", "location_type", "VARCHAR(20)"),
     ("instances", "location_id", "BIGINT"),
@@ -104,6 +103,18 @@ _DROP_COLUMN_SAFETY_NET = (
     ("purchase_orders", "object_id"),
     ("purchase_orders", "unit_price"),
     ("purchase_orders", "desired_delivery_date"),
+    # Datenerfassung: Altformat `values` durch `samples` (je Stichprobe) ersetzt.
+    ("inspections", "values"),
+)
+
+# Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes
+# nur für NEUE Tabellen an – auf bestehenden Tabellen müssen sie idempotent
+# nachgezogen werden (sonst Seq-Scans, z. B. auf dem wachsenden Audit-Log).
+_INDEX_SAFETY_NET = (
+    ("ix_audit_log_object_id", "audit_log", "object_id"),
+    ("ix_audit_log_table_name", "audit_log", "table_name"),
+    ("ix_claims_order_object_id", "claims", "order_object_id"),
+    ("ix_instances_location_id", "instances", "location_id"),
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
@@ -136,6 +147,11 @@ def _ensure_columns() -> None:
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:
                     conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
+            for index_name, table, col in _INDEX_SAFETY_NET:
+                if table in tables and col in {c["name"] for c in insp.get_columns(table)}:
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({col})"
+                    ))
             if "purchase_orders" in tables:
                 for stmt in _DATA_FIXES:
                     conn.execute(text(stmt))

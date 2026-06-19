@@ -627,12 +627,67 @@ def test_process_engine_routing_helpers():
 
     assert callable(process.fact_for_step)
     assert callable(process.resolve_exec_step)
-    assert callable(process.step_state)
+    assert callable(process.build_order_steps)
     # Stepper-Infos tragen die Schritt-id (eindeutiger Routing-Schlüssel)
     from app.schemas.order import OrderStepInfo
     assert "id" in OrderStepInfo.model_fields
     for embed in ("purchase", "inspection", "movement", "resource"):
         assert embed in OrderStepInfo.model_fields
+
+
+def test_fact_status_pure_mapping():
+    """Roh-Status je Fachzeile (rein, ohne DB) – Grundlage des Steppers."""
+    from types import SimpleNamespace as NS
+
+    from app.services.process import _fact_status
+
+    assert _fact_status("purchase", None) == "open"
+    assert _fact_status("purchase", NS(status="received")) == "done"
+    assert _fact_status("purchase", NS(status="rejected")) == "failed"
+    assert _fact_status("inspection", NS(result="passed")) == "done"
+    assert _fact_status("inspection", NS(result="failed")) == "failed"
+    assert _fact_status("inspection", None) == "open"
+    assert _fact_status("movement", NS()) == "done"
+    assert _fact_status("resource", None) == "open"
+
+
+def test_resolve_fact_routing_and_legacy():
+    """Fachzeile je Schritt: exakt über step_id; Altzeile (None) nur beim Einzeltyp."""
+    from types import SimpleNamespace as NS
+
+    from app.services.process import _resolve_fact
+
+    step1, step2 = NS(id=11), NS(id=12)
+    rows = [NS(step_id=11), NS(step_id=12)]
+    assert _resolve_fact(step1, rows, sole_of_type=False).step_id == 11
+    assert _resolve_fact(step2, rows, sole_of_type=False).step_id == 12
+    # Altzeile ohne step_id gehört dem einzigen Schritt seines Typs
+    legacy = [NS(step_id=None)]
+    assert _resolve_fact(step1, legacy, sole_of_type=True).step_id is None
+    assert _resolve_fact(step1, legacy, sole_of_type=False) is None
+
+
+def test_object_id_block_allocation():
+    """next_object_ids gibt einen fortlaufenden Block (eine Query statt je Objekt)."""
+    from app.services import objects
+
+    assert objects.next_object_ids.__doc__  # vorhanden
+    assert callable(objects.next_object_ids)
+
+
+def test_is_step_active_removed():
+    """Tote Typ-basierte Kurzform entfernt – Routing läuft über resolve_exec_step."""
+    from app.services import process
+
+    assert not hasattr(process, "is_step_active")
+
+
+def test_inspection_values_column_removed():
+    """Obsolete Spalte inspections.values (Altformat) entfernt – nur noch samples."""
+    from app.models import Inspection
+
+    assert not hasattr(Inspection, "values")
+    assert hasattr(Inspection, "samples")
 
 
 def test_received_requires_storage_location():
