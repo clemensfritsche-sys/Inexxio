@@ -53,9 +53,13 @@ idempotent über das Safety-Net (`_INDEX_SAFETY_NET` in `main.py`) sowie Migrati
    *Fallback* bei Migrationsfehlern. Migrationen sind damit autoritativ. Empfehlung:
    die Safety-Nets bewusst als Resilienz-Schicht behalten (nicht entfernen).
 
-3. **Feed-Strategie / Over-Fetching — 🔜 OFFEN (FE+BE).** `GET /orders` liefert für
-   **jeden** Auftrag den vollen Prozess-Embed. Empfehlung: schlanke Listen-Responses
-   + Detail-on-Demand (`GET /{id}`) + Pagination/Server-Filter. Grösserer FE+BE-Umbau.
+3. **Feed-Strategie / Over-Fetching — ✅ UMGESETZT (Kern).** `GET /orders` liefert
+   jetzt eine schlanke `OrderSummary` (ohne Embeds; Artikel-Infos + Beschaffungs-
+   status **batch**-geladen) und ist server-seitig paginierbar (`limit`/`offset`).
+   Das Frontend lädt den vollen Auftrag **erst bei Auswahl** (`getOrder(id)`,
+   Detail-on-Demand) – der Feed baut keine Prozess-Embeds mehr. Offen/empfohlen als
+   Folgeschritt: Infinite-Scroll/serverseitige Paginierung auch im gemischten
+   Frontend-Feed (derzeit lädt er die schlanken Listen vollständig).
 
 4. **KI-Event-/Outbox-Strom — ✅ UMGESETZT (Basis).** Neue append-only Tabelle
    `events` (transaktionaler Outbox), Emit an den Lebenszyklus-Punkten

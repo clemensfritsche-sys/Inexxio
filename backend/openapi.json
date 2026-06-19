@@ -1156,28 +1156,66 @@
           "orders"
         ],
         "summary": "List Orders",
+        "description": "Schlanker Auftrags-Feed (ohne Prozess-Embeds). Das Detail kommt aus\n``GET /orders/{id}``. Optional server-seitig paginierbar (limit/offset).",
         "operationId": "list_orders_api_v1_erp_orders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 0,
+              "description": "0 = keine Begrenzung; sonst Seitengröße",
+              "default": 0,
+              "title": "Limit"
+            },
+            "description": "0 = keine Begrenzung; sonst Seitengröße"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/OrderResponse"
-                  },
                   "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderSummary"
+                  },
                   "title": "Response List Orders Api V1 Erp Orders Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -1185,15 +1223,20 @@
         ],
         "summary": "Create Order",
         "operationId": "create_order_api_v1_erp_orders_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrderCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -1216,12 +1259,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/erp/orders/{object_id}": {
@@ -5298,6 +5336,135 @@
         ],
         "title": "OrderStepInfo",
         "description": "Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).\n\nMehr-Operationen-Routing: ``id`` (Schritt-Definition) ist der eindeutige\nSchlüssel; je Schritt ist – passend zum Typ – genau ein Ausführungs-Embed\ngesetzt, damit mehrere gleichartige Schritte unabhängig bedient werden."
+      },
+      "OrderSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "desired_delivery_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Desired Delivery Date"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Unit"
+          },
+          "purchase_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "object_id",
+          "status",
+          "article_id",
+          "quantity",
+          "desired_delivery_date",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderSummary",
+        "description": "Schlanke Auftrags-Sicht für den Feed (OHNE Prozess-Embeds).\n\nDer Feed braucht nur Kopf-Daten; die teuren Embeds (FIFO-Vorschau, Stichproben,\nVerlauf) werden erst im Detail (``GET /orders/{id}``) berechnet."
       },
       "OrderUpdate": {
         "properties": {

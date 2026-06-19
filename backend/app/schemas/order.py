@@ -99,6 +99,30 @@ class OrderUpdate(BaseModel):
         return _validate_future_date(v)
 
 
+class OrderSummary(BaseModel):
+    """Schlanke Auftrags-Sicht für den Feed (OHNE Prozess-Embeds).
+
+    Der Feed braucht nur Kopf-Daten; die teuren Embeds (FIFO-Vorschau, Stichproben,
+    Verlauf) werden erst im Detail (``GET /orders/{id}``) berechnet."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    object_id: Optional[int]
+    status: str
+    article_id: Optional[int]
+    quantity: Optional[int]
+    desired_delivery_date: Optional[date]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    # denormalisiert (Batch-geladen, nicht je Auftrag)
+    article_name: Optional[str] = None
+    article_object_id: Optional[int] = None
+    article_unit: Optional[str] = None
+    purchase_status: Optional[str] = None   # für das Status-Badge im Feed
+
+
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

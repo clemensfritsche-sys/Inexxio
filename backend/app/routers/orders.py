@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
@@ -7,7 +7,7 @@ from ..models import Article, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
-from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
+from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..services.admin import log_audit
@@ -16,7 +16,7 @@ from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable
 from ..services.movement import record_movement
 from ..services.objects import next_object_id
-from ..services.orders import to_order_response, visible_orders
+from ..services.orders import to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update, instantiate_for_order
 from ..services.resource import record_resource
 from ..services.serialization import create_instances_for_order
@@ -46,13 +46,19 @@ def _validate_article(db: Session, article_id: int | None) -> None:
         raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
 
 
-@router.get("", response_model=list[OrderResponse])
+@router.get("", response_model=list[OrderSummary])
 async def list_orders(
+    limit: int = Query(0, ge=0, le=1000, description="0 = keine Begrenzung; sonst Seitengröße"),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    orders = visible_orders(db, user).order_by(Order.object_id).all()
-    return [to_order_response(db, o) for o in orders]
+    """Schlanker Auftrags-Feed (ohne Prozess-Embeds). Das Detail kommt aus
+    ``GET /orders/{id}``. Optional server-seitig paginierbar (limit/offset)."""
+    q = visible_orders(db, user).order_by(Order.object_id.desc())
+    if limit:
+        q = q.offset(offset).limit(limit)
+    return to_order_summaries(db, q.all())
 
 
 @router.post("", response_model=OrderResponse, status_code=201)

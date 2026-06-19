@@ -12,7 +12,7 @@ from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
-from ..schemas.order import OrderResponse, OrderStepInfo
+from ..schemas.order import OrderResponse, OrderStepInfo, OrderSummary
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from . import process
 from .article_fields import normalize_shared_fields
@@ -218,6 +218,34 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
     return resp
+
+
+def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
+    """Schlanke Feed-Sicht – Artikel-Infos und Beschaffungsstatus **batch**-geladen
+    (zwei Zusatz-Queries für die ganze Liste statt je Auftrag ein Embed-Aufbau)."""
+    if not orders:
+        return []
+    art_ids = {o.article_id for o in orders if o.article_id}
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
+    order_ids = [o.id for o in orders]
+    po_status: dict[int, str] = {}
+    for po in (
+        db.query(PurchaseOrder)
+        .filter(PurchaseOrder.order_id.in_(order_ids), PurchaseOrder.is_active == True)
+        .all()
+    ):
+        po_status[po.order_id] = po.status
+    out: list[OrderSummary] = []
+    for o in orders:
+        s = OrderSummary.model_validate(o)
+        art = arts.get(o.article_id)
+        if art:
+            s.article_name = art.name
+            s.article_object_id = art.object_id
+            s.article_unit = art.unit
+        s.purchase_status = po_status.get(o.id)
+        out.append(s)
+    return out
 
 
 def visible_orders(db: Session, user: UserProfile) -> Query:

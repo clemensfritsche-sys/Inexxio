@@ -1,7 +1,7 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
+  Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
@@ -157,7 +157,8 @@ class ApiClient {
 
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
-  getOrders(): Promise<Order[]> {
+  // Schlanker Feed (ohne Embeds); Detail via getOrder(id)
+  getOrders(): Promise<OrderSummary[]> {
     return this.get('/api/v1/erp/orders');
   }
 

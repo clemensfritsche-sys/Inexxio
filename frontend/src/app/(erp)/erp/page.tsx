@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Claim, Instance, Order, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -35,7 +35,7 @@ const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', '
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
   | { type: 'article'; key: string; objectId: number | null; data: Article }
-  | { type: 'order'; key: string; objectId: number | null; data: Order }
+  | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
   | { type: 'claim'; key: string; objectId: number | null; data: Claim };
@@ -70,8 +70,8 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
     // Bei laufendem Prozess den Beschaffungsstatus zeigen, sonst den Auftragsstatus
-    badge = row.data.status === 'released' && row.data.purchase
-      ? purchaseStatusConfig(row.data.purchase.status)
+    badge = row.data.status === 'released' && row.data.purchase_status
+      ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
       : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
@@ -126,7 +126,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 export default function ErpPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  // Vollständiger Auftrag wird erst bei Auswahl geladen (Detail-on-Demand)
+  const [orderDetail, setOrderDetail] = useState<Order | null>(null);
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
@@ -172,6 +174,14 @@ export default function ErpPage() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // Auftrag-Detail (inkl. Prozess-Embeds) erst bei Auswahl laden (Detail-on-Demand)
+  useEffect(() => {
+    if (sel?.type !== 'order') { setOrderDetail(null); return; }
+    let cancelled = false;
+    api.getOrder(sel.objectId).then((o) => { if (!cancelled) setOrderDetail(o); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sel]);
 
   const rows: Row[] = [
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
@@ -222,11 +232,13 @@ export default function ErpPage() {
   }
 
   function handleOrderSaved(o: Order) {
-    setOrders((prev) => (prev.some((x) => x.id === o.id) ? prev.map((x) => (x.id === o.id ? o : x)) : [...prev, o]));
     setCreating(null);
+    setOrderDetail(o);                                   // volles Detail sofort anzeigen
     if (o.object_id != null) setSel({ type: 'order', objectId: o.object_id });
-    // Prozessschritte beeinflussen Artikel-Preisspanne, Instanzen & ggf. Reklamationen
-    // (fehlgeschlagene Datenerfassung erzeugt automatisch eine Reklamation) → neu laden
+    // Schlanken Feed aktualisieren (Status/Badge) + abhängige Daten neu laden:
+    // Prozessschritte beeinflussen Artikel-Preisspanne/Durchlaufzeit, Instanzen &
+    // ggf. Reklamationen (fehlgeschlagene Datenerfassung erzeugt eine Reklamation).
+    api.getOrders().then(setOrders).catch(() => {});
     api.getArticles().then(setArticles).catch(() => {});
     api.getInstances().then(setInstances).catch(() => {});
     api.getClaims().then(setClaims).catch(() => {});
@@ -254,7 +266,7 @@ export default function ErpPage() {
   }
 
   const showList = mobileView === 'list';
-  const hasDetail = creating !== null || selectedRow !== null;
+  const hasDetail = creating !== null || selectedRow !== null || sel?.type === 'order';
 
   return (
     <ErpNavContext.Provider value={openByObjectId}>
@@ -376,8 +388,14 @@ export default function ErpPage() {
           {!creating && selectedRow?.type === 'article' && (
             <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
-          {!creating && selectedRow?.type === 'order' && (
-            <OrderDetail key={selectedRow.key} record={selectedRow.data} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          {!creating && sel?.type === 'order' && (
+            orderDetail && orderDetail.object_id === sel.objectId ? (
+              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8' }}>
+                Auftrag wird geladen…
+              </div>
+            )
           )}
           {!creating && selectedRow?.type === 'instance' && (
             <InstanceDetail key={selectedRow.key} record={selectedRow.data} onBack={() => setMobileView('list')} />

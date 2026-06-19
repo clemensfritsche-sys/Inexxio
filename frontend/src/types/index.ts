@@ -71,6 +71,10 @@ export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
   purchase: OrderPurchase | null;
 };
 
+// Schlanke Feed-Sicht (ohne Embeds) – Detail kommt on-demand via getOrder(id).
+type OrderSummaryApi = components['schemas']['OrderSummary'];
+export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStatus };
+
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
 export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource';
 export type ResourceMode = 'consume' | 'tool';

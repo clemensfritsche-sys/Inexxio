@@ -236,6 +236,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   sind klickbar** und öffnen den Datensatz (`components/erp/obj-id.tsx` + `ErpNavContext`). Artikel ohne
   Prozessschritt sind **nicht freigebbar**. Auftrag-Stepper zeigt beim Hover Wer/Wann je erledigtem
   Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
+- **Performance/Infra** (siehe `docs/architecture-review-2026-06.md`): Objektnummern über die
+  Postgres-Sequence `object_id_seq` (race-sicher, `services/objects.py`). Auftrags-Feed `GET /orders`
+  liefert schlanke `OrderSummary` (ohne Embeds); das Detail kommt **on-demand** via `getOrder(id)`.
+  **Domain-Event-Strom** (Outbox) `events` + `GET /api/v1/events?after_id=…` für KI/Automatisierung
+  (`services/events.py`). Schema-Management via Alembic (`start.sh`), Lifespan-Safety-Nets als Fallback.
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
 > Prozess-Schritttypen: purchase, inspection, movement, resource (Bestands-Instanzen entstehen bei der

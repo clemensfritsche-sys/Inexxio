@@ -364,7 +364,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Orders */
+        /**
+         * List Orders
+         * @description Schlanker Auftrags-Feed (ohne Prozess-Embeds). Das Detail kommt aus
+         *     ``GET /orders/{id}``. Optional server-seitig paginierbar (limit/offset).
+         */
         get: operations["list_orders_api_v1_erp_orders_get"];
         put?: never;
         /** Create Order */
@@ -1523,6 +1527,47 @@ export interface components {
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
+        };
+        /**
+         * OrderSummary
+         * @description Schlanke Auftrags-Sicht für den Feed (OHNE Prozess-Embeds).
+         *
+         *     Der Feed braucht nur Kopf-Daten; die teuren Embeds (FIFO-Vorschau, Stichproben,
+         *     Verlauf) werden erst im Detail (``GET /orders/{id}``) berechnet.
+         */
+        OrderSummary: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Status */
+            status: string;
+            /** Article Id */
+            article_id: number | null;
+            /** Quantity */
+            quantity: number | null;
+            /** Desired Delivery Date */
+            desired_delivery_date: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Unit */
+            article_unit?: string | null;
+            /** Purchase Status */
+            purchase_status?: string | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -2974,7 +3019,11 @@ export interface operations {
     };
     list_orders_api_v1_erp_orders_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 0 = keine Begrenzung; sonst Seitengröße */
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2987,7 +3036,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OrderResponse"][];
+                    "application/json": components["schemas"]["OrderSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
