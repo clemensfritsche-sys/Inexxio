@@ -116,11 +116,12 @@ class _Fifo:
 
 
 def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> None:
-    """Komponente in die Produkt-Instanz einbauen (Lagerabgang)."""
+    """Komponente in die Produkt-Instanz einbauen (Lagerabgang + Verbrauch)."""
     log_audit(db, "instances", "location", f"instance:{product.object_id}", actor_id,
               object_id=inst.object_id, old_value=f"{inst.location_type}:{inst.location_id}")
     inst.location_type = "instance"
     inst.location_id = product.object_id
+    inst.qc_status = "consumed"
 
 
 def _consume_line(db: Session, order: Order, products: list[Instance],
@@ -155,7 +156,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
                 sub = Instance(
                     object_id=next_object_id(db), article_id=cand.article_id,
                     order_id=cand.order_id, kind="batch", quantity=take,
-                    qc_status="passed", released_at=cand.released_at or cand.created_at,
+                    qc_status="consumed", released_at=cand.released_at or cand.created_at,
                     location_type="instance", location_id=product.object_id,
                 )
                 db.add(sub)

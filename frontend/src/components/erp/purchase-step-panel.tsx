@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Link2, Calculator, User as UserIcon, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput, StorageLocation } from '@/types';
+import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput, StorageLocation } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
@@ -39,9 +39,10 @@ function historyByStatus(history: Hist[] | undefined): Record<string, Hist> {
 
 interface Action { label: string; target: PurchaseOrderStatus; variant: 'primary' | 'danger'; needsTotal?: boolean }
 
-export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
+export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }: {
   order: Order;
   viewerRole: ViewerRole;
+  company?: Partial<CompanySettings> | null;
   onOrderUpdated: (o: Order) => void;
 }) {
   const po = order.purchase;
@@ -167,6 +168,7 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
     else if (key === 'serialization') value = order.article_serialization ? serializationLabel(order.article_serialization) : '—';
     else if (key === 'size') value = order.article_size ?? '—';
     else if (key === 'weight_kg') value = order.article_weight_kg != null ? `${order.article_weight_kg} kg` : '—';
+    else if (key === 'supplier_article_number') value = order.article_supplier_article_number ?? '—';
     return { key, label: fieldLabel(key), value };
   });
 
@@ -198,10 +200,13 @@ export function PurchaseStepPanel({ order, viewerRole, onOrderUpdated }: {
                 : 'Webshop'}</>}
         </div>
 
-        {/* Lieferadresse / Wareneingang (aus dem Beschaffungsschritt) */}
-        {po.receiving_location_label && (
+        {/* Lieferadresse: Firmenadresse aus der Systemkonfiguration */}
+        {company?.street && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
-            <MapPin size={12} /> Lieferadresse: {po.receiving_location_label}
+            <MapPin size={12} />
+            <span>
+              Lieferadresse: {[company.street, company.street_number].filter(Boolean).join(' ')}, {company.zip} {company.city}
+            </span>
           </div>
         )}
 

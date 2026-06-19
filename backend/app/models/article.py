@@ -42,6 +42,7 @@ class Article(Base, TimestampMixin):
     surface: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Oberfläche
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
     safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
+    supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
 
     # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
     # Bestellung (Purchase Order) automatisch zurückgeschrieben.

@@ -259,7 +259,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {s.resource_lines!.map((l, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
-                      • {l.article_name ?? `#${l.article_id}`} <span style={{ color: '#94a3b8' }}>
+                      • {l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`} <span style={{ color: '#94a3b8' }}>
                         ({RESOURCE_MODE_LABEL[(l.mode as ResourceMode)] ?? l.mode} · {l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk)
                       </span>
                     </div>
@@ -313,7 +313,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                   {mode === 'supplier' ? (
                     suppliers.length > 0 ? (
                       <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId} required
-                        options={[{ value: '', label: '— wählen —' }, ...suppliers.map((u) => ({ value: String(u.id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id)}` }))]} />
+                        options={[{ value: '', label: '— wählen —' }, ...suppliers.map((u) => ({ value: String(u.id), label: `${fmtObjId(u.object_id)} · ${userDisplayName(u)}` }))]} />
                     ) : (
                       <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Keine Lieferanten vorhanden. Bitte zuerst anlegen oder Webshop-Link nutzen.</span></div>
                     )
@@ -385,7 +385,7 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
   function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
-    ...articles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` }))];
+    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
   return (
     <div>
       <Label>Ressourcen (Bauteile & Betriebsmittel)</Label>

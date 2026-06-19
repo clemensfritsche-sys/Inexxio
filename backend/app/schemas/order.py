@@ -144,6 +144,7 @@ class OrderResponse(BaseModel):
     article_unit: Optional[str] = None
     article_weight_kg: Optional[Decimal] = None
     article_serialization: Optional[str] = None
+    article_supplier_article_number: Optional[str] = None
     purchase: Optional[PurchaseEmbed] = None
     instances: list[InstanceEmbed] = []
     inspection: Optional[InspectionEmbed] = None

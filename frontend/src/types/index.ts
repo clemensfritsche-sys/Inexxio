@@ -44,6 +44,7 @@ export interface ArticleInput {
   material?: string | null;
   cad_url?: string | null;
   surface?: string | null;
+  supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
 }
@@ -137,7 +138,7 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-export type InstanceQcStatus = 'pending' | 'passed' | 'failed';
+export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed';
 export type InstanceReference = components['schemas']['InstanceReference'];
 
 export interface OrderInput {

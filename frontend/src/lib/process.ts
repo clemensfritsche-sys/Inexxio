@@ -38,9 +38,10 @@ export function toStepperState(state: string): StepState {
 }
 
 export const QC_STATUS: Record<InstanceQcStatus, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Prüfung offen', color: '#d97706', bg: '#fffbeb' },
-  passed:  { label: 'Freigegeben',   color: '#16a34a', bg: '#f0fdf4' },
-  failed:  { label: 'Gesperrt',      color: '#dc2626', bg: '#fef2f2' },
+  pending:  { label: 'Im Prozess',  color: '#d97706', bg: '#fffbeb' },
+  passed:   { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4' },
+  failed:   { label: 'Gesperrt',    color: '#dc2626', bg: '#fef2f2' },
+  consumed: { label: 'Verbraucht',  color: '#7c3aed', bg: '#f5f3ff' },
 };
 
 export function qcStatusConfig(status: string): { label: string; color: string; bg: string } {

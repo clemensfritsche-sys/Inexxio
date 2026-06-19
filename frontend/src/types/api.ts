@@ -689,6 +689,8 @@ export interface components {
             cad_url?: string | null;
             /** Surface */
             surface?: string | null;
+            /** Supplier Article Number */
+            supplier_article_number?: string | null;
             /** Min Order Qty */
             min_order_qty?: number | string | null;
             /** Safety Stock */
@@ -832,6 +834,8 @@ export interface components {
             cad_url?: string | null;
             /** Surface */
             surface?: string | null;
+            /** Supplier Article Number */
+            supplier_article_number?: string | null;
             /** Min Order Qty */
             min_order_qty?: string | null;
             /** Safety Stock */
@@ -882,6 +886,8 @@ export interface components {
             cad_url?: string | null;
             /** Surface */
             surface?: string | null;
+            /** Supplier Article Number */
+            supplier_article_number?: string | null;
             /** Min Order Qty */
             min_order_qty?: number | string | null;
             /** Safety Stock */
@@ -1367,6 +1373,8 @@ export interface components {
             updated_at: string;
             /** Order Object Id */
             order_object_id?: number | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
             /** Location Label */
@@ -1482,6 +1490,8 @@ export interface components {
             article_weight_kg?: string | null;
             /** Article Serialization */
             article_serialization?: string | null;
+            /** Article Supplier Article Number */
+            article_supplier_article_number?: string | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Instances

@@ -33,10 +33,10 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'bestand', label: 'Bestand', icon: Boxes },
 ];
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'min_order_qty' | 'safety_stock';
+type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock';
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
-  material: string; cad_url: string; surface: string; min_order_qty: string; safety_stock: string;
+  material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
 };
 
 // Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen)
@@ -44,19 +44,21 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
   { key: 'material', label: 'Material', placeholder: 'z. B. Stahl 1.4301' },
   { key: 'cad_url', label: 'CAD-Link', placeholder: 'https://…', hint: 'Link zur CAD-Datei/Zeichnung' },
   { key: 'surface', label: 'Oberfläche', placeholder: 'z. B. verzinkt, eloxiert' },
+  { key: 'supplier_article_number', label: 'Lief.-Artikelnummer', placeholder: 'Artikelnummer des Lieferanten' },
   { key: 'min_order_qty', label: 'MOQ (Mindestbestellmenge)', numeric: true, placeholder: 'z. B. 50' },
   { key: 'safety_stock', label: 'Sicherheitsbestand', numeric: true, placeholder: 'z. B. 20' },
 ];
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
-    material: '', cad_url: '', surface: '', min_order_qty: '', safety_stock: '' };
+    material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '' };
   if (!record) return base;
   return {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
     size: record.size, weight_kg: String(record.weight_kg),
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
+    supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
   };
@@ -117,6 +119,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     name: form.name.trim(), unit: form.unit, serialization: form.serialization,
     size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg),
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
+    supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
   });
   const canSave = !locked && valid && sig !== savedSig && !saving;
@@ -149,6 +152,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         material: form.material.trim() || null,
         cad_url: form.cad_url.trim() || null,
         surface: form.surface.trim() || null,
+        supplier_article_number: form.supplier_article_number.trim() || null,
         min_order_qty: form.min_order_qty.trim() || null,
         safety_stock: form.safety_stock.trim() || null,
       };

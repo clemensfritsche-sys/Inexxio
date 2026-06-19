@@ -136,7 +136,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
         <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
           <CheckCircle2 size={16} />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>Eingelagert</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Bewegung abgeschlossen</span>
           {mv?.moved_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{mv.moved_by_name}</span>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
@@ -187,7 +187,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={submit} disabled={saving}
           style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer' }}>
-          {saving ? 'Speichert…' : 'Einlagerung bestätigen'}
+          {saving ? 'Speichert…' : 'Bewegung bestätigen'}
         </button>
       </div>
     </div>

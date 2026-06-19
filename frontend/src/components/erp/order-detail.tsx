@@ -149,7 +149,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
-    ...releasedArticles.map((a) => ({ value: String(a.id), label: `${a.name} · ${fmtObjId(a.object_id)}` })),
+    ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
   ];
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
 
@@ -265,12 +265,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 onSelect={setSelStep}
               />
             </div>
-            <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} onSaved={afterStep} />
+            <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
           </>
         ) : !isStaff && hasPurchase ? (
           <>
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
-            <PurchaseStepPanel order={record as Order} viewerRole={viewerRole} onOrderUpdated={onSaved} />
+            <PurchaseStepPanel order={record as Order} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
           </>
         ) : null}
       </div>
@@ -316,10 +316,11 @@ function stepHint(s: OrderStep): string | undefined {
 // Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed
 // des konkreten Schritts wird auf die Top-Level-Felder gelegt, damit die Panels
 // unverändert lesen können; die Schritt-id wird für das Routing weitergereicht.
-function StepPanel({ step, order, viewerRole, onSaved }: {
+function StepPanel({ step, order, viewerRole, company, onSaved }: {
   step: OrderStep | null;
   order: Order;
   viewerRole: ViewerRole;
+  company?: Partial<import('@/types').CompanySettings> | null;
   onSaved: (o: Order) => void;
 }) {
   if (!step) return null;
@@ -334,7 +335,7 @@ function StepPanel({ step, order, viewerRole, onSaved }: {
   const stepId = step.id;
   if (step.step_type === 'purchase') {
     return stepOrder.purchase
-      ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} onOrderUpdated={onSaved} />
+      ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
       : null;
   }
   if (step.step_type === 'inspection') {

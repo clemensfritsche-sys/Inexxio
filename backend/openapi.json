@@ -2332,6 +2332,17 @@
             ],
             "title": "Surface"
           },
+          "supplier_article_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Article Number"
+          },
           "min_order_qty": {
             "anyOf": [
               {
@@ -2850,6 +2861,17 @@
             ],
             "title": "Surface"
           },
+          "supplier_article_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Article Number"
+          },
           "min_order_qty": {
             "anyOf": [
               {
@@ -3061,6 +3083,17 @@
               }
             ],
             "title": "Surface"
+          },
+          "supplier_article_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Article Number"
           },
           "min_order_qty": {
             "anyOf": [
@@ -4809,6 +4842,17 @@
             ],
             "title": "Order Object Id"
           },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
           "article_name": {
             "anyOf": [
               {
@@ -5167,6 +5211,17 @@
               }
             ],
             "title": "Article Serialization"
+          },
+          "article_supplier_article_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Supplier Article Number"
           },
           "purchase": {
             "anyOf": [

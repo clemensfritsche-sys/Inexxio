@@ -23,6 +23,7 @@ class InstanceResponse(BaseModel):
 
     # Denormalisiert vom Router
     order_object_id: Optional[int] = None
+    article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     location_label: Optional[str] = None
 

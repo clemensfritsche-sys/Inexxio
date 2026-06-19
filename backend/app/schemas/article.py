@@ -71,7 +71,7 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 
 
 # Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
-_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface")
+_OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 
 
@@ -89,6 +89,7 @@ class ArticleCreate(BaseModel):
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
+    supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
 
@@ -147,6 +148,7 @@ class ArticleUpdate(BaseModel):
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
+    supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
@@ -228,6 +230,7 @@ class ArticleResponse(BaseModel):
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
+    supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe

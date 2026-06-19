@@ -13,6 +13,7 @@ SUPPLIER_FIELD_CATALOG = [
     ("serialization", "Serialisierung", True),
     ("size", "Grösse (mm)", True),
     ("weight_kg", "Gewicht (kg)", True),
+    ("supplier_article_number", "Lief.-Artikelnummer", False),
 ]
 
 ALL_FIELD_KEYS = [k for k, _, _ in SUPPLIER_FIELD_CATALOG]

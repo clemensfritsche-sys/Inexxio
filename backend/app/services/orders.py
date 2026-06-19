@@ -153,6 +153,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             resp.article_unit = art.unit
             resp.article_weight_kg = art.weight_kg
             resp.article_serialization = art.serialization
+            resp.article_supplier_article_number = art.supplier_article_number
 
     # Bestands-Instanzen (bei Freigabe erzeugt, inkl. aktuellem Standort)
     instances = (

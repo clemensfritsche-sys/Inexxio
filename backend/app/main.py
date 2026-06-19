@@ -80,6 +80,7 @@ _COLUMN_SAFETY_NET = (
     ("articles", "material", "VARCHAR(255)"),
     ("articles", "cad_url", "VARCHAR(500)"),
     ("articles", "surface", "VARCHAR(255)"),
+    ("articles", "supplier_article_number", "VARCHAR(255)"),
     ("articles", "min_order_qty", "NUMERIC(12,3)"),
     ("articles", "safety_stock", "NUMERIC(12,3)"),
     # Durchlaufzeit (Freigabe → Abschluss)

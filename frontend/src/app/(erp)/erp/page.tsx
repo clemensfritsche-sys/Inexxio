@@ -142,7 +142,9 @@ export default function ErpPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
   const [plusOpen, setPlusOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(50);
   const plusRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const mapsApiKey = settings?.google_maps_api_key ?? null;
   const suppliers = users.filter((u) => u.role === 'supplier');
@@ -182,6 +184,21 @@ export default function ErpPage() {
     api.getOrder(sel.objectId).then((o) => { if (!cancelled) setOrderDetail(o); }).catch(() => {});
     return () => { cancelled = true; };
   }, [sel]);
+
+  // Infinite scroll: weitere Zeilen nachladen, sobald der Sentinel sichtbar wird
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) setVisibleCount((c) => c + 50); },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  // Sichtbarkeits-Zähler zurücksetzen, wenn Suche oder Filter wechselt
+  useEffect(() => { setVisibleCount(50); }, [typeFilter, search]);
 
   const rows: Row[] = [
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
@@ -354,7 +371,7 @@ export default function ErpPage() {
                 {search || typeFilter ? 'Keine Treffer' : 'Keine Datensätze'}
               </div>
             )}
-            {filtered.map((r) => (
+            {filtered.slice(0, visibleCount).map((r) => (
               <FeedItem
                 key={r.key}
                 row={r}
@@ -362,6 +379,9 @@ export default function ErpPage() {
                 onClick={() => handleSelect(r.type, r.objectId)}
               />
             ))}
+            {visibleCount < filtered.length && (
+              <div ref={sentinelRef} style={{ height: 1 }} />
+            )}
           </div>
         </div>
 

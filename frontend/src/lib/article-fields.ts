@@ -4,11 +4,12 @@
 export interface SupplierField { key: string; label: string; mandatory: boolean }
 
 export const SUPPLIER_FIELD_CATALOG: SupplierField[] = [
-  { key: 'name',          label: 'Bezeichnung',     mandatory: true },
-  { key: 'unit',          label: 'Einheit',         mandatory: true },
-  { key: 'serialization', label: 'Serialisierung',  mandatory: true },
-  { key: 'size',          label: 'Grösse (mm)',     mandatory: true },
-  { key: 'weight_kg',     label: 'Gewicht (kg)',    mandatory: true },
+  { key: 'name',                    label: 'Bezeichnung',        mandatory: true },
+  { key: 'unit',                    label: 'Einheit',            mandatory: true },
+  { key: 'serialization',           label: 'Serialisierung',     mandatory: true },
+  { key: 'size',                    label: 'Grösse (mm)',        mandatory: true },
+  { key: 'weight_kg',               label: 'Gewicht (kg)',       mandatory: true },
+  { key: 'supplier_article_number', label: 'Lief.-Artikelnummer', mandatory: false },
 ];
 
 export const MANDATORY_FIELD_KEYS = SUPPLIER_FIELD_CATALOG.filter((f) => f.mandatory).map((f) => f.key);
