@@ -25,6 +25,7 @@ from ..schemas.resource import (
 )
 from . import process
 from .admin import log_audit
+from .events import emit
 from .locations import _obj_nr, location_label
 from .objects import next_object_id
 
@@ -217,6 +218,7 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
     db.add(usage)
     db.flush()
     log_audit(db, "resource_usages", None, "Ressourcen erfasst", actor_id, object_id=order.object_id)
+    emit(db, "resource.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(usage)

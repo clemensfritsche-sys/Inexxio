@@ -9,7 +9,7 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
-    admin, article_process, articles, auth, claims, contact, erp, health,
+    admin, article_process, articles, auth, claims, contact, erp, events, health,
     instances, orders, storage_locations,
 )
 
@@ -237,6 +237,7 @@ app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(storage_locations.router)
 app.include_router(claims.router)
+app.include_router(events.router)
 
 
 @app.get("/")

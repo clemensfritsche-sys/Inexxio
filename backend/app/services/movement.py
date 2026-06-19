@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..models import Instance, Movement, Order
 from . import process
 from .admin import log_audit
+from .events import emit
 from .locations import validate_location
 
 
@@ -51,6 +52,7 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     db.flush()
 
     log_audit(db, "movements", None, "Bewegung erfasst", actor_id, object_id=order.object_id)
+    emit(db, "movement.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(mv)

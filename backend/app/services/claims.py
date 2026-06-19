@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..models import Article, Claim, Instance, Order, UserProfile
 from ..schemas.claim import ClaimCreate, ClaimResponse
 from .admin import log_audit
+from .events import emit
 from .objects import next_object_id
 
 # Inhaltliche Felder sind nur in offenen/angenommenen Reklamationen änderbar.
@@ -100,6 +101,9 @@ def create_claim(db: Session, data: ClaimCreate, actor: UserProfile) -> Claim:
     db.add(claim)
     db.flush()
     log_audit(db, "claims", None, "Reklamation angelegt", actor.id, object_id=claim.object_id)
+    emit(db, "claim.opened", object_type="claim", object_id=claim.object_id, actor_id=actor.id,
+         payload={"direction": claim.direction, "reason": claim.reason,
+                  "instance_object_id": claim.instance_object_id, "source": "manual"})
     db.commit()
     db.refresh(claim)
     return claim
@@ -151,4 +155,7 @@ def auto_claim_from_inspection(db: Session, order: Order, actor_id: int | None) 
     db.flush()
     log_audit(db, "claims", None, "Reklamation automatisch aus Eingangskontrolle erstellt",
               actor_id, object_id=claim.object_id)
+    emit(db, "claim.opened", object_type="claim", object_id=claim.object_id, actor_id=actor_id,
+         payload={"direction": "internal", "reason": "defect",
+                  "instance_object_id": inst_obj, "source": "inspection"})
     return claim

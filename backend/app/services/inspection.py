@@ -26,6 +26,7 @@ from ..models.base import utcnow
 from . import process
 from .admin import log_audit
 from .claims import auto_claim_from_inspection
+from .events import emit
 
 # Synthetisches Bewertungsfeld, wenn keine Maske definiert ist (reines Gut/Schlecht).
 DEFAULT_OK_FIELD = {"key": "_ok", "label": "Ergebnis", "type": "bool"}
@@ -192,6 +193,8 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
         _apply_per_instance_qc(db, order, fields, stored)
 
     log_audit(db, "inspections", "result", insp.result, actor_id, object_id=order.object_id)
+    emit(db, f"inspection.{insp.result}", object_type="order", object_id=order.object_id,
+         payload={"checked": need, "step_id": step.id}, actor_id=actor_id)
     # Bei Nichtbestehen automatisch eine interne Reklamation eröffnen (idempotent)
     if insp.result == "failed":
         auto_claim_from_inspection(db, order, actor_id)

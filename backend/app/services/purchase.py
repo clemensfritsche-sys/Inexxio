@@ -22,6 +22,7 @@ from ..models import (
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
+from .events import emit
 from .locations import resolve_receiving_location
 
 # Erlaubte Statusübergänge: Zielstatus → zulässige Ausgangsstatus
@@ -197,6 +198,8 @@ def _apply_transition(db: Session, po: PurchaseOrder, order: Order, target: str,
     po.status = target
     log_audit(db, "purchase_orders", "status", target, user.id,
               object_id=order.object_id, old_value=old)
+    emit(db, f"purchase.{target}", object_type="order", object_id=order.object_id,
+         actor_id=user.id)
     if target == "received":
         _relocate_to_receiving(db, po, order, user.id)
     # Auftrag ggf. automatisch abschliessen (alle Prozessschritte erledigt)

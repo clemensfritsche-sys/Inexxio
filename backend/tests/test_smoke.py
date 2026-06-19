@@ -690,6 +690,25 @@ def test_inspection_values_column_removed():
     assert hasattr(Inspection, "samples")
 
 
+def test_event_outbox_model_and_router():
+    """Domain-Event-Strom (Outbox): Modell append-only, Emit-Helper, Lese-API."""
+    from app.models import Event
+    from app.routers import events
+    from app.schemas.event import EventResponse
+    from app.services.events import emit
+
+    assert Event.__tablename__ == "events"
+    # append-only: kein Soft-Delete/Update-Flag
+    assert not hasattr(Event, "is_active")
+    assert not hasattr(Event, "updated_at")
+    for f in ("object_id", "object_type", "event_type", "payload", "actor_id", "created_at"):
+        assert hasattr(Event, f)
+    assert callable(emit)
+    assert hasattr(events, "router")
+    for f in ("id", "object_type", "event_type", "created_at"):
+        assert f in EventResponse.model_fields
+
+
 def test_received_requires_storage_location():
     """Wareneingang: der aktuelle Lagerort ist Pflicht (ohne Angabe → Fehler)."""
     import pytest

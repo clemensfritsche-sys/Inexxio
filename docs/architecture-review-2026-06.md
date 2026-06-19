@@ -42,30 +42,27 @@ idempotent über das Safety-Net (`_INDEX_SAFETY_NET` in `main.py`) sowie Migrati
   Stichprobe) abgelöst; wurde nirgends mehr gelesen/geschrieben. Entfernt aus Modell,
   Migration `020` und Drop-Safety-Net.
 
-## Empfehlungen für später (größere Eingriffe — bitte Rücksprache)
+## Die vier größeren Maßnahmen — Status
 
-1. **Schema-Management vereinheitlichen.** Prod erzeugt das Schema via
-   `create_all()` + handgepflegte Safety-Nets (`_COLUMN_SAFETY_NET`,
-   `_DROP_COLUMN_SAFETY_NET`, `_INDEX_SAFETY_NET`, `_DATA_FIXES`). Das dupliziert die
-   Alembic-Migrationen und driftet leicht. Empfehlung: beim Deploy `alembic upgrade
-   head` ausführen und die Safety-Nets auf ein minimales Notfall-Fallback reduzieren.
+1. **Objektnummern über eine DB-Sequence — ✅ UMGESETZT.** `max(object_id)+1` war
+   unter Last nicht race-sicher. Neu: gemeinsame Postgres-`SEQUENCE` `object_id_seq`
+   (atomar, ohne Scan), beim Start rewind-sicher ausgerichtet + Migration `021`.
 
-2. **Objektnummern über eine DB-Sequence.** `max(object_id)+1` ist unter Last
-   **nicht race-sicher** (zwei gleichzeitige Anlagen → gleiche Nummer → Unique-
-   Verletzung). Empfehlung: eine Postgres-`SEQUENCE` (Start 100'000'001), die alle
-   Objekttypen teilen – atomar und ohne Scan. (Der Query-Aufwand ist bereits reduziert.)
+2. **Schema via Alembic in Prod — ✅ IM KERN BEREITS VORHANDEN.** `start.sh` führt
+   `alembic upgrade head` vor uvicorn aus; die Lifespan-Safety-Nets sind das
+   *Fallback* bei Migrationsfehlern. Migrationen sind damit autoritativ. Empfehlung:
+   die Safety-Nets bewusst als Resilienz-Schicht behalten (nicht entfernen).
 
-3. **Feed-Strategie / Over-Fetching.** `GET /orders` liefert für **jeden** Auftrag den
-   vollen Prozess-Embed (FIFO-Vorschau, Stichproben, Historie). Der ERP-Feed lädt
-   zudem alle Objekttypen gleichzeitig und ungepaged. Empfehlung: schlanke Listen-
-   Responses + Detail-on-Demand (`GET /{id}`) + Pagination/Server-Filter.
+3. **Feed-Strategie / Over-Fetching — 🔜 OFFEN (FE+BE).** `GET /orders` liefert für
+   **jeden** Auftrag den vollen Prozess-Embed. Empfehlung: schlanke Listen-Responses
+   + Detail-on-Demand (`GET /{id}`) + Pagination/Server-Filter. Grösserer FE+BE-Umbau.
 
-4. **KI-Readiness ausbauen.** Datenmodell (universelle Objektnummern,
-   Instanz-Genealogie, Audit-Log, JSONB-Flexfelder) ist analyse-/agentenfreundlich.
-   Für native Automatisierung empfohlen: (a) ein **Domain-Event-/Outbox-Strom**
-   (sauberer als das Audit-Log) für Push an KI-Agenten/Webhooks, (b) Read-Replica
-   bzw. materialisierte Sichten für Analytik, (c) die bestehende REST-API bleibt
-   direkt agenten-konsumierbar.
+4. **KI-Event-/Outbox-Strom — ✅ UMGESETZT (Basis).** Neue append-only Tabelle
+   `events` (transaktionaler Outbox), Emit an den Lebenszyklus-Punkten
+   (order.released/completed, purchase.*, inspection.*, movement/resource.recorded,
+   claim.opened, instances.created) und Konsum-API `GET /api/v1/events?after_id=…`
+   (lückenloser Vorwärts-Cursor für Agenten). Offen/empfohlen: aktiver Relay/Webhook-
+   Push + Read-Replica/materialisierte Sichten für Analytik.
 
 ## Kleinere offene Punkte (geringe Priorität)
 - `orders.title` wird nie gesetzt (Auftrag heißt starr «Auftrag») – Kandidat zum

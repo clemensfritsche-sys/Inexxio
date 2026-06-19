@@ -11,6 +11,7 @@ from ..schemas.order import OrderCreate, OrderResponse, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..services.admin import log_audit
+from ..services.events import emit
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable
 from ..services.movement import record_movement
@@ -122,6 +123,9 @@ async def update_order(
             order.released_at = utcnow()   # Start der Durchlaufzeit
         instantiate_for_order(db, order, current_user.id)
         create_instances_for_order(db, order, current_user.id)
+        emit(db, "order.released", object_type="order", object_id=order.object_id,
+             payload={"article_id": order.article_id, "quantity": order.quantity},
+             actor_id=current_user.id)
 
     db.commit()
     db.refresh(order)

@@ -22,6 +22,7 @@ from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
+from .events import emit
 from .locations import resolve_receiving_location
 from .objects import next_object_ids
 
@@ -86,4 +87,6 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
 
     log_audit(db, "instances", None, f"{len(created)} Instanz(en) bei Freigabe angelegt",
               actor_id, object_id=order.object_id)
+    emit(db, "instances.created", object_type="order", object_id=order.object_id,
+         payload={"count": len(created), "kind": kind}, actor_id=actor_id)
     return created

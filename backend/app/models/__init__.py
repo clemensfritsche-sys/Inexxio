@@ -12,10 +12,12 @@ from .resource_usage import ResourceUsage
 from .storage_location import StorageLocation
 from .claim import Claim
 from .audit import AuditLog
+from .event import Event
 from .notification import Notification
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticleProcessStep", "Order", "PurchaseOrder", "Instance", "Inspection",
-    "Movement", "ResourceUsage", "StorageLocation", "Claim", "AuditLog", "Notification",
+    "Movement", "ResourceUsage", "StorageLocation", "Claim", "AuditLog", "Event",
+    "Notification",
 ]

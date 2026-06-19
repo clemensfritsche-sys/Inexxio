@@ -31,6 +31,7 @@ from ..models import (
     ArticleProcessStep, Inspection, Movement, Order, PurchaseOrder, ResourceUsage,
 )
 from ..models.base import utcnow
+from .events import emit
 
 STEP_LABELS = {
     "purchase": "Beschaffung",
@@ -202,6 +203,7 @@ def recompute_completion(db: Session, order: Order) -> None:
         order.status = "completed"
         if order.completed_at is None:
             order.completed_at = utcnow()
+        emit(db, "order.completed", object_type="order", object_id=order.object_id)
 
 
 def required_sample(quantity: int | None, sample_percent: int | None) -> int:
