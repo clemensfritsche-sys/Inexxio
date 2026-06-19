@@ -28,6 +28,9 @@ class InstanceResponse(BaseModel):
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     location_label: Optional[str] = None
+    # Physischer Standort bei Einbau (location_type == 'instance'): wo die Host-
+    # Instanz tatsächlich liegt – die Komponente «wandert» mit ihr mit.
+    physical_location_label: Optional[str] = None
     reserved_for_order_object_id: Optional[int] = None
 
 
@@ -54,3 +57,4 @@ class InstanceEmbed(BaseModel):
     location_type: Optional[str] = None
     location_id: Optional[int] = None
     location_label: Optional[str] = None   # vom Router denormalisiert
+    physical_location_label: Optional[str] = None  # physischer Ort bei Einbau (instance-Kette)

@@ -27,7 +27,7 @@ from ..schemas.resource import (
 from . import process
 from .admin import log_audit
 from .events import emit
-from .locations import _obj_nr, location_label
+from .locations import _obj_nr, location_label, resolve_physical_location
 from .objects import next_object_id
 
 
@@ -211,10 +211,10 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
     return picks
 
 
-def _validate_tools(db: Session, article_db_id: int, instance_ids: list[int]) -> list[int]:
+def _validate_tools(db: Session, article_db_id: int, instance_ids: list[int]) -> list[Instance]:
     if not instance_ids:
         raise HTTPException(400, detail="Bitte ein Betriebsmittel wählen")
-    clean: list[int] = []
+    clean: list[Instance] = []
     for iid in instance_ids:
         inst = (
             db.query(Instance)
@@ -225,8 +225,22 @@ def _validate_tools(db: Session, article_db_id: int, instance_ids: list[int]) ->
             raise HTTPException(400, detail=f"Betriebsmittel {iid} passt nicht zum Artikel")
         if inst.qc_status != "passed":
             raise HTTPException(400, detail="Nur freigegebene Betriebsmittel sind wählbar")
-        clean.append(iid)
+        clean.append(inst)
     return clean
+
+
+def _use_tool(db: Session, tool: Instance, product: Instance, actor_id: int) -> None:
+    """Betriebsmittel an den **physischen Standort der Produkt-Instanz** bringen.
+
+    Es wird nur genutzt (kein Einbau, kein Lagerabgang), wandert aber an den
+    Arbeitsort des Produkts – so ist nach dem Schritt sofort ersichtlich, wo das
+    Werkzeug/die Maschine zuletzt im Einsatz war."""
+    pt, pid = resolve_physical_location(db, product.location_type, product.location_id)
+    if pt and pid and (tool.location_type, tool.location_id) != (pt, pid):
+        log_audit(db, "instances", "location", f"{pt}:{pid}", actor_id,
+                  object_id=tool.object_id, old_value=f"{tool.location_type}:{tool.location_id}")
+        tool.location_type = pt
+        tool.location_id = pid
 
 
 def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceUsage:
@@ -246,8 +260,10 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
         qty = line.get("quantity", 1)
         mode = line.get("mode", "consume")
         if mode == "tool":
-            ids = _validate_tools(db, art_id, tool_picks.get(art_id, []))
-            details["tools"].append({"article_id": art_id, "instance_ids": ids})
+            tools = _validate_tools(db, art_id, tool_picks.get(art_id, []))
+            for t in tools:
+                _use_tool(db, t, products[0], actor_id)
+            details["tools"].append({"article_id": art_id, "instance_ids": [t.object_id for t in tools]})
         else:
             picks = _consume_line(db, order, products, art_id, qty, actor_id)
             details["consume"].append({"article_id": art_id, "picks": picks})

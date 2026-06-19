@@ -579,6 +579,19 @@
   ::selection { background: var(--ix-red); color: #fff; }
 }
 
+/* iOS Safari zoomt beim Fokus automatisch auf Eingabefelder mit < 16px
+   Schriftgrösse – im kompakten ERP (13px-Felder) sehr störend (man muss danach
+   wieder herauszoomen). Nur auf iOS (Touch) die Schriftgrösse der Formularfelder
+   auf 16px anheben; das verhindert das Auto-Zoom, ohne Desktop/Android zu
+   verändern. Pinch-Zoom bleibt erhalten. `-webkit-touch-callout` matcht iOS. */
+@supports (-webkit-touch-callout: none) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 @layer components {
   .container { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
   .section { @apply py-16 sm:py-24; }

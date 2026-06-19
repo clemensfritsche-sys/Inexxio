@@ -107,6 +107,11 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
   const locked = !isCreate && record !== null && record.status !== 'draft';
 
+  // Gewicht wird read-only, sobald der Artikel verbaute Ressourcen hat: es ergibt
+  // sich dann automatisch aus der Stückliste (über mehrere Ebenen, Backend).
+  const computedWeight = record?.computed_weight_kg ?? null;
+  const weightIsComputed = !isCreate && computedWeight != null;
+
   const errs = {
     name: validateName(form.name),
     size: validateSize(form.size),
@@ -245,7 +250,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                 <Row k="Einheit" v={unitLabel(record!.unit)} />
                 <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
                 <Row k="Grösse" v={record!.size} />
-                <Row k="Gewicht" v={`${record!.weight_kg} kg`} />
+                <Row k="Gewicht" v={weightIsComputed ? `${fmtWeight(computedWeight!)} kg (berechnet)` : `${record!.weight_kg} kg`} />
                 {OPTIONAL_FIELDS.filter((f) => form[f.key].trim() !== '').map((f) => (
                   <Row key={f.key} k={f.label} v={form[f.key]} />
                 ))}
@@ -271,7 +276,11 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
                 </div>
                 <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
-                <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
+                {weightIsComputed ? (
+                  <ComputedWeight value={computedWeight!} />
+                ) : (
+                  <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
+                )}
                 <OptionalFieldsEditor added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
               </>
             )}
@@ -328,6 +337,23 @@ const lockedNotice: React.CSSProperties = {
 
 function fmtChf(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtWeight(v: string | number): string {
+  return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });
+}
+
+// Read-only Gewicht (aus der Stückliste berechnet) – analog Preis-/Durchlaufzeit-Spanne.
+function ComputedWeight({ value }: { value: string }) {
+  return (
+    <div>
+      <Label>Gewicht (kg)</Label>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>{fmtWeight(value)} kg</div>
+      <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+        Automatisch aus den verbauten Ressourcen (Stückliste) berechnet – über alle Ebenen.
+      </div>
+    </div>
+  );
 }
 
 function PriceRange({ record }: { record: Article }) {

@@ -82,7 +82,16 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
             {record.reserved_for_order_object_id != null && (
               <RowNode k="Reserviert für"><ObjId value={record.reserved_for_order_object_id} /></RowNode>
             )}
-            <RowNode k="Standort">{record.location_id != null ? <ObjId value={record.location_id} /> : 'Kein Standort'}</RowNode>
+            <RowNode k="Standort">
+              {record.location_id != null ? (
+                <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                  <ObjId value={record.location_id} />
+                  {record.location_type === 'instance' && record.physical_location_label && (
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>physisch: {record.physical_location_label}</span>
+                  )}
+                </span>
+              ) : 'Kein Standort'}
+            </RowNode>
             <Row k="Status" v={qcStatusConfig(record.qc_status).label} />
             <Row k="Erstellt" v={localDate(record.created_at)} />
           </div>

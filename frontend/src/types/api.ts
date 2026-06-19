@@ -842,6 +842,8 @@ export interface components {
             safety_stock?: string | null;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
+            /** Computed Weight Kg */
+            computed_weight_kg?: string | null;
             /** Unit Cost Low */
             unit_cost_low?: string | null;
             /** Unit Cost High */
@@ -1317,6 +1319,8 @@ export interface components {
             location_id?: number | null;
             /** Location Label */
             location_label?: string | null;
+            /** Physical Location Label */
+            physical_location_label?: string | null;
         };
         /**
          * InstanceReference
@@ -1381,6 +1385,8 @@ export interface components {
             article_name?: string | null;
             /** Location Label */
             location_label?: string | null;
+            /** Physical Location Label */
+            physical_location_label?: string | null;
             /** Reserved For Order Object Id */
             reserved_for_order_object_id?: number | null;
         };

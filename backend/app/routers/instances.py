@@ -5,7 +5,7 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
 from ..schemas.instance import InstanceReference, InstanceResponse
-from ..services.locations import location_label
+from ..services.locations import location_label, physical_location_label
 from ..services.references import instance_references
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -28,6 +28,8 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
         resp.order_object_id = ords.get(r.order_id)
         resp.reserved_for_order_object_id = ords.get(r.reserved_for_order_id) if r.reserved_for_order_id else None
         resp.location_label = location_label(db, r.location_type, r.location_id)
+        if r.location_type == "instance":
+            resp.physical_location_label = physical_location_label(db, r.location_type, r.location_id)
         out.append(resp)
     return out
 

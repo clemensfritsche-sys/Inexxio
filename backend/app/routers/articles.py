@@ -9,8 +9,9 @@ from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.instance import InstanceResponse
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable
-from ..services.locations import location_label
+from ..services.locations import location_label, physical_location_label
 from ..services.objects import next_object_id
+from ..services.weight import computed_weights
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["articles"])
 
@@ -80,7 +81,8 @@ def _lead_time_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
 
 
 def _to_response(article: Article, price_range: tuple | None,
-                 lead_range: tuple | None = None) -> ArticleResponse:
+                 lead_range: tuple | None = None,
+                 computed_weight=None) -> ArticleResponse:
     resp = ArticleResponse.model_validate(article)
     if price_range:
         low, high = price_range
@@ -91,6 +93,7 @@ def _to_response(article: Article, price_range: tuple | None,
         resp.unit_cost_high = article.landed_unit_cost
     if lead_range:
         resp.lead_time_days_low, resp.lead_time_days_high = lead_range
+    resp.computed_weight_kg = computed_weight
     return resp
 
 
@@ -107,7 +110,8 @@ async def list_articles(
     )
     ranges = _price_ranges(db, [a.id for a in articles])
     leads = _lead_time_ranges(db, [a.id for a in articles])
-    return [_to_response(a, ranges.get(a.id), leads.get(a.id)) for a in articles]
+    cweights = computed_weights(db, [a.id for a in articles])
+    return [_to_response(a, ranges.get(a.id), leads.get(a.id), cweights.get(a.id)) for a in articles]
 
 
 @router.post("", response_model=ArticleResponse, status_code=201)
@@ -147,7 +151,8 @@ async def get_article(
 ):
     article = _get_active(db, object_id)
     return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
-                        _lead_time_ranges(db, [article.id]).get(article.id))
+                        _lead_time_ranges(db, [article.id]).get(article.id),
+                        computed_weights(db, [article.id]).get(article.id))
 
 
 @router.patch("/{object_id}", response_model=ArticleResponse)
@@ -180,7 +185,8 @@ async def update_article(
     db.commit()
     db.refresh(article)
     return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
-                        _lead_time_ranges(db, [article.id]).get(article.id))
+                        _lead_time_ranges(db, [article.id]).get(article.id),
+                        computed_weights(db, [article.id]).get(article.id))
 
 
 @router.get("/{object_id}/instances", response_model=list[InstanceResponse])
@@ -208,5 +214,7 @@ async def list_article_instances(
         resp.order_object_id = order_map.get(r.order_id)
         resp.article_name = article.name
         resp.location_label = location_label(db, r.location_type, r.location_id)
+        if r.location_type == "instance":
+            resp.physical_location_label = physical_location_label(db, r.location_type, r.location_id)
         out.append(resp)
     return out

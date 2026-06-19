@@ -234,6 +234,9 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe
+    # Aufsummiertes Gewicht aus den verbauten Ressourcen (read-only, rekursiv über
+    # die Stückliste). Nur gesetzt, wenn der Artikel consume-Ressourcen hat.
+    computed_weight_kg: Optional[Decimal] = None
     # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
     unit_cost_low: Optional[Decimal] = None
     unit_cost_high: Optional[Decimal] = None

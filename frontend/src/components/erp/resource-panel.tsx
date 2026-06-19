@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Wrench, Lock, CheckCircle2, Package, Boxes, ScanLine } from 'lucide-react';
+import { Wrench, Lock, CheckCircle2, Package, Boxes, ScanLine, Info } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
   Order, OrderResourceLine, OrderResourceProduct, ResourceToolPickInput,
@@ -122,6 +122,13 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
           <CheckCircle2 size={16} />
           <span style={{ fontSize: 13, fontWeight: 700 }}>Ressourcen erfasst</span>
           {res?.used_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{res.used_by_name}</span>}
+        </div>
+      )}
+
+      {!done && (
+        <div style={infoStyle}>
+          <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Verbrauchte Komponenten werden in die Produkt-Instanz eingebaut, Betriebsmittel an deren Standort gebracht – der Standort wandert mit dem Produkt mit.</span>
         </div>
       )}
 
@@ -266,6 +273,10 @@ function Header() {
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
   display: 'flex', flexDirection: 'column', gap: 12,
+};
+const infoStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+  background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 12, color: '#1e40af',
 };
 const lineBox: React.CSSProperties = {
   border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px',

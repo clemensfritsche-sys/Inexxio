@@ -2905,6 +2905,17 @@
             ],
             "title": "Landed Unit Cost"
           },
+          "computed_weight_kg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed Weight Kg"
+          },
           "unit_cost_low": {
             "anyOf": [
               {
@@ -4699,6 +4710,17 @@
               }
             ],
             "title": "Location Label"
+          },
+          "physical_location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Location Label"
           }
         },
         "type": "object",
@@ -4885,6 +4907,17 @@
               }
             ],
             "title": "Location Label"
+          },
+          "physical_location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Location Label"
           },
           "reserved_for_order_object_id": {
             "anyOf": [

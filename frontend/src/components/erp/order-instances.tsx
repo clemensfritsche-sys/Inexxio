@@ -37,6 +37,9 @@ export function OrderInstances({ order }: { order: Order }) {
               {i.location_label && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}>
                   <Icon size={11} /> {i.location_label}
+                  {i.location_type === 'instance' && i.physical_location_label && (
+                    <span style={{ color: '#cbd5e1' }}> · {i.physical_location_label}</span>
+                  )}
                 </span>
               )}
               <StatusBadge cfg={qcStatusConfig(i.qc_status)} />

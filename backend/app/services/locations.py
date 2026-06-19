@@ -74,6 +74,32 @@ def validate_location(db: Session, ltype: str, lid: int) -> None:
         raise HTTPException(400, detail="Zielstandort nicht gefunden")
 
 
+def resolve_physical_location(
+    db: Session, ltype: str | None, lid: int | None, _depth: int = 0
+) -> tuple[str | None, int | None]:
+    """Folgt ``instance``→``instance``-Ketten bis zum **physischen** Standort
+    (Lagerplatz/Person). So «wandert» eine verbaute Komponente mit ihrer Produkt-
+    Instanz: ihr Standort ist die Produkt-Instanz, der physische Ort ergibt sich
+    aus deren Standort. Endet bei einem Nicht-Instanz-Standort (Tiefenschutz)."""
+    if ltype != "instance" or lid is None or _depth > 10:
+        return ltype, lid
+    host = (
+        db.query(Instance)
+        .filter(Instance.object_id == lid, Instance.is_active == True)
+        .first()
+    )
+    if not host:
+        return ltype, lid
+    return resolve_physical_location(db, host.location_type, host.location_id, _depth + 1)
+
+
+def physical_location_label(db: Session, ltype: str | None, lid: int | None) -> str | None:
+    """Label des aufgelösten physischen Standorts (nur sinnvoll, wenn ``ltype``
+    ``instance`` ist – dann zeigt es, wo die Host-Instanz tatsächlich liegt)."""
+    pt, pid = resolve_physical_location(db, ltype, lid)
+    return location_label(db, pt, pid)
+
+
 def ensure_receiving_location(db: Session) -> int:
     """Objektnummer des Wareneingangs; legt ihn bei Bedarf automatisch an."""
     settings = get_or_create_settings(db)
