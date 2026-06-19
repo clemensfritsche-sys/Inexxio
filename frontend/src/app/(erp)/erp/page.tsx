@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
@@ -13,6 +13,7 @@ import { claimStatusConfig } from '@/lib/claim';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
+import { useScan } from '@/components/scan/scan-provider';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
@@ -148,6 +149,7 @@ export default function ErpPage() {
 
   const mapsApiKey = settings?.google_maps_api_key ?? null;
   const suppliers = users.filter((u) => u.role === 'supplier');
+  const scan = useScan();
 
   useEffect(() => {
     Promise.allSettled([
@@ -233,6 +235,19 @@ export default function ErpPage() {
   function openByObjectId(objectId: number) {
     const row = rows.find((r) => r.objectId === objectId);
     if (row) handleSelect(row.type, objectId);
+  }
+
+  // Kamera-Scan im Feed → gescannten Datensatz öffnen (sonst als Suche anzeigen)
+  function scanToOpen() {
+    scan({
+      title: 'Datensatz scannen',
+      hint: 'QR-Etikett eines Datensatzes vor die Kamera halten',
+      onResult: (objectId) => {
+        const row = rows.find((r) => r.objectId === objectId);
+        if (row) handleSelect(row.type, objectId);
+        else { setTypeFilter(null); setSearch(String(objectId)); }
+      },
+    });
   }
 
   function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim') {
@@ -326,18 +341,31 @@ export default function ErpPage() {
               </div>
               )}
             </div>
-            <div style={{ position: 'relative' }}>
-              <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Name, Bezeichnung, Nummer…"
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Name, Bezeichnung, Nummer…"
+                  style={{
+                    width: '100%', paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                    fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8, background: '#F8FAFC',
+                    outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <button
+                onClick={scanToOpen}
+                title="Code scannen"
                 style={{
-                  width: '100%', paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
-                  fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8, background: '#F8FAFC',
-                  outline: 'none', boxSizing: 'border-box',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  width: 36, borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff',
+                  color: '#2563eb', cursor: 'pointer',
                 }}
-              />
+              >
+                <ScanLine size={17} />
+              </button>
             </div>
             {/* Type tag filters */}
             <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>

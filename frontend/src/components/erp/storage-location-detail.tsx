@@ -10,6 +10,7 @@ import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { ObjectLabel } from '@/components/scan/object-label';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
 type TabKey = 'stammdaten' | 'verwendung';
@@ -276,6 +277,12 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
               <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={errs.dimensions} />
             </Card>
           </>
+        )}
+
+        {!isCreate && record?.object_id != null && (
+          <Card>
+            <ObjectLabel objectId={record.object_id} title="Lagerplatz" />
+          </Card>
         )}
 
         {!isCreate && (

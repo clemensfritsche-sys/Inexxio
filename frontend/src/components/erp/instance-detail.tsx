@@ -8,6 +8,7 @@ import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
+import { ObjectLabel } from '@/components/scan/object-label';
 
 type TabKey = 'stammdaten' | 'verwendung';
 
@@ -65,6 +66,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         {tab === 'stammdaten' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <RowNode k="Artikel">
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -80,6 +82,12 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
             <RowNode k="Standort">{record.location_id != null ? <ObjId value={record.location_id} /> : 'Kein Standort'}</RowNode>
             <Row k="Status" v={qcStatusConfig(record.qc_status).label} />
             <Row k="Erstellt" v={localDate(record.created_at)} />
+          </div>
+          {record.object_id != null && (
+            <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px' }}>
+              <ObjectLabel objectId={record.object_id} title={record.article_name ?? undefined} subtitle={instanceKindLabel(record.kind)} />
+            </div>
+          )}
           </div>
         ) : (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>

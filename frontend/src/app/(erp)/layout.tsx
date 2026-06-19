@@ -6,6 +6,7 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
+import { ScanProvider } from '@/components/scan/scan-provider';
 
 const ROLE_KEY = 'inexxio_user_role';
 
@@ -61,12 +62,12 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <ScanProvider>
       <Navbar />
       <main style={{ minHeight: 'calc(100vh - 72px - 280px)', background: '#FAFAF8' }}>
         {children}
       </main>
       <Footer />
-    </>
+    </ScanProvider>
   );
 }

@@ -241,6 +241,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   liefert schlanke `OrderSummary` (ohne Embeds); das Detail kommt **on-demand** via `getOrder(id)`.
   **Domain-Event-Strom** (Outbox) `events` + `GET /api/v1/events?after_id=…` für KI/Automatisierung
   (`services/events.py`). Schema-Management via Alembic (`start.sh`), Lifespan-Safety-Nets als Fallback.
+- **QR-Code / Kamera-Scan (zentral, Frontend-only)**: die universelle Objektnummer ist der einzige
+  Code-Inhalt. `lib/scan.ts` (`encodeObjectCode`/`parseScannedCode` – tolerant ggü. nackter Nummer &
+  URL/Deep-Link). Zentraler Scanner: `ScanProvider` + `useScan({ title, expected?, onResult })` mountet
+  EINE Dialog-Instanz am ERP-Layout; `ScanDialog` ist **Kamera-first** (ZXing `@zxing/browser`, lazy
+  geladen) mit manueller Fallback-Eingabe nach ~2.5 s bzw. sofort bei fehlendem Kamerazugriff.
+  **Verifikations-Modus** (`expected`): nur ein passender Code wird grün quittiert, falscher Code rot
+  abgewiesen. Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button
+  «Scannen» öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 
 > **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
 > Prozess-Schritttypen: purchase, inspection, movement, resource (Bestands-Instanzen entstehen bei der
@@ -251,8 +259,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Mehr-Operationen-Routing** ist vorbereitet: mehrere gleichartige Prozessschritte (inkl. mehrerer
 > `resource`-Operationen) laufen unabhängig (`step_id` auf den Fachtabellen).
 
-Nächste Aufgabe: Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API);
-Arbeitspläne (vollständiges Routing-UI auf Basis des Mehr-Operationen-Routings); Stripe
+Nächste Aufgabe: Scan-Quittierung in den Prozessschritten (Kamera als Standard via `useScan({expected})`
+in Bewegung/Ressource/Datenerfassung/Wareneingang); Reklamation – konfigurierbare Prozessschritte je
+RMA; E-Mail-Versand (Gmail API); Arbeitspläne (vollständiges Routing-UI auf Basis des
+Mehr-Operationen-Routings); Stripe
 
 ## Deployment
 - Trigger: Push auf Branch `develop`
