@@ -6,7 +6,7 @@ from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..services.admin import log_audit
-from ..services.objects import current_max_object_id
+from ..services.objects import next_object_ids
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
 
@@ -20,11 +20,10 @@ def _assign_object_ids(db: Session) -> None:
     )
     if not pending:
         return
-    # Aus dem gemeinsamen Nummernkreis vergeben (über alle Objekttypen hinweg).
-    next_id = current_max_object_id(db) + 1
-    for u in pending:
-        u.object_id = next_id
-        next_id += 1
+    # Aus der gemeinsamen Sequence vergeben (atomar, über alle Objekttypen hinweg).
+    ids = next_object_ids(db, len(pending))
+    for u, oid in zip(pending, ids):
+        u.object_id = oid
     db.commit()
 
 

@@ -163,6 +163,34 @@ def _ensure_columns() -> None:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
 
 
+def _ensure_object_id_sequence() -> None:
+    """Objektnummern-Sequence anlegen und (einmalig) an Altdaten ausrichten.
+
+    Idempotent und rewind-sicher: hebt die Sequence höchstens auf den höchsten
+    bereits vergebenen Stand – nie darunter. Auf einer leeren DB bleibt der Start
+    bei OBJ_ID_START. Migration ``021`` macht dasselbe; diese Funktion ist das
+    Fallback, falls die Migration übersprungen wurde/fehlschlug."""
+    from .services.objects import OBJ_ID_START, OBJECT_ID_SEQUENCE, current_max_object_id
+    db = SessionLocal()
+    try:
+        db.execute(text(
+            f"CREATE SEQUENCE IF NOT EXISTS {OBJECT_ID_SEQUENCE} AS BIGINT "
+            f"START WITH {OBJ_ID_START} MINVALUE {OBJ_ID_START}"
+        ))
+        db.commit()
+        max_id = current_max_object_id(db)
+        if max_id >= OBJ_ID_START:
+            db.execute(text(
+                f"SELECT setval('{OBJECT_ID_SEQUENCE}', "
+                f"GREATEST((SELECT last_value FROM {OBJECT_ID_SEQUENCE}), :m), true)"
+            ), {"m": max_id})
+            db.commit()
+    except Exception as e:
+        print(f"WARNING: _ensure_object_id_sequence() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -173,6 +201,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"WARNING: create_all() failed: {e}", flush=True)
     _ensure_columns()
+    _ensure_object_id_sequence()
     try:
         _bootstrap_admin()
     except Exception as e:
