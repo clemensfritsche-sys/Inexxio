@@ -1032,6 +1032,68 @@
         }
       }
     },
+    "/api/v1/erp/articles/{object_id}/process-steps/reorder": {
+      "patch": {
+        "tags": [
+          "article-process"
+        ],
+        "summary": "Reorder Steps",
+        "description": "Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden\nserverseitig automatisch (neu) eingefügt und positioniert.",
+        "operationId": "reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                  },
+                  "title": "Response Reorder Steps Api V1 Erp Articles  Object Id  Process Steps Reorder Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles/{object_id}/process-steps/{step_id}": {
       "patch": {
         "tags": [
@@ -2525,6 +2587,11 @@
           "step_type": {
             "type": "string",
             "title": "Step Type"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked",
+            "default": false
           },
           "mode": {
             "type": "string",
@@ -6396,6 +6463,23 @@
         "type": "object",
         "title": "ResourceUpdate",
         "description": "Ausführung des Ressource-Schritts: Verbrauch läuft automatisch (FIFO),\nnur die Betriebsmittel werden aktiv gewählt."
+      },
+      "StepReorder": {
+        "properties": {
+          "ordered_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ordered Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ordered_ids"
+        ],
+        "title": "StepReorder",
+        "description": "Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen\nwerden serverseitig automatisch neu eingefügt/positioniert."
       },
       "StorageLocationCreate": {
         "properties": {

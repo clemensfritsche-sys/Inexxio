@@ -92,6 +92,8 @@ _COLUMN_SAFETY_NET = (
     ("inspections", "step_id", "BIGINT"),
     ("movements", "step_id", "BIGINT"),
     ("resource_usages", "step_id", "BIGINT"),
+    # Pflicht-Bewegung rund um Beschaffung (System, nicht löschbar)
+    ("article_process_steps", "locked", "BOOLEAN DEFAULT FALSE NOT NULL"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -205,6 +207,33 @@ def _ensure_object_id_sequence() -> None:
         db.close()
 
 
+def _sync_locked_movements_bootstrap() -> None:
+    """Bestandsartikel auf das neue Modell bringen: jeder Beschaffungsschritt wird
+    von Pflicht-Bewegungen flankiert (Versand/Wareneingang). Idempotent; läuft nur
+    über Artikel mit Beschaffungs- oder Pflicht-Bewegungsschritten."""
+    from .models import Article, ArticleProcessStep
+    from .services.process_steps import sync_locked_movements
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ArticleProcessStep.article_id)
+            .filter(ArticleProcessStep.is_active == True,
+                    ArticleProcessStep.step_type.in_(("purchase", "movement")))
+            .distinct()
+            .all()
+        )
+        active_ids = {aid for (aid,) in db.query(Article.id).filter(Article.is_active == True).all()}
+        for (aid,) in rows:
+            if aid in active_ids:
+                sync_locked_movements(db, aid)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _sync_locked_movements_bootstrap() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -216,6 +245,7 @@ async def lifespan(app: FastAPI):
         print(f"WARNING: create_all() failed: {e}", flush=True)
     _ensure_columns()
     _ensure_object_id_sequence()
+    _sync_locked_movements_bootstrap()
     try:
         _bootstrap_admin()
     except Exception as e:

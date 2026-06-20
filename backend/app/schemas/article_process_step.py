@@ -179,6 +179,13 @@ class ArticleProcessStepCreate(BaseModel):
         return self
 
 
+class StepReorder(BaseModel):
+    """Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
+    werden serverseitig automatisch neu eingefügt/positioniert."""
+
+    ordered_ids: list[int]
+
+
 class ArticleProcessStepUpdate(BaseModel):
     """Teil-Update eines Prozessschritts."""
 
@@ -233,6 +240,7 @@ class ArticleProcessStepResponse(BaseModel):
     article_id: int
     position: int
     step_type: str
+    locked: bool = False   # Pflicht-Bewegung (System, nicht löschbar/editierbar)
     mode: str
     supplier_id: Optional[int]
     supplier_name: Optional[str] = None  # vom Router denormalisiert

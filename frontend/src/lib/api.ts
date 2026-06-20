@@ -155,6 +155,11 @@ class ApiClient {
     return this.delete(`/api/v1/erp/articles/${objectId}/process-steps/${stepId}`);
   }
 
+  // Reihenfolge der frei sortierbaren Schritte; Pflicht-Bewegungen ordnet der Server.
+  reorderArticleProcessSteps(objectId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/process-steps/reorder`, { ordered_ids: orderedIds });
+  }
+
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
   // Schlanker Feed (ohne Embeds); Detail via getOrder(id)

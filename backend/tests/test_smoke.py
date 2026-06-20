@@ -709,15 +709,25 @@ def test_event_outbox_model_and_router():
         assert f in EventResponse.model_fields
 
 
-def test_received_requires_storage_location():
-    """Wareneingang: der aktuelle Lagerort ist Pflicht (ohne Angabe → Fehler)."""
-    import pytest
-    from fastapi import HTTPException
+def test_purchase_is_commercial_only_and_movements_planned():
+    """Modul-Trennung: Purchase ist rein kaufmännisch (kein Standortwechsel mehr);
+    Pflicht-Bewegungen rund um die Beschaffung werden korrekt geplant."""
+    from app.services import purchase
+    from app.services.process_steps import _plan
 
-    from app.services.purchase import _resolve_received_location
+    # Purchase verschiebt keine Instanzen mehr – die Alt-Helfer sind entfernt
+    assert not hasattr(purchase, "_relocate_to_receiving")
+    assert not hasattr(purchase, "_resolve_received_location")
 
-    with pytest.raises(HTTPException):
-        _resolve_received_location(None, None)   # ohne Lagerort nicht erlaubt
+    # Beschaffung als erster Schritt → Pflicht-Bewegung (Wareneingang) danach
+    assert _plan(["purchase"]) == ["purchase", None]
+    # Beschaffung mitten im Prozess (Lohnveredelung) → Bewegung DAVOR und DANACH
+    assert _plan(["resource", "purchase", "inspection"]) == \
+        ["resource", None, "purchase", None, "inspection"]
+    # Aufeinanderfolgende Beschaffungen: keine doppelte Bewegung dazwischen
+    assert _plan(["purchase", "purchase"]) == ["purchase", None, "purchase", None]
+    # Ohne Beschaffung keine Pflicht-Bewegung
+    assert _plan(["resource", "inspection"]) == ["resource", "inspection"]
 
 
 def test_resource_embed_per_product_breakdown():

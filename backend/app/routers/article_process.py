@@ -10,10 +10,12 @@ from ..schemas.article_process_step import (
     ArticleProcessStepResponse,
     ArticleProcessStepUpdate,
     ResourceLineView,
+    StepReorder,
     normalize_capture_fields,
 )
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_article_draft
+from ..services.process_steps import sync_locked_movements
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["article-process"])
 
@@ -146,9 +148,47 @@ async def create_step(
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
               current_user.id, object_id=article.object_id)
+    # Pflicht-Bewegungen rund um Beschaffungsschritte automatisch herstellen.
+    sync_locked_movements(db, article.id)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
+
+
+@router.patch("/{object_id}/process-steps/reorder", response_model=list[ArticleProcessStepResponse])
+async def reorder_steps(
+    object_id: int,
+    data: StepReorder,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
+    serverseitig automatisch (neu) eingefügt und positioniert."""
+    article = _get_article(db, object_id)
+    ensure_article_draft(article)
+    free = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.article_id == article.id,
+                ArticleProcessStep.is_active == True, ArticleProcessStep.locked == False)
+        .all()
+    )
+    by_id = {s.id: s for s in free}
+    if set(data.ordered_ids) != set(by_id):
+        raise HTTPException(400, detail="Reihenfolge passt nicht zu den vorhandenen Schritten")
+    for i, sid in enumerate(data.ordered_ids):
+        by_id[sid].position = i * 2   # eindeutig & geordnet; sync renummeriert final
+    db.flush()
+    sync_locked_movements(db, article.id)
+    log_audit(db, "article_process_steps", "reorder", str(data.ordered_ids),
+              current_user.id, object_id=article.object_id)
+    db.commit()
+    steps = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
+        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+        .all()
+    )
+    return [_to_response(db, s) for s in steps]
 
 
 def _get_step(db: Session, article: Article, step_id: int) -> ArticleProcessStep:
@@ -177,6 +217,8 @@ async def update_step(
     article = _get_article(db, object_id)
     ensure_article_draft(article)
     step = _get_step(db, article, step_id)
+    if step.locked:
+        raise HTTPException(400, detail="Pflicht-Bewegung ist nicht editierbar (Standort wird beim Ausführen gesetzt)")
     payload = data.model_dump(exclude_unset=True)
     if "supplier_id" in payload:
         _validate_supplier(db, payload["supplier_id"])
@@ -208,8 +250,12 @@ async def delete_step(
     article = _get_article(db, object_id)
     ensure_article_draft(article)
     step = _get_step(db, article, step_id)
+    if step.locked:
+        raise HTTPException(400, detail="Pflicht-Bewegung zu einer Beschaffung – nicht löschbar")
     step.is_active = False
     log_audit(db, "article_process_steps", "is_active", "false", current_user.id,
               object_id=article.object_id, old_value="true")
+    # Verwaiste Pflicht-Bewegungen (z. B. nach Entfernen einer Beschaffung) bereinigen.
+    sync_locked_movements(db, article.id)
     db.commit()
     return {"deleted": True}

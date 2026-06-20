@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -81,6 +81,20 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     setTargetSel(''); setResLines([]); setError(null);
   }
 
+  // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
+  // Pflicht-Bewegungen + serverseitiger Positionen).
+  async function reload() {
+    try { setSteps(await api.getArticleProcessSteps(aid)); } catch { /* ignore */ }
+  }
+
+  // Zweck einer Pflicht-Bewegung aus der Nachbarschaft ableiten (Versand vor /
+  // Wareneingang nach einer Beschaffung).
+  function lockedPurpose(i: number): string {
+    const next = steps[i + 1];
+    if (next && next.step_type === 'purchase') return 'Versand zum Lieferanten · automatisch';
+    return 'Wareneingang · automatisch';
+  }
+
   function buildCaptureFields(): CaptureField[] {
     return wfields
       .filter((f) => f.label.trim())
@@ -112,7 +126,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
-      const created = await api.createArticleProcessStep(aid, {
+      await api.createArticleProcessStep(aid, {
         step_type: type,
         mode: type === 'purchase' ? mode : undefined,
         supplier_id: type === 'purchase' && mode === 'supplier' ? Number(supplierId) : null,
@@ -124,7 +138,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
         target_location_id: tgt ? Number(tgt[1]) : null,
         resource_lines: resourcePayload,
       });
-      setSteps((p) => [...p, created]);
+      // Server fügt evtl. Pflicht-Bewegungen hinzu → kanonische Liste neu laden.
+      await reload();
       resetForm();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -136,7 +151,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   async function removeStep(stepId: number) {
     try {
       await api.deleteArticleProcessStep(aid, stepId);
-      setSteps((p) => p.filter((s) => s.id !== stepId));
+      // Entfernt eine Beschaffung evtl. zugehörige Pflicht-Bewegungen → neu laden.
+      await reload();
     } catch { /* ignore */ }
   }
 
@@ -148,13 +164,13 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     } catch { /* ignore */ }
   }
 
-  async function persistOrder(ordered: ArticleProcessStep[]) {
-    setSteps(ordered.map((s, i) => ({ ...s, position: i + 1 })));
-    try {
-      await Promise.all(ordered.map((s, i) => (s.position !== i + 1
-        ? api.updateArticleProcessStep(aid, s.id, { position: i + 1 })
-        : Promise.resolve())));
-    } catch { /* ignore */ }
+  async function persistOrder(orderedFull: ArticleProcessStep[]) {
+    setSteps(orderedFull);  // optimistisch
+    // Nur die frei sortierbaren (nicht-Pflicht) Schritte werden gesendet; der
+    // Server fügt die Pflicht-Bewegungen automatisch wieder an der richtigen Stelle ein.
+    const ids = orderedFull.filter((s) => !s.locked).map((s) => s.id);
+    try { setSteps(await api.reorderArticleProcessSteps(aid, ids)); }
+    catch { reload(); }
   }
 
   function onDrop(targetIndex: number) {
@@ -176,44 +192,53 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
       {steps.map((s, i) => {
         const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
         const Icon = meta.icon;
+        const isLocked = s.locked;
+        const canDrag = !readOnly && !isLocked;
         const isOver = over === i && drag !== null && drag !== i;
         return (
           <div key={s.id}>
             <Connector />
             <div
-              draggable={!readOnly}
-              onDragStart={() => setDrag(i)}
+              draggable={canDrag}
+              onDragStart={() => { if (canDrag) setDrag(i); }}
               onDragEnd={() => { setDrag(null); setOver(null); }}
-              onDragOver={(e) => { if (!readOnly) { e.preventDefault(); setOver(i); } }}
+              onDragOver={(e) => { if (!readOnly && drag !== null) { e.preventDefault(); setOver(i); } }}
               onDrop={(e) => { e.preventDefault(); onDrop(i); }}
               style={{
                 ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10,
                 opacity: drag === i ? 0.4 : 1,
+                background: isLocked ? '#f8fafc' : '#fff',
                 borderColor: isOver ? '#2563eb' : '#E2E8F0',
                 boxShadow: isOver ? '0 0 0 2px #dbeafe' : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {!readOnly && <GripVertical size={16} style={{ color: '#cbd5e1', cursor: 'grab', flexShrink: 0 }} />}
-                <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {!readOnly && (isLocked
+                  ? <Lock size={14} style={{ color: '#cbd5e1', flexShrink: 0 }} />
+                  : <GripVertical size={16} style={{ color: '#cbd5e1', cursor: 'grab', flexShrink: 0 }} />)}
+                <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: isLocked ? '#f1f5f9' : '#eff6ff', color: isLocked ? '#64748b' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={16} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{i + 1}. {meta.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{i + 1}. {meta.label}</span>
+                    {isLocked && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: 999 }}>Pflicht</span>}
+                  </div>
                   <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
-                    {s.step_type === 'purchase' && (
+                    {isLocked && lockedPurpose(i)}
+                    {!isLocked && s.step_type === 'purchase' && (
                       s.mode === 'supplier'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Link2 size={12} /> {PROCESS_MODE_LABEL.webshop}</span>
                     )}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
-                    {s.step_type === 'movement' && (s.target_location_id
+                    {!isLocked && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Ressource${(s.resource_lines?.length ?? 0) === 1 ? '' : 'n'}`}
                   </div>
                 </div>
-                {!readOnly && (
+                {!readOnly && !isLocked && (
                   <button onClick={() => removeStep(s.id)} title="Entfernen" style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
                 )}
               </div>

@@ -339,6 +339,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/articles/{object_id}/process-steps/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reorder Steps
+         * @description Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
+         *     serverseitig automatisch (neu) eingefügt und positioniert.
+         */
+        patch: operations["reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/articles/{object_id}/process-steps/{step_id}": {
         parameters: {
             query?: never;
@@ -740,6 +761,11 @@ export interface components {
             position: number;
             /** Step Type */
             step_type: string;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
             /** Mode */
             mode: string;
             /** Supplier Id */
@@ -1908,6 +1934,15 @@ export interface components {
             step_id?: number | null;
         };
         /**
+         * StepReorder
+         * @description Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
+         *     werden serverseitig automatisch neu eingefügt/positioniert.
+         */
+        StepReorder: {
+            /** Ordered Ids */
+            ordered_ids: number[];
+        };
+        /**
          * StorageLocationCreate
          * @description Anlage über '+'. Status startet als 'draft'. Bezeichnung ist fix 'Lagerplatz'
          *     (serverseitig gesetzt); Koordinaten/Adresse/Kapazität werden mitgegeben.
@@ -2956,6 +2991,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArticleProcessStepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepReorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"][];
                 };
             };
             /** @description Validation Error */

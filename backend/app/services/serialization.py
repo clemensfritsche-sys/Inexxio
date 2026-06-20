@@ -18,29 +18,33 @@ Startstandort:
 
 from sqlalchemy.orm import Session
 
-from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
+from ..models import Article, Instance, Order, UserProfile
+from . import process
 from .admin import log_audit
 from .events import emit
-from .locations import resolve_receiving_location
+from .locations import ensure_receiving_location
 from .objects import next_object_ids
 
 
 def _initial_location(db: Session, order: Order) -> tuple[str, int]:
-    """Startstandort neuer Instanzen: Lieferant (falls bekannt), sonst Wareneingang."""
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-        .first()
-    )
-    if po and po.mode == "supplier" and po.supplier_id:
+    """Startstandort neuer Instanzen.
+
+    Beginnt der Prozess mit einer **Lieferanten-Beschaffung** (erster Schritt =
+    ``purchase``/supplier), starten die Instanzen beim **Lieferanten** – der
+    physische Wareneingang erfolgt danach über die Pflicht-Bewegung. Sonst (in-
+    house gefertigt, z. B. Lohnveredelung mit Beschaffung erst mitten im Prozess)
+    starten sie intern im Wareneingang."""
+    defs = process.step_defs(db, order.article_id) if order.article_id else []
+    first = defs[0] if defs else None
+    if first and first.step_type == "purchase" and first.mode == "supplier" and first.supplier_id:
         sup = (
             db.query(UserProfile)
-            .filter(UserProfile.id == po.supplier_id, UserProfile.is_active == True)
+            .filter(UserProfile.id == first.supplier_id, UserProfile.is_active == True)
             .first()
         )
         if sup and sup.object_id:
             return ("user", sup.object_id)
-    return ("lagerplatz", resolve_receiving_location(db, po))
+    return ("lagerplatz", ensure_receiving_location(db))
 
 
 def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list[Instance]:

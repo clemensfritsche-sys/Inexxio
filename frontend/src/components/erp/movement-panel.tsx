@@ -84,7 +84,9 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     const inst = queue[0];
     const iid = inst.object_id as number;
     const steps: ScanStep[] = [];
-    if (inst.location_id != null) {
+    // Quell-Scan nur bei physisch scannbarem Standort. Liegt die Instanz bei einer
+    // Person/Lieferant (Wareneingang von aussen), gibt es nichts zu scannen → überspringen.
+    if (inst.location_id != null && inst.location_type !== 'user') {
       steps.push({
         label: 'Aktueller Standort', hint: `Standort von ${fmtObjId(iid)} scannen`, expected: inst.location_id,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,

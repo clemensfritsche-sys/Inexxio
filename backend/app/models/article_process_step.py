@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy import BigInteger, Integer, String
+from sqlalchemy import BigInteger, Boolean, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -28,6 +28,10 @@ class ArticleProcessStep(Base, TimestampMixin):
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
+
+    # Pflicht-Bewegung: vom System rund um eine Beschaffung erzeugt (Versand/Wareneingang).
+    # Nicht löschbar/editierbar und automatisch positioniert (services/process_steps.py).
+    locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Konfiguration «purchase»
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)  # supplier | webshop

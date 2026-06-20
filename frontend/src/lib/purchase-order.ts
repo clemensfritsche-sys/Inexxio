@@ -7,7 +7,7 @@ export const PURCHASE_STATUS: Record<PurchaseOrderStatus, StatusCfg> = {
   quoted:    { label: 'Offeriert',    color: '#2563eb', bg: '#eff6ff', icon: FileText },
   ordered:   { label: 'Bestellt',     color: '#7c3aed', bg: '#f5f3ff', icon: ShoppingCart },
   rejected:  { label: 'Abgelehnt',    color: '#dc2626', bg: '#fef2f2', icon: XCircle },
-  received:  { label: 'Wareneingang', color: '#0f766e', bg: '#f0fdfa', icon: PackageCheck },
+  received:  { label: 'Geliefert',    color: '#0f766e', bg: '#f0fdfa', icon: PackageCheck },
 };
 
 export const PURCHASE_STATUS_ORDER: PurchaseOrderStatus[] = [
