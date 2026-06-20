@@ -217,9 +217,24 @@ async def update_step(
     article = _get_article(db, object_id)
     ensure_article_draft(article)
     step = _get_step(db, article, step_id)
-    if step.locked:
-        raise HTTPException(400, detail="Pflicht-Bewegung ist nicht editierbar (Standort wird beim Ausführen gesetzt)")
     payload = data.model_dump(exclude_unset=True)
+    if step.locked:
+        # Versand (Ziel = Lieferant) ist systemgebunden; beim Wareneingang ist – wie
+        # bei einer regulären Bewegung – nur das Ziel editierbar (Lagerplatz oder offen).
+        if step.target_location_type == "user":
+            raise HTTPException(400, detail="Versand zum Lieferanten ist fix – nicht editierbar")
+        if set(payload) - {"target_location_type", "target_location_id"}:
+            raise HTTPException(400, detail="Bei dieser Pflicht-Bewegung ist nur das Ziel editierbar")
+        ttype = payload.get("target_location_type")
+        if ttype not in (None, "lagerplatz"):
+            raise HTTPException(400, detail="Wareneingang-Ziel muss ein Lagerplatz sein")
+        step.target_location_type = ttype
+        step.target_location_id = payload.get("target_location_id") if ttype else None
+        log_audit(db, "article_process_steps", "wareneingang_target",
+                  str(step.target_location_id), current_user.id, object_id=article.object_id)
+        db.commit()
+        db.refresh(step)
+        return _to_response(db, step)
     if "supplier_id" in payload:
         _validate_supplier(db, payload["supplier_id"])
     if "capture_fields" in payload:

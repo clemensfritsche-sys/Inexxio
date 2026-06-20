@@ -9,11 +9,13 @@ Abgeleitet aus der Artikel-Einstellung ``serialization``:
     batch → 1 Charge-Instanz mit quantity = Bestellmenge
 
 Startstandort:
-    - Gibt es einen Beschaffungsschritt mit Lieferant, starten die Instanzen
-      direkt **beim Lieferanten** (``location_type='user'``). Der Wareneingang
-      erfolgt mit dem Bestell-Status «received» – dann wechseln die Instanzen an
-      den Wareneingang (siehe ``services/purchase.py``).
-    - Sonst (Webshop / keine Beschaffung) starten sie direkt im **Wareneingang**.
+    - Beginnt der Prozess mit einer **Lieferanten-Beschaffung** (erster Schritt),
+      starten die Instanzen direkt **beim Lieferanten** (``location_type='user'``);
+      der physische Wareneingang erfolgt danach über die Pflicht-Bewegung.
+    - Sonst (in-house gefertigt, oder die Beschaffung kommt erst später) starten
+      sie **ohne Standort** (``NULL`` = «noch nicht festgelegt»). Den realen Ort
+      legt der erste Bewegungs-/Wareneingangsschritt fest. So wird keine Instanz
+      fälschlich dem Wareneingang zugeschlagen, obwohl noch nichts angekommen ist.
 """
 
 from sqlalchemy.orm import Session
@@ -22,18 +24,16 @@ from ..models import Article, Instance, Order, UserProfile
 from . import process
 from .admin import log_audit
 from .events import emit
-from .locations import ensure_receiving_location
 from .objects import next_object_ids
 
 
-def _initial_location(db: Session, order: Order) -> tuple[str, int]:
+def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None]:
     """Startstandort neuer Instanzen.
 
     Beginnt der Prozess mit einer **Lieferanten-Beschaffung** (erster Schritt =
-    ``purchase``/supplier), starten die Instanzen beim **Lieferanten** – der
-    physische Wareneingang erfolgt danach über die Pflicht-Bewegung. Sonst (in-
-    house gefertigt, z. B. Lohnveredelung mit Beschaffung erst mitten im Prozess)
-    starten sie intern im Wareneingang."""
+    ``purchase``/supplier), starten die Instanzen beim **Lieferanten**. Sonst gibt
+    es (noch) keinen physischen Standort → ``(None, None)``; er wird durch den
+    ersten Bewegungs-Schritt gesetzt."""
     defs = process.step_defs(db, order.article_id) if order.article_id else []
     first = defs[0] if defs else None
     if first and first.step_type == "purchase" and first.mode == "supplier" and first.supplier_id:
@@ -44,7 +44,7 @@ def _initial_location(db: Session, order: Order) -> tuple[str, int]:
         )
         if sup and sup.object_id:
             return ("user", sup.object_id)
-    return ("lagerplatz", ensure_receiving_location(db))
+    return (None, None)
 
 
 def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list[Instance]:

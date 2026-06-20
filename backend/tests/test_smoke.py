@@ -719,15 +719,19 @@ def test_purchase_is_commercial_only_and_movements_planned():
     assert not hasattr(purchase, "_relocate_to_receiving")
     assert not hasattr(purchase, "_resolve_received_location")
 
-    # Beschaffung als erster Schritt → Pflicht-Bewegung (Wareneingang) danach
-    assert _plan(["purchase"]) == ["purchase", None]
-    # Beschaffung mitten im Prozess (Lohnveredelung) → Bewegung DAVOR und DANACH
-    assert _plan(["resource", "purchase", "inspection"]) == \
-        ["resource", None, "purchase", None, "inspection"]
+    P = ("purchase", "supplier")
+    # Beschaffung als erster Schritt → nur Wareneingang danach (kein Versand)
+    assert _plan([P]) == ["purchase", "wareneingang"]
+    # Beschaffung mitten im Prozess (Lohnveredelung) → Versand DAVOR + Wareneingang DANACH
+    assert _plan([("resource", None), P, ("inspection", None)]) == \
+        ["resource", "versand", "purchase", "wareneingang", "inspection"]
     # Aufeinanderfolgende Beschaffungen: keine doppelte Bewegung dazwischen
-    assert _plan(["purchase", "purchase"]) == ["purchase", None, "purchase", None]
+    assert _plan([P, P]) == ["purchase", "wareneingang", "purchase", "wareneingang"]
     # Ohne Beschaffung keine Pflicht-Bewegung
-    assert _plan(["resource", "inspection"]) == ["resource", "inspection"]
+    assert _plan([("resource", None), ("inspection", None)]) == ["resource", "inspection"]
+    # Webshop-Beschaffung bekommt keinen Versand (kein Lieferant zum Hinsenden)
+    assert _plan([("resource", None), ("purchase", "webshop")]) == \
+        ["resource", "purchase", "wareneingang"]
 
 
 def test_resource_embed_per_product_breakdown():

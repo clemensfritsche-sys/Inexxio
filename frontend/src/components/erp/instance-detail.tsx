@@ -90,7 +90,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
                     <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>physisch: {record.physical_location_label}</span>
                   )}
                 </span>
-              ) : 'Kein Standort'}
+              ) : 'Noch nicht festgelegt'}
             </RowNode>
             <Row k="Status" v={qcStatusConfig(record.qc_status).label} />
             <Row k="Erstellt" v={localDate(record.created_at)} />

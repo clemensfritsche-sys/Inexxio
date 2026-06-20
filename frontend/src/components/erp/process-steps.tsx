@@ -50,6 +50,8 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     if (articleObjectId == null) return;
     setLoading(true);
     api.getArticleProcessSteps(articleObjectId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
+    // Lagerplätze für den (editierbaren) Wareneingang-Zielselektor der Pflicht-Bewegung
+    api.getStorageLocations().then(setStorageLocs).catch(() => {});
   }, [articleObjectId]);
 
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
@@ -87,12 +89,21 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     try { setSteps(await api.getArticleProcessSteps(aid)); } catch { /* ignore */ }
   }
 
-  // Zweck einer Pflicht-Bewegung aus der Nachbarschaft ableiten (Versand vor /
-  // Wareneingang nach einer Beschaffung).
-  function lockedPurpose(i: number): string {
-    const next = steps[i + 1];
-    if (next && next.step_type === 'purchase') return 'Versand zum Lieferanten · automatisch';
-    return 'Wareneingang · automatisch';
+  // Rolle einer Pflicht-Bewegung: Versand (Ziel = Lieferant) vs. Wareneingang.
+  function lockedRole(s: ArticleProcessStep): 'versand' | 'wareneingang' {
+    return s.target_location_type === 'user' ? 'versand' : 'wareneingang';
+  }
+
+  // Wareneingang-Ziel der Pflicht-Bewegung setzen (Lagerplatz oder offen).
+  async function setLockedTarget(stepId: number, value: string) {
+    const tgt = value ? value.split(':') : null;
+    try {
+      const updated = await api.updateArticleProcessStep(aid, stepId, {
+        target_location_type: tgt ? (tgt[0] as LocationType) : null,
+        target_location_id: tgt ? Number(tgt[1]) : null,
+      });
+      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
+    } catch { /* ignore */ }
   }
 
   function buildCaptureFields(): CaptureField[] {
@@ -225,7 +236,11 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                     {isLocked && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: 999 }}>Pflicht</span>}
                   </div>
                   <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
-                    {isLocked && lockedPurpose(i)}
+                    {isLocked && (lockedRole(s) === 'versand'
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Lieferanten{s.target_location_id ? ` · ${fmtObjId(s.target_location_id)}` : ''}</span>
+                      : (s.target_location_id
+                        ? `Wareneingang → Lagerplatz ${fmtObjId(s.target_location_id)}`
+                        : 'Wareneingang · frei beim Einlagern'))}
                     {!isLocked && s.step_type === 'purchase' && (
                       s.mode === 'supplier'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
@@ -242,6 +257,25 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
                   <button onClick={() => removeStep(s.id)} title="Entfernen" style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
                 )}
               </div>
+
+              {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
+              {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+                  <Label>Ziel-Lagerplatz (optional)</Label>
+                  <SearchSelect
+                    value={s.target_location_id ? `lagerplatz:${s.target_location_id}` : ''}
+                    onChange={(v) => setLockedTarget(s.id, v)}
+                    placeholder="frei – Lagerist wählt beim Einlagern"
+                    options={[
+                      { value: '', label: 'frei – Lagerist wählt beim Einlagern' },
+                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+                    ]} />
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+                    Vorgabe → beim Scannen erzwungen. Leer → frei einlagerbar (per Scan erfasst).
+                  </div>
+                </div>
+              )}
 
               {/* Beschaffung: sichtbare Stammdaten */}
               {s.step_type === 'purchase' && (

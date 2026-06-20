@@ -235,7 +235,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 }
 
 function CurrentLocation({ instance }: { instance: OrderInstance }) {
-  if (!instance.location_label) return <span style={{ fontSize: 11, color: '#cbd5e1' }}>kein Standort</span>;
+  if (!instance.location_label) return <span style={{ fontSize: 11, color: '#cbd5e1' }}>noch nicht festgelegt</span>;
   const Icon = LOCATION_META[(instance.location_type as LocationType)]?.icon ?? MapPin;
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}>
