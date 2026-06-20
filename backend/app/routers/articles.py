@@ -6,7 +6,11 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder, UserProfile
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
+from ..schemas.deactivation import (
+    DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
+)
 from ..schemas.instance import InstanceResponse
+from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable
 from ..services.locations import location_label, physical_location_label
@@ -80,9 +84,21 @@ def _lead_time_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
     return out
 
 
+def _predecessors(db: Session, object_ids: list[int]) -> dict[int, int]:
+    """{Nachfolger-Objektnummer → Vorgänger-Objektnummer} (für ``replaces_id``)."""
+    if not object_ids:
+        return {}
+    rows = (
+        db.query(Article.replaced_by_id, Article.object_id)
+        .filter(Article.replaced_by_id.in_(object_ids))
+        .all()
+    )
+    return {succ: pred for succ, pred in rows if succ is not None}
+
+
 def _to_response(article: Article, price_range: tuple | None,
                  lead_range: tuple | None = None,
-                 computed_weight=None) -> ArticleResponse:
+                 computed_weight=None, replaces_id: int | None = None) -> ArticleResponse:
     resp = ArticleResponse.model_validate(article)
     if price_range:
         low, high = price_range
@@ -94,7 +110,19 @@ def _to_response(article: Article, price_range: tuple | None,
     if lead_range:
         resp.lead_time_days_low, resp.lead_time_days_high = lead_range
     resp.computed_weight_kg = computed_weight
+    resp.replaces_id = replaces_id
     return resp
+
+
+def _single(db: Session, article: Article) -> ArticleResponse:
+    """Vollständige Response eines einzelnen Artikels (inkl. Spannen + Vorgänger)."""
+    return _to_response(
+        article,
+        _price_ranges(db, [article.id]).get(article.id),
+        _lead_time_ranges(db, [article.id]).get(article.id),
+        computed_weights(db, [article.id]).get(article.id),
+        _predecessors(db, [article.object_id]).get(article.object_id),
+    )
 
 
 @router.get("", response_model=list[ArticleResponse])
@@ -111,7 +139,9 @@ async def list_articles(
     ranges = _price_ranges(db, [a.id for a in articles])
     leads = _lead_time_ranges(db, [a.id for a in articles])
     cweights = computed_weights(db, [a.id for a in articles])
-    return [_to_response(a, ranges.get(a.id), leads.get(a.id), cweights.get(a.id)) for a in articles]
+    preds = _predecessors(db, [a.object_id for a in articles if a.object_id])
+    return [_to_response(a, ranges.get(a.id), leads.get(a.id), cweights.get(a.id),
+                         preds.get(a.object_id)) for a in articles]
 
 
 @router.post("", response_model=ArticleResponse, status_code=201)
@@ -150,9 +180,7 @@ async def get_article(
     _: UserProfile = Depends(require_employee),
 ):
     article = _get_active(db, object_id)
-    return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
-                        _lead_time_ranges(db, [article.id]).get(article.id),
-                        computed_weights(db, [article.id]).get(article.id))
+    return _single(db, article)
 
 
 @router.patch("/{object_id}", response_model=ArticleResponse)
@@ -165,6 +193,8 @@ async def update_article(
     article = _get_active(db, object_id)
     payload = data.model_dump(exclude_unset=True)
     ensure_mutable(article.status, payload, "Artikel")
+    going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
+    reactivating = payload.get("status") == "released" and article.status == "inactive"
     # Freigabe nur mit mindestens einem Prozessschritt
     if payload.get("status") == "released" and article.status != "released":
         has_step = (
@@ -174,7 +204,14 @@ async def update_article(
         )
         if not has_step:
             raise HTTPException(400, detail="Artikel kann ohne Prozessschritt nicht freigegeben werden")
+    # Reaktivieren nur, wenn nicht ersetzt und keine Komponente inaktiv ist
+    if reactivating:
+        blk = deactivation.article_reactivation_blocker(db, article)
+        if blk:
+            raise HTTPException(409, detail=f"Reaktivieren nicht möglich: {blk}")
     for key, value in payload.items():
+        if key == "status" and going_inactive:
+            continue   # via deactivate_article (inkl. Kaskade) unten
         old_val = getattr(article, key, None)
         old_str = str(old_val) if old_val is not None else None
         new_str = str(value) if value is not None else None
@@ -182,11 +219,67 @@ async def update_article(
             log_audit(db, "articles", key, new_str, current_user.id,
                       object_id=article.object_id, old_value=old_str)
         setattr(article, key, value)
+    # Inaktivieren kaskadiert (consume-Eltern) – laufende Aufträge laufen aus (Default).
+    if going_inactive:
+        deactivation.deactivate_article(db, article, current_user.id, "phase_out")
     db.commit()
     db.refresh(article)
-    return _to_response(article, _price_ranges(db, [article.id]).get(article.id),
-                        _lead_time_ranges(db, [article.id]).get(article.id),
-                        computed_weights(db, [article.id]).get(article.id))
+    return _single(db, article)
+
+
+@router.get("/{object_id}/deactivation-impact", response_model=DeactivationImpact)
+async def deactivation_impact(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Wirkungsanalyse vor Inaktiv/Ersetzen: mitbetroffene Artikel, laufende
+    Aufträge, Lagerbestand."""
+    article = _get_active(db, object_id)
+    imp = deactivation.article_impact(db, article)
+    return DeactivationImpact(
+        articles=[ImpactArticle(object_id=a.object_id, name=a.name) for a in imp["articles"]],
+        orders=[ImpactOrder(object_id=o.object_id) for o in imp["orders"]],
+        stock=imp["stock"],
+    )
+
+
+@router.post("/{object_id}/deactivate", response_model=ArticleResponse)
+async def deactivate_article_endpoint(
+    object_id: int,
+    data: DeactivateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    article = _get_active(db, object_id)
+    if article.status == "inactive":
+        raise HTTPException(400, detail="Artikel ist bereits inaktiv")
+    deactivation.deactivate_article(db, article, current_user.id, data.orders_mode)
+    db.commit()
+    db.refresh(article)
+    return _single(db, article)
+
+
+@router.post("/{object_id}/replace", response_model=ArticleResponse)
+async def replace_article_endpoint(
+    object_id: int,
+    data: DeactivateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen.
+    Liefert den **neuen** Artikel zurück (zum Anpassen)."""
+    article = _get_active(db, object_id)
+    if article.status == "inactive":
+        raise HTTPException(400, detail="Artikel ist bereits inaktiv")
+    new = deactivation.duplicate_article(db, article, current_user.id)
+    log_audit(db, "articles", "replaced_by_id", str(new.object_id), current_user.id,
+              object_id=article.object_id)
+    article.replaced_by_id = new.object_id
+    deactivation.deactivate_article(db, article, current_user.id, data.orders_mode)
+    db.commit()
+    db.refresh(new)
+    return _single(db, new)
 
 
 @router.get("/{object_id}/instances", response_model=list[InstanceResponse])

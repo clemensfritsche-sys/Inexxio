@@ -138,8 +138,12 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed';
+export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed' | 'scrapped';
 export type InstanceReference = components['schemas']['InstanceReference'];
+
+// Inaktiv setzen / Ersetzen (ohne Versionierung)
+export type DeactivationImpact = components['schemas']['DeactivationImpact'];
+export type OrdersMode = 'phase_out' | 'cancel';
 
 export interface OrderInput {
   article_id?: number | null;

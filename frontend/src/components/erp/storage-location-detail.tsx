@@ -10,6 +10,7 @@ import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ObjectLabel } from '@/components/scan/object-label';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 
@@ -113,6 +114,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
 
   async function changeStatus(target: string) {
     if (!record) return;
@@ -125,6 +127,24 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
     } finally {
       setStatusBusy(false);
     }
+  }
+
+  function onStatusAction(target: string) {
+    if (target === 'inactive') { setDialog('deactivate'); return; }
+    if (target === 'replace') { setDialog('replace'); return; }
+    changeStatus(target);   // Freigeben / Reaktivieren
+  }
+
+  async function confirmDeactivate() {
+    if (!record) return;
+    onSaved(await api.updateStorageLocation(record.object_id as number, { status: 'inactive' }));
+    setDialog(null);
+  }
+
+  async function confirmReplace() {
+    if (!record) return;
+    onSaved(await api.replaceStorageLocation(record.object_id as number));   // navigiert zum neuen
+    setDialog(null);
   }
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -199,7 +219,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
               {isCreate ? (
                 <StatusBadge cfg={storageStatusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={storageStatusConfig(record.status)} actions={lifecycleActions(record.status)} busy={statusBusy} onAction={changeStatus} />
+                <StatusFlow cfg={storageStatusConfig(record.status)} actions={lifecycleActions(record.status, { canReactivate: record.replaced_by_id == null })} busy={statusBusy} onAction={onStatusAction} />
               )}
               <SaveIndicator saving={saving} flash={flash} />
             </div>
@@ -211,6 +231,10 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             </div>
           </div>
         </div>
+
+        {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
+          <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginTop: 12 }}>
@@ -307,6 +331,19 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             </button>
           )}
         </div>
+      )}
+
+      {dialog && record && (
+        <DeactivateDialog
+          mode={dialog}
+          title={dialog === 'replace' ? 'Lagerplatz ersetzen' : 'Lagerplatz inaktiv setzen'}
+          message={dialog === 'replace'
+            ? 'Ein neuer Lagerplatz (Entwurf) wird angelegt und verknüpft; dieser wird inaktiv. Nur möglich, wenn keine Instanzen lagern.'
+            : 'Nur möglich, wenn keine Instanzen lagern – sonst zuerst umlagern.'}
+          confirmLabel={dialog === 'replace' ? 'Ersetzen' : 'Inaktiv setzen'}
+          onConfirm={async () => { if (dialog === 'replace') await confirmReplace(); else await confirmDeactivate(); }}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

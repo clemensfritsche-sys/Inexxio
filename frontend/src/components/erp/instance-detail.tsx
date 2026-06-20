@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, ArrowLeft, FileText, Link2 } from 'lucide-react';
+import { Boxes, ArrowLeft, FileText, Link2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceReference } from '@/types';
 import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
@@ -19,14 +19,29 @@ function localDateTime(iso: string): string {
   return new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function InstanceDetail({ record, onBack }: { record: Instance; onBack: () => void }) {
+export function InstanceDetail({ record, onBack, onRefresh }: { record: Instance; onBack: () => void; onRefresh?: () => void }) {
   const [tab, setTab] = useState<TabKey>('stammdaten');
   const [refs, setRefs] = useState<InstanceReference[] | null>(null);
+  const [inst, setInst] = useState<Instance>(record);
+  const [confirmScrap, setConfirmScrap] = useState(false);
+  const [scrapBusy, setScrapBusy] = useState(false);
 
   useEffect(() => {
-    if (tab !== 'verwendung' || refs !== null || record.object_id == null) return;
-    api.getInstanceReferences(record.object_id).then(setRefs).catch(() => setRefs([]));
-  }, [tab, refs, record.object_id]);
+    if (tab !== 'verwendung' || refs !== null || inst.object_id == null) return;
+    api.getInstanceReferences(inst.object_id).then(setRefs).catch(() => setRefs([]));
+  }, [tab, refs, inst.object_id]);
+
+  // Verschrotten (manuell): aus Bestand/FIFO raus, bleibt sichtbar. Nicht für verbaute Instanzen.
+  const canScrap = inst.is_active && !['consumed', 'scrapped'].includes(inst.qc_status);
+  async function scrap() {
+    if (inst.object_id == null) return;
+    setScrapBusy(true);
+    try {
+      setInst(await api.scrapInstance(inst.object_id));
+      setConfirmScrap(false);
+      onRefresh?.();
+    } catch { /* ignore */ } finally { setScrapBusy(false); }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -39,12 +54,26 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
             <Boxes size={20} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{instanceKindLabel(record.kind)}</div>
-            <div style={{ marginTop: 4 }}><StatusBadge cfg={qcStatusConfig(record.qc_status)} /></div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{instanceKindLabel(inst.kind)}</div>
+            <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <StatusBadge cfg={qcStatusConfig(inst.qc_status)} />
+              {canScrap && (confirmScrap ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: '#dc2626' }}>Verschrotten?</span>
+                  <button onClick={scrap} disabled={scrapBusy} style={{ padding: '2px 10px', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Ja</button>
+                  <button onClick={() => setConfirmScrap(false)} style={{ padding: '2px 10px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', color: '#475569', fontSize: 12, cursor: 'pointer' }}>Nein</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmScrap(true)} title="Instanz verschrotten"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Trash2 size={12} /> Verschrotten
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
             <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id ?? null)}</div>
+            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(inst.object_id ?? null)}</div>
           </div>
         </div>
 
@@ -70,34 +99,34 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <RowNode k="Artikel">
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                {record.article_object_id != null && <ObjId value={record.article_object_id} />}
-                {record.article_name && <span style={{ color: '#64748b', fontWeight: 400 }}>{record.article_name}</span>}
-                {!record.article_object_id && !record.article_name && '—'}
+                {inst.article_object_id != null && <ObjId value={inst.article_object_id} />}
+                {inst.article_name && <span style={{ color: '#64748b', fontWeight: 400 }}>{inst.article_name}</span>}
+                {!inst.article_object_id && !inst.article_name && '—'}
               </span>
             </RowNode>
-            <Row k="Art" v={instanceKindLabel(record.kind)} />
-            <Row k="Menge" v={String(record.quantity)} />
-            {record.serial_number && <Row k="Seriennummer" v={record.serial_number} />}
-            <RowNode k="Aus Auftrag">{record.order_object_id != null ? <ObjId value={record.order_object_id} /> : '—'}</RowNode>
-            {record.reserved_for_order_object_id != null && (
-              <RowNode k="Reserviert für"><ObjId value={record.reserved_for_order_object_id} /></RowNode>
+            <Row k="Art" v={instanceKindLabel(inst.kind)} />
+            <Row k="Menge" v={String(inst.quantity)} />
+            {inst.serial_number && <Row k="Seriennummer" v={inst.serial_number} />}
+            <RowNode k="Aus Auftrag">{inst.order_object_id != null ? <ObjId value={inst.order_object_id} /> : '—'}</RowNode>
+            {inst.reserved_for_order_object_id != null && (
+              <RowNode k="Reserviert für"><ObjId value={inst.reserved_for_order_object_id} /></RowNode>
             )}
             <RowNode k="Standort">
-              {record.location_id != null ? (
+              {inst.location_id != null ? (
                 <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                  <ObjId value={record.location_id} />
-                  {record.location_type === 'instance' && record.physical_location_label && (
-                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>physisch: {record.physical_location_label}</span>
+                  <ObjId value={inst.location_id} />
+                  {inst.location_type === 'instance' && inst.physical_location_label && (
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>physisch: {inst.physical_location_label}</span>
                   )}
                 </span>
               ) : 'Noch nicht festgelegt'}
             </RowNode>
-            <Row k="Status" v={qcStatusConfig(record.qc_status).label} />
-            <Row k="Erstellt" v={localDate(record.created_at)} />
+            <Row k="Status" v={qcStatusConfig(inst.qc_status).label} />
+            <Row k="Erstellt" v={localDate(inst.created_at)} />
           </div>
-          {record.object_id != null && (
+          {inst.object_id != null && (
             <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px' }}>
-              <ObjectLabel objectId={record.object_id} title={record.article_name ?? undefined} subtitle={instanceKindLabel(record.kind)} />
+              <ObjectLabel objectId={inst.object_id} title={inst.article_name ?? undefined} subtitle={instanceKindLabel(inst.kind)} />
             </div>
           )}
           </div>

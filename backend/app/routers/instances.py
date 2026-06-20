@@ -5,6 +5,8 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
 from ..schemas.instance import InstanceReference, InstanceResponse
+from ..services.admin import log_audit
+from ..services.events import emit
 from ..services.locations import location_label, physical_location_label
 from ..services.references import instance_references
 
@@ -79,3 +81,34 @@ async def list_instance_references(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     return [InstanceReference(**r) for r in instance_references(db, inst)]
+
+
+@router.post("/{object_id}/scrap", response_model=InstanceResponse)
+async def scrap_instance(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Instanz verschrotten (manuell): qc_status → ``scrapped``. Aus Bestand/FIFO
+    raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
+    (``consumed``) können nicht verschrottet werden."""
+    inst = (
+        db.query(Instance)
+        .filter(Instance.object_id == object_id, Instance.is_active == True)
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, detail="Instanz nicht gefunden")
+    if inst.qc_status == "consumed":
+        raise HTTPException(400, detail="Verbaute Instanz kann nicht verschrottet werden")
+    if inst.qc_status == "scrapped":
+        raise HTTPException(400, detail="Instanz ist bereits verschrottet")
+    old = inst.qc_status
+    inst.qc_status = "scrapped"
+    inst.reserved_for_order_id = None
+    log_audit(db, "instances", "qc_status", "scrapped", current_user.id,
+              object_id=inst.object_id, old_value=old)
+    emit(db, "instance.scrapped", object_type="instance", object_id=inst.object_id,
+         actor_id=current_user.id)
+    db.commit()
+    return _denorm(db, [inst])[0]

@@ -12,6 +12,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
 import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderInstances } from '@/components/erp/order-instances';
@@ -41,13 +42,15 @@ function todayIso(): string {
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig).
+// Kein Reaktivieren – ein abgebrochener Auftrag wird neu gestartet (Ersetzen).
 function orderActions(status: string, canRelease: boolean): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
       hint: canRelease ? undefined : 'Erst Artikel und Menge speichern' }];
-  if (status === 'released') return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
-  if (status === 'inactive') return [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }];
-  return [];   // completed → kein manueller Wechsel
+  if (status === 'released')
+    return [{ label: 'Ersetzen', target: 'replace', tone: 'neutral' },
+            { label: 'Abbrechen', target: 'inactive', tone: 'danger' }];
+  return [];   // inactive/completed → kein manueller Wechsel
 }
 
 export function OrderDetail({ record, articles, viewerRole, company, onSaved, onCancel, onBack }: {
@@ -69,6 +72,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -147,6 +151,25 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     }
   }
 
+  // Abbrechen/Ersetzen laufen über einen Bestätigungsdialog.
+  function onStatusAction(target: string) {
+    if (target === 'inactive') { setDialog('deactivate'); return; }
+    if (target === 'replace') { setDialog('replace'); return; }
+    changeStatus(target);
+  }
+
+  async function confirmCancel() {
+    if (!record) return;
+    onSaved(await api.updateOrder(record.object_id as number, { status: 'inactive' }));
+    setDialog(null);
+  }
+
+  async function confirmReplace() {
+    if (!record) return;
+    onSaved(await api.replaceOrder(record.object_id as number));   // navigiert zum neuen Auftrag
+    setDialog(null);
+  }
+
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
@@ -172,7 +195,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               ) : (isCompleted || !isStaff) ? (
                 <StatusBadge cfg={orderStatusConfig(record.status)} />
               ) : (
-                <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease)} busy={statusBusy} onAction={changeStatus} />
+                <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease)} busy={statusBusy} onAction={onStatusAction} />
               )}
               {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
             </div>
@@ -184,6 +207,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </div>
           </div>
         </div>
+        {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
+          <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
+        )}
       </div>
 
       {/* Content */}
@@ -296,6 +322,19 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </button>
           )}
         </div>
+      )}
+
+      {dialog && record && (
+        <DeactivateDialog
+          mode={dialog}
+          title={dialog === 'replace' ? 'Auftrag ersetzen' : 'Auftrag abbrechen'}
+          message={dialog === 'replace'
+            ? 'Ein neuer Auftrag (Entwurf, gleicher Artikel/Menge) wird angelegt und verknüpft; dieser wird abgebrochen.'
+            : 'Reservierungen werden freigegeben und unfertige Instanzen verworfen.'}
+          confirmLabel={dialog === 'replace' ? 'Ersetzen' : 'Abbrechen'}
+          onConfirm={async () => { if (dialog === 'replace') await confirmReplace(); else await confirmCancel(); }}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

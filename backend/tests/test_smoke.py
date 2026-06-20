@@ -709,6 +709,28 @@ def test_event_outbox_model_and_router():
         assert f in EventResponse.model_fields
 
 
+def test_deactivation_replace_wired():
+    """Inaktiv/Ersetzen: Service, Schemas und Endpunkte vorhanden + Validierung."""
+    import pytest as _pytest
+    from app.services import deactivation
+    from app.schemas.deactivation import DeactivateRequest
+    from app.models import Article, Order, StorageLocation
+
+    for f in ("consume_parents", "article_impact", "deactivate_article",
+              "cancel_order_effects", "storage_location_in_use",
+              "duplicate_article", "duplicate_order", "duplicate_storage_location",
+              "article_reactivation_blocker"):
+        assert hasattr(deactivation, f)
+    # replaced_by_id auf allen drei Datensatztypen
+    for m in (Article, Order, StorageLocation):
+        assert hasattr(m, "replaced_by_id")
+    # orders_mode-Validierung
+    assert DeactivateRequest().orders_mode == "phase_out"
+    assert DeactivateRequest(orders_mode="cancel").orders_mode == "cancel"
+    with _pytest.raises(Exception):
+        DeactivateRequest(orders_mode="bogus")
+
+
 def test_purchase_is_commercial_only_and_movements_planned():
     """Modul-Trennung: Purchase ist rein kaufmännisch (kein Standortwechsel mehr);
     Pflicht-Bewegungen rund um die Beschaffung werden korrekt geplant."""

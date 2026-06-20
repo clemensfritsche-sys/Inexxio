@@ -874,6 +874,169 @@
         }
       }
     },
+    "/api/v1/erp/articles/{object_id}/deactivation-impact": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Deactivation Impact",
+        "description": "Wirkungsanalyse vor Inaktiv/Ersetzen: mitbetroffene Artikel, laufende\nAufträge, Lagerbestand.",
+        "operationId": "deactivation_impact_api_v1_erp_articles__object_id__deactivation_impact_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeactivationImpact"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/deactivate": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Deactivate Article Endpoint",
+        "operationId": "deactivate_article_endpoint_api_v1_erp_articles__object_id__deactivate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeactivateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/replace": {
+      "post": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Replace Article Endpoint",
+        "description": "Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen.\nLiefert den **neuen** Artikel zurück (zum Anpassen).",
+        "operationId": "replace_article_endpoint_api_v1_erp_articles__object_id__replace_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeactivateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles/{object_id}/instances": {
       "get": {
         "tags": [
@@ -1426,6 +1589,54 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/replace": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Replace Order",
+        "description": "Ersetzen: neuen Auftrag (Entwurf, gleicher Artikel/Menge) anlegen, verknüpfen,\nOriginal abbrechen. Liefert den **neuen** Auftrag zurück.",
+        "operationId": "replace_order_api_v1_erp_orders__object_id__replace_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [
@@ -1787,6 +1998,54 @@
         }
       }
     },
+    "/api/v1/erp/instances/{object_id}/scrap": {
+      "post": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Scrap Instance",
+        "description": "Instanz verschrotten (manuell): qc_status → ``scrapped``. Aus Bestand/FIFO\nraus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen\n(``consumed``) können nicht verschrottet werden.",
+        "operationId": "scrap_instance_api_v1_erp_instances__object_id__scrap_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/storage-locations": {
       "get": {
         "tags": [
@@ -1998,6 +2257,54 @@
                     "$ref": "#/components/schemas/InstanceReference"
                   },
                   "title": "Response List Storage Location References Api V1 Erp Storage Locations  Object Id  References Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/storage-locations/{object_id}/replace": {
+      "post": {
+        "tags": [
+          "storage-locations"
+        ],
+        "summary": "Replace Storage Location",
+        "description": "Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen\n(nur wenn leer). Liefert den **neuen** Lagerplatz zurück.",
+        "operationId": "replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageLocationResponse"
                 }
               }
             }
@@ -2982,6 +3289,28 @@
               }
             ],
             "title": "Computed Weight Kg"
+          },
+          "replaced_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Id"
+          },
+          "replaces_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Id"
           },
           "unit_cost_low": {
             "anyOf": [
@@ -4416,6 +4745,46 @@
         ],
         "title": "ContactRequest"
       },
+      "DeactivateRequest": {
+        "properties": {
+          "orders_mode": {
+            "type": "string",
+            "title": "Orders Mode",
+            "default": "phase_out"
+          }
+        },
+        "type": "object",
+        "title": "DeactivateRequest",
+        "description": "Optionen beim Inaktiv-Setzen/Ersetzen."
+      },
+      "DeactivationImpact": {
+        "properties": {
+          "articles": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactArticle"
+            },
+            "type": "array",
+            "title": "Articles",
+            "default": []
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactOrder"
+            },
+            "type": "array",
+            "title": "Orders",
+            "default": []
+          },
+          "stock": {
+            "type": "integer",
+            "title": "Stock",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "DeactivationImpact",
+        "description": "Wirkungsanalyse (Dry-Run) vor dem Inaktiv-Setzen/Ersetzen eines Artikels."
+      },
       "ErpAdminUpdate": {
         "properties": {
           "role": {
@@ -4557,6 +4926,51 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "ImpactArticle": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "name"
+        ],
+        "title": "ImpactArticle"
+      },
+      "ImpactOrder": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "ImpactOrder"
       },
       "InspectionEmbed": {
         "properties": {
@@ -5400,6 +5814,28 @@
             "type": "array",
             "title": "Steps",
             "default": []
+          },
+          "replaced_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Id"
+          },
+          "replaces_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Id"
           }
         },
         "type": "object",
@@ -5626,6 +6062,17 @@
               }
             ],
             "title": "Purchase Status"
+          },
+          "replaced_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Id"
           }
         },
         "type": "object",
@@ -6881,6 +7328,28 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "replaced_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Id"
+          },
+          "replaces_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Id"
           }
         },
         "type": "object",

@@ -144,6 +144,10 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
     resp = OrderResponse.model_validate(order)
+    # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
+    if order.object_id:
+        pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
+        resp.replaces_id = pred[0] if pred else None
     if order.article_id:
         art = db.query(Article).filter(Article.id == order.article_id).first()
         if art:

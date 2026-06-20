@@ -23,11 +23,24 @@ export interface StatusAction {
   hint?: string;
 }
 
-export function lifecycleActions(status: string): StatusAction[] {
+// Ersetzen (kein Versionieren): «replace» legt einen Nachfolger an und verknüpft.
+// `canReactivate`/`canReplace` erlauben typspezifische Abweichungen (z. B. Auftrag
+// ohne Reaktivieren).
+export function lifecycleActions(
+  status: string,
+  opts?: { canReactivate?: boolean; canReplace?: boolean },
+): StatusAction[] {
+  const canReactivate = opts?.canReactivate ?? true;
+  const canReplace = opts?.canReplace ?? true;
   switch (status) {
     case 'draft':    return [{ label: 'Freigeben', target: 'released', tone: 'primary' }];
-    case 'released': return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
-    case 'inactive': return [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }];
+    case 'released': {
+      const a: StatusAction[] = [];
+      if (canReplace) a.push({ label: 'Ersetzen', target: 'replace', tone: 'neutral' });
+      a.push({ label: 'Deaktivieren', target: 'inactive', tone: 'danger' });
+      return a;
+    }
+    case 'inactive': return canReactivate ? [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }] : [];
     default:         return [];   // completed o. Ä. → kein manueller Wechsel
   }
 }

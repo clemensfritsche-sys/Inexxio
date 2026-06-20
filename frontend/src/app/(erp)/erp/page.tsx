@@ -454,7 +454,7 @@ export default function ErpPage() {
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
@@ -466,7 +466,7 @@ export default function ErpPage() {
             )
           )}
           {!creating && selectedRow?.type === 'instance' && (
-            <InstanceDetail key={selectedRow.key} record={selectedRow.data} onBack={() => setMobileView('list')} />
+            <InstanceDetail key={selectedRow.key} record={selectedRow.data} onRefresh={() => api.getInstances().then(setInstances).catch(() => {})} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'storage_location' && (
             <StorageLocationDetail key={selectedRow.key} record={selectedRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />

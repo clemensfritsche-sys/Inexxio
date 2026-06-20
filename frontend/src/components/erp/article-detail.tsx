@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile } from '@/types';
+import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
   ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -16,13 +16,15 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
+import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
 // Artikel-Lebenszyklus: Freigabe erst möglich, wenn mindestens ein Prozessschritt existiert.
-function articleActions(status: string, canRelease: boolean): StatusAction[] {
+// Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
+function articleActions(status: string, canRelease: boolean, replaced: boolean): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
       hint: canRelease ? undefined : 'Erst einen Prozessschritt hinzufügen' }];
-  return lifecycleActions(status);
+  return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
 }
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
@@ -68,16 +70,18 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack }: {
+export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   articleNames?: string[];         // wählbare Artikelnamen (Systemkonfiguration)
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
+  onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
+  const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
@@ -142,6 +146,25 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     }
   }
 
+  // Inaktiv/Ersetzen laufen über den Dialog (Wirkungsanalyse + Auftrags-Wahl).
+  function onStatusAction(target: string) {
+    if (target === 'inactive') { setDialog('deactivate'); return; }
+    if (target === 'replace') { setDialog('replace'); return; }
+    changeStatus(target);   // Freigeben / Reaktivieren
+  }
+
+  async function confirmDeactivate(ordersMode: OrdersMode) {
+    if (!record) return;
+    const updated = await api.deactivateArticle(record.object_id as number, ordersMode);
+    setDialog(null); onRefresh?.(); onSaved(updated);
+  }
+
+  async function confirmReplace(ordersMode: OrdersMode) {
+    if (!record) return;
+    const created = await api.replaceArticle(record.object_id as number, ordersMode);
+    setDialog(null); onRefresh?.(); onSaved(created);   // navigiert zum neuen Artikel
+  }
+
   async function save() {
     if (!valid) return;
     const current = sig;
@@ -197,7 +220,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, canRelease)} busy={statusBusy} onAction={changeStatus} />
+                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, canRelease, record.replaced_by_id != null)} busy={statusBusy} onAction={onStatusAction} />
               )}
               <SaveIndicator saving={saving} flash={flash} />
             </div>
@@ -209,6 +232,10 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
             </div>
           </div>
         </div>
+
+        {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
+          <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginTop: 12 }}>
@@ -318,6 +345,20 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
             </button>
           )}
         </div>
+      )}
+
+      {dialog && record && (
+        <DeactivateDialog
+          mode={dialog}
+          articleObjectId={record.object_id}
+          title={dialog === 'replace' ? 'Artikel ersetzen' : 'Artikel inaktiv setzen'}
+          message={dialog === 'replace'
+            ? 'Eine Kopie wird als Entwurf angelegt und verknüpft; dieser Artikel wird inaktiv.'
+            : undefined}
+          confirmLabel={dialog === 'replace' ? 'Ersetzen' : 'Inaktiv setzen'}
+          onConfirm={dialog === 'replace' ? confirmReplace : confirmDeactivate}
+          onClose={() => setDialog(null)}
+        />
       )}
     </div>
   );

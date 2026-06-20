@@ -94,6 +94,10 @@ _COLUMN_SAFETY_NET = (
     ("resource_usages", "step_id", "BIGINT"),
     # Pflicht-Bewegung rund um Beschaffung (System, nicht löschbar)
     ("article_process_steps", "locked", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    # Ersetzen statt Versionierung: Nachfolger-Objektnummer (alt → neu)
+    ("articles", "replaced_by_id", "BIGINT"),
+    ("orders", "replaced_by_id", "BIGINT"),
+    ("storage_locations", "replaced_by_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

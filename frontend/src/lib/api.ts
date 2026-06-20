@@ -5,7 +5,7 @@ import type {
   MovementUpdateInput, ResourceUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
-  CompanySettings, UserProfile,
+  CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -137,6 +137,19 @@ class ApiClient {
     return this.patch(`/api/v1/erp/articles/${objectId}`, data);
   }
 
+  // Inaktiv/Ersetzen: Wirkungsanalyse, Inaktiv-Setzen (mit Auftrags-Wahl), Ersetzen
+  getArticleDeactivationImpact(objectId: number): Promise<DeactivationImpact> {
+    return this.get(`/api/v1/erp/articles/${objectId}/deactivation-impact`);
+  }
+
+  deactivateArticle(objectId: number, ordersMode: OrdersMode): Promise<Article> {
+    return this.post(`/api/v1/erp/articles/${objectId}/deactivate`, { orders_mode: ordersMode });
+  }
+
+  replaceArticle(objectId: number, ordersMode: OrdersMode): Promise<Article> {
+    return this.post(`/api/v1/erp/articles/${objectId}/replace`, { orders_mode: ordersMode });
+  }
+
   // ─── Article Process Steps (Prozess-Definition) ──────────────────────────────
 
   getArticleProcessSteps(objectId: number): Promise<ArticleProcessStep[]> {
@@ -179,6 +192,11 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}`, data);
   }
 
+  // Ersetzen: neuen Auftrag (Entwurf) anlegen, verknüpfen, Original abbrechen
+  replaceOrder(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/replace`, {});
+  }
+
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
@@ -218,6 +236,11 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}/references`);
   }
 
+  // Instanz verschrotten (manuell): aus Bestand/FIFO raus, bleibt sichtbar
+  scrapInstance(objectId: number): Promise<Instance> {
+    return this.post(`/api/v1/erp/instances/${objectId}/scrap`, {});
+  }
+
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
 
   getStorageLocations(): Promise<StorageLocation[]> {
@@ -234,6 +257,11 @@ class ApiClient {
 
   updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
     return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
+  }
+
+  // Ersetzen: Duplikat (Entwurf) anlegen, verknüpfen, Original inaktiv (nur wenn leer)
+  replaceStorageLocation(objectId: number): Promise<StorageLocation> {
+    return this.post(`/api/v1/erp/storage-locations/${objectId}/replace`, {});
   }
 
   // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)

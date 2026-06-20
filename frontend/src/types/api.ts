@@ -301,6 +301,65 @@ export interface paths {
         patch: operations["update_article_api_v1_erp_articles__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/articles/{object_id}/deactivation-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Deactivation Impact
+         * @description Wirkungsanalyse vor Inaktiv/Ersetzen: mitbetroffene Artikel, laufende
+         *     Aufträge, Lagerbestand.
+         */
+        get: operations["deactivation_impact_api_v1_erp_articles__object_id__deactivation_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Article Endpoint */
+        post: operations["deactivate_article_endpoint_api_v1_erp_articles__object_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Article Endpoint
+         * @description Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen.
+         *     Liefert den **neuen** Artikel zurück (zum Anpassen).
+         */
+        post: operations["replace_article_endpoint_api_v1_erp_articles__object_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles/{object_id}/instances": {
         parameters: {
             query?: never;
@@ -416,6 +475,27 @@ export interface paths {
         head?: never;
         /** Update Order */
         patch: operations["update_order_api_v1_erp_orders__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Order
+         * @description Ersetzen: neuen Auftrag (Entwurf, gleicher Artikel/Menge) anlegen, verknüpfen,
+         *     Original abbrechen. Liefert den **neuen** Auftrag zurück.
+         */
+        post: operations["replace_order_api_v1_erp_orders__object_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/orders/{object_id}/purchase": {
@@ -553,6 +633,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/instances/{object_id}/scrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Scrap Instance
+         * @description Instanz verschrotten (manuell): qc_status → ``scrapped``. Aus Bestand/FIFO
+         *     raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
+         *     (``consumed``) können nicht verschrottet werden.
+         */
+        post: operations["scrap_instance_api_v1_erp_instances__object_id__scrap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/storage-locations": {
         parameters: {
             query?: never;
@@ -603,6 +705,27 @@ export interface paths {
         get: operations["list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/storage-locations/{object_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Storage Location
+         * @description Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen
+         *     (nur wenn leer). Liefert den **neuen** Lagerplatz zurück.
+         */
+        post: operations["replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -870,6 +993,10 @@ export interface components {
             landed_unit_cost?: string | null;
             /** Computed Weight Kg */
             computed_weight_kg?: string | null;
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
+            /** Replaces Id */
+            replaces_id?: number | null;
             /** Unit Cost Low */
             unit_cost_low?: string | null;
             /** Unit Cost High */
@@ -1210,6 +1337,38 @@ export interface components {
             message: string;
         };
         /**
+         * DeactivateRequest
+         * @description Optionen beim Inaktiv-Setzen/Ersetzen.
+         */
+        DeactivateRequest: {
+            /**
+             * Orders Mode
+             * @default phase_out
+             */
+            orders_mode: string;
+        };
+        /**
+         * DeactivationImpact
+         * @description Wirkungsanalyse (Dry-Run) vor dem Inaktiv-Setzen/Ersetzen eines Artikels.
+         */
+        DeactivationImpact: {
+            /**
+             * Articles
+             * @default []
+             */
+            articles: components["schemas"]["ImpactArticle"][];
+            /**
+             * Orders
+             * @default []
+             */
+            orders: components["schemas"]["ImpactOrder"][];
+            /**
+             * Stock
+             * @default 0
+             */
+            stock: number;
+        };
+        /**
          * ErpAdminUpdate
          * @description Fields an admin may change from the ERP panel.
          */
@@ -1252,6 +1411,18 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ImpactArticle */
+        ImpactArticle: {
+            /** Object Id */
+            object_id: number | null;
+            /** Name */
+            name: string;
+        };
+        /** ImpactOrder */
+        ImpactOrder: {
+            /** Object Id */
+            object_id: number | null;
         };
         /**
          * InspectionEmbed
@@ -1542,6 +1713,10 @@ export interface components {
              * @default []
              */
             steps: components["schemas"]["OrderStepInfo"][];
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
+            /** Replaces Id */
+            replaces_id?: number | null;
         };
         /**
          * OrderStepInfo
@@ -1614,6 +1789,8 @@ export interface components {
             article_unit?: string | null;
             /** Purchase Status */
             purchase_status?: string | null;
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -2039,6 +2216,10 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
+            /** Replaces Id */
+            replaces_id?: number | null;
         };
         /** StorageLocationUpdate */
         StorageLocationUpdate: {
@@ -2907,6 +3088,107 @@ export interface operations {
             };
         };
     };
+    deactivation_impact_api_v1_erp_articles__object_id__deactivation_impact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeactivationImpact"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_article_endpoint_api_v1_erp_articles__object_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeactivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_article_endpoint_api_v1_erp_articles__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeactivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_article_instances_api_v1_erp_articles__object_id__instances_get: {
         parameters: {
             query?: never;
@@ -3239,6 +3521,37 @@ export interface operations {
             };
         };
     };
+    replace_order_api_v1_erp_orders__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_order_purchase_api_v1_erp_orders__object_id__purchase_patch: {
         parameters: {
             query?: never;
@@ -3461,6 +3774,37 @@ export interface operations {
             };
         };
     };
+    scrap_instance_api_v1_erp_instances__object_id__scrap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_storage_locations_api_v1_erp_storage_locations_get: {
         parameters: {
             query?: never;
@@ -3598,6 +3942,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceReference"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
                 };
             };
             /** @description Validation Error */

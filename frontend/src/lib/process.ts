@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2 } from 'lucide-react';
 import type { StepType, InstanceQcStatus, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -43,6 +43,7 @@ export const QC_STATUS: Record<InstanceQcStatus, StatusCfg> = {
   passed:   { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
   failed:   { label: 'Gesperrt',    color: '#dc2626', bg: '#fef2f2', icon: XCircle },
   consumed: { label: 'Verbraucht',  color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
+  scrapped: { label: 'Verschrottet', color: '#475569', bg: '#f1f5f9', icon: Trash2 },
 };
 
 export function qcStatusConfig(status: string): StatusCfg {

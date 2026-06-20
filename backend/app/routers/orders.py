@@ -10,6 +10,7 @@ from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
+from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -110,6 +111,9 @@ async def update_order(
     ensure_mutable(order.status, payload_preview, "Auftrag")
     if "article_id" in payload_preview:
         _validate_article(db, payload_preview["article_id"])
+    # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.
+    if payload_preview.get("status") == "released" and order.status == "inactive":
+        raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
 
     for key, value in data.model_dump(exclude_unset=True).items():
         old_val = getattr(order, key, None)
@@ -136,14 +140,37 @@ async def update_order(
              payload={"article_id": order.article_id, "quantity": order.quantity},
              actor_id=current_user.id)
 
-    # Deaktivierung (released → inactive): Reservierungen dieses Auftrags freigeben.
+    # Abbruch (released → inactive): Reservierungen freigeben + unfertige Instanzen deaktivieren.
     if order.status == "inactive" and was_released:
-        for inst in db.query(Instance).filter(Instance.reserved_for_order_id == order.id).all():
-            inst.reserved_for_order_id = None
+        deactivation.cancel_order_effects(db, order, current_user.id)
 
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)
+
+
+@router.post("/{object_id}/replace", response_model=OrderResponse)
+async def replace_order(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Ersetzen: neuen Auftrag (Entwurf, gleicher Artikel/Menge) anlegen, verknüpfen,
+    Original abbrechen. Liefert den **neuen** Auftrag zurück."""
+    order = _get_staff_order(db, object_id)
+    if order.status in ("inactive", "completed"):
+        raise HTTPException(400, detail="Abgeschlossene/inaktive Aufträge können nicht ersetzt werden")
+    new = deactivation.duplicate_order(db, order, current_user.id)
+    log_audit(db, "orders", "replaced_by_id", str(new.object_id), current_user.id,
+              object_id=order.object_id)
+    order.replaced_by_id = new.object_id
+    was_released = order.status == "released"
+    order.status = "inactive"
+    if was_released:
+        deactivation.cancel_order_effects(db, order, current_user.id)
+    db.commit()
+    db.refresh(new)
+    return to_order_response(db, new)
 
 
 @router.patch("/{object_id}/purchase", response_model=OrderResponse)

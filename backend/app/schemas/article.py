@@ -237,6 +237,9 @@ class ArticleResponse(BaseModel):
     # Aufsummiertes Gewicht aus den verbauten Ressourcen (read-only, rekursiv über
     # die Stückliste). Nur gesetzt, wenn der Artikel consume-Ressourcen hat.
     computed_weight_kg: Optional[Decimal] = None
+    # Ersetzen (Nachvollziehbarkeit): Nachfolger bzw. Vorgänger (Objektnummern).
+    replaced_by_id: Optional[int] = None
+    replaces_id: Optional[int] = None  # vom Router gesetzt (Vorgänger)
     # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
     unit_cost_low: Optional[Decimal] = None
     unit_cost_high: Optional[Decimal] = None

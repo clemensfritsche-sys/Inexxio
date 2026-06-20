@@ -185,3 +185,6 @@ class StorageLocationResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
+    replaced_by_id: Optional[int] = None
+    replaces_id: Optional[int] = None

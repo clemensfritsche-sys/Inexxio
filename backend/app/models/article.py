@@ -47,3 +47,6 @@ class Article(Base, TimestampMixin):
     # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
     # Bestellung (Purchase Order) automatisch zurückgeschrieben.
     landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)
+
+    # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
+    replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

@@ -121,6 +121,7 @@ class OrderSummary(BaseModel):
     article_object_id: Optional[int] = None
     article_unit: Optional[str] = None
     purchase_status: Optional[str] = None   # für das Status-Badge im Feed
+    replaced_by_id: Optional[int] = None
 
 
 class OrderResponse(BaseModel):
@@ -151,3 +152,6 @@ class OrderResponse(BaseModel):
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
     steps: list[OrderStepInfo] = []
+    # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
+    replaced_by_id: Optional[int] = None
+    replaces_id: Optional[int] = None

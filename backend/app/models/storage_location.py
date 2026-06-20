@@ -48,3 +48,6 @@ class StorageLocation(Base, TimestampMixin):
     address_zip: Mapped[Optional[str]] = mapped_column(String(20))
     address_city: Mapped[Optional[str]] = mapped_column(String(100))
     address_country: Mapped[Optional[str]] = mapped_column(String(100))
+
+    # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Lagerplatzes (alt → neu).
+    replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
