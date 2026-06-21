@@ -152,6 +152,8 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     is_active: Optional[bool] = None
+    # Optimistic Locking: Stand, den der Client zuletzt gesehen hat (optional).
+    expected_updated_at: Optional[datetime] = None
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod

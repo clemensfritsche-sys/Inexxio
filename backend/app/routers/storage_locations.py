@@ -12,7 +12,7 @@ from ..schemas.storage_location import (
 )
 from ..services import deactivation
 from ..services.admin import log_audit
-from ..services.lifecycle import ensure_mutable
+from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.objects import next_object_id
 from ..services.references import storage_location_references
 
@@ -63,7 +63,7 @@ async def create_storage_location(
     current_user: UserProfile = Depends(require_employee),
 ):
     loc = StorageLocation(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "storage_location"),
         status="draft",
         name="Lagerplatz",
         **data.model_dump(exclude_none=True),
@@ -106,6 +106,7 @@ async def update_storage_location(
 ):
     loc = _get_active(db, object_id)
     payload = data.model_dump(exclude_unset=True)
+    ensure_version(loc, payload.pop("expected_updated_at", None))
     ensure_mutable(loc.status, payload, "Lagerplatz")
     # Inaktiv nur, wenn leer (keine lagernden Instanzen) – sonst zuerst umlagern.
     if payload.get("status") == "inactive" and loc.status != "inactive" and deactivation.storage_location_in_use(db, loc):

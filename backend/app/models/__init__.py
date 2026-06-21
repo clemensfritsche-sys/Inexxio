@@ -14,10 +14,11 @@ from .claim import Claim
 from .audit import AuditLog
 from .event import Event
 from .notification import Notification
+from .object_ref import ObjectRef
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticleProcessStep", "Order", "PurchaseOrder", "Instance", "Inspection",
     "Movement", "ResourceUsage", "StorageLocation", "Claim", "AuditLog", "Event",
-    "Notification",
+    "Notification", "ObjectRef",
 ]

@@ -113,7 +113,7 @@ def ensure_receiving_location(db: Session) -> int:
         if loc:
             return lid
     loc = StorageLocation(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "storage_location"),
         status="released",
         name=RECEIVING_NAME,
     )

@@ -222,9 +222,9 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
   }
 
-  // Alle Instanzen (ERP-Feed)
-  getInstances(): Promise<Instance[]> {
-    return this.get('/api/v1/erp/instances');
+  // Instanz-Feed (server-seitig paginierbar; limit=0 → alle, neueste zuerst)
+  getInstances(limit = 0): Promise<Instance[]> {
+    return this.get(`/api/v1/erp/instances${limit ? `?limit=${limit}` : ''}`);
   }
 
   getInstance(objectId: number): Promise<Instance> {

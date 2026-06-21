@@ -84,7 +84,7 @@ def create_claim(db: Session, data: ClaimCreate, actor: UserProfile) -> Claim:
         raise HTTPException(404, detail="Instanz nicht gefunden")
 
     claim = Claim(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "claim"),
         status="open",
         direction=data.direction or "internal",
         instance_object_id=inst.object_id,
@@ -135,7 +135,7 @@ def auto_claim_from_inspection(db: Session, order: Order, actor_id: int | None) 
     inst_obj = failed[0].object_id if failed else None
 
     claim = Claim(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "claim"),
         status="open",
         direction="internal",
         instance_object_id=inst_obj,

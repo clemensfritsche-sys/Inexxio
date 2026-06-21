@@ -1,14 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from pydantic import BaseModel
+
 from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..services.admin import log_audit
-from ..services.objects import next_object_ids
+from ..services.objects import next_object_ids, resolve_object_type
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
+
+
+class ObjectResolution(BaseModel):
+    """Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."""
+
+    object_id: int
+    object_type: str
+
+
+@router.get("/objects/{object_id}", response_model=ObjectResolution)
+async def resolve_object(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Typ einer Objektnummer in O(1) auflösen (zentrale Registry, Fallback Scan)."""
+    otype = resolve_object_type(db, object_id)
+    if not otype:
+        raise HTTPException(404, detail="Objekt nicht gefunden")
+    return ObjectResolution(object_id=object_id, object_type=otype)
 
 
 def _assign_object_ids(db: Session) -> None:
@@ -21,7 +43,7 @@ def _assign_object_ids(db: Session) -> None:
     if not pending:
         return
     # Aus der gemeinsamen Sequence vergeben (atomar, über alle Objekttypen hinweg).
-    ids = next_object_ids(db, len(pending))
+    ids = next_object_ids(db, len(pending), "user")
     for u, oid in zip(pending, ids):
         u.object_id = oid
     db.commit()

@@ -74,6 +74,7 @@ class OrderUpdate(BaseModel):
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
     is_active: Optional[bool] = None
+    expected_updated_at: Optional[datetime] = None   # Optimistic Locking (optional)
 
     @field_validator("status")
     @classmethod

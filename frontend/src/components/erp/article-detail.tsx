@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
@@ -12,6 +12,7 @@ import {
 import type { StatusAction } from '@/lib/status-flow';
 import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
+import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
@@ -82,6 +83,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
   const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
+  const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [savedSig, setSavedSig] = useState<string>(() => (isCreate ? '' : JSON.stringify(seedFrom(record))));
   const [saving, setSaving] = useState(false);
@@ -133,14 +136,28 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   });
   const canSave = !locked && valid && sig !== savedSig && !saving;
 
+  // Bei Versions-Konflikt frischen Stand laden (Version aktualisieren, Feed melden).
+  async function resyncVersion() {
+    if (!record) return;
+    try {
+      const fresh = await api.getArticle(record.object_id as number);
+      verRef.current = fresh.updated_at;
+      onSaved(fresh);
+    } catch { /* ignore */ }
+  }
+
   async function changeStatus(target: string) {
     if (!record) return;
     setStatusBusy(true);
     setError(null);
     try {
-      onSaved(await api.updateArticle(record.object_id as number, { status: target as ArticleStatus }));
+      const saved = await api.updateArticle(record.object_id as number,
+        { status: target as ArticleStatus, expected_updated_at: verRef.current });
+      verRef.current = saved.updated_at;
+      onSaved(saved);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+      if (isVersionConflict(e)) await resyncVersion();
     } finally {
       setStatusBusy(false);
     }
@@ -187,13 +204,17 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       if (isCreate) {
         onSaved(await api.createArticle(payload));
       } else {
-        onSaved(await api.updateArticle(record.object_id as number, payload));
+        const saved = await api.updateArticle(record.object_id as number,
+          { ...payload, expected_updated_at: verRef.current });
+        verRef.current = saved.updated_at;
+        onSaved(saved);
         setSavedSig(current);
         setFlash(true);
         setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+      if (!isCreate && isVersionConflict(e)) await resyncVersion();
     } finally {
       setSaving(false);
     }

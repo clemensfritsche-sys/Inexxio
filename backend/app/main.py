@@ -123,6 +123,9 @@ _INDEX_SAFETY_NET = (
     ("ix_audit_log_table_name", "audit_log", "table_name"),
     ("ix_claims_order_object_id", "claims", "order_object_id"),
     ("ix_instances_location_id", "instances", "location_id"),
+    # Bestands-Aggregate (Verfügbarkeit/FIFO je Artikel) + Ressourcen-Schritt-Scans
+    ("ix_instances_article_id", "instances", "article_id"),
+    ("ix_aps_step_type", "article_process_steps", "step_type"),
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
@@ -211,6 +214,21 @@ def _ensure_object_id_sequence() -> None:
         db.close()
 
 
+def _backfill_object_registry() -> None:
+    """Zentrale Objekt-Registry mit allen vorhandenen Objektnummern auffüllen
+    (Altdaten + ohne Typ vergebene). Idempotent."""
+    from .services.objects import backfill_registry
+    db = SessionLocal()
+    try:
+        backfill_registry(db)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _backfill_object_registry() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 def _sync_locked_movements_bootstrap() -> None:
     """Bestandsartikel auf das neue Modell bringen: jeder Beschaffungsschritt wird
     von Pflicht-Bewegungen flankiert (Versand/Wareneingang). Idempotent; läuft nur
@@ -249,6 +267,7 @@ async def lifespan(app: FastAPI):
         print(f"WARNING: create_all() failed: {e}", flush=True)
     _ensure_columns()
     _ensure_object_id_sequence()
+    _backfill_object_registry()
     _sync_locked_movements_bootstrap()
     try:
         _bootstrap_admin()

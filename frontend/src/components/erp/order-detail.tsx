@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Order, OrderStep } from '@/types';
@@ -8,6 +8,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
+import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
@@ -73,6 +74,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -117,16 +119,29 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       if (isCreate) {
         onSaved(await api.createOrder(payload));
       } else {
-        onSaved(await api.updateOrder(record.object_id as number, payload));
+        const saved = await api.updateOrder(record.object_id as number,
+          { ...payload, expected_updated_at: verRef.current });
+        verRef.current = saved.updated_at;
+        onSaved(saved);
         setSavedSig(current);
         setFlash(true);
         setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+      if (!isCreate && isVersionConflict(e)) await resyncVersion();
     } finally {
       setSaving(false);
     }
+  }
+
+  async function resyncVersion() {
+    if (!record) return;
+    try {
+      const fresh = await api.getOrder(record.object_id as number);
+      verRef.current = fresh.updated_at;
+      onSaved(fresh);
+    } catch { /* ignore */ }
   }
 
   const flush = useAutosave(sig, canSave, save);
@@ -143,9 +158,13 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setStatusBusy(true);
     setError(null);
     try {
-      onSaved(await api.updateOrder(record.object_id as number, { status: target as Order['status'] }));
+      const saved = await api.updateOrder(record.object_id as number,
+        { status: target as Order['status'], expected_updated_at: verRef.current });
+      verRef.current = saved.updated_at;
+      onSaved(saved);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+      if (isVersionConflict(e)) await resyncVersion();
     } finally {
       setStatusBusy(false);
     }
@@ -160,7 +179,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
   async function confirmCancel() {
     if (!record) return;
-    onSaved(await api.updateOrder(record.object_id as number, { status: 'inactive' }));
+    const saved = await api.updateOrder(record.object_id as number,
+      { status: 'inactive', expected_updated_at: verRef.current });
+    verRef.current = saved.updated_at;
+    onSaved(saved);
     setDialog(null);
   }
 

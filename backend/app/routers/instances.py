@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -38,15 +38,21 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
 
 @router.get("", response_model=list[InstanceResponse])
 async def list_instances(
+    limit: int = Query(0, ge=0, le=1000, description="0 = keine Begrenzung; sonst Seitengröße"),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    rows = (
+    """Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar
+    (``limit``/``offset``, neueste zuerst)."""
+    q = (
         db.query(Instance)
         .filter(Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
+        .order_by(Instance.object_id.desc())
     )
+    if limit:
+        q = q.offset(offset).limit(limit)
+    rows = q.all()
     return _denorm(db, rows)
 
 

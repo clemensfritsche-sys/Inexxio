@@ -709,6 +709,35 @@ def test_event_outbox_model_and_router():
         assert f in EventResponse.model_fields
 
 
+def test_object_registry_wired():
+    """Zentrale Objekt-Registry: Modell, Typ-Map und Auflösung/Backfill vorhanden."""
+    from app.models import ObjectRef
+    from app.services import objects
+
+    assert ObjectRef.__tablename__ == "objects"
+    # Alle eigenständigen Objekttypen sind in der Typ-Map (für Backfill/Resolve)
+    assert set(objects._TYPE_MODELS) == {
+        "user", "article", "order", "instance", "storage_location", "claim"}
+    assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
+
+
+def test_inventory_allocate_quantity_exact():
+    """Mengengenaue Reservierung: nur der Bedarf wird belegt, Rest bleibt frei
+    (behebt das Über-Sperren ganzer Chargen)."""
+    from app.services.inventory import allocate
+
+    # Charge 100, Bedarf 10 → 10 belegt, 90 bleiben (als Rest am selben Kandidaten)
+    assert allocate(10, [100]) == [10]
+    # Über mehrere Kandidaten FIFO auffüllen
+    assert allocate(25, [10, 10, 10]) == [10, 10, 5]
+    # Bedarf grösser als Bestand → so viel wie möglich
+    assert allocate(50, [10, 10]) == [10, 10]
+    # Kein Bedarf → nichts belegen
+    assert allocate(0, [10, 10]) == [0, 0]
+    # Zwei Aufträge teilen sich dieselbe Charge: A nimmt 10 von 100, B nimmt 10 vom Rest
+    assert allocate(10, [90]) == [10]
+
+
 def test_deactivation_replace_wired():
     """Inaktiv/Ersetzen: Service, Schemas und Endpunkte vorhanden + Validierung."""
     import pytest as _pytest

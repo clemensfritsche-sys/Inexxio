@@ -27,6 +27,7 @@ from ..schemas.resource import (
 from . import process
 from .admin import log_audit
 from .events import emit
+from .inventory import allocate, available
 from .locations import _obj_nr, location_label, resolve_physical_location
 from .objects import next_object_id
 
@@ -65,7 +66,8 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
 
     Reservierungen: ``for_order_id=None`` liefert nur **unreservierte** Instanzen
     (Basis für eine neue Reservierung). Mit ``for_order_id`` kommen zusätzlich die
-    **für diesen Auftrag reservierten** Instanzen dazu (Verbrauch/Vorschau/Anzeige).
+    **für diesen Auftrag reservierten** Instanzen dazu – und werden **zuerst**
+    verbraucht (der Auftrag entnimmt erst seine eigene Reservierung).
 
     Kein Standort-Filter nötig: bereits verbaute Instanzen tragen den Status
     ``consumed`` (nicht ``passed``) und fallen damit automatisch heraus."""
@@ -81,17 +83,22 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
         q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
                          Instance.reserved_for_order_id == for_order_id))
     rows = q.all()
-    rows.sort(key=lambda i: (i.released_at or i.created_at, i.object_id or 0))
+    # Eigene Reservierung zuerst, dann FIFO nach Freigabe, dann Objektnummer.
+    rows.sort(key=lambda i: (
+        0 if (for_order_id is not None and i.reserved_for_order_id == for_order_id) else 1,
+        i.released_at or i.created_at, i.object_id or 0))
     return rows
 
 
 def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
-    """Bei Auftragsfreigabe die zu verbrauchenden Komponenten **reservieren**.
+    """Bei Auftragsfreigabe die zu verbrauchenden Komponenten **mengengenau**
+    reservieren.
 
     Über alle ``resource``-Schritte des Artikels werden die consume-Mengen summiert
-    und – FIFO, nur aus unreserviertem freigegebenem Bestand – ganze Instanzen für
-    diesen Auftrag reserviert (``reserved_for_order_id``). Andere Aufträge sehen die
-    reservierten Instanzen nicht mehr. Committet NICHT (Aufrufer schliesst ab)."""
+    und – FIFO aus unreserviertem freigegebenem Bestand – exakt die benötigte Menge
+    gesperrt. Deckt eine Charge mehr als den Bedarf, wird sie **geteilt**: der
+    reservierte Teil geht an den Auftrag (``reserved_for_order_id``), der Rest bleibt
+    frei für andere Aufträge. Committet NICHT (Aufrufer schliesst ab)."""
     if not order.article_id or not order.quantity:
         return
     needs: dict[int, int] = {}
@@ -106,12 +113,22 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     for art_id, need in needs.items():
         if art_id == order.article_id:
             continue
-        got = 0
-        for cand in fifo_candidates(db, art_id, for_order_id=None):
-            if got >= need:
-                break
-            cand.reserved_for_order_id = order.id
-            got += cand.quantity
+        cands = fifo_candidates(db, art_id, for_order_id=None)
+        for cand, take in zip(cands, allocate(need, [c.quantity for c in cands])):
+            if take <= 0:
+                continue
+            if take == cand.quantity:
+                cand.reserved_for_order_id = order.id           # ganze Instanz reservieren
+            else:
+                cand.quantity -= take                            # Charge teilen
+                db.add(Instance(
+                    object_id=next_object_id(db, "instance"), article_id=cand.article_id,
+                    order_id=cand.order_id, kind=cand.kind, quantity=take,
+                    qc_status="passed", released_at=cand.released_at or cand.created_at,
+                    location_type=cand.location_type, location_id=cand.location_id,
+                    reserved_for_order_id=order.id,
+                ))
+                db.flush()
     log_audit(db, "instances", None, "Ressourcen reserviert", actor_id, object_id=order.object_id)
 
 
@@ -194,7 +211,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
                 # Charge teilentnehmen: Rest bleibt im Lager, Teilcharge wandert ins Produkt
                 cand.quantity -= take
                 sub = Instance(
-                    object_id=next_object_id(db), article_id=cand.article_id,
+                    object_id=next_object_id(db, "instance"), article_id=cand.article_id,
                     order_id=cand.order_id, kind="batch", quantity=take,
                     qc_status="consumed", released_at=cand.released_at or cand.created_at,
                     location_type="instance", location_id=product.object_id,
@@ -366,8 +383,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
             exec_line.picked = tools_by_art.get(art_id, [])
         else:
             need = view["quantity"] * (order.quantity or 0)
-            cands = fifo_candidates(db, art_id, order.id)
-            have = available_qty(cands)
+            have = available(db, art_id, order.id)   # SQL-Aggregat (kein Laden aller Instanzen)
             exec_line.need = need
             exec_line.available = have
             exec_line.sufficient = have >= need

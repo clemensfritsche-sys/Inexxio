@@ -230,6 +230,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/objects/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Object
+         * @description Typ einer Objektnummer in O(1) auflösen (zentrale Registry, Fallback Scan).
+         */
+        get: operations["resolve_object_api_v1_erp_objects__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/records": {
         parameters: {
             query?: never;
@@ -586,7 +606,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Instances */
+        /**
+         * List Instances
+         * @description Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar
+         *     (``limit``/``offset``, neueste zuerst).
+         */
         get: operations["list_instances_api_v1_erp_instances_get"];
         put?: never;
         post?: never;
@@ -1049,6 +1073,8 @@ export interface components {
             safety_stock?: number | string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
         };
         /**
          * CaptureField
@@ -1645,6 +1671,16 @@ export interface components {
             step_id?: number | null;
         };
         /**
+         * ObjectResolution
+         * @description Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs).
+         */
+        ObjectResolution: {
+            /** Object Id */
+            object_id: number;
+            /** Object Type */
+            object_type: string;
+        };
+        /**
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
@@ -1804,6 +1840,8 @@ export interface components {
             desired_delivery_date?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
         };
         /**
          * PurchaseEmbed
@@ -2263,6 +2301,8 @@ export interface components {
             address_country?: string | null;
             /** Is Active */
             is_active?: boolean | null;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
         };
         /** UserProfileResponse */
         UserProfileResponse: {
@@ -2870,6 +2910,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_object_api_v1_erp_objects__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectResolution"];
                 };
             };
             /** @description Validation Error */
@@ -3694,7 +3765,11 @@ export interface operations {
     };
     list_instances_api_v1_erp_instances_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description 0 = keine Begrenzung; sonst Seitengröße */
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3708,6 +3783,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

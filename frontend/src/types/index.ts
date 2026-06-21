@@ -52,6 +52,7 @@ export interface ArticleInput {
 export type ArticleUpdateInput = Partial<ArticleInput> & {
   status?: ArticleStatus;
   is_active?: boolean;
+  expected_updated_at?: string | null;   // Optimistic Locking
 };
 
 // ─── Order (Auftrag) ──────────────────────────────────────────────────────────
@@ -157,6 +158,7 @@ export type OrderUpdateInput = {
   quantity?: number | null;
   desired_delivery_date?: string | null;
   is_active?: boolean;
+  expected_updated_at?: string | null;   // Optimistic Locking
 };
 
 // ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
@@ -272,6 +274,7 @@ export interface StorageLocationUpdateInput {
   address_city?: string | null;
   address_country?: string | null;
   is_active?: boolean;
+  expected_updated_at?: string | null;   // Optimistic Locking
 }
 
 // ─── Claim (Reklamation / RMA) ────────────────────────────────────────────────

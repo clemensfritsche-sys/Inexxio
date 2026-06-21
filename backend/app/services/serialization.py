@@ -74,7 +74,7 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
     else:  # unit → je Stück eine Instanz
         count = order.quantity
     # Objektnummern als Block vergeben (eine Query statt einer je Instanz).
-    obj_ids = next_object_ids(db, count)
+    obj_ids = next_object_ids(db, count, "instance")
     kind = "batch" if art.serialization == "batch" else "unit"
     for i in range(count):
         inst = Instance(

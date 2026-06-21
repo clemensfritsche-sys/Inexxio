@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput, InstanceReference } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
+import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
@@ -115,15 +116,29 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
+
+  async function resyncVersion() {
+    if (!record) return;
+    try {
+      const fresh = await api.getStorageLocation(record.object_id as number);
+      verRef.current = fresh.updated_at;
+      onSaved(fresh);
+    } catch { /* ignore */ }
+  }
 
   async function changeStatus(target: string) {
     if (!record) return;
     setStatusBusy(true);
     setError(null);
     try {
-      onSaved(await api.updateStorageLocation(record.object_id as number, { status: target as StorageLocationStatus }));
+      const saved = await api.updateStorageLocation(record.object_id as number,
+        { status: target as StorageLocationStatus, expected_updated_at: verRef.current });
+      verRef.current = saved.updated_at;
+      onSaved(saved);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
+      if (isVersionConflict(e)) await resyncVersion();
     } finally {
       setStatusBusy(false);
     }
@@ -137,7 +152,10 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 
   async function confirmDeactivate() {
     if (!record) return;
-    onSaved(await api.updateStorageLocation(record.object_id as number, { status: 'inactive' }));
+    const saved = await api.updateStorageLocation(record.object_id as number,
+      { status: 'inactive', expected_updated_at: verRef.current });
+    verRef.current = saved.updated_at;
+    onSaved(saved);
     setDialog(null);
   }
 
@@ -188,13 +206,17 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       if (isCreate) {
         onSaved(await api.createStorageLocation(input));
       } else {
-        onSaved(await api.updateStorageLocation(record.object_id as number, input));
+        const saved = await api.updateStorageLocation(record.object_id as number,
+          { ...input, expected_updated_at: verRef.current });
+        verRef.current = saved.updated_at;
+        onSaved(saved);
         setSavedSig(current);
         setFlash(true);
         setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+      if (!isCreate && isVersionConflict(e)) await resyncVersion();
     } finally {
       setSaving(false);
     }

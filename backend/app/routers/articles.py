@@ -12,7 +12,7 @@ from ..schemas.deactivation import (
 from ..schemas.instance import InstanceResponse
 from ..services import deactivation
 from ..services.admin import log_audit
-from ..services.lifecycle import ensure_mutable
+from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.locations import location_label, physical_location_label
 from ..services.objects import next_object_id
 from ..services.weight import computed_weights
@@ -151,7 +151,7 @@ async def create_article(
     current_user: UserProfile = Depends(require_employee),
 ):
     article = Article(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "article"),
         status="draft",
         name=data.name,
         unit=data.unit,
@@ -192,6 +192,7 @@ async def update_article(
 ):
     article = _get_active(db, object_id)
     payload = data.model_dump(exclude_unset=True)
+    ensure_version(article, payload.pop("expected_updated_at", None))
     ensure_mutable(article.status, payload, "Artikel")
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
     reactivating = payload.get("status") == "released" and article.status == "inactive"

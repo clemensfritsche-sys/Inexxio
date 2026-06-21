@@ -118,6 +118,7 @@ class StorageLocationUpdate(BaseModel):
     address_country: Optional[str] = None
 
     is_active: Optional[bool] = None
+    expected_updated_at: Optional[datetime] = None   # Optimistic Locking (optional)
 
     @field_validator("status")
     @classmethod

@@ -566,6 +566,54 @@
         }
       }
     },
+    "/api/v1/erp/objects/{object_id}": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Resolve Object",
+        "description": "Typ einer Objektnummer in O(1) auflösen (zentrale Registry, Fallback Scan).",
+        "operationId": "resolve_object_api_v1_erp_objects__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectResolution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/records": {
       "get": {
         "tags": [
@@ -1875,28 +1923,66 @@
           "instances"
         ],
         "summary": "List Instances",
+        "description": "Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar\n(``limit``/``offset``, neueste zuerst).",
         "operationId": "list_instances_api_v1_erp_instances_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 0,
+              "description": "0 = keine Begrenzung; sonst Seitengröße",
+              "default": 0,
+              "title": "Limit"
+            },
+            "description": "0 = keine Begrenzung; sonst Seitengröße"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/InstanceResponse"
                   },
-                  "type": "array",
                   "title": "Response List Instances Api V1 Erp Instances Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/erp/instances/{object_id}": {
@@ -3540,6 +3626,18 @@
               }
             ],
             "title": "Is Active"
+          },
+          "expected_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Updated At"
           }
         },
         "type": "object",
@@ -5561,6 +5659,25 @@
         "title": "MovementUpdate",
         "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz."
       },
+      "ObjectResolution": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "object_type"
+        ],
+        "title": "ObjectResolution",
+        "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
+      },
       "OrderCreate": {
         "properties": {
           "article_id": {
@@ -6147,6 +6264,18 @@
               }
             ],
             "title": "Is Active"
+          },
+          "expected_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Updated At"
           }
         },
         "type": "object",
@@ -7611,6 +7740,18 @@
               }
             ],
             "title": "Is Active"
+          },
+          "expected_updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Updated At"
           }
         },
         "type": "object",

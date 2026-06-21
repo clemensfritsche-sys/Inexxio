@@ -176,7 +176,7 @@ def storage_location_in_use(db: Session, loc: StorageLocation) -> bool:
 def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     """Stammdaten + (nicht-Pflicht-)Prozessschritte in einen neuen Entwurf kopieren."""
     new = Article(
-        object_id=next_object_id(db), status="draft",
+        object_id=next_object_id(db, "article"), status="draft",
         name=src.name, unit=src.unit, serialization=src.serialization, size=src.size,
         weight_kg=src.weight_kg, material=src.material, cad_url=src.cad_url, surface=src.surface,
         min_order_qty=src.min_order_qty, safety_stock=src.safety_stock,
@@ -207,7 +207,7 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
 
 
 def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
-    new = Order(object_id=next_object_id(db), status="draft", title=src.title,
+    new = Order(object_id=next_object_id(db, "order"), status="draft", title=src.title,
                 article_id=src.article_id, quantity=src.quantity,
                 desired_delivery_date=src.desired_delivery_date)
     db.add(new)
@@ -219,7 +219,7 @@ def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
 
 def duplicate_storage_location(db: Session, src: StorageLocation, actor_id: int) -> StorageLocation:
     new = StorageLocation(
-        object_id=next_object_id(db), status="draft", name=src.name, code=src.code,
+        object_id=next_object_id(db, "storage_location"), status="draft", name=src.name, code=src.code,
         location_type=src.location_type, note=src.note, max_load_kg=src.max_load_kg,
         width_mm=src.width_mm, depth_mm=src.depth_mm, height_mm=src.height_mm,
         is_dry=src.is_dry, is_tempered=src.is_tempered, is_hazmat=src.is_hazmat,

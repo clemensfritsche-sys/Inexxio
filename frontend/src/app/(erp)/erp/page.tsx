@@ -155,22 +155,27 @@ export default function ErpPage() {
   const scan = useScan();
 
   useEffect(() => {
+    // Kern-Feeds (geringe Kardinalität) blockierend laden – die Shell erscheint
+    // sofort. Instanzen (höchste Kardinalität) + Reklamationen danach nachladen.
     Promise.allSettled([
       api.getErpRecords(), api.getArticles(), api.getOrders(),
-      api.getStorageLocations(), api.getMe(), api.getInstances(), api.getClaims(),
-    ]).then(([u, a, o, sl, me, inst, cl]) => {
+      api.getStorageLocations(), api.getMe(),
+    ]).then(([u, a, o, sl, me]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
       if (o.status === 'fulfilled') setOrders(o.value);
       if (sl.status === 'fulfilled') setStorageLocations(sl.value);
-      if (inst.status === 'fulfilled') setInstances(inst.value);
-      if (cl.status === 'fulfilled') setClaims(cl.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
       }
       setLoading(false);
     });
+    // Nicht-blockierend nachladen (Shell erscheint sofort). Der Instanz-Endpoint ist
+    // server-seitig paginierbar (limit/offset) – Grundlage für einen virtualisierten
+    // Feed bei sehr hohen Instanzzahlen.
+    api.getInstances().then(setInstances).catch(() => {});
+    api.getClaims().then(setClaims).catch(() => {});
     api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 

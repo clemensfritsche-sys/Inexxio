@@ -14,7 +14,7 @@ from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
-from ..services.lifecycle import ensure_mutable
+from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, to_order_summaries, visible_orders
@@ -70,7 +70,7 @@ async def create_order(
 ):
     _validate_article(db, data.article_id)
     order = Order(
-        object_id=next_object_id(db),
+        object_id=next_object_id(db, "order"),
         status="draft",
         article_id=data.article_id,
         quantity=data.quantity,
@@ -107,15 +107,16 @@ async def update_order(
     order = _get_staff_order(db, object_id)
     was_released = order.status == "released"
 
-    payload_preview = data.model_dump(exclude_unset=True)
-    ensure_mutable(order.status, payload_preview, "Auftrag")
-    if "article_id" in payload_preview:
-        _validate_article(db, payload_preview["article_id"])
+    payload = data.model_dump(exclude_unset=True)
+    ensure_version(order, payload.pop("expected_updated_at", None))
+    ensure_mutable(order.status, payload, "Auftrag")
+    if "article_id" in payload:
+        _validate_article(db, payload["article_id"])
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.
-    if payload_preview.get("status") == "released" and order.status == "inactive":
+    if payload.get("status") == "released" and order.status == "inactive":
         raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
 
-    for key, value in data.model_dump(exclude_unset=True).items():
+    for key, value in payload.items():
         old_val = getattr(order, key, None)
         old_str = str(old_val) if old_val is not None else None
         new_str = str(value) if value is not None else None

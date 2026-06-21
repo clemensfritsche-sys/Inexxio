@@ -11,22 +11,34 @@ sowie der Backfill-Logik für Altdaten.
 from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
-from ..models import Article, Claim, Instance, Order, StorageLocation, UserProfile
+from ..models import Article, Claim, Instance, ObjectRef, Order, StorageLocation, UserProfile
 
 OBJ_ID_START = 100_000_001
 OBJECT_ID_SEQUENCE = "object_id_seq"
 
+# Objekttyp ↔ Modell (für Registry-Backfill und -Pflege).
+_TYPE_MODELS = {
+    "user": UserProfile,
+    "article": Article,
+    "order": Order,
+    "instance": Instance,
+    "storage_location": StorageLocation,
+    "claim": Claim,
+}
+
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.
 # Bestellungen/Eingangskontrollen bekommen KEINE eigene Nummer (laufen unter dem
 # Auftrag); Instanzen und Reklamationen hingegen sind eigenständige Objekte.
-_OBJECT_ID_COLUMNS = (
-    UserProfile.object_id,
-    Article.object_id,
-    Order.object_id,
-    Instance.object_id,
-    StorageLocation.object_id,
-    Claim.object_id,
-)
+_OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values())
+
+
+def _register(db: Session, ids: list[int], object_type: str | None) -> None:
+    """Vergebene Objektnummern in der zentralen Registry eintragen (sofern Typ
+    bekannt). Läuft in der Transaktion des Aufrufers mit."""
+    if not object_type:
+        return
+    for oid in ids:
+        db.add(ObjectRef(object_id=oid, object_type=object_type))
 
 
 def current_max_object_id(db: Session) -> int:
@@ -40,13 +52,17 @@ def current_max_object_id(db: Session) -> int:
     return max_id if max_id is not None else OBJ_ID_START - 1
 
 
-def next_object_id(db: Session) -> int:
-    """Nächste freie Objektnummer – atomar aus der Sequence (race-sicher)."""
-    return int(db.execute(text(f"SELECT nextval('{OBJECT_ID_SEQUENCE}')")).scalar())
+def next_object_id(db: Session, object_type: str | None = None) -> int:
+    """Nächste freie Objektnummer – atomar aus der Sequence (race-sicher). Mit
+    ``object_type`` wird die Nummer zugleich in der Objekt-Registry eingetragen."""
+    nid = int(db.execute(text(f"SELECT nextval('{OBJECT_ID_SEQUENCE}')")).scalar())
+    _register(db, [nid], object_type)
+    return nid
 
 
-def next_object_ids(db: Session, count: int) -> list[int]:
-    """Block aufeinanderfolgender Objektnummern – ein Roundtrip, atomar.
+def next_object_ids(db: Session, count: int, object_type: str | None = None) -> list[int]:
+    """Block aufeinanderfolgender Objektnummern – ein Roundtrip, atomar. Mit
+    ``object_type`` werden alle Nummern in der Objekt-Registry eingetragen.
 
     Für Massenanlagen wie die Instanz-Erzeugung bei der Auftragsfreigabe."""
     if count <= 0:
@@ -55,4 +71,29 @@ def next_object_ids(db: Session, count: int) -> list[int]:
         text(f"SELECT nextval('{OBJECT_ID_SEQUENCE}') FROM generate_series(1, :n)"),
         {"n": count},
     ).scalars().all()
-    return [int(r) for r in rows]
+    ids = [int(r) for r in rows]
+    _register(db, ids, object_type)
+    return ids
+
+
+def resolve_object_type(db: Session, object_id: int) -> str | None:
+    """Objekttyp einer Nummer in O(1) aus der Registry; Fallback: Fachtabellen
+    absuchen (für Nummern, die noch nicht registriert wurden)."""
+    ref = db.query(ObjectRef.object_type).filter(ObjectRef.object_id == object_id).first()
+    if ref:
+        return ref[0]
+    for otype, model in _TYPE_MODELS.items():
+        if db.query(model.id).filter(model.object_id == object_id).first():
+            return otype
+    return None
+
+
+def backfill_registry(db: Session) -> None:
+    """Registry idempotent mit allen vorhandenen Objektnummern auffüllen
+    (Altdaten + alles, was ohne Typ vergeben wurde). ON CONFLICT DO NOTHING."""
+    for otype, model in _TYPE_MODELS.items():
+        db.execute(text(
+            f"INSERT INTO objects (object_id, object_type, created_at) "
+            f"SELECT object_id, :t, now() FROM {model.__tablename__} "
+            f"WHERE object_id IS NOT NULL ON CONFLICT (object_id) DO NOTHING"
+        ), {"t": otype})
