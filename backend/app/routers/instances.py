@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -11,6 +13,25 @@ from ..services.locations import location_label, physical_location_label
 from ..services.references import instance_references
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
+
+
+class CountResponse(BaseModel):
+    count: int
+
+
+def _apply_search(q, search: str):
+    """Server-seitige Suche: Instanz-Objektnummer, Artikelname oder Artikel-Nummer."""
+    s = search.strip()
+    if not s:
+        return q
+    like = f"%{s}%"
+    return q.join(Article, Article.id == Instance.article_id, isouter=True).filter(
+        or_(
+            cast(Instance.object_id, String).ilike(like),
+            Article.name.ilike(like),
+            cast(Article.object_id, String).ilike(like),
+        )
+    )
 
 
 def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
@@ -40,20 +61,30 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
 async def list_instances(
     limit: int = Query(0, ge=0, le=1000, description="0 = keine Begrenzung; sonst Seitengröße"),
     offset: int = Query(0, ge=0),
+    search: str = Query("", description="Suche: Objektnummer, Artikelname oder Artikel-Nummer"),
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar
-    (``limit``/``offset``, neueste zuerst)."""
-    q = (
-        db.query(Instance)
-        .filter(Instance.is_active == True)
-        .order_by(Instance.object_id.desc())
-    )
+    """Instanz-Feed (höchste Kardinalität) – server-seitig paginierbar
+    (``limit``/``offset``, neueste zuerst) und durchsuchbar (``search``)."""
+    q = _apply_search(
+        db.query(Instance).filter(Instance.is_active == True), search
+    ).order_by(Instance.object_id.desc())
     if limit:
         q = q.offset(offset).limit(limit)
     rows = q.all()
     return _denorm(db, rows)
+
+
+@router.get("/count", response_model=CountResponse)
+async def count_instances(
+    search: str = Query(""),
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Gesamtzahl (matchender) Instanzen – für die Feed-Zähler/Pagination."""
+    q = _apply_search(db.query(Instance.id).filter(Instance.is_active == True), search)
+    return CountResponse(count=int(q.count()))
 
 
 @router.get("/{object_id}", response_model=InstanceResponse)

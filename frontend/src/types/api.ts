@@ -608,10 +608,30 @@ export interface paths {
         };
         /**
          * List Instances
-         * @description Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar
-         *     (``limit``/``offset``, neueste zuerst).
+         * @description Instanz-Feed (höchste Kardinalität) – server-seitig paginierbar
+         *     (``limit``/``offset``, neueste zuerst) und durchsuchbar (``search``).
          */
         get: operations["list_instances_api_v1_erp_instances_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/instances/count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count Instances
+         * @description Gesamtzahl (matchender) Instanzen – für die Feed-Zähler/Pagination.
+         */
+        get: operations["count_instances_api_v1_erp_instances_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1361,6 +1381,11 @@ export interface components {
             subject: string;
             /** Message */
             message: string;
+        };
+        /** CountResponse */
+        CountResponse: {
+            /** Count */
+            count: number;
         };
         /**
          * DeactivateRequest
@@ -3769,6 +3794,8 @@ export interface operations {
                 /** @description 0 = keine Begrenzung; sonst Seitengröße */
                 limit?: number;
                 offset?: number;
+                /** @description Suche: Objektnummer, Artikelname oder Artikel-Nummer */
+                search?: string;
             };
             header?: never;
             path?: never;
@@ -3783,6 +3810,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    count_instances_api_v1_erp_instances_count_get: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountResponse"];
                 };
             };
             /** @description Validation Error */

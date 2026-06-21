@@ -1923,7 +1923,7 @@
           "instances"
         ],
         "summary": "List Instances",
-        "description": "Instanz-Feed (höchste Kardinalität) – optional server-seitig paginierbar\n(``limit``/``offset``, neueste zuerst).",
+        "description": "Instanz-Feed (höchste Kardinalität) – server-seitig paginierbar\n(``limit``/``offset``, neueste zuerst) und durchsuchbar (``search``).",
         "operationId": "list_instances_api_v1_erp_instances_get",
         "security": [
           {
@@ -1955,6 +1955,18 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Suche: Objektnummer, Artikelname oder Artikel-Nummer",
+              "default": "",
+              "title": "Search"
+            },
+            "description": "Suche: Objektnummer, Artikelname oder Artikel-Nummer"
           }
         ],
         "responses": {
@@ -1968,6 +1980,55 @@
                     "$ref": "#/components/schemas/InstanceResponse"
                   },
                   "title": "Response List Instances Api V1 Erp Instances Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/instances/count": {
+      "get": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Count Instances",
+        "description": "Gesamtzahl (matchender) Instanzen – für die Feed-Zähler/Pagination.",
+        "operationId": "count_instances_api_v1_erp_instances_count_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountResponse"
                 }
               }
             }
@@ -4842,6 +4903,19 @@
           "message"
         ],
         "title": "ContactRequest"
+      },
+      "CountResponse": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "CountResponse"
       },
       "DeactivateRequest": {
         "properties": {

@@ -709,6 +709,20 @@ def test_event_outbox_model_and_router():
         assert f in EventResponse.model_fields
 
 
+def test_registry_fks_and_instance_search_wired():
+    """Stufe 2: FK-Integrität der Quer-Referenzen + Instanz-Server-Suche/Count."""
+    from app.services.objects import _FOREIGN_KEYS, ensure_foreign_keys
+    from app.routers import instances as inst_router
+
+    cols = {(t, c) for t, _, c in _FOREIGN_KEYS}
+    # Die Kern-Quer-Referenzen sind als FK auf die Registry abgesichert
+    assert ("instances", "location_id") in cols
+    assert ("articles", "replaced_by_id") in cols
+    assert callable(ensure_foreign_keys)
+    # Instanz-Feed ist server-seitig durchsuchbar + zählbar
+    assert callable(inst_router._apply_search) and hasattr(inst_router, "CountResponse")
+
+
 def test_object_registry_wired():
     """Zentrale Objekt-Registry: Modell, Typ-Map und Auflösung/Backfill vorhanden."""
     from app.models import ObjectRef

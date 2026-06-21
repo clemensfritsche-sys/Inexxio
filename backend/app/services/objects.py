@@ -97,3 +97,31 @@ def backfill_registry(db: Session) -> None:
             f"SELECT object_id, :t, now() FROM {model.__tablename__} "
             f"WHERE object_id IS NOT NULL ON CONFLICT (object_id) DO NOTHING"
         ), {"t": otype})
+
+
+# Quer-Referenzen (Spalte → objects.object_id) für FK-Integrität. Alle nullable;
+# ON DELETE SET NULL (wir löschen ohnehin nur soft, Registry bleibt bestehen).
+_FOREIGN_KEYS = (
+    ("articles", "fk_articles_replaced_by", "replaced_by_id"),
+    ("orders", "fk_orders_replaced_by", "replaced_by_id"),
+    ("storage_locations", "fk_storage_locations_replaced_by", "replaced_by_id"),
+    ("instances", "fk_instances_location", "location_id"),
+)
+
+
+def ensure_foreign_keys(db: Session) -> None:
+    """FK-Constraints der Quer-Referenzen auf die Registry idempotent anlegen
+    (nach dem Backfill). Best-effort je Constraint: schlägt eines fehl (z. B. wegen
+    Altdaten), werden die übrigen trotzdem gesetzt."""
+    for table, name, col in _FOREIGN_KEYS:
+        if db.execute(text("SELECT 1 FROM pg_constraint WHERE conname = :n"), {"n": name}).first():
+            continue
+        try:
+            db.execute(text(
+                f"ALTER TABLE {table} ADD CONSTRAINT {name} "
+                f"FOREIGN KEY ({col}) REFERENCES objects(object_id) ON DELETE SET NULL"
+            ))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"WARNING: FK {name} not added: {e}", flush=True)

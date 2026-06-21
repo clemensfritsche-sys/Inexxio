@@ -217,11 +217,12 @@ def _ensure_object_id_sequence() -> None:
 def _backfill_object_registry() -> None:
     """Zentrale Objekt-Registry mit allen vorhandenen Objektnummern auffüllen
     (Altdaten + ohne Typ vergebene). Idempotent."""
-    from .services.objects import backfill_registry
+    from .services.objects import backfill_registry, ensure_foreign_keys
     db = SessionLocal()
     try:
         backfill_registry(db)
         db.commit()
+        ensure_foreign_keys(db)   # FK-Integrität der Quer-Referenzen (best-effort)
     except Exception as e:
         db.rollback()
         print(f"WARNING: _backfill_object_registry() failed: {e}", flush=True)

@@ -222,9 +222,24 @@ class ApiClient {
     return this.get(`/api/v1/erp/articles/${objectId}/instances`);
   }
 
-  // Instanz-Feed (server-seitig paginierbar; limit=0 → alle, neueste zuerst)
-  getInstances(limit = 0): Promise<Instance[]> {
-    return this.get(`/api/v1/erp/instances${limit ? `?limit=${limit}` : ''}`);
+  // Instanz-Feed (server-seitig paginierbar + durchsuchbar; limit=0 → alle, neueste zuerst)
+  getInstances(limit = 0, offset = 0, search = ''): Promise<Instance[]> {
+    const p = new URLSearchParams();
+    if (limit) p.set('limit', String(limit));
+    if (offset) p.set('offset', String(offset));
+    if (search) p.set('search', search);
+    const qs = p.toString();
+    return this.get(`/api/v1/erp/instances${qs ? `?${qs}` : ''}`);
+  }
+
+  // Gesamtzahl (matchender) Instanzen für die Feed-Zähler/Pagination
+  getInstanceCount(search = ''): Promise<{ count: number }> {
+    return this.get(`/api/v1/erp/instances/count${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+  }
+
+  // Universelle Objektnummer serverseitig auf ihren Typ auflösen (Scan/Navigation)
+  resolveObject(objectId: number): Promise<{ object_id: number; object_type: string }> {
+    return this.get(`/api/v1/erp/objects/${objectId}`);
   }
 
   getInstance(objectId: number): Promise<Instance> {
