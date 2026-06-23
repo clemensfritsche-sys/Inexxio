@@ -15,14 +15,15 @@ import { fmtObjId } from '@/components/erp/user-detail';
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
-const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource'];
+const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
 const RESOURCE_MODE_LABEL: Record<ResourceMode, string> = { consume: 'Verbrauch', tool: 'Betriebsmittel' };
 
-export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onStepsCount }: {
-  articleObjectId: number | null;
+export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
+  processId: number | null;
   suppliers: UserProfile[];
   readOnly?: boolean;
   onStepsCount?: (n: number) => void;
+  selfArticleObjectId?: number | null;   // Artikel des Prozesses (Ressource-Selbst-Ausschluss)
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,12 +48,12 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   const [over, setOver] = useState<number | null>(null);
 
   useEffect(() => {
-    if (articleObjectId == null) return;
+    if (processId == null) return;
     setLoading(true);
-    api.getArticleProcessSteps(articleObjectId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
+    api.getProcessSteps(processId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
     // Lagerplätze für den (editierbaren) Wareneingang-Zielselektor der Pflicht-Bewegung
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
-  }, [articleObjectId]);
+  }, [processId]);
 
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
   useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
@@ -67,15 +68,15 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
 
-  if (articleObjectId == null) {
+  if (processId == null) {
     return (
       <div style={noticeStyle}>
         <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Artikel zuerst speichern – danach lassen sich Prozessschritte hinterlegen.</span>
+        <span>Prozess zuerst wählen – danach lassen sich Schritte hinterlegen.</span>
       </div>
     );
   }
-  const aid = articleObjectId;
+  const pid = processId;
 
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
@@ -86,7 +87,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
   // Pflicht-Bewegungen + serverseitiger Positionen).
   async function reload() {
-    try { setSteps(await api.getArticleProcessSteps(aid)); } catch { /* ignore */ }
+    try { setSteps(await api.getProcessSteps(pid)); } catch { /* ignore */ }
   }
 
   // Rolle einer Pflicht-Bewegung: Versand (Ziel = Lieferant) vs. Wareneingang.
@@ -98,7 +99,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
   async function setLockedTarget(stepId: number, value: string) {
     const tgt = value ? value.split(':') : null;
     try {
-      const updated = await api.updateArticleProcessStep(aid, stepId, {
+      const updated = await api.updateProcessStep(pid, stepId, {
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
       });
@@ -137,7 +138,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
-      await api.createArticleProcessStep(aid, {
+      await api.createProcessStep(pid, {
         step_type: type,
         mode: type === 'purchase' ? mode : undefined,
         supplier_id: type === 'purchase' && mode === 'supplier' ? Number(supplierId) : null,
@@ -161,7 +162,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
   async function removeStep(stepId: number) {
     try {
-      await api.deleteArticleProcessStep(aid, stepId);
+      await api.deleteProcessStep(pid, stepId);
       // Entfernt eine Beschaffung evtl. zugehörige Pflicht-Bewegungen → neu laden.
       await reload();
     } catch { /* ignore */ }
@@ -169,7 +170,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
   async function saveShared(stepId: number) {
     try {
-      const updated = await api.updateArticleProcessStep(aid, stepId, { shared_fields: editShared });
+      const updated = await api.updateProcessStep(pid, stepId, { shared_fields: editShared });
       setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
       setEditId(null);
     } catch { /* ignore */ }
@@ -180,7 +181,7 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
     // Nur die frei sortierbaren (nicht-Pflicht) Schritte werden gesendet; der
     // Server fügt die Pflicht-Bewegungen automatisch wieder an der richtigen Stelle ein.
     const ids = orderedFull.filter((s) => !s.locked).map((s) => s.id);
-    try { setSteps(await api.reorderArticleProcessSteps(aid, ids)); }
+    try { setSteps(await api.reorderProcessSteps(pid, ids)); }
     catch { reload(); }
   }
 
@@ -413,7 +414,16 @@ export function ProcessSteps({ articleObjectId, suppliers, readOnly = false, onS
 
               {adding === 'resource' && (
                 <ResourceLinesEditor lines={resLines} onChange={setResLines}
-                  articles={articles.filter((a) => a.status === 'released' && a.object_id !== aid)} />
+                  articles={articles.filter((a) => a.status === 'released' && a.object_id !== selfArticleObjectId)} />
+              )}
+
+              {adding === 'sale' && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                  <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Kaufmännischer Verkauf (Spiegel der Beschaffung): Kunde, Betrag, Rechnung
+                    und Zahlung werden beim Auftrag erfasst. Der Versand läuft über eine Bewegung
+                    (Ziel = Kunde, mit Sendungsverfolgung).</span>
+                </div>
               )}
 
               {error && <ErrorText msg={error} />}
@@ -434,6 +444,7 @@ const STEP_HINT: Record<StepType, string> = {
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
   resource: 'Bauteile verbrauchen & Betriebsmittel nutzen',
+  sale: 'Verkauf: Bestätigung → Rechnung → Zahlung',
 };
 
 // ─── Ressourcen-Zeilen bearbeiten (mini-BOM) ──────────────────────────────────

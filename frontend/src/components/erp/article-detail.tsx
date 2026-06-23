@@ -15,7 +15,7 @@ import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
-import { ProcessSteps } from '@/components/erp/process-steps';
+import { ArticleProcesses } from '@/components/erp/article-processes';
 import { InstanceList } from '@/components/erp/instance-list';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
@@ -105,10 +105,12 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   function addField(key: OptKey) { setAdded((a) => (a.includes(key) ? a : [...a, key])); }
   function removeField(key: OptKey) { setAdded((a) => a.filter((k) => k !== key)); set(key, ''); }
 
-  // Anzahl Prozessschritte für die Freigabe-Bedingung laden
+  // Anzahl Prozessschritte (über die EIGENEN Prozesse) für die Freigabe-Bedingung laden
   useEffect(() => {
     if (record?.object_id == null) return;
-    api.getArticleProcessSteps(record.object_id).then((s) => setStepCount(s.length)).catch(() => {});
+    api.getArticleProcesses(record.object_id)
+      .then((ps) => setStepCount(ps.filter((p) => !p.is_standard).reduce((s, p) => s + (p.step_count ?? 0), 0)))
+      .catch(() => {});
   }, [record?.object_id]);
 
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
@@ -337,7 +339,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           </div>
         )}
         {tab === 'prozess' && (
-          <ProcessSteps articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} onStepsCount={setStepCount} />
+          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} onStepsCount={setStepCount} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />

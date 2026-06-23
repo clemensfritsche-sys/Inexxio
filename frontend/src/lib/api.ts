@@ -1,8 +1,10 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
+  Process, ProcessInput, ProcessUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
-  MovementUpdateInput, ResourceUpdateInput,
+  MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
+  RecurringOrder, RecurringOrderInput, RecurringOrderUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
@@ -150,27 +152,67 @@ class ApiClient {
     return this.post(`/api/v1/erp/articles/${objectId}/replace`, { orders_mode: ordersMode });
   }
 
-  // ─── Article Process Steps (Prozess-Definition) ──────────────────────────────
+  // ─── Prozesse (Verben): Artikel-eigen + globale Standardprozesse ──────────────
 
-  getArticleProcessSteps(objectId: number): Promise<ArticleProcessStep[]> {
-    return this.get(`/api/v1/erp/articles/${objectId}/process-steps`);
+  // Wählbare Prozesse eines Artikels (eigene + geerbte freigegebene Standardprozesse)
+  getArticleProcesses(objectId: number): Promise<Process[]> {
+    return this.get(`/api/v1/erp/articles/${objectId}/processes`);
   }
 
-  createArticleProcessStep(objectId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
-    return this.post(`/api/v1/erp/articles/${objectId}/process-steps`, data);
+  createArticleProcess(objectId: number, data: ProcessInput): Promise<Process> {
+    return this.post(`/api/v1/erp/articles/${objectId}/processes`, data);
   }
 
-  updateArticleProcessStep(objectId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/process-steps/${stepId}`, data);
+  updateArticleProcess(objectId: number, processId: number, data: ProcessUpdateInput): Promise<Process> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/processes/${processId}`, data);
   }
 
-  deleteArticleProcessStep(objectId: number, stepId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/process-steps/${stepId}`);
+  deleteArticleProcess(objectId: number, processId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/processes/${processId}`);
+  }
+
+  // Standardprozesse (global, Feed-Typ)
+  getStandardProcesses(): Promise<Process[]> {
+    return this.get('/api/v1/erp/processes');
+  }
+
+  getStandardProcess(objectId: number): Promise<Process> {
+    return this.get(`/api/v1/erp/processes/${objectId}`);
+  }
+
+  createStandardProcess(data: ProcessInput): Promise<Process> {
+    return this.post('/api/v1/erp/processes', data);
+  }
+
+  updateStandardProcess(objectId: number, data: ProcessUpdateInput): Promise<Process> {
+    return this.patch(`/api/v1/erp/processes/${objectId}`, data);
+  }
+
+  deleteStandardProcess(objectId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/processes/${objectId}`);
+  }
+
+  // ─── Prozessschritte – verwaltet je Prozess (process_id, intern) ──────────────
+
+  getProcessSteps(processId: number): Promise<ArticleProcessStep[]> {
+    return this.get(`/api/v1/erp/processes/${processId}/steps`);
+  }
+
+  createProcessStep(processId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
+    return this.post(`/api/v1/erp/processes/${processId}/steps`, data);
+  }
+
+  updateProcessStep(processId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
+    return this.patch(`/api/v1/erp/processes/${processId}/steps/${stepId}`, data);
+  }
+
+  deleteProcessStep(processId: number, stepId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/processes/${processId}/steps/${stepId}`);
   }
 
   // Reihenfolge der frei sortierbaren Schritte; Pflicht-Bewegungen ordnet der Server.
-  reorderArticleProcessSteps(objectId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/process-steps/reorder`, { ordered_ids: orderedIds });
+  reorderProcessSteps(processId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
+    return this.patch(`/api/v1/erp/processes/${processId}/steps/reorder`, { ordered_ids: orderedIds });
   }
 
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
@@ -215,6 +257,38 @@ class ApiClient {
   // Schritt «Ressource»: Verbrauch (FIFO) + Betriebsmittel erfassen
   updateOrderResource(objectId: number, data: ResourceUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/resource`, data);
+  }
+
+  // Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung
+  updateOrderSale(objectId: number, data: SaleUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/sale`, data);
+  }
+
+  // ─── Wiederkehrende Vorgänge (Compliance/Termine + Abos) ─────────────────────
+
+  getRecurringOrders(): Promise<RecurringOrder[]> {
+    return this.get('/api/v1/erp/recurring-orders');
+  }
+
+  getRecurringOrder(objectId: number): Promise<RecurringOrder> {
+    return this.get(`/api/v1/erp/recurring-orders/${objectId}`);
+  }
+
+  createRecurringOrder(data: RecurringOrderInput): Promise<RecurringOrder> {
+    return this.post('/api/v1/erp/recurring-orders', data);
+  }
+
+  updateRecurringOrder(objectId: number, data: RecurringOrderUpdateInput): Promise<RecurringOrder> {
+    return this.patch(`/api/v1/erp/recurring-orders/${objectId}`, data);
+  }
+
+  deleteRecurringOrder(objectId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/recurring-orders/${objectId}`);
+  }
+
+  // Fällige wiederkehrende Vorgänge jetzt zu Aufträgen machen (manueller Trigger)
+  runRecurringOrders(): Promise<{ created: number[] }> {
+    return this.post('/api/v1/erp/recurring-orders/run', {});
   }
 
   // Bestand (Instanzen) eines Artikels

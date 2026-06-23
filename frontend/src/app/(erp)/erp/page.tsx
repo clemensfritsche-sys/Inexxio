@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Layers, Repeat } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, Process, PurchaseOrderStatus, RecurringOrder, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
@@ -20,6 +20,8 @@ import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 import { ClaimDetail } from '@/components/erp/claim-detail';
+import { ProcessDetail } from '@/components/erp/process-detail';
+import { RecurringDetail } from '@/components/erp/recurring-detail';
 
 // ─── Type metadata ───────────────────────────────────────────────────────────
 
@@ -30,10 +32,31 @@ const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType 
   instance:         { label: 'Instanzen',    icon: Boxes },
   storage_location: { label: 'Lagerplatz',   icon: Warehouse },
   claim:            { label: 'Reklamationen', icon: AlertTriangle },
+  process:          { label: 'Standardprozesse', icon: Layers },
+  recurring_order:  { label: 'Wiederkehrend', icon: Repeat },
 };
 
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim'];
+const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim', 'process', 'recurring_order'];
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
+
+// Status-Badges für die neuen Feed-Typen (Standardprozess, wiederkehrender Vorgang)
+function processBadge(status: string): StatusCfg {
+  const m: Record<string, StatusCfg> = {
+    draft: { label: 'Entwurf', color: '#d97706', bg: '#fffbeb', icon: Layers },
+    released: { label: 'Standard', color: '#7c3aed', bg: '#f5f3ff', icon: Layers },
+    inactive: { label: 'Inaktiv', color: '#475569', bg: '#f1f5f9', icon: Layers },
+  };
+  return m[status] ?? { label: status, color: '#475569', bg: '#f1f5f9' };
+}
+function recurringBadge(r: RecurringOrder): StatusCfg {
+  if (r.due_now && r.status === 'released') return { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat };
+  const m: Record<string, StatusCfg> = {
+    draft: { label: 'Entwurf', color: '#d97706', bg: '#fffbeb', icon: Repeat },
+    released: { label: 'Aktiv', color: '#16a34a', bg: '#f0fdf4', icon: Repeat },
+    inactive: { label: 'Inaktiv', color: '#475569', bg: '#f1f5f9', icon: Repeat },
+  };
+  return m[r.status] ?? { label: r.status, color: '#475569', bg: '#f1f5f9' };
+}
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
@@ -41,7 +64,9 @@ type Row =
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
-  | { type: 'claim'; key: string; objectId: number | null; data: Claim };
+  | { type: 'claim'; key: string; objectId: number | null; data: Claim }
+  | { type: 'process'; key: string; objectId: number | null; data: Process }
+  | { type: 'recurring_order'; key: string; objectId: number | null; data: RecurringOrder };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
@@ -49,6 +74,7 @@ function rowTitle(row: Row): string {
   if (row.type === 'instance') return instanceKindLabel(row.data.kind);
   if (row.type === 'storage_location') return 'Lagerplatz';
   if (row.type === 'claim') return 'Reklamation';   // starr – wie Auftrag/Lagerplatz
+  if (row.type === 'process' || row.type === 'recurring_order') return row.data.name;
   return row.data.name; // article
 }
 
@@ -59,6 +85,8 @@ function rowSearchText(row: Row): string {
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'claim') return `reklamation rma ${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
+  if (row.type === 'process') return `standardprozess ${row.data.name} ${row.data.source} ${id}`.toLowerCase();
+  if (row.type === 'recurring_order') return `wiederkehrend ${row.data.name} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -79,6 +107,8 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   }
   else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
+  else if (row.type === 'process') badge = processBadge(row.data.status);
+  else if (row.type === 'recurring_order') badge = recurringBadge(row.data);
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -143,12 +173,14 @@ export default function ErpPage() {
   // (funktioniert auch für Instanzen, die (noch) nicht im Feed geladen sind).
   const [instanceDetail, setInstanceDetail] = useState<Instance | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [standardProcesses, setStandardProcesses] = useState<Process[]>([]);
+  const [recurringOrders, setRecurringOrders] = useState<RecurringOrder[]>([]);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | 'claim' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | 'claim' | 'process' | 'recurring_order' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -183,6 +215,8 @@ export default function ErpPage() {
     // Nicht-blockierend nachladen (Shell erscheint sofort). Instanzen werden
     // separat server-paginiert/-durchsucht geladen (Effekt unten).
     api.getClaims().then(setClaims).catch(() => {});
+    api.getStandardProcesses().then(setStandardProcesses).catch(() => {});
+    api.getRecurringOrders().then(setRecurringOrders).catch(() => {});
     api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 
@@ -244,6 +278,8 @@ export default function ErpPage() {
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
     ...claims.map((c): Row => ({ type: 'claim', key: `c${c.id}`, objectId: c.object_id, data: c })),
+    ...standardProcesses.map((p): Row => ({ type: 'process', key: `p${p.id}`, objectId: p.object_id ?? null, data: p })),
+    ...recurringOrders.map((r): Row => ({ type: 'recurring_order', key: `r${r.id}`, objectId: r.object_id ?? null, data: r })),
   ].sort((x, y) => (y.objectId ?? -Infinity) - (x.objectId ?? -Infinity));   // höchste Nummer zuerst
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
@@ -321,7 +357,7 @@ export default function ErpPage() {
     });
   }
 
-  function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim') {
+  function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim' | 'process' | 'recurring_order') {
     setPlusOpen(false);
     setSel(null);
     setCreating(type);
@@ -370,6 +406,20 @@ export default function ErpPage() {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
   }
 
+  function handleProcessSaved(p: Process) {
+    setStandardProcesses((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
+    setCreating(null);
+    if (p.object_id != null) setSel({ type: 'process', objectId: p.object_id });
+  }
+
+  function handleRecurringSaved(r: RecurringOrder) {
+    setRecurringOrders((prev) => (prev.some((x) => x.id === r.id) ? prev.map((x) => (x.id === r.id ? r : x)) : [...prev, r]));
+    setCreating(null);
+    if (r.object_id != null) setSel({ type: 'recurring_order', objectId: r.object_id });
+    // Ein wiederkehrender Vorgang kann beim Ausführen Aufträge erzeugt haben.
+    api.getOrders().then(setOrders).catch(() => {});
+  }
+
   function cancelCreate() {
     setCreating(null);
     setMobileView('list');
@@ -413,6 +463,12 @@ export default function ErpPage() {
                     </button>
                     <button onClick={() => startCreate('claim')} style={menuItemStyle}>
                       <AlertTriangle size={15} style={{ color: '#64748b' }} /> Reklamation
+                    </button>
+                    <button onClick={() => startCreate('process')} style={menuItemStyle}>
+                      <Layers size={15} style={{ color: '#64748b' }} /> Standardprozess
+                    </button>
+                    <button onClick={() => startCreate('recurring_order')} style={menuItemStyle}>
+                      <Repeat size={15} style={{ color: '#64748b' }} /> Wiederkehrend
                     </button>
                   </div>
                 )}
@@ -518,6 +574,12 @@ export default function ErpPage() {
           {creating === 'claim' && (
             <ClaimDetail key="new-claim" record={null} instances={instances} onSaved={handleClaimSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
+          {creating === 'process' && (
+            <ProcessDetail key="new-process" record={null} suppliers={suppliers} onSaved={handleProcessSaved} onBack={cancelCreate} />
+          )}
+          {creating === 'recurring_order' && (
+            <RecurringDetail key="new-recurring" record={null} onSaved={handleRecurringSaved} onBack={cancelCreate} />
+          )}
           {!creating && selectedRow?.type === 'user' && (
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
@@ -541,6 +603,12 @@ export default function ErpPage() {
           )}
           {!creating && selectedRow?.type === 'claim' && (
             <ClaimDetail key={selectedRow.key} record={selectedRow.data} instances={instances} onSaved={handleClaimSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          )}
+          {!creating && selectedRow?.type === 'process' && (
+            <ProcessDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} onSaved={handleProcessSaved} onBack={() => setMobileView('list')} />
+          )}
+          {!creating && selectedRow?.type === 'recurring_order' && (
+            <RecurringDetail key={selectedRow.key} record={selectedRow.data} onSaved={handleRecurringSaved} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>

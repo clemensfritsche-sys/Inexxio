@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Order, OrderStep } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderStep, Process } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
@@ -20,17 +20,23 @@ import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
+import { SalePanel } from '@/components/erp/sale-panel';
 
 type ViewerRole = 'staff' | 'supplier';
 
-type Form = { article_id: string; quantity: string; desired_delivery_date: string };
+type Form = {
+  article_id: string; quantity: string; desired_delivery_date: string;
+  process_id: string; subject_instance_id: string;
+};
 
 function seedFrom(record: Order | null): Form {
-  if (!record) return { article_id: '', quantity: '', desired_delivery_date: '' };
+  if (!record) return { article_id: '', quantity: '', desired_delivery_date: '', process_id: '', subject_instance_id: '' };
   return {
     article_id: record.article_id != null ? String(record.article_id) : '',
     quantity: record.quantity != null ? String(record.quantity) : '',
     desired_delivery_date: record.desired_delivery_date ?? '',
+    process_id: record.process_id != null ? String(record.process_id) : '',
+    subject_instance_id: record.subject_instance_id != null ? String(record.subject_instance_id) : '',
   };
 }
 
@@ -95,18 +101,42 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
   const currentStepObj = steps.find((s) => String(s.id) === currentStepId) ?? null;
 
-  const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
-  const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
-  const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
-  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate });
-  const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
-  // Freigabe erst möglich, wenn Artikel + Menge gespeichert sind (keine offenen Änderungen)
-  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
-
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
   const selectedArticle = releasedArticles.find((a) => String(a.id) === form.article_id) ?? null;
   const qtyUnit = selectedArticle ? unitLabel(selectedArticle.unit) : (record?.article_unit ? unitLabel(record.article_unit) : '');
+
+  // Prozesse des gewählten Artikels (Entstehung/Verkauf/Wartung … + Standardprozesse).
+  const artObjId = selectedArticle?.object_id ?? null;
+  const artDbId = selectedArticle?.id ?? null;
+  const [procs, setProcs] = useState<Process[]>([]);
+  const [insts, setInsts] = useState<Instance[]>([]);
+  useEffect(() => {
+    if (!demandEditable || !artObjId) { setProcs([]); return; }
+    api.getArticleProcesses(artObjId).then((ps) => {
+      setProcs(ps);
+      setForm((f) => (f.process_id && ps.some((p) => String(p.id) === f.process_id)) ? f
+        : { ...f, process_id: ps[0] ? String(ps[0].id) : '' });
+    }).catch(() => {});
+  }, [artObjId, demandEditable]);
+
+  const selProc = procs.find((p) => String(p.id) === form.process_id) ?? null;
+  const needsInstance = selProc?.source === 'instance';
+  useEffect(() => {
+    if (!needsInstance || !artDbId) { return; }
+    api.getInstances(200).then((all) => setInsts(all.filter((i) => i.article_id === artDbId))).catch(() => {});
+  }, [needsInstance, artDbId]);
+
+  const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
+  const demandValid = needsInstance
+    ? (!!form.article_id && !!form.process_id && !!form.subject_instance_id)
+    : (!!form.article_id && qtyNum != null && qtyNum > 0);
+  const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
+  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate,
+    process_id: form.process_id, subject_instance_id: needsInstance ? form.subject_instance_id : '' });
+  const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
+  // Freigabe erst möglich, wenn der Bedarf gespeichert ist (keine offenen Änderungen)
+  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
 
   async function save() {
     if (!demandValid) return;
@@ -115,7 +145,13 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setError(null);
     try {
       const article_id = form.article_id ? Number(form.article_id) : null;
-      const payload = { article_id, quantity: qtyNum, desired_delivery_date: effectiveDate };
+      const payload = {
+        article_id,
+        quantity: needsInstance ? null : qtyNum,
+        desired_delivery_date: effectiveDate,
+        process_id: form.process_id ? Number(form.process_id) : null,
+        subject_instance_id: needsInstance && form.subject_instance_id ? Number(form.subject_instance_id) : null,
+      };
       if (isCreate) {
         onSaved(await api.createOrder(payload));
       } else {
@@ -254,8 +290,17 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   Kein freigegebener Artikel vorhanden. Nur Artikel im Status «Freigegeben» können referenziert werden.
                 </div>
               )}
+              {form.article_id && procs.length > 0 && (
+                <SearchSelect label="Prozess" value={form.process_id} onChange={(v) => set('process_id', v)} required
+                  options={procs.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_standard ? ' · Standard' : ''} (${p.source === 'produce' ? 'Neu' : p.source === 'stock' ? 'Bestand' : 'Instanz'})` }))} />
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
+                {needsInstance ? (
+                  <SearchSelect label="Instanz (Subjekt)" value={form.subject_instance_id} onChange={(v) => set('subject_instance_id', v)} required
+                    options={[{ value: '', label: '— Instanz wählen —' }, ...insts.filter((i) => i.object_id != null).map((i) => ({ value: String(i.object_id), label: `${fmtObjId(i.object_id)} · ${i.article_name ?? ''}` }))]} />
+                ) : (
+                  <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
+                )}
                 <div>
                   <Label>Wunsch-Liefertermin</Label>
                   {dateOpen ? (
@@ -388,6 +433,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   const stepOrder: Order = {
     ...order,
     purchase: (step.purchase ?? order.purchase) as Order['purchase'],
+    sale: step.sale ?? order.sale,
     inspection: step.inspection ?? order.inspection,
     movement: step.movement ?? order.movement,
     resource: step.resource ?? order.resource,
@@ -398,6 +444,9 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     return stepOrder.purchase
       ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
       : null;
+  }
+  if (step.step_type === 'sale') {
+    return <SalePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   if (step.step_type === 'inspection') {
     return <InspectionPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;

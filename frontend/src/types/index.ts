@@ -78,7 +78,7 @@ type OrderSummaryApi = components['schemas']['OrderSummary'];
 export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStatus };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -139,7 +139,7 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed' | 'scrapped';
+export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed' | 'scrapped' | 'sold';
 export type InstanceReference = components['schemas']['InstanceReference'];
 
 // Inaktiv setzen / Ersetzen (ohne Versionierung)
@@ -150,6 +150,8 @@ export interface OrderInput {
   article_id?: number | null;
   quantity?: number | null;
   desired_delivery_date?: string | null;
+  process_id?: number | null;
+  subject_instance_id?: number | null;
 }
 
 export type OrderUpdateInput = {
@@ -157,8 +159,66 @@ export type OrderUpdateInput = {
   article_id?: number | null;
   quantity?: number | null;
   desired_delivery_date?: string | null;
+  process_id?: number | null;
+  subject_instance_id?: number | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking
+};
+
+// ─── Prozesse (Verben): Artikel-eigen + globale Standardprozesse ───────────────
+
+export type ProcessSource = 'produce' | 'stock' | 'instance';
+export type Process = components['schemas']['ProcessResponse'];
+
+export interface ProcessInput {
+  name: string;
+  source?: ProcessSource;
+  position?: number | null;
+}
+
+export interface ProcessUpdateInput {
+  name?: string;
+  source?: ProcessSource;
+  position?: number | null;
+  status?: 'draft' | 'released' | 'inactive';
+  is_active?: boolean;
+}
+
+// ─── Verkaufsschritt (Spiegel der Beschaffung) ─────────────────────────────────
+
+export type OrderSale = NonNullable<OrderApi['sale']>;
+export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
+
+export interface SaleUpdateInput {
+  status?: SaleStatus;
+  order_total?: number | string | null;
+  vat_rate?: number | string | null;
+  currency?: string | null;
+  customer_id?: number | null;
+  invoice_number?: string | null;
+  step_id?: number | null;
+}
+
+// ─── Wiederkehrende Vorgänge (Compliance/Termine + Abos) ───────────────────────
+
+export type RecurringOrder = components['schemas']['RecurringOrderResponse'];
+
+export interface RecurringOrderInput {
+  name: string;
+  process_id?: number | null;
+  article_id?: number | null;
+  quantity?: number | null;
+  subject_instance_id?: number | null;
+  interval_days?: number | null;
+  lead_time_days?: number;
+  validity_days?: number | null;
+  next_due_at?: string | null;
+  valid_until?: string | null;
+}
+
+export type RecurringOrderUpdateInput = Partial<RecurringOrderInput> & {
+  status?: 'draft' | 'released' | 'inactive';
+  is_active?: boolean;
 };
 
 // ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
@@ -316,7 +376,7 @@ export interface ClaimUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim' | 'process' | 'recurring_order';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
