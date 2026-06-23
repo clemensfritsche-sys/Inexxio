@@ -33,6 +33,13 @@ class Order(Base, TimestampMixin):
     quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
+    # Welcher Prozess kommt zur Anwendung (``processes``). NULL = Default-
+    # «Entstehung» des Artikels (Rückwärtskompatibilität / Produktion).
+    process_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    # Bei Prozess-Quelle ``instance``: Objektnummer der konkreten Subjekt-Instanz
+    # (z. B. die zu wartende Maschine). Bei ``produce``/``stock`` NULL.
+    subject_instance_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -30,6 +30,7 @@ from .events import emit
 from .inventory import allocate, available
 from .locations import _obj_nr, location_label, resolve_physical_location
 from .objects import next_object_id
+from .subject import order_instances
 
 
 def _current_usage(db: Session, order: Order, step: ArticleProcessStep | None) -> ResourceUsage | None:
@@ -37,15 +38,6 @@ def _current_usage(db: Session, order: Order, step: ArticleProcessStep | None) -
     if not step:
         return None
     return process.fact_for_step(db, order, step)
-
-
-def _order_instances(db: Session, order: Order) -> list[Instance]:
-    return (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
-    )
 
 
 def _article(db: Session, article_db_id: int) -> Article | None:
@@ -102,7 +94,7 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     if not order.article_id or not order.quantity:
         return
     needs: dict[int, int] = {}
-    for d in process.step_defs(db, order.article_id):
+    for d in process.order_step_defs(db, order):
         if d.step_type != "resource":
             continue
         for line in (d.resource_lines or []):
@@ -265,7 +257,7 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
     lines = (step.resource_lines if step else None) or []
     if not lines:
         raise HTTPException(400, detail="Für diesen Auftrag sind keine Ressourcen definiert")
-    products = _order_instances(db, order)
+    products = order_instances(db, order)
     if not products:
         raise HTTPException(409, detail="Keine Produkt-Instanzen vorhanden")
 
@@ -363,7 +355,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
         for t in (details.get("tools", []) if details else [])
     }
 
-    products = _order_instances(db, order)
+    products = order_instances(db, order)
     art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
                  for raw in step.resource_lines}
     # Verbrauch je Produkt-Instanz: aus dem Protokoll (done) oder als FIFO-Vorschau.

@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, ArticleProcessStep, Instance, Order, PurchaseOrder, UserProfile
+from ..models import (
+    Article, ArticleProcessStep, Instance, Order, Process, PurchaseOrder, UserProfile,
+)
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.deactivation import (
     DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
@@ -166,6 +168,10 @@ async def create_article(
     )
     db.add(article)
     db.flush()
+    # Default-Prozess «Entstehung» (Quelle produce) – das Produktions-Rezept des
+    # Artikels. Weitere Prozesse (Verkauf, Wartung …) kann der Nutzer ergänzen.
+    db.add(Process(article_id=article.id, name="Entstehung", source="produce",
+                   is_standard=False, status="released", position=1))
     log_audit(db, "articles", None, f"Artikel '{article.name}' angelegt",
               current_user.id, object_id=article.object_id)
     db.commit()

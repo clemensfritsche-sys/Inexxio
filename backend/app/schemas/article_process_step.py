@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
 
-ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "resource")
+ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "resource", "sale")
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
 ALLOWED_RESOURCE_MODES = ("consume", "tool")  # verbrauchend (FIFO) | Betriebsmittel
@@ -237,7 +237,8 @@ class ArticleProcessStepResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    article_id: int
+    article_id: Optional[int] = None
+    process_id: Optional[int] = None
     position: int
     step_type: str
     locked: bool = False   # Pflicht-Bewegung (System, nicht löschbar/editierbar)

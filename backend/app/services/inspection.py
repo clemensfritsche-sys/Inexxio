@@ -21,11 +21,12 @@ import hashlib
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import ArticleProcessStep, Inspection, Instance, Order
+from ..models import ArticleProcessStep, Inspection, Order
 from . import process
 from .admin import log_audit
 from .claims import auto_claim_from_inspection
 from .events import emit
+from .subject import order_instances
 
 # Synthetisches Bewertungsfeld, wenn keine Maske definiert ist (reines Gut/Schlecht).
 DEFAULT_OK_FIELD = {"key": "_ok", "label": "Ergebnis", "type": "bool"}
@@ -63,22 +64,13 @@ def eval_fields(step: ArticleProcessStep | None) -> list[dict]:
     return fields if fields else [dict(DEFAULT_OK_FIELD)]
 
 
-def _order_instances(db: Session, order: Order) -> list[Instance]:
-    return (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
-    )
-
-
 def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
     """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes (failed).
 
     Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben
     ``pending`` («Im Prozess») und werden erst beim Auftrags-Abschluss freigegeben
     (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig."""
-    insts = _order_instances(db, order)
+    insts = order_instances(db, order)
     if len(insts) == 1 and insts[0].kind == "batch":
         insts[0].qc_status = "failed"
         return
@@ -102,7 +94,7 @@ def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -
 
     Charge → eine Instanz mit mehreren Proben (slot 1..N); Einzelteil → N zufällig
     ausgewählte Instanzen (je slot 1)."""
-    insts = _order_instances(db, order)
+    insts = order_instances(db, order)
     need = required_count(db, order, step)
     if not insts or need <= 0:
         return []

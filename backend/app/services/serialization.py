@@ -34,7 +34,7 @@ def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None
     ``purchase``/supplier), starten die Instanzen beim **Lieferanten**. Sonst gibt
     es (noch) keinen physischen Standort → ``(None, None)``; er wird durch den
     ersten Bewegungs-Schritt gesetzt."""
-    defs = process.step_defs(db, order.article_id) if order.article_id else []
+    defs = process.order_step_defs(db, order)
     first = defs[0] if defs else None
     if first and first.step_type == "purchase" and first.mode == "supplier" and first.supplier_id:
         sup = (

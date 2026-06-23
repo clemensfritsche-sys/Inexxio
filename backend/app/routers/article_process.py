@@ -1,10 +1,17 @@
+"""Prozessschritte – verwaltet **unter einem Prozess** (``processes``).
+
+Ein Artikel kann mehrere Prozesse haben (Entstehung, Verkauf, Wartung …); Schritte
+gehören deshalb zu einem Prozess, nicht mehr direkt zum Artikel. Standardprozesse
+(global) nutzen dieselben Endpunkte.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, ArticleProcessStep, UserProfile
+from ..models import Article, ArticleProcessStep, Process, UserProfile
 from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
     ArticleProcessStepResponse,
@@ -14,21 +21,36 @@ from ..schemas.article_process_step import (
     normalize_capture_fields,
 )
 from ..services.admin import log_audit
-from ..services.lifecycle import ensure_article_draft
 from ..services.process_steps import sync_locked_movements
 
-router = APIRouter(prefix="/api/v1/erp/articles", tags=["article-process"])
+router = APIRouter(prefix="/api/v1/erp/processes", tags=["process-steps"])
 
 
-def _get_article(db: Session, object_id: int) -> Article:
-    article = (
-        db.query(Article)
-        .filter(Article.object_id == object_id, Article.is_active == True)
+def _get_process(db: Session, process_id: int) -> Process:
+    proc = (
+        db.query(Process)
+        .filter(Process.id == process_id, Process.is_active == True)
         .first()
     )
-    if not article:
-        raise HTTPException(404, detail="Artikel nicht gefunden")
-    return article
+    if not proc:
+        raise HTTPException(404, detail="Prozess nicht gefunden")
+    return proc
+
+
+def _ensure_editable(db: Session, proc: Process) -> None:
+    """Schritte sind editierbar, solange der Prozess «im Entwurf» ist:
+    - Standardprozess: ``status == 'draft'``;
+    - Entstehungs-Prozess eines Artikels (``source == 'produce'``): nur solange der
+      Artikel im Entwurf ist (Produktionsrezept = keine Versionierung nach Freigabe);
+    - zusätzliche Artikel-Prozesse (Verkauf/Wartung …): jederzeit editierbar."""
+    if proc.is_standard:
+        if proc.status != "draft":
+            raise HTTPException(409, detail="Standardprozess ist freigegeben – bitte zuerst in den Entwurf setzen")
+        return
+    if proc.source == "produce" and proc.article_id:
+        art = db.query(Article).filter(Article.id == proc.article_id).first()
+        if art and art.status != "draft":
+            raise HTTPException(409, detail="Entstehungs-Prozess ist nach Artikel-Freigabe gesperrt – bitte neuen Artikel anlegen")
 
 
 def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
@@ -85,31 +107,34 @@ def _validate_resource_lines(db: Session, raw_lines: list | None) -> None:
             raise HTTPException(400, detail="Nur freigegebene Artikel sind als Ressource referenzierbar")
 
 
-@router.get("/{object_id}/process-steps", response_model=list[ArticleProcessStepResponse])
+def _active_steps(db: Session, process_id: int) -> list[ArticleProcessStep]:
+    return (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
+        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+        .all()
+    )
+
+
+@router.get("/{process_id}/steps", response_model=list[ArticleProcessStepResponse])
 async def list_steps(
-    object_id: int,
+    process_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    article = _get_article(db, object_id)
-    steps = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
-        .order_by(ArticleProcessStep.id)
-        .all()
-    )
-    return [_to_response(db, s) for s in steps]
+    _get_process(db, process_id)
+    return [_to_response(db, s) for s in _active_steps(db, process_id)]
 
 
-@router.post("/{object_id}/process-steps", response_model=ArticleProcessStepResponse, status_code=201)
+@router.post("/{process_id}/steps", response_model=ArticleProcessStepResponse, status_code=201)
 async def create_step(
-    object_id: int,
+    process_id: int,
     data: ArticleProcessStepCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    article = _get_article(db, object_id)
-    ensure_article_draft(article)
+    proc = _get_process(db, process_id)
+    _ensure_editable(db, proc)
     is_purchase = data.step_type == "purchase"
     if is_purchase:
         _validate_supplier(db, data.supplier_id)
@@ -118,20 +143,19 @@ async def create_step(
     else:
         max_pos = (
             db.query(func.max(ArticleProcessStep.position))
-            .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
+            .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
             .scalar()
         )
         position = (max_pos or 0) + 1
     is_movement = data.step_type == "movement"
     is_resource = data.step_type == "resource"
-    # Zielstandort nur bei der Bewegung. Die Lieferadresse/der Wareneingang kommt
-    # bei der Beschaffung aus der Systemkonfiguration bzw. wird beim Wareneingang erfasst.
     keeps_target = is_movement
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:
         _validate_resource_lines(db, resource_raw)
     step = ArticleProcessStep(
-        article_id=article.id,
+        process_id=process_id,
+        article_id=proc.article_id,
         position=position,
         step_type=data.step_type,
         mode=data.mode,
@@ -147,28 +171,27 @@ async def create_step(
     db.add(step)
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
-              current_user.id, object_id=article.object_id)
-    # Pflicht-Bewegungen rund um Beschaffungsschritte automatisch herstellen.
-    sync_locked_movements(db, article.id)
+              current_user.id, object_id=proc.object_id)
+    sync_locked_movements(db, process_id)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
 
 
-@router.patch("/{object_id}/process-steps/reorder", response_model=list[ArticleProcessStepResponse])
+@router.patch("/{process_id}/steps/reorder", response_model=list[ArticleProcessStepResponse])
 async def reorder_steps(
-    object_id: int,
+    process_id: int,
     data: StepReorder,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
     """Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
     serverseitig automatisch (neu) eingefügt und positioniert."""
-    article = _get_article(db, object_id)
-    ensure_article_draft(article)
+    proc = _get_process(db, process_id)
+    _ensure_editable(db, proc)
     free = (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id,
+        .filter(ArticleProcessStep.process_id == process_id,
                 ArticleProcessStep.is_active == True, ArticleProcessStep.locked == False)
         .all()
     )
@@ -176,27 +199,21 @@ async def reorder_steps(
     if set(data.ordered_ids) != set(by_id):
         raise HTTPException(400, detail="Reihenfolge passt nicht zu den vorhandenen Schritten")
     for i, sid in enumerate(data.ordered_ids):
-        by_id[sid].position = i * 2   # eindeutig & geordnet; sync renummeriert final
+        by_id[sid].position = i * 2
     db.flush()
-    sync_locked_movements(db, article.id)
+    sync_locked_movements(db, process_id)
     log_audit(db, "article_process_steps", "reorder", str(data.ordered_ids),
-              current_user.id, object_id=article.object_id)
+              current_user.id, object_id=proc.object_id)
     db.commit()
-    steps = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
-        .all()
-    )
-    return [_to_response(db, s) for s in steps]
+    return [_to_response(db, s) for s in _active_steps(db, process_id)]
 
 
-def _get_step(db: Session, article: Article, step_id: int) -> ArticleProcessStep:
+def _get_step(db: Session, process_id: int, step_id: int) -> ArticleProcessStep:
     step = (
         db.query(ArticleProcessStep)
         .filter(
             ArticleProcessStep.id == step_id,
-            ArticleProcessStep.article_id == article.id,
+            ArticleProcessStep.process_id == process_id,
             ArticleProcessStep.is_active == True,
         )
         .first()
@@ -206,21 +223,19 @@ def _get_step(db: Session, article: Article, step_id: int) -> ArticleProcessStep
     return step
 
 
-@router.patch("/{object_id}/process-steps/{step_id}", response_model=ArticleProcessStepResponse)
+@router.patch("/{process_id}/steps/{step_id}", response_model=ArticleProcessStepResponse)
 async def update_step(
-    object_id: int,
+    process_id: int,
     step_id: int,
     data: ArticleProcessStepUpdate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    article = _get_article(db, object_id)
-    ensure_article_draft(article)
-    step = _get_step(db, article, step_id)
+    proc = _get_process(db, process_id)
+    _ensure_editable(db, proc)
+    step = _get_step(db, process_id, step_id)
     payload = data.model_dump(exclude_unset=True)
     if step.locked:
-        # Versand (Ziel = Lieferant) ist systemgebunden; beim Wareneingang ist – wie
-        # bei einer regulären Bewegung – nur das Ziel editierbar (Lagerplatz oder offen).
         if step.target_location_type == "user":
             raise HTTPException(400, detail="Versand zum Lieferanten ist fix – nicht editierbar")
         if set(payload) - {"target_location_type", "target_location_id"}:
@@ -231,7 +246,7 @@ async def update_step(
         step.target_location_type = ttype
         step.target_location_id = payload.get("target_location_id") if ttype else None
         log_audit(db, "article_process_steps", "wareneingang_target",
-                  str(step.target_location_id), current_user.id, object_id=article.object_id)
+                  str(step.target_location_id), current_user.id, object_id=proc.object_id)
         db.commit()
         db.refresh(step)
         return _to_response(db, step)
@@ -243,34 +258,32 @@ async def update_step(
         _validate_resource_lines(db, payload["resource_lines"])
     for key, value in payload.items():
         setattr(step, key, value)
-    # Konsistenz: nur das zum Modus passende Bezugsfeld behalten
     if step.mode == "supplier":
         step.webshop_url = None
     elif step.mode == "webshop":
         step.supplier_id = None
     log_audit(db, "article_process_steps", "update", str(payload), current_user.id,
-              object_id=article.object_id)
+              object_id=proc.object_id)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
 
 
-@router.delete("/{object_id}/process-steps/{step_id}")
+@router.delete("/{process_id}/steps/{step_id}")
 async def delete_step(
-    object_id: int,
+    process_id: int,
     step_id: int,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    article = _get_article(db, object_id)
-    ensure_article_draft(article)
-    step = _get_step(db, article, step_id)
+    proc = _get_process(db, process_id)
+    _ensure_editable(db, proc)
+    step = _get_step(db, process_id, step_id)
     if step.locked:
         raise HTTPException(400, detail="Pflicht-Bewegung zu einer Beschaffung – nicht löschbar")
     step.is_active = False
     log_audit(db, "article_process_steps", "is_active", "false", current_user.id,
-              object_id=article.object_id, old_value="true")
-    # Verwaiste Pflicht-Bewegungen (z. B. nach Entfernen einer Beschaffung) bereinigen.
-    sync_locked_movements(db, article.id)
+              object_id=proc.object_id, old_value="true")
+    sync_locked_movements(db, process_id)
     db.commit()
     return {"deleted": True}

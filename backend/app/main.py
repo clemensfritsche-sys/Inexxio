@@ -10,7 +10,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, claims, contact, erp, events, health,
-    instances, orders, storage_locations,
+    instances, orders, processes, recurring, storage_locations,
 )
 
 settings = get_settings()
@@ -98,6 +98,13 @@ _COLUMN_SAFETY_NET = (
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),
     ("storage_locations", "replaced_by_id", "BIGINT"),
+    # Mehrere Prozesse je Artikel + Auftrags-Subjekt/Prozesswahl + Sales-Tracking
+    ("article_process_steps", "process_id", "BIGINT"),
+    ("orders", "process_id", "BIGINT"),
+    ("orders", "subject_instance_id", "BIGINT"),
+    ("instances", "subject_of_order_id", "BIGINT"),
+    ("movements", "tracking_number", "VARCHAR(100)"),
+    ("movements", "carrier", "VARCHAR(60)"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -126,6 +133,9 @@ _INDEX_SAFETY_NET = (
     # Bestands-Aggregate (Verfügbarkeit/FIFO je Artikel) + Ressourcen-Schritt-Scans
     ("ix_instances_article_id", "instances", "article_id"),
     ("ix_aps_step_type", "article_process_steps", "step_type"),
+    # Mehr-Prozess-Modell: Schritte je Prozess, Bestands-Subjekte je Auftrag
+    ("ix_aps_process_id", "article_process_steps", "process_id"),
+    ("ix_instances_subject_of_order", "instances", "subject_of_order_id"),
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
@@ -230,29 +240,87 @@ def _backfill_object_registry() -> None:
         db.close()
 
 
+def _backfill_processes() -> None:
+    """Auf das Mehr-Prozess-Modell migrieren (idempotent).
+
+    Bisher hingen die Schritte direkt am Artikel (ein impliziter Prozess). Hier wird
+    je Artikel mit «losen» Schritten ein Default-Prozess «Entstehung» (Quelle
+    ``produce``) angelegt, die Schritte werden ihm zugeordnet und die bestehenden
+    Aufträge des Artikels darauf gesetzt. ``article_id`` der Schritte wird nullable
+    (Standardprozess-Schritte haben keinen Artikel)."""
+    from .models import Process
+    db = SessionLocal()
+    try:
+        insp = inspect(engine)
+        tables = set(insp.get_table_names())
+        if "article_process_steps" not in tables or "processes" not in tables:
+            return
+        # Standardprozess-Schritte haben keinen Artikel → NOT NULL lösen (idempotent).
+        try:
+            db.execute(text("ALTER TABLE article_process_steps ALTER COLUMN article_id DROP NOT NULL"))
+            db.commit()
+        except Exception:
+            db.rollback()
+        rows = db.execute(text(
+            "SELECT DISTINCT article_id FROM article_process_steps "
+            "WHERE process_id IS NULL AND article_id IS NOT NULL AND is_active = true"
+        )).fetchall()
+        for (aid,) in rows:
+            proc = Process(article_id=aid, name="Entstehung", source="produce",
+                           is_standard=False, status="released", position=1)
+            db.add(proc)
+            db.flush()
+            db.execute(text(
+                "UPDATE article_process_steps SET process_id = :pid "
+                "WHERE article_id = :aid AND process_id IS NULL"
+            ), {"pid": proc.id, "aid": aid})
+            db.execute(text(
+                "UPDATE orders SET process_id = :pid WHERE article_id = :aid AND process_id IS NULL"
+            ), {"pid": proc.id, "aid": aid})
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _backfill_processes() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 def _sync_locked_movements_bootstrap() -> None:
-    """Bestandsartikel auf das neue Modell bringen: jeder Beschaffungsschritt wird
-    von Pflicht-Bewegungen flankiert (Versand/Wareneingang). Idempotent; läuft nur
-    über Artikel mit Beschaffungs- oder Pflicht-Bewegungsschritten."""
-    from .models import Article, ArticleProcessStep
+    """Pflicht-Bewegungen rund um Beschaffungsschritte herstellen – jetzt **je
+    Prozess** (Idempotent; nur über Prozesse mit Beschaffungs-/Bewegungsschritten)."""
+    from .models import ArticleProcessStep, Process
     from .services.process_steps import sync_locked_movements
     db = SessionLocal()
     try:
         rows = (
-            db.query(ArticleProcessStep.article_id)
+            db.query(ArticleProcessStep.process_id)
             .filter(ArticleProcessStep.is_active == True,
+                    ArticleProcessStep.process_id.isnot(None),
                     ArticleProcessStep.step_type.in_(("purchase", "movement")))
             .distinct()
             .all()
         )
-        active_ids = {aid for (aid,) in db.query(Article.id).filter(Article.is_active == True).all()}
-        for (aid,) in rows:
-            if aid in active_ids:
-                sync_locked_movements(db, aid)
+        active = {pid for (pid,) in db.query(Process.id).filter(Process.is_active == True).all()}
+        for (pid,) in rows:
+            if pid in active:
+                sync_locked_movements(db, pid)
         db.commit()
     except Exception as e:
         db.rollback()
         print(f"WARNING: _sync_locked_movements_bootstrap() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
+def _spawn_recurring_bootstrap() -> None:
+    """Fällige wiederkehrende Vorgänge beim Start zu Aufträgen machen (best-effort)."""
+    from .services.recurring import spawn_due
+    db = SessionLocal()
+    try:
+        spawn_due(db)
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _spawn_recurring_bootstrap() failed: {e}", flush=True)
     finally:
         db.close()
 
@@ -269,7 +337,9 @@ async def lifespan(app: FastAPI):
     _ensure_columns()
     _ensure_object_id_sequence()
     _backfill_object_registry()
+    _backfill_processes()              # Mehr-Prozess-Modell: Default-«Entstehung» je Artikel
     _sync_locked_movements_bootstrap()
+    _spawn_recurring_bootstrap()
     try:
         _bootstrap_admin()
     except Exception as e:
@@ -300,12 +370,14 @@ app.include_router(contact.router)
 app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)
+app.include_router(processes.router)
 app.include_router(article_process.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(storage_locations.router)
 app.include_router(claims.router)
 app.include_router(events.router)
+app.include_router(recurring.router)
 
 
 @app.get("/")

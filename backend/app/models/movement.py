@@ -25,3 +25,7 @@ class Movement(Base, TimestampMixin):
 
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     moved_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
+    # Versand zum Kunden (outbound): optionale Sendungsverfolgung.
+    tracking_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    carrier: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)

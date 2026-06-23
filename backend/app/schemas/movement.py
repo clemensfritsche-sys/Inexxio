@@ -25,11 +25,15 @@ class MovementTarget(BaseModel):
 
 
 class MovementUpdate(BaseModel):
-    """Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz."""
+    """Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.
+
+    Bei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."""
 
     targets: list[MovementTarget] = []
     note: Optional[str] = None
     step_id: Optional[int] = None   # konkrete Schritt-Definition (Mehr-Operationen-Routing)
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
 
 
 class MovementEmbed(BaseModel):
@@ -46,6 +50,8 @@ class MovementEmbed(BaseModel):
     done: bool = False
     note: Optional[str] = None
     moved_by_name: Optional[str] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
 
     # Vorgabe-Ziel aus der Prozessdefinition (optional; vom Router denormalisiert)
     target_location_type: Optional[str] = None

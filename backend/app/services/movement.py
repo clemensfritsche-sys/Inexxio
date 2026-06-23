@@ -10,21 +10,18 @@ unterschiedliche Standorte gehen – je Instanz ein eigener Eintrag.
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Instance, Movement, Order
+from ..models import Movement, Order
 from . import process
 from .admin import log_audit
 from .events import emit
 from .locations import validate_location
+from .subject import order_instances
 
 
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
-    instances = (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .all()
-    )
+    instances = order_instances(db, order)
     if not instances:
         raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
@@ -49,6 +46,9 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
         db.add(mv)
     mv.note = (data.note or "").strip() or None
     mv.moved_by_id = actor_id
+    # Versand zum Kunden (outbound): optionale Sendungsverfolgung.
+    mv.tracking_number = (getattr(data, "tracking_number", None) or "").strip() or None
+    mv.carrier = (getattr(data, "carrier", None) or "").strip() or None
     db.flush()
 
     log_audit(db, "movements", None, "Bewegung erfasst", actor_id, object_id=order.object_id)

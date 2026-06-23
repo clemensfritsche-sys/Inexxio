@@ -16,7 +16,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Order, PurchaseOrder, UserProfile
+from ..models import Article, Order, PurchaseOrder, UserProfile
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
@@ -60,50 +60,49 @@ def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
-    """Bei Auftragsfreigabe die Bestellung aus dem purchase-Prozessschritt anlegen.
+    """Bei Auftragsfreigabe je Beschaffungs-Schritt **des gewählten Prozesses** eine
+    Bestellung anlegen (Mehr-Operationen-Routing über ``step_id``).
 
-    Idempotent: existiert bereits eine Bestellung zum Auftrag, wird nichts erzeugt.
-    Hat der Artikel keinen purchase-Schritt, passiert nichts.
+    Idempotent: existiert für einen Schritt bereits eine Bestellung, wird sie
+    übersprungen. Hat der Prozess keinen purchase-Schritt, passiert nichts.
     """
     if not order.article_id or not order.quantity:
+        return []
+    steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
+    if not steps:
         return []
     existing = (
         db.query(PurchaseOrder)
         .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-        .first()
+        .all()
     )
-    if existing:
-        return [existing]
-    step = (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == order.article_id,
-            ArticleProcessStep.step_type == "purchase",
-            ArticleProcessStep.is_active == True,
+    has_step = {po.step_id for po in existing if po.step_id is not None}
+    legacy_unrouted = any(po.step_id is None for po in existing)
+    created: list[PurchaseOrder] = []
+    for step in steps:
+        if step.id in has_step:
+            continue
+        if legacy_unrouted and len(steps) == 1:
+            continue  # Altbestellung ohne step_id gehört dem einzigen Schritt
+        po = PurchaseOrder(
+            order_id=order.id,
+            article_id=order.article_id,
+            quantity=order.quantity,
+            step_id=step.id,
+            mode=step.mode,
+            supplier_id=step.supplier_id,
+            webshop_url=step.webshop_url,
+            status="requested",
+            # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
+            receiving_location_id=None,
         )
-        .order_by(ArticleProcessStep.id)
-        .first()
-    )
-    if not step:
-        return []
-    po = PurchaseOrder(
-        order_id=order.id,
-        article_id=order.article_id,
-        quantity=order.quantity,
-        step_id=step.id,
-        mode=step.mode,
-        supplier_id=step.supplier_id,
-        webshop_url=step.webshop_url,
-        status="requested",
-        # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
-        receiving_location_id=None,
-    )
-    db.add(po)
-    db.flush()
-    log_audit(db, "purchase_orders", None, "Bestellung angefragt",
-              actor_id, object_id=order.object_id)
+        db.add(po)
+        db.flush()
+        log_audit(db, "purchase_orders", None, "Bestellung angefragt",
+                  actor_id, object_id=order.object_id)
+        created.append(po)
     # TODO(E-Mail): Lieferant über neue Bestellanfrage benachrichtigen (Gmail API, Phase 2)
-    return [po]
+    return created
 
 
 def _editable_fields(po: PurchaseOrder, user: UserProfile) -> set[str]:

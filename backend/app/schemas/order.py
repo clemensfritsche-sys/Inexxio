@@ -9,6 +9,7 @@ from .instance import InstanceEmbed
 from .movement import MovementEmbed
 from .purchase_order import PurchaseEmbed
 from .resource import ResourceEmbed
+from .sale import SaleEmbed
 
 
 class OrderStepInfo(BaseModel):
@@ -28,6 +29,7 @@ class OrderStepInfo(BaseModel):
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt)
     purchase: Optional[PurchaseEmbed] = None
+    sale: Optional[SaleEmbed] = None
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
@@ -47,11 +49,18 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
 
 class OrderCreate(BaseModel):
     """Anlage eines Auftrags über '+'. Status startet als 'draft'.
-    Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag»."""
+    Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
+
+    Subjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess
+    via Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine
+    konkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt
+    den anzuwendenden Prozess (leer = Default-Entstehung des Artikels)."""
 
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
+    process_id: Optional[int] = None
+    subject_instance_id: Optional[int] = None
 
     @field_validator("quantity")
     @classmethod
@@ -73,6 +82,8 @@ class OrderUpdate(BaseModel):
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
+    process_id: Optional[int] = None
+    subject_instance_id: Optional[int] = None
     is_active: Optional[bool] = None
     expected_updated_at: Optional[datetime] = None   # Optimistic Locking (optional)
 
@@ -122,6 +133,8 @@ class OrderSummary(BaseModel):
     article_object_id: Optional[int] = None
     article_unit: Optional[str] = None
     purchase_status: Optional[str] = None   # für das Status-Badge im Feed
+    process_name: Optional[str] = None      # welcher Prozess (Entstehung/Verkauf/Wartung …)
+    process_source: Optional[str] = None    # produce | stock | instance
     replaced_by_id: Optional[int] = None
 
 
@@ -139,7 +152,14 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Denormalisierter Artikel + eingebetteter Prozess (Beschaffung)
+    # Gewählter Prozess (welches «Verb» + Subjekt-Quelle)
+    process_id: Optional[int] = None
+    process_object_id: Optional[int] = None   # nur bei Standardprozessen gesetzt
+    process_name: Optional[str] = None
+    process_source: Optional[str] = None       # produce | stock | instance
+    subject_instance_id: Optional[int] = None
+
+    # Denormalisierter Artikel + eingebetteter Prozess (Beschaffung/Verkauf)
     article_name: Optional[str] = None
     article_object_id: Optional[int] = None
     article_size: Optional[str] = None
@@ -148,6 +168,7 @@ class OrderResponse(BaseModel):
     article_serialization: Optional[str] = None
     article_supplier_article_number: Optional[str] = None
     purchase: Optional[PurchaseEmbed] = None
+    sale: Optional[SaleEmbed] = None
     instances: list[InstanceEmbed] = []
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None

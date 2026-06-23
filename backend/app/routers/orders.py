@@ -3,14 +3,15 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
-from ..models import Article, Instance, Order, PurchaseOrder, UserProfile
+from ..models import Article, Instance, Order, Process, PurchaseOrder, Sale, UserProfile
 from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
-from ..services import deactivation
+from ..schemas.sale import SaleUpdate
+from ..services import deactivation, processes as processes_svc, sale as sale_svc, subject
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -18,9 +19,8 @@ from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, to_order_summaries, visible_orders
-from ..services.purchase import apply_update, instantiate_for_order
+from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order
 from ..services.resource import record_resource, reserve_resources
-from ..services.serialization import create_instances_for_order
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -47,6 +47,28 @@ def _validate_article(db: Session, article_id: int | None) -> None:
         raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
 
 
+def _resolve_subject(db: Session, article_id, quantity, process_id, subject_instance_id):
+    """Subjekt + Prozess eines Auftrags auflösen/validieren.
+
+    Quelle ``instance`` (Prozess wirkt auf eine konkrete Instanz): der Artikel wird
+    aus der Instanz abgeleitet, Menge = 1. Sonst zählt der gewählte (oder Default-)
+    Prozess des Artikels. Liefert (article_id, quantity)."""
+    proc = processes_svc.get_process(db, process_id) if process_id else None
+    source = proc.source if proc else "produce"
+    if source == "instance":
+        if not subject_instance_id:
+            raise HTTPException(400, detail="Für diesen Prozess ist eine Instanz als Subjekt erforderlich")
+        inst = db.query(Instance).filter(
+            Instance.object_id == subject_instance_id, Instance.is_active == True).first()
+        if not inst:
+            raise HTTPException(400, detail="Subjekt-Instanz nicht gefunden")
+        return inst.article_id, 1
+    _validate_article(db, article_id)
+    if proc and proc.article_id and proc.article_id != article_id and not proc.is_standard:
+        raise HTTPException(400, detail="Der gewählte Prozess gehört nicht zu diesem Artikel")
+    return article_id, quantity
+
+
 @router.get("", response_model=list[OrderSummary])
 async def list_orders(
     limit: int = Query(0, ge=0, le=1000, description="0 = keine Begrenzung; sonst Seitengröße"),
@@ -68,13 +90,16 @@ async def create_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    _validate_article(db, data.article_id)
+    article_id, quantity = _resolve_subject(
+        db, data.article_id, data.quantity, data.process_id, data.subject_instance_id)
     order = Order(
         object_id=next_object_id(db, "order"),
         status="draft",
-        article_id=data.article_id,
-        quantity=data.quantity,
+        article_id=article_id,
+        quantity=quantity,
         desired_delivery_date=data.desired_delivery_date,
+        process_id=data.process_id,
+        subject_instance_id=data.subject_instance_id,
     )
     db.add(order)
     db.flush()
@@ -125,15 +150,17 @@ async def update_order(
                       object_id=order.object_id, old_value=old_str)
         setattr(order, key, value)
 
-    # Freigabe (draft → released) stösst den Artikel-Prozess an und legt sofort
-    # die Bestands-Instanzen an (kein eigener Serialisierungs-Schritt mehr).
+    # Freigabe (draft → released) stösst den gewählten Prozess an und stellt das
+    # **Subjekt** her – je nach Prozess-Quelle: produce → neue Instanzen erzeugen,
+    # stock → FIFO-Bestand wählen/reservieren, instance → die Instanz binden.
     if order.status == "released" and not was_released:
         if not order.article_id or not order.quantity:
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
         if order.released_at is None:
             order.released_at = utcnow()   # Start der Durchlaufzeit
-        instantiate_for_order(db, order, current_user.id)
-        create_instances_for_order(db, order, current_user.id)
+        subject.materialize_subject(db, order, current_user.id)
+        instantiate_for_order(db, order, current_user.id)        # Beschaffung
+        sale_svc.instantiate_for_order(db, order, current_user.id)  # Verkauf
         # Zu verbrauchende Komponenten für diesen Auftrag reservieren (FIFO),
         # damit sie kein anderer Auftrag mehr verbrauchen kann.
         reserve_resources(db, order, current_user.id)
@@ -193,7 +220,28 @@ async def update_order_purchase(
     )
     if not po:
         raise HTTPException(404, detail="Für diesen Auftrag existiert keine Bestellung")
-    apply_update(db, po, data, user)
+    apply_purchase_update(db, po, data, user)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/sale", response_model=OrderResponse)
+async def update_order_sale(
+    object_id: int,
+    data: SaleUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung."""
+    order = _get_staff_order(db, object_id)
+    sale = (
+        db.query(Sale)
+        .filter(Sale.order_id == order.id, Sale.is_active == True)
+        .first()
+    )
+    if not sale:
+        raise HTTPException(404, detail="Für diesen Auftrag existiert kein Verkauf")
+    sale_svc.apply_update(db, sale, data, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 

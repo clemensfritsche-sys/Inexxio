@@ -400,7 +400,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process-steps": {
+    "/api/v1/erp/articles/{object_id}/processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Article Processes
+         * @description Wählbare Prozesse des Artikels: eigene + geerbte freigegebene Standardprozesse.
+         */
+        get: operations["list_article_processes_api_v1_erp_articles__object_id__processes_get"];
+        put?: never;
+        /** Create Article Process */
+        post: operations["create_article_process_api_v1_erp_articles__object_id__processes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/processes/{process_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Article Process */
+        delete: operations["delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Article Process */
+        patch: operations["update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/processes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Standard Processes
+         * @description Alle Standardprozesse (inkl. Entwürfe) – für die Verwaltung / den Feed.
+         */
+        get: operations["list_standard_processes_api_v1_erp_processes_get"];
+        put?: never;
+        /**
+         * Create Standard Process
+         * @description Standardprozess anlegen (eigene Objektnummer; startet als Entwurf).
+         */
+        post: operations["create_standard_process_api_v1_erp_processes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/processes/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Standard Process */
+        get: operations["get_standard_process_api_v1_erp_processes__object_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Standard Process */
+        delete: operations["delete_standard_process_api_v1_erp_processes__object_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Standard Process */
+        patch: operations["update_standard_process_api_v1_erp_processes__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/processes/{process_id}/steps": {
         parameters: {
             query?: never;
             header?: never;
@@ -408,17 +490,17 @@ export interface paths {
             cookie?: never;
         };
         /** List Steps */
-        get: operations["list_steps_api_v1_erp_articles__object_id__process_steps_get"];
+        get: operations["list_steps_api_v1_erp_processes__process_id__steps_get"];
         put?: never;
         /** Create Step */
-        post: operations["create_step_api_v1_erp_articles__object_id__process_steps_post"];
+        post: operations["create_step_api_v1_erp_processes__process_id__steps_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process-steps/reorder": {
+    "/api/v1/erp/processes/{process_id}/steps/reorder": {
         parameters: {
             query?: never;
             header?: never;
@@ -436,10 +518,10 @@ export interface paths {
          * @description Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
          *     serverseitig automatisch (neu) eingefügt und positioniert.
          */
-        patch: operations["reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch"];
+        patch: operations["reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch"];
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process-steps/{step_id}": {
+    "/api/v1/erp/processes/{process_id}/steps/{step_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -450,11 +532,11 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete Step */
-        delete: operations["delete_step_api_v1_erp_articles__object_id__process_steps__step_id__delete"];
+        delete: operations["delete_step_api_v1_erp_processes__process_id__steps__step_id__delete"];
         options?: never;
         head?: never;
         /** Update Step */
-        patch: operations["update_step_api_v1_erp_articles__object_id__process_steps__step_id__patch"];
+        patch: operations["update_step_api_v1_erp_processes__process_id__steps__step_id__patch"];
         trace?: never;
     };
     "/api/v1/erp/orders": {
@@ -537,6 +619,26 @@ export interface paths {
          *     der Auftragsnummer – keine eigene Bestellnummer).
          */
         patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/sale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Sale
+         * @description Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.
+         */
+        patch: operations["update_order_sale_api_v1_erp_orders__object_id__sale_patch"];
         trace?: never;
     };
     "/api/v1/erp/orders/{object_id}/inspection": {
@@ -835,6 +937,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/recurring-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Recurring */
+        get: operations["list_recurring_api_v1_erp_recurring_orders_get"];
+        put?: never;
+        /** Create Recurring */
+        post: operations["create_recurring_api_v1_erp_recurring_orders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recurring-orders/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Due
+         * @description Fällige Vorgänge jetzt zu Aufträgen machen (manueller Trigger).
+         */
+        post: operations["run_due_api_v1_erp_recurring_orders_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/recurring-orders/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recurring */
+        get: operations["get_recurring_api_v1_erp_recurring_orders__object_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Recurring */
+        delete: operations["delete_recurring_api_v1_erp_recurring_orders__object_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Recurring */
+        patch: operations["update_recurring_api_v1_erp_recurring_orders__object_id__patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -923,7 +1082,9 @@ export interface components {
             /** Id */
             id: number;
             /** Article Id */
-            article_id: number;
+            article_id?: number | null;
+            /** Process Id */
+            process_id?: number | null;
             /** Position */
             position: number;
             /** Step Type */
@@ -1661,6 +1822,10 @@ export interface components {
             note?: string | null;
             /** Moved By Name */
             moved_by_name?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Carrier */
+            carrier?: string | null;
             /** Target Location Type */
             target_location_type?: string | null;
             /** Target Location Id */
@@ -1683,6 +1848,8 @@ export interface components {
         /**
          * MovementUpdate
          * @description Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.
+         *
+         *     Bei einem Versand zum Kunden (outbound) optional Sendungsverfolgung.
          */
         MovementUpdate: {
             /**
@@ -1694,6 +1861,10 @@ export interface components {
             note?: string | null;
             /** Step Id */
             step_id?: number | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Carrier */
+            carrier?: string | null;
         };
         /**
          * ObjectResolution
@@ -1709,6 +1880,11 @@ export interface components {
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
+         *
+         *     Subjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess
+         *     via Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine
+         *     konkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt
+         *     den anzuwendenden Prozess (leer = Default-Entstehung des Artikels).
          */
         OrderCreate: {
             /** Article Id */
@@ -1717,6 +1893,10 @@ export interface components {
             quantity?: number | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
+            /** Process Id */
+            process_id?: number | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -1746,6 +1926,16 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Process Id */
+            process_id?: number | null;
+            /** Process Object Id */
+            process_object_id?: number | null;
+            /** Process Name */
+            process_name?: string | null;
+            /** Process Source */
+            process_source?: string | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */
@@ -1761,6 +1951,7 @@ export interface components {
             /** Article Supplier Article Number */
             article_supplier_article_number?: string | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            sale?: components["schemas"]["SaleEmbed"] | null;
             /**
              * Instances
              * @default []
@@ -1806,6 +1997,7 @@ export interface components {
             /** Completed At */
             completed_at?: string | null;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            sale?: components["schemas"]["SaleEmbed"] | null;
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
@@ -1850,6 +2042,10 @@ export interface components {
             article_unit?: string | null;
             /** Purchase Status */
             purchase_status?: string | null;
+            /** Process Name */
+            process_name?: string | null;
+            /** Process Source */
+            process_source?: string | null;
             /** Replaced By Id */
             replaced_by_id?: number | null;
         };
@@ -1863,10 +2059,81 @@ export interface components {
             quantity?: number | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
+            /** Process Id */
+            process_id?: number | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
+        };
+        /**
+         * ProcessCreate
+         * @description Anlage eines Prozesses (Artikel-eigen oder – im Standard-Feed – global).
+         *
+         *     Der **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),
+         *     nicht der Name.
+         */
+        ProcessCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @default produce
+             */
+            source: string;
+            /** Position */
+            position?: number | null;
+        };
+        /** ProcessResponse */
+        ProcessResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id?: number | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Name */
+            name: string;
+            /** Source */
+            source: string;
+            /** Is Standard */
+            is_standard: boolean;
+            /** Position */
+            position: number;
+            /** Status */
+            status: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Step Count
+             * @default 0
+             */
+            step_count: number;
+        };
+        /** ProcessUpdate */
+        ProcessUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Source */
+            source?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Status */
+            status?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /**
          * PurchaseEmbed
@@ -1963,6 +2230,123 @@ export interface components {
             tracking_number?: string | null;
             /** Receiving Location Id */
             receiving_location_id?: number | null;
+        };
+        /**
+         * RecurringOrderCreate
+         * @description Anlage eines wiederkehrenden Vorgangs (Compliance/Termin oder Abo).
+         *
+         *     Erzeugt automatisch normale Aufträge: ``process_id`` + Subjekt (Artikel+Menge
+         *     oder Instanz). Takt entweder fester Intervall (``interval_days``, Abo) oder
+         *     ablauf-verankert (``valid_until`` − ``lead_time_days``, Compliance).
+         */
+        RecurringOrderCreate: {
+            /** Name */
+            name: string;
+            /** Process Id */
+            process_id?: number | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
+            /** Interval Days */
+            interval_days?: number | null;
+            /**
+             * Lead Time Days
+             * @default 0
+             */
+            lead_time_days: number;
+            /** Validity Days */
+            validity_days?: number | null;
+            /** Next Due At */
+            next_due_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+        };
+        /** RecurringOrderResponse */
+        RecurringOrderResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id?: number | null;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /** Process Id */
+            process_id?: number | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
+            /** Interval Days */
+            interval_days?: number | null;
+            /**
+             * Lead Time Days
+             * @default 0
+             */
+            lead_time_days: number;
+            /** Validity Days */
+            validity_days?: number | null;
+            /** Next Due At */
+            next_due_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Last Order Id */
+            last_order_id?: number | null;
+            /** Last Run At */
+            last_run_at?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Process Name */
+            process_name?: string | null;
+            /** Article Name */
+            article_name?: string | null;
+            /**
+             * Due Now
+             * @default false
+             */
+            due_now: boolean;
+        };
+        /** RecurringOrderUpdate */
+        RecurringOrderUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Process Id */
+            process_id?: number | null;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Subject Instance Id */
+            subject_instance_id?: number | null;
+            /** Interval Days */
+            interval_days?: number | null;
+            /** Lead Time Days */
+            lead_time_days?: number | null;
+            /** Validity Days */
+            validity_days?: number | null;
+            /** Next Due At */
+            next_due_at?: string | null;
+            /** Valid Until */
+            valid_until?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
         };
         /**
          * ResourceCandidate
@@ -2170,6 +2554,63 @@ export interface components {
             tools: components["schemas"]["ResourceToolPick"][];
             /** Note */
             note?: string | null;
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
+         * SaleEmbed
+         * @description Ausführungsstand des Verkaufsschritts – eingebettet in den Auftrag.
+         *
+         *     OHNE eigene Objektnummer (läuft unter dem Auftrag). Stückpreis = Summe ÷ Menge.
+         */
+        SaleEmbed: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Quantity */
+            quantity?: number | null;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Order Total */
+            order_total?: string | null;
+            /** Vat Rate */
+            vat_rate?: string | null;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Invoice Number */
+            invoice_number?: string | null;
+            /** Confirmed At */
+            confirmed_at?: string | null;
+            /** Invoiced At */
+            invoiced_at?: string | null;
+            /** Paid At */
+            paid_at?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+        };
+        /**
+         * SaleUpdate
+         * @description Statusübergänge & Feldeingaben des Verkaufsschritts (kaufmännisch).
+         *
+         *     EIN Verkaufsbetrag (netto); der Stückpreis wird berechnet (read-only).
+         */
+        SaleUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Order Total */
+            order_total?: number | string | null;
+            /** Vat Rate */
+            vat_rate?: number | string | null;
+            /** Currency */
+            currency?: string | null;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Invoice Number */
+            invoice_number?: string | null;
             /** Step Id */
             step_id?: number | null;
         };
@@ -3316,12 +3757,296 @@ export interface operations {
             };
         };
     };
-    list_steps_api_v1_erp_articles__object_id__process_steps_get: {
+    list_article_processes_api_v1_erp_articles__object_id__processes_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_article_process_api_v1_erp_articles__object_id__processes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                process_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                process_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_standard_processes_api_v1_erp_processes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"][];
+                };
+            };
+        };
+    };
+    create_standard_process_api_v1_erp_processes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_standard_process_api_v1_erp_processes__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_standard_process_api_v1_erp_processes__object_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_standard_process_api_v1_erp_processes__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_steps_api_v1_erp_processes__process_id__steps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                process_id: number;
             };
             cookie?: never;
         };
@@ -3347,12 +4072,12 @@ export interface operations {
             };
         };
     };
-    create_step_api_v1_erp_articles__object_id__process_steps_post: {
+    create_step_api_v1_erp_processes__process_id__steps_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: number;
+                process_id: number;
             };
             cookie?: never;
         };
@@ -3382,12 +4107,12 @@ export interface operations {
             };
         };
     };
-    reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch: {
+    reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: number;
+                process_id: number;
             };
             cookie?: never;
         };
@@ -3417,12 +4142,12 @@ export interface operations {
             };
         };
     };
-    delete_step_api_v1_erp_articles__object_id__process_steps__step_id__delete: {
+    delete_step_api_v1_erp_processes__process_id__steps__step_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: number;
+                process_id: number;
                 step_id: number;
             };
             cookie?: never;
@@ -3449,12 +4174,12 @@ export interface operations {
             };
         };
     };
-    update_step_api_v1_erp_articles__object_id__process_steps__step_id__patch: {
+    update_step_api_v1_erp_processes__process_id__steps__step_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: number;
+                process_id: number;
                 step_id: number;
             };
             cookie?: never;
@@ -3660,6 +4385,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PurchaseOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_sale_api_v1_erp_orders__object_id__sale_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaleUpdate"];
             };
         };
         responses: {
@@ -4273,6 +5033,176 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recurring_api_v1_erp_recurring_orders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderResponse"][];
+                };
+            };
+        };
+    };
+    create_recurring_api_v1_erp_recurring_orders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringOrderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_due_api_v1_erp_recurring_orders_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_recurring_api_v1_erp_recurring_orders__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_recurring_api_v1_erp_recurring_orders__object_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_recurring_api_v1_erp_recurring_orders__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurringOrderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecurringOrderResponse"];
                 };
             };
             /** @description Validation Error */

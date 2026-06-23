@@ -2,9 +2,12 @@ from .base import TimestampMixin
 from .admin import CompanySettings
 from .user import UserProfile
 from .article import Article
+from .process import Process
 from .article_process_step import ArticleProcessStep
 from .order import Order
 from .purchase_order import PurchaseOrder
+from .sale import Sale
+from .recurring_order import RecurringOrder
 from .instance import Instance
 from .inspection import Inspection
 from .movement import Movement
@@ -17,8 +20,8 @@ from .notification import Notification
 from .object_ref import ObjectRef
 
 __all__ = [
-    "TimestampMixin", "CompanySettings", "UserProfile", "Article",
-    "ArticleProcessStep", "Order", "PurchaseOrder", "Instance", "Inspection",
-    "Movement", "ResourceUsage", "StorageLocation", "Claim", "AuditLog", "Event",
-    "Notification", "ObjectRef",
+    "TimestampMixin", "CompanySettings", "UserProfile", "Article", "Process",
+    "ArticleProcessStep", "Order", "PurchaseOrder", "Sale", "RecurringOrder",
+    "Instance", "Inspection", "Movement", "ResourceUsage", "StorageLocation",
+    "Claim", "AuditLog", "Event", "Notification", "ObjectRef",
 ]

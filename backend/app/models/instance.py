@@ -47,3 +47,8 @@ class Instance(Base, TimestampMixin):
     # Instanzen für genau diesen Auftrag reserviert (DB-id des Auftrags). Reservierte
     # Instanzen sind für ANDERE Aufträge nicht mehr verbrauchbar (FIFO blendet sie aus).
     reserved_for_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+
+    # **Subjekt** eines Bestands-Auftrags (Prozess-Quelle ``stock``: Verkauf/Entnahme):
+    # die FIFO-ausgewählten Instanzen, auf die der Auftrag wirkt (≠ Komponenten-
+    # Reservierung). Bei Abschluss verlassen sie den Bestand (sold/consumed).
+    subject_of_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)

@@ -25,7 +25,11 @@ class ArticleProcessStep(Base, TimestampMixin):
     __tablename__ = "article_process_steps"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    # Schritt gehört zu einem **Prozess** (``processes``). ``article_id`` bleibt für
+    # Artikel-Prozesse als Denormalisierung gesetzt, ist aber bei Standardprozessen
+    # (global, ohne Artikel) NULL – der Schlüssel ist ``process_id``.
+    process_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
 

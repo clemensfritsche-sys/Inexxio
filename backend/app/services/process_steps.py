@@ -20,7 +20,7 @@ Rollen über das Ziel: Versand trägt ein **user**-Ziel (Lieferant), Wareneingan
 
 from sqlalchemy.orm import Session
 
-from ..models import ArticleProcessStep, UserProfile
+from ..models import ArticleProcessStep, Process, UserProfile
 
 
 def _plan(steps: list[tuple[str, str | None]]) -> list[str]:
@@ -40,10 +40,10 @@ def _plan(steps: list[tuple[str, str | None]]) -> list[str]:
     return seq
 
 
-def _active_steps(db: Session, article_id: int) -> list[ArticleProcessStep]:
+def _active_steps(db: Session, process_id: int) -> list[ArticleProcessStep]:
     return (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article_id, ArticleProcessStep.is_active == True)
+        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
         .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
         .all()
     )
@@ -56,13 +56,16 @@ def _supplier_object_id(db: Session, supplier_id: int | None) -> int | None:
     return u.object_id if u else None
 
 
-def sync_locked_movements(db: Session, article_id: int) -> None:
-    """Pflicht-Bewegungen rund um die Beschaffungsschritte herstellen (idempotent).
+def sync_locked_movements(db: Session, process_id: int) -> None:
+    """Pflicht-Bewegungen rund um die Beschaffungsschritte **eines Prozesses**
+    herstellen (idempotent).
 
     Schreibt nur (flush); der Aufrufer committet. Renummeriert die Positionen 1..N.
     Versand-Ziele werden (neu) auf den Lieferanten gesetzt; Wareneingang-Ziele bleiben
     wie vom Nutzer definiert erhalten."""
-    steps = _active_steps(db, article_id)
+    proc = db.query(Process).filter(Process.id == process_id).first()
+    article_id = proc.article_id if proc else None
+    steps = _active_steps(db, process_id)
     user_steps = [s for s in steps if not s.locked]
     locked = [s for s in steps if s.locked]
     if not any(s.step_type == "purchase" for s in user_steps) and not locked:
@@ -92,8 +95,9 @@ def sync_locked_movements(db: Session, article_id: int) -> None:
 
     for item in final:
         if item[1] != "user" and item[0] is None:
-            item[0] = ArticleProcessStep(article_id=article_id, step_type="movement",
-                                         mode="supplier", locked=True, position=0)
+            item[0] = ArticleProcessStep(process_id=process_id, article_id=article_id,
+                                         step_type="movement", mode="supplier",
+                                         locked=True, position=0)
             db.add(item[0])
     db.flush()
 

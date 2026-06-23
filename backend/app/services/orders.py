@@ -5,8 +5,8 @@ from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
 from ..models import (
-    Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection, Instance,
-    Movement, Order, PurchaseOrder, UserProfile,
+    Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection,
+    Movement, Order, Process, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed, InspectionSample
@@ -14,30 +14,17 @@ from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import OrderResponse, OrderStepInfo, OrderSummary
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
-from . import process
+from ..schemas.sale import SaleEmbed
+from . import process, processes
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, physical_location_label
 from .resource import build_resource_embed
+from .subject import order_instances
 
 _STAFF_ROLES = ("admin", "employee")
 # alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
 _STATUS_ALIASES = {"approved": "ordered", "confirmed": "ordered"}
-
-
-def _purchase_shared_fields(db: Session, article_id: int) -> list[str]:
-    """Vom purchase-Schritt des Artikels freigegebene Stammdaten (Pflicht inkl.)."""
-    step = (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.article_id == article_id,
-            ArticleProcessStep.step_type == "purchase",
-            ArticleProcessStep.is_active == True,
-        )
-        .order_by(ArticleProcessStep.id)
-        .first()
-    )
-    return normalize_shared_fields(step.shared_fields if step else None)
 
 
 def _supplier_name(u: UserProfile | None) -> str | None:
@@ -88,16 +75,26 @@ def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
     return location_label(db, "lagerplatz", recv) if recv else None
 
 
-def _purchase_embed(db: Session, order: Order, po: PurchaseOrder) -> PurchaseEmbed:
+def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
+                    po: PurchaseOrder) -> PurchaseEmbed:
     emb = PurchaseEmbed.model_validate(po)
     if po.supplier_id:
         emb.supplier_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first())
     emb.receiving_location_label = _receiving_label(db, po)
-    if order.article_id:
-        emb.shared_fields = _purchase_shared_fields(db, order.article_id)
+    emb.shared_fields = normalize_shared_fields(step.shared_fields if step else None)
     emb.history = _purchase_history(db, order)
     return emb
+
+
+def _sale_embed(db: Session, order: Order, sale: Sale | None) -> SaleEmbed:
+    """Verkaufs-Embed (Spiegel des Beschaffungs-Embeds)."""
+    se = (SaleEmbed.model_validate(sale) if sale
+          else SaleEmbed(id=0, status="requested"))
+    if sale and sale.customer_id:
+        se.customer_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first())
+    return se
 
 
 def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
@@ -159,13 +156,17 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             resp.article_serialization = art.serialization
             resp.article_supplier_article_number = art.supplier_article_number
 
-    # Bestands-Instanzen (bei Freigabe erzeugt, inkl. aktuellem Standort)
-    instances = (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
-    )
+    # Prozess-Info (welcher Prozess kommt zur Anwendung + Subjekt-Quelle).
+    proc = processes.process_for_order(db, order)
+    if proc:
+        resp.process_id = proc.id
+        resp.process_name = proc.name
+        resp.process_source = proc.source
+        resp.process_object_id = proc.object_id
+    resp.subject_instance_id = order.subject_instance_id
+
+    # Subjekt-Instanzen: worauf der Auftrag wirkt (produce/stock/instance einheitlich).
+    instances = order_instances(db, order)
     instance_embeds: list[InstanceEmbed] = []
     for i in instances:
         emb = InstanceEmbed.model_validate(i)
@@ -191,11 +192,17 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         by_name: str | None = None
         at = None
         if step.step_type == "purchase" and fact:
-            emb = _purchase_embed(db, order, fact)
+            emb = _purchase_embed(db, order, step, fact)
             si.purchase = emb
             first.setdefault("purchase", emb)
             if done:
                 by_name, at = _purchase_received(emb)
+        elif step.step_type == "sale":
+            emb = _sale_embed(db, order, fact)
+            si.sale = emb
+            first.setdefault("sale", emb)
+            if done and fact:
+                by_name, at = emb.customer_name, fact.paid_at
         elif step.step_type == "inspection":
             emb = _inspection_embed(db, order, step, fact)
             si.inspection = emb
@@ -221,6 +228,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
 
     resp.steps = steps
     resp.purchase = first.get("purchase")          # Lieferanten-Sicht / Kurzform
+    resp.sale = first.get("sale")
     resp.inspection = first.get("inspection")
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
@@ -242,6 +250,9 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
         .all()
     ):
         po_status[po.order_id] = po.status
+    proc_ids = {o.process_id for o in orders if o.process_id}
+    procs = ({p.id: p for p in db.query(Process).filter(Process.id.in_(proc_ids)).all()}
+             if proc_ids else {})
     out: list[OrderSummary] = []
     for o in orders:
         s = OrderSummary.model_validate(o)
@@ -251,6 +262,10 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
             s.article_object_id = art.object_id
             s.article_unit = art.unit
         s.purchase_status = po_status.get(o.id)
+        p = procs.get(o.process_id)
+        if p:
+            s.process_name = p.name
+            s.process_source = p.source
         out.append(s)
     return out
 

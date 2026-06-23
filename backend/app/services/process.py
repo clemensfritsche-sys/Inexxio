@@ -28,7 +28,8 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import (
-    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder, ResourceUsage,
+    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder,
+    ResourceUsage, Sale,
 )
 from ..models.base import utcnow
 from .events import emit
@@ -38,6 +39,7 @@ STEP_LABELS = {
     "inspection": "Datenerfassung",
     "movement": "Bewegung",
     "resource": "Ressource",
+    "sale": "Verkauf",
 }
 
 # Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung)
@@ -46,17 +48,30 @@ _FACT_MODEL = {
     "inspection": Inspection,
     "movement": Movement,
     "resource": ResourceUsage,
+    "sale": Sale,
 }
 
 
-def step_defs(db: Session, article_id: int) -> list[ArticleProcessStep]:
-    """Aktive Prozessschritt-Definitionen des Artikels in Reihenfolge."""
+def step_defs(db: Session, process_id: int | None) -> list[ArticleProcessStep]:
+    """Aktive Schritt-Definitionen **eines Prozesses** in Reihenfolge.
+
+    Schritte gehören zu einem Prozess (``processes``), nicht mehr direkt zum
+    Artikel – ein Artikel kann mehrere Prozesse haben (Entstehung, Verkauf, …)."""
+    if not process_id:
+        return []
     return (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article_id, ArticleProcessStep.is_active == True)
+        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
         .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
         .all()
     )
+
+
+def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
+    """Schritte des vom Auftrag gewählten Prozesses (Fallback: Default-Entstehung)."""
+    from .processes import process_for_order
+    proc = process_for_order(db, order)
+    return step_defs(db, proc.id) if proc else []
 
 
 def _facts(db: Session, order: Order, step_type: str) -> list:
@@ -86,6 +101,14 @@ def _fact_status(step_type: str, fact) -> str:
         if fact and fact.result == "failed":
             return "failed"
         return "open"
+    if step_type == "sale":
+        if not fact:
+            return "open"
+        if fact.status == "paid":
+            return "done"
+        if fact.status == "cancelled":
+            return "failed"
+        return "open"
     if step_type in ("movement", "resource"):
         return "done" if fact else "open"
     return "open"
@@ -110,9 +133,9 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
     Definitionen und Fachzeilen werden **je einmal** geladen (kein O(K²) je
     Schritt). Jeder Eintrag: id/step_type/position/label/state + ``step`` (Def) und
     ``fact`` (aufgelöste Fachzeile) für die Weiterverwendung im Embed-Aufbau."""
-    if not order.article_id:
+    defs = order_step_defs(db, order)
+    if not defs:
         return []
-    defs = step_defs(db, order.article_id)
     counts: dict[str, int] = {}
     for d in defs:
         counts[d.step_type] = counts.get(d.step_type, 0) + 1
@@ -156,7 +179,7 @@ def fact_for_step(db: Session, order: Order, step: ArticleProcessStep):
     for r in rows:
         if getattr(r, "step_id", None) == step.id:
             return r
-    same_type = [d for d in step_defs(db, order.article_id) if d.step_type == step.step_type]
+    same_type = [d for d in order_step_defs(db, order) if d.step_type == step.step_type]
     return _resolve_fact(step, rows, len(same_type) == 1)
 
 
@@ -192,9 +215,7 @@ def all_steps_done(db: Session, order: Order) -> bool:
 
 
 def has_step(db: Session, order: Order, step_type: str) -> bool:
-    if not order.article_id:
-        return False
-    return any(d.step_type == step_type for d in step_defs(db, order.article_id))
+    return any(d.step_type == step_type for d in order_step_defs(db, order))
 
 
 def release_instances(db: Session, order: Order) -> None:
@@ -217,13 +238,32 @@ def release_instances(db: Session, order: Order) -> None:
             inst.released_at = now
 
 
+def _finalize_stock_subjects(db: Session, order: Order) -> None:
+    """Subjekt-Instanzen eines Bestands-Auftrags (Quelle ``stock``) verlassen bei
+    Abschluss den Bestand: Verkauf → ``sold``, sonstige Entnahme/Abgang → ``consumed``.
+    Beides ≠ ``passed`` → fallen aus FIFO/Verfügbarkeit heraus, bleiben rückverfolgbar."""
+    subjects = (
+        db.query(Instance)
+        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+        .all()
+    )
+    if not subjects:
+        return
+    has_sale = any(d.step_type == "sale" for d in order_step_defs(db, order))
+    new_status = "sold" if has_sale else "consumed"
+    for inst in subjects:
+        if inst.qc_status not in ("scrapped", "failed"):
+            inst.qc_status = new_status
+
+
 def recompute_completion(db: Session, order: Order) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
     if order.status != "completed" and all_steps_done(db, order):
         order.status = "completed"
         if order.completed_at is None:
             order.completed_at = utcnow()
-        release_instances(db, order)   # fertige Instanzen freigeben (verbrauchbar)
+        release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
+        _finalize_stock_subjects(db, order)  # Bestands-Subjekte verlassen das Lager (sold/consumed)
         # Reservierungen dieses Auftrags auflösen (Verbrauch ist erfolgt / Auftrag fertig).
         for inst in db.query(Instance).filter(
             Instance.reserved_for_order_id == order.id, Instance.is_active == True

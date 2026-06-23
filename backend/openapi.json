@@ -1137,13 +1137,14 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/process-steps": {
+    "/api/v1/erp/articles/{object_id}/processes": {
       "get": {
         "tags": [
-          "article-process"
+          "processes"
         ],
-        "summary": "List Steps",
-        "operationId": "list_steps_api_v1_erp_articles__object_id__process_steps_get",
+        "summary": "List Article Processes",
+        "description": "Wählbare Prozesse des Artikels: eigene + geerbte freigegebene Standardprozesse.",
+        "operationId": "list_article_processes_api_v1_erp_articles__object_id__processes_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1168,9 +1169,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                    "$ref": "#/components/schemas/ProcessResponse"
                   },
-                  "title": "Response List Steps Api V1 Erp Articles  Object Id  Process Steps Get"
+                  "title": "Response List Article Processes Api V1 Erp Articles  Object Id  Processes Get"
                 }
               }
             }
@@ -1189,10 +1190,10 @@
       },
       "post": {
         "tags": [
-          "article-process"
+          "processes"
         ],
-        "summary": "Create Step",
-        "operationId": "create_step_api_v1_erp_articles__object_id__process_steps_post",
+        "summary": "Create Article Process",
+        "operationId": "create_article_process_api_v1_erp_articles__object_id__processes_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1206,6 +1207,451 @@
             "schema": {
               "type": "integer",
               "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/processes/{process_id}": {
+      "patch": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Update Article Process",
+        "operationId": "update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "process_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Process Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Delete Article Process",
+        "operationId": "delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "process_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Process Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/processes": {
+      "get": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "List Standard Processes",
+        "description": "Alle Standardprozesse (inkl. Entwürfe) – für die Verwaltung / den Feed.",
+        "operationId": "list_standard_processes_api_v1_erp_processes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProcessResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Standard Processes Api V1 Erp Processes Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Create Standard Process",
+        "description": "Standardprozess anlegen (eigene Objektnummer; startet als Entwurf).",
+        "operationId": "create_standard_process_api_v1_erp_processes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/processes/{object_id}": {
+      "get": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Get Standard Process",
+        "operationId": "get_standard_process_api_v1_erp_processes__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Update Standard Process",
+        "operationId": "update_standard_process_api_v1_erp_processes__object_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Delete Standard Process",
+        "operationId": "delete_standard_process_api_v1_erp_processes__object_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/processes/{process_id}/steps": {
+      "get": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "List Steps",
+        "operationId": "list_steps_api_v1_erp_processes__process_id__steps_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "process_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Process Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                  },
+                  "title": "Response List Steps Api V1 Erp Processes  Process Id  Steps Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "Create Step",
+        "operationId": "create_step_api_v1_erp_processes__process_id__steps_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "process_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Process Id"
             }
           }
         ],
@@ -1243,14 +1689,14 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/process-steps/reorder": {
+    "/api/v1/erp/processes/{process_id}/steps/reorder": {
       "patch": {
         "tags": [
-          "article-process"
+          "process-steps"
         ],
         "summary": "Reorder Steps",
         "description": "Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden\nserverseitig automatisch (neu) eingefügt und positioniert.",
-        "operationId": "reorder_steps_api_v1_erp_articles__object_id__process_steps_reorder_patch",
+        "operationId": "reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1258,12 +1704,12 @@
         ],
         "parameters": [
           {
-            "name": "object_id",
+            "name": "process_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Object Id"
+              "title": "Process Id"
             }
           }
         ],
@@ -1287,7 +1733,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ArticleProcessStepResponse"
                   },
-                  "title": "Response Reorder Steps Api V1 Erp Articles  Object Id  Process Steps Reorder Patch"
+                  "title": "Response Reorder Steps Api V1 Erp Processes  Process Id  Steps Reorder Patch"
                 }
               }
             }
@@ -1305,13 +1751,13 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/process-steps/{step_id}": {
+    "/api/v1/erp/processes/{process_id}/steps/{step_id}": {
       "patch": {
         "tags": [
-          "article-process"
+          "process-steps"
         ],
         "summary": "Update Step",
-        "operationId": "update_step_api_v1_erp_articles__object_id__process_steps__step_id__patch",
+        "operationId": "update_step_api_v1_erp_processes__process_id__steps__step_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1319,12 +1765,12 @@
         ],
         "parameters": [
           {
-            "name": "object_id",
+            "name": "process_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Object Id"
+              "title": "Process Id"
             }
           },
           {
@@ -1372,10 +1818,10 @@
       },
       "delete": {
         "tags": [
-          "article-process"
+          "process-steps"
         ],
         "summary": "Delete Step",
-        "operationId": "delete_step_api_v1_erp_articles__object_id__process_steps__step_id__delete",
+        "operationId": "delete_step_api_v1_erp_processes__process_id__steps__step_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1383,12 +1829,12 @@
         ],
         "parameters": [
           {
-            "name": "object_id",
+            "name": "process_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Object Id"
+              "title": "Process Id"
             }
           },
           {
@@ -1715,6 +2161,64 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PurchaseOrderUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/sale": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Sale",
+        "description": "Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.",
+        "operationId": "update_order_sale_api_v1_erp_orders__object_id__sale_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaleUpdate"
               }
             }
           }
@@ -2767,6 +3271,250 @@
         }
       }
     },
+    "/api/v1/erp/recurring-orders": {
+      "get": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "List Recurring",
+        "operationId": "list_recurring_api_v1_erp_recurring_orders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecurringOrderResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Recurring Api V1 Erp Recurring Orders Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "Create Recurring",
+        "operationId": "create_recurring_api_v1_erp_recurring_orders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringOrderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/recurring-orders/run": {
+      "post": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "Run Due",
+        "description": "Fällige Vorgänge jetzt zu Aufträgen machen (manueller Trigger).",
+        "operationId": "run_due_api_v1_erp_recurring_orders_run_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/erp/recurring-orders/{object_id}": {
+      "get": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "Get Recurring",
+        "operationId": "get_recurring_api_v1_erp_recurring_orders__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "Update Recurring",
+        "operationId": "update_recurring_api_v1_erp_recurring_orders__object_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecurringOrderUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecurringOrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recurring-orders"
+        ],
+        "summary": "Delete Recurring",
+        "operationId": "delete_recurring_api_v1_erp_recurring_orders__object_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -3031,8 +3779,26 @@
             "title": "Id"
           },
           "article_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Article Id"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
           },
           "position": {
             "type": "integer",
@@ -3159,7 +3925,6 @@
         "type": "object",
         "required": [
           "id",
-          "article_id",
           "position",
           "step_type",
           "mode",
@@ -5634,6 +6399,28 @@
             ],
             "title": "Moved By Name"
           },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
+          },
           "target_location_type": {
             "anyOf": [
               {
@@ -5727,11 +6514,33 @@
               }
             ],
             "title": "Step Id"
+          },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
           }
         },
         "type": "object",
         "title": "MovementUpdate",
-        "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz."
+        "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.\n\nBei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."
       },
       "ObjectResolution": {
         "properties": {
@@ -5787,11 +6596,33 @@
               }
             ],
             "title": "Desired Delivery Date"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
           }
         },
         "type": "object",
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\nDer Auftrag trägt keinen freien Namen – er heisst immer «Auftrag»."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\nDer Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».\n\nSubjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess\nvia Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine\nkonkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt\nden anzuwendenden Prozess (leer = Default-Entstehung des Artikels)."
       },
       "OrderResponse": {
         "properties": {
@@ -5872,6 +6703,61 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "process_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Object Id"
+          },
+          "process_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Name"
+          },
+          "process_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Source"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
           },
           "article_name": {
             "anyOf": [
@@ -5954,6 +6840,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SaleEmbed"
               },
               {
                 "type": "null"
@@ -6094,6 +6990,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/PurchaseEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SaleEmbed"
               },
               {
                 "type": "null"
@@ -6254,6 +7160,28 @@
             ],
             "title": "Purchase Status"
           },
+          "process_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Name"
+          },
+          "process_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Source"
+          },
           "replaced_by_id": {
             "anyOf": [
               {
@@ -6328,6 +7256,28 @@
             ],
             "title": "Desired Delivery Date"
           },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
+          },
           "is_active": {
             "anyOf": [
               {
@@ -6354,6 +7304,179 @@
         },
         "type": "object",
         "title": "OrderUpdate"
+      },
+      "ProcessCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "produce"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProcessCreate",
+        "description": "Anlage eines Prozesses (Artikel-eigen oder – im Standard-Feed – global).\n\nDer **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),\nnicht der Name."
+      },
+      "ProcessResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "is_standard": {
+            "type": "boolean",
+            "title": "Is Standard"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "step_count": {
+            "type": "integer",
+            "title": "Step Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "source",
+          "is_standard",
+          "position",
+          "status",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProcessResponse"
+      },
+      "ProcessUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "ProcessUpdate"
       },
       "PurchaseEmbed": {
         "properties": {
@@ -6643,6 +7766,451 @@
         "type": "object",
         "title": "PurchaseOrderUpdate",
         "description": "Statusübergänge & Feldeingaben einer Bestellung.\n\nDie Offerte besteht aus EINER Bestellsumme (netto); der Stückpreis wird\nberechnet (read-only). Wer welche Felder/Übergänge setzen darf, validiert\n``services/purchase.py`` rollenabhängig (Lieferant vs. Mitarbeiter,\nsupplier- vs. webshop-Modus)."
+      },
+      "RecurringOrderCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "title": "Lead Time Days",
+            "default": 0
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          },
+          "next_due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due At"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RecurringOrderCreate",
+        "description": "Anlage eines wiederkehrenden Vorgangs (Compliance/Termin oder Abo).\n\nErzeugt automatisch normale Aufträge: ``process_id`` + Subjekt (Artikel+Menge\noder Instanz). Takt entweder fester Intervall (``interval_days``, Abo) oder\nablauf-verankert (``valid_until`` − ``lead_time_days``, Compliance)."
+      },
+      "RecurringOrderResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "title": "Lead Time Days",
+            "default": 0
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          },
+          "next_due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due At"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "last_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Order Id"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "process_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Name"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "due_now": {
+            "type": "boolean",
+            "title": "Due Now",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RecurringOrderResponse"
+      },
+      "RecurringOrderUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "process_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "subject_instance_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Instance Id"
+          },
+          "interval_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Days"
+          },
+          "lead_time_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Time Days"
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          },
+          "next_due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due At"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "RecurringOrderUpdate"
       },
       "ResourceCandidate": {
         "properties": {
@@ -7113,6 +8681,222 @@
         "type": "object",
         "title": "ResourceUpdate",
         "description": "Ausführung des Ressource-Schritts: Verbrauch läuft automatisch (FIFO),\nnur die Betriebsmittel werden aktiv gewählt."
+      },
+      "SaleEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "order_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Total"
+          },
+          "vat_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Rate"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "invoiced_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoiced At"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "customer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "SaleEmbed",
+        "description": "Ausführungsstand des Verkaufsschritts – eingebettet in den Auftrag.\n\nOHNE eigene Objektnummer (läuft unter dem Auftrag). Stückpreis = Summe ÷ Menge."
+      },
+      "SaleUpdate": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "order_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Total"
+          },
+          "vat_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Rate"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "customer_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Id"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "title": "SaleUpdate",
+        "description": "Statusübergänge & Feldeingaben des Verkaufsschritts (kaufmännisch).\n\nEIN Verkaufsbetrag (netto); der Stückpreis wird berechnet (read-only)."
       },
       "StepReorder": {
         "properties": {

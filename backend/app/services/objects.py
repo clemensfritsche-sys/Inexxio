@@ -11,12 +11,18 @@ sowie der Backfill-Logik für Altdaten.
 from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
-from ..models import Article, Claim, Instance, ObjectRef, Order, StorageLocation, UserProfile
+from ..models import (
+    Article, Claim, Instance, ObjectRef, Order, Process, RecurringOrder,
+    StorageLocation, UserProfile,
+)
 
 OBJ_ID_START = 100_000_001
 OBJECT_ID_SEQUENCE = "object_id_seq"
 
 # Objekttyp ↔ Modell (für Registry-Backfill und -Pflege).
+# Hinweis: ``Process`` vergibt nur für **Standardprozesse** eine Objektnummer
+# (Artikel-Prozesse sind Kinder des Artikels, ohne Nummer); der Backfill ignoriert
+# Zeilen mit ``object_id IS NULL`` ohnehin.
 _TYPE_MODELS = {
     "user": UserProfile,
     "article": Article,
@@ -24,6 +30,8 @@ _TYPE_MODELS = {
     "instance": Instance,
     "storage_location": StorageLocation,
     "claim": Claim,
+    "process": Process,
+    "recurring_order": RecurringOrder,
 }
 
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.

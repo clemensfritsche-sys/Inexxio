@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "sale"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -729,9 +729,11 @@ def test_object_registry_wired():
     from app.services import objects
 
     assert ObjectRef.__tablename__ == "objects"
-    # Alle eigenständigen Objekttypen sind in der Typ-Map (für Backfill/Resolve)
+    # Alle eigenständigen Objekttypen sind in der Typ-Map (für Backfill/Resolve).
+    # ``process`` (nur Standardprozesse) + ``recurring_order`` sind eigene Objekte.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "claim"}
+        "user", "article", "order", "instance", "storage_location", "claim",
+        "process", "recurring_order"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -807,3 +809,109 @@ def test_resource_embed_per_product_breakdown():
     assert "into_instance_id" in ResourcePlanItem.model_fields
     plan = ResourceProductPlan(instance_id=100_000_050, kind="unit", quantity=1)
     assert plan.components == []
+
+
+def test_process_model_and_sources():
+    """Mehr-Prozess-Modell: Prozesse gruppieren Schritte, Quelle bestimmt Verhalten."""
+    from app.models import Process
+    from app.schemas.process import ProcessCreate, ProcessResponse
+    from app.services.processes import SOURCES
+
+    assert Process.__tablename__ == "processes"
+    assert set(SOURCES) == {"produce", "stock", "instance"}
+    # Quelle (Start-Knoten) bestimmt das Verhalten – nicht der (freie) Name.
+    p = ProcessCreate(name="  Jahreswartung  ", source="instance")
+    assert p.name == "Jahreswartung" and p.source == "instance"
+    import pytest
+    with pytest.raises(ValueError):
+        ProcessCreate(name="x", source="unbekannt")
+    with pytest.raises(ValueError):
+        ProcessCreate(name="   ")
+    assert "step_count" in ProcessResponse.model_fields
+
+
+def test_article_step_belongs_to_process():
+    """Schritte hängen am Prozess (process_id); article_id ist nur noch Denormalisierung."""
+    from app.models import ArticleProcessStep
+    cols = ArticleProcessStep.__table__.columns.keys()
+    assert "process_id" in cols
+    assert ArticleProcessStep.__table__.c.article_id.nullable is True
+
+
+def test_order_carries_process_and_subject():
+    """Auftrag wählt einen Prozess + Subjekt (Artikel ODER konkrete Instanz)."""
+    from app.models import Order
+    from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderStepInfo
+
+    for col in ("process_id", "subject_instance_id"):
+        assert col in Order.__table__.columns.keys()
+    assert "process_id" in OrderCreate.model_fields
+    assert "subject_instance_id" in OrderCreate.model_fields
+    assert "process_id" in OrderUpdate.model_fields
+    for f in ("process_source", "process_name", "sale", "subject_instance_id"):
+        assert f in OrderResponse.model_fields
+    assert "sale" in OrderStepInfo.model_fields
+
+
+def test_sale_step_mirrors_purchase():
+    """Verkauf = kaufmännisches Schrittmodul (Spiegel der Beschaffung), ohne Nummer."""
+    from app.models import Sale
+    from app.schemas.sale import ALLOWED_STATUS, SaleEmbed, SaleUpdate
+    from app.services import process
+
+    assert Sale.__tablename__ == "sales"
+    assert not hasattr(Sale, "object_id")
+    assert "object_id" not in SaleEmbed.model_fields
+    assert set(ALLOWED_STATUS) == {"requested", "confirmed", "invoiced", "paid", "cancelled"}
+    assert process._FACT_MODEL["sale"] is Sale
+    assert process.STEP_LABELS["sale"] == "Verkauf"
+    assert "status" in SaleUpdate.model_fields
+
+
+def test_sale_fact_status_pure_mapping():
+    """Verkauf-Schritt erledigt = 'paid'; fehlgeschlagen = 'cancelled' (rein)."""
+    from types import SimpleNamespace
+    from app.services.process import _fact_status
+
+    assert _fact_status("sale", None) == "open"
+    assert _fact_status("sale", SimpleNamespace(status="requested")) == "open"
+    assert _fact_status("sale", SimpleNamespace(status="invoiced")) == "open"
+    assert _fact_status("sale", SimpleNamespace(status="paid")) == "done"
+    assert _fact_status("sale", SimpleNamespace(status="cancelled")) == "failed"
+
+
+def test_recurring_due_now_compliance_and_interval():
+    """Wiederkehr-Logik: Compliance startet lead_time früher; Abo läuft im Intervall."""
+    from datetime import date
+    from app.models import RecurringOrder
+    from app.services.recurring import due_now
+
+    today = date(2026, 6, 23)
+    # Compliance: Ablauf 1.7.2026, Vorlauf 60 Tage → seit 2.5. fällig (vor Ablauf erledigen)
+    soon = RecurringOrder(name="ISO 9001", valid_until=date(2026, 7, 1),
+                          lead_time_days=60, validity_days=365)
+    assert due_now(soon, today) is True
+    later = RecurringOrder(name="ISO", valid_until=date(2027, 1, 1), lead_time_days=30)
+    assert due_now(later, today) is False
+    # Abo: nächster Termin erreicht → fällig
+    abo = RecurringOrder(name="Abo", next_due_at=date(2026, 6, 1), interval_days=30)
+    assert due_now(abo, today) is True
+    abo2 = RecurringOrder(name="Abo", next_due_at=date(2026, 9, 1), interval_days=30)
+    assert due_now(abo2, today) is False
+
+
+def test_movement_has_tracking_for_outbound():
+    """Bewegung trägt optionale Sendungsverfolgung (Versand zum Kunden)."""
+    from app.models import Movement
+    from app.schemas.movement import MovementEmbed, MovementUpdate
+
+    for col in ("tracking_number", "carrier"):
+        assert col in Movement.__table__.columns.keys()
+        assert col in MovementUpdate.model_fields
+        assert col in MovementEmbed.model_fields
+
+
+def test_instance_has_subject_marker():
+    """Bestands-Subjekte (Verkauf/Entnahme) sind je Auftrag markiert (subject_of_order_id)."""
+    from app.models import Instance
+    assert "subject_of_order_id" in Instance.__table__.columns.keys()
