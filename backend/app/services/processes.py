@@ -61,10 +61,16 @@ def default_process(db: Session, article_id: int | None) -> Process | None:
 
 
 def process_for_order(db: Session, order) -> Process | None:
-    """Der Prozess eines Auftrags: explizit gewählt, sonst Default-Entstehung."""
-    proc = get_process(db, getattr(order, "process_id", None))
-    if proc:
-        return proc
+    """Der Prozess eines Auftrags: explizit gewählt, sonst Default-Entstehung.
+
+    Ist ``process_id`` gesetzt, wird der Prozess **auch dann** geliefert, wenn er
+    inzwischen deaktiviert wurde – ein laufender Auftrag behält seinen Prozess
+    (kein stilles Zurückfallen auf einen anderen Prozess/Schrittfolge)."""
+    pid = getattr(order, "process_id", None)
+    if pid:
+        proc = db.query(Process).filter(Process.id == pid).first()
+        if proc:
+            return proc
     return default_process(db, order.article_id)
 
 

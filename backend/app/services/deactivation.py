@@ -27,7 +27,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Instance, Order, StorageLocation
+from ..models import Article, ArticleProcessStep, Instance, Order, Process, StorageLocation
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
@@ -39,9 +39,14 @@ from .process_steps import sync_locked_movements
 def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     """Umkehr-Index Komponente → {Eltern-Artikel, die sie verbrauchen}."""
     out: dict[int, set[int]] = {}
+    # Nur die Produktions-Rezeptur (Quelle ``produce``) bildet die Stückliste – ein
+    # in der Wartung verbrauchtes Ersatzteil macht das Gerät nicht „herstellungs-
+    # abhängig" von ihm (kein Kaskaden-Deaktivieren über Wartungs-Verbrauch).
     steps = (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True)
+        .join(Process, Process.id == ArticleProcessStep.process_id)
+        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True,
+                Process.source == "produce", Process.is_active == True)
         .all()
     )
     for s in steps:
@@ -130,8 +135,10 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
         return "Artikel wurde ersetzt – bitte den Nachfolger verwenden"
     steps = (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id,
-                ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True)
+        .join(Process, Process.id == ArticleProcessStep.process_id)
+        .filter(Process.article_id == article.id, Process.source == "produce",
+                Process.is_active == True, ArticleProcessStep.step_type == "resource",
+                ArticleProcessStep.is_active == True)
         .all()
     )
     for s in steps:
@@ -147,12 +154,19 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
 # ─── Auftrag: Abbruch ─────────────────────────────────────────────────────────
 
 def cancel_order_effects(db: Session, order: Order, actor_id: int) -> None:
-    """Beim Abbruch eines Auftrags: Reservierungen freigeben und unfertige
-    (``pending``) Produkt-Instanzen deaktivieren. Setzt NICHT den Status (Aufrufer)."""
+    """Beim Abbruch eines Auftrags: Reservierungen UND Bestands-Subjekte freigeben
+    (Verkauf/Entnahme – zurück in den freien Bestand) und unfertige (``pending``)
+    Produkt-Instanzen deaktivieren. Setzt NICHT den Status (Aufrufer)."""
+    # Reservierte Komponenten + als Subjekt gewählte Bestands-Instanzen freigeben.
     for inst in db.query(Instance).filter(
         Instance.reserved_for_order_id == order.id, Instance.is_active == True
     ).all():
         inst.reserved_for_order_id = None
+    for inst in db.query(Instance).filter(
+        Instance.subject_of_order_id == order.id, Instance.is_active == True
+    ).all():
+        inst.subject_of_order_id = None
+    # Bei Freigabe erzeugte, noch unfertige Produkt-Instanzen deaktivieren.
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, Instance.qc_status == "pending"
     ).all():
@@ -174,7 +188,8 @@ def storage_location_in_use(db: Session, loc: StorageLocation) -> bool:
 # ─── Ersetzen: Duplikat als Entwurf + Verknüpfung ────────────────────────────
 
 def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
-    """Stammdaten + (nicht-Pflicht-)Prozessschritte in einen neuen Entwurf kopieren."""
+    """Stammdaten + alle Prozesse (mit ihren nicht-Pflicht-Schritten) in einen neuen
+    Entwurf kopieren (Mehr-Prozess-Modell)."""
     new = Article(
         object_id=next_object_id(db, "article"), status="draft",
         name=src.name, unit=src.unit, serialization=src.serialization, size=src.size,
@@ -184,23 +199,35 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     )
     db.add(new)
     db.flush()
-    steps = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == src.id, ArticleProcessStep.is_active == True,
-                ArticleProcessStep.locked == False)
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+    # Jeden eigenen Prozess samt seiner (frei sortierbaren) Schritte kopieren.
+    procs = (
+        db.query(Process)
+        .filter(Process.article_id == src.id, Process.is_active == True)
+        .order_by(Process.position, Process.id)
         .all()
     )
-    for s in steps:
-        db.add(ArticleProcessStep(
-            article_id=new.id, position=s.position, step_type=s.step_type, mode=s.mode,
-            supplier_id=s.supplier_id, webshop_url=s.webshop_url, shared_fields=s.shared_fields,
-            sample_percent=s.sample_percent, capture_fields=s.capture_fields,
-            target_location_type=s.target_location_type, target_location_id=s.target_location_id,
-            resource_lines=s.resource_lines,
-        ))
-    db.flush()
-    sync_locked_movements(db, new.id)
+    for p in procs:
+        np = Process(article_id=new.id, name=p.name, source=p.source, is_standard=False,
+                     status="released", position=p.position)
+        db.add(np)
+        db.flush()
+        steps = (
+            db.query(ArticleProcessStep)
+            .filter(ArticleProcessStep.process_id == p.id, ArticleProcessStep.is_active == True,
+                    ArticleProcessStep.locked == False)
+            .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+            .all()
+        )
+        for s in steps:
+            db.add(ArticleProcessStep(
+                process_id=np.id, article_id=new.id, position=s.position, step_type=s.step_type,
+                mode=s.mode, supplier_id=s.supplier_id, webshop_url=s.webshop_url,
+                shared_fields=s.shared_fields, sample_percent=s.sample_percent,
+                capture_fields=s.capture_fields, target_location_type=s.target_location_type,
+                target_location_id=s.target_location_id, resource_lines=s.resource_lines,
+            ))
+        db.flush()
+        sync_locked_movements(db, np.id)
     log_audit(db, "articles", None, f"Artikel als Ersatz für {src.object_id} angelegt",
               actor_id, object_id=new.object_id)
     return new
@@ -209,7 +236,8 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
 def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
     new = Order(object_id=next_object_id(db, "order"), status="draft", title=src.title,
                 article_id=src.article_id, quantity=src.quantity,
-                desired_delivery_date=src.desired_delivery_date)
+                desired_delivery_date=src.desired_delivery_date,
+                process_id=src.process_id, subject_instance_id=src.subject_instance_id)
     db.add(new)
     db.flush()
     log_audit(db, "orders", None, f"Auftrag als Ersatz für {src.object_id} angelegt",

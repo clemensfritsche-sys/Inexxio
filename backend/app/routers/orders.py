@@ -52,7 +52,8 @@ def _resolve_subject(db: Session, article_id, quantity, process_id, subject_inst
 
     Quelle ``instance`` (Prozess wirkt auf eine konkrete Instanz): der Artikel wird
     aus der Instanz abgeleitet, Menge = 1. Sonst zählt der gewählte (oder Default-)
-    Prozess des Artikels. Liefert (article_id, quantity)."""
+    Prozess des Artikels. Liefert (article_id, quantity, process_id) – der Prozess
+    wird auf den Default («Entstehung») aufgelöst, falls keiner gewählt wurde."""
     proc = processes_svc.get_process(db, process_id) if process_id else None
     source = proc.source if proc else "produce"
     if source == "instance":
@@ -62,11 +63,16 @@ def _resolve_subject(db: Session, article_id, quantity, process_id, subject_inst
             Instance.object_id == subject_instance_id, Instance.is_active == True).first()
         if not inst:
             raise HTTPException(400, detail="Subjekt-Instanz nicht gefunden")
-        return inst.article_id, 1
+        return inst.article_id, 1, process_id
     _validate_article(db, article_id)
     if proc and proc.article_id and proc.article_id != article_id and not proc.is_standard:
         raise HTTPException(400, detail="Der gewählte Prozess gehört nicht zu diesem Artikel")
-    return article_id, quantity
+    # Kein Prozess gewählt → Default-«Entstehung» des Artikels persistieren (Feed/Konsistenz).
+    resolved = process_id
+    if resolved is None and article_id:
+        dp = processes_svc.default_process(db, article_id)
+        resolved = dp.id if dp else None
+    return article_id, quantity, resolved
 
 
 @router.get("", response_model=list[OrderSummary])
@@ -90,7 +96,7 @@ async def create_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    article_id, quantity = _resolve_subject(
+    article_id, quantity, process_id = _resolve_subject(
         db, data.article_id, data.quantity, data.process_id, data.subject_instance_id)
     order = Order(
         object_id=next_object_id(db, "order"),
@@ -98,7 +104,7 @@ async def create_order(
         article_id=article_id,
         quantity=quantity,
         desired_delivery_date=data.desired_delivery_date,
-        process_id=data.process_id,
+        process_id=process_id,
         subject_instance_id=data.subject_instance_id,
     )
     db.add(order)

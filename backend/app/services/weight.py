@@ -17,7 +17,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep
+from ..models import Article, ArticleProcessStep, Process
 
 _Q = Decimal("0.001")  # 3 Nachkommastellen wie weight_kg (Numeric(12,3))
 
@@ -30,9 +30,13 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
     for aid, w in db.query(Article.id, Article.weight_kg).filter(Article.is_active == True).all():
         weights[aid] = w if w is not None else Decimal(0)
     consume: dict[int, list[tuple[int, Decimal]]] = {}
+    # Nur die **Produktions**-Rezeptur (Prozess-Quelle ``produce``) bestimmt das
+    # Gewicht – Verbrauch in Wartungs-/anderen Prozessen zählt NICHT zur Stückliste.
     steps = (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True)
+        .join(Process, Process.id == ArticleProcessStep.process_id)
+        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True,
+                Process.source == "produce", Process.is_active == True)
         .all()
     )
     for s in steps:
