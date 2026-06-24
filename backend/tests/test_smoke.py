@@ -940,6 +940,19 @@ def test_object_id_sequence_ensured_outside_advisory_lock():
     assert src.index("_ensure_object_id_sequence()") < src.index("_run_startup_fixups_once()")
 
 
+def test_object_registry_shape_repaired_on_startup():
+    """Eine veraltete `objects`-Tabelle (ohne `object_id`) wird beim Start
+    repariert – sonst schlägt JEDE Objektanlage fehl (column object_id … does not
+    exist). Läuft unbedingt und vor dem Registry-Backfill."""
+    import inspect as _inspect
+    from app import main
+
+    assert callable(main._ensure_object_registry_shape)
+    src = _inspect.getsource(main.lifespan)
+    assert "_ensure_object_registry_shape()" in src
+    assert src.index("_ensure_object_registry_shape()") < src.index("_run_startup_fixups_once()")
+
+
 def test_unhandled_errors_return_structured_json():
     """Letzte Auffanglinie: unbehandelte Fehler liefern strukturiertes JSON (statt
     text/plain «Internal Server Error»), damit der Client die Ursache lesen kann."""

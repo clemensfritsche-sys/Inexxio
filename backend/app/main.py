@@ -232,6 +232,51 @@ def _ensure_object_id_sequence() -> None:
         db.close()
 
 
+# Eigener Advisory-Lock für die (potenziell destruktive) Registry-Reparatur,
+# damit parallele Worker/Instanzen sie serialisieren (kein Drop-Recreate-Race).
+_REGISTRY_LOCK_KEY = 778_899_002
+
+
+def _ensure_object_registry_shape() -> None:
+    """Die Objekt-Registry ``objects`` muss dem aktuellen ``ObjectRef``-Modell
+    entsprechen (``object_id`` als Schlüssel, ``object_type``, ``created_at``).
+
+    Auf gewachsenen Datenbanken existiert evtl. noch eine **veraltete** ``objects``-
+    Tabelle aus einem früheren Modell (Spalte ``id`` statt ``object_id``).
+    ``create_all()`` ändert bestehende Tabellen nicht, daher schlägt JEDE
+    Objektanlage mit «column object_id … does not exist» fehl. Hier wird die
+    veraltete Tabelle verworfen und korrekt neu angelegt – die Registry ist eine
+    reine Ableitung der Fachtabellen (``_backfill_object_registry`` füllt sie neu).
+    Idempotent und über einen Advisory-Lock gegen Nebenläufigkeit abgesichert."""
+    db = SessionLocal()
+    try:
+        # Serialisiert diese Reparatur über alle Worker/Instanzen (eine Transaktion).
+        db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _REGISTRY_LOCK_KEY})
+        exists = db.execute(text("SELECT to_regclass('public.objects')")).scalar() is not None
+        if exists:
+            has_object_id = db.execute(text(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = 'objects' AND column_name = 'object_id'"
+            )).first() is not None
+            if not has_object_id:
+                db.execute(text("DROP TABLE objects CASCADE"))
+        db.execute(text(
+            "CREATE TABLE IF NOT EXISTS objects ("
+            "object_id BIGINT PRIMARY KEY, "
+            "object_type VARCHAR(30) NOT NULL, "
+            "created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now())"
+        ))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_objects_object_type ON objects (object_type)"
+        ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _ensure_object_registry_shape() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 def _backfill_object_registry() -> None:
     """Zentrale Objekt-Registry mit allen vorhandenen Objektnummern auffüllen
     (Altdaten + ohne Typ vergebene). Idempotent."""
@@ -401,6 +446,9 @@ async def lifespan(app: FastAPI):
     # ``object_id_seq`` und JEDE Objektanlage (Artikel/Auftrag/…) endet in einem
     # 500 (``nextval`` auf fehlende Sequence). Idempotent & nebenläufigkeitssicher.
     _ensure_object_id_sequence()
+    # Objekt-Registry auf die aktuelle Form bringen (veraltete `objects`-Tabelle
+    # ohne `object_id` → Neuanlage). Ebenfalls IMMER, race-sicher per Advisory-Lock.
+    _ensure_object_registry_shape()
     # Übrige Schema-/Daten-Fixups genau einmal (Advisory-Lock, cross-worker/-instanz).
     _run_startup_fixups_once()
     try:
