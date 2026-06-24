@@ -811,22 +811,31 @@ def test_resource_embed_per_product_breakdown():
 
 
 def test_process_model_and_sources():
-    """Mehr-Prozess-Modell: Prozesse gruppieren Schritte, Quelle bestimmt Verhalten."""
+    """Mehr-Prozess-Modell: Prozesse sind eigenständige Objekte; die Quelle/Richtung
+    wird aus den Schritten ABGELEITET (keine manuelle Wahl mehr)."""
     from app.models import Process
     from app.schemas.process import ProcessCreate, ProcessResponse
-    from app.services.processes import SOURCES
+    from app.services.processes import SOURCES, derive_source
 
     assert Process.__tablename__ == "processes"
     assert set(SOURCES) == {"produce", "stock", "instance"}
-    # Quelle (Start-Knoten) bestimmt das Verhalten – nicht der (freie) Name.
-    p = ProcessCreate(name="  Jahreswartung  ", source="instance")
-    assert p.name == "Jahreswartung" and p.source == "instance"
+    # Quelle wird NICHT gewählt – sie ergibt sich aus den Schritt-Typen.
+    assert derive_source({"sale"}) == "stock"            # Verkauf → mindernd
+    assert derive_source({"purchase"}) == "produce"      # Beschaffung → erhöhend
+    assert derive_source({"resource"}) == "produce"      # Produktion → erhöhend
+    assert derive_source({"movement", "inspection"}) == "instance"  # neutral
+    assert derive_source(set()) == "instance"            # ohne Schritt → neutral
+    # ProcessCreate kennt KEINE Quelle mehr; Name wird normalisiert, leer = Fehler.
+    p = ProcessCreate(name="  Jahreswartung  ")
+    assert p.name == "Jahreswartung" and p.is_standard is False
+    assert "source" not in ProcessCreate.model_fields
     import pytest
     with pytest.raises(ValueError):
-        ProcessCreate(name="x", source="unbekannt")
-    with pytest.raises(ValueError):
         ProcessCreate(name="   ")
-    assert "step_count" in ProcessResponse.model_fields
+    # is_standard (Favoriten-Stern) ist optional bei der Anlage
+    assert ProcessCreate(name="Entnahme", is_standard=True).is_standard is True
+    for f in ("step_count", "stock_effect", "is_standard", "replaced_by_id"):
+        assert f in ProcessResponse.model_fields
 
 
 def test_article_step_belongs_to_process():
