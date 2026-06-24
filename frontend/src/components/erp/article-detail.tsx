@@ -71,9 +71,11 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-// Vorübergehender Fehler (Server nicht erreichbar / Kaltstart) vs. fachlicher Fehler.
+// Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
+// fachlicher Fehler. Der API-Client wiederholt solche Anfragen bereits mehrfach;
+// schlägt es danach noch fehl, bekommt der Nutzer einen Wiederhol-Hinweis.
 function isTransient(msg: string): boolean {
-  return msg === 'Netzwerkfehler' || /failed to fetch|networkerror|load failed/i.test(msg);
+  return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
 export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
@@ -233,9 +235,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       const msg = e instanceof Error ? e.message : 'Fehler beim Speichern';
       // useAutosave wiederholt einen fehlgeschlagenen Stand NICHT automatisch
       // (kein Loop) – Hinweis: Änderung oder Enter löst einen neuen Versuch aus.
-      setError(isTransient(msg)
-        ? 'Server nicht erreichbar – mit Enter erneut versuchen.'
-        : msg);
+      setError(isTransient(msg) ? `${msg} – mit Enter erneut versuchen.` : msg);
       if (!isCreate && isVersionConflict(e)) await resyncVersion();
     } finally {
       setSaving(false);

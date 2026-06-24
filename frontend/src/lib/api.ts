@@ -22,6 +22,11 @@ class ApiClient {
     this.token = null;
   }
 
+  // Transiente Transportfehler (Kaltstart / Skalierung / kurz nach einem Deploy)
+  // äussern sich als 502/503 oder als abgewiesene Verbindung – die Anfrage
+  // erreicht die App dann GAR NICHT und wird kurz erneut versucht (auch
+  // schreibende, da der Server sie nie verarbeitet hat → keine Doppelanlage).
+  // 500/504 hingegen nur bei LESENDEN (idempotenten) Anfragen wiederholen.
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -29,23 +34,57 @@ class ApiClient {
     };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
-    const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    const method = (options.method ?? 'GET').toUpperCase();
+    const idempotent = method === 'GET' || method === 'HEAD';
+    const MAX_ATTEMPTS = 3;
+    let lastError: Error = new Error('Keine Verbindung zum Server');
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ error: 'Netzwerkfehler', code: 'NETWORK_ERROR' }));
-      const detail = error.detail;
-      const msg = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ')
-          : error.error || `HTTP ${response.status}`;
-      throw new Error(msg);
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      } catch {
+        // Keine Antwort erhalten → Anfrage kam nicht an, sicher wiederholbar.
+        lastError = new Error('Keine Verbindung zum Server');
+        if (attempt < MAX_ATTEMPTS) { await this.backoff(attempt); continue; }
+        throw lastError;
+      }
+
+      if (response.ok) {
+        if (response.status === 204) return {} as T;
+        return response.json() as Promise<T>;
+      }
+
+      const retriable = response.status === 502 || response.status === 503
+        || (idempotent && response.status >= 500);
+      if (retriable && attempt < MAX_ATTEMPTS) {
+        lastError = new Error(`Server nicht erreichbar (HTTP ${response.status})`);
+        await this.backoff(attempt);
+        continue;
+      }
+      throw new Error(await this.errorMessage(response));
     }
+    throw lastError;
+  }
 
-    if (response.status === 204) return {} as T;
-    return response.json();
+  private backoff(attempt: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, attempt === 1 ? 500 : 1200));
+  }
+
+  // Fehlermeldung aufbereiten: bevorzugt das JSON-`detail` der API, sonst der
+  // echte HTTP-Status (statt eines undurchsichtigen «Netzwerkfehler»).
+  private async errorMessage(response: Response): Promise<string> {
+    const body = (await response.json().catch(() => null)) as
+      { detail?: unknown; error?: string } | null;
+    const detail = body?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((d: { msg?: string }) => d.msg ?? JSON.stringify(d)).join('; ');
+    }
+    if (body?.error) return body.error;
+    return response.status >= 500
+      ? `Server nicht erreichbar (HTTP ${response.status})`
+      : `HTTP ${response.status}`;
   }
 
   get<T>(path: string) {
