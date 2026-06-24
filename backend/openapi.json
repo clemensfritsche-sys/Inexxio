@@ -7355,11 +7355,6 @@
             "type": "string",
             "title": "Name"
           },
-          "source": {
-            "type": "string",
-            "title": "Source",
-            "default": "produce"
-          },
           "position": {
             "anyOf": [
               {
@@ -7382,7 +7377,7 @@
           "name"
         ],
         "title": "ProcessCreate",
-        "description": "Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).\n\nDer **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),\nnicht der Name. ``is_standard`` (global geerbt für alle Artikel) ist **nur bei\nder Anlage** wählbar und nach Freigabe gesperrt."
+        "description": "Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).\n\nDer **Name** ist frei. Es gibt **keine** Wahl der Quelle/Richtung – das Verhalten\n(erhöhend/mindernd/neutral) ergibt sich aus den **Schritten** des Prozesses.\n``is_standard`` (global geerbt) ist optional (Favoriten-Markierung), nur bei der\nAnlage bzw. im Entwurf setzbar."
       },
       "ProcessLinkCreate": {
         "properties": {
@@ -7552,17 +7547,6 @@
               }
             ],
             "title": "Name"
-          },
-          "source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source"
           },
           "position": {
             "anyOf": [

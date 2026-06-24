@@ -175,9 +175,10 @@ async def create_article(
     # Wartung …) kann der Nutzer ergänzen oder bestehende verlinken.
     entstehung = Process(
         object_id=next_object_id(db, "process"), article_id=article.id,
-        name="Entstehung", source="produce", is_standard=False, status="draft", position=1)
+        name="Entstehung", is_standard=False, status="draft", position=1)
     db.add(entstehung)
     db.flush()
+    processes_svc.recompute_source(db, entstehung.id)   # noch ohne Schritt → neutral
     processes_svc.link_process(db, article.id, entstehung.id, 1)
     log_audit(db, "articles", None, f"Artikel '{article.name}' angelegt",
               current_user.id, object_id=article.object_id)

@@ -2150,18 +2150,14 @@ export interface components {
          * ProcessCreate
          * @description Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).
          *
-         *     Der **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),
-         *     nicht der Name. ``is_standard`` (global geerbt für alle Artikel) ist **nur bei
-         *     der Anlage** wählbar und nach Freigabe gesperrt.
+         *     Der **Name** ist frei. Es gibt **keine** Wahl der Quelle/Richtung – das Verhalten
+         *     (erhöhend/mindernd/neutral) ergibt sich aus den **Schritten** des Prozesses.
+         *     ``is_standard`` (global geerbt) ist optional (Favoriten-Markierung), nur bei der
+         *     Anlage bzw. im Entwurf setzbar.
          */
         ProcessCreate: {
             /** Name */
             name: string;
-            /**
-             * Source
-             * @default produce
-             */
-            source: string;
             /** Position */
             position?: number | null;
             /**
@@ -2242,8 +2238,6 @@ export interface components {
         ProcessUpdate: {
             /** Name */
             name?: string | null;
-            /** Source */
-            source?: string | null;
             /** Position */
             position?: number | null;
             /** Status */

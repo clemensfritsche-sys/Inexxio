@@ -3,16 +3,6 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from ..services.processes import SOURCES
-
-
-def _check_source(v: Optional[str]) -> Optional[str]:
-    if v is None:
-        return v
-    if v not in SOURCES:
-        raise ValueError(f"Quelle muss eine von {', '.join(SOURCES)} sein")
-    return v
-
 
 def _check_name(v: str) -> str:
     v = (v or "").strip()
@@ -24,12 +14,12 @@ def _check_name(v: str) -> str:
 class ProcessCreate(BaseModel):
     """Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).
 
-    Der **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),
-    nicht der Name. ``is_standard`` (global geerbt für alle Artikel) ist **nur bei
-    der Anlage** wählbar und nach Freigabe gesperrt."""
+    Der **Name** ist frei. Es gibt **keine** Wahl der Quelle/Richtung – das Verhalten
+    (erhöhend/mindernd/neutral) ergibt sich aus den **Schritten** des Prozesses.
+    ``is_standard`` (global geerbt) ist optional (Favoriten-Markierung), nur bei der
+    Anlage bzw. im Entwurf setzbar."""
 
     name: str
-    source: str = "produce"
     position: Optional[int] = None
     is_standard: bool = False
 
@@ -38,15 +28,9 @@ class ProcessCreate(BaseModel):
     def _name_ok(cls, v: str) -> str:
         return _check_name(v)
 
-    @field_validator("source")
-    @classmethod
-    def _source_ok(cls, v: str) -> str:
-        return _check_source(v)
-
 
 class ProcessUpdate(BaseModel):
     name: Optional[str] = None
-    source: Optional[str] = None
     position: Optional[int] = None
     status: Optional[str] = None
     is_standard: Optional[bool] = None   # nur im Entwurf änderbar (Router erzwingt)
@@ -56,11 +40,6 @@ class ProcessUpdate(BaseModel):
     @classmethod
     def _name_ok(cls, v: Optional[str]) -> Optional[str]:
         return _check_name(v) if v is not None else v
-
-    @field_validator("source")
-    @classmethod
-    def _source_ok(cls, v: Optional[str]) -> Optional[str]:
-        return _check_source(v)
 
     @field_validator("status")
     @classmethod

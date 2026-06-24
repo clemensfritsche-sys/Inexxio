@@ -92,14 +92,12 @@ def available_processes(db: Session, article) -> list[Process]:
 
 
 def default_process(db: Session, article_id: int | None) -> Process | None:
-    """Default-«Entstehung» eines Artikels: erster ``produce``-Prozess der Stückliste.
-    Rückwärtskompatibilität für Aufträge ohne expliziten Prozess (Produktion)."""
+    """Default-Prozess eines Artikels: der erste Prozess der Stückliste. Dient als
+    Fallback für Aufträge ohne expliziten Prozess."""
     if not article_id:
         return None
-    for p in own_processes(db, article_id):
-        if p.source == "produce":
-            return p
-    return None
+    procs = own_processes(db, article_id)
+    return procs[0] if procs else None
 
 
 def process_for_order(db: Session, order) -> Process | None:
@@ -186,35 +184,48 @@ def unlink_process(db: Session, article_id: int, process_id: int) -> bool:
     return True
 
 
-# ─── Abgeleitete Lager-Richtung (Frage 2) ───────────────────────────────────────
+# ─── Quelle & Richtung – AUS DEN SCHRITTEN ABGELEITET (Frage 2) ──────────────────
+#
+# Es gibt KEINE manuelle Wahl der Quelle/Richtung mehr. Beides ergibt sich aus den
+# vorhandenen Schritt-Typen des Prozesses und wird beim Hinzufügen/Entfernen eines
+# Schritts neu berechnet (``recompute_source``) und in ``processes.source`` abgelegt
+# (damit die SQL-Filter in weight.py/deactivation.py weiter funktionieren).
+#
+#   Verkauf (sale)                → stock    → mindernd  (Bestand geht ab)
+#   Beschaffung/Produktion        → produce  → erhöhend  (Neues entsteht/kommt rein)
+#     (purchase oder resource)
+#   sonst (Bewegung/Datenerfassung,
+#     oder noch ohne Schritt)     → instance → neutral   (bestehende Instanz wird bearbeitet)
 
-def _has_step_type(db: Session, process_id: int, step_type: str) -> bool:
-    return (
-        db.query(ArticleProcessStep.id)
-        .filter(ArticleProcessStep.process_id == process_id,
-                ArticleProcessStep.is_active == True,
-                ArticleProcessStep.step_type == step_type)
-        .first()
-        is not None
+def derive_source(step_types: set[str]) -> str:
+    if "sale" in step_types:
+        return "stock"
+    if "purchase" in step_types or "resource" in step_types:
+        return "produce"
+    return "instance"
+
+
+def recompute_source(db: Session, process_id: int) -> str:
+    """Quelle des Prozesses aus seinen aktiven Schritten ableiten und speichern.
+    Wird nach jeder Schritt-Strukturänderung aufgerufen (schreibt nur, kein commit)."""
+    proc = db.query(Process).filter(Process.id == process_id).first()
+    if not proc:
+        return "instance"
+    rows = (
+        db.query(ArticleProcessStep.step_type)
+        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
+        .all()
     )
+    proc.source = derive_source({t for (t,) in rows})
+    return proc.source
+
+
+_STOCK_EFFECT = {"produce": "increase", "stock": "decrease", "instance": "neutral"}
 
 
 def stock_effect(db: Session, process: Process | None) -> str:
-    """Wirkung des Prozesses auf den Lagerbestand des Subjekt-Artikels – **abgeleitet**
-    aus Quelle + Schritten, nicht gewählt:
-
-        produce   → increase  (neues Subjekt entsteht)
-        stock     → decrease  (Bestand wird entnommen – Verkauf/Entnahme)
-        instance  → neutral   (eine bestehende Instanz wird bearbeitet) …
-                    … decrease, wenn ein Verkaufs-Schritt die Instanz abgibt
-    """
+    """Wirkung des Prozesses auf den Lagerbestand – abgeleitet aus der (ihrerseits aus
+    den Schritten abgeleiteten) Quelle: produce→increase, stock→decrease, sonst neutral."""
     if not process:
         return "neutral"
-    if process.source == "produce":
-        return "increase"
-    if process.source == "stock":
-        return "decrease"
-    # instance
-    if _has_step_type(db, process.id, "sale"):
-        return "decrease"
-    return "neutral"
+    return _STOCK_EFFECT.get(process.source, "neutral")

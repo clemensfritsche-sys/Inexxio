@@ -1,24 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, Layers, CheckCircle2, Ban, RotateCcw, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Layers, CheckCircle2, Ban, RotateCcw, RefreshCcw, Star } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Process, ProcessSource, UserProfile } from '@/types';
+import type { Process, UserProfile } from '@/types';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { Segmented, TextField, ErrorText, StatusBadge } from '@/components/erp/fields';
-import { PROCESS_SOURCE_META, sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
+import { TextField, ErrorText, StatusBadge } from '@/components/erp/fields';
+import { sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 
-const SOURCE_OPTS = [
-  { value: 'produce', label: 'Neu' }, { value: 'stock', label: 'Bestand' }, { value: 'instance', label: 'Instanz' },
-];
-const STD_OPTS = [
-  { value: 'false', label: 'Artikelbezogen' }, { value: 'true', label: 'Standard (alle Artikel)' },
-];
+/** Unscheinbares Favoriten-Sternchen: markiert einen Prozess als «Standard» (gilt für
+ *  ALLE Artikel). Default aus – in aller Regel ist ein Prozess artikelbezogen. */
+function StarToggle({ on, onClick, disabled }: { on: boolean; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled || !onClick}
+      title={on ? 'Standard – gilt für alle Artikel (Stern entfernt die Markierung)' : 'Als Standard markieren (gilt für alle Artikel)'}
+      style={{ border: 'none', background: 'none', cursor: (disabled || !onClick) ? 'default' : 'pointer', padding: 2, lineHeight: 0, flexShrink: 0 }}>
+      <Star size={16} fill={on ? '#f59e0b' : 'none'} color={on ? '#f59e0b' : '#cbd5e1'} strokeWidth={2} />
+    </button>
+  );
+}
 
 /** Prozess als eigenständiges Objekt (Feed «Prozesse»): anlegen, Schritte definieren,
- *  freigeben/deaktivieren/ersetzen. ``is_standard`` ist nur bei der Anlage wählbar.
- *  Artikel referenzieren den Prozess über ihre Prozessstückliste. */
+ *  freigeben/deaktivieren/ersetzen. Es gibt **keine** Quellen-/Richtungswahl – die Lager-
+ *  Richtung ergibt sich aus den Schritten. «Standard» ist ein seltenes Favoriten-Sternchen. */
 export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
   record: Process | null;
   suppliers: UserProfile[];
@@ -27,7 +32,6 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
 }) {
   const isCreate = record === null;
   const [name, setName] = useState(record?.name ?? '');
-  const [source, setSource] = useState<ProcessSource>((record?.source as ProcessSource) ?? 'produce');
   const [isStandard, setIsStandard] = useState<boolean>(record?.is_standard ?? false);
   const [stepCount, setStepCount] = useState<number>(record?.step_count ?? 0);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +42,7 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
   async function create() {
     if (!name.trim()) { setError('Bitte einen Namen angeben'); return; }
     setSaving(true); setError(null);
-    try { onSaved(await api.createProcess({ name: name.trim(), source, is_standard: isStandard })); }
+    try { onSaved(await api.createProcess({ name: name.trim(), is_standard: isStandard })); }
     catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Anlegen'); }
     finally { setSaving(false); }
   }
@@ -63,20 +67,14 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
         <button onClick={onBack} style={backBtn}><ArrowLeft size={14} /> Zurück</button>
         <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: '8px 0 16px' }}>Neuer Prozess</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <TextField label="Name (frei wählbar)" value={name} onChange={setName} required placeholder="z. B. Entnahme, Umlagern, Verschrotten, Sonderkontrolle" />
-          <div>
-            <Segmented label="Quelle = Subjekt (Richtung wird abgeleitet, nicht gewählt)" value={source}
-              onChange={(v) => setSource(v as ProcessSource)} options={SOURCE_OPTS} />
-            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>{PROCESS_SOURCE_META[source].hint}</div>
-          </div>
-          <div>
-            <Segmented label="Geltung (nur bei der Anlage wählbar)" value={String(isStandard)}
-              onChange={(v) => setIsStandard(v === 'true')} options={STD_OPTS} />
-            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
-              {isStandard
-                ? 'Standard: gilt automatisch für jeden Artikel (geerbt) – kein Link nötig.'
-                : 'Artikelbezogen: über die Prozessstückliste einem oder mehreren Artikeln zuordnen.'}
-            </div>
+          <TextField label="Name (frei wählbar)" value={name} onChange={setName} required placeholder="z. B. Entstehung, Verkauf, Wartung, Umlagern" />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <StarToggle on={isStandard} onClick={() => setIsStandard((v) => !v)} />
+            <span style={{ fontSize: 13, color: '#475569' }}>Als <b>Standard</b> markieren — gilt automatisch für alle Artikel <span style={{ color: '#94a3b8' }}>(selten)</span></span>
+          </label>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            Keine Quellen-/Richtungswahl: ob der Prozess Bestand erhöht, mindert oder neutral
+            ist, ergibt sich automatisch aus den Schritten (nach dem Anlegen definieren).
           </div>
           {error && <ErrorText msg={error} />}
           <button onClick={create} disabled={saving} style={primary}>{saving ? 'Speichern…' : 'Anlegen'}</button>
@@ -92,13 +90,15 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#f5f3ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Layers size={18} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{record!.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{record!.name}</span>
+              <StarToggle on={record!.is_standard} onClick={editable ? () => patch({ is_standard: !record!.is_standard }) : undefined} />
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>{fmtObjId(record!.object_id)}</span>
               <StatusBadge cfg={processStatusConfig(status)} />
               <StatusBadge cfg={stockEffectConfig(record!.stock_effect)} />
               <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 999 }}>{sourceLabel(record!.source)}</span>
-              {record!.is_standard && <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '1px 6px', borderRadius: 999 }}>Standard</span>}
               {record!.linked_article_count > 0 && (
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 999 }}>
                   bei {record!.linked_article_count} Artikel{record!.linked_article_count === 1 ? '' : 'n'}
@@ -132,13 +132,12 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => patch({ name: name.trim() })} style={primary}>Name speichern</button>
             </div>
-            <Segmented label="Quelle" value={source} onChange={(v) => { setSource(v as ProcessSource); patch({ source: v as ProcessSource }); }} options={SOURCE_OPTS} />
-            <Segmented label="Geltung" value={String(isStandard)}
-              onChange={(v) => { const b = v === 'true'; setIsStandard(b); patch({ is_standard: b }); }} options={STD_OPTS} />
           </div>
         )}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8', marginBottom: 8 }}>Schritte</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8', marginBottom: 8 }}>
+            Schritte <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— bestimmen die Richtung des Prozesses</span>
+          </div>
           <ProcessSteps processId={record!.id} suppliers={suppliers} readOnly={!editable} onStepsCount={setStepCount} />
         </div>
       </div>

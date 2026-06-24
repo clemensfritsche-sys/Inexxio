@@ -23,15 +23,14 @@ class Process(Base, TimestampMixin):
     - ``article_id`` ist nur noch die **Herkunft** (unter welchem Artikel der
       Prozess angelegt wurde) – die Zugehörigkeit/Stückliste steckt in den Links.
 
-    Die **Quelle** (``source``) – konzeptuell der «Start-Knoten» des Prozesses –
-    legt das **Subjekt** fest (worauf der Prozess wirkt) und was bei der
-    Auftrags-Anlage gefragt wird. Sie ist KEINE Richtungswahl mehr – die
-    Lager-Richtung (erhöhend/mindernd/neutral) wird aus den Schritten abgeleitet
-    (siehe ``services/processes.py: stock_effect``). Der **Name** ist frei:
+    Die **Quelle** (``source``) wird **NICHT gewählt**, sondern aus den Schritt-Typen
+    **abgeleitet** und gespeichert (``services/processes.py: recompute_source``, läuft
+    nach jeder Schritt-Änderung). Sie bestimmt Subjekt + Auftragsfrage, die
+    Lager-Richtung folgt daraus (``stock_effect``):
 
-        produce   → **neues** Subjekt entsteht (Produktion);     fragt «Menge?»
-        stock     → **bestehender** Bestand, FIFO (Verkauf …);   fragt «Menge?»
-        instance  → eine **konkrete bestehende** Instanz (Wartung); «welche Instanz?»
+        produce   (purchase/resource) → **neues** Subjekt; «Menge?»     → erhöhend
+        stock     (sale)              → **Bestand** FIFO; «Menge?»       → mindernd
+        instance  (sonst/leer)        → **konkrete** Instanz; «welche?»  → neutral
     """
 
     __tablename__ = "processes"

@@ -20,6 +20,7 @@ from ..schemas.article_process_step import (
     StepReorder,
     normalize_capture_fields,
 )
+from ..services import processes as processes_svc
 from ..services.admin import log_audit
 from ..services.process_steps import sync_locked_movements
 
@@ -171,6 +172,7 @@ async def create_step(
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
               current_user.id, object_id=proc.object_id)
     sync_locked_movements(db, process_id)
+    processes_svc.recompute_source(db, process_id)   # Richtung aus Schritten ableiten
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
@@ -283,5 +285,6 @@ async def delete_step(
     log_audit(db, "article_process_steps", "is_active", "false", current_user.id,
               object_id=proc.object_id, old_value="true")
     sync_locked_movements(db, process_id)
+    processes_svc.recompute_source(db, process_id)   # Richtung aus Schritten ableiten
     db.commit()
     return {"deleted": True}

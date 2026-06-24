@@ -3,17 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, X, Trash2, Layers, Pencil, Check, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Process, ProcessSource, UserProfile } from '@/types';
+import type { Process, UserProfile } from '@/types';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { Segmented, TextField, ErrorText, SearchSelect, StatusBadge, StatusFlow } from '@/components/erp/fields';
-import { PROCESS_SOURCE_META, sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
+import { TextField, ErrorText, SearchSelect, StatusBadge, StatusFlow } from '@/components/erp/fields';
+import { sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
 import { lifecycleActions, type StatusAction } from '@/lib/status-flow';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
-
-const SOURCE_OPTS = [
-  { value: 'produce', label: 'Neu' }, { value: 'stock', label: 'Bestand' }, { value: 'instance', label: 'Instanz' },
-];
 
 // Lebenszyklus-Aktionen eines (eigenen) Prozesses: Freigeben erst mit ≥1 Schritt.
 function processActions(p: Process): StatusAction[] {
@@ -36,7 +32,6 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
   const [selId, setSelId] = useState<number | null>(null);
   const [adding, setAdding] = useState<'new' | 'link' | null>(null);
   const [name, setName] = useState('');
-  const [source, setSource] = useState<ProcessSource>('produce');
   const [linkPick, setLinkPick] = useState('');
   const [catalog, setCatalog] = useState<Process[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -78,9 +73,9 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     if (!name.trim()) { setError('Bitte einen Namen angeben'); return; }
     setSaving(true); setError(null);
     try {
-      const p = await api.createArticleProcess(aid, { name: name.trim(), source });
+      const p = await api.createArticleProcess(aid, { name: name.trim() });
       await load(p.id);
-      setAdding(null); setName(''); setSource('produce');
+      setAdding(null); setName('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Anlegen'); }
     finally { setSaving(false); }
   }
@@ -167,10 +162,9 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
             <button onClick={() => { setAdding(null); setError(null); }} style={ghostIcon}><X size={16} /></button>
           </div>
           <TextField label="Name (frei wählbar)" value={name} onChange={setName} required placeholder="z. B. Verkauf, Jahreswartung" />
-          <div>
-            <Segmented label="Quelle = Subjekt (Richtung wird abgeleitet, nicht gewählt)" value={source}
-              onChange={(v) => setSource(v as ProcessSource)} options={SOURCE_OPTS} />
-            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>{PROCESS_SOURCE_META[source].hint}</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            Keine Quellen-/Richtungswahl: ob der Prozess Bestand erhöht, mindert oder neutral ist,
+            ergibt sich aus seinen Schritten (im Anschluss definieren).
           </div>
           {error && <ErrorText msg={error} />}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -242,7 +236,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
           <div style={{ fontSize: 12, color: '#64748b' }}>
             {selected.is_standard
               ? 'Geerbter Standardprozess – zentral verwaltet, hier nur lesbar.'
-              : PROCESS_SOURCE_META[selected.source as ProcessSource]?.hint}
+              : 'Richtung (erhöhend/mindernd/neutral) ergibt sich aus den Schritten.'}
           </div>
           {!readOnly && ownSelected && (
             <StatusFlow cfg={processStatusConfig(selected.status)} actions={processActions(selected)} busy={statusBusy} onAction={onProcessAction} />

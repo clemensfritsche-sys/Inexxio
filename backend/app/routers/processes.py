@@ -119,12 +119,13 @@ async def create_article_process(
     art = _get_article(db, object_id)
     proc = Process(
         object_id=next_object_id(db, "process"),
-        article_id=art.id, name=data.name, source=data.source,
+        article_id=art.id, name=data.name,
         is_standard=bool(data.is_standard), status="draft",
         position=data.position if data.position is not None else 1,
     )
     db.add(proc)
     db.flush()
+    processes_svc.recompute_source(db, proc.id)   # noch keine Schritte → neutral
     if not proc.is_standard:
         processes_svc.link_process(db, art.id, proc.id, data.position)
     log_audit(db, "processes", None, f"Prozess '{data.name}' angelegt",
@@ -236,12 +237,13 @@ async def create_process(
     Artikel-Bindung – die Zuordnung erfolgt über die Stückliste je Artikel."""
     proc = Process(
         object_id=next_object_id(db, "process"),
-        article_id=None, name=data.name, source=data.source,
+        article_id=None, name=data.name,
         is_standard=bool(data.is_standard), status="draft",
         position=data.position if data.position is not None else 1,
     )
     db.add(proc)
     db.flush()
+    processes_svc.recompute_source(db, proc.id)   # noch keine Schritte → neutral
     log_audit(db, "processes", None, f"Prozess '{data.name}' angelegt",
               current_user.id, object_id=proc.object_id)
     db.commit()
@@ -271,9 +273,6 @@ async def update_process(
     if "is_standard" in payload and bool(payload["is_standard"]) != proc.is_standard:
         if proc.status != "draft":
             raise HTTPException(409, detail="Standard-Markierung ist nach Freigabe gesperrt")
-    # Inhalt (Quelle) nach Freigabe gesperrt – Änderung = Ersetzen.
-    if "source" in payload and payload["source"] != proc.source and proc.status != "draft":
-        raise HTTPException(409, detail="Quelle ist nach Freigabe gesperrt – bitte Prozess ersetzen")
     # Freigeben nur mit mindestens einem Schritt.
     if payload.get("status") == "released" and proc.status != "released":
         if not _step_counts(db, [proc.id]).get(proc.id):
@@ -309,6 +308,7 @@ async def replace_process(
     db.add(new)
     db.flush()
     _copy_steps(db, proc, new)
+    processes_svc.recompute_source(db, new.id)   # Quelle/Richtung aus kopierten Schritten
     # Stücklisten-Links auf den Nachfolger umhängen.
     for aid in processes_svc.linked_article_ids(db, proc.id):
         processes_svc.unlink_process(db, aid, proc.id)

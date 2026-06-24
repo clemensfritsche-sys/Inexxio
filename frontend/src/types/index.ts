@@ -187,14 +187,12 @@ export type Process = components['schemas']['ProcessResponse'];
 
 export interface ProcessInput {
   name: string;
-  source?: ProcessSource;
   position?: number | null;
-  is_standard?: boolean;   // nur bei der Anlage wählbar (danach gesperrt)
+  is_standard?: boolean;   // Favoriten-Markierung «Standard» (selten); nur bei Anlage/Entwurf
 }
 
 export interface ProcessUpdateInput {
   name?: string;
-  source?: ProcessSource;
   position?: number | null;
   status?: 'draft' | 'released' | 'inactive';
   is_standard?: boolean;   // nur im Entwurf änderbar
