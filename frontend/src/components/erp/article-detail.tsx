@@ -71,6 +71,11 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
+// Vorübergehender Fehler (Server nicht erreichbar / Kaltstart) vs. fachlicher Fehler.
+function isTransient(msg: string): boolean {
+  return msg === 'Netzwerkfehler' || /failed to fetch|networkerror|load failed/i.test(msg);
+}
+
 export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
@@ -128,6 +133,16 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   };
   const valid = !errs.name && !errs.size && !errs.weight;
   const canRelease = (stepCount ?? 0) > 0;
+
+  // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird –
+  // statt des generischen «Pflichtfelder …». Häufigste Ursache beim Anlegen:
+  // kein Artikelname wählbar, weil der Katalog (Systemkonfiguration) leer ist.
+  const blockReason: string | null = valid ? null
+    : (!form.name.trim()
+        ? (articleNames.length === 0
+            ? 'Keine Artikelnamen vorhanden – bitte zuerst unter Admin → Einstellungen → «Artikelnamen» anlegen.'
+            : 'Bitte einen Artikelnamen wählen.')
+        : errs.name || errs.size || errs.weight || 'Pflichtfelder ausfüllen: Name, Grösse, Gewicht');
 
   const sig = JSON.stringify({
     name: form.name.trim(), unit: form.unit, serialization: form.serialization,
@@ -189,7 +204,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     const current = sig;
     setSaving(true);
     setError(null);
-    let transient = false;
     try {
       const payload = {
         name: form.name.trim(),
@@ -217,20 +231,14 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Fehler beim Speichern';
-      if (msg === 'Netzwerkfehler') {
-        transient = true;
-        setError('Server startet — wird automatisch erneut versucht…');
-      } else {
-        setError(msg);
-        if (!isCreate && isVersionConflict(e)) await resyncVersion();
-      }
+      // useAutosave wiederholt einen fehlgeschlagenen Stand NICHT automatisch
+      // (kein Loop) – Hinweis: Änderung oder Enter löst einen neuen Versuch aus.
+      setError(isTransient(msg)
+        ? 'Server nicht erreichbar – mit Enter erneut versuchen.'
+        : msg);
+      if (!isCreate && isVersionConflict(e)) await resyncVersion();
     } finally {
-      if (transient) {
-        // Keep saving=true for 5 s to throttle autosave retries during cold start
-        setTimeout(() => { setSaving(false); setError(null); }, 5000);
-      } else {
-        setSaving(false);
-      }
+      setSaving(false);
     }
   }
 
@@ -371,7 +379,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       {!locked && tab === 'stammdaten' && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (!valid ? 'Pflichtfelder: Name, Grösse, Gewicht' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
+            {error ?? blockReason ?? (isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
           </span>
           {isCreate && (
             <button onClick={onCancel}
