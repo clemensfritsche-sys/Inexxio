@@ -7,7 +7,6 @@ from .article_process_step import ArticleProcessStep
 from .order import Order
 from .purchase_order import PurchaseOrder
 from .sale import Sale
-from .recurring_order import RecurringOrder
 from .instance import Instance
 from .inspection import Inspection
 from .movement import Movement
@@ -21,7 +20,7 @@ from .object_ref import ObjectRef
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article", "Process",
-    "ArticleProcessStep", "Order", "PurchaseOrder", "Sale", "RecurringOrder",
+    "ArticleProcessStep", "Order", "PurchaseOrder", "Sale",
     "Instance", "Inspection", "Movement", "ResourceUsage", "StorageLocation",
     "Claim", "AuditLog", "Event", "Notification", "ObjectRef",
 ]

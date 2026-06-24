@@ -937,63 +937,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/recurring-orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Recurring */
-        get: operations["list_recurring_api_v1_erp_recurring_orders_get"];
-        put?: never;
-        /** Create Recurring */
-        post: operations["create_recurring_api_v1_erp_recurring_orders_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/recurring-orders/run": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Due
-         * @description Fällige Vorgänge jetzt zu Aufträgen machen (manueller Trigger).
-         */
-        post: operations["run_due_api_v1_erp_recurring_orders_run_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/recurring-orders/{object_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Recurring */
-        get: operations["get_recurring_api_v1_erp_recurring_orders__object_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Recurring */
-        delete: operations["delete_recurring_api_v1_erp_recurring_orders__object_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Recurring */
-        patch: operations["update_recurring_api_v1_erp_recurring_orders__object_id__patch"];
-        trace?: never;
-    };
     "/": {
         parameters: {
             query?: never;
@@ -1897,6 +1840,14 @@ export interface components {
             process_id?: number | null;
             /** Subject Instance Id */
             subject_instance_id?: number | null;
+            /** Recurrence Active */
+            recurrence_active?: boolean | null;
+            /** Recurrence Interval Days */
+            recurrence_interval_days?: number | null;
+            /** Recurrence Lead Time Days */
+            recurrence_lead_time_days?: number | null;
+            /** Recurrence Anchor */
+            recurrence_anchor?: string | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -1936,6 +1887,27 @@ export interface components {
             process_source?: string | null;
             /** Subject Instance Id */
             subject_instance_id?: number | null;
+            /**
+             * Recurrence Active
+             * @default false
+             */
+            recurrence_active: boolean;
+            /** Recurrence Interval Days */
+            recurrence_interval_days?: number | null;
+            /**
+             * Recurrence Lead Time Days
+             * @default 0
+             */
+            recurrence_lead_time_days: number;
+            /** Recurrence Anchor */
+            recurrence_anchor?: string | null;
+            /** Recurring Parent Id */
+            recurring_parent_id?: number | null;
+            /**
+             * Recurrence Due
+             * @default false
+             */
+            recurrence_due: boolean;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */
@@ -2046,6 +2018,16 @@ export interface components {
             process_name?: string | null;
             /** Process Source */
             process_source?: string | null;
+            /**
+             * Recurrence Active
+             * @default false
+             */
+            recurrence_active: boolean;
+            /**
+             * Recurrence Due
+             * @default false
+             */
+            recurrence_due: boolean;
             /** Replaced By Id */
             replaced_by_id?: number | null;
         };
@@ -2063,6 +2045,14 @@ export interface components {
             process_id?: number | null;
             /** Subject Instance Id */
             subject_instance_id?: number | null;
+            /** Recurrence Active */
+            recurrence_active?: boolean | null;
+            /** Recurrence Interval Days */
+            recurrence_interval_days?: number | null;
+            /** Recurrence Lead Time Days */
+            recurrence_lead_time_days?: number | null;
+            /** Recurrence Anchor */
+            recurrence_anchor?: string | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Expected Updated At */
@@ -2230,123 +2220,6 @@ export interface components {
             tracking_number?: string | null;
             /** Receiving Location Id */
             receiving_location_id?: number | null;
-        };
-        /**
-         * RecurringOrderCreate
-         * @description Anlage eines wiederkehrenden Vorgangs (Compliance/Termin oder Abo).
-         *
-         *     Erzeugt automatisch normale Aufträge: ``process_id`` + Subjekt (Artikel+Menge
-         *     oder Instanz). Takt entweder fester Intervall (``interval_days``, Abo) oder
-         *     ablauf-verankert (``valid_until`` − ``lead_time_days``, Compliance).
-         */
-        RecurringOrderCreate: {
-            /** Name */
-            name: string;
-            /** Process Id */
-            process_id?: number | null;
-            /** Article Id */
-            article_id?: number | null;
-            /** Quantity */
-            quantity?: number | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
-            /** Interval Days */
-            interval_days?: number | null;
-            /**
-             * Lead Time Days
-             * @default 0
-             */
-            lead_time_days: number;
-            /** Validity Days */
-            validity_days?: number | null;
-            /** Next Due At */
-            next_due_at?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-        };
-        /** RecurringOrderResponse */
-        RecurringOrderResponse: {
-            /** Id */
-            id: number;
-            /** Object Id */
-            object_id?: number | null;
-            /** Name */
-            name: string;
-            /** Status */
-            status: string;
-            /** Process Id */
-            process_id?: number | null;
-            /** Article Id */
-            article_id?: number | null;
-            /** Quantity */
-            quantity?: number | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
-            /** Interval Days */
-            interval_days?: number | null;
-            /**
-             * Lead Time Days
-             * @default 0
-             */
-            lead_time_days: number;
-            /** Validity Days */
-            validity_days?: number | null;
-            /** Next Due At */
-            next_due_at?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Last Order Id */
-            last_order_id?: number | null;
-            /** Last Run At */
-            last_run_at?: string | null;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Process Name */
-            process_name?: string | null;
-            /** Article Name */
-            article_name?: string | null;
-            /**
-             * Due Now
-             * @default false
-             */
-            due_now: boolean;
-        };
-        /** RecurringOrderUpdate */
-        RecurringOrderUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Status */
-            status?: string | null;
-            /** Process Id */
-            process_id?: number | null;
-            /** Article Id */
-            article_id?: number | null;
-            /** Quantity */
-            quantity?: number | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
-            /** Interval Days */
-            interval_days?: number | null;
-            /** Lead Time Days */
-            lead_time_days?: number | null;
-            /** Validity Days */
-            validity_days?: number | null;
-            /** Next Due At */
-            next_due_at?: string | null;
-            /** Valid Until */
-            valid_until?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
         };
         /**
          * ResourceCandidate
@@ -5033,176 +4906,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_recurring_api_v1_erp_recurring_orders_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecurringOrderResponse"][];
-                };
-            };
-        };
-    };
-    create_recurring_api_v1_erp_recurring_orders_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecurringOrderCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecurringOrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_due_api_v1_erp_recurring_orders_run_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_recurring_api_v1_erp_recurring_orders__object_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecurringOrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_recurring_api_v1_erp_recurring_orders__object_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_recurring_api_v1_erp_recurring_orders__object_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecurringOrderUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecurringOrderResponse"];
                 };
             };
             /** @description Validation Error */

@@ -106,6 +106,10 @@ async def create_order(
         desired_delivery_date=data.desired_delivery_date,
         process_id=process_id,
         subject_instance_id=data.subject_instance_id,
+        recurrence_active=bool(data.recurrence_active),
+        recurrence_interval_days=data.recurrence_interval_days,
+        recurrence_lead_time_days=data.recurrence_lead_time_days or 0,
+        recurrence_anchor=data.recurrence_anchor,
     )
     db.add(order)
     db.flush()
@@ -140,7 +144,13 @@ async def update_order(
 
     payload = data.model_dump(exclude_unset=True)
     ensure_version(order, payload.pop("expected_updated_at", None))
+    # Wiederkehr-Einstellung ändert nicht die Arbeit – auch nach Freigabe erlaubt.
+    _RECURRENCE_KEYS = ("recurrence_active", "recurrence_interval_days",
+                        "recurrence_lead_time_days", "recurrence_anchor")
+    recurrence_payload = {k: payload.pop(k) for k in _RECURRENCE_KEYS if k in payload}
     ensure_mutable(order.status, payload, "Auftrag")
+    for key, value in recurrence_payload.items():
+        setattr(order, key, value)
     if "article_id" in payload:
         _validate_article(db, payload["article_id"])
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.

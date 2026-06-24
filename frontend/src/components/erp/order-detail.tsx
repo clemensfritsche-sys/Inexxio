@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep, Process } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -333,6 +333,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           )}
         </div>
 
+        {/* Wiederkehrend – direkt am Auftrag (kein eigenes Objekt) */}
+        {isStaff && record && <RecurrenceCard order={record} onSaved={onSaved} />}
+
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
           <>
@@ -503,5 +506,77 @@ function Row({ k, v }: { k: string; v: string }) {
       <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
       <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
+  );
+}
+
+const recInput = "w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+
+/** «Wiederkehrend» direkt am Auftrag: bei Abschluss entsteht automatisch der nächste
+ *  (Entwurf), Termin = Termin + Periode. Auch nach Freigabe einstellbar. */
+function RecurrenceCard({ order, onSaved }: { order: Order; onSaved: (o: Order) => void }) {
+  const [active, setActive] = useState(!!order.recurrence_active);
+  const [interval, setIntervalDays] = useState(order.recurrence_interval_days ? String(order.recurrence_interval_days) : '365');
+  const [anchor, setAnchor] = useState(order.recurrence_anchor ?? '');
+  const [lead, setLead] = useState(order.recurrence_lead_time_days != null ? String(order.recurrence_lead_time_days) : '30');
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true); setErr(null);
+    try {
+      const o = await api.updateOrder(order.object_id as number, {
+        recurrence_active: active,
+        recurrence_interval_days: active ? Math.max(1, Math.trunc(Number(interval) || 0)) : null,
+        recurrence_lead_time_days: active ? Math.max(0, Math.trunc(Number(lead) || 0)) : 0,
+        recurrence_anchor: active && anchor ? anchor : null,
+      });
+      onSaved(o); setSaved(true); setTimeout(() => setSaved(false), 1500);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <SectionTitle icon={Repeat}>Wiederkehrend</SectionTitle>
+      <div style={cardStyle}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+          <span style={{ fontWeight: 600, color: '#0f172a' }}>Diesen Auftrag wiederkehrend ausführen</span>
+        </label>
+        {active && (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div>
+                <Label>Periode (Tage)</Label>
+                <input value={interval} onChange={(e) => setIntervalDays(e.target.value)} inputMode="numeric"
+                  className={recInput} style={{ borderColor: '#e2e8f0' }} placeholder="z. B. 365" />
+              </div>
+              <div>
+                <Label>Vorlaufzeit (Tage)</Label>
+                <input value={lead} onChange={(e) => setLead(e.target.value)} inputMode="numeric"
+                  className={recInput} style={{ borderColor: '#e2e8f0' }} placeholder="z. B. 30" />
+              </div>
+            </div>
+            <div>
+              <Label>Nächster Termin / Ablauf (optional)</Label>
+              <input type="date" value={anchor} onChange={(e) => setAnchor(e.target.value)}
+                className={recInput} style={{ borderColor: '#e2e8f0' }} />
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+              Beim Abschluss entsteht automatisch der nächste Auftrag (Entwurf) – Termin = dieser
+              Termin + Periode. Die Vorlaufzeit markiert ihn rechtzeitig als «fällig».
+            </div>
+          </>
+        )}
+        {err && <span style={{ fontSize: 12, color: '#dc2626' }}>{err}</span>}
+        <button onClick={save} disabled={busy} style={{
+          alignSelf: 'flex-start', padding: '7px 14px', borderRadius: 8, border: 'none',
+          background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        }}>
+          {busy ? 'Speichern…' : saved ? 'Gespeichert ✓' : 'Speichern'}
+        </button>
+      </div>
+    </>
   );
 }

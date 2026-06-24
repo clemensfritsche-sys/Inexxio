@@ -146,7 +146,15 @@ export type InstanceReference = components['schemas']['InstanceReference'];
 export type DeactivationImpact = components['schemas']['DeactivationImpact'];
 export type OrdersMode = 'phase_out' | 'cancel';
 
-export interface OrderInput {
+// Wiederkehrend ist eine Eigenschaft des Auftrags (kein eigenes Objekt mehr).
+export interface OrderRecurrenceInput {
+  recurrence_active?: boolean | null;
+  recurrence_interval_days?: number | null;
+  recurrence_lead_time_days?: number | null;
+  recurrence_anchor?: string | null;
+}
+
+export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
   desired_delivery_date?: string | null;
@@ -154,7 +162,7 @@ export interface OrderInput {
   subject_instance_id?: number | null;
 }
 
-export type OrderUpdateInput = {
+export type OrderUpdateInput = OrderRecurrenceInput & {
   status?: OrderStatus;
   article_id?: number | null;
   quantity?: number | null;
@@ -199,27 +207,6 @@ export interface SaleUpdateInput {
   step_id?: number | null;
 }
 
-// ─── Wiederkehrende Vorgänge (Compliance/Termine + Abos) ───────────────────────
-
-export type RecurringOrder = components['schemas']['RecurringOrderResponse'];
-
-export interface RecurringOrderInput {
-  name: string;
-  process_id?: number | null;
-  article_id?: number | null;
-  quantity?: number | null;
-  subject_instance_id?: number | null;
-  interval_days?: number | null;
-  lead_time_days?: number;
-  validity_days?: number | null;
-  next_due_at?: string | null;
-  valid_until?: string | null;
-}
-
-export type RecurringOrderUpdateInput = Partial<RecurringOrderInput> & {
-  status?: 'draft' | 'released' | 'inactive';
-  is_active?: boolean;
-};
 
 // ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
 
@@ -376,7 +363,7 @@ export interface ClaimUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim' | 'process' | 'recurring_order';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim' | 'process';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

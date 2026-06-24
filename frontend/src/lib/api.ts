@@ -4,7 +4,6 @@ import type {
   Process, ProcessInput, ProcessUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
-  RecurringOrder, RecurringOrderInput, RecurringOrderUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
@@ -262,33 +261,6 @@ class ApiClient {
   // Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung
   updateOrderSale(objectId: number, data: SaleUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/sale`, data);
-  }
-
-  // ─── Wiederkehrende Vorgänge (Compliance/Termine + Abos) ─────────────────────
-
-  getRecurringOrders(): Promise<RecurringOrder[]> {
-    return this.get('/api/v1/erp/recurring-orders');
-  }
-
-  getRecurringOrder(objectId: number): Promise<RecurringOrder> {
-    return this.get(`/api/v1/erp/recurring-orders/${objectId}`);
-  }
-
-  createRecurringOrder(data: RecurringOrderInput): Promise<RecurringOrder> {
-    return this.post('/api/v1/erp/recurring-orders', data);
-  }
-
-  updateRecurringOrder(objectId: number, data: RecurringOrderUpdateInput): Promise<RecurringOrder> {
-    return this.patch(`/api/v1/erp/recurring-orders/${objectId}`, data);
-  }
-
-  deleteRecurringOrder(objectId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/recurring-orders/${objectId}`);
-  }
-
-  // Fällige wiederkehrende Vorgänge jetzt zu Aufträgen machen (manueller Trigger)
-  runRecurringOrders(): Promise<{ created: number[] }> {
-    return this.post('/api/v1/erp/recurring-orders/run', {});
   }
 
   // Bestand (Instanzen) eines Artikels

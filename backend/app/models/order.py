@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Date, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -43,6 +43,17 @@ class Order(Base, TimestampMixin):
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Wiederkehrend (Compliance/Termine + Abos) – direkt am Auftrag, KEIN eigenes
+    # Objekt: ist ``recurrence_active``, erzeugt der Auftrag beim **Abschluss**
+    # automatisch den nächsten (Entwurf, Termin = ``recurrence_anchor`` + Periode).
+    recurrence_active: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    recurrence_interval_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recurrence_lead_time_days: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False)
+    recurrence_anchor: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # nächster Soll-/Ablauftermin
+    recurring_parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Auftrag, aus dem dieser entstand
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Auftrags (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

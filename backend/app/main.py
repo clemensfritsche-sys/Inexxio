@@ -10,7 +10,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, claims, contact, erp, events, health,
-    instances, orders, processes, recurring, storage_locations,
+    instances, orders, processes, storage_locations,
 )
 
 settings = get_settings()
@@ -105,6 +105,12 @@ _COLUMN_SAFETY_NET = (
     ("instances", "subject_of_order_id", "BIGINT"),
     ("movements", "tracking_number", "VARCHAR(100)"),
     ("movements", "carrier", "VARCHAR(60)"),
+    # Wiederkehrende Aufträge: Konfiguration direkt am Auftrag (kein eigenes Objekt mehr)
+    ("orders", "recurrence_active", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("orders", "recurrence_interval_days", "INTEGER"),
+    ("orders", "recurrence_lead_time_days", "INTEGER DEFAULT 0 NOT NULL"),
+    ("orders", "recurrence_anchor", "DATE"),
+    ("orders", "recurring_parent_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -312,16 +318,70 @@ def _sync_locked_movements_bootstrap() -> None:
         db.close()
 
 
-def _spawn_recurring_bootstrap() -> None:
-    """Fällige wiederkehrende Vorgänge beim Start zu Aufträgen machen (best-effort)."""
-    from .services.recurring import spawn_due
+def _dedupe_processes() -> None:
+    """Race-Duplikate bereinigen: hatte ein Artikel durch eine frühere Mehr-Worker-
+    Startup-Race mehrere «Entstehung»-Prozesse (produce), wird der erste behalten und
+    die übrigen (samt ihren Schritten/Aufträgen) darauf zusammengeführt + deaktiviert."""
     db = SessionLocal()
     try:
-        spawn_due(db)
+        rows = db.execute(text(
+            "SELECT article_id FROM processes WHERE is_standard=false AND source='produce' "
+            "AND is_active=true AND article_id IS NOT NULL "
+            "GROUP BY article_id HAVING count(*) > 1"
+        )).fetchall()
+        for (aid,) in rows:
+            ids = [r[0] for r in db.execute(text(
+                "SELECT id FROM processes WHERE article_id=:a AND is_standard=false "
+                "AND source='produce' AND is_active=true ORDER BY id"), {"a": aid}).fetchall()]
+            keep, extra = ids[0], ids[1:]
+            if not extra:
+                continue
+            db.execute(text("UPDATE article_process_steps SET process_id=:k WHERE process_id = ANY(:e)"),
+                       {"k": keep, "e": extra})
+            db.execute(text("UPDATE orders SET process_id=:k WHERE process_id = ANY(:e)"),
+                       {"k": keep, "e": extra})
+            db.execute(text("UPDATE processes SET is_active=false WHERE id = ANY(:e)"), {"e": extra})
+        db.commit()
     except Exception as e:
         db.rollback()
-        print(f"WARNING: _spawn_recurring_bootstrap() failed: {e}", flush=True)
+        print(f"WARNING: _dedupe_processes() failed: {e}", flush=True)
     finally:
+        db.close()
+
+
+# Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
+# mehreren uvicorn-Workern oder mehreren Cloud-Run-Instanzen (Lock liegt in der DB).
+_STARTUP_LOCK_KEY = 778_899_001
+
+
+def _run_startup_fixups_once() -> None:
+    """Alle Startup-Mutationen (Schema-Nachzug, Registry, Prozess-Backfill, Pflicht-
+    Bewegungen, Wiederkehr) unter einem DB-Advisory-Lock ausführen, damit sie sich
+    bei parallelem Start nicht in die Quere kommen (verhindert doppelte Prozesse/
+    Bewegungen und Lock-Konflikte → keine sporadischen 5xx kurz nach dem Deploy)."""
+    db = SessionLocal()
+    acquired = False
+    try:
+        acquired = bool(db.execute(text("SELECT pg_try_advisory_lock(:k)"),
+                                   {"k": _STARTUP_LOCK_KEY}).scalar())
+        if not acquired:
+            print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
+            return
+        _ensure_columns()
+        _ensure_object_id_sequence()
+        _backfill_object_registry()
+        _dedupe_processes()
+        _backfill_processes()
+        _sync_locked_movements_bootstrap()
+    except Exception as e:
+        print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)
+    finally:
+        if acquired:
+            try:
+                db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": _STARTUP_LOCK_KEY})
+                db.commit()
+            except Exception:
+                pass
         db.close()
 
 
@@ -334,12 +394,8 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
     except Exception as e:
         print(f"WARNING: create_all() failed: {e}", flush=True)
-    _ensure_columns()
-    _ensure_object_id_sequence()
-    _backfill_object_registry()
-    _backfill_processes()              # Mehr-Prozess-Modell: Default-«Entstehung» je Artikel
-    _sync_locked_movements_bootstrap()
-    _spawn_recurring_bootstrap()
+    # Schema-/Daten-Fixups genau einmal (Advisory-Lock, cross-worker/-instanz).
+    _run_startup_fixups_once()
     try:
         _bootstrap_admin()
     except Exception as e:
@@ -377,7 +433,6 @@ app.include_router(instances.router)
 app.include_router(storage_locations.router)
 app.include_router(claims.router)
 app.include_router(events.router)
-app.include_router(recurring.router)
 
 
 @app.get("/")

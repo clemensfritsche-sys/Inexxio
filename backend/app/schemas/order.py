@@ -61,6 +61,11 @@ class OrderCreate(BaseModel):
     desired_delivery_date: Optional[date] = None
     process_id: Optional[int] = None
     subject_instance_id: Optional[int] = None
+    # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
+    recurrence_active: Optional[bool] = None
+    recurrence_interval_days: Optional[int] = None
+    recurrence_lead_time_days: Optional[int] = None
+    recurrence_anchor: Optional[date] = None
 
     @field_validator("quantity")
     @classmethod
@@ -84,6 +89,10 @@ class OrderUpdate(BaseModel):
     desired_delivery_date: Optional[date] = None
     process_id: Optional[int] = None
     subject_instance_id: Optional[int] = None
+    recurrence_active: Optional[bool] = None
+    recurrence_interval_days: Optional[int] = None
+    recurrence_lead_time_days: Optional[int] = None
+    recurrence_anchor: Optional[date] = None
     is_active: Optional[bool] = None
     expected_updated_at: Optional[datetime] = None   # Optimistic Locking (optional)
 
@@ -135,6 +144,8 @@ class OrderSummary(BaseModel):
     purchase_status: Optional[str] = None   # für das Status-Badge im Feed
     process_name: Optional[str] = None      # welcher Prozess (Entstehung/Verkauf/Wartung …)
     process_source: Optional[str] = None    # produce | stock | instance
+    recurrence_active: bool = False         # wiederkehrender Auftrag (Badge)
+    recurrence_due: bool = False            # fällig (Termin − Vorlaufzeit erreicht)
     replaced_by_id: Optional[int] = None
 
 
@@ -158,6 +169,13 @@ class OrderResponse(BaseModel):
     process_name: Optional[str] = None
     process_source: Optional[str] = None       # produce | stock | instance
     subject_instance_id: Optional[int] = None
+    # Wiederkehrend (am Auftrag)
+    recurrence_active: bool = False
+    recurrence_interval_days: Optional[int] = None
+    recurrence_lead_time_days: int = 0
+    recurrence_anchor: Optional[date] = None
+    recurring_parent_id: Optional[int] = None
+    recurrence_due: bool = False
 
     # Denormalisierter Artikel + eingebetteter Prozess (Beschaffung/Verkauf)
     article_name: Optional[str] = None

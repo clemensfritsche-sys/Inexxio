@@ -256,6 +256,34 @@ def _finalize_stock_subjects(db: Session, order: Order) -> None:
             inst.qc_status = new_status
 
 
+def _spawn_recurrence(db: Session, order: Order) -> None:
+    """Wiederkehrenden Auftrag fortschreiben: ist der abgeschlossene Auftrag als
+    wiederkehrend markiert, wird der **nächste** (Entwurf) erzeugt – Termin =
+    bisheriger Anker + Periode. Die Wiederkehr wandert auf den neuen Auftrag (Kette).
+    Kein eigenes Objekt, kein Cron – ein abgeschlossener Auftrag zieht den nächsten nach."""
+    if not getattr(order, "recurrence_active", False) or not order.recurrence_interval_days:
+        return
+    from datetime import timedelta
+
+    from .objects import next_object_id
+    base = order.recurrence_anchor or (order.completed_at.date() if order.completed_at else utcnow().date())
+    new_anchor = base + timedelta(days=order.recurrence_interval_days)
+    child = Order(
+        object_id=next_object_id(db, "order"), status="draft",
+        article_id=order.article_id, quantity=order.quantity,
+        process_id=order.process_id, subject_instance_id=order.subject_instance_id,
+        desired_delivery_date=new_anchor,
+        recurrence_active=True, recurrence_interval_days=order.recurrence_interval_days,
+        recurrence_lead_time_days=order.recurrence_lead_time_days,
+        recurrence_anchor=new_anchor, recurring_parent_id=order.object_id,
+    )
+    db.add(child)
+    db.flush()
+    order.recurrence_active = False   # Staffelstab an den Nachfolger
+    emit(db, "order.recurrence_spawned", object_type="order", object_id=child.object_id,
+         payload={"parent": order.object_id})
+
+
 def recompute_completion(db: Session, order: Order) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
     if order.status != "completed" and all_steps_done(db, order):
@@ -269,6 +297,7 @@ def recompute_completion(db: Session, order: Order) -> None:
             Instance.reserved_for_order_id == order.id, Instance.is_active == True
         ).all():
             inst.reserved_for_order_id = None
+        _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
 
 

@@ -1,6 +1,8 @@
 """Hilfen rund um den Auftrag: Response-Aufbau (mit eingebettetem Prozess) und
 rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 
+from datetime import date, timedelta
+
 from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
@@ -25,6 +27,16 @@ from .subject import order_instances
 _STAFF_ROLES = ("admin", "employee")
 # alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
 _STATUS_ALIASES = {"approved": "ordered", "confirmed": "ordered"}
+
+
+def recurrence_due(order: Order) -> bool:
+    """Wiederkehrender Auftrag (Entwurf) ist «fällig», wenn Termin − Vorlaufzeit
+    erreicht ist (oder kein Termin gesetzt). Für das Feed-Badge."""
+    if not getattr(order, "recurrence_active", False) or order.status != "draft":
+        return False
+    if order.recurrence_anchor is None:
+        return True
+    return (order.recurrence_anchor - timedelta(days=order.recurrence_lead_time_days or 0)) <= date.today()
 
 
 def _supplier_name(u: UserProfile | None) -> str | None:
@@ -164,6 +176,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         resp.process_source = proc.source
         resp.process_object_id = proc.object_id
     resp.subject_instance_id = order.subject_instance_id
+    resp.recurrence_due = recurrence_due(order)
 
     # Subjekt-Instanzen: worauf der Auftrag wirkt (produce/stock/instance einheitlich).
     instances = order_instances(db, order)
@@ -266,6 +279,7 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
         if p:
             s.process_name = p.name
             s.process_source = p.source
+        s.recurrence_due = recurrence_due(o)
         out.append(s)
     return out
 

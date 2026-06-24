@@ -732,8 +732,7 @@ def test_object_registry_wired():
     # Alle eigenständigen Objekttypen sind in der Typ-Map (für Backfill/Resolve).
     # ``process`` (nur Standardprozesse) + ``recurring_order`` sind eigene Objekte.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "claim",
-        "process", "recurring_order"}
+        "user", "article", "order", "instance", "storage_location", "claim", "process"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -880,24 +879,35 @@ def test_sale_fact_status_pure_mapping():
     assert _fact_status("sale", SimpleNamespace(status="cancelled")) == "failed"
 
 
-def test_recurring_due_now_compliance_and_interval():
-    """Wiederkehr-Logik: Compliance startet lead_time früher; Abo läuft im Intervall."""
-    from datetime import date
-    from app.models import RecurringOrder
-    from app.services.recurring import due_now
+def test_recurrence_lives_on_order_not_separate_object():
+    """Wiederkehr ist eine Eigenschaft des Auftrags – kein eigenes Objekt mehr."""
+    from app.models import Order
+    import app.models as models
 
-    today = date(2026, 6, 23)
-    # Compliance: Ablauf 1.7.2026, Vorlauf 60 Tage → seit 2.5. fällig (vor Ablauf erledigen)
-    soon = RecurringOrder(name="ISO 9001", valid_until=date(2026, 7, 1),
-                          lead_time_days=60, validity_days=365)
-    assert due_now(soon, today) is True
-    later = RecurringOrder(name="ISO", valid_until=date(2027, 1, 1), lead_time_days=30)
-    assert due_now(later, today) is False
-    # Abo: nächster Termin erreicht → fällig
-    abo = RecurringOrder(name="Abo", next_due_at=date(2026, 6, 1), interval_days=30)
-    assert due_now(abo, today) is True
-    abo2 = RecurringOrder(name="Abo", next_due_at=date(2026, 9, 1), interval_days=30)
-    assert due_now(abo2, today) is False
+    # Kein separates RecurringOrder-Objekt mehr
+    assert not hasattr(models, "RecurringOrder")
+    # Auftrag trägt die Wiederkehr-Konfiguration
+    for col in ("recurrence_active", "recurrence_interval_days", "recurrence_lead_time_days",
+                "recurrence_anchor", "recurring_parent_id"):
+        assert col in Order.__table__.columns.keys()
+
+
+def test_recurrence_due_pure():
+    """``recurrence_due``: Entwurf + Termin − Vorlaufzeit erreicht → fällig (rein)."""
+    from datetime import date, timedelta
+    from app.models import Order
+    from app.services.orders import recurrence_due
+
+    today = date.today()
+    due = Order(status="draft", recurrence_active=True, recurrence_lead_time_days=30,
+                recurrence_anchor=today + timedelta(days=10))   # in 10 T fällig, Vorlauf 30 → jetzt
+    assert recurrence_due(due) is True
+    not_yet = Order(status="draft", recurrence_active=True, recurrence_lead_time_days=5,
+                    recurrence_anchor=today + timedelta(days=60))
+    assert recurrence_due(not_yet) is False
+    # Nicht wiederkehrend / nicht Entwurf → nie fällig
+    assert recurrence_due(Order(status="draft", recurrence_active=False)) is False
+    assert recurrence_due(Order(status="completed", recurrence_active=True)) is False
 
 
 def test_movement_has_tracking_for_outbound():
