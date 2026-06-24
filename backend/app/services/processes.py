@@ -1,19 +1,24 @@
-"""Prozesse: benannte Schrittlisten – Artikel-eigene **und** globale Standardprozesse.
+"""Prozesse: eigenständige Objekte (Nummer + Name + Lebenszyklus) und ihre
+Zuordnung zu Artikeln über die **Prozessstückliste** (``article_process_links``).
 
 Ein Auftrag wählt EINEN Prozess; dessen ``source`` (konzeptuell der «Start-Knoten»)
-bestimmt das Verhalten und was bei der Anlage gefragt wird:
+bestimmt das **Subjekt** und was bei der Anlage gefragt wird:
 
-    produce   → neue Instanzen entstehen (Produktion)        → «Menge?»
+    produce   → neues Subjekt entsteht (Produktion)         → «Menge?»
     stock     → FIFO-Zugriff auf Bestand (Verkauf, Entnahme) → «Menge?»
     instance  → wirkt auf eine konkrete Instanz (Wartung)    → «welche Instanz?»
 
-Standardprozesse (``is_standard=True``, ohne Artikel) gelten **für jeden Artikel
-automatisch** (geerbt) – ohne Duplikate, einmal zentral gepflegt.
+Die ``source`` ist **keine** Richtungswahl – die Lager-Richtung wird aus den
+Schritten abgeleitet (``stock_effect``).
+
+Ein Prozess kann bei **mehreren** Artikeln in der Stückliste liegen (n:m). Standard-
+Prozesse (``is_standard=True``) gelten für jeden Artikel automatisch (geerbt, ohne
+expliziten Link).
 """
 
 from sqlalchemy.orm import Session
 
-from ..models import Article, Process
+from ..models import ArticleProcessLink, ArticleProcessStep, Process
 
 SOURCES = ("produce", "stock", "instance")
 SOURCE_LABELS = {
@@ -21,6 +26,9 @@ SOURCE_LABELS = {
     "stock": "Bestand – FIFO",
     "instance": "Konkrete Instanz",
 }
+
+# Abgeleitete Lager-Richtung (NICHT gewählt – Folge des Prozesses).
+STOCK_EFFECTS = ("increase", "decrease", "neutral")
 
 
 def get_process(db: Session, process_id: int | None) -> Process | None:
@@ -41,31 +49,64 @@ def get_process_by_object_id(db: Session, object_id: int) -> Process | None:
     )
 
 
-def default_process(db: Session, article_id: int | None) -> Process | None:
-    """Default-«Entstehung» eines Artikels: erster aktiver produce-Prozess.
+# ─── Prozessstückliste (Artikel ↔ Prozess) ──────────────────────────────────────
 
-    Dient als Rückwärtskompatibilität für Aufträge ohne expliziten Prozess
-    (Produktion) – diesen Prozess legt der Backfill je Artikel an."""
+def linked_process_ids(db: Session, article_id: int) -> list[int]:
+    """Prozess-IDs der Stückliste eines Artikels in Reihenfolge (aktive Links)."""
+    rows = (
+        db.query(ArticleProcessLink.process_id, ArticleProcessLink.position)
+        .filter(ArticleProcessLink.article_id == article_id, ArticleProcessLink.is_active == True)
+        .order_by(ArticleProcessLink.position, ArticleProcessLink.id)
+        .all()
+    )
+    return [pid for pid, _ in rows]
+
+
+def own_processes(db: Session, article_id: int) -> list[Process]:
+    """Die Prozesse der Stückliste eines Artikels (ohne geerbte Standards),
+    in Stücklisten-Reihenfolge."""
+    ids = linked_process_ids(db, article_id)
+    if not ids:
+        return []
+    procs = {
+        p.id: p for p in db.query(Process).filter(Process.id.in_(ids), Process.is_active == True).all()
+    }
+    return [procs[i] for i in ids if i in procs]
+
+
+def standard_processes(db: Session, released_only: bool = False) -> list[Process]:
+    q = db.query(Process).filter(Process.is_standard == True, Process.is_active == True)
+    if released_only:
+        q = q.filter(Process.status == "released")
+    return q.order_by(Process.position, Process.id).all()
+
+
+def available_processes(db: Session, article) -> list[Process]:
+    """Wählbare Prozesse eines Artikels (für die Auftrags-Anlage): die Prozesse der
+    **Stückliste** + alle **freigegebenen Standardprozesse** (geerbt). Inaktive
+    Prozesse fallen heraus."""
+    own = own_processes(db, article.id)
+    own_ids = {p.id for p in own}
+    standards = [s for s in standard_processes(db, released_only=True) if s.id not in own_ids]
+    return own + standards
+
+
+def default_process(db: Session, article_id: int | None) -> Process | None:
+    """Default-«Entstehung» eines Artikels: erster ``produce``-Prozess der Stückliste.
+    Rückwärtskompatibilität für Aufträge ohne expliziten Prozess (Produktion)."""
     if not article_id:
         return None
-    return (
-        db.query(Process)
-        .filter(
-            Process.article_id == article_id,
-            Process.is_active == True,
-            Process.source == "produce",
-        )
-        .order_by(Process.position, Process.id)
-        .first()
-    )
+    for p in own_processes(db, article_id):
+        if p.source == "produce":
+            return p
+    return None
 
 
 def process_for_order(db: Session, order) -> Process | None:
     """Der Prozess eines Auftrags: explizit gewählt, sonst Default-Entstehung.
 
     Ist ``process_id`` gesetzt, wird der Prozess **auch dann** geliefert, wenn er
-    inzwischen deaktiviert wurde – ein laufender Auftrag behält seinen Prozess
-    (kein stilles Zurückfallen auf einen anderen Prozess/Schrittfolge)."""
+    inzwischen deaktiviert wurde – ein laufender Auftrag behält seinen Prozess."""
     pid = getattr(order, "process_id", None)
     if pid:
         proc = db.query(Process).filter(Process.id == pid).first()
@@ -74,27 +115,106 @@ def process_for_order(db: Session, order) -> Process | None:
     return default_process(db, order.article_id)
 
 
-def own_processes(db: Session, article_id: int) -> list[Process]:
-    return (
-        db.query(Process)
-        .filter(Process.article_id == article_id, Process.is_active == True)
-        .order_by(Process.position, Process.id)
+def is_available_for(db: Session, article_id: int | None, process: Process) -> bool:
+    """Darf dieser Prozess für diesen Artikel verwendet werden? – Standard (geerbt)
+    oder in der Stückliste des Artikels verlinkt."""
+    if process.is_standard:
+        return True
+    if not article_id:
+        return False
+    return process.id in set(linked_process_ids(db, article_id))
+
+
+def linked_article_ids(db: Session, process_id: int) -> list[int]:
+    rows = (
+        db.query(ArticleProcessLink.article_id)
+        .filter(ArticleProcessLink.process_id == process_id, ArticleProcessLink.is_active == True)
         .all()
     )
+    return [aid for (aid,) in rows]
 
 
-def standard_processes(db: Session, released_only: bool = False) -> list[Process]:
-    q = db.query(Process).filter(
-        Process.is_standard == True, Process.article_id.is_(None), Process.is_active == True
+def linked_article_count(db: Session, process_id: int) -> int:
+    return (
+        db.query(ArticleProcessLink.id)
+        .filter(ArticleProcessLink.process_id == process_id, ArticleProcessLink.is_active == True)
+        .count()
     )
-    if released_only:
-        q = q.filter(Process.status == "released")
-    return q.order_by(Process.position, Process.id).all()
 
 
-def available_processes(db: Session, article: Article) -> list[Process]:
-    """Wählbare Prozesse eines Artikels (für die Auftrags-Anlage): die **eigenen**
-    Prozesse + alle **freigegebenen Standardprozesse** (geerbt)."""
-    rows = own_processes(db, article.id) + standard_processes(db, released_only=True)
-    rows.sort(key=lambda p: (0 if not p.is_standard else 1, p.position, p.id))
-    return rows
+def link_process(db: Session, article_id: int, process_id: int, position: int | None = None) -> ArticleProcessLink:
+    """Prozess der Stückliste eines Artikels hinzufügen (idempotent: reaktiviert
+    einen vorhandenen, inaktiven Link). Schreibt nur (flush)."""
+    link = (
+        db.query(ArticleProcessLink)
+        .filter(ArticleProcessLink.article_id == article_id,
+                ArticleProcessLink.process_id == process_id)
+        .first()
+    )
+    if position is None:
+        from sqlalchemy import func
+        max_pos = (
+            db.query(func.max(ArticleProcessLink.position))
+            .filter(ArticleProcessLink.article_id == article_id, ArticleProcessLink.is_active == True)
+            .scalar()
+        )
+        position = (max_pos or 0) + 1
+    if link:
+        link.is_active = True
+        link.position = position
+    else:
+        link = ArticleProcessLink(article_id=article_id, process_id=process_id, position=position)
+        db.add(link)
+    db.flush()
+    return link
+
+
+def unlink_process(db: Session, article_id: int, process_id: int) -> bool:
+    """Prozess aus der Stückliste eines Artikels entfernen (nur den Link – das
+    Prozess-Objekt bleibt für andere Artikel bestehen)."""
+    link = (
+        db.query(ArticleProcessLink)
+        .filter(ArticleProcessLink.article_id == article_id,
+                ArticleProcessLink.process_id == process_id,
+                ArticleProcessLink.is_active == True)
+        .first()
+    )
+    if not link:
+        return False
+    link.is_active = False
+    db.flush()
+    return True
+
+
+# ─── Abgeleitete Lager-Richtung (Frage 2) ───────────────────────────────────────
+
+def _has_step_type(db: Session, process_id: int, step_type: str) -> bool:
+    return (
+        db.query(ArticleProcessStep.id)
+        .filter(ArticleProcessStep.process_id == process_id,
+                ArticleProcessStep.is_active == True,
+                ArticleProcessStep.step_type == step_type)
+        .first()
+        is not None
+    )
+
+
+def stock_effect(db: Session, process: Process | None) -> str:
+    """Wirkung des Prozesses auf den Lagerbestand des Subjekt-Artikels – **abgeleitet**
+    aus Quelle + Schritten, nicht gewählt:
+
+        produce   → increase  (neues Subjekt entsteht)
+        stock     → decrease  (Bestand wird entnommen – Verkauf/Entnahme)
+        instance  → neutral   (eine bestehende Instanz wird bearbeitet) …
+                    … decrease, wenn ein Verkaufs-Schritt die Instanz abgibt
+    """
+    if not process:
+        return "neutral"
+    if process.source == "produce":
+        return "increase"
+    if process.source == "stock":
+        return "decrease"
+    # instance
+    if _has_step_type(db, process.id, "sale"):
+        return "decrease"
+    return "neutral"

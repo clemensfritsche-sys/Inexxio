@@ -26,12 +26,18 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
     """(weight_map, consume_map) über alle aktiven Artikel/Ressourcen-Schritte.
 
     consume_map[article_id] = [(component_article_id, menge_pro_stück), …]."""
+    from . import processes as processes_svc
     weights: dict[int, Decimal] = {}
-    for aid, w in db.query(Article.id, Article.weight_kg).filter(Article.is_active == True).all():
+    kinds: dict[int, str] = {}
+    for aid, w, k in db.query(Article.id, Article.weight_kg, Article.kind).filter(Article.is_active == True).all():
         weights[aid] = w if w is not None else Decimal(0)
+        kinds[aid] = k
     consume: dict[int, list[tuple[int, Decimal]]] = {}
     # Nur die **Produktions**-Rezeptur (Prozess-Quelle ``produce``) bestimmt das
     # Gewicht – Verbrauch in Wartungs-/anderen Prozessen zählt NICHT zur Stückliste.
+    # Der/die Produkt-Artikel sind die Artikel, die den Prozess in ihrer Stückliste
+    # führen (n:m). Verbrauch (consume) leitet sich aus der Artikel-Art ab –
+    # Betriebsmittel (``equipment``) tragen nicht zum Gewicht bei.
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
@@ -39,15 +45,20 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
                 Process.source == "produce", Process.is_active == True)
         .all()
     )
+    parents_cache: dict[int, list[int]] = {}
     for s in steps:
+        if s.process_id not in parents_cache:
+            parents_cache[s.process_id] = processes_svc.linked_article_ids(db, s.process_id)
+        parents = parents_cache[s.process_id]
+        if not parents:
+            continue
         for line in (s.resource_lines or []):
-            if line.get("mode", "consume") != "consume":
-                continue
             comp = line.get("article_id")
-            if comp is None:
+            if comp is None or kinds.get(comp) == "equipment":
                 continue
             qty = Decimal(str(line.get("quantity", 1)))
-            consume.setdefault(s.article_id, []).append((comp, qty))
+            for parent in parents:
+                consume.setdefault(parent, []).append((comp, qty))
     return weights, consume
 
 

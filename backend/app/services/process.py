@@ -238,22 +238,40 @@ def release_instances(db: Session, order: Order) -> None:
             inst.released_at = now
 
 
-def _finalize_stock_subjects(db: Session, order: Order) -> None:
-    """Subjekt-Instanzen eines Bestands-Auftrags (Quelle ``stock``) verlassen bei
-    Abschluss den Bestand: Verkauf → ``sold``, sonstige Entnahme/Abgang → ``consumed``.
-    Beides ≠ ``passed`` → fallen aus FIFO/Verfügbarkeit heraus, bleiben rückverfolgbar."""
-    subjects = (
-        db.query(Instance)
-        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
-        .all()
-    )
-    if not subjects:
-        return
+def _finalize_subjects(db: Session, order: Order) -> None:
+    """Subjekt-Disposition bei Abschluss – **abgeleitet** aus Prozess-Quelle + Schritten
+    (Frage 2: keine manuelle Richtungswahl):
+
+    - ``stock``    → Subjekte verlassen den Bestand: Verkauf → ``sold``, sonst
+      Entnahme/Abgang → ``consumed`` (beides ≠ ``passed`` → raus aus FIFO, bleibt
+      rückverfolgbar). = Lager-Richtung *mindernd*.
+    - ``instance`` → nur bei einem **Verkaufs-Schritt** wird die Instanz abgegeben
+      (``sold``); sonst bleibt sie (Wartung/Kontrolle) = *neutral*.
+    - ``produce``  → über ``release_instances`` behandelt (neue Instanzen → ``passed``).
+    """
+    from .processes import process_for_order
+    proc = process_for_order(db, order)
+    src = proc.source if proc else "produce"
     has_sale = any(d.step_type == "sale" for d in order_step_defs(db, order))
-    new_status = "sold" if has_sale else "consumed"
-    for inst in subjects:
-        if inst.qc_status not in ("scrapped", "failed"):
-            inst.qc_status = new_status
+
+    if src == "stock":
+        subjects = (
+            db.query(Instance)
+            .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+            .all()
+        )
+        new_status = "sold" if has_sale else "consumed"
+        for inst in subjects:
+            if inst.qc_status not in ("scrapped", "failed"):
+                inst.qc_status = new_status
+    elif src == "instance" and has_sale and order.subject_instance_id:
+        inst = (
+            db.query(Instance)
+            .filter(Instance.object_id == order.subject_instance_id, Instance.is_active == True)
+            .first()
+        )
+        if inst and inst.qc_status not in ("scrapped", "failed", "consumed"):
+            inst.qc_status = "sold"
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:
@@ -291,7 +309,7 @@ def recompute_completion(db: Session, order: Order) -> None:
         if order.completed_at is None:
             order.completed_at = utcnow()
         release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
-        _finalize_stock_subjects(db, order)  # Bestands-Subjekte verlassen das Lager (sold/consumed)
+        _finalize_subjects(db, order)        # Subjekt-Disposition (abgeleitet: sold/consumed/neutral)
         # Reservierungen dieses Auftrags auflösen (Verbrauch ist erfolgt / Auftrag fertig).
         for inst in db.query(Instance).filter(
             Instance.reserved_for_order_id == order.id, Instance.is_active == True

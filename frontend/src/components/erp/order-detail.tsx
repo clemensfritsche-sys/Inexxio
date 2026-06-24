@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep, Process } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState, STEP_META } from '@/lib/process';
+import { toStepperState, STEP_META, sourceLabel, stockEffectConfig } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
@@ -291,8 +291,21 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 </div>
               )}
               {form.article_id && procs.length > 0 && (
-                <SearchSelect label="Prozess" value={form.process_id} onChange={(v) => set('process_id', v)} required
-                  options={procs.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_standard ? ' · Standard' : ''} (${p.source === 'produce' ? 'Neu' : p.source === 'stock' ? 'Bestand' : 'Instanz'})` }))} />
+                <div>
+                  <SearchSelect label="Prozess" value={form.process_id} onChange={(v) => set('process_id', v)} required
+                    options={procs.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_standard ? ' · Standard' : ''} (${sourceLabel(p.source)})` }))} />
+                  {selProc && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>Wirkung (abgeleitet):</span>
+                      <StatusBadge cfg={stockEffectConfig(selProc.stock_effect)} />
+                      {selProc.status !== 'released' && (
+                        <span style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: 6 }}>
+                          Prozess noch nicht freigegeben – vor dem Start freigeben
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 {needsInstance ? (
@@ -329,6 +342,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               </div>
               <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
+              {record?.process_name && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, alignItems: 'center' }}>
+                  <span style={{ color: '#94a3b8', flexShrink: 0 }}>Prozess</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {record.process_object_id != null && <ObjId value={record.process_object_id} />}
+                    <span style={{ fontWeight: 600, color: '#0F172A' }}>{record.process_name}</span>
+                    <StatusBadge cfg={stockEffectConfig(record.process_stock_effect)} />
+                  </span>
+                </div>
+              )}
             </>
           )}
         </div>

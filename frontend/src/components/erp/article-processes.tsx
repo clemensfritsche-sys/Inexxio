@@ -1,104 +1,140 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, X, Trash2, Layers, Pencil, Check } from 'lucide-react';
+import { Plus, X, Trash2, Layers, Pencil, Check, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Process, ProcessSource, UserProfile } from '@/types';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { Segmented, TextField, ErrorText } from '@/components/erp/fields';
+import { Segmented, TextField, ErrorText, SearchSelect, StatusBadge, StatusFlow } from '@/components/erp/fields';
+import { PROCESS_SOURCE_META, sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
+import { lifecycleActions, type StatusAction } from '@/lib/status-flow';
+import { ObjId } from '@/components/erp/obj-id';
+import { fmtObjId } from '@/components/erp/user-detail';
 
-const SOURCE_LABEL: Record<ProcessSource, string> = {
-  produce: 'Neu', stock: 'Bestand', instance: 'Instanz',
-};
-const SOURCE_HINT: Record<ProcessSource, string> = {
-  produce: 'Quelle «Neu»: der Prozess erzeugt neue Instanzen (Produktion).',
-  stock: 'Quelle «Bestand»: der Prozess entnimmt vorhandene Instanzen (FIFO) – z. B. Verkauf.',
-  instance: 'Quelle «Instanz»: der Prozess wirkt auf eine konkrete Instanz – z. B. Wartung.',
-};
+const SOURCE_OPTS = [
+  { value: 'produce', label: 'Neu' }, { value: 'stock', label: 'Bestand' }, { value: 'instance', label: 'Instanz' },
+];
 
-/** Verwaltet die **mehreren Prozesse** eines Artikels (Entstehung, Verkauf, Wartung …)
- *  + zeigt die geerbten Standardprozesse. Der gewählte Prozess wird mit dem
- *  bestehenden Schritt-Editor (ProcessSteps) bearbeitet. */
-export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false, onStepsCount }: {
+// Lebenszyklus-Aktionen eines (eigenen) Prozesses: Freigeben erst mit ≥1 Schritt.
+function processActions(p: Process): StatusAction[] {
+  if (p.status === 'draft')
+    return [{ label: 'Freigeben', target: 'released', tone: 'primary',
+      disabled: (p.step_count ?? 0) === 0, hint: (p.step_count ?? 0) === 0 ? 'Erst einen Schritt hinzufügen' : undefined }];
+  return lifecycleActions(p.status, { canReactivate: true, canReplace: true });
+}
+
+/** Prozessstückliste eines Artikels: verlinkte Prozesse (eigene Objekte mit Nummer +
+ *  Lebenszyklus) + geerbte Standardprozesse. Hinzufügen/Entfernen wirkt nur auf
+ *  **diesen** Artikel (Link); Freigeben/Deaktivieren/Ersetzen wirkt am Prozess-Objekt
+ *  (und damit auf alle Artikel, die ihn führen). */
+export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false }: {
   articleObjectId: number | null;
   suppliers: UserProfile[];
   readOnly?: boolean;
-  onStepsCount?: (n: number) => void;
 }) {
   const [procs, setProcs] = useState<Process[]>([]);
   const [selId, setSelId] = useState<number | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<'new' | 'link' | null>(null);
   const [name, setName] = useState('');
   const [source, setSource] = useState<ProcessSource>('produce');
+  const [linkPick, setLinkPick] = useState('');
+  const [catalog, setCatalog] = useState<Process[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [renameId, setRenameId] = useState<number | null>(null);
   const [renameVal, setRenameVal] = useState('');
 
-  const load = useCallback(() => {
+  const load = useCallback(async (selectId?: number) => {
     if (articleObjectId == null) return;
-    api.getArticleProcesses(articleObjectId).then((ps) => {
+    try {
+      const ps = await api.getArticleProcesses(articleObjectId);
       setProcs(ps);
-      setSelId((cur) => (cur && ps.some((p) => p.id === cur) ? cur : ps[0]?.id ?? null));
-    }).catch(() => {});
+      setSelId((cur) => {
+        const want = selectId ?? cur;
+        return want && ps.some((p) => p.id === want) ? want : ps[0]?.id ?? null;
+      });
+    } catch { /* ignore */ }
   }, [articleObjectId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
-  // Gesamt-Schrittzahl der EIGENEN Prozesse (für die Artikel-Freigabe) melden.
+  // Katalog (alle verlinkbaren Prozesse) erst bei Bedarf laden.
   useEffect(() => {
-    const own = procs.filter((p) => !p.is_standard);
-    onStepsCount?.(own.reduce((s, p) => s + (p.step_count ?? 0), 0));
-  }, [procs, onStepsCount]);
+    if (adding !== 'link') return;
+    api.getProcesses().then(setCatalog).catch(() => {});
+  }, [adding]);
 
   if (articleObjectId == null) {
-    return (
-      <div style={notice}><span>Artikel zuerst speichern – danach lassen sich Prozesse hinterlegen.</span></div>
-    );
+    return <div style={notice}><span>Artikel zuerst speichern – danach lässt sich die Prozessstückliste pflegen.</span></div>;
   }
   const aid = articleObjectId;
   const selected = procs.find((p) => p.id === selId) ?? null;
   const ownSelected = !!selected && !selected.is_standard;
+  const linkedIds = new Set(procs.map((p) => p.id));
+  const linkable = catalog.filter((p) => !p.is_standard && !linkedIds.has(p.id));
 
   async function addProcess() {
     if (!name.trim()) { setError('Bitte einen Namen angeben'); return; }
     setSaving(true); setError(null);
     try {
       const p = await api.createArticleProcess(aid, { name: name.trim(), source });
-      setProcs((prev) => [...prev, p]);
-      setSelId(p.id);
-      setAdding(false); setName(''); setSource('produce');
+      await load(p.id);
+      setAdding(null); setName(''); setSource('produce');
     } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Anlegen'); }
     finally { setSaving(false); }
   }
 
-  async function rename(id: number) {
+  async function linkProcess() {
+    if (!linkPick) { setError('Bitte einen Prozess wählen'); return; }
+    setSaving(true); setError(null);
     try {
-      const p = await api.updateArticleProcess(aid, id, { name: renameVal.trim() });
-      setProcs((prev) => prev.map((x) => (x.id === id ? p : x)));
-      setRenameId(null);
-    } catch { /* ignore */ }
+      const p = await api.addProcessLink(aid, Number(linkPick));
+      await load(p.id);
+      setAdding(null); setLinkPick('');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht verlinkt werden'); }
+    finally { setSaving(false); }
   }
 
-  async function remove(id: number) {
+  async function rename(p: Process) {
+    if (!p.object_id) return;
     try {
-      await api.deleteArticleProcess(aid, id);
-      setProcs((prev) => prev.filter((p) => p.id !== id));
-      if (selId === id) setSelId(null);
+      await api.updateProcess(p.object_id, { name: renameVal.trim() });
+      setRenameId(null);
+      await load(p.id);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Umbenennen fehlgeschlagen'); }
+  }
+
+  async function unlink(p: Process) {
+    setError(null);
+    try {
+      await api.removeProcessLink(aid, p.id);
+      await load();
     } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht entfernt werden'); }
   }
 
-  // ProcessSteps meldet die Schrittzahl des GEWÄHLTEN Prozesses → lokal aktualisieren.
-  function onSelectedStepsCount(n: number) {
-    setProcs((prev) => prev.map((p) => (p.id === selId ? { ...p, step_count: n } : p)));
+  async function onProcessAction(target: string) {
+    if (!selected?.object_id) return;
+    setStatusBusy(true); setError(null);
+    try {
+      if (target === 'replace') {
+        const np = await api.replaceProcess(selected.object_id);
+        await load(np.id);
+      } else {
+        await api.updateProcess(selected.object_id, { status: target as 'draft' | 'released' | 'inactive' });
+        await load(selected.id);
+      }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen'); }
+    finally { setStatusBusy(false); }
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Prozess-Auswahl */}
+      {/* Stückliste (verlinkte Prozesse + geerbte Standards) */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {procs.map((p) => {
           const active = p.id === selId;
+          const scfg = processStatusConfig(p.status);
           return (
             <button key={p.id} onClick={() => setSelId(p.id)} style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10,
@@ -108,75 +144,120 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false,
               <Layers size={14} style={{ color: active ? '#2563eb' : '#94a3b8' }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: active ? '#1d4ed8' : '#0f172a' }}>{p.name}</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 999 }}>
-                {SOURCE_LABEL[p.source as ProcessSource] ?? p.source}
+                {sourceLabel(p.source)}
               </span>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: scfg.color }} title={scfg.label} />
               {p.is_standard && <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '1px 6px', borderRadius: 999 }}>Standard</span>}
             </button>
           );
         })}
         {!readOnly && !adding && (
-          <button onClick={() => setAdding(true)} style={addChip}><Plus size={14} /> Prozess</button>
+          <>
+            <button onClick={() => { setAdding('new'); setError(null); }} style={addChip}><Plus size={14} /> Neuer Prozess</button>
+            <button onClick={() => { setAdding('link'); setError(null); }} style={addChip}><Link2 size={14} /> Verlinken</button>
+          </>
         )}
       </div>
 
       {/* Neuer Prozess */}
-      {adding && (
+      {adding === 'new' && (
         <div style={card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Neuer Prozess</span>
-            <button onClick={() => { setAdding(false); setError(null); }} style={ghostIcon}><X size={16} /></button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Neuer Prozess (Entwurf)</span>
+            <button onClick={() => { setAdding(null); setError(null); }} style={ghostIcon}><X size={16} /></button>
           </div>
           <TextField label="Name (frei wählbar)" value={name} onChange={setName} required placeholder="z. B. Verkauf, Jahreswartung" />
           <div>
-            <Segmented label="Quelle (bestimmt das Verhalten – nicht der Name)" value={source}
-              onChange={(v) => setSource(v as ProcessSource)} options={[
-                { value: 'produce', label: 'Neu' }, { value: 'stock', label: 'Bestand' }, { value: 'instance', label: 'Instanz' },
-              ]} />
-            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>{SOURCE_HINT[source]}</div>
+            <Segmented label="Quelle = Subjekt (Richtung wird abgeleitet, nicht gewählt)" value={source}
+              onChange={(v) => setSource(v as ProcessSource)} options={SOURCE_OPTS} />
+            <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>{PROCESS_SOURCE_META[source].hint}</div>
           </div>
           {error && <ErrorText msg={error} />}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => { setAdding(false); setError(null); }} style={secondary}>Abbrechen</button>
-            <button onClick={addProcess} disabled={saving} style={primary}>{saving ? 'Speichern…' : 'Anlegen'}</button>
+            <button onClick={() => { setAdding(null); setError(null); }} style={secondary}>Abbrechen</button>
+            <button onClick={addProcess} disabled={saving} style={primary}>{saving ? 'Speichern…' : 'Anlegen & verlinken'}</button>
           </div>
         </div>
       )}
 
-      {/* Kopf des gewählten Prozesses */}
-      {selected && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          {renameId === selected.id ? (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
-              <input value={renameVal} onChange={(e) => setRenameVal(e.target.value)}
-                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500"
-                style={{ borderColor: '#e2e8f0', flex: 1 }} />
-              <button onClick={() => rename(selected.id)} style={primary}><Check size={14} /></button>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: '#64748b' }}>
-              {selected.is_standard
-                ? 'Geerbter Standardprozess – zentral verwaltet, hier nur lesbar.'
-                : SOURCE_HINT[selected.source as ProcessSource]}
-            </div>
-          )}
-          {!readOnly && ownSelected && renameId !== selected.id && (
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <button onClick={() => { setRenameId(selected.id); setRenameVal(selected.name); }} style={ghostIcon} title="Umbenennen"><Pencil size={14} /></button>
-              {selected.source !== 'produce' && (
-                <button onClick={() => remove(selected.id)} style={ghostIcon} title="Prozess entfernen"><Trash2 size={14} /></button>
-              )}
-            </div>
-          )}
+      {/* Bestehenden Prozess verlinken */}
+      {adding === 'link' && (
+        <div style={card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Bestehenden Prozess verlinken</span>
+            <button onClick={() => { setAdding(null); setError(null); }} style={ghostIcon}><X size={16} /></button>
+          </div>
+          <SearchSelect label="Prozess" value={linkPick} onChange={setLinkPick}
+            placeholder="Prozess suchen (Name oder Nummer)…"
+            options={[{ value: '', label: '— wählen —' }, ...linkable.map((p) => ({
+              value: String(p.id), label: `${fmtObjId(p.object_id)} · ${p.name} (${sourceLabel(p.source)})` }))]} />
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            Derselbe Prozess kann bei mehreren Artikeln liegen. Inaktiv/Ersetzen wirkt dann auf alle.
+          </div>
+          {error && <ErrorText msg={error} />}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setAdding(null); setError(null); }} style={secondary}>Abbrechen</button>
+            <button onClick={linkProcess} disabled={saving || !linkPick} style={primary}>{saving ? 'Verlinken…' : 'Verlinken'}</button>
+          </div>
         </div>
       )}
 
-      {/* Schritte des gewählten Prozesses (geerbte Standardprozesse: nur lesbar) */}
+      {/* Kopf des gewählten Prozesses: Nummer, Status/Lebenszyklus, Richtung, Aktionen */}
+      {selected && (
+        <div style={{ ...card, gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {renameId === selected.id ? (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input value={renameVal} onChange={(e) => setRenameVal(e.target.value)}
+                    className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{ borderColor: '#e2e8f0' }} />
+                  <button onClick={() => rename(selected)} style={primary}><Check size={14} /></button>
+                </div>
+              ) : (
+                <>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>{selected.name}</span>
+                  <span style={{ fontSize: 12 }}><ObjId value={selected.object_id} /></span>
+                </>
+              )}
+              <StatusBadge cfg={processStatusConfig(selected.status)} />
+              <StatusBadge cfg={stockEffectConfig(selected.stock_effect)} />
+              {selected.linked_article_count > 1 && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 999 }}>
+                  bei {selected.linked_article_count} Artikeln
+                </span>
+              )}
+            </div>
+            {!readOnly && ownSelected && renameId !== selected.id && (
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                {selected.status === 'draft' && (
+                  <button onClick={() => { setRenameId(selected.id); setRenameVal(selected.name); }} style={ghostIcon} title="Umbenennen"><Pencil size={14} /></button>
+                )}
+                {selected.source !== 'produce' && (
+                  <button onClick={() => unlink(selected)} style={ghostIcon} title="Aus Stückliste entfernen"><Trash2 size={14} /></button>
+                )}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>
+            {selected.is_standard
+              ? 'Geerbter Standardprozess – zentral verwaltet, hier nur lesbar.'
+              : PROCESS_SOURCE_META[selected.source as ProcessSource]?.hint}
+          </div>
+          {!readOnly && ownSelected && (
+            <StatusFlow cfg={processStatusConfig(selected.status)} actions={processActions(selected)} busy={statusBusy} onAction={onProcessAction} />
+          )}
+          {error && <ErrorText msg={error} />}
+        </div>
+      )}
+
+      {/* Schritte des gewählten Prozesses (geerbte Standards & freigegebene: nur lesbar) */}
       <ProcessSteps
         processId={selId}
         suppliers={suppliers}
-        readOnly={readOnly || !!selected?.is_standard}
+        readOnly={readOnly || !!selected?.is_standard || selected?.status !== 'draft'}
         selfArticleObjectId={aid}
-        onStepsCount={onSelectedStepsCount}
+        onStepsCount={(n) => setProcs((prev) => prev.map((p) => (p.id === selId ? { ...p, step_count: n } : p)))}
       />
     </div>
   );

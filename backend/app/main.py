@@ -105,6 +105,9 @@ _COLUMN_SAFETY_NET = (
     ("orders", "process_id", "BIGINT"),
     ("orders", "subject_instance_id", "BIGINT"),
     ("instances", "subject_of_order_id", "BIGINT"),
+    # Prozess = eigenständiges Objekt (Ersetzen-Kette) + Artikel-Art (Frage 2)
+    ("processes", "replaced_by_id", "BIGINT"),
+    ("articles", "kind", "VARCHAR(20) DEFAULT 'material' NOT NULL"),
     ("movements", "tracking_number", "VARCHAR(100)"),
     ("movements", "carrier", "VARCHAR(60)"),
     # Wiederkehrende Aufträge: Konfiguration direkt am Auftrag (kein eigenes Objekt mehr)
@@ -338,6 +341,39 @@ def _backfill_processes() -> None:
         db.close()
 
 
+def _backfill_process_objects_and_links() -> None:
+    """Fallback zu Migration 027 (falls sie nicht lief): jedem Prozess eine
+    Objektnummer geben und die **Prozessstückliste** aus ``processes.article_id``
+    erzeugen. Idempotent – nummeriert nur number-lose Prozesse und legt fehlende
+    Links an (überschreibt nichts)."""
+    from .services.objects import next_object_ids
+    db = SessionLocal()
+    try:
+        insp = inspect(engine)
+        tables = set(insp.get_table_names())
+        if "processes" not in tables or "article_process_links" not in tables:
+            return
+        ids = [r[0] for r in db.execute(text(
+            "SELECT id FROM processes WHERE object_id IS NULL ORDER BY id")).fetchall()]
+        if ids:
+            new_ids = next_object_ids(db, len(ids), "process")
+            for pid, oid in zip(ids, new_ids):
+                db.execute(text("UPDATE processes SET object_id=:o WHERE id=:p"), {"o": oid, "p": pid})
+        db.execute(text(
+            "INSERT INTO article_process_links (article_id, process_id, position, is_active, created_at, updated_at) "
+            "SELECT p.article_id, p.id, p.position, true, now(), now() FROM processes p "
+            "WHERE p.is_standard=false AND p.article_id IS NOT NULL AND p.is_active=true "
+            "AND NOT EXISTS (SELECT 1 FROM article_process_links l "
+            "WHERE l.article_id=p.article_id AND l.process_id=p.id)"
+        ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _backfill_process_objects_and_links() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 def _sync_locked_movements_bootstrap() -> None:
     """Pflicht-Bewegungen rund um Beschaffungsschritte herstellen – jetzt **je
     Prozess** (Idempotent; nur über Prozesse mit Beschaffungs-/Bewegungsschritten)."""
@@ -419,6 +455,7 @@ def _run_startup_fixups_once() -> None:
         _backfill_object_registry()
         _dedupe_processes()
         _backfill_processes()
+        _backfill_process_objects_and_links()
         _sync_locked_movements_bootstrap()
     except Exception as e:
         print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)

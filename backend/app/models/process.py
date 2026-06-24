@@ -10,35 +10,38 @@ from .base import TimestampMixin
 class Process(Base, TimestampMixin):
     """Ein benannter Prozess – eine geordnete Liste von Prozessschritten.
 
-    Zwei Heimaten, EIN Konzept (keine «Vorlagen»):
-    - **Artikel-Prozess** (``article_id`` gesetzt, ``is_standard=False``): ein
-      Verhalten des Artikels («Entstehung», «Verkauf», «Wartung» …). KIND des
-      Artikels – KEINE eigene Objektnummer (wie die Schritte selbst).
-    - **Standardprozess** (``is_standard=True``, ``article_id=NULL``): global,
-      gilt automatisch für JEDEN Artikel (geerbt – z. B. «Entnahme», «Umlagern»,
-      «Verschrotten», «Sonderkontrolle»). Eigenständiges Objekt mit Objektnummer
-      (Feed-Typ «Standardprozesse»), Lebenszyklus draft → released → inactive.
+    **Jeder Prozess ist ein eigenständiges Objekt** mit Objektnummer (Feed-Typ
+    «Prozesse»), Name und eigenem Lebenszyklus (draft → released → inactive,
+    Ersetzen via ``replaced_by_id``). Artikel referenzieren Prozesse über eine
+    **Prozessstückliste** (``article_process_links``) – ein Prozess kann bei
+    mehreren Artikeln hinterlegt sein.
+
+    - **Standard** (``is_standard=True``): gilt automatisch für JEDEN Artikel
+      (geerbt – z. B. «Entnahme», «Umlagern», «Verschrotten», «Sonderkontrolle»),
+      ohne expliziten Link. Das Flag ist **nur bei der Anlage** setzbar und nach
+      der Freigabe gesperrt.
+    - ``article_id`` ist nur noch die **Herkunft** (unter welchem Artikel der
+      Prozess angelegt wurde) – die Zugehörigkeit/Stückliste steckt in den Links.
 
     Die **Quelle** (``source``) – konzeptuell der «Start-Knoten» des Prozesses –
-    legt fest, worauf der Prozess wirkt und was bei der Auftrags-Anlage gefragt
-    wird. Der **Name** ist frei wählbar und bestimmt das Verhalten NICHT:
+    legt das **Subjekt** fest (worauf der Prozess wirkt) und was bei der
+    Auftrags-Anlage gefragt wird. Sie ist KEINE Richtungswahl mehr – die
+    Lager-Richtung (erhöhend/mindernd/neutral) wird aus den Schritten abgeleitet
+    (siehe ``services/processes.py: stock_effect``). Der **Name** ist frei:
 
-        produce   → der Prozess lässt **neue** Instanzen entstehen (Produktion);
-                    fragt «Menge?»
-        stock     → der Prozess greift **FIFO** auf vorhandenen Bestand zu
-                    (Verkauf, Entnahme); fragt «Menge?»
-        instance  → der Prozess wirkt auf eine **konkrete Instanz** (Wartung,
-                    Kontrolle); fragt «welche Instanz?»
+        produce   → **neues** Subjekt entsteht (Produktion);     fragt «Menge?»
+        stock     → **bestehender** Bestand, FIFO (Verkauf …);   fragt «Menge?»
+        instance  → eine **konkrete bestehende** Instanz (Wartung); «welche Instanz?»
     """
 
     __tablename__ = "processes"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    # Nur Standardprozesse sind eigenständige Objekte (Objektnummer); Artikel-
-    # Prozesse sind Kinder des Artikels und bleiben ohne Nummer.
+    # Jeder Prozess ist ein Objekt mit eigener Objektnummer.
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
 
-    # NULL = globaler Standardprozess; gesetzt = Prozess dieses Artikels.
+    # Herkunft: unter welchem Artikel angelegt (NULL = direkt im Prozess-Feed /
+    # Standard). Die tatsächliche Zugehörigkeit liegt in ``article_process_links``.
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -46,5 +49,7 @@ class Process(Base, TimestampMixin):
     is_standard: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
-    # Lebenszyklus (v. a. für Standardprozesse): draft | released | inactive.
+    # Lebenszyklus: draft | released | inactive.
     status: Mapped[str] = mapped_column(String(20), default="released", nullable=False)
+    # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Prozesses (alt → neu).
+    replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

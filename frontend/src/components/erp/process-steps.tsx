@@ -13,7 +13,8 @@ import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/componen
 import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
-type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
+// Modus (Verbrauch/Betriebsmittel) wird aus der Artikel-Art abgeleitet – nicht mehr pro Zeile gewählt.
+type ResLine = { article_id: string; quantity: string };
 
 const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
 const RESOURCE_MODE_LABEL: Record<ResourceMode, string> = { consume: 'Verbrauch', tool: 'Betriebsmittel' };
@@ -128,11 +129,11 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
-    let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
+    let resourcePayload: { article_id: number; quantity: number }[] | null = null;
     if (type === 'resource') {
       resourcePayload = resLines
         .filter((l) => l.article_id)
-        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
+        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)) }));
       if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
     }
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
@@ -451,11 +452,11 @@ const STEP_HINT: Record<StepType, string> = {
 function ResourceLinesEditor({ lines, onChange, articles }: {
   lines: ResLine[]; onChange: (l: ResLine[]) => void; articles: Article[];
 }) {
-  function add() { onChange([...lines, { article_id: '', quantity: '1', mode: 'consume' }]); }
+  function add() { onChange([...lines, { article_id: '', quantity: '1' }]); }
   function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
-    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
+    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}${a.kind === 'equipment' ? ' · Betriebsmittel' : ''}` }))];
   return (
     <div>
       <Label>Ressourcen (Bauteile & Betriebsmittel)</Label>
@@ -463,24 +464,33 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
         <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Kein freigegebener Artikel referenzierbar.</span></div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {lines.map((l, i) => (
-          <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
+        {lines.map((l, i) => {
+          const art = articles.find((a) => String(a.id) === l.article_id);
+          const isTool = art?.kind === 'equipment';
+          return (
+            <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
+                </div>
+                <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
+                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
+                <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
               </div>
-              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
-                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
-              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
+              {art && (
+                <div style={{ fontSize: 11, fontWeight: 600, color: isTool ? '#7c3aed' : '#0f766e' }}>
+                  {isTool ? 'Betriebsmittel · wird nur genutzt (kein Lagerabgang)' : 'Verbrauch · wird verbaut (Lagerabgang, FIFO)'}
+                  <span style={{ color: '#94a3b8', fontWeight: 400 }}> — ergibt sich aus der Art des Artikels</span>
+                </div>
+              )}
             </div>
-            <Segmented label="Modus" value={l.mode} onChange={(v) => upd(i, { mode: v as ResourceMode })}
-              options={[{ value: 'consume', label: 'Verbrauch' }, { value: 'tool', label: 'Betriebsmittel' }]} />
-          </div>
-        ))}
+          );
+        })}
       </div>
       <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
       <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
-        <b>Verbrauch</b>: wird verbaut (Lagerabgang, FIFO nach Freigabe). <b>Betriebsmittel</b>: wird nur genutzt (kein Lagerabgang).
+        Ob ein Artikel <b>verbraucht</b> (Material, Lagerabgang/FIFO) oder nur <b>genutzt</b> wird
+        (Betriebsmittel), ergibt sich aus der <b>Art des Artikels</b> (Stammdaten) – nicht mehr pro Zeile.
       </div>
     </div>
   );

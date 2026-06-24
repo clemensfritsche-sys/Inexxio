@@ -38,19 +38,15 @@ def _get_process(db: Session, process_id: int) -> Process:
 
 
 def _ensure_editable(db: Session, proc: Process) -> None:
-    """Schritte sind editierbar, solange der Prozess «im Entwurf» ist:
-    - Standardprozess: ``status == 'draft'``;
-    - Entstehungs-Prozess eines Artikels (``source == 'produce'``): nur solange der
-      Artikel im Entwurf ist (Produktionsrezept = keine Versionierung nach Freigabe);
-    - zusätzliche Artikel-Prozesse (Verkauf/Wartung …): jederzeit editierbar."""
-    if proc.is_standard:
-        if proc.status != "draft":
-            raise HTTPException(409, detail="Standardprozess ist freigegeben – bitte zuerst in den Entwurf setzen")
-        return
-    if proc.source == "produce" and proc.article_id:
-        art = db.query(Article).filter(Article.id == proc.article_id).first()
-        if art and art.status != "draft":
-            raise HTTPException(409, detail="Entstehungs-Prozess ist nach Artikel-Freigabe gesperrt – bitte neuen Artikel anlegen")
+    """Schritte sind editierbar, solange der **Prozess** im Entwurf ist. Jeder
+    Prozess hat einen eigenen Lebenszyklus (draft → released → inactive); nach der
+    Freigabe ist er eingefroren – Änderungen erfolgen über **Ersetzen** (neue
+    Prozessnummer). Gilt einheitlich für Standard- und Artikel-Prozesse."""
+    if proc.status != "draft":
+        raise HTTPException(
+            409,
+            detail="Prozess ist freigegeben und gesperrt – zum Ändern bitte ersetzen",
+        )
 
 
 def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
@@ -67,9 +63,11 @@ def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLi
     out: list[ResourceLineView] = []
     for line in raw_lines or []:
         art = db.query(Article).filter(Article.id == line["article_id"]).first()
+        # Modus (Verbrauch/Betriebsmittel) leitet sich aus der Artikel-Art ab –
+        # nicht mehr pro Zeile gewählt (Frage 2).
         out.append(ResourceLineView(
             article_id=line["article_id"], quantity=line.get("quantity", 1),
-            mode=line.get("mode", "consume"),
+            mode="tool" if (art and art.kind == "equipment") else "consume",
             article_name=art.name if art else None,
             article_object_id=art.object_id if art else None,
             unit=art.unit if art else None,

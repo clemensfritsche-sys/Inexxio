@@ -191,15 +191,34 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
     eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
   - **resource** = «**Ressource**»: Produktions-Stückliste je Operation – Liste von Zeilen am Schritt
-    (`article_process_steps.resource_lines` = [{article_id, quantity **pro Stück**, mode}]). Modus
-    **consume** (Verbrauch): Bauteil wird in die **Produkt-Instanz eingebaut** (Standort → `instance`) =
-    Lagerabgang; Auswahl strikt **FIFO nach Freigabe** (`instances.released_at`), Chargen-**Teilentnahme**.
-    Modus **tool** (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein FIFO,
+    (`article_process_steps.resource_lines` = [{article_id, quantity **pro Stück**}]). Der **Modus
+    ergibt sich aus der Artikel-Art** (`articles.kind`, NICHT mehr pro Zeile gewählt –
+    `services/resource.py: effective_mode`): `material` → **consume** (Verbrauch): Bauteil wird in die
+    **Produkt-Instanz eingebaut** (Standort → `instance`) = Lagerabgang; Auswahl strikt **FIFO nach
+    Freigabe** (`instances.released_at`), Chargen-**Teilentnahme**. `equipment` → **tool**
+    (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein FIFO,
     freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit wird
     geprüft. Abschluss-Marker = `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
     «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`. Das Panel
     zeigt den Verbrauch **je Produkt-Instanz** (welche Komponenten-Instanz in welche Produkt-Instanz
     verbaut wird; Vorschau = FIFO-Plan, danach das Protokoll) – `ResourceEmbed.products`.
+- **Prozess = eigenständiges Objekt** (Migration `027`): JEDER Prozess hat eine **Objektnummer + Name**
+  und einen eigenen Lebenszyklus **Entwurf → Freigegeben → Inaktiv** (Ersetzen via `replaced_by_id`).
+  Schritte sind nur im **Entwurf** editierbar; nach Freigabe eingefroren → Änderung = **Ersetzen** (neue
+  Nummer, kopierte Schritte, Links umgehängt). Feed-Typ heisst **«Prozesse»** (nicht mehr nur Standard).
+  **Prozessstückliste (n:m):** Artikel ↔ Prozess über `article_process_links` – derselbe Prozess kann bei
+  **mehreren Artikeln** liegen. **Hinzufügen/Entfernen** in der Stückliste wirkt nur auf DIESEN Artikel
+  (Link); **Inaktiv/Ersetzen** wirkt am Prozess-Objekt und damit auf ALLE Artikel, die ihn führen.
+  **Standard** (`is_standard`, **nur bei Anlage** setzbar, nach Freigabe gesperrt) = global geerbt für
+  jeden Artikel ohne Link. `services/processes.py` (own/available über Links, `stock_effect`).
+- **Stammdaten-Freigabe entkoppelt** (Frage 1): die Artikel-Freigabe friert nur die Spezifikation ein
+  (kein Prozessschritt mehr nötig). Ein **Auftrag startet nur**, wenn der Artikel **freigegeben** UND der
+  gewählte **Prozess freigegeben** ist (Vorbedingung in `routers/orders.py`). Auto-«Entstehung» bei
+  Artikelanlage als **Entwurf**-Prozess + Link.
+- **Lager-Richtung wird abgeleitet, nicht gewählt** (Frage 2, `processes.stock_effect`): produce →
+  *erhöhend*, stock → *mindernd*, instance → *neutral* (bzw. *mindernd* bei Verkauf). Die Prozess-Quelle
+  (produce/stock/instance) ist nur noch das **Subjekt** (neu / Bestand-FIFO / konkrete Instanz). Anzeige
+  als Badge in Prozess/Auftrag (`ProcessResponse.stock_effect`, `OrderResponse.process_stock_effect`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
@@ -268,14 +287,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button «Scannen»
   öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 
-> **HINWEIS:** Artikel **Stammdaten** + **Prozess** + **Bestand** (Instanzen mit Standort) sind gefüllt.
-> Prozess-Schritttypen: purchase, inspection, movement, resource (Bestands-Instanzen entstehen bei der
-> Freigabe; Ressource = Verbrauch FIFO/Chargen-Teilentnahme + Betriebsmittel).
-> **Reklamation (RMA)** ist als
-> eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte). E-Mail-Versand ist nur als TODO
-> vermerkt (Gmail API, Phase 2). Stückliste/BOM und Stripe sind **noch nicht** implementiert.
-> **Mehr-Operationen-Routing** ist vorbereitet: mehrere gleichartige Prozessschritte (inkl. mehrerer
-> `resource`-Operationen) laufen unabhängig (`step_id` auf den Fachtabellen).
+> **HINWEIS:** Artikel **Stammdaten** + **Prozessstückliste** + **Bestand** (Instanzen mit Standort) sind
+> gefüllt. **Prozesse sind eigenständige Objekte** (Nummer + Name + Lebenszyklus, Feed «Prozesse»); ein
+> Prozess kann bei mehreren Artikeln liegen (n:m via `article_process_links`). Schritttypen: purchase,
+> inspection, movement, resource (Ressource = Verbrauch FIFO/Chargen-Teilentnahme **oder** Betriebsmittel –
+> abgeleitet aus `articles.kind`). **Stammdaten-Freigabe** ist entkoppelt und **Vorbedingung** für den
+> Prozessstart (Auftrag); **Lager-Richtung** wird abgeleitet (`stock_effect`), nicht gewählt.
+> **Reklamation (RMA)** ist als eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte).
+> E-Mail-Versand ist nur als TODO vermerkt (Gmail API, Phase 2). Stripe ist **noch nicht** implementiert.
+> **Mehr-Operationen-Routing**: mehrere gleichartige Prozessschritte (inkl. mehrerer `resource`-Operationen)
+> laufen unabhängig (`step_id` auf den Fachtabellen).
 
 Nächste Aufgabe: Scan-Quittierung auch im Wareneingang (`purchase` «received») via `useScan`;
 Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API); Arbeitspläne

@@ -5,14 +5,14 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import (
-    Article, ArticleProcessStep, Instance, Order, Process, PurchaseOrder, UserProfile,
+    Article, Instance, Order, Process, PurchaseOrder, UserProfile,
 )
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.deactivation import (
     DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
 )
 from ..schemas.instance import InstanceResponse
-from ..services import deactivation
+from ..services import deactivation, processes as processes_svc
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.locations import location_label, physical_location_label
@@ -160,6 +160,7 @@ async def create_article(
         serialization=data.serialization,
         size=data.size,
         weight_kg=data.weight_kg,
+        kind=data.kind,
         material=data.material,
         cad_url=data.cad_url,
         surface=data.surface,
@@ -168,10 +169,16 @@ async def create_article(
     )
     db.add(article)
     db.flush()
-    # Default-Prozess «Entstehung» (Quelle produce) – das Produktions-Rezept des
-    # Artikels. Weitere Prozesse (Verkauf, Wartung …) kann der Nutzer ergänzen.
-    db.add(Process(article_id=article.id, name="Entstehung", source="produce",
-                   is_standard=False, status="released", position=1))
+    # Default-Prozess «Entstehung» (Quelle produce) – eigenständiges Objekt mit
+    # Nummer, startet als **Entwurf** (Schritte ergänzen → freigeben). Wird der
+    # Prozessstückliste des Artikels hinzugefügt. Weitere Prozesse (Verkauf,
+    # Wartung …) kann der Nutzer ergänzen oder bestehende verlinken.
+    entstehung = Process(
+        object_id=next_object_id(db, "process"), article_id=article.id,
+        name="Entstehung", source="produce", is_standard=False, status="draft", position=1)
+    db.add(entstehung)
+    db.flush()
+    processes_svc.link_process(db, article.id, entstehung.id, 1)
     log_audit(db, "articles", None, f"Artikel '{article.name}' angelegt",
               current_user.id, object_id=article.object_id)
     db.commit()
@@ -202,15 +209,11 @@ async def update_article(
     ensure_mutable(article.status, payload, "Artikel")
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
     reactivating = payload.get("status") == "released" and article.status == "inactive"
-    # Freigabe nur mit mindestens einem Prozessschritt
-    if payload.get("status") == "released" and article.status != "released":
-        has_step = (
-            db.query(ArticleProcessStep)
-            .filter(ArticleProcessStep.article_id == article.id, ArticleProcessStep.is_active == True)
-            .first()
-        )
-        if not has_step:
-            raise HTTPException(400, detail="Artikel kann ohne Prozessschritt nicht freigegeben werden")
+    # Stammdaten-Freigabe ist **entkoppelt** von den Prozessen: Sie friert die
+    # Spezifikation ein (Identität). Ob der Artikel produzierbar/bestellbar ist,
+    # entscheidet sich am Auftrag (dort muss zusätzlich ein **freigegebener Prozess**
+    # vorliegen – siehe routers/orders.py). So ist die Stammdaten-Freigabe eine
+    # klare Vorbedingung, bevor ein Prozess gestartet werden kann.
     # Reaktivieren nur, wenn nicht ersetzt und keine Komponente inaktiv ist
     if reactivating:
         blk = deactivation.article_reactivation_blocker(db, article)

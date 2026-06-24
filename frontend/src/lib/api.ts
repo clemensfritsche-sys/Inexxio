@@ -190,43 +190,56 @@ class ApiClient {
     return this.post(`/api/v1/erp/articles/${objectId}/replace`, { orders_mode: ordersMode });
   }
 
-  // ─── Prozesse (Verben): Artikel-eigen + globale Standardprozesse ──────────────
+  // ─── Prozesse: eigenständige Objekte (Feed «Prozesse») + Stückliste je Artikel ─
 
-  // Wählbare Prozesse eines Artikels (eigene + geerbte freigegebene Standardprozesse)
+  // Wählbare Prozesse eines Artikels (Stückliste + geerbte freigegebene Standards)
   getArticleProcesses(objectId: number): Promise<Process[]> {
     return this.get(`/api/v1/erp/articles/${objectId}/processes`);
   }
 
+  // Neuen Prozess anlegen UND der Stückliste dieses Artikels hinzufügen
   createArticleProcess(objectId: number, data: ProcessInput): Promise<Process> {
     return this.post(`/api/v1/erp/articles/${objectId}/processes`, data);
   }
 
-  updateArticleProcess(objectId: number, processId: number, data: ProcessUpdateInput): Promise<Process> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/processes/${processId}`, data);
+  // Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel)
+  addProcessLink(objectId: number, processId: number, position?: number | null): Promise<Process> {
+    return this.post(`/api/v1/erp/articles/${objectId}/process-links`, { process_id: processId, position: position ?? null });
   }
 
-  deleteArticleProcess(objectId: number, processId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/processes/${processId}`);
+  // Prozess aus der Stückliste entfernen (nur den Link – Objekt bleibt bestehen)
+  removeProcessLink(objectId: number, processId: number): Promise<{ unlinked: boolean }> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/process-links/${processId}`);
   }
 
-  // Standardprozesse (global, Feed-Typ)
-  getStandardProcesses(): Promise<Process[]> {
+  // Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge)
+  reorderProcessLinks(objectId: number, orderedProcessIds: number[]): Promise<Process[]> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/process-links/reorder`, { ordered_process_ids: orderedProcessIds });
+  }
+
+  // Prozesse (Feed-Typ «Prozesse», alle Prozess-Objekte)
+  getProcesses(): Promise<Process[]> {
     return this.get('/api/v1/erp/processes');
   }
 
-  getStandardProcess(objectId: number): Promise<Process> {
+  getProcess(objectId: number): Promise<Process> {
     return this.get(`/api/v1/erp/processes/${objectId}`);
   }
 
-  createStandardProcess(data: ProcessInput): Promise<Process> {
+  createProcess(data: ProcessInput): Promise<Process> {
     return this.post('/api/v1/erp/processes', data);
   }
 
-  updateStandardProcess(objectId: number, data: ProcessUpdateInput): Promise<Process> {
+  updateProcess(objectId: number, data: ProcessUpdateInput): Promise<Process> {
     return this.patch(`/api/v1/erp/processes/${objectId}`, data);
   }
 
-  deleteStandardProcess(objectId: number): Promise<{ deleted: boolean }> {
+  // Ersetzen: Nachfolger (Entwurf) anlegen, Stücklisten-Links umhängen, Original deaktivieren
+  replaceProcess(objectId: number): Promise<Process> {
+    return this.post(`/api/v1/erp/processes/${objectId}/replace`, {});
+  }
+
+  deleteProcess(objectId: number): Promise<{ deleted: boolean }> {
     return this.delete(`/api/v1/erp/processes/${objectId}`);
   }
 

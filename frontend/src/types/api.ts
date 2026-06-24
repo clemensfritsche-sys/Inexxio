@@ -409,11 +409,15 @@ export interface paths {
         };
         /**
          * List Article Processes
-         * @description Wählbare Prozesse des Artikels: eigene + geerbte freigegebene Standardprozesse.
+         * @description Wählbare Prozesse des Artikels: Stückliste + geerbte freigegebene Standards.
          */
         get: operations["list_article_processes_api_v1_erp_articles__object_id__processes_get"];
         put?: never;
-        /** Create Article Process */
+        /**
+         * Create Article Process
+         * @description Neuen Prozess anlegen (eigene Objektnummer, Entwurf) und der Stückliste
+         *     dieses Artikels hinzufügen.
+         */
         post: operations["create_article_process_api_v1_erp_articles__object_id__processes_post"];
         delete?: never;
         options?: never;
@@ -421,7 +425,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/processes/{process_id}": {
+    "/api/v1/erp/articles/{object_id}/process-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Process Link
+         * @description Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel).
+         */
+        post: operations["add_process_link_api_v1_erp_articles__object_id__process_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/process-links/reorder": {
         parameters: {
             query?: never;
             header?: never;
@@ -431,12 +455,35 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Article Process */
-        delete: operations["delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
-        /** Update Article Process */
-        patch: operations["update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch"];
+        /**
+         * Reorder Process Links
+         * @description Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge).
+         */
+        patch: operations["reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/articles/{object_id}/process-links/{process_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Process Link
+         * @description Prozess aus der Stückliste entfernen (nur den Link – das Prozess-Objekt
+         *     bleibt für andere Artikel bestehen).
+         */
+        delete: operations["remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/processes": {
@@ -447,16 +494,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Standard Processes
-         * @description Alle Standardprozesse (inkl. Entwürfe) – für die Verwaltung / den Feed.
+         * List Processes
+         * @description Alle Prozesse (Artikel-Prozesse + Standards), neueste zuerst – für den Feed.
          */
-        get: operations["list_standard_processes_api_v1_erp_processes_get"];
+        get: operations["list_processes_api_v1_erp_processes_get"];
         put?: never;
         /**
-         * Create Standard Process
-         * @description Standardprozess anlegen (eigene Objektnummer; startet als Entwurf).
+         * Create Process
+         * @description Eigenständigen Prozess anlegen (Objektnummer, startet als Entwurf). Ohne
+         *     Artikel-Bindung – die Zuordnung erfolgt über die Stückliste je Artikel.
          */
-        post: operations["create_standard_process_api_v1_erp_processes_post"];
+        post: operations["create_process_api_v1_erp_processes_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -470,16 +518,42 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Standard Process */
-        get: operations["get_standard_process_api_v1_erp_processes__object_id__get"];
+        /** Get Process */
+        get: operations["get_process_api_v1_erp_processes__object_id__get"];
         put?: never;
         post?: never;
-        /** Delete Standard Process */
-        delete: operations["delete_standard_process_api_v1_erp_processes__object_id__delete"];
+        /**
+         * Delete Process
+         * @description Prozess-Objekt deaktivieren (soft). Verschwindet aus allen Stücklisten/
+         *     Auswahllisten; laufende Aufträge behalten ihren Prozess.
+         */
+        delete: operations["delete_process_api_v1_erp_processes__object_id__delete"];
         options?: never;
         head?: never;
-        /** Update Standard Process */
-        patch: operations["update_standard_process_api_v1_erp_processes__object_id__patch"];
+        /** Update Process */
+        patch: operations["update_process_api_v1_erp_processes__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/processes/{object_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Process
+         * @description Ersetzen: Nachfolger (Entwurf, mit kopierten Schritten) anlegen, alle
+         *     Stücklisten-Links auf ihn umhängen, Original deaktivieren + verknüpfen.
+         *     Betrifft **alle** Artikel, die den Prozess führen (gemeinsames Objekt).
+         */
+        post: operations["replace_process_api_v1_erp_processes__object_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/processes/{process_id}/steps": {
@@ -973,6 +1047,11 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: number | string;
+            /**
+             * Kind
+             * @default material
+             */
+            kind: string;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -1125,6 +1204,11 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: string;
+            /**
+             * Kind
+             * @default material
+             */
+            kind: string;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -1183,6 +1267,8 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: number | string | null;
+            /** Kind */
+            kind?: string | null;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -1885,6 +1971,8 @@ export interface components {
             process_name?: string | null;
             /** Process Source */
             process_source?: string | null;
+            /** Process Stock Effect */
+            process_stock_effect?: string | null;
             /** Subject Instance Id */
             subject_instance_id?: number | null;
             /**
@@ -2060,10 +2148,11 @@ export interface components {
         };
         /**
          * ProcessCreate
-         * @description Anlage eines Prozesses (Artikel-eigen oder – im Standard-Feed – global).
+         * @description Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).
          *
          *     Der **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),
-         *     nicht der Name.
+         *     nicht der Name. ``is_standard`` (global geerbt für alle Artikel) ist **nur bei
+         *     der Anlage** wählbar und nach Freigabe gesperrt.
          */
         ProcessCreate: {
             /** Name */
@@ -2075,6 +2164,29 @@ export interface components {
             source: string;
             /** Position */
             position?: number | null;
+            /**
+             * Is Standard
+             * @default false
+             */
+            is_standard: boolean;
+        };
+        /**
+         * ProcessLinkCreate
+         * @description Einen bestehenden Prozess der Prozessstückliste eines Artikels hinzufügen.
+         */
+        ProcessLinkCreate: {
+            /** Process Id */
+            process_id: number;
+            /** Position */
+            position?: number | null;
+        };
+        /**
+         * ProcessLinkReorder
+         * @description Neue Reihenfolge der Prozessstückliste (Prozess-IDs in Zielreihenfolge).
+         */
+        ProcessLinkReorder: {
+            /** Ordered Process Ids */
+            ordered_process_ids: number[];
         };
         /** ProcessResponse */
         ProcessResponse: {
@@ -2096,6 +2208,8 @@ export interface components {
             status: string;
             /** Is Active */
             is_active: boolean;
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -2111,6 +2225,18 @@ export interface components {
              * @default 0
              */
             step_count: number;
+            /**
+             * Stock Effect
+             * @default neutral
+             */
+            stock_effect: string;
+            /** Replaces Id */
+            replaces_id?: number | null;
+            /**
+             * Linked Article Count
+             * @default 0
+             */
+            linked_article_count: number;
         };
         /** ProcessUpdate */
         ProcessUpdate: {
@@ -2122,6 +2248,8 @@ export interface components {
             position?: number | null;
             /** Status */
             status?: string | null;
+            /** Is Standard */
+            is_standard?: boolean | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -3696,7 +3824,77 @@ export interface operations {
             };
         };
     };
-    delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete: {
+    add_process_link_api_v1_erp_articles__object_id__process_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProcessLinkReorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3728,43 +3926,7 @@ export interface operations {
             };
         };
     };
-    update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                process_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_standard_processes_api_v1_erp_processes_get: {
+    list_processes_api_v1_erp_processes_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3784,7 +3946,7 @@ export interface operations {
             };
         };
     };
-    create_standard_process_api_v1_erp_processes_post: {
+    create_process_api_v1_erp_processes_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3817,7 +3979,7 @@ export interface operations {
             };
         };
     };
-    get_standard_process_api_v1_erp_processes__object_id__get: {
+    get_process_api_v1_erp_processes__object_id__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3848,7 +4010,7 @@ export interface operations {
             };
         };
     };
-    delete_standard_process_api_v1_erp_processes__object_id__delete: {
+    delete_process_api_v1_erp_processes__object_id__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3879,7 +4041,7 @@ export interface operations {
             };
         };
     };
-    update_standard_process_api_v1_erp_processes__object_id__patch: {
+    update_process_api_v1_erp_processes__object_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -3893,6 +4055,37 @@ export interface operations {
                 "application/json": components["schemas"]["ProcessUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProcessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_process_api_v1_erp_processes__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

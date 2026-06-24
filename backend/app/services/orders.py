@@ -175,6 +175,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         resp.process_name = proc.name
         resp.process_source = proc.source
         resp.process_object_id = proc.object_id
+        resp.process_stock_effect = processes.stock_effect(db, proc)
     resp.subject_instance_id = order.subject_instance_id
     resp.recurrence_due = recurrence_due(order)
 

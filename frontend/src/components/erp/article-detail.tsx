@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
+import type { Article, ArticleKind, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
-  ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
-  unitLabel, serializationLabel, normalizeSize, normalizeWeight,
+  ARTICLE_UNITS, ARTICLE_KIND_OPTIONS, SERIALIZATION_OPTIONS, statusConfig,
+  unitLabel, serializationLabel, kindLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import type { StatusAction } from '@/lib/status-flow';
@@ -19,12 +19,13 @@ import { ArticleProcesses } from '@/components/erp/article-processes';
 import { InstanceList } from '@/components/erp/instance-list';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
-// Artikel-Lebenszyklus: Freigabe erst möglich, wenn mindestens ein Prozessschritt existiert.
+// Artikel-Lebenszyklus: Die **Stammdaten-Freigabe** ist von den Prozessen entkoppelt
+// (sie friert nur die Spezifikation ein). Ob produzierbar/bestellbar, entscheidet sich
+// am Auftrag (dort braucht es zusätzlich einen freigegebenen Prozess).
 // Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
-function articleActions(status: string, canRelease: boolean, replaced: boolean): StatusAction[] {
+function articleActions(status: string, replaced: boolean): StatusAction[] {
   if (status === 'draft')
-    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
-      hint: canRelease ? undefined : 'Erst einen Prozessschritt hinzufügen' }];
+    return [{ label: 'Stammdaten freigeben', target: 'released', tone: 'primary' }];
   return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
 }
 
@@ -38,7 +39,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock';
 type Form = {
-  name: string; unit: string; serialization: string; size: string; weight_kg: string;
+  name: string; unit: string; serialization: string; size: string; weight_kg: string; kind: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
 };
 
@@ -53,13 +54,13 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
 ];
 
 function seedFrom(record: Article | null): Form {
-  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
+  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'material',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '' };
   if (!record) return base;
   return {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
-    size: record.size, weight_kg: String(record.weight_kg),
+    size: record.size, weight_kg: String(record.weight_kg), kind: record.kind ?? 'material',
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
@@ -98,7 +99,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stepCount, setStepCount] = useState<number | null>(isCreate ? 0 : null);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<OptKey[]>(() => {
     const s = seedFrom(record);
@@ -111,14 +111,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
   function addField(key: OptKey) { setAdded((a) => (a.includes(key) ? a : [...a, key])); }
   function removeField(key: OptKey) { setAdded((a) => a.filter((k) => k !== key)); set(key, ''); }
-
-  // Anzahl Prozessschritte (über die EIGENEN Prozesse) für die Freigabe-Bedingung laden
-  useEffect(() => {
-    if (record?.object_id == null) return;
-    api.getArticleProcesses(record.object_id)
-      .then((ps) => setStepCount(ps.filter((p) => !p.is_standard).reduce((s, p) => s + (p.step_count ?? 0), 0)))
-      .catch(() => {});
-  }, [record?.object_id]);
 
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
   const locked = !isCreate && record !== null && record.status !== 'draft';
@@ -134,7 +126,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     weight: validateWeight(form.weight_kg),
   };
   const valid = !errs.name && !errs.size && !errs.weight;
-  const canRelease = (stepCount ?? 0) > 0;
 
   // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird –
   // statt des generischen «Pflichtfelder …». Häufigste Ursache beim Anlegen:
@@ -148,7 +139,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
   const sig = JSON.stringify({
     name: form.name.trim(), unit: form.unit, serialization: form.serialization,
-    size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg),
+    size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg), kind: form.kind,
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
@@ -213,6 +204,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         serialization: form.serialization as ArticleSerialization,
         size: normalizeSize(form.size),
         weight_kg: normalizeWeight(form.weight_kg),
+        kind: form.kind as ArticleKind,
         material: form.material.trim() || null,
         cad_url: form.cad_url.trim() || null,
         surface: form.surface.trim() || null,
@@ -263,7 +255,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, canRelease, record.replaced_by_id != null)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, record.replaced_by_id != null)} busy={statusBusy} onAction={onStatusAction} />
               )}
               <SaveIndicator saving={saving} flash={flash} />
             </div>
@@ -317,6 +309,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
                 </div>
                 <Row k="Name" v={record!.name} />
+                <Row k="Art" v={kindLabel(record!.kind)} />
                 <Row k="Einheit" v={unitLabel(record!.unit)} />
                 <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
                 <Row k="Grösse" v={record!.size} />
@@ -345,6 +338,14 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
                 </div>
+                <div>
+                  <Segmented label="Art des Artikels" value={form.kind} onChange={(v) => set('kind', v)}
+                    options={ARTICLE_KIND_OPTIONS.map((k) => ({ value: k.value, label: k.label }))} required />
+                  <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+                    {ARTICLE_KIND_OPTIONS.find((k) => k.value === form.kind)?.hint}
+                    {' '}Bestimmt, ob der Artikel als Ressource verbraucht oder nur genutzt wird.
+                  </div>
+                </div>
                 <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
                 {weightIsComputed ? (
                   <ComputedWeight value={computedWeight!} />
@@ -359,7 +360,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           </div>
         )}
         {tab === 'prozess' && (
-          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={locked} onStepsCount={setStepCount} />
+          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={record?.status === 'inactive'} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />

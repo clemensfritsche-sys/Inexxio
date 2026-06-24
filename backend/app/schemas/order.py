@@ -165,9 +165,10 @@ class OrderResponse(BaseModel):
 
     # Gewählter Prozess (welches «Verb» + Subjekt-Quelle)
     process_id: Optional[int] = None
-    process_object_id: Optional[int] = None   # nur bei Standardprozessen gesetzt
+    process_object_id: Optional[int] = None   # Objektnummer des Prozesses
     process_name: Optional[str] = None
-    process_source: Optional[str] = None       # produce | stock | instance
+    process_source: Optional[str] = None       # produce | stock | instance (Subjekt)
+    process_stock_effect: Optional[str] = None  # abgeleitet: increase | decrease | neutral
     subject_instance_id: Optional[int] = None
     # Wiederkehrend (am Auftrag)
     recurrence_active: bool = False

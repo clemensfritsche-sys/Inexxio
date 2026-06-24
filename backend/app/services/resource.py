@@ -44,6 +44,17 @@ def _article(db: Session, article_db_id: int) -> Article | None:
     return db.query(Article).filter(Article.id == article_db_id).first()
 
 
+def effective_mode(db: Session, article_db_id: int) -> str:
+    """Verbrauchsverhalten einer Ressourcen-Zeile – **abgeleitet aus der Artikel-Art**
+    (Frage 2), nicht mehr pro BOM-Zeile gewählt:
+
+        equipment → ``tool``    (Betriebsmittel: nur genutzt, kein Lagerabgang)
+        sonst     → ``consume`` (verbraucht: Lagerabgang, FIFO nach Freigabe)
+    """
+    art = _article(db, article_db_id)
+    return "tool" if (art and art.kind == "equipment") else "consume"
+
+
 def _user_name(u: UserProfile | None) -> str | None:
     if not u:
         return None
@@ -98,9 +109,9 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
         if d.step_type != "resource":
             continue
         for line in (d.resource_lines or []):
-            if line.get("mode", "consume") != "consume":
-                continue
             aid = line["article_id"]
+            if effective_mode(db, aid) != "consume":
+                continue
             needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * order.quantity
     for art_id, need in needs.items():
         if art_id == order.article_id:
@@ -267,7 +278,7 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
     for line in lines:
         art_id = line["article_id"]
         qty = line.get("quantity", 1)
-        mode = line.get("mode", "consume")
+        mode = effective_mode(db, art_id)
         if mode == "tool":
             tools = _validate_tools(db, art_id, tool_picks.get(art_id, []))
             for t in tools:
@@ -295,10 +306,12 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
 
 def _line_view(db: Session, line: dict) -> dict:
     art = _article(db, line["article_id"])
+    # Modus aus der Artikel-Art ableiten (nicht aus der gespeicherten Zeile) –
+    # so stimmt die Anzeige auch für Altdaten ohne konsistentes ``mode``.
     return {
         "article_id": line["article_id"],
         "quantity": line.get("quantity", 1),
-        "mode": line.get("mode", "consume"),
+        "mode": "tool" if (art and art.kind == "equipment") else "consume",
         "article_name": art.name if art else None,
         "article_object_id": art.object_id if art else None,
         "unit": art.unit if art else None,

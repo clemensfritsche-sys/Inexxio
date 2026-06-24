@@ -1143,7 +1143,7 @@
           "processes"
         ],
         "summary": "List Article Processes",
-        "description": "Wählbare Prozesse des Artikels: eigene + geerbte freigegebene Standardprozesse.",
+        "description": "Wählbare Prozesse des Artikels: Stückliste + geerbte freigegebene Standards.",
         "operationId": "list_article_processes_api_v1_erp_articles__object_id__processes_get",
         "security": [
           {
@@ -1193,6 +1193,7 @@
           "processes"
         ],
         "summary": "Create Article Process",
+        "description": "Neuen Prozess anlegen (eigene Objektnummer, Entwurf) und der Stückliste\ndieses Artikels hinzufügen.",
         "operationId": "create_article_process_api_v1_erp_articles__object_id__processes_post",
         "security": [
           {
@@ -1244,13 +1245,14 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/processes/{process_id}": {
-      "patch": {
+    "/api/v1/erp/articles/{object_id}/process-links": {
+      "post": {
         "tags": [
           "processes"
         ],
-        "summary": "Update Article Process",
-        "operationId": "update_article_process_api_v1_erp_articles__object_id__processes__process_id__patch",
+        "summary": "Add Process Link",
+        "description": "Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel).",
+        "operationId": "add_process_link_api_v1_erp_articles__object_id__process_links_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1265,15 +1267,6 @@
               "type": "integer",
               "title": "Object Id"
             }
-          },
-          {
-            "name": "process_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Process Id"
-            }
           }
         ],
         "requestBody": {
@@ -1281,13 +1274,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProcessUpdate"
+                "$ref": "#/components/schemas/ProcessLinkCreate"
               }
             }
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -1308,13 +1301,78 @@
             }
           }
         }
-      },
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/process-links/reorder": {
+      "patch": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Reorder Process Links",
+        "description": "Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge).",
+        "operationId": "reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProcessLinkReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProcessResponse"
+                  },
+                  "title": "Response Reorder Process Links Api V1 Erp Articles  Object Id  Process Links Reorder Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/process-links/{process_id}": {
       "delete": {
         "tags": [
           "processes"
         ],
-        "summary": "Delete Article Process",
-        "operationId": "delete_article_process_api_v1_erp_articles__object_id__processes__process_id__delete",
+        "summary": "Remove Process Link",
+        "description": "Prozess aus der Stückliste entfernen (nur den Link – das Prozess-Objekt\nbleibt für andere Artikel bestehen).",
+        "operationId": "remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1367,9 +1425,9 @@
         "tags": [
           "processes"
         ],
-        "summary": "List Standard Processes",
-        "description": "Alle Standardprozesse (inkl. Entwürfe) – für die Verwaltung / den Feed.",
-        "operationId": "list_standard_processes_api_v1_erp_processes_get",
+        "summary": "List Processes",
+        "description": "Alle Prozesse (Artikel-Prozesse + Standards), neueste zuerst – für den Feed.",
+        "operationId": "list_processes_api_v1_erp_processes_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1380,7 +1438,7 @@
                     "$ref": "#/components/schemas/ProcessResponse"
                   },
                   "type": "array",
-                  "title": "Response List Standard Processes Api V1 Erp Processes Get"
+                  "title": "Response List Processes Api V1 Erp Processes Get"
                 }
               }
             }
@@ -1396,9 +1454,9 @@
         "tags": [
           "processes"
         ],
-        "summary": "Create Standard Process",
-        "description": "Standardprozess anlegen (eigene Objektnummer; startet als Entwurf).",
-        "operationId": "create_standard_process_api_v1_erp_processes_post",
+        "summary": "Create Process",
+        "description": "Eigenständigen Prozess anlegen (Objektnummer, startet als Entwurf). Ohne\nArtikel-Bindung – die Zuordnung erfolgt über die Stückliste je Artikel.",
+        "operationId": "create_process_api_v1_erp_processes_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1443,8 +1501,8 @@
         "tags": [
           "processes"
         ],
-        "summary": "Get Standard Process",
-        "operationId": "get_standard_process_api_v1_erp_processes__object_id__get",
+        "summary": "Get Process",
+        "operationId": "get_process_api_v1_erp_processes__object_id__get",
         "security": [
           {
             "HTTPBearer": []
@@ -1488,8 +1546,8 @@
         "tags": [
           "processes"
         ],
-        "summary": "Update Standard Process",
-        "operationId": "update_standard_process_api_v1_erp_processes__object_id__patch",
+        "summary": "Update Process",
+        "operationId": "update_process_api_v1_erp_processes__object_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1543,8 +1601,9 @@
         "tags": [
           "processes"
         ],
-        "summary": "Delete Standard Process",
-        "operationId": "delete_standard_process_api_v1_erp_processes__object_id__delete",
+        "summary": "Delete Process",
+        "description": "Prozess-Objekt deaktivieren (soft). Verschwindet aus allen Stücklisten/\nAuswahllisten; laufende Aufträge behalten ihren Prozess.",
+        "operationId": "delete_process_api_v1_erp_processes__object_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1567,6 +1626,54 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/processes/{object_id}/replace": {
+      "post": {
+        "tags": [
+          "processes"
+        ],
+        "summary": "Replace Process",
+        "description": "Ersetzen: Nachfolger (Entwurf, mit kopierten Schritten) anlegen, alle\nStücklisten-Links auf ihn umhängen, Original deaktivieren + verknüpfen.\nBetrifft **alle** Artikel, die den Prozess führen (gemeinsames Objekt).",
+        "operationId": "replace_process_api_v1_erp_processes__object_id__replace_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessResponse"
+                }
               }
             }
           },
@@ -3319,6 +3426,11 @@
             ],
             "title": "Weight Kg"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "material"
+          },
           "material": {
             "anyOf": [
               {
@@ -3870,6 +3982,11 @@
             "type": "string",
             "title": "Weight Kg"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "material"
+          },
           "material": {
             "anyOf": [
               {
@@ -4125,6 +4242,17 @@
               }
             ],
             "title": "Weight Kg"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
           },
           "material": {
             "anyOf": [
@@ -6549,6 +6677,17 @@
             ],
             "title": "Process Source"
           },
+          "process_stock_effect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Process Stock Effect"
+          },
           "subject_instance_id": {
             "anyOf": [
               {
@@ -7231,6 +7370,11 @@
               }
             ],
             "title": "Position"
+          },
+          "is_standard": {
+            "type": "boolean",
+            "title": "Is Standard",
+            "default": false
           }
         },
         "type": "object",
@@ -7238,7 +7382,49 @@
           "name"
         ],
         "title": "ProcessCreate",
-        "description": "Anlage eines Prozesses (Artikel-eigen oder – im Standard-Feed – global).\n\nDer **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),\nnicht der Name."
+        "description": "Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).\n\nDer **Name** ist frei; das Verhalten bestimmt die **Quelle** (Start-Knoten),\nnicht der Name. ``is_standard`` (global geerbt für alle Artikel) ist **nur bei\nder Anlage** wählbar und nach Freigabe gesperrt."
+      },
+      "ProcessLinkCreate": {
+        "properties": {
+          "process_id": {
+            "type": "integer",
+            "title": "Process Id"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "process_id"
+        ],
+        "title": "ProcessLinkCreate",
+        "description": "Einen bestehenden Prozess der Prozessstückliste eines Artikels hinzufügen."
+      },
+      "ProcessLinkReorder": {
+        "properties": {
+          "ordered_process_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ordered Process Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ordered_process_ids"
+        ],
+        "title": "ProcessLinkReorder",
+        "description": "Neue Reihenfolge der Prozessstückliste (Prozess-IDs in Zielreihenfolge)."
       },
       "ProcessResponse": {
         "properties": {
@@ -7292,6 +7478,17 @@
             "type": "boolean",
             "title": "Is Active"
           },
+          "replaced_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Id"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7305,6 +7502,27 @@
           "step_count": {
             "type": "integer",
             "title": "Step Count",
+            "default": 0
+          },
+          "stock_effect": {
+            "type": "string",
+            "title": "Stock Effect",
+            "default": "neutral"
+          },
+          "replaces_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Id"
+          },
+          "linked_article_count": {
+            "type": "integer",
+            "title": "Linked Article Count",
             "default": 0
           }
         },
@@ -7367,6 +7585,17 @@
               }
             ],
             "title": "Status"
+          },
+          "is_standard": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Standard"
           },
           "is_active": {
             "anyOf": [

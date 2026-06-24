@@ -65,8 +65,8 @@ def _resolve_subject(db: Session, article_id, quantity, process_id, subject_inst
             raise HTTPException(400, detail="Subjekt-Instanz nicht gefunden")
         return inst.article_id, 1, process_id
     _validate_article(db, article_id)
-    if proc and proc.article_id and proc.article_id != article_id and not proc.is_standard:
-        raise HTTPException(400, detail="Der gewählte Prozess gehört nicht zu diesem Artikel")
+    if proc and not proc.is_standard and not processes_svc.is_available_for(db, article_id, proc):
+        raise HTTPException(400, detail="Der gewählte Prozess ist nicht in der Stückliste dieses Artikels")
     # Kein Prozess gewählt → Default-«Entstehung» des Artikels persistieren (Feed/Konsistenz).
     resolved = process_id
     if resolved is None and article_id:
@@ -172,6 +172,23 @@ async def update_order(
     if order.status == "released" and not was_released:
         if not order.article_id or not order.quantity:
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        # Vorbedingung 1: Stammdaten des Artikels müssen freigegeben sein
+        # (Spezifikation klar, bevor ein Prozess gestartet wird).
+        art = db.query(Article).filter(Article.id == order.article_id).first()
+        if not art or art.status != "released":
+            raise HTTPException(
+                400,
+                detail="Die Stammdaten des Artikels müssen freigegeben sein, bevor der Prozess gestartet werden kann",
+            )
+        # Vorbedingung 2: der gewählte Prozess muss freigegeben sein.
+        proc = processes_svc.process_for_order(db, order)
+        if not proc:
+            raise HTTPException(400, detail="Für diesen Auftrag ist kein Prozess gewählt")
+        if proc.status != "released":
+            raise HTTPException(
+                400,
+                detail="Der gewählte Prozess ist nicht freigegeben – bitte zuerst den Prozess freigeben",
+            )
         if order.released_at is None:
             order.released_at = utcnow()   # Start der Durchlaufzeit
         subject.materialize_subject(db, order, current_user.id)

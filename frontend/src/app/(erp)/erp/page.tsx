@@ -11,7 +11,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { claimStatusConfig } from '@/lib/claim';
-import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
+import { qcStatusConfig, instanceKindLabel, processStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
@@ -31,21 +31,11 @@ const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType 
   instance:         { label: 'Instanzen',    icon: Boxes },
   storage_location: { label: 'Lagerplatz',   icon: Warehouse },
   claim:            { label: 'Reklamationen', icon: AlertTriangle },
-  process:          { label: 'Standardprozesse', icon: Layers },
+  process:          { label: 'Prozesse', icon: Layers },
 };
 
 const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim', 'process'];
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
-
-// Status-Badges für die neuen Feed-Typen (Standardprozess, wiederkehrender Vorgang)
-function processBadge(status: string): StatusCfg {
-  const m: Record<string, StatusCfg> = {
-    draft: { label: 'Entwurf', color: '#d97706', bg: '#fffbeb', icon: Layers },
-    released: { label: 'Standard', color: '#7c3aed', bg: '#f5f3ff', icon: Layers },
-    inactive: { label: 'Inaktiv', color: '#475569', bg: '#f1f5f9', icon: Layers },
-  };
-  return m[status] ?? { label: status, color: '#475569', bg: '#f1f5f9' };
-}
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
@@ -73,7 +63,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'claim') return `reklamation rma ${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
-  if (row.type === 'process') return `standardprozess ${row.data.name} ${row.data.source} ${id}`.toLowerCase();
+  if (row.type === 'process') return `prozess ${row.data.name} ${row.data.source} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -96,7 +86,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   }
   else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
-  else if (row.type === 'process') badge = processBadge(row.data.status);
+  else if (row.type === 'process') badge = processStatusConfig(row.data.status);
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -161,7 +151,7 @@ export default function ErpPage() {
   // (funktioniert auch für Instanzen, die (noch) nicht im Feed geladen sind).
   const [instanceDetail, setInstanceDetail] = useState<Instance | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [standardProcesses, setStandardProcesses] = useState<Process[]>([]);
+  const [processes, setProcesses] = useState<Process[]>([]);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -202,7 +192,7 @@ export default function ErpPage() {
     // Nicht-blockierend nachladen (Shell erscheint sofort). Instanzen werden
     // separat server-paginiert/-durchsucht geladen (Effekt unten).
     api.getClaims().then(setClaims).catch(() => {});
-    api.getStandardProcesses().then(setStandardProcesses).catch(() => {});
+    api.getProcesses().then(setProcesses).catch(() => {});
     api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 
@@ -264,7 +254,7 @@ export default function ErpPage() {
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
     ...claims.map((c): Row => ({ type: 'claim', key: `c${c.id}`, objectId: c.object_id, data: c })),
-    ...standardProcesses.map((p): Row => ({ type: 'process', key: `p${p.id}`, objectId: p.object_id ?? null, data: p })),
+    ...processes.map((p): Row => ({ type: 'process', key: `p${p.id}`, objectId: p.object_id ?? null, data: p })),
   ].sort((x, y) => (y.objectId ?? -Infinity) - (x.objectId ?? -Infinity));   // höchste Nummer zuerst
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
@@ -392,9 +382,11 @@ export default function ErpPage() {
   }
 
   function handleProcessSaved(p: Process) {
-    setStandardProcesses((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
+    setProcesses((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
     setCreating(null);
     if (p.object_id != null) setSel({ type: 'process', objectId: p.object_id });
+    // Ersetzen/Deaktivieren wirkt auf weitere Datensätze (alt → inaktiv) → frisch laden.
+    api.getProcesses().then(setProcesses).catch(() => {});
   }
 
   function cancelCreate() {
@@ -442,7 +434,7 @@ export default function ErpPage() {
                       <AlertTriangle size={15} style={{ color: '#64748b' }} /> Reklamation
                     </button>
                     <button onClick={() => startCreate('process')} style={menuItemStyle}>
-                      <Layers size={15} style={{ color: '#64748b' }} /> Standardprozess
+                      <Layers size={15} style={{ color: '#64748b' }} /> Prozess
                     </button>
                   </div>
                 )}

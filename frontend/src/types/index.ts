@@ -23,14 +23,17 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 export type ArticleStatus = 'draft' | 'released' | 'inactive';
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
+// Art des Artikels: Verbrauchsmaterial (wird verbaut) | Betriebsmittel (Werkzeug/Maschine).
+export type ArticleKind = 'material' | 'equipment';
 
 type ArticleApi = components['schemas']['ArticleResponse'];
 
-// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung auf Unions verengt.
-export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
+// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung/Art auf Unions verengt.
+export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization' | 'kind'> & {
   status: ArticleStatus;
   unit: ArticleUnit;
   serialization: ArticleSerialization;
+  kind: ArticleKind;
 };
 
 // Eingaben für Anlage (alle Pflicht) bzw. Teil-Update aus dem Detailfenster.
@@ -40,6 +43,7 @@ export interface ArticleInput {
   serialization: ArticleSerialization;
   size: string;
   weight_kg: string;
+  kind?: ArticleKind;
   // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
   material?: string | null;
   cad_url?: string | null;
@@ -173,15 +177,19 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   expected_updated_at?: string | null;   // Optimistic Locking
 };
 
-// ─── Prozesse (Verben): Artikel-eigen + globale Standardprozesse ───────────────
+// ─── Prozesse: eigenständige Objekte (Feed «Prozesse»), Stückliste je Artikel ──
 
+// Quelle = SUBJEKT (worauf der Prozess wirkt), KEINE Richtungswahl.
 export type ProcessSource = 'produce' | 'stock' | 'instance';
+// Abgeleitete Lager-Richtung (Folge der Schritte, nicht gewählt).
+export type ProcessStockEffect = 'increase' | 'decrease' | 'neutral';
 export type Process = components['schemas']['ProcessResponse'];
 
 export interface ProcessInput {
   name: string;
   source?: ProcessSource;
   position?: number | null;
+  is_standard?: boolean;   // nur bei der Anlage wählbar (danach gesperrt)
 }
 
 export interface ProcessUpdateInput {
@@ -189,6 +197,7 @@ export interface ProcessUpdateInput {
   source?: ProcessSource;
   position?: number | null;
   status?: 'draft' | 'released' | 'inactive';
+  is_standard?: boolean;   // nur im Entwurf änderbar
   is_active?: boolean;
 }
 
@@ -224,7 +233,9 @@ export type ResourceLineView = NonNullable<ArticleProcessStepApi['resource_lines
 export interface ResourceLineInput {
   article_id: number;
   quantity: number;
-  mode: ResourceMode;
+  // Modus wird serverseitig aus der Artikel-Art abgeleitet (material→consume,
+  // equipment→tool) und nicht mehr pro Zeile gewählt. Optional/ignoriert.
+  mode?: ResourceMode;
 }
 
 export interface ArticleProcessStepInput {

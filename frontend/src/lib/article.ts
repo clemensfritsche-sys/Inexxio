@@ -1,5 +1,5 @@
 import { FilePen, CheckCircle2, Ban } from 'lucide-react';
-import type { ArticleSerialization, ArticleStatus, ArticleUnit } from '@/types';
+import type { ArticleKind, ArticleSerialization, ArticleStatus, ArticleUnit } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 
 // ─── Anzeige-Konfiguration ───────────────────────────────────────────────────
@@ -24,6 +24,16 @@ export const SERIALIZATION_OPTIONS: { value: ArticleSerialization; label: string
   { value: 'unit',  label: 'Einzelteil' },
   { value: 'batch', label: 'Batch' },
 ];
+
+// Art des Artikels: bestimmt das Verbrauchsverhalten in Ressourcen-Schritten.
+export const ARTICLE_KIND_OPTIONS: { value: ArticleKind; label: string; hint: string }[] = [
+  { value: 'material',  label: 'Verbrauchsmaterial', hint: 'Wird in Prozessen verbaut (Lagerabgang, FIFO).' },
+  { value: 'equipment', label: 'Betriebsmittel',     hint: 'Werkzeug/Maschine – wird nur genutzt, kein Lagerabgang.' },
+];
+
+export function kindLabel(value: string | null | undefined): string {
+  return ARTICLE_KIND_OPTIONS.find((k) => k.value === value)?.label ?? 'Verbrauchsmaterial';
+}
 
 export function unitLabel(value: string): string {
   return ARTICLE_UNITS.find((u) => u.value === value)?.label ?? value;
