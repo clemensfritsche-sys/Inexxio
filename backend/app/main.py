@@ -1,8 +1,10 @@
+import traceback
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import inspect, text
 
 from .core.config import get_settings
@@ -394,7 +396,12 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
     except Exception as e:
         print(f"WARNING: create_all() failed: {e}", flush=True)
-    # Schema-/Daten-Fixups genau einmal (Advisory-Lock, cross-worker/-instanz).
+    # Den universellen Nummernkreis-Generator IMMER sicherstellen – NICHT hinter
+    # dem Advisory-Lock. Sonst startet ein Worker, der den Lock nicht erhält, ohne
+    # ``object_id_seq`` und JEDE Objektanlage (Artikel/Auftrag/…) endet in einem
+    # 500 (``nextval`` auf fehlende Sequence). Idempotent & nebenläufigkeitssicher.
+    _ensure_object_id_sequence()
+    # Übrige Schema-/Daten-Fixups genau einmal (Advisory-Lock, cross-worker/-instanz).
     _run_startup_fixups_once()
     try:
         _bootstrap_admin()
@@ -419,6 +426,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Letzte Auffanglinie für unbehandelte Fehler.
+
+    Ohne diesen Handler liefert Starlette einen **text/plain** «Internal Server
+    Error» ohne jede Diagnose – der Client kann ihn nicht als JSON lesen und zeigt
+    nur «Server nicht erreichbar». Hier wird der vollständige Traceback in die
+    Logs geschrieben (Cloud Run) und eine **strukturierte JSON-Antwort** geliefert.
+    Ausserhalb der Produktion enthält ``detail`` die echte Ursache (Diagnose);
+    HTTPException wird davon nicht erfasst (eigener Handler)."""
+    tb = traceback.format_exc()
+    print(f"ERROR: Unhandled exception on {request.method} {request.url.path}\n{tb}", flush=True)
+    expose = settings.debug or settings.app_env.lower() != "production"
+    detail = f"{type(exc).__name__}: {exc}" if expose else "Interner Serverfehler"
+    return JSONResponse(status_code=500, content={"detail": detail, "code": "INTERNAL_ERROR"})
 
 app.include_router(health.router)
 app.include_router(auth.router)

@@ -925,3 +925,26 @@ def test_instance_has_subject_marker():
     """Bestands-Subjekte (Verkauf/Entnahme) sind je Auftrag markiert (subject_of_order_id)."""
     from app.models import Instance
     assert "subject_of_order_id" in Instance.__table__.columns.keys()
+
+
+def test_object_id_sequence_ensured_outside_advisory_lock():
+    """Der Nummernkreis-Generator (object_id_seq) wird bei JEDEM Start sichergestellt –
+    NICHT hinter dem Advisory-Lock. Sonst startet ein Worker ohne Sequence und jede
+    Objektanlage endet in einem 500 (nextval auf fehlende Sequence)."""
+    import inspect as _inspect
+    from app import main
+
+    src = _inspect.getsource(main.lifespan)
+    # Sequence-Sicherstellung steht VOR den gelockten Fixups
+    assert "_ensure_object_id_sequence()" in src
+    assert src.index("_ensure_object_id_sequence()") < src.index("_run_startup_fixups_once()")
+
+
+def test_unhandled_errors_return_structured_json():
+    """Letzte Auffanglinie: unbehandelte Fehler liefern strukturiertes JSON (statt
+    text/plain «Internal Server Error»), damit der Client die Ursache lesen kann."""
+    from app.main import app
+    from app.core.config import get_settings
+
+    assert Exception in app.exception_handlers          # globaler Handler registriert
+    assert hasattr(get_settings(), "app_env")           # Umgebung steuert Detail-Offenlegung

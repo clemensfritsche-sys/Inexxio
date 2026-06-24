@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     app_name: str = "Inexxio ECS API"
     app_version: str = "1.0.0"
     debug: bool = False
+    # Umgebung (per APP_ENV gesetzt). Ausserhalb der Produktion werden
+    # Fehlerdetails in der API-Antwort offengelegt (zur Diagnose); in der
+    # Produktion nur eine generische Meldung. Default = sicher (production).
+    app_env: str = "production"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/inexxio_local"
 
