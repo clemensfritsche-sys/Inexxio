@@ -160,7 +160,6 @@ async def create_article(
         serialization=data.serialization,
         size=data.size,
         weight_kg=data.weight_kg,
-        kind=data.kind,
         material=data.material,
         cad_url=data.cad_url,
         surface=data.surface,

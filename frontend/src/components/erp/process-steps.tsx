@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { unitLabel } from '@/lib/article';
@@ -16,8 +16,9 @@ type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string
 // Modus (Verbrauch/Betriebsmittel) wird aus der Artikel-Art abgeleitet – nicht mehr pro Zeile gewählt.
 type ResLine = { article_id: string; quantity: string };
 
-const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
-const RESOURCE_MODE_LABEL: Record<ResourceMode, string> = { consume: 'Verbrauch', tool: 'Betriebsmittel' };
+const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'consume', 'tool', 'sale'];
+// consume/tool sind eigene Schritttypen – der Schritttyp ist der Modus.
+const RESOURCE_STEP_TYPES: StepType[] = ['consume', 'tool'];
 
 export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   processId: number | null;
@@ -62,7 +63,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
   // Bewegung braucht Lagerplätze/Personen/Instanzen als Zielauswahl; Ressource die Artikel.
   // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
   useEffect(() => {
-    if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
+    if (adding === 'consume' || adding === 'tool') { api.getArticles().then(setArticles).catch(() => {}); return; }
     if (adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
     api.getUsers().then(setAllUsers).catch(() => {});
@@ -130,7 +131,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
     let resourcePayload: { article_id: number; quantity: number }[] | null = null;
-    if (type === 'resource') {
+    if (type === 'consume' || type === 'tool') {
       resourcePayload = resLines
         .filter((l) => l.article_id)
         .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)) }));
@@ -252,7 +253,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     {!isLocked && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
-                    {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Ressource${(s.resource_lines?.length ?? 0) === 1 ? '' : 'n'}`}
+                    {(s.step_type === 'consume' || s.step_type === 'tool') && `${s.resource_lines?.length ?? 0} ${s.step_type === 'tool' ? 'Betriebsmittel' : 'Position' + ((s.resource_lines?.length ?? 0) === 1 ? '' : 'en')}`}
                   </div>
                 </div>
                 {!readOnly && !isLocked && (
@@ -315,13 +316,13 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                 </div>
               )}
 
-              {/* Ressourcen: Liste (Bauteile & Betriebsmittel) */}
-              {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
+              {/* Verbrauch/Betriebsmittel: Zeilen (Artikel + Menge); Modus = Schritttyp */}
+              {(s.step_type === 'consume' || s.step_type === 'tool') && (s.resource_lines?.length ?? 0) > 0 && (
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {s.resource_lines!.map((l, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
                       • {l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`} <span style={{ color: '#94a3b8' }}>
-                        ({RESOURCE_MODE_LABEL[(l.mode as ResourceMode)] ?? l.mode} · {l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk)
+                        ({l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk)
                       </span>
                     </div>
                   ))}
@@ -413,8 +414,8 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                 </>
               )}
 
-              {adding === 'resource' && (
-                <ResourceLinesEditor lines={resLines} onChange={setResLines}
+              {(adding === 'consume' || adding === 'tool') && (
+                <ResourceLinesEditor mode={adding} lines={resLines} onChange={setResLines}
                   articles={articles.filter((a) => a.status === 'released' && a.object_id !== selfArticleObjectId)} />
               )}
 
@@ -444,53 +445,45 @@ const STEP_HINT: Record<StepType, string> = {
   purchase: 'Bestellung bei Lieferant oder Webshop',
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
-  resource: 'Bauteile verbrauchen & Betriebsmittel nutzen',
+  consume: 'Material verbrauchen (Lagerabgang, FIFO)',
+  tool: 'Betriebsmittel nutzen (kein Lagerabgang)',
   sale: 'Verkauf: Bestätigung → Rechnung → Zahlung',
 };
 
-// ─── Ressourcen-Zeilen bearbeiten (mini-BOM) ──────────────────────────────────
-function ResourceLinesEditor({ lines, onChange, articles }: {
+// ─── Zeilen eines Verbrauch-/Betriebsmittel-Schritts bearbeiten ───────────────
+function ResourceLinesEditor({ mode, lines, onChange, articles }: {
+  mode: 'consume' | 'tool';
   lines: ResLine[]; onChange: (l: ResLine[]) => void; articles: Article[];
 }) {
+  const isTool = mode === 'tool';
   function add() { onChange([...lines, { article_id: '', quantity: '1' }]); }
   function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
-    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}${a.kind === 'equipment' ? ' · Betriebsmittel' : ''}` }))];
+    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
   return (
     <div>
-      <Label>Ressourcen (Bauteile & Betriebsmittel)</Label>
+      <Label>{isTool ? 'Betriebsmittel (werden genutzt)' : 'Material (wird verbraucht)'}</Label>
       {articles.length === 0 && (
         <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Kein freigegebener Artikel referenzierbar.</span></div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {lines.map((l, i) => {
-          const art = articles.find((a) => String(a.id) === l.article_id);
-          const isTool = art?.kind === 'equipment';
-          return (
-            <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1 }}>
-                  <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
-                </div>
-                <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
-                <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
-              </div>
-              {art && (
-                <div style={{ fontSize: 11, fontWeight: 600, color: isTool ? '#7c3aed' : '#0f766e' }}>
-                  {isTool ? 'Betriebsmittel · wird nur genutzt (kein Lagerabgang)' : 'Verbrauch · wird verbaut (Lagerabgang, FIFO)'}
-                  <span style={{ color: '#94a3b8', fontWeight: 400 }}> — ergibt sich aus der Art des Artikels</span>
-                </div>
-              )}
+        {lines.map((l, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
             </div>
-          );
-        })}
+            <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
+              className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
+            <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
+          </div>
+        ))}
       </div>
-      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
+      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> {isTool ? 'Betriebsmittel' : 'Material'} hinzufügen</button>
       <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
-        Ob ein Artikel <b>verbraucht</b> (Material, Lagerabgang/FIFO) oder nur <b>genutzt</b> wird
-        (Betriebsmittel), ergibt sich aus der <b>Art des Artikels</b> (Stammdaten) – nicht mehr pro Zeile.
+        {isTool
+          ? 'Betriebsmittel werden nur genutzt (kein Lagerabgang). Für Verbrauchsmaterial einen «Verbrauch»-Schritt anlegen.'
+          : 'Material wird verbaut (Lagerabgang, FIFO nach Freigabe). Für Werkzeuge/Maschinen einen «Betriebsmittel»-Schritt anlegen.'}
       </div>
     </div>
   );

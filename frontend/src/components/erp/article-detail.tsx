@@ -3,10 +3,10 @@
 import { useRef, useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleKind, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
+import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
-  ARTICLE_UNITS, ARTICLE_KIND_OPTIONS, SERIALIZATION_OPTIONS, statusConfig,
-  unitLabel, serializationLabel, kindLabel, normalizeSize, normalizeWeight,
+  ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
+  unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import type { StatusAction } from '@/lib/status-flow';
@@ -39,7 +39,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock';
 type Form = {
-  name: string; unit: string; serialization: string; size: string; weight_kg: string; kind: string;
+  name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
 };
 
@@ -54,13 +54,13 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
 ];
 
 function seedFrom(record: Article | null): Form {
-  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '', kind: 'material',
+  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '' };
   if (!record) return base;
   return {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
-    size: record.size, weight_kg: String(record.weight_kg), kind: record.kind ?? 'material',
+    size: record.size, weight_kg: String(record.weight_kg),
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
@@ -139,7 +139,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
   const sig = JSON.stringify({
     name: form.name.trim(), unit: form.unit, serialization: form.serialization,
-    size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg), kind: form.kind,
+    size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg),
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
@@ -204,7 +204,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         serialization: form.serialization as ArticleSerialization,
         size: normalizeSize(form.size),
         weight_kg: normalizeWeight(form.weight_kg),
-        kind: form.kind as ArticleKind,
         material: form.material.trim() || null,
         cad_url: form.cad_url.trim() || null,
         surface: form.surface.trim() || null,
@@ -309,7 +308,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
                 </div>
                 <Row k="Name" v={record!.name} />
-                <Row k="Art" v={kindLabel(record!.kind)} />
                 <Row k="Einheit" v={unitLabel(record!.unit)} />
                 <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
                 <Row k="Grösse" v={record!.size} />
@@ -337,14 +335,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
-                </div>
-                <div>
-                  <Segmented label="Art des Artikels" value={form.kind} onChange={(v) => set('kind', v)}
-                    options={ARTICLE_KIND_OPTIONS.map((k) => ({ value: k.value, label: k.label }))} required />
-                  <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
-                    {ARTICLE_KIND_OPTIONS.find((k) => k.value === form.kind)?.hint}
-                    {' '}Bestimmt, ob der Artikel als Ressource verbraucht oder nur genutzt wird.
-                  </div>
                 </div>
                 <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
                 {weightIsComputed ? (

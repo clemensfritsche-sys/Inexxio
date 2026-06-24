@@ -3426,11 +3426,6 @@
             ],
             "title": "Weight Kg"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "default": "material"
-          },
           "material": {
             "anyOf": [
               {
@@ -3982,11 +3977,6 @@
             "type": "string",
             "title": "Weight Kg"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind",
-            "default": "material"
-          },
           "material": {
             "anyOf": [
               {
@@ -4242,17 +4232,6 @@
               }
             ],
             "title": "Weight Kg"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
           },
           "material": {
             "anyOf": [
@@ -8010,11 +7989,6 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "consume"
           }
         },
         "type": "object",
@@ -8022,7 +7996,7 @@
           "article_id"
         ],
         "title": "ResourceLine",
-        "description": "Eine Ressourcen-Zeile des «resource»-Schritts (mini-BOM / Betriebsmittel)."
+        "description": "Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).\n\nOb die Zeile verbraucht (consume) oder genutzt (tool) wird, ergibt sich aus dem\n**Schritttyp** des Prozessschritts – nicht pro Zeile und nicht aus dem Artikel."
       },
       "ResourceLineExec": {
         "properties": {
@@ -8034,11 +8008,6 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "consume"
           },
           "article_name": {
             "anyOf": [
@@ -8083,6 +8052,11 @@
               }
             ],
             "title": "Serialization"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
           },
           "need": {
             "anyOf": [
@@ -8147,7 +8121,7 @@
           "article_id"
         ],
         "title": "ResourceLineExec",
-        "description": "Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;\nBetriebsmittel: wählbare Instanzen)."
+        "description": "Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;\nBetriebsmittel: wählbare Instanzen). ``mode`` (consume|tool) folgt aus dem\nSchritttyp und steuert die Anzeige im Auftrag."
       },
       "ResourceLineView": {
         "properties": {
@@ -8159,11 +8133,6 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "consume"
           },
           "article_name": {
             "anyOf": [

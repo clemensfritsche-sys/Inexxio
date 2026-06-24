@@ -190,15 +190,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Lagerplatz/Person/Instanz),
     leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
     eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
-  - **resource** = «**Ressource**»: Produktions-Stückliste je Operation – Liste von Zeilen am Schritt
-    (`article_process_steps.resource_lines` = [{article_id, quantity **pro Stück**}]). Der **Modus
-    ergibt sich aus der Artikel-Art** (`articles.kind`, NICHT mehr pro Zeile gewählt –
-    `services/resource.py: effective_mode`): `material` → **consume** (Verbrauch): Bauteil wird in die
-    **Produkt-Instanz eingebaut** (Standort → `instance`) = Lagerabgang; Auswahl strikt **FIFO nach
-    Freigabe** (`instances.released_at`), Chargen-**Teilentnahme**. `equipment` → **tool**
-    (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein FIFO,
-    freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit wird
-    geprüft. Abschluss-Marker = `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
+  - **consume** = «**Verbrauch**» / **tool** = «**Betriebsmittel**»: zwei Schritttypen – der
+    **Modus ist der Schritttyp** (NICHT Artikel-Eigenschaft, NICHT pro Zeile; `article.kind` gibt es
+    nicht mehr). Je Schritt eine Liste von Zeilen (`resource_lines` = [{article_id, quantity **pro
+    Stück**}]). **consume**: Bauteil wird in die **Produkt-Instanz eingebaut** (Standort → `instance`)
+    = Lagerabgang; Auswahl strikt **FIFO nach Freigabe** (`instances.released_at`),
+    Chargen-**Teilentnahme**. **tool**: Werkzeug/Maschine wird nur **genutzt** (kein Lagerabgang, kein
+    FIFO, freie Wahl). Nur **freigegebene** (qc passed) Instanzen verbrauchbar/nutzbar; Verfügbarkeit
+    wird geprüft. Beide buchen in `resource_usages` (keine eigene Nummer); Genealogie via Instanz-
     «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`. Das Panel
     zeigt den Verbrauch **je Produkt-Instanz** (welche Komponenten-Instanz in welche Produkt-Instanz
     verbaut wird; Vorschau = FIFO-Plan, danach das Protokoll) – `ResourceEmbed.products`.
@@ -218,7 +217,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Artikelanlage als **Entwurf**-Prozess + Link.
 - **Quelle & Lager-Richtung werden ABGELEITET, nicht gewählt** (Frage 2): KEIN Quellen-/Richtungs-
   Dropdown mehr. `processes.recompute_source` leitet `source` aus den Schritt-Typen ab und speichert sie
-  (nach jeder Schritt-Änderung): Verkauf → `stock` (*mindernd*), Beschaffung/Produktion (purchase/resource)
+  (nach jeder Schritt-Änderung): Verkauf → `stock` (*mindernd*), Beschaffung/Verbrauch (purchase/consume)
   → `produce` (*erhöhend*), sonst (Bewegung/Datenerfassung/leer) → `instance` (*neutral*). `stock_effect`
   mappt das auf erhöhend/mindernd/neutral. Anzeige als Badge in Prozess/Auftrag
   (`ProcessResponse.stock_effect`, `OrderResponse.process_stock_effect`).
@@ -293,12 +292,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **HINWEIS:** Artikel **Stammdaten** + **Prozessstückliste** + **Bestand** (Instanzen mit Standort) sind
 > gefüllt. **Prozesse sind eigenständige Objekte** (Nummer + Name + Lebenszyklus, Feed «Prozesse»); ein
 > Prozess kann bei mehreren Artikeln liegen (n:m via `article_process_links`). Schritttypen: purchase,
-> inspection, movement, resource (Ressource = Verbrauch FIFO/Chargen-Teilentnahme **oder** Betriebsmittel –
-> abgeleitet aus `articles.kind`). **Stammdaten-Freigabe** ist entkoppelt und **Vorbedingung** für den
+> inspection, movement, **consume** (Verbrauch, FIFO/Chargen-Teilentnahme) und **tool** (Betriebsmittel) –
+> der Modus ist der **Schritttyp** (kein `article.kind` mehr). **Stammdaten-Freigabe** ist entkoppelt und **Vorbedingung** für den
 > Prozessstart (Auftrag); **Lager-Richtung** wird abgeleitet (`stock_effect`), nicht gewählt.
 > **Reklamation (RMA)** ist als eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte).
 > E-Mail-Versand ist nur als TODO vermerkt (Gmail API, Phase 2). Stripe ist **noch nicht** implementiert.
-> **Mehr-Operationen-Routing**: mehrere gleichartige Prozessschritte (inkl. mehrerer `resource`-Operationen)
+> **Mehr-Operationen-Routing**: mehrere gleichartige Prozessschritte (inkl. mehrerer consume/tool-Operationen)
 > laufen unabhängig (`step_id` auf den Fachtabellen).
 
 Nächste Aufgabe: Scan-Quittierung auch im Wareneingang (`purchase` «received») via `useScan`;

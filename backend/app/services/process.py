@@ -38,18 +38,26 @@ STEP_LABELS = {
     "purchase": "Beschaffung",
     "inspection": "Datenerfassung",
     "movement": "Bewegung",
-    "resource": "Ressource",
+    "consume": "Verbrauch",        # Material verbrauchen (FIFO/Lagerabgang)
+    "tool": "Betriebsmittel",      # Werkzeug/Maschine nutzen (kein Lagerabgang)
+    "resource": "Verbrauch",       # Alt-Alias (Altdaten); wird wie consume behandelt
     "sale": "Verkauf",
 }
 
-# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung)
+# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung). consume/tool
+# (und das Alt-Alias resource) teilen sich die Buchungstabelle resource_usages.
 _FACT_MODEL = {
     "purchase": PurchaseOrder,
     "inspection": Inspection,
     "movement": Movement,
+    "consume": ResourceUsage,
+    "tool": ResourceUsage,
     "resource": ResourceUsage,
     "sale": Sale,
 }
+
+# Schritttypen, die über die Ressourcen-Logik laufen (Verbrauch + Betriebsmittel).
+RESOURCE_STEP_TYPES = ("consume", "tool", "resource")
 
 
 def step_defs(db: Session, process_id: int | None) -> list[ArticleProcessStep]:
@@ -109,7 +117,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource"):
+    if step_type in ("movement", "consume", "tool", "resource"):
         return "done" if fact else "open"
     return "open"
 
@@ -206,6 +214,24 @@ def resolve_exec_step(db: Session, order: Order, step_type: str, step_id: int | 
     active = next((s for s in steps if s["step_type"] == step_type and s["state"] == "active"), None)
     if not active:
         raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
+    return active["step"]
+
+
+def resolve_resource_step(db: Session, order: Order, step_id: int | None) -> ArticleProcessStep:
+    """Den auszuführenden Ressourcen-Schritt bestimmen – consume **oder** tool (über
+    ``step_id`` eindeutig; sonst der aktive Ressourcen-Schritt). Der Schritttyp legt
+    fest, ob verbraucht oder genutzt wird."""
+    steps = build_order_steps(db, order)
+    if step_id is not None:
+        match = next((s for s in steps if s["id"] == step_id), None)
+        if not match or match["step"].step_type not in RESOURCE_STEP_TYPES:
+            raise HTTPException(404, detail="Prozessschritt nicht gefunden")
+        if match["state"] != "active":
+            raise HTTPException(409, detail="Schritt ist (noch) nicht an der Reihe")
+        return match["step"]
+    active = next((s for s in steps if s["step_type"] in RESOURCE_STEP_TYPES and s["state"] == "active"), None)
+    if not active:
+        raise HTTPException(409, detail="Schritt ist (noch) nicht an der Reihe")
     return active["step"]
 
 

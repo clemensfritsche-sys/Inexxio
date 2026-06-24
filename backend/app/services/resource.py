@@ -1,17 +1,17 @@
-"""Geschäftslogik für den Prozessschritt «Ressource» (Produktion).
+"""Geschäftslogik für die Ressourcen-Schritte (Produktion).
 
-Je Schritt eine Liste von Ressourcen-Zeilen (mini-BOM), je Zeile ein Artikel +
-Menge (pro Stück Produkt) + Modus:
+Der **Schritttyp** bestimmt das Verhalten (nicht der Artikel, nicht die Zeile):
 
-- **consume** (Verbrauch): Bauteil wird in die Produkt-Instanz **eingebaut** →
+- **consume** («Verbrauch»): Bauteil wird in die Produkt-Instanz **eingebaut** →
   Lagerabgang. Auswahl strikt **FIFO nach Freigabe** (``instances.released_at``).
   Chargen werden bei Bedarf **teilentnommen** (Rest bleibt im Lager).
-- **tool** (Betriebsmittel): Werkzeug/Maschine wird nur **genutzt** → kein
+- **tool** («Betriebsmittel»): Werkzeug/Maschine wird nur **genutzt** → kein
   Lagerabgang, kein FIFO; der Verantwortliche wählt eine freigegebene Instanz.
 
-«Eingebaut» = Standortwechsel der Komponente in die Produkt-Instanz
-(``location_type='instance'``) – derselbe Mechanismus wie der Bewegungs-Schritt.
-Nur **freigegebene** (qc ``passed``) Instanzen sind verbrauchbar/nutzbar.
+Jeder Schritt führt eine Liste von Zeilen (Artikel + Menge pro Stück Produkt); alle
+Zeilen eines Schritts teilen den Modus des Schritttyps. «Eingebaut» = Standortwechsel
+der Komponente in die Produkt-Instanz (``location_type='instance'``). Nur
+**freigegebene** (qc ``passed``) Instanzen sind verbrauchbar/nutzbar.
 """
 
 from fastapi import HTTPException
@@ -44,15 +44,10 @@ def _article(db: Session, article_db_id: int) -> Article | None:
     return db.query(Article).filter(Article.id == article_db_id).first()
 
 
-def effective_mode(db: Session, article_db_id: int) -> str:
-    """Verbrauchsverhalten einer Ressourcen-Zeile – **abgeleitet aus der Artikel-Art**
-    (Frage 2), nicht mehr pro BOM-Zeile gewählt:
-
-        equipment → ``tool``    (Betriebsmittel: nur genutzt, kein Lagerabgang)
-        sonst     → ``consume`` (verbraucht: Lagerabgang, FIFO nach Freigabe)
-    """
-    art = _article(db, article_db_id)
-    return "tool" if (art and art.kind == "equipment") else "consume"
+def _step_mode(step: ArticleProcessStep | None) -> str:
+    """Modus eines Ressourcen-Schritts aus dem Schritttyp: ``tool`` → Betriebsmittel,
+    sonst (``consume``/Alt-Alias ``resource``) → Verbrauch."""
+    return "tool" if (step and step.step_type == "tool") else "consume"
 
 
 def _user_name(u: UserProfile | None) -> str | None:
@@ -97,21 +92,19 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     """Bei Auftragsfreigabe die zu verbrauchenden Komponenten **mengengenau**
     reservieren.
 
-    Über alle ``resource``-Schritte des Artikels werden die consume-Mengen summiert
-    und – FIFO aus unreserviertem freigegebenem Bestand – exakt die benötigte Menge
-    gesperrt. Deckt eine Charge mehr als den Bedarf, wird sie **geteilt**: der
-    reservierte Teil geht an den Auftrag (``reserved_for_order_id``), der Rest bleibt
-    frei für andere Aufträge. Committet NICHT (Aufrufer schliesst ab)."""
+    Über alle **Verbrauch**-Schritte (``consume``) des Auftrags werden die Mengen
+    summiert und – FIFO aus unreserviertem freigegebenem Bestand – exakt die benötigte
+    Menge gesperrt. Betriebsmittel-Schritte (``tool``) reservieren nichts. Deckt eine
+    Charge mehr als den Bedarf, wird sie **geteilt**: der reservierte Teil geht an den
+    Auftrag (``reserved_for_order_id``), der Rest bleibt frei. Committet NICHT."""
     if not order.article_id or not order.quantity:
         return
     needs: dict[int, int] = {}
     for d in process.order_step_defs(db, order):
-        if d.step_type != "resource":
+        if d.step_type not in ("consume", "resource"):
             continue
         for line in (d.resource_lines or []):
             aid = line["article_id"]
-            if effective_mode(db, aid) != "consume":
-                continue
             needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * order.quantity
     for art_id, need in needs.items():
         if art_id == order.article_id:
@@ -264,21 +257,21 @@ def _use_tool(db: Session, tool: Instance, product: Instance, actor_id: int) -> 
 
 
 def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceUsage:
-    step = process.resolve_exec_step(db, order, "resource", getattr(data, "step_id", None))
+    step = process.resolve_resource_step(db, order, getattr(data, "step_id", None))
     lines = (step.resource_lines if step else None) or []
     if not lines:
-        raise HTTPException(400, detail="Für diesen Auftrag sind keine Ressourcen definiert")
+        raise HTTPException(400, detail="Für diesen Schritt sind keine Zeilen definiert")
     products = order_instances(db, order)
     if not products:
         raise HTTPException(409, detail="Keine Produkt-Instanzen vorhanden")
 
+    mode = _step_mode(step)   # Verbrauch vs. Betriebsmittel folgt aus dem Schritttyp
     tool_picks = {t.article_id: (t.instance_ids or []) for t in (data.tools or [])}
     details: dict = {"consume": [], "tools": []}
 
     for line in lines:
         art_id = line["article_id"]
         qty = line.get("quantity", 1)
-        mode = effective_mode(db, art_id)
         if mode == "tool":
             tools = _validate_tools(db, art_id, tool_picks.get(art_id, []))
             for t in tools:
@@ -306,12 +299,9 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
 
 def _line_view(db: Session, line: dict) -> dict:
     art = _article(db, line["article_id"])
-    # Modus aus der Artikel-Art ableiten (nicht aus der gespeicherten Zeile) –
-    # so stimmt die Anzeige auch für Altdaten ohne konsistentes ``mode``.
     return {
         "article_id": line["article_id"],
         "quantity": line.get("quantity", 1),
-        "mode": "tool" if (art and art.kind == "equipment") else "consume",
         "article_name": art.name if art else None,
         "article_object_id": art.object_id if art else None,
         "unit": art.unit if art else None,
@@ -371,15 +361,17 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
     products = order_instances(db, order)
     art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
                  for raw in step.resource_lines}
+    # Modus (Verbrauch/Betriebsmittel) folgt aus dem Schritttyp – gilt für alle Zeilen.
+    mode = _step_mode(step)
     # Verbrauch je Produkt-Instanz: aus dem Protokoll (done) oder als FIFO-Vorschau.
     per_product: dict[int, list[ResourceComponentPick]] = {p.object_id or 0: [] for p in products}
 
     lines: list[ResourceLineExec] = []
     for raw in step.resource_lines:
         view = _line_view(db, raw)
-        exec_line = ResourceLineExec(**view)
+        exec_line = ResourceLineExec(**view, mode=mode)
         art_id = raw["article_id"]
-        if view["mode"] == "tool":
+        if mode == "tool":
             cands = _tool_candidates(db, art_id)
             exec_line.candidates = [
                 ResourceCandidate(object_id=c.object_id, label=_obj_nr(c.object_id or 0))

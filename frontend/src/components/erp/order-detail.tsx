@@ -480,7 +480,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'movement') {
     return <MovementPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (step.step_type === 'resource') {
+  if (step.step_type === 'consume' || step.step_type === 'tool') {
     return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return null;

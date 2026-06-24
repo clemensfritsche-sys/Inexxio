@@ -105,9 +105,8 @@ _COLUMN_SAFETY_NET = (
     ("orders", "process_id", "BIGINT"),
     ("orders", "subject_instance_id", "BIGINT"),
     ("instances", "subject_of_order_id", "BIGINT"),
-    # Prozess = eigenständiges Objekt (Ersetzen-Kette) + Artikel-Art (Frage 2)
+    # Prozess = eigenständiges Objekt (Ersetzen-Kette)
     ("processes", "replaced_by_id", "BIGINT"),
-    ("articles", "kind", "VARCHAR(20) DEFAULT 'material' NOT NULL"),
     ("movements", "tracking_number", "VARCHAR(100)"),
     ("movements", "carrier", "VARCHAR(60)"),
     # Wiederkehrende Aufträge: Konfiguration direkt am Auftrag (kein eigenes Objekt mehr)

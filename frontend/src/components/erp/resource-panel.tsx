@@ -26,6 +26,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   const done = !!res?.done;
   const consumeLines = lines.filter((l) => l.mode === 'consume');
   const toolLines = lines.filter((l) => l.mode === 'tool');
+  const title = toolLines.length > 0 && consumeLines.length === 0 ? 'Betriebsmittel' : 'Verbrauch';
   const scan = useScan();
 
   const [note, setNote] = useState('');
@@ -105,7 +106,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header />
+        <Header title={title} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -115,7 +116,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header />
+      <Header title={title} />
 
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
@@ -261,11 +262,11 @@ function SubTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Header() {
+function Header({ title }: { title: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Wrench size={15} style={{ color: '#2563eb' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Ressource</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{title}</span>
     </div>
   );
 }

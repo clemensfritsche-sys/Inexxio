@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "sale"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "consume", "tool", "sale"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -395,43 +395,44 @@ def test_storage_location_references_callable():
 
 
 def test_resource_line_schema_validates():
-    """Ressourcen-Zeile: Modus consume|tool, Menge > 0."""
+    """Ressourcen-Zeile: Artikel + Menge > 0; Modus kommt aus dem Schritttyp (kein
+    Feld mehr auf der Zeile)."""
     import pytest
 
     from app.schemas.article_process_step import ResourceLine
 
-    assert ResourceLine(article_id=5, quantity=2, mode="consume").mode == "consume"
-    assert ResourceLine(article_id=5, mode="tool").quantity == 1   # Default
-    with pytest.raises(ValueError):
-        ResourceLine(article_id=5, mode="unsinn")
+    assert ResourceLine(article_id=5, quantity=2).quantity == 2
+    assert ResourceLine(article_id=5).quantity == 1   # Default
+    assert "mode" not in ResourceLine.model_fields    # Modus = Schritttyp, nicht Zeile
     with pytest.raises(ValueError):
         ResourceLine(article_id=5, quantity=0)
 
 
 def test_resource_step_requires_lines():
-    """Ein Ressource-Schritt braucht mindestens eine Zeile."""
+    """consume-/tool-Schritte brauchen mindestens eine Zeile."""
     import pytest
 
     from app.schemas.article_process_step import ArticleProcessStepCreate, ResourceLine
 
-    with pytest.raises(ValueError):
-        ArticleProcessStepCreate(step_type="resource")
+    for st in ("consume", "tool"):
+        with pytest.raises(ValueError):
+            ArticleProcessStepCreate(step_type=st)
     ok = ArticleProcessStepCreate(
-        step_type="resource",
-        resource_lines=[ResourceLine(article_id=5, quantity=2, mode="consume")],
+        step_type="consume",
+        resource_lines=[ResourceLine(article_id=5, quantity=2)],
     )
     assert ok.resource_lines[0].article_id == 5
 
 
 def test_resource_step_in_engine_and_model():
-    """Engine kennt «Ressource»; Ausführungs-Marker + released_at vorhanden."""
+    """Engine kennt «Verbrauch»/«Betriebsmittel»; Ausführungs-Marker + released_at."""
     from app.models import Instance, ResourceUsage
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES
     from app.services.process import STEP_LABELS
 
     assert ResourceUsage.__tablename__ == "resource_usages"
-    assert STEP_LABELS["resource"] == "Ressource"
-    assert "resource" in ALLOWED_STEP_TYPES
+    assert STEP_LABELS["consume"] == "Verbrauch" and STEP_LABELS["tool"] == "Betriebsmittel"
+    assert "consume" in ALLOWED_STEP_TYPES and "tool" in ALLOWED_STEP_TYPES
     assert hasattr(Instance, "released_at")     # FIFO-Basis
 
 
@@ -822,7 +823,8 @@ def test_process_model_and_sources():
     # Quelle wird NICHT gewählt – sie ergibt sich aus den Schritt-Typen.
     assert derive_source({"sale"}) == "stock"            # Verkauf → mindernd
     assert derive_source({"purchase"}) == "produce"      # Beschaffung → erhöhend
-    assert derive_source({"resource"}) == "produce"      # Produktion → erhöhend
+    assert derive_source({"consume"}) == "produce"       # Materialverbrauch → erhöhend
+    assert derive_source({"tool", "inspection"}) == "instance"  # Betriebsmittel allein = neutral
     assert derive_source({"movement", "inspection"}) == "instance"  # neutral
     assert derive_source(set()) == "instance"            # ohne Schritt → neutral
     # ProcessCreate kennt KEINE Quelle mehr; Name wird normalisiert, leer = Fehler.

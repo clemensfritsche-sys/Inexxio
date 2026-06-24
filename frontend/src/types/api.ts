@@ -1047,11 +1047,6 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: number | string;
-            /**
-             * Kind
-             * @default material
-             */
-            kind: string;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -1204,11 +1199,6 @@ export interface components {
             size: string;
             /** Weight Kg */
             weight_kg: string;
-            /**
-             * Kind
-             * @default material
-             */
-            kind: string;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -1267,8 +1257,6 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: number | string | null;
-            /** Kind */
-            kind?: string | null;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -2396,7 +2384,10 @@ export interface components {
         };
         /**
          * ResourceLine
-         * @description Eine Ressourcen-Zeile des «resource»-Schritts (mini-BOM / Betriebsmittel).
+         * @description Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).
+         *
+         *     Ob die Zeile verbraucht (consume) oder genutzt (tool) wird, ergibt sich aus dem
+         *     **Schritttyp** des Prozessschritts – nicht pro Zeile und nicht aus dem Artikel.
          */
         ResourceLine: {
             /** Article Id */
@@ -2406,16 +2397,12 @@ export interface components {
              * @default 1
              */
             quantity: number;
-            /**
-             * Mode
-             * @default consume
-             */
-            mode: string;
         };
         /**
          * ResourceLineExec
          * @description Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;
-         *     Betriebsmittel: wählbare Instanzen).
+         *     Betriebsmittel: wählbare Instanzen). ``mode`` (consume|tool) folgt aus dem
+         *     Schritttyp und steuert die Anzeige im Auftrag.
          */
         ResourceLineExec: {
             /** Article Id */
@@ -2425,11 +2412,6 @@ export interface components {
              * @default 1
              */
             quantity: number;
-            /**
-             * Mode
-             * @default consume
-             */
-            mode: string;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */
@@ -2438,6 +2420,11 @@ export interface components {
             unit?: string | null;
             /** Serialization */
             serialization?: string | null;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
             /** Need */
             need?: number | null;
             /** Available */
@@ -2472,11 +2459,6 @@ export interface components {
              * @default 1
              */
             quantity: number;
-            /**
-             * Mode
-             * @default consume
-             */
-            mode: string;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */

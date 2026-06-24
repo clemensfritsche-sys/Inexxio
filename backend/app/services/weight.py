@@ -28,20 +28,18 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
     consume_map[article_id] = [(component_article_id, menge_pro_stück), …]."""
     from . import processes as processes_svc
     weights: dict[int, Decimal] = {}
-    kinds: dict[int, str] = {}
-    for aid, w, k in db.query(Article.id, Article.weight_kg, Article.kind).filter(Article.is_active == True).all():
+    for aid, w in db.query(Article.id, Article.weight_kg).filter(Article.is_active == True).all():
         weights[aid] = w if w is not None else Decimal(0)
-        kinds[aid] = k
     consume: dict[int, list[tuple[int, Decimal]]] = {}
     # Nur die **Produktions**-Rezeptur (Prozess-Quelle ``produce``) bestimmt das
-    # Gewicht – Verbrauch in Wartungs-/anderen Prozessen zählt NICHT zur Stückliste.
-    # Der/die Produkt-Artikel sind die Artikel, die den Prozess in ihrer Stückliste
-    # führen (n:m). Verbrauch (consume) leitet sich aus der Artikel-Art ab –
-    # Betriebsmittel (``equipment``) tragen nicht zum Gewicht bei.
+    # Gewicht – über die **Verbrauch**-Schritte (``consume``). Betriebsmittel (``tool``)
+    # werden nur genutzt und zählen NICHT zum Gewicht. Der/die Produkt-Artikel sind die
+    # Artikel, die den Prozess in ihrer Stückliste führen (n:m).
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True,
+        .filter(ArticleProcessStep.step_type.in_(("consume", "resource")),
+                ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
     )
@@ -54,7 +52,7 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
             continue
         for line in (s.resource_lines or []):
             comp = line.get("article_id")
-            if comp is None or kinds.get(comp) == "equipment":
+            if comp is None:
                 continue
             qty = Decimal(str(line.get("quantity", 1)))
             for parent in parents:

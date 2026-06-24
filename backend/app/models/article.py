@@ -29,13 +29,6 @@ class Article(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
 
-    # Art des Artikels – bestimmt das Verbrauchsverhalten in Ressourcen-Schritten
-    # (statt einer Wahl pro BOM-Zeile, vgl. CLAUDE.md / Frage 2):
-    #   material  → wird **verbraucht** (Lagerabgang, FIFO) = consume
-    #   equipment → **Betriebsmittel** (Werkzeug/Maschine, nur genutzt) = tool
-    kind: Mapped[str] = mapped_column(
-        String(20), default="material", server_default="material", nullable=False)
-
     # Stammdaten (Pflichtfelder)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(10), nullable=False)  # Stk | m | kg | l

@@ -23,8 +23,10 @@ class ResourceCandidate(BaseModel):
 
 class ResourceLineExec(ResourceLineView):
     """Ressourcen-Zeile mit Ausführungs-Infos (Verbrauch: FIFO-Plan/Verfügbarkeit;
-    Betriebsmittel: wählbare Instanzen)."""
+    Betriebsmittel: wählbare Instanzen). ``mode`` (consume|tool) folgt aus dem
+    Schritttyp und steuert die Anzeige im Auftrag."""
 
+    mode: str = "consume"
     # consume
     need: Optional[int] = None
     available: Optional[int] = None

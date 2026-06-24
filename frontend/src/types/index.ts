@@ -23,17 +23,14 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 export type ArticleStatus = 'draft' | 'released' | 'inactive';
 export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
-// Art des Artikels: Verbrauchsmaterial (wird verbaut) | Betriebsmittel (Werkzeug/Maschine).
-export type ArticleKind = 'material' | 'equipment';
 
 type ArticleApi = components['schemas']['ArticleResponse'];
 
-// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung/Art auf Unions verengt.
-export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization' | 'kind'> & {
+// Aus dem Backend-Schema abgeleitet; Status/Einheit/Serialisierung auf Unions verengt.
+export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
   status: ArticleStatus;
   unit: ArticleUnit;
   serialization: ArticleSerialization;
-  kind: ArticleKind;
 };
 
 // Eingaben für Anlage (alle Pflicht) bzw. Teil-Update aus dem Detailfenster.
@@ -43,7 +40,6 @@ export interface ArticleInput {
   serialization: ArticleSerialization;
   size: string;
   weight_kg: string;
-  kind?: ArticleKind;
   // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
   material?: string | null;
   cad_url?: string | null;
@@ -82,7 +78,9 @@ type OrderSummaryApi = components['schemas']['OrderSummary'];
 export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStatus };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'sale';
+// «consume» = Verbrauch (Material, FIFO), «tool» = Betriebsmittel (genutzt). Der
+// Modus ist der Schritttyp – nicht mehr eine Eigenschaft des Artikels/der Zeile.
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'consume' | 'tool' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -231,9 +229,7 @@ export type ResourceLineView = NonNullable<ArticleProcessStepApi['resource_lines
 export interface ResourceLineInput {
   article_id: number;
   quantity: number;
-  // Modus wird serverseitig aus der Artikel-Art abgeleitet (material→consume,
-  // equipment→tool) und nicht mehr pro Zeile gewählt. Optional/ignoriert.
-  mode?: ResourceMode;
+  // Kein Modus: ob verbraucht oder genutzt, bestimmt der Schritttyp (consume|tool).
 }
 
 export interface ArticleProcessStepInput {

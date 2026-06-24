@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, field_validator
 ALLOWED_UNITS = ("Stk", "mm", "m2", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
 ALLOWED_STATUS = ("draft", "released", "inactive")
-ALLOWED_KIND = ("material", "equipment")  # Verbrauchsmaterial | Betriebsmittel
 
 _SIZE_RE = re.compile(r"^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)+$")
 
@@ -86,9 +85,6 @@ class ArticleCreate(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
-    # Art: material (verbraucht) | equipment (Betriebsmittel). Bestimmt das
-    # Verbrauchsverhalten in Ressourcen-Schritten (statt Wahl pro BOM-Zeile).
-    kind: str = "material"
     # Optionale Stammdaten (nur bei Bedarf gepflegt)
     material: Optional[str] = None
     cad_url: Optional[str] = None
@@ -139,13 +135,6 @@ class ArticleCreate(BaseModel):
     def _weight_valid(cls, v: Decimal) -> Decimal:
         return validate_weight(v)
 
-    @field_validator("kind")
-    @classmethod
-    def _kind_valid(cls, v: str) -> str:
-        if v not in ALLOWED_KIND:
-            raise ValueError("Art muss 'material' oder 'equipment' sein")
-        return v
-
 
 class ArticleUpdate(BaseModel):
     """Teil-Update aus dem Detailfenster. Alle Felder optional."""
@@ -156,7 +145,6 @@ class ArticleUpdate(BaseModel):
     serialization: Optional[str] = None
     size: Optional[str] = None
     weight_kg: Optional[Decimal] = None
-    kind: Optional[str] = None
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
@@ -166,15 +154,6 @@ class ArticleUpdate(BaseModel):
     is_active: Optional[bool] = None
     # Optimistic Locking: Stand, den der Client zuletzt gesehen hat (optional).
     expected_updated_at: Optional[datetime] = None
-
-    @field_validator("kind")
-    @classmethod
-    def _kind_valid(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in ALLOWED_KIND:
-            raise ValueError("Art muss 'material' oder 'equipment' sein")
-        return v
 
     @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
@@ -249,7 +228,6 @@ class ArticleResponse(BaseModel):
     serialization: str
     size: str
     weight_kg: Decimal
-    kind: str = "material"
     # Optionale Stammdaten (dynamische Feldliste)
     material: Optional[str] = None
     cad_url: Optional[str] = None

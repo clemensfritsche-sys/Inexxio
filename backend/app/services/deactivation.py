@@ -43,13 +43,14 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     (``equipment``) kaskadiert NICHT."""
     from . import processes as processes_svc
     out: dict[int, set[int]] = {}
-    # Nur die Produktions-Rezeptur (Quelle ``produce``) bildet die Stückliste – ein
-    # in der Wartung verbrauchtes Ersatzteil macht das Gerät nicht „herstellungs-
-    # abhängig" von ihm (kein Kaskaden-Deaktivieren über Wartungs-Verbrauch).
+    # Nur die Produktions-Rezeptur (Quelle ``produce``) bildet die Stückliste – und
+    # darin nur **Verbrauch**-Schritte (``consume``). Betriebsmittel-Nutzung (``tool``)
+    # macht das Produkt nicht herstellungs-abhängig vom Werkzeug (keine Kaskade).
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type == "resource", ArticleProcessStep.is_active == True,
+        .filter(ArticleProcessStep.step_type.in_(("consume", "resource")),
+                ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
     )
@@ -63,9 +64,6 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
         for line in (s.resource_lines or []):
             aid = line.get("article_id")
             if aid is None:
-                continue
-            comp = db.query(Article.kind).filter(Article.id == aid).first()
-            if comp and comp[0] == "equipment":
                 continue
             out.setdefault(aid, set()).update(parents)
     return out
@@ -156,7 +154,8 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
         .filter(Process.id.in_(linked_ids), Process.source == "produce",
-                Process.is_active == True, ArticleProcessStep.step_type == "resource",
+                Process.is_active == True,
+                ArticleProcessStep.step_type.in_(("consume", "resource")),
                 ArticleProcessStep.is_active == True)
         .all()
     )
@@ -166,7 +165,7 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
             if aid is None:
                 continue
             comp = db.query(Article).filter(Article.id == aid).first()
-            if not comp or comp.kind == "equipment":   # Betriebsmittel blockiert nicht
+            if not comp:
                 continue
             if comp.status != "released":
                 return f"Komponente {comp.object_id} ist nicht freigegeben"
@@ -219,7 +218,7 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     new = Article(
         object_id=next_object_id(db, "article"), status="draft",
         name=src.name, unit=src.unit, serialization=src.serialization, size=src.size,
-        weight_kg=src.weight_kg, kind=src.kind,
+        weight_kg=src.weight_kg,
         material=src.material, cad_url=src.cad_url, surface=src.surface,
         min_order_qty=src.min_order_qty, safety_stock=src.safety_stock,
         supplier_article_number=src.supplier_article_number,
