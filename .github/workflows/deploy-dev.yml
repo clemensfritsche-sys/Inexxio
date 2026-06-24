@@ -106,7 +106,7 @@ jobs:
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest" \
             --set-env-vars "APP_ENV=development" \
-            --min-instances 0 \
+            --min-instances 1 \
             --max-instances 3 \
             --memory 512Mi \
             --cpu 1 \

@@ -189,6 +189,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     const current = sig;
     setSaving(true);
     setError(null);
+    let transient = false;
     try {
       const payload = {
         name: form.name.trim(),
@@ -215,10 +216,21 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         setTimeout(() => setFlash(false), 700);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
-      if (!isCreate && isVersionConflict(e)) await resyncVersion();
+      const msg = e instanceof Error ? e.message : 'Fehler beim Speichern';
+      if (msg === 'Netzwerkfehler') {
+        transient = true;
+        setError('Server startet — wird automatisch erneut versucht…');
+      } else {
+        setError(msg);
+        if (!isCreate && isVersionConflict(e)) await resyncVersion();
+      }
     } finally {
-      setSaving(false);
+      if (transient) {
+        // Keep saving=true for 5 s to throttle autosave retries during cold start
+        setTimeout(() => { setSaving(false); setError(null); }, 5000);
+      } else {
+        setSaving(false);
+      }
     }
   }
 
