@@ -27,6 +27,7 @@ from math import ceil
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import (
     ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder,
     ResourceUsage, Sale,
@@ -34,30 +35,20 @@ from ..models import (
 from ..models.base import utcnow
 from .events import emit
 
-STEP_LABELS = {
-    "purchase": "Beschaffung",
-    "inspection": "Datenerfassung",
-    "movement": "Bewegung",
-    "resource": "Ressource",       # Verbrauch + Betriebsmittel (Modus pro Zeile)
-    "consume": "Ressource",        # Alt-Aliase (Altdaten)
-    "tool": "Ressource",
-    "sale": "Verkauf",
-}
+# Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
+# (``domain.event_types``) – EINE Quelle der Wahrheit statt verstreuter Dicts.
+STEP_LABELS = {key: et.label for key, et in event_types.REGISTRY.items()}
 
-# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung). resource (und die
-# Alt-Aliase consume/tool) teilen sich die Buchungstabelle resource_usages.
-_FACT_MODEL = {
-    "purchase": PurchaseOrder,
-    "inspection": Inspection,
-    "movement": Movement,
-    "resource": ResourceUsage,
-    "consume": ResourceUsage,
-    "tool": ResourceUsage,
-    "sale": Sale,
+_MODEL_BY_NAME = {
+    "PurchaseOrder": PurchaseOrder, "Inspection": Inspection, "Movement": Movement,
+    "ResourceUsage": ResourceUsage, "Sale": Sale,
 }
+# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung).
+_FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.items()}
 
-# Schritttypen, die über die Ressourcen-Logik laufen (resource + Alt-Aliase).
-RESOURCE_STEP_TYPES = ("resource", "consume", "tool")
+# Schritttypen, die über die Ressourcen-Logik laufen (Verbrauch + Betriebsmittel;
+# der Modus lebt pro Zeile). Die Alt-Aliase consume/tool sind entfernt.
+RESOURCE_STEP_TYPES = event_types.RESOURCE_TYPES
 
 
 def step_defs(db: Session, process_id: int | None) -> list[ArticleProcessStep]:
@@ -117,7 +108,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "consume", "tool", "resource"):
+    if step_type in ("movement", "resource"):
         return "done" if fact else "open"
     return "open"
 
@@ -255,13 +246,22 @@ def release_instances(db: Session, order: Order) -> None:
     rows = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.qc_status == "pending")
+                Instance.quality == "pending")
         .all()
     )
+    total = 0
     for inst in rows:
-        inst.qc_status = "passed"
+        inst.quality = "passed"          # QC-Verdikt: freigegeben
+        inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
+        total += inst.quantity or 0
+    # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
+    # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
+    if total:
+        emit(db, "inventory.increased", object_type="order", object_id=order.object_id,
+             payload={"article_id": order.article_id, "quantity": total,
+                      "delta": total, "polarity": event_types.INCREASE})
 
 
 def _finalize_subjects(db: Session, order: Order) -> None:
@@ -286,18 +286,18 @@ def _finalize_subjects(db: Session, order: Order) -> None:
             .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
             .all()
         )
-        new_status = "sold" if has_sale else "consumed"
+        new_disp = "sold" if has_sale else "consumed"   # Verbleib (Qualität bleibt)
         for inst in subjects:
-            if inst.qc_status not in ("scrapped", "failed"):
-                inst.qc_status = new_status
+            if inst.disposition != "scrapped" and inst.quality != "failed":
+                inst.disposition = new_disp
     elif src == "instance" and has_sale and order.subject_instance_id:
         inst = (
             db.query(Instance)
             .filter(Instance.object_id == order.subject_instance_id, Instance.is_active == True)
             .first()
         )
-        if inst and inst.qc_status not in ("scrapped", "failed", "consumed"):
-            inst.qc_status = "sold"
+        if inst and inst.disposition not in ("scrapped", "consumed") and inst.quality != "failed":
+            inst.disposition = "sold"
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:

@@ -27,9 +27,11 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Instance, Order, Process, StorageLocation
 from .admin import log_audit
 from .events import emit
+from .inventory import in_stock_clauses
 from .objects import next_object_id
 
 
@@ -49,7 +51,7 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
+        .filter(ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
                 ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
@@ -107,7 +109,7 @@ def article_impact(db: Session, article: Article) -> dict:
     )
     stock = (
         db.query(func.coalesce(func.sum(Instance.quantity), 0))
-        .filter(Instance.is_active == True, Instance.qc_status == "passed", Instance.article_id.in_(ids))
+        .filter(Instance.is_active == True, Instance.article_id.in_(ids), *in_stock_clauses())
         .scalar()
     )
     return {"articles": parent_arts, "orders": orders, "stock": int(stock or 0)}
@@ -156,7 +158,7 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
         .join(Process, Process.id == ArticleProcessStep.process_id)
         .filter(Process.id.in_(linked_ids), Process.source == "produce",
                 Process.is_active == True,
-                ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
+                ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
                 ArticleProcessStep.is_active == True)
         .all()
     )
@@ -189,7 +191,7 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int) -> None:
         inst.subject_of_order_id = None
     # Bei Freigabe erzeugte, noch unfertige Produkt-Instanzen deaktivieren.
     for inst in db.query(Instance).filter(
-        Instance.order_id == order.id, Instance.is_active == True, Instance.qc_status == "pending"
+        Instance.order_id == order.id, Instance.is_active == True, Instance.quality == "pending"
     ).all():
         log_audit(db, "instances", "is_active", "false", actor_id,
                   object_id=inst.object_id, old_value="true")

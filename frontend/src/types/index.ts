@@ -140,7 +140,9 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed' | 'scrapped' | 'sold';
+// qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
+export type InstanceQuality = 'pending' | 'passed' | 'failed';                       // «ist es gut?»
+export type InstanceDisposition = 'in_process' | 'in_stock' | 'consumed' | 'sold' | 'scrapped'; // «wo ist es?»
 export type InstanceReference = components['schemas']['InstanceReference'];
 
 // Inaktiv setzen / Ersetzen (ohne Versionierung)
@@ -178,8 +180,9 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
 
 // Quelle = SUBJEKT (worauf der Prozess wirkt), KEINE Richtungswahl.
 export type ProcessSource = 'produce' | 'stock' | 'instance';
-// Abgeleitete Lager-Richtung (Folge der Schritte, nicht gewählt).
-export type ProcessStockEffect = 'increase' | 'decrease' | 'neutral';
+// Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, nicht gewählt).
+// 'mixed' = der Prozess hat erhöhende UND mindernde Schritte (z. B. Beschaffung + Verkauf).
+export type ProcessStockEffect = 'increase' | 'decrease' | 'mixed' | 'neutral';
 export type Process = components['schemas']['ProcessResponse'];
 
 export interface ProcessInput {

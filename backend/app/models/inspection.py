@@ -17,7 +17,7 @@ class Inspection(Base, TimestampMixin):
     Datenerfassung dient nicht nur der Qualitätskontrolle, sondern beliebiger
     Werterfassung; nur bewertbare Felder (Soll-Ist/Gut-Schlecht) erzeugen ein
     Pass/Fail. Ist eine Stichprobe ungenügend, wird auf 100 % hochgestuft
-    (``escalated``). Das Ergebnis wird auf die Instanzen (qc_status) übertragen.
+    (``escalated``). Durchfaller werden auf der Instanz mit ``quality='failed'`` gesperrt.
     """
 
     __tablename__ = "inspections"

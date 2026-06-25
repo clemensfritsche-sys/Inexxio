@@ -31,9 +31,13 @@ class Instance(Base, TimestampMixin):
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     serial_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
 
-    # Qualitätsstatus: pending (Eingangskontrolle offen) | passed | failed
-    qc_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
-    # Zeitpunkt der Freigabe (qc_status → passed). Basis für FIFO beim Verbrauch
+    # ZWEI getrennte Achsen statt eines überladenen qc_status:
+    #   quality     = QC-Verdikt:  pending | passed | failed   («ist es gut?»)
+    #   disposition = Verbleib:     in_process | in_stock | consumed | sold | scrapped  («wo ist es?»)
+    # Verbrauchbar/zählbar ist eine Instanz nur, wenn quality=passed UND disposition=in_stock.
+    quality: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    disposition: Mapped[str] = mapped_column(String(20), default="in_process", nullable=False)
+    # Zeitpunkt der Freigabe (disposition → in_stock). Basis für FIFO beim Verbrauch
     # (Ressource-Schritt): ältester Freigabe-Zeitpunkt zuerst.
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

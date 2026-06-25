@@ -78,7 +78,8 @@ def _pick_stock_subjects(db: Session, order: Order, actor_id: int) -> None:
             db.add(Instance(
                 object_id=next_object_id(db, "instance"), article_id=cand.article_id,
                 order_id=cand.order_id, kind=cand.kind, quantity=take,
-                qc_status="passed", released_at=cand.released_at or cand.created_at,
+                quality="passed", disposition="in_stock",
+                released_at=cand.released_at or cand.created_at,
                 location_type=cand.location_type, location_id=cand.location_id,
                 subject_of_order_id=order.id, reserved_for_order_id=order.id,
             ))

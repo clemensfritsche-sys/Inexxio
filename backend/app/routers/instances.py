@@ -126,7 +126,7 @@ async def scrap_instance(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """Instanz verschrotten (manuell): qc_status → ``scrapped``. Aus Bestand/FIFO
+    """Instanz verschrotten (manuell): ``disposition`` → ``scrapped``. Aus Bestand/FIFO
     raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
     (``consumed``) können nicht verschrottet werden."""
     inst = (
@@ -136,14 +136,14 @@ async def scrap_instance(
     )
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
-    if inst.qc_status == "consumed":
+    if inst.disposition == "consumed":
         raise HTTPException(400, detail="Verbaute Instanz kann nicht verschrottet werden")
-    if inst.qc_status == "scrapped":
+    if inst.disposition == "scrapped":
         raise HTTPException(400, detail="Instanz ist bereits verschrottet")
-    old = inst.qc_status
-    inst.qc_status = "scrapped"
+    old = inst.disposition
+    inst.disposition = "scrapped"
     inst.reserved_for_order_id = None
-    log_audit(db, "instances", "qc_status", "scrapped", current_user.id,
+    log_audit(db, "instances", "disposition", "scrapped", current_user.id,
               object_id=inst.object_id, old_value=old)
     emit(db, "instance.scrapped", object_type="instance", object_id=inst.object_id,
          actor_id=current_user.id)

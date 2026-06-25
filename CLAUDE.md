@@ -159,11 +159,15 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `services/serialization.py`): Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N (`instances`,
   eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
   volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
-  **Instanz-Lebenszyklus (qc_status):** neue Instanzen sind **`pending` («Im Prozess»)** und werden
-  erst **bei Auftrags-Abschluss `passed` («Freigegeben», ab Lager verbrauchbar)** – `process.
-  recompute_completion` → `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT
-  vorzeitig frei (nur Durchfaller → `failed`). Verbaute Instanzen werden `consumed` («Verbraucht»). Der
-  Ressource-Verbrauch (FIFO) greift auf **`passed`** zu (kein Standort-Filter; `consumed` fällt heraus).
+  **Instanz-Lebenszyklus – ZWEI getrennte Achsen** (Migration `030`, statt überladenem `qc_status`):
+  `quality` ∈ pending|passed|failed («ist es gut?») und `disposition` ∈ in_process|in_stock|consumed|
+  sold|scrapped («wo ist es?»). Neue Instanzen starten `(pending, in_process)`; bei Auftrags-Abschluss
+  → `(passed, in_stock)` («Freigegeben, ab Lager verbrauchbar») via `process.recompute_completion` →
+  `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT vorzeitig frei (nur
+  Durchfaller → `quality=failed`). Verbaut → `disposition=consumed`, verkauft → `sold`, verschrottet →
+  `scrapped`. **Verbrauchbar/zählbar = `quality=passed` UND `disposition=in_stock`** – die EINE Helper-
+  Stelle `inventory.in_stock_clauses()` (von Bestand/FIFO/Betriebsmittel geteilt). Anzeige: eine Badge
+  als Projektion beider Achsen (`lib/process.ts: instanceStatusConfig`).
   **Reservierung:** bei der Auftragsfreigabe werden die zu verbrauchenden Komponenten für genau diesen
   Auftrag reserviert (`instances.reserved_for_order_id`); reservierte Instanzen sind für andere Aufträge
   nicht verbrauchbar (FIFO blendet sie aus). Auflösung bei Abschluss/Deaktivierung des Auftrags.
@@ -183,7 +187,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     (`inspections.samples`), konfigurierbare Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht /
     Text; ohne Maske synthetisches Gut-Schlecht). **Ungenügende Teil-Stichprobe → Hochstufung auf 100 %**
     (`inspections.escalated`); erst bei vollem Umfang endgültig `failed`, dann je Instanz bewertet (Charge
-    als Ganzes). Ergebnis wird auf `instances.qc_status` übertragen (`services/inspection.py`).
+    als Ganzes). Durchfaller → `instances.quality='failed'` (`services/inspection.py`).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
     Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
@@ -215,11 +219,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (kein Prozessschritt mehr nötig). Ein **Auftrag startet nur**, wenn der Artikel **freigegeben** UND der
   gewählte **Prozess freigegeben** ist (Vorbedingung in `routers/orders.py`). Auto-«Entstehung» bei
   Artikelanlage als **Entwurf**-Prozess + Link.
+- **Deklarative Ereignis-Registry (REA-Kern, `app/domain/event_types.py`)**: EINE Quelle der Wahrheit
+  für jeden Schritt-/Ereignistyp – Label, **Bestands-Polarität** (increase/decrease/move/neutral),
+  **Subjekt-Rolle** (produce/stock/instance) und Fachtabelle. Die Polarität ist **deklariert**, nicht
+  aus der Prozessform erraten. `process.STEP_LABELS`/`_FACT_MODEL`/`RESOURCE_STEP_TYPES`,
+  `processes.derive_source`/`stock_effect` und die Schema-Whitelist `ALLOWED_STEP_TYPES` lesen alle
+  aus dieser Registry. Die **`consume`/`tool`-Alt-Schritttypen sind entfernt** (nur noch `resource`,
+  Modus je Zeile). Bestandswirksame Vorgänge schreiben ihre Polarität in den Event-Strom
+  (`inventory.increased`, `resource.recorded` mit `polarity`/`delta`) → Event-Log als ökonomische Wahrheit.
 - **Quelle & Lager-Richtung werden ABGELEITET, nicht gewählt** (Frage 2): KEIN Quellen-/Richtungs-
-  Dropdown mehr. `processes.recompute_source` leitet `source` aus den Schritt-Typen ab und speichert sie
-  (nach jeder Schritt-Änderung): Verkauf → `stock` (*mindernd*), Beschaffung/Verbrauch (purchase/consume)
-  → `produce` (*erhöhend*), sonst (Bewegung/Datenerfassung/leer) → `instance` (*neutral*). `stock_effect`
-  mappt das auf erhöhend/mindernd/neutral. Anzeige als Badge in Prozess/Auftrag
+  Dropdown mehr. `processes.recompute_source` leitet `source` über die **deklarierte Vorrangordnung**
+  (`stock ≻ produce ≻ instance`, `event_types.SUBJECT_PRECEDENCE`) ab und speichert sie. `stock_effect`
+  ist das **Aggregat der Schritt-Polaritäten**: increase | decrease | **mixed** (Zu- UND Abgang) |
+  neutral – ehrlich auch bei gemischten Prozessen statt 1:1-Spiegel der Subjektart. Anzeige als Badge
   (`ProcessResponse.stock_effect`, `OrderResponse.process_stock_effect`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim

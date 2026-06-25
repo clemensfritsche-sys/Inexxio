@@ -864,7 +864,7 @@ export interface paths {
         put?: never;
         /**
          * Scrap Instance
-         * @description Instanz verschrotten (manuell): qc_status → ``scrapped``. Aus Bestand/FIFO
+         * @description Instanz verschrotten (manuell): ``disposition`` → ``scrapped``. Aus Bestand/FIFO
          *     raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
          *     (``consumed``) können nicht verschrottet werden.
          */
@@ -1373,8 +1373,10 @@ export interface components {
             article_name?: string | null;
             /** Instance Kind */
             instance_kind?: string | null;
-            /** Instance Qc Status */
-            instance_qc_status?: string | null;
+            /** Instance Quality */
+            instance_quality?: string | null;
+            /** Instance Disposition */
+            instance_disposition?: string | null;
             /** Reported By Name */
             reported_by_name?: string | null;
         };
@@ -1737,8 +1739,10 @@ export interface components {
             kind: string;
             /** Quantity */
             quantity: number;
-            /** Qc Status */
-            qc_status: string;
+            /** Quality */
+            quality: string;
+            /** Disposition */
+            disposition: string;
             /** Location Type */
             location_type?: string | null;
             /** Location Id */
@@ -1783,8 +1787,10 @@ export interface components {
             quantity: number;
             /** Serial Number */
             serial_number: string | null;
-            /** Qc Status */
-            qc_status: string;
+            /** Quality */
+            quality: string;
+            /** Disposition */
+            disposition: string;
             /** Location Type */
             location_type?: string | null;
             /** Location Id */

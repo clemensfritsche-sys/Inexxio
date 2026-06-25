@@ -229,7 +229,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             first.setdefault("movement", emb)
             if done:
                 by_name, at = emb.moved_by_name, (fact.updated_at if fact else None)
-        elif step.step_type in ("consume", "tool", "resource"):
+        elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
             first.setdefault("resource", emb)

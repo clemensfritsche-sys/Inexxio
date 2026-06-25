@@ -2,7 +2,7 @@
 
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order } from '@/types';
-import { qcStatusConfig, instanceKindLabel, LOCATION_META } from '@/lib/process';
+import { instanceStatusConfig, instanceKindLabel, LOCATION_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 
@@ -42,7 +42,7 @@ export function OrderInstances({ order }: { order: Order }) {
                   )}
                 </span>
               )}
-              <StatusBadge cfg={qcStatusConfig(i.qc_status)} />
+              <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition)} />
             </div>
           );
         })}

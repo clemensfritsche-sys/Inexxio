@@ -17,6 +17,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Process
 
 _Q = Decimal("0.001")  # 3 Nachkommastellen wie weight_kg (Numeric(12,3))
@@ -38,7 +39,7 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
+        .filter(ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
                 ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
