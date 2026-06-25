@@ -178,8 +178,9 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
 
 // Quelle = SUBJEKT (worauf der Prozess wirkt), KEINE Richtungswahl.
 export type ProcessSource = 'produce' | 'stock' | 'instance';
-// Abgeleitete Lager-Richtung (Folge der Schritte, nicht gewählt).
-export type ProcessStockEffect = 'increase' | 'decrease' | 'neutral';
+// Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, nicht gewählt).
+// 'mixed' = der Prozess hat erhöhende UND mindernde Schritte (z. B. Beschaffung + Verkauf).
+export type ProcessStockEffect = 'increase' | 'decrease' | 'mixed' | 'neutral';
 export type Process = components['schemas']['ProcessResponse'];
 
 export interface ProcessInput {

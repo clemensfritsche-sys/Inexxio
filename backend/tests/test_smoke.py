@@ -970,3 +970,64 @@ def test_unhandled_errors_return_structured_json():
 
     assert Exception in app.exception_handlers          # globaler Handler registriert
     assert hasattr(get_settings(), "app_env")           # Umgebung steuert Detail-Offenlegung
+
+
+# ─── Deklarative Ereignis-Registry (REA-Kern) ───────────────────────────────────
+
+def test_event_type_registry_declares_polarity():
+    """REA-Kern: jeder Schritttyp DEKLARIERT seine Bestands-Polarität + Subjektrolle in
+    EINER Registry (statt verstreuter Dicts oder einer aus der Prozessform erratenen
+    Richtung)."""
+    from app.domain import event_types as ev
+
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "sale"}
+    assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
+    # Polarität ist deklariert, nicht abgeleitet:
+    assert ev.polarity("purchase") == ev.INCREASE
+    assert ev.polarity("resource") == ev.INCREASE
+    assert ev.polarity("sale") == ev.DECREASE
+    assert ev.polarity("movement") == ev.MOVE
+    assert ev.polarity("inspection") == ev.NEUTRAL
+    # Vorzeichen fürs Ledger (Event-Payload-Anreicherung):
+    assert ev.delta_sign("purchase") == 1
+    assert ev.delta_sign("sale") == -1
+    assert ev.delta_sign("movement") == 0
+
+
+def test_stock_effect_aggregates_and_supports_mixed():
+    """Lager-Richtung = Aggregat der Schritt-Polaritäten; Zu- UND Abgang → 'mixed'
+    (früher fälschlich in einen Topf geworfen)."""
+    from app.domain import event_types as ev
+    from app.services.processes import STOCK_EFFECTS
+
+    assert ev.aggregate_stock_effect({"purchase"}) == "increase"
+    assert ev.aggregate_stock_effect({"sale"}) == "decrease"
+    assert ev.aggregate_stock_effect({"purchase", "sale"}) == "mixed"     # neu/ehrlich
+    assert ev.aggregate_stock_effect({"movement", "inspection"}) == "neutral"
+    assert ev.aggregate_stock_effect(set()) == "neutral"
+    assert "mixed" in STOCK_EFFECTS
+
+
+def test_subject_mode_precedence_is_declared():
+    """Subjektart über die DEKLARIERTE Vorrangordnung (stock ≻ produce ≻ instance) –
+    statt einer versteckten if-Kette."""
+    from app.domain import event_types as ev
+    from app.services.processes import derive_source
+
+    assert ev.SUBJECT_PRECEDENCE == ("stock", "produce", "instance")
+    assert derive_source({"sale", "purchase"}) == "stock"      # Abgang dominiert Produktion
+    assert derive_source({"purchase", "movement"}) == "produce"
+    assert derive_source({"movement"}) == "instance"
+
+
+def test_legacy_resource_aliases_removed():
+    """consume/tool sind keine eigenen Schritttypen mehr – nur noch 'resource'
+    (Modus je Zeile). Labels/Fachtabellen stammen aus der Registry."""
+    from app.services.process import STEP_LABELS, _FACT_MODEL, RESOURCE_STEP_TYPES
+
+    for alias in ("consume", "tool"):
+        assert alias not in STEP_LABELS
+        assert alias not in _FACT_MODEL
+    assert RESOURCE_STEP_TYPES == ("resource",)
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "sale"}
+    assert STEP_LABELS["resource"] == "Ressource"

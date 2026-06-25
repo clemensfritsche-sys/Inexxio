@@ -3,13 +3,14 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from ..domain.event_types import STEP_TYPES as ALLOWED_STEP_TYPES
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
 
-# EIN «resource»-Schritt («Ressource») fasst Verbrauch & Betriebsmittel zusammen.
-# Pro Zeile entscheidet ``mode`` (consume = verbraucht/FIFO/Lagerabgang | tool =
-# Betriebsmittel, nur genutzt) – elegant per Zeilen-Toggle, Default consume.
-ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "resource", "sale")
+# Schritttypen kommen aus der deklarativen Registry (``domain.event_types``) – EINE
+# Quelle der Wahrheit. EIN «resource»-Schritt («Ressource») fasst Verbrauch &
+# Betriebsmittel zusammen; pro Zeile entscheidet ``mode`` (consume = verbraucht/FIFO/
+# Lagerabgang | tool = Betriebsmittel, nur genutzt) – Default consume.
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
 ALLOWED_RESOURCE_MODES = ("consume", "tool")

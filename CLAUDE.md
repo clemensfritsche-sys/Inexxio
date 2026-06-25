@@ -215,11 +215,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (kein Prozessschritt mehr nötig). Ein **Auftrag startet nur**, wenn der Artikel **freigegeben** UND der
   gewählte **Prozess freigegeben** ist (Vorbedingung in `routers/orders.py`). Auto-«Entstehung» bei
   Artikelanlage als **Entwurf**-Prozess + Link.
+- **Deklarative Ereignis-Registry (REA-Kern, `app/domain/event_types.py`)**: EINE Quelle der Wahrheit
+  für jeden Schritt-/Ereignistyp – Label, **Bestands-Polarität** (increase/decrease/move/neutral),
+  **Subjekt-Rolle** (produce/stock/instance) und Fachtabelle. Die Polarität ist **deklariert**, nicht
+  aus der Prozessform erraten. `process.STEP_LABELS`/`_FACT_MODEL`/`RESOURCE_STEP_TYPES`,
+  `processes.derive_source`/`stock_effect` und die Schema-Whitelist `ALLOWED_STEP_TYPES` lesen alle
+  aus dieser Registry. Die **`consume`/`tool`-Alt-Schritttypen sind entfernt** (nur noch `resource`,
+  Modus je Zeile). Bestandswirksame Vorgänge schreiben ihre Polarität in den Event-Strom
+  (`inventory.increased`, `resource.recorded` mit `polarity`/`delta`) → Event-Log als ökonomische Wahrheit.
 - **Quelle & Lager-Richtung werden ABGELEITET, nicht gewählt** (Frage 2): KEIN Quellen-/Richtungs-
-  Dropdown mehr. `processes.recompute_source` leitet `source` aus den Schritt-Typen ab und speichert sie
-  (nach jeder Schritt-Änderung): Verkauf → `stock` (*mindernd*), Beschaffung/Verbrauch (purchase/consume)
-  → `produce` (*erhöhend*), sonst (Bewegung/Datenerfassung/leer) → `instance` (*neutral*). `stock_effect`
-  mappt das auf erhöhend/mindernd/neutral. Anzeige als Badge in Prozess/Auftrag
+  Dropdown mehr. `processes.recompute_source` leitet `source` über die **deklarierte Vorrangordnung**
+  (`stock ≻ produce ≻ instance`, `event_types.SUBJECT_PRECEDENCE`) ab und speichert sie. `stock_effect`
+  ist das **Aggregat der Schritt-Polaritäten**: increase | decrease | **mixed** (Zu- UND Abgang) |
+  neutral – ehrlich auch bei gemischten Prozessen statt 1:1-Spiegel der Subjektart. Anzeige als Badge
   (`ProcessResponse.stock_effect`, `OrderResponse.process_stock_effect`).
 - ERP-Feed: Datensätze nach Nummer **absteigend**; **Instanzen** sind eigener Feed-Typ
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim

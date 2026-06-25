@@ -18,6 +18,7 @@ from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Instance, Order, ResourceUsage, UserProfile
 from ..models.base import utcnow
 from ..schemas.resource import (
@@ -45,12 +46,11 @@ def _article(db: Session, article_db_id: int) -> Article | None:
 
 
 def _line_mode(line: dict, step: ArticleProcessStep | None = None) -> str:
-    """Modus einer Ressourcen-Zeile: ``mode`` der Zeile (consume|tool); Fallback auf den
-    (Alt-)Schritttyp ``tool``/``consume``, damit Altdaten ohne Zeilen-Modus funktionieren."""
+    """Modus einer Ressourcen-Zeile: ``mode`` der Zeile (consume | tool); Default
+    ``consume``. (``step`` wird nicht mehr gebraucht – die Alt-Schritttypen consume/tool
+    sind entfernt –, bleibt aber als Parameter für die Aufrufer erhalten.)"""
     m = (line or {}).get("mode")
-    if m in ("consume", "tool"):
-        return m
-    return "tool" if (step and step.step_type == "tool") else "consume"
+    return m if m in ("consume", "tool") else "consume"
 
 
 def _user_name(u: UserProfile | None) -> str | None:
@@ -291,8 +291,14 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
     )
     db.add(usage)
     db.flush()
+    # Verbrauch (Lagerabgang) als Domain-Event mit DEKLARIERTER Polarität – Gegenstück
+    # zum Bestands-Zugang; macht den Event-Strom zur ökonomischen Wahrheit.
+    consumed = [{"article_id": c["article_id"],
+                 "quantity": sum(p.get("quantity", 0) for p in c.get("picks", []))}
+                for c in details.get("consume", [])]
     log_audit(db, "resource_usages", None, "Ressourcen erfasst", actor_id, object_id=order.object_id)
-    emit(db, "resource.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id)
+    emit(db, "resource.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id,
+         payload={"consumed": consumed, "polarity": event_types.DECREASE} if consumed else None)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(usage)

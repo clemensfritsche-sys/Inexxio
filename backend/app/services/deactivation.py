@@ -27,6 +27,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Instance, Order, Process, StorageLocation
 from .admin import log_audit
 from .events import emit
@@ -49,7 +50,7 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
+        .filter(ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
                 ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
@@ -156,7 +157,7 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
         .join(Process, Process.id == ArticleProcessStep.process_id)
         .filter(Process.id.in_(linked_ids), Process.source == "produce",
                 Process.is_active == True,
-                ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
+                ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
                 ArticleProcessStep.is_active == True)
         .all()
     )

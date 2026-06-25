@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Sparkles, Layers, Target, TrendingUp, TrendingDown, Minus, FilePen, Ban } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Sparkles, Layers, Target, TrendingUp, TrendingDown, ArrowUpDown, Minus, FilePen, Ban } from 'lucide-react';
 import type { StepType, InstanceQcStatus, LocationType, ProcessSource, ProcessStockEffect } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -22,10 +22,11 @@ export function sourceLabel(source: string | null | undefined): string {
   return source ? (PROCESS_SOURCE_META[source as ProcessSource]?.label ?? source) : '—';
 }
 
-// Abgeleitete Lager-Richtung (Folge der Schritte, NICHT gewählt).
+// Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, NICHT gewählt).
 export const STOCK_EFFECT_META: Record<ProcessStockEffect, StatusCfg> = {
   increase: { label: 'Bestand erhöhend', color: '#16a34a', bg: '#f0fdf4', icon: TrendingUp },
   decrease: { label: 'Bestand mindernd', color: '#dc2626', bg: '#fef2f2', icon: TrendingDown },
+  mixed:    { label: 'Zu- und Abgang',   color: '#7c3aed', bg: '#f5f3ff', icon: ArrowUpDown },
   neutral:  { label: 'Bestandsneutral',  color: '#64748b', bg: '#f1f5f9', icon: Minus },
 };
 

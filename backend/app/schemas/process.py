@@ -81,7 +81,8 @@ class ProcessResponse(BaseModel):
     updated_at: datetime
     # denormalisiert (Router)
     step_count: int = 0
-    # Abgeleitete Lager-Richtung (NICHT gewählt): increase | decrease | neutral.
+    # Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, NICHT gewählt):
+    # increase | decrease | mixed | neutral. ``mixed`` = Zu- UND Abgang im Prozess.
     stock_effect: str = "neutral"
     # Vorgänger (Ersetzen-Kette) + Anzahl Artikel, die diesen Prozess führen.
     replaces_id: Optional[int] = None

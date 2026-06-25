@@ -18,17 +18,19 @@ expliziten Link).
 
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import ArticleProcessLink, ArticleProcessStep, Process
 
-SOURCES = ("produce", "stock", "instance")
+SOURCES = (event_types.PRODUCE, event_types.STOCK, event_types.INSTANCE)
 SOURCE_LABELS = {
     "produce": "Neu – Produktion",
     "stock": "Bestand – FIFO",
     "instance": "Konkrete Instanz",
 }
 
-# Abgeleitete Lager-Richtung (NICHT gewählt – Folge des Prozesses).
-STOCK_EFFECTS = ("increase", "decrease", "neutral")
+# Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, NICHT gewählt).
+# ``mixed`` = ein Prozess mit erhöhenden UND mindernden Schritten.
+STOCK_EFFECTS = ("increase", "decrease", "mixed", "neutral")
 
 
 def get_process(db: Session, process_id: int | None) -> Process | None:
@@ -184,50 +186,49 @@ def unlink_process(db: Session, article_id: int, process_id: int) -> bool:
     return True
 
 
-# ─── Quelle & Richtung – AUS DEN SCHRITTEN ABGELEITET (Frage 2) ──────────────────
+# ─── Quelle & Richtung – DEKLARIERT je Ereignistyp (domain.event_types) ──────────
 #
-# Es gibt KEINE manuelle Wahl der Quelle/Richtung mehr. Beides ergibt sich aus den
-# vorhandenen Schritt-Typen des Prozesses und wird beim Hinzufügen/Entfernen eines
-# Schritts neu berechnet (``recompute_source``) und in ``processes.source`` abgelegt
-# (damit die SQL-Filter in weight.py/deactivation.py weiter funktionieren).
+# Es gibt KEINE manuelle Wahl. Subjektart (``source``) und Lager-Richtung
+# (``stock_effect``) ergeben sich aus den Schritt-Typen – aber über die **deklarative
+# Registry** statt einer versteckten if-Kette:
 #
-#   Verkauf (sale)                → stock    → mindernd  (Bestand geht ab)
-#   Beschaffung/Ressource         → produce  → erhöhend  (Neues entsteht/kommt rein)
-#     (purchase oder resource)
-#   sonst (Bewegung/Datenerfassung,
-#     oder leer)                  → instance → neutral   (bestehende Instanz wird bearbeitet)
+#   - ``source``       = Vorrang-Aggregat der ``subject_role`` je Schritt
+#                        (stock ≻ produce ≻ instance). Gespeichert in ``processes.source``,
+#                        damit die SQL-Filter in weight.py/deactivation.py weiter greifen.
+#   - ``stock_effect`` = Aggregat der **Polaritäten** der Schritte (increase/decrease/
+#                        mixed/neutral) – ehrlich auch bei gemischten Prozessen.
 
 def derive_source(step_types: set[str]) -> str:
-    if "sale" in step_types:
-        return "stock"
-    # Beschaffung oder ein Ressourcen-Schritt (Produktion) erzeugt/bringt Neues herein.
-    # (consume/tool = Alt-Aliase des Ressourcen-Schritts.)
-    if step_types & {"purchase", "resource", "consume", "tool"}:
-        return "produce"
-    return "instance"
+    """Subjektart eines Prozesses – delegiert an die deklarative Registry. Als dünner
+    Wrapper erhalten, weil Services/Tests diesen Pfad importieren."""
+    return event_types.derive_subject_mode(step_types)
+
+
+def _active_step_types(db: Session, process_id: int) -> set[str]:
+    rows = (
+        db.query(ArticleProcessStep.step_type)
+        .filter(ArticleProcessStep.process_id == process_id,
+                ArticleProcessStep.is_active == True)
+        .all()
+    )
+    return {t for (t,) in rows}
 
 
 def recompute_source(db: Session, process_id: int) -> str:
-    """Quelle des Prozesses aus seinen aktiven Schritten ableiten und speichern.
-    Wird nach jeder Schritt-Strukturänderung aufgerufen (schreibt nur, kein commit)."""
+    """Quelle (Subjektart) des Prozesses aus seinen aktiven Schritten ableiten und
+    speichern. Wird nach jeder Schritt-Strukturänderung aufgerufen (schreibt nur)."""
     proc = db.query(Process).filter(Process.id == process_id).first()
     if not proc:
         return "instance"
-    rows = (
-        db.query(ArticleProcessStep.step_type)
-        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
-        .all()
-    )
-    proc.source = derive_source({t for (t,) in rows})
+    proc.source = derive_source(_active_step_types(db, process_id))
     return proc.source
 
 
-_STOCK_EFFECT = {"produce": "increase", "stock": "decrease", "instance": "neutral"}
-
-
 def stock_effect(db: Session, process: Process | None) -> str:
-    """Wirkung des Prozesses auf den Lagerbestand – abgeleitet aus der (ihrerseits aus
-    den Schritten abgeleiteten) Quelle: produce→increase, stock→decrease, sonst neutral."""
+    """Bestands-Richtung des Prozesses = **Aggregat der deklarierten Polaritäten**
+    seiner Schritte (increase | decrease | mixed | neutral). Nicht mehr ein 1:1-Spiegel
+    der Subjektart, sondern aus den tatsächlichen Schritten berechnet – damit ein
+    Prozess mit Zu- UND Abgang ehrlich als ``mixed`` erscheint."""
     if not process:
         return "neutral"
-    return _STOCK_EFFECT.get(process.source, "neutral")
+    return event_types.aggregate_stock_effect(_active_step_types(db, process.id))
