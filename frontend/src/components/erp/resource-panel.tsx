@@ -26,7 +26,6 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   const done = !!res?.done;
   const consumeLines = lines.filter((l) => l.mode === 'consume');
   const toolLines = lines.filter((l) => l.mode === 'tool');
-  const title = toolLines.length > 0 && consumeLines.length === 0 ? 'Betriebsmittel' : 'Verbrauch';
   const scan = useScan();
 
   const [note, setNote] = useState('');
@@ -53,11 +52,12 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
       const p = products.find((pp) => !accProducts.includes(pp.instance_id));
       if (p) {
         const steps: ScanStep[] = [
-          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen',
+          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen', kind: 'instance',
             expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceKindLabel(p.kind) }] },
           ...(p.components ?? []).map((c) => ({
             label: `Komponente ${fmtObjId(c.instance_id)}`,
             hint: `${c.article_name ?? ''} in ${fmtObjId(p.instance_id)} verbauen`,
+            kind: 'instance' as const,
             expected: c.instance_id,
             candidates: [{ objectId: c.instance_id, label: c.article_name ?? 'Komponente' }],
           })),
@@ -76,7 +76,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
         title: `Betriebsmittel · ${tl.article_name ?? ''}`,
         steps: [{
           label: `Betriebsmittel: ${tl.article_name ?? `#${tl.article_id}`}`,
-          hint: 'Genutztes Betriebsmittel scannen', restrict: true,
+          hint: 'Genutztes Betriebsmittel scannen', kind: 'instance', restrict: true,
           candidates: (tl.candidates ?? []).map((c) => ({ objectId: c.object_id, label: tl.article_name ?? '' })),
         }],
         onComplete: ([id]) => { const nt = { ...accTools, [tl.article_id]: id }; setVTools(nt); resume(accProducts, nt); },
@@ -106,7 +106,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header title={title} />
+        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -116,7 +116,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header title={title} />
+      <Header />
 
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
@@ -262,11 +262,11 @@ function SubTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Header({ title }: { title: string }) {
+function Header() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <Wrench size={15} style={{ color: '#2563eb' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{title}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Ressource</span>
     </div>
   );
 }

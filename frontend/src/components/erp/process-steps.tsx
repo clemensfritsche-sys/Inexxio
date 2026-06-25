@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock, Wrench, PackageMinus } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { unitLabel } from '@/lib/article';
@@ -13,12 +13,10 @@ import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/componen
 import { fmtObjId } from '@/components/erp/user-detail';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
-// Modus (Verbrauch/Betriebsmittel) wird aus der Artikel-Art abgeleitet – nicht mehr pro Zeile gewählt.
-type ResLine = { article_id: string; quantity: string };
+// EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
+type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
-const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'consume', 'tool', 'sale'];
-// consume/tool sind eigene Schritttypen – der Schritttyp ist der Modus.
-const RESOURCE_STEP_TYPES: StepType[] = ['consume', 'tool'];
+const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
 
 export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   processId: number | null;
@@ -60,10 +58,23 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
   useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
 
+  // Herkunfts-Artikel laden, um beim Beschaffungsschritt nur die **tatsächlich
+  // gepflegten** optionalen Stammdatenfelder zur Freigabe anzubieten.
+  const [selfArticle, setSelfArticle] = useState<Article | null>(null);
+  useEffect(() => {
+    if (selfArticleObjectId == null) { setSelfArticle(null); return; }
+    api.getArticle(selfArticleObjectId).then(setSelfArticle).catch(() => {});
+  }, [selfArticleObjectId]);
+  const optionalShareKeys = useMemo<string[]>(() => {
+    const out: string[] = [];
+    if (selfArticle?.supplier_article_number) out.push('supplier_article_number');
+    return out;
+  }, [selfArticle]);
+
   // Bewegung braucht Lagerplätze/Personen/Instanzen als Zielauswahl; Ressource die Artikel.
   // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
   useEffect(() => {
-    if (adding === 'consume' || adding === 'tool') { api.getArticles().then(setArticles).catch(() => {}); return; }
+    if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
     if (adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
     api.getUsers().then(setAllUsers).catch(() => {});
@@ -92,8 +103,10 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
     try { setSteps(await api.getProcessSteps(pid)); } catch { /* ignore */ }
   }
 
-  // Rolle einer Pflicht-Bewegung: Versand (Ziel = Lieferant) vs. Wareneingang.
-  function lockedRole(s: ArticleProcessStep): 'versand' | 'wareneingang' {
+  // Rolle einer Pflicht-Bewegung: Versand zum Kunden (mode=customer), Versand zum
+  // Lieferanten (user-Ziel) oder Wareneingang.
+  function lockedRole(s: ArticleProcessStep): 'versand' | 'wareneingang' | 'versandkunde' {
+    if ((s.mode as string) === 'customer') return 'versandkunde';   // Versand zum Kunden (getaggt)
     return s.target_location_type === 'user' ? 'versand' : 'wareneingang';
   }
 
@@ -130,11 +143,11 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
     }
-    let resourcePayload: { article_id: number; quantity: number }[] | null = null;
-    if (type === 'consume' || type === 'tool') {
+    let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
+    if (type === 'resource') {
       resourcePayload = resLines
         .filter((l) => l.article_id)
-        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)) }));
+        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
       if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
     }
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
@@ -241,9 +254,11 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                   <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
                     {isLocked && (lockedRole(s) === 'versand'
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Lieferanten{s.target_location_id ? ` · ${fmtObjId(s.target_location_id)}` : ''}</span>
-                      : (s.target_location_id
-                        ? `Wareneingang → Lagerplatz ${fmtObjId(s.target_location_id)}`
-                        : 'Wareneingang · frei beim Einlagern'))}
+                      : lockedRole(s) === 'versandkunde'
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
+                        : (s.target_location_id
+                          ? `Wareneingang → Lagerplatz ${fmtObjId(s.target_location_id)}`
+                          : 'Wareneingang · frei beim Einlagern'))}
                     {!isLocked && s.step_type === 'purchase' && (
                       s.mode === 'supplier'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> {PROCESS_MODE_LABEL.supplier}: {s.supplier_name ?? `#${s.supplier_id}`}</span>
@@ -253,7 +268,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     {!isLocked && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
-                    {(s.step_type === 'consume' || s.step_type === 'tool') && `${s.resource_lines?.length ?? 0} ${s.step_type === 'tool' ? 'Betriebsmittel' : 'Position' + ((s.resource_lines?.length ?? 0) === 1 ? '' : 'en')}`}
+                    {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                   </div>
                 </div>
                 {!readOnly && !isLocked && (
@@ -294,7 +309,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     ))}
                   </div>
                   {!readOnly && editId === s.id ? (
-                    <FieldChips value={editShared} onChange={setEditShared} />
+                    <FieldChips value={editShared} onChange={setEditShared} optionalAvailable={optionalShareKeys} />
                   ) : (
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                       {normalizeSharedFields(s.shared_fields).map((k) => <Chip key={k} label={fieldLabel(k)} on />)}
@@ -316,14 +331,14 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                 </div>
               )}
 
-              {/* Verbrauch/Betriebsmittel: Zeilen (Artikel + Menge); Modus = Schritttyp */}
-              {(s.step_type === 'consume' || s.step_type === 'tool') && (s.resource_lines?.length ?? 0) > 0 && (
+              {/* Ressource: Zeilen (Artikel + Menge + Modus pro Zeile) */}
+              {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
                 <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {s.resource_lines!.map((l, idx) => (
-                    <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
-                      • {l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`} <span style={{ color: '#94a3b8' }}>
-                        ({l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk)
-                      </span>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+                      {l.mode === 'tool' ? <Wrench size={12} style={{ color: '#7c3aed', flexShrink: 0 }} /> : <PackageMinus size={12} style={{ color: '#0f766e', flexShrink: 0 }} />}
+                      <span style={{ flex: 1, minWidth: 0 }}>{l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`}</span>
+                      <span style={{ color: '#94a3b8' }}>{l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk</span>
                     </div>
                   ))}
                 </div>
@@ -386,7 +401,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>Lieferadresse aus der Systemkonfiguration. Der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
                   </div>
-                  <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} /></div>
+                  <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
                 </>
               )}
 
@@ -414,8 +429,8 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                 </>
               )}
 
-              {(adding === 'consume' || adding === 'tool') && (
-                <ResourceLinesEditor mode={adding} lines={resLines} onChange={setResLines}
+              {adding === 'resource' && (
+                <ResourceLinesEditor lines={resLines} onChange={setResLines}
                   articles={articles.filter((a) => a.status === 'released' && a.object_id !== selfArticleObjectId)} />
               )}
 
@@ -445,45 +460,52 @@ const STEP_HINT: Record<StepType, string> = {
   purchase: 'Bestellung bei Lieferant oder Webshop',
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
-  consume: 'Material verbrauchen (Lagerabgang, FIFO)',
-  tool: 'Betriebsmittel nutzen (kein Lagerabgang)',
+  resource: 'Material verbrauchen oder Betriebsmittel nutzen',
   sale: 'Verkauf: Bestätigung → Rechnung → Zahlung',
 };
 
-// ─── Zeilen eines Verbrauch-/Betriebsmittel-Schritts bearbeiten ───────────────
-function ResourceLinesEditor({ mode, lines, onChange, articles }: {
-  mode: 'consume' | 'tool';
+// ─── Ressourcen-Zeilen (mini-BOM): Artikel + Menge + Modus-Toggle je Zeile ────
+function ResourceLinesEditor({ lines, onChange, articles }: {
   lines: ResLine[]; onChange: (l: ResLine[]) => void; articles: Article[];
 }) {
-  const isTool = mode === 'tool';
-  function add() { onChange([...lines, { article_id: '', quantity: '1' }]); }
+  function add() { onChange([...lines, { article_id: '', quantity: '1', mode: 'consume' }]); }
   function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
     ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
   return (
     <div>
-      <Label>{isTool ? 'Betriebsmittel (werden genutzt)' : 'Material (wird verbraucht)'}</Label>
+      <Label>Ressourcen</Label>
       {articles.length === 0 && (
         <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Kein freigegebener Artikel referenzierbar.</span></div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {lines.map((l, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
+        {lines.map((l, i) => {
+          const tool = l.mode === 'tool';
+          return (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Eleganter Modus-Toggle: ein Klick wechselt Verbrauch ↔ Betriebsmittel */}
+              <button type="button" onClick={() => upd(i, { mode: tool ? 'consume' : 'tool' })}
+                title={tool ? 'Betriebsmittel (nur genutzt) – klicken für Verbrauch' : 'Verbrauch (Lagerabgang, FIFO) – klicken für Betriebsmittel'}
+                style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 8, cursor: 'pointer',
+                  border: `1px solid ${tool ? '#ddd6fe' : '#bbf7d0'}`, background: tool ? '#f5f3ff' : '#f0fdf4',
+                  color: tool ? '#7c3aed' : '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {tool ? <Wrench size={15} /> : <PackageMinus size={15} />}
+              </button>
+              <div style={{ flex: 1 }}>
+                <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
+              </div>
+              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
+                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
+              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
-            <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
-              className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
-            <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', paddingTop: 6 }}><Trash2 size={15} /></button>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> {isTool ? 'Betriebsmittel' : 'Material'} hinzufügen</button>
-      <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
-        {isTool
-          ? 'Betriebsmittel werden nur genutzt (kein Lagerabgang). Für Verbrauchsmaterial einen «Verbrauch»-Schritt anlegen.'
-          : 'Material wird verbaut (Lagerabgang, FIFO nach Freigabe). Für Werkzeuge/Maschinen einen «Betriebsmittel»-Schritt anlegen.'}
+      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
+      <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PackageMinus size={12} style={{ color: '#0f766e' }} /> Verbrauch (FIFO)</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Wrench size={12} style={{ color: '#7c3aed' }} /> Betriebsmittel (genutzt)</span>
       </div>
     </div>
   );
@@ -551,8 +573,13 @@ function FlowNode({ label, tone }: { label: string; tone: 'start' | 'end' }) {
 }
 
 // ─── Stammdaten-Tags (Beschaffung) ────────────────────────────────────────────
-function FieldChips({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
-  const optional = SUPPLIER_FIELD_CATALOG.filter((f) => !f.mandatory);
+// Nur wählbar, was es wirklich gibt: Pflichtfelder + die optionalen Felder, die der
+// Artikel tatsächlich pflegt (``optionalAvailable``).
+function FieldChips({ value, onChange, optionalAvailable = [] }: {
+  value: string[]; onChange: (v: string[]) => void; optionalAvailable?: string[];
+}) {
+  const fields = SUPPLIER_FIELD_CATALOG.filter((f) => f.mandatory || optionalAvailable.includes(f.key));
+  const hasOptional = fields.some((f) => !f.mandatory);
   function toggle(key: string) {
     const set = new Set(value);
     if (set.has(key)) set.delete(key); else set.add(key);
@@ -561,7 +588,7 @@ function FieldChips({ value, onChange }: { value: string[]; onChange: (v: string
   return (
     <div>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-        {SUPPLIER_FIELD_CATALOG.map((f) => (
+        {fields.map((f) => (
           <Chip key={f.key} label={f.mandatory ? `${f.label} · Pflicht` : f.label}
             on={f.mandatory || value.includes(f.key)} locked={f.mandatory}
             onClick={f.mandatory ? undefined : () => toggle(f.key)} />
@@ -569,7 +596,7 @@ function FieldChips({ value, onChange }: { value: string[]; onChange: (v: string
       </div>
       <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
         Pflicht-Stammdaten sind für den Lieferanten immer sichtbar.
-        {optional.length === 0 && ' Weitere (optionale) Felder können künftig hier freigegeben werden.'}
+        {!hasOptional && ' Optionale Felder erscheinen hier nur, wenn sie am Artikel gepflegt sind.'}
       </div>
     </div>
   );

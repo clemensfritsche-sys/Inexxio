@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CameraOff, Check, AlertTriangle, X, Search, ScanLine } from 'lucide-react';
+import { Camera, CameraOff, Check, AlertTriangle, X, Search, ScanLine, Warehouse, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
-  type ScanCandidate, type ScanStep, type ScanRequest,
+  type ScanCandidate, type ScanKind, type ScanStep, type ScanRequest,
 } from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -13,6 +13,16 @@ export type { ScanRequest };
 
 // Mehrfach-Lesungen desselben Codes kurz ignorieren (ZXing feuert laufend).
 const THROTTLE_MS = 1200;
+
+// Symbol + Bezeichnung je erwartetem Objekttyp («was scanne ich jetzt?»).
+const KIND_META: Record<ScanKind, { icon: React.ElementType; label: string }> = {
+  lagerplatz: { icon: Warehouse, label: 'Lagerplatz' },
+  user:       { icon: UserIcon,  label: 'Person' },
+  instance:   { icon: Boxes,     label: 'Instanz' },
+  article:    { icon: Package,   label: 'Artikel' },
+  process:    { icon: Layers,    label: 'Prozess' },
+  object:     { icon: ScanLine,  label: 'Datensatz' },
+};
 
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
@@ -126,12 +136,20 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
           </div>
         )}
 
-        {/* Aktueller Schritt */}
-        <div style={{ padding: '10px 16px 0' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
-            {multi ? `Schritt ${stepIndex + 1}/${steps.length}: ` : ''}{step?.label ?? '—'}
+        {/* Aktueller Schritt – mit Symbol des erwarteten Objekttyps */}
+        <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+          {step?.kind && (() => { const K = KIND_META[step.kind].icon; return (
+            <div style={kindBadge} title={KIND_META[step.kind].label}>
+              <K size={20} strokeWidth={2} />
+            </div>
+          ); })()}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+              {multi ? `Schritt ${stepIndex + 1}/${steps.length}: ` : ''}{step?.label ?? '—'}
+            </div>
+            {step?.kind && <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{KIND_META[step.kind].label} scannen</div>}
+            {step?.hint && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{step.hint}</div>}
           </div>
-          {step?.hint && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{step.hint}</div>}
         </div>
 
         {/* Kamera-Viewfinder */}
@@ -154,6 +172,9 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
             {cameraLive && (
               <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? '#dc2626' : feedback?.kind === 'ok' ? '#16a34a' : 'rgba(255,255,255,0.9)' }} />
             )}
+            {cameraLive && step?.kind && !feedback && (() => { const K = KIND_META[step.kind].icon; return (
+              <div style={frameIcon}><K size={46} strokeWidth={1.5} /><span style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{KIND_META[step.kind].label}</span></div>
+            ); })()}
             {feedback && (
               <div style={{ ...badge, background: feedback.kind === 'ok' ? '#16a34a' : '#dc2626' }}>
                 {feedback.kind === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />} {feedback.text}
@@ -230,6 +251,14 @@ const frame: React.CSSProperties = {
 const badge: React.CSSProperties = {
   position: 'absolute', bottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '5px 11px', borderRadius: 999, color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: '90%',
+};
+const kindBadge: React.CSSProperties = {
+  flexShrink: 0, width: 40, height: 40, borderRadius: 10, background: '#eff6ff', color: '#2563eb',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+const frameIcon: React.CSSProperties = {
+  position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center',
+  color: 'rgba(255,255,255,0.85)', pointerEvents: 'none', textShadow: '0 1px 4px rgba(0,0,0,0.5)',
 };
 const iconBtn: React.CSSProperties = {
   border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, display: 'flex',

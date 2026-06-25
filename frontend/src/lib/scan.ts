@@ -48,9 +48,14 @@ export interface ScanCandidate {
   label: string;     // Anzeigetext (z. B. Artikelname / Typ)
 }
 
+// Erwarteter Objekttyp eines Scan-Schritts – für ein klares Symbol im Scanner
+// («was muss ich jetzt scannen?»).
+export type ScanKind = 'lagerplatz' | 'user' | 'instance' | 'article' | 'process' | 'object';
+
 export interface ScanStep {
   label: string;                              // was gerade gescannt werden soll
   hint?: string;                              // optionaler Zusatzhinweis
+  kind?: ScanKind;                            // erwarteter Objekttyp → Symbol im Scanner
   expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)
   candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
   restrict?: boolean;                         // nur Kandidaten-IDs zulassen (sonst: jede gültige Nr.)

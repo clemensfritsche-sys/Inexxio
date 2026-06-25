@@ -324,6 +324,7 @@ export default function ErpPage() {
       steps: [{
         label: 'Datensatz',
         hint: 'QR-/Barcode eines beliebigen Datensatzes',
+        kind: 'object',
         candidates: rows
           .filter((r) => r.objectId != null)
           .map((r) => ({ objectId: r.objectId as number, label: `${rowTitle(r)} · ${TYPE_META[r.type].label}` })),
@@ -343,6 +344,15 @@ export default function ErpPage() {
     setArticles((prev) => (prev.some((x) => x.id === a.id) ? prev.map((x) => (x.id === a.id ? a : x)) : [...prev, a]));
     setCreating(null);
     if (a.object_id != null) setSel({ type: 'article', objectId: a.object_id });
+    // Bei Artikelanlage entsteht automatisch ein «Entstehung»-Prozess → Feed nachladen,
+    // damit der neue Prozess-Datensatz sofort sichtbar ist (kein Reload nötig).
+    api.getProcesses().then(setProcesses).catch(() => {});
+  }
+
+  // Prozessstückliste/Prozesse im Artikel geändert (anlegen/verlinken/ersetzen) →
+  // den Prozess-Feed sofort aktualisieren.
+  function refreshProcesses() {
+    api.getProcesses().then(setProcesses).catch(() => {});
   }
 
   function handleOrderSaved(o: Order) {
@@ -550,7 +560,7 @@ export default function ErpPage() {
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onProcessesChanged={refreshProcesses} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (

@@ -78,9 +78,8 @@ type OrderSummaryApi = components['schemas']['OrderSummary'];
 export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStatus };
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
-// «consume» = Verbrauch (Material, FIFO), «tool» = Betriebsmittel (genutzt). Der
-// Modus ist der Schritttyp – nicht mehr eine Eigenschaft des Artikels/der Zeile.
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'consume' | 'tool' | 'sale';
+// EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -229,7 +228,7 @@ export type ResourceLineView = NonNullable<ArticleProcessStepApi['resource_lines
 export interface ResourceLineInput {
   article_id: number;
   quantity: number;
-  // Kein Modus: ob verbraucht oder genutzt, bestimmt der Schritttyp (consume|tool).
+  mode?: ResourceMode;   // consume (Default) | tool – pro Zeile
 }
 
 export interface ArticleProcessStepInput {

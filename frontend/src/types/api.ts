@@ -2386,8 +2386,8 @@ export interface components {
          * ResourceLine
          * @description Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).
          *
-         *     Ob die Zeile verbraucht (consume) oder genutzt (tool) wird, ergibt sich aus dem
-         *     **Schritttyp** des Prozessschritts – nicht pro Zeile und nicht aus dem Artikel.
+         *     ``mode`` bestimmt das Verhalten der Zeile: ``consume`` (verbraucht → Lagerabgang,
+         *     FIFO) oder ``tool`` (Betriebsmittel → nur genutzt). Default ``consume``.
          */
         ResourceLine: {
             /** Article Id */
@@ -2397,6 +2397,11 @@ export interface components {
              * @default 1
              */
             quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
         };
         /**
          * ResourceLineExec
@@ -2412,6 +2417,11 @@ export interface components {
              * @default 1
              */
             quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */
@@ -2420,11 +2430,6 @@ export interface components {
             unit?: string | null;
             /** Serialization */
             serialization?: string | null;
-            /**
-             * Mode
-             * @default consume
-             */
-            mode: string;
             /** Need */
             need?: number | null;
             /** Available */
@@ -2459,6 +2464,11 @@ export interface components {
              * @default 1
              */
             quantity: number;
+            /**
+             * Mode
+             * @default consume
+             */
+            mode: string;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */

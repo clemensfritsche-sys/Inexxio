@@ -79,7 +79,7 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
+export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh, onProcessesChanged }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   articleNames?: string[];         // wählbare Artikelnamen (Systemkonfiguration)
@@ -87,6 +87,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   onCancel: () => void;
   onBack: () => void;
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
+  onProcessesChanged?: () => void; // Prozess-Feed aktualisieren (Stückliste geändert)
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
@@ -350,7 +351,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           </div>
         )}
         {tab === 'prozess' && (
-          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={record?.status === 'inactive'} />
+          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={record?.status === 'inactive'} onChanged={onProcessesChanged} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />

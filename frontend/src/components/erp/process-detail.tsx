@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Process, UserProfile } from '@/types';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { TextField, ErrorText, StatusBadge } from '@/components/erp/fields';
-import { sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
+import { sourceLabel, processStatusConfig } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 /** Unscheinbares Favoriten-Sternchen: markiert einen Prozess als «Standard» (gilt für
@@ -97,12 +97,9 @@ export function ProcessDetail({ record, suppliers, onSaved, onBack }: {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>{fmtObjId(record!.object_id)}</span>
               <StatusBadge cfg={processStatusConfig(status)} />
-              <StatusBadge cfg={stockEffectConfig(record!.stock_effect)} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 999 }}>{sourceLabel(record!.source)}</span>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>Subjekt: {sourceLabel(record!.source)}</span>
               {record!.linked_article_count > 0 && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 999 }}>
-                  bei {record!.linked_article_count} Artikel{record!.linked_article_count === 1 ? '' : 'n'}
-                </span>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>· bei {record!.linked_article_count} Artikel{record!.linked_article_count === 1 ? '' : 'n'}</span>
               )}
             </div>
           </div>

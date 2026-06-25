@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, StorageLocation, UserProfile } from '@/types';
-import type { ScanCandidate, ScanStep } from '@/lib/scan';
+import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
 import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -89,18 +89,19 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     if (inst.location_id != null && inst.location_type !== 'user') {
       steps.push({
         label: 'Aktueller Standort', hint: `Standort von ${fmtObjId(iid)} scannen`, expected: inst.location_id,
+        kind: (inst.location_type as ScanKind) ?? undefined,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
       });
     }
     steps.push({
-      label: 'Instanz', hint: 'Zu bewegende Instanz scannen', expected: iid,
+      label: 'Instanz', hint: 'Zu bewegende Instanz scannen', expected: iid, kind: 'instance',
       candidates: [{ objectId: iid, label: instanceKindLabel(inst.kind) }],
     });
     if (fixedType && fixedId) {
       steps.push({
         label: `Zielstandort ${fmtObjId(fixedId)}`,
         hint: `Zugewiesenen ${locationTypeLabel(fixedType)} ${fmtObjId(fixedId)} scannen`,
-        expected: fixedId,
+        expected: fixedId, kind: (fixedType as ScanKind) ?? undefined,
         candidates: [{ objectId: fixedId, label: mv?.target_location_label ?? locationTypeLabel(fixedType) }],
       });
     } else {

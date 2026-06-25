@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, X, Trash2, Layers, Pencil, Check, Link2 } from 'lucide-react';
+import { Plus, X, Trash2, Layers, Pencil, Check, Link2, Star } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Process, UserProfile } from '@/types';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { TextField, ErrorText, SearchSelect, StatusBadge, StatusFlow } from '@/components/erp/fields';
-import { sourceLabel, processStatusConfig, stockEffectConfig } from '@/lib/process';
+import { sourceLabel, processStatusConfig } from '@/lib/process';
 import { lifecycleActions, type StatusAction } from '@/lib/status-flow';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -19,14 +19,14 @@ function processActions(p: Process): StatusAction[] {
   return lifecycleActions(p.status, { canReactivate: true, canReplace: true });
 }
 
-/** Prozessstückliste eines Artikels: verlinkte Prozesse (eigene Objekte mit Nummer +
- *  Lebenszyklus) + geerbte Standardprozesse. Hinzufügen/Entfernen wirkt nur auf
- *  **diesen** Artikel (Link); Freigeben/Deaktivieren/Ersetzen wirkt am Prozess-Objekt
- *  (und damit auf alle Artikel, die ihn führen). */
-export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false }: {
+/** Prozessstückliste eines Artikels: verlinkte Prozesse + geerbte Standardprozesse.
+ *  Hinzufügen/Entfernen wirkt nur auf **diesen** Artikel (Link); Freigeben/Deaktivieren/
+ *  Ersetzen wirkt am Prozess-Objekt (und damit auf alle Artikel, die ihn führen). */
+export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false, onChanged }: {
   articleObjectId: number | null;
   suppliers: UserProfile[];
   readOnly?: boolean;
+  onChanged?: () => void;   // Prozess-Feed aktualisieren (Stückliste/Lebenszyklus geändert)
 }) {
   const [procs, setProcs] = useState<Process[]>([]);
   const [selId, setSelId] = useState<number | null>(null);
@@ -54,6 +54,9 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
 
   useEffect(() => { void load(); }, [load]);
 
+  // Nach einer Mutation neu laden UND den Prozess-Feed aktualisieren (kein Reload nötig).
+  const reload = useCallback(async (selectId?: number) => { await load(selectId); onChanged?.(); }, [load, onChanged]);
+
   // Katalog (alle verlinkbaren Prozesse) erst bei Bedarf laden.
   useEffect(() => {
     if (adding !== 'link') return;
@@ -74,7 +77,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     setSaving(true); setError(null);
     try {
       const p = await api.createArticleProcess(aid, { name: name.trim() });
-      await load(p.id);
+      await reload(p.id);
       setAdding(null); setName('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Anlegen'); }
     finally { setSaving(false); }
@@ -85,7 +88,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     setSaving(true); setError(null);
     try {
       const p = await api.addProcessLink(aid, Number(linkPick));
-      await load(p.id);
+      await reload(p.id);
       setAdding(null); setLinkPick('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht verlinkt werden'); }
     finally { setSaving(false); }
@@ -96,7 +99,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     try {
       await api.updateProcess(p.object_id, { name: renameVal.trim() });
       setRenameId(null);
-      await load(p.id);
+      await reload(p.id);
     } catch (e) { setError(e instanceof Error ? e.message : 'Umbenennen fehlgeschlagen'); }
   }
 
@@ -104,7 +107,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     setError(null);
     try {
       await api.removeProcessLink(aid, p.id);
-      await load();
+      await reload();
     } catch (e) { setError(e instanceof Error ? e.message : 'Konnte nicht entfernt werden'); }
   }
 
@@ -114,10 +117,10 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
     try {
       if (target === 'replace') {
         const np = await api.replaceProcess(selected.object_id);
-        await load(np.id);
+        await reload(np.id);
       } else {
         await api.updateProcess(selected.object_id, { status: target as 'draft' | 'released' | 'inactive' });
-        await load(selected.id);
+        await reload(selected.id);
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen'); }
     finally { setStatusBusy(false); }
@@ -125,7 +128,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Stückliste (verlinkte Prozesse + geerbte Standards) */}
+      {/* Stückliste: schlichte Chips – Name, Status-Punkt, ggf. Standard-Stern */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {procs.map((p) => {
           const active = p.id === selId;
@@ -135,14 +138,10 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
               display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10,
               border: `1.5px solid ${active ? '#2563eb' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff',
               cursor: 'pointer', textAlign: 'left',
-            }}>
-              <Layers size={14} style={{ color: active ? '#2563eb' : '#94a3b8' }} />
+            }} title={`${scfg.label}${p.is_standard ? ' · Standard' : ''}`}>
+              <span style={{ width: 8, height: 8, borderRadius: 999, background: scfg.color, flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: active ? '#1d4ed8' : '#0f172a' }}>{p.name}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: 999 }}>
-                {sourceLabel(p.source)}
-              </span>
-              <span style={{ width: 8, height: 8, borderRadius: 999, background: scfg.color }} title={scfg.label} />
-              {p.is_standard && <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', padding: '1px 6px', borderRadius: 999 }}>Standard</span>}
+              {p.is_standard && <Star size={12} fill="#f59e0b" color="#f59e0b" strokeWidth={2} />}
             </button>
           );
         })}
@@ -162,10 +161,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
             <button onClick={() => { setAdding(null); setError(null); }} style={ghostIcon}><X size={16} /></button>
           </div>
           <TextField label="Name (frei wählbar)" value={name} onChange={setName} required placeholder="z. B. Verkauf, Jahreswartung" />
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>
-            Keine Quellen-/Richtungswahl: ob der Prozess Bestand erhöht, mindert oder neutral ist,
-            ergibt sich aus seinen Schritten (im Anschluss definieren).
-          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>Das Verhalten ergibt sich aus den Schritten (im Anschluss definieren).</div>
           {error && <ErrorText msg={error} />}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button onClick={() => { setAdding(null); setError(null); }} style={secondary}>Abbrechen</button>
@@ -184,7 +180,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
           <SearchSelect label="Prozess" value={linkPick} onChange={setLinkPick}
             placeholder="Prozess suchen (Name oder Nummer)…"
             options={[{ value: '', label: '— wählen —' }, ...linkable.map((p) => ({
-              value: String(p.id), label: `${fmtObjId(p.object_id)} · ${p.name} (${sourceLabel(p.source)})` }))]} />
+              value: String(p.id), label: `${fmtObjId(p.object_id)} · ${p.name}` }))]} />
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
             Derselbe Prozess kann bei mehreren Artikeln liegen. Inaktiv/Ersetzen wirkt dann auf alle.
           </div>
@@ -196,11 +192,12 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
         </div>
       )}
 
-      {/* Kopf des gewählten Prozesses: Nummer, Status/Lebenszyklus, Richtung, Aktionen */}
+      {/* Kopf des gewählten Prozesses */}
       {selected && (
         <div style={{ ...card, gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Layers size={15} style={{ color: '#7c3aed' }} />
               {renameId === selected.id ? (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input value={renameVal} onChange={(e) => setRenameVal(e.target.value)}
@@ -215,12 +212,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
                 </>
               )}
               <StatusBadge cfg={processStatusConfig(selected.status)} />
-              <StatusBadge cfg={stockEffectConfig(selected.stock_effect)} />
-              {selected.linked_article_count > 1 && (
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: 999 }}>
-                  bei {selected.linked_article_count} Artikeln
-                </span>
-              )}
+              {selected.is_standard && <Star size={13} fill="#f59e0b" color="#f59e0b" strokeWidth={2} />}
             </div>
             {!readOnly && ownSelected && renameId !== selected.id && (
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -236,7 +228,7 @@ export function ArticleProcesses({ articleObjectId, suppliers, readOnly = false 
           <div style={{ fontSize: 12, color: '#64748b' }}>
             {selected.is_standard
               ? 'Geerbter Standardprozess – zentral verwaltet, hier nur lesbar.'
-              : 'Richtung (erhöhend/mindernd/neutral) ergibt sich aus den Schritten.'}
+              : `Subjekt: ${sourceLabel(selected.source)}${selected.linked_article_count > 1 ? ` · bei ${selected.linked_article_count} Artikeln` : ''}`}
           </div>
           {!readOnly && ownSelected && (
             <StatusFlow cfg={processStatusConfig(selected.status)} actions={processActions(selected)} busy={statusBusy} onAction={onProcessAction} />

@@ -25,18 +25,21 @@ from ..models import ArticleProcessStep, Process, UserProfile
 
 def _plan(steps: list[tuple[str, str | None]]) -> list[str]:
     """Reine Soll-Sequenz aus (Schritttyp, Modus). Markierungen ``"versand"`` /
-    ``"wareneingang"`` = Pflicht-Bewegung, sonst der Nutzer-Schritttyp.
+    ``"wareneingang"`` / ``"versandkunde"`` = Pflicht-Bewegung, sonst Nutzer-Schritttyp.
 
-    Versand nur vor einer **nicht ersten Lieferanten-Beschaffung**; Wareneingang
-    nach jeder Beschaffung. Zwischen zwei aufeinanderfolgenden Beschaffungen genügt
-    die eine (Wareneingang)."""
+    - Versand nur vor einer **nicht ersten Lieferanten-Beschaffung** (Lohnveredelung);
+    - Wareneingang **nach** jeder Beschaffung;
+    - Versand zum Kunden **nach** jedem Verkauf (irgendwie muss es zum Kunden)."""
     seq: list[str] = []
+    moves = ("versand", "wareneingang", "versandkunde")
     for i, (t, mode) in enumerate(steps):
-        if t == "purchase" and mode == "supplier" and i > 0 and (not seq or seq[-1] not in ("versand", "wareneingang")):
+        if t == "purchase" and mode == "supplier" and i > 0 and (not seq or seq[-1] not in moves):
             seq.append("versand")
         seq.append(t)
         if t == "purchase":
             seq.append("wareneingang")
+        if t == "sale":
+            seq.append("versandkunde")
     return seq
 
 
@@ -68,18 +71,19 @@ def sync_locked_movements(db: Session, process_id: int) -> None:
     steps = _active_steps(db, process_id)
     user_steps = [s for s in steps if not s.locked]
     locked = [s for s in steps if s.locked]
-    if not any(s.step_type == "purchase" for s in user_steps) and not locked:
+    if not any(s.step_type in ("purchase", "sale") for s in user_steps) and not locked:
         return  # häufigster Fall: nichts zu tun
 
-    # Rollen-getrennte Pools (positionsunabhängig): Versand trägt user-Ziel (Lieferant),
-    # Wareneingang ein Lagerplatz-Ziel oder keines. So gehen Wareneingang-Ziele beim
-    # Re-Sync nicht verloren und Rollen vermischen sich nicht.
-    versand_pool = [s for s in locked if s.target_location_type == "user"]
-    wareneingang_pool = [s for s in locked if s.target_location_type != "user"]
+    # Rollen-getrennte Pools (positionsunabhängig): Versand-zum-Kunden ist via
+    # mode='customer' getaggt; Versand-zum-Lieferanten trägt ein user-Ziel; Wareneingang
+    # ein Lagerplatz-Ziel oder keines. So gehen Ziele beim Re-Sync nicht verloren.
+    versandkunde_pool = [s for s in locked if s.mode == "customer"]
+    versand_pool = [s for s in locked if s.mode != "customer" and s.target_location_type == "user"]
+    wareneingang_pool = [s for s in locked if s.mode != "customer" and s.target_location_type != "user"]
 
     plan = _plan([(s.step_type, s.mode) for s in user_steps])
     final: list[list] = []   # [node_or_step, role]
-    ui = vi = wi = 0
+    ui = vi = wi = ki = 0
     for entry in plan:
         if entry == "versand":
             node = versand_pool[vi] if vi < len(versand_pool) else None
@@ -89,15 +93,20 @@ def sync_locked_movements(db: Session, process_id: int) -> None:
             node = wareneingang_pool[wi] if wi < len(wareneingang_pool) else None
             wi += 1
             final.append([node, "wareneingang"])
+        elif entry == "versandkunde":
+            node = versandkunde_pool[ki] if ki < len(versandkunde_pool) else None
+            ki += 1
+            final.append([node, "versandkunde"])
         else:
             final.append([user_steps[ui], "user"])
             ui += 1
 
     for item in final:
         if item[1] != "user" and item[0] is None:
-            item[0] = ArticleProcessStep(process_id=process_id, article_id=article_id,
-                                         step_type="movement", mode="supplier",
-                                         locked=True, position=0)
+            item[0] = ArticleProcessStep(
+                process_id=process_id, article_id=article_id, step_type="movement",
+                mode="customer" if item[1] == "versandkunde" else "supplier",
+                locked=True, position=0)
             db.add(item[0])
     db.flush()
 
@@ -113,4 +122,4 @@ def sync_locked_movements(db: Session, process_id: int) -> None:
             oid = _supplier_object_id(db, purchase.supplier_id) if purchase else None
             node.target_location_type = "user" if oid else None
             node.target_location_id = oid
-        # wareneingang: Ziel unverändert lassen (vom Nutzer gesetzt oder offen)
+        # wareneingang/versandkunde: Ziel unverändert (vom Nutzer gesetzt bzw. beim Versand)

@@ -7,8 +7,7 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   purchase:   { label: 'Beschaffung',    icon: ShoppingCart },
   inspection: { label: 'Datenerfassung', icon: ClipboardCheck },
   movement:   { label: 'Bewegung',       icon: ArrowLeftRight },
-  consume:    { label: 'Verbrauch',      icon: PackageMinus },   // Material (Lagerabgang, FIFO)
-  tool:       { label: 'Betriebsmittel', icon: Wrench },         // Werkzeug/Maschine (genutzt)
+  resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   sale:       { label: 'Verkauf',        icon: Receipt },
 };
 

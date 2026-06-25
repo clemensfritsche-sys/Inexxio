@@ -29,7 +29,8 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.getUsers().then((u) => setCustomers(u.filter((x) => x.role === 'customer'))).catch(() => {});
+    // Als Kunde sind ALLE Benutzer wählbar – auch Mitarbeiter können selbst bestellen.
+    api.getUsers().then(setCustomers).catch(() => {});
   }, []);
 
   if (!sale || order.object_id == null) return null;

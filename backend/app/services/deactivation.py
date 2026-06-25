@@ -44,12 +44,12 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     from . import processes as processes_svc
     out: dict[int, set[int]] = {}
     # Nur die Produktions-Rezeptur (Quelle ``produce``) bildet die Stückliste – und
-    # darin nur **Verbrauch**-Schritte (``consume``). Betriebsmittel-Nutzung (``tool``)
-    # macht das Produkt nicht herstellungs-abhängig vom Werkzeug (keine Kaskade).
+    # darin nur **Verbrauch**-Zeilen (``mode='consume'``). Betriebsmittel-Zeilen (``tool``)
+    # machen das Produkt nicht herstellungs-abhängig vom Werkzeug (keine Kaskade).
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(("consume", "resource")),
+        .filter(ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
                 ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
@@ -63,7 +63,8 @@ def _consume_parent_map(db: Session) -> dict[int, set[int]]:
             continue
         for line in (s.resource_lines or []):
             aid = line.get("article_id")
-            if aid is None:
+            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
+            if aid is None or mode != "consume":
                 continue
             out.setdefault(aid, set()).update(parents)
     return out
@@ -155,19 +156,18 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
         .join(Process, Process.id == ArticleProcessStep.process_id)
         .filter(Process.id.in_(linked_ids), Process.source == "produce",
                 Process.is_active == True,
-                ArticleProcessStep.step_type.in_(("consume", "resource")),
+                ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
                 ArticleProcessStep.is_active == True)
         .all()
     )
     for s in steps:
         for line in (s.resource_lines or []):
             aid = line.get("article_id")
-            if aid is None:
+            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
+            if aid is None or mode != "consume":
                 continue
             comp = db.query(Article).filter(Article.id == aid).first()
-            if not comp:
-                continue
-            if comp.status != "released":
+            if comp and comp.status != "released":
                 return f"Komponente {comp.object_id} ist nicht freigegeben"
     return None
 

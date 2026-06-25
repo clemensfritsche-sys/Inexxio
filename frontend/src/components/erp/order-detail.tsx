@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep, Process } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState, STEP_META, sourceLabel, stockEffectConfig } from '@/lib/process';
+import { toStepperState, STEP_META, sourceLabel } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
@@ -294,15 +294,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 <div>
                   <SearchSelect label="Prozess" value={form.process_id} onChange={(v) => set('process_id', v)} required
                     options={procs.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_standard ? ' · Standard' : ''} (${sourceLabel(p.source)})` }))} />
-                  {selProc && (
-                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>Wirkung (abgeleitet):</span>
-                      <StatusBadge cfg={stockEffectConfig(selProc.stock_effect)} />
-                      {selProc.status !== 'released' && (
-                        <span style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '1px 6px', borderRadius: 6 }}>
-                          Prozess noch nicht freigegeben – vor dem Start freigeben
-                        </span>
-                      )}
+                  {selProc && selProc.status !== 'released' && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 8px', borderRadius: 6, display: 'inline-block' }}>
+                      Prozess noch nicht freigegeben – vor dem Start freigeben
                     </div>
                   )}
                 </div>
@@ -348,7 +342,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {record.process_object_id != null && <ObjId value={record.process_object_id} />}
                     <span style={{ fontWeight: 600, color: '#0F172A' }}>{record.process_name}</span>
-                    <StatusBadge cfg={stockEffectConfig(record.process_stock_effect)} />
                   </span>
                 </div>
               )}
@@ -480,7 +473,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'movement') {
     return <MovementPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (step.step_type === 'consume' || step.step_type === 'tool') {
+  if (step.step_type === 'resource' || step.step_type === 'consume' || step.step_type === 'tool') {
     return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return null;
@@ -559,9 +552,28 @@ function RecurrenceCard({ order, onSaved }: { order: Order; onSaved: (o: Order) 
     finally { setBusy(false); }
   }
 
+  // Dezent: standardmässig eingeklappt (ein unscheinbarer Link), nur offen wenn aktiv.
+  const [open, setOpen] = useState(!!order.recurrence_active);
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', margin: '0 2px 12px',
+        border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+      }}>
+        <Repeat size={13} /> Wiederkehrend einrichten
+        {order.recurrence_active && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: 999 }}>aktiv</span>}
+        <ChevronDown size={13} />
+      </button>
+    );
+  }
+
   return (
     <>
-      <SectionTitle icon={Repeat}>Wiederkehrend</SectionTitle>
+      <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px', border: 'none', background: 'none', cursor: 'pointer' }}>
+        <Repeat size={13} style={{ color: '#94a3b8' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>Wiederkehrend</span>
+        <ChevronDown size={13} style={{ color: '#94a3b8', transform: 'rotate(180deg)' }} />
+      </button>
       <div style={cardStyle}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

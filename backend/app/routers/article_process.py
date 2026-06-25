@@ -64,10 +64,10 @@ def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLi
     out: list[ResourceLineView] = []
     for line in raw_lines or []:
         art = db.query(Article).filter(Article.id == line["article_id"]).first()
-        # Verbrauch vs. Betriebsmittel ergibt sich aus dem Schritttyp (consume/tool),
-        # nicht aus der Zeile/dem Artikel.
+        m = line.get("mode")
         out.append(ResourceLineView(
             article_id=line["article_id"], quantity=line.get("quantity", 1),
+            mode=m if m in ("consume", "tool") else "consume",
             article_name=art.name if art else None,
             article_object_id=art.object_id if art else None,
             unit=art.unit if art else None,
@@ -146,7 +146,7 @@ async def create_step(
         )
         position = (max_pos or 0) + 1
     is_movement = data.step_type == "movement"
-    is_resource = data.step_type in ("consume", "tool")
+    is_resource = data.step_type == "resource"
     keeps_target = is_movement
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:

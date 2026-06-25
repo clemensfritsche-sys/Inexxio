@@ -38,26 +38,26 @@ STEP_LABELS = {
     "purchase": "Beschaffung",
     "inspection": "Datenerfassung",
     "movement": "Bewegung",
-    "consume": "Verbrauch",        # Material verbrauchen (FIFO/Lagerabgang)
-    "tool": "Betriebsmittel",      # Werkzeug/Maschine nutzen (kein Lagerabgang)
-    "resource": "Verbrauch",       # Alt-Alias (Altdaten); wird wie consume behandelt
+    "resource": "Ressource",       # Verbrauch + Betriebsmittel (Modus pro Zeile)
+    "consume": "Ressource",        # Alt-Aliase (Altdaten)
+    "tool": "Ressource",
     "sale": "Verkauf",
 }
 
-# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung). consume/tool
-# (und das Alt-Alias resource) teilen sich die Buchungstabelle resource_usages.
+# Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung). resource (und die
+# Alt-Aliase consume/tool) teilen sich die Buchungstabelle resource_usages.
 _FACT_MODEL = {
     "purchase": PurchaseOrder,
     "inspection": Inspection,
     "movement": Movement,
+    "resource": ResourceUsage,
     "consume": ResourceUsage,
     "tool": ResourceUsage,
-    "resource": ResourceUsage,
     "sale": Sale,
 }
 
-# Schritttypen, die über die Ressourcen-Logik laufen (Verbrauch + Betriebsmittel).
-RESOURCE_STEP_TYPES = ("consume", "tool", "resource")
+# Schritttypen, die über die Ressourcen-Logik laufen (resource + Alt-Aliase).
+RESOURCE_STEP_TYPES = ("resource", "consume", "tool")
 
 
 def step_defs(db: Session, process_id: int | None) -> list[ArticleProcessStep]:

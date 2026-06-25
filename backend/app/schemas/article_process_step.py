@@ -6,13 +6,13 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
 
-# «consume» = Verbrauch (Material, FIFO/Lagerabgang), «tool» = Betriebsmittel (genutzt,
-# kein Lagerabgang). Der Modus ergibt sich aus dem **Schritttyp** – nicht aus dem Artikel
-# und nicht pro Zeile.
-ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "consume", "tool", "sale")
+# EIN «resource»-Schritt («Ressource») fasst Verbrauch & Betriebsmittel zusammen.
+# Pro Zeile entscheidet ``mode`` (consume = verbraucht/FIFO/Lagerabgang | tool =
+# Betriebsmittel, nur genutzt) – elegant per Zeilen-Toggle, Default consume.
+ALLOWED_STEP_TYPES = ("purchase", "inspection", "movement", "resource", "sale")
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
-RESOURCE_STEP_TYPES = ("consume", "tool")
+ALLOWED_RESOURCE_MODES = ("consume", "tool")
 
 
 def _check_target_location_type(v: Optional[str]) -> Optional[str]:
@@ -53,11 +53,19 @@ class CaptureField(BaseModel):
 class ResourceLine(BaseModel):
     """Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).
 
-    Ob die Zeile verbraucht (consume) oder genutzt (tool) wird, ergibt sich aus dem
-    **Schritttyp** des Prozessschritts – nicht pro Zeile und nicht aus dem Artikel."""
+    ``mode`` bestimmt das Verhalten der Zeile: ``consume`` (verbraucht → Lagerabgang,
+    FIFO) oder ``tool`` (Betriebsmittel → nur genutzt). Default ``consume``."""
 
     article_id: int
     quantity: int = 1               # Menge pro Stück Produkt (BOM-Standard)
+    mode: str = "consume"
+
+    @field_validator("mode")
+    @classmethod
+    def _mode_ok(cls, v: str) -> str:
+        if v not in ALLOWED_RESOURCE_MODES:
+            raise ValueError("Modus muss 'consume' (Verbrauch) oder 'tool' (Betriebsmittel) sein")
+        return v
 
     @field_validator("quantity")
     @classmethod
@@ -168,8 +176,8 @@ class ArticleProcessStepCreate(BaseModel):
                 raise ValueError("Im Modus 'Webshop' muss ein Link hinterlegt sein")
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
-        if self.step_type in RESOURCE_STEP_TYPES and not self.resource_lines:
-            raise ValueError("Ein Verbrauch-/Betriebsmittel-Schritt braucht mindestens eine Zeile")
+        if self.step_type == "resource" and not self.resource_lines:
+            raise ValueError("Ein Ressource-Schritt braucht mindestens eine Zeile")
         # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.
         # Ohne Zieltyp gibt es kein festes Zielobjekt.
         if self.target_location_type is None:

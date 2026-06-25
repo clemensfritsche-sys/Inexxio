@@ -192,17 +192,17 @@ def unlink_process(db: Session, article_id: int, process_id: int) -> bool:
 # (damit die SQL-Filter in weight.py/deactivation.py weiter funktionieren).
 #
 #   Verkauf (sale)                → stock    → mindernd  (Bestand geht ab)
-#   Beschaffung/Verbrauch         → produce  → erhöhend  (Neues entsteht/kommt rein)
-#     (purchase oder consume)
-#   sonst (Betriebsmittel/Bewegung/
-#     Datenerfassung, oder leer)  → instance → neutral   (bestehende Instanz wird bearbeitet)
+#   Beschaffung/Ressource         → produce  → erhöhend  (Neues entsteht/kommt rein)
+#     (purchase oder resource)
+#   sonst (Bewegung/Datenerfassung,
+#     oder leer)                  → instance → neutral   (bestehende Instanz wird bearbeitet)
 
 def derive_source(step_types: set[str]) -> str:
     if "sale" in step_types:
         return "stock"
-    # Beschaffung oder Materialverbrauch (Produktion) erzeugt/bringt Neues herein.
-    # Betriebsmittel-Nutzung allein ist neutral (instance).
-    if step_types & {"purchase", "consume", "resource"}:
+    # Beschaffung oder ein Ressourcen-Schritt (Produktion) erzeugt/bringt Neues herein.
+    # (consume/tool = Alt-Aliase des Ressourcen-Schritts.)
+    if step_types & {"purchase", "resource", "consume", "tool"}:
         return "produce"
     return "instance"
 

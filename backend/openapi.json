@@ -7989,6 +7989,11 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
           }
         },
         "type": "object",
@@ -7996,7 +8001,7 @@
           "article_id"
         ],
         "title": "ResourceLine",
-        "description": "Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).\n\nOb die Zeile verbraucht (consume) oder genutzt (tool) wird, ergibt sich aus dem\n**Schritttyp** des Prozessschritts – nicht pro Zeile und nicht aus dem Artikel."
+        "description": "Eine Zeile eines Ressourcen-Schritts (Artikel + Menge pro Stück Produkt).\n\n``mode`` bestimmt das Verhalten der Zeile: ``consume`` (verbraucht → Lagerabgang,\nFIFO) oder ``tool`` (Betriebsmittel → nur genutzt). Default ``consume``."
       },
       "ResourceLineExec": {
         "properties": {
@@ -8008,6 +8013,11 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
           },
           "article_name": {
             "anyOf": [
@@ -8052,11 +8062,6 @@
               }
             ],
             "title": "Serialization"
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "consume"
           },
           "need": {
             "anyOf": [
@@ -8133,6 +8138,11 @@
             "type": "integer",
             "title": "Quantity",
             "default": 1
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "consume"
           },
           "article_name": {
             "anyOf": [

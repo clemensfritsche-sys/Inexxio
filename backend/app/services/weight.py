@@ -32,13 +32,13 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
         weights[aid] = w if w is not None else Decimal(0)
     consume: dict[int, list[tuple[int, Decimal]]] = {}
     # Nur die **Produktions**-Rezeptur (Prozess-Quelle ``produce``) bestimmt das
-    # Gewicht – über die **Verbrauch**-Schritte (``consume``). Betriebsmittel (``tool``)
-    # werden nur genutzt und zählen NICHT zum Gewicht. Der/die Produkt-Artikel sind die
-    # Artikel, die den Prozess in ihrer Stückliste führen (n:m).
+    # Gewicht – über die **Verbrauch**-Zeilen (``mode='consume'``) der Ressourcen-Schritte.
+    # Betriebsmittel-Zeilen (``mode='tool'``) zählen NICHT. Der/die Produkt-Artikel sind
+    # die Artikel, die den Prozess in ihrer Stückliste führen (n:m).
     steps = (
         db.query(ArticleProcessStep)
         .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(("consume", "resource")),
+        .filter(ArticleProcessStep.step_type.in_(("resource", "consume", "tool")),
                 ArticleProcessStep.is_active == True,
                 Process.source == "produce", Process.is_active == True)
         .all()
@@ -52,7 +52,8 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
             continue
         for line in (s.resource_lines or []):
             comp = line.get("article_id")
-            if comp is None:
+            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
+            if comp is None or mode != "consume":
                 continue
             qty = Decimal(str(line.get("quantity", 1)))
             for parent in parents:
