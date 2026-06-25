@@ -11,7 +11,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { claimStatusConfig } from '@/lib/claim';
-import { qcStatusConfig, instanceKindLabel, processStatusConfig } from '@/lib/process';
+import { instanceStatusConfig, instanceKindLabel, processStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
@@ -84,7 +84,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
         : orderStatusConfig(row.data.status);
   }
-  else if (row.type === 'instance') badge = qcStatusConfig(row.data.qc_status);
+  else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
   else if (row.type === 'process') badge = processStatusConfig(row.data.status);
   else badge = storageStatusConfig(row.data.status);

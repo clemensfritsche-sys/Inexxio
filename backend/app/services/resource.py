@@ -28,7 +28,7 @@ from ..schemas.resource import (
 from . import process
 from .admin import log_audit
 from .events import emit
-from .inventory import allocate, available
+from .inventory import allocate, available, in_stock_clauses
 from .locations import _obj_nr, location_label, resolve_physical_location
 from .objects import next_object_id
 from .subject import order_instances
@@ -75,8 +75,7 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
     q = db.query(Instance).filter(
         Instance.article_id == article_db_id,
         Instance.is_active == True,
-        Instance.qc_status == "passed",
-        Instance.quantity > 0,
+        *in_stock_clauses(),
     )
     if for_order_id is None:
         q = q.filter(Instance.reserved_for_order_id.is_(None))
@@ -125,7 +124,8 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
                 db.add(Instance(
                     object_id=next_object_id(db, "instance"), article_id=cand.article_id,
                     order_id=cand.order_id, kind=cand.kind, quantity=take,
-                    qc_status="passed", released_at=cand.released_at or cand.created_at,
+                    quality="passed", disposition="in_stock",
+                    released_at=cand.released_at or cand.created_at,
                     location_type=cand.location_type, location_id=cand.location_id,
                     reserved_for_order_id=order.id,
                 ))
@@ -140,7 +140,7 @@ def _tool_candidates(db: Session, article_db_id: int) -> list[Instance]:
         .filter(
             Instance.article_id == article_db_id,
             Instance.is_active == True,
-            Instance.qc_status == "passed",
+            *in_stock_clauses(),
         )
         .order_by(Instance.object_id)
         .all()
@@ -179,7 +179,7 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
               object_id=inst.object_id, old_value=f"{inst.location_type}:{inst.location_id}")
     inst.location_type = "instance"
     inst.location_id = product.object_id
-    inst.qc_status = "consumed"
+    inst.disposition = "consumed"   # Verbleib: verbaut (Qualität bleibt unverändert)
 
 
 def _consume_line(db: Session, order: Order, products: list[Instance],
@@ -214,7 +214,8 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
                 sub = Instance(
                     object_id=next_object_id(db, "instance"), article_id=cand.article_id,
                     order_id=cand.order_id, kind="batch", quantity=take,
-                    qc_status="consumed", released_at=cand.released_at or cand.created_at,
+                    quality="passed", disposition="consumed",
+                    released_at=cand.released_at or cand.created_at,
                     location_type="instance", location_id=product.object_id,
                 )
                 db.add(sub)
@@ -241,7 +242,7 @@ def _validate_tools(db: Session, article_db_id: int, instance_ids: list[int]) ->
         )
         if not inst or inst.article_id != article_db_id:
             raise HTTPException(400, detail=f"Betriebsmittel {iid} passt nicht zum Artikel")
-        if inst.qc_status != "passed":
+        if inst.quality != "passed" or inst.disposition != "in_stock":
             raise HTTPException(400, detail="Nur freigegebene Betriebsmittel sind wählbar")
         clean.append(inst)
     return clean

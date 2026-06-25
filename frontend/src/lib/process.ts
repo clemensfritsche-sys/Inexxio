@@ -1,5 +1,5 @@
 import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Sparkles, Layers, Target, TrendingUp, TrendingDown, ArrowUpDown, Minus, FilePen, Ban } from 'lucide-react';
-import type { StepType, InstanceQcStatus, LocationType, ProcessSource, ProcessStockEffect } from '@/types';
+import type { StepType, LocationType, ProcessSource, ProcessStockEffect } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
 
@@ -73,15 +73,27 @@ export function toStepperState(state: string): StepState {
   return 'pending'; // locked
 }
 
-export const QC_STATUS: Record<InstanceQcStatus, StatusCfg> = {
-  pending:  { label: 'Im Prozess',  color: '#d97706', bg: '#fffbeb', icon: Clock },
-  passed:   { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
-  failed:   { label: 'Gesperrt',    color: '#dc2626', bg: '#fef2f2', icon: XCircle },
-  consumed: { label: 'Verbraucht',  color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
-  scrapped: { label: 'Verschrottet', color: '#475569', bg: '#f1f5f9', icon: Trash2 },
-  sold:     { label: 'Verkauft',    color: '#0d9488', bg: '#f0fdfa', icon: Banknote },
+// Anzeige-Projektion der ZWEI Achsen (quality + disposition) auf EINE Badge.
+// Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
+// am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
+// nur die Darstellung fasst beides zu einem Status zusammen.
+const INSTANCE_STATUS: Record<string, StatusCfg> = {
+  in_process: { label: 'Im Prozess',   color: '#d97706', bg: '#fffbeb', icon: Clock },
+  in_stock:   { label: 'Freigegeben',  color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
+  failed:     { label: 'Gesperrt',     color: '#dc2626', bg: '#fef2f2', icon: XCircle },
+  consumed:   { label: 'Verbraucht',   color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
+  scrapped:   { label: 'Verschrottet', color: '#475569', bg: '#f1f5f9', icon: Trash2 },
+  sold:       { label: 'Verkauft',     color: '#0d9488', bg: '#f0fdfa', icon: Banknote },
 };
 
-export function qcStatusConfig(status: string): StatusCfg {
-  return QC_STATUS[status as InstanceQcStatus] ?? QC_STATUS.pending;
+export function instanceStatusConfig(
+  quality: string | null | undefined,
+  disposition: string | null | undefined,
+): StatusCfg {
+  if (disposition === 'scrapped') return INSTANCE_STATUS.scrapped;
+  if (disposition === 'sold') return INSTANCE_STATUS.sold;
+  if (disposition === 'consumed') return INSTANCE_STATUS.consumed;
+  if (quality === 'failed') return INSTANCE_STATUS.failed;
+  if (quality === 'passed' && disposition === 'in_stock') return INSTANCE_STATUS.in_stock;
+  return INSTANCE_STATUS.in_process;
 }

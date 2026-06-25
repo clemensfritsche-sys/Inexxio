@@ -1031,3 +1031,39 @@ def test_legacy_resource_aliases_removed():
     assert RESOURCE_STEP_TYPES == ("resource",)
     assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "sale"}
     assert STEP_LABELS["resource"] == "Ressource"
+
+
+# ─── qc_status → quality + disposition (zwei orthogonale Achsen) ─────────────────
+
+def test_qc_status_split_into_quality_and_disposition():
+    """Das überladene ``qc_status`` ist in zwei orthogonale Achsen getrennt:
+    ``quality`` (QC-Verdikt) + ``disposition`` (Verbleib). Einzelfeld gibt es nicht mehr."""
+    from app.models import Instance
+    from app.schemas.instance import InstanceEmbed, InstanceResponse
+
+    cols = Instance.__table__.columns.keys()
+    assert "quality" in cols and "disposition" in cols
+    assert "qc_status" not in cols
+    for schema in (InstanceResponse, InstanceEmbed):
+        assert "quality" in schema.model_fields and "disposition" in schema.model_fields
+        assert "qc_status" not in schema.model_fields
+
+
+def test_in_stock_clauses_combine_both_axes():
+    """«Verfügbar» = quality=passed UND disposition=in_stock – EINE Helper-Stelle
+    (von Bestand/FIFO/Betriebsmittel geteilt, keine Drift)."""
+    from app.services.inventory import in_stock_clauses
+
+    clauses = in_stock_clauses()
+    assert len(clauses) == 3   # quality, disposition, quantity > 0
+    rendered = " ".join(str(c) for c in clauses)
+    assert "quality" in rendered and "disposition" in rendered
+
+
+def test_claim_exposes_quality_and_disposition():
+    """Reklamation denormalisiert beide Instanz-Achsen statt des alten qc_status."""
+    from app.schemas.claim import ClaimResponse
+
+    assert "instance_quality" in ClaimResponse.model_fields
+    assert "instance_disposition" in ClaimResponse.model_fields
+    assert "instance_qc_status" not in ClaimResponse.model_fields

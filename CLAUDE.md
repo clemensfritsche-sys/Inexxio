@@ -159,11 +159,15 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `services/serialization.py`): Einzelteil → N Stück-Instanzen, Batch → 1 Charge à N (`instances`,
   eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
   volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
-  **Instanz-Lebenszyklus (qc_status):** neue Instanzen sind **`pending` («Im Prozess»)** und werden
-  erst **bei Auftrags-Abschluss `passed` («Freigegeben», ab Lager verbrauchbar)** – `process.
-  recompute_completion` → `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT
-  vorzeitig frei (nur Durchfaller → `failed`). Verbaute Instanzen werden `consumed` («Verbraucht»). Der
-  Ressource-Verbrauch (FIFO) greift auf **`passed`** zu (kein Standort-Filter; `consumed` fällt heraus).
+  **Instanz-Lebenszyklus – ZWEI getrennte Achsen** (Migration `030`, statt überladenem `qc_status`):
+  `quality` ∈ pending|passed|failed («ist es gut?») und `disposition` ∈ in_process|in_stock|consumed|
+  sold|scrapped («wo ist es?»). Neue Instanzen starten `(pending, in_process)`; bei Auftrags-Abschluss
+  → `(passed, in_stock)` («Freigegeben, ab Lager verbrauchbar») via `process.recompute_completion` →
+  `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT vorzeitig frei (nur
+  Durchfaller → `quality=failed`). Verbaut → `disposition=consumed`, verkauft → `sold`, verschrottet →
+  `scrapped`. **Verbrauchbar/zählbar = `quality=passed` UND `disposition=in_stock`** – die EINE Helper-
+  Stelle `inventory.in_stock_clauses()` (von Bestand/FIFO/Betriebsmittel geteilt). Anzeige: eine Badge
+  als Projektion beider Achsen (`lib/process.ts: instanceStatusConfig`).
   **Reservierung:** bei der Auftragsfreigabe werden die zu verbrauchenden Komponenten für genau diesen
   Auftrag reserviert (`instances.reserved_for_order_id`); reservierte Instanzen sind für andere Aufträge
   nicht verbrauchbar (FIFO blendet sie aus). Auflösung bei Abschluss/Deaktivierung des Auftrags.
@@ -183,7 +187,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     (`inspections.samples`), konfigurierbare Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht /
     Text; ohne Maske synthetisches Gut-Schlecht). **Ungenügende Teil-Stichprobe → Hochstufung auf 100 %**
     (`inspections.escalated`); erst bei vollem Umfang endgültig `failed`, dann je Instanz bewertet (Charge
-    als Ganzes). Ergebnis wird auf `instances.qc_status` übertragen (`services/inspection.py`).
+    als Ganzes). Durchfaller → `instances.quality='failed'` (`services/inspection.py`).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
     Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);

@@ -61,7 +61,8 @@ def to_claim_response(db: Session, claim: Claim) -> ClaimResponse:
         )
         if inst:
             resp.instance_kind = inst.kind
-            resp.instance_qc_status = inst.qc_status
+            resp.instance_quality = inst.quality
+            resp.instance_disposition = inst.disposition
     if claim.article_object_id:
         art = db.query(Article).filter(Article.object_id == claim.article_object_id).first()
         if art:
@@ -131,7 +132,7 @@ def auto_claim_from_inspection(db: Session, order: Order, actor_id: int | None) 
         .order_by(Instance.object_id)
         .all()
     )
-    failed = [i for i in insts if i.qc_status == "failed"] or insts
+    failed = [i for i in insts if i.quality == "failed"] or insts
     inst_obj = failed[0].object_id if failed else None
 
     claim = Claim(

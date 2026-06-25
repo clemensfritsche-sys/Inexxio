@@ -15,6 +15,18 @@ from sqlalchemy.orm import Session
 from ..models import Instance
 
 
+def in_stock_clauses() -> tuple:
+    """SQLAlchemy-Bedingungen für „am Lager verfügbar" – die EINE Stelle, die die
+    beiden Achsen kombiniert: qualitativ freigegeben (``quality=passed``) UND dispositiv
+    am Lager (``disposition=in_stock``), Restmenge > 0. Verbaute/verkaufte/verschrottete
+    Instanzen tragen eine andere ``disposition`` und fallen damit automatisch heraus."""
+    return (
+        Instance.quality == "passed",
+        Instance.disposition == "in_stock",
+        Instance.quantity > 0,
+    )
+
+
 def allocate(need: int, quantities: list[int]) -> list[int]:
     """FIFO-Allokation (rein/testbar): wie viel je Kandidat (in Reihenfolge) belegt
     wird, bis ``need`` gedeckt ist. Summe ≤ need; nie mehr als der Kandidat hat."""
@@ -34,8 +46,7 @@ def available(db: Session, article_db_id: int, for_order_id: int | None = None) 
     q = db.query(func.coalesce(func.sum(Instance.quantity), 0)).filter(
         Instance.article_id == article_db_id,
         Instance.is_active == True,
-        Instance.qc_status == "passed",
-        Instance.quantity > 0,
+        *in_stock_clauses(),
     )
     if for_order_id is None:
         q = q.filter(Instance.reserved_for_order_id.is_(None))
@@ -51,7 +62,6 @@ def on_hand(db: Session, article_db_id: int) -> int:
         db.query(func.coalesce(func.sum(Instance.quantity), 0)).filter(
             Instance.article_id == article_db_id,
             Instance.is_active == True,
-            Instance.qc_status == "passed",
-            Instance.quantity > 0,
+            *in_stock_clauses(),
         ).scalar() or 0
     )

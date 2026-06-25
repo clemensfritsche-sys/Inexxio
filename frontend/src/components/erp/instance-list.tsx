@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
-import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
+import { instanceStatusConfig, instanceKindLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge, Placeholder } from '@/components/erp/fields';
@@ -46,7 +46,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
             {i.kind === 'batch' ? `Charge · ${i.quantity} ${unit ?? ''}`.trim() : instanceKindLabel(i.kind)}
             {i.order_object_id ? ` · Auftrag ${fmtObjId(i.order_object_id)}` : ''}
           </span>
-          <StatusBadge cfg={qcStatusConfig(i.qc_status)} />
+          <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition)} />
         </div>
       ))}
     </div>

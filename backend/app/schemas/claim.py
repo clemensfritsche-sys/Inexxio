@@ -133,5 +133,6 @@ class ClaimResponse(BaseModel):
     # Denormalisiert vom Service
     article_name: Optional[str] = None
     instance_kind: Optional[str] = None
-    instance_qc_status: Optional[str] = None
+    instance_quality: Optional[str] = None       # QC-Verdikt der Instanz
+    instance_disposition: Optional[str] = None   # Verbleib der Instanz
     reported_by_name: Optional[str] = None

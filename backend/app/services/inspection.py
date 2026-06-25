@@ -12,8 +12,9 @@ Erfassungsmaske je Probe:
 - text:    informativ (kein Pass/Fail)
 
 Ohne definierte Maske wird je Probe ein Gut/Schlecht erfasst (synthetisches Feld
-``_ok``). Das Ergebnis (passed/failed) leitet sich aus allen Proben ab und wird
-auf die Instanzen (qc_status) übertragen.
+``_ok``). Das Ergebnis (passed/failed) leitet sich aus allen Proben ab; Durchfaller
+werden auf der Instanz mit ``quality='failed'`` gesperrt (der Verbleib ``disposition``
+bleibt davon unberührt).
 """
 
 import hashlib
@@ -72,7 +73,7 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
     (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig."""
     insts = order_instances(db, order)
     if len(insts) == 1 and insts[0].kind == "batch":
-        insts[0].qc_status = "failed"
+        insts[0].quality = "failed"
         return
     ok_by_inst: dict[int, bool] = {}
     for s in stored:
@@ -81,7 +82,7 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
         ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
     for inst in insts:
         if not ok_by_inst.get(inst.object_id, False):
-            inst.qc_status = "failed"
+            inst.quality = "failed"
 
 
 def _shuffle_key(object_id: int, seed: int) -> int:

@@ -140,7 +140,9 @@ export interface InspectionUpdateInput {
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
-export type InstanceQcStatus = 'pending' | 'passed' | 'failed' | 'consumed' | 'scrapped' | 'sold';
+// qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
+export type InstanceQuality = 'pending' | 'passed' | 'failed';                       // «ist es gut?»
+export type InstanceDisposition = 'in_process' | 'in_stock' | 'consumed' | 'sold' | 'scrapped'; // «wo ist es?»
 export type InstanceReference = components['schemas']['InstanceReference'];
 
 // Inaktiv setzen / Ersetzen (ohne Versionierung)

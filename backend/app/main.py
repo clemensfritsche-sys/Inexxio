@@ -105,6 +105,9 @@ _COLUMN_SAFETY_NET = (
     ("orders", "process_id", "BIGINT"),
     ("orders", "subject_instance_id", "BIGINT"),
     ("instances", "subject_of_order_id", "BIGINT"),
+    # qc_status in zwei Achsen aufgeteilt: quality (QC-Verdikt) + disposition (Verbleib)
+    ("instances", "quality", "VARCHAR(20) DEFAULT 'pending' NOT NULL"),
+    ("instances", "disposition", "VARCHAR(20) DEFAULT 'in_process' NOT NULL"),
     # Prozess = eigenständiges Objekt (Ersetzen-Kette)
     ("processes", "replaced_by_id", "BIGINT"),
     ("movements", "tracking_number", "VARCHAR(100)"),
@@ -159,12 +162,12 @@ _STEP_DATA_FIXES = (
     "UPDATE article_process_steps SET is_active=false WHERE step_type='serialization'",
 )
 
-# Instanz-Normalisierung (idempotent): «Freigegeben» (passed) darf es nur geben,
-# wenn der zugehörige Auftrag abgeschlossen ist. Altbestände, die bei der Anlage
-# vorzeitig auf passed gesetzt wurden, auf «Im Prozess» (pending) zurücksetzen.
+# Instanz-Normalisierung (idempotent): «am Lager» (in_stock) darf es nur geben, wenn
+# der zugehörige Auftrag abgeschlossen ist. Altbestände, die bei der Anlage vorzeitig
+# auf in_stock gesetzt wurden, auf «Im Prozess» (in_process/pending) zurücksetzen.
 _INSTANCE_DATA_FIXES = (
-    "UPDATE instances SET qc_status='pending', released_at=NULL "
-    "WHERE qc_status='passed' AND is_active=true "
+    "UPDATE instances SET quality='pending', disposition='in_process', released_at=NULL "
+    "WHERE quality='passed' AND disposition='in_stock' AND is_active=true "
     "AND order_id IN (SELECT id FROM orders WHERE status <> 'completed')",
 )
 

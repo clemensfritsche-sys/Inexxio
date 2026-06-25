@@ -246,12 +246,13 @@ def release_instances(db: Session, order: Order) -> None:
     rows = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.qc_status == "pending")
+                Instance.quality == "pending")
         .all()
     )
     total = 0
     for inst in rows:
-        inst.qc_status = "passed"
+        inst.quality = "passed"          # QC-Verdikt: freigegeben
+        inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
         total += inst.quantity or 0
@@ -285,18 +286,18 @@ def _finalize_subjects(db: Session, order: Order) -> None:
             .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
             .all()
         )
-        new_status = "sold" if has_sale else "consumed"
+        new_disp = "sold" if has_sale else "consumed"   # Verbleib (Qualität bleibt)
         for inst in subjects:
-            if inst.qc_status not in ("scrapped", "failed"):
-                inst.qc_status = new_status
+            if inst.disposition != "scrapped" and inst.quality != "failed":
+                inst.disposition = new_disp
     elif src == "instance" and has_sale and order.subject_instance_id:
         inst = (
             db.query(Instance)
             .filter(Instance.object_id == order.subject_instance_id, Instance.is_active == True)
             .first()
         )
-        if inst and inst.qc_status not in ("scrapped", "failed", "consumed"):
-            inst.qc_status = "sold"
+        if inst and inst.disposition not in ("scrapped", "consumed") and inst.quality != "failed":
+            inst.disposition = "sold"
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:

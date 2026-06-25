@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Boxes, ArrowLeft, FileText, Link2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceReference } from '@/types';
-import { qcStatusConfig, instanceKindLabel } from '@/lib/process';
+import { instanceStatusConfig, instanceKindLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
@@ -32,7 +32,7 @@ export function InstanceDetail({ record, onBack, onRefresh }: { record: Instance
   }, [tab, refs, inst.object_id]);
 
   // Verschrotten (manuell): aus Bestand/FIFO raus, bleibt sichtbar. Nicht für verbaute Instanzen.
-  const canScrap = inst.is_active && !['consumed', 'scrapped'].includes(inst.qc_status);
+  const canScrap = inst.is_active && !['consumed', 'scrapped'].includes(inst.disposition);
   async function scrap() {
     if (inst.object_id == null) return;
     setScrapBusy(true);
@@ -56,7 +56,7 @@ export function InstanceDetail({ record, onBack, onRefresh }: { record: Instance
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{instanceKindLabel(inst.kind)}</div>
             <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <StatusBadge cfg={qcStatusConfig(inst.qc_status)} />
+              <StatusBadge cfg={instanceStatusConfig(inst.quality, inst.disposition)} />
               {canScrap && (confirmScrap ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: '#dc2626' }}>Verschrotten?</span>
@@ -121,7 +121,7 @@ export function InstanceDetail({ record, onBack, onRefresh }: { record: Instance
                 </span>
               ) : 'Noch nicht festgelegt'}
             </RowNode>
-            <Row k="Status" v={qcStatusConfig(inst.qc_status).label} />
+            <Row k="Status" v={instanceStatusConfig(inst.quality, inst.disposition).label} />
             <Row k="Erstellt" v={localDate(inst.created_at)} />
           </div>
           {inst.object_id != null && (

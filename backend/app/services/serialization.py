@@ -80,7 +80,7 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
         inst = Instance(
             object_id=obj_ids[i], article_id=art.id, order_id=order.id,
             kind=kind, quantity=order.quantity if kind == "batch" else 1,
-            qc_status="pending", released_at=None,
+            quality="pending", disposition="in_process", released_at=None,
             location_type=loc_type, location_id=loc_id,
         )
         db.add(inst)
