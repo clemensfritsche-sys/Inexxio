@@ -1,7 +1,6 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Process, ProcessInput, ProcessUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
   Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
@@ -192,78 +191,28 @@ class ApiClient {
 
   // ─── Prozesse: eigenständige Objekte (Feed «Prozesse») + Stückliste je Artikel ─
 
-  // Wählbare Prozesse eines Artikels (Stückliste + geerbte freigegebene Standards)
-  getArticleProcesses(objectId: number): Promise<Process[]> {
-    return this.get(`/api/v1/erp/articles/${objectId}/processes`);
+  // ─── Prozessschritte – am Artikel (Entstehung) ODER am Auftrag (CUSTOM) ────────
+  // ``owner`` = 'articles' | 'orders'; kein eigenständiges Prozess-Objekt mehr.
+
+  getSteps(owner: 'articles' | 'orders', objectId: number): Promise<ArticleProcessStep[]> {
+    return this.get(`/api/v1/erp/${owner}/${objectId}/steps`);
   }
 
-  // Neuen Prozess anlegen UND der Stückliste dieses Artikels hinzufügen
-  createArticleProcess(objectId: number, data: ProcessInput): Promise<Process> {
-    return this.post(`/api/v1/erp/articles/${objectId}/processes`, data);
+  createStep(owner: 'articles' | 'orders', objectId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
+    return this.post(`/api/v1/erp/${owner}/${objectId}/steps`, data);
   }
 
-  // Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel)
-  addProcessLink(objectId: number, processId: number, position?: number | null): Promise<Process> {
-    return this.post(`/api/v1/erp/articles/${objectId}/process-links`, { process_id: processId, position: position ?? null });
+  updateStep(owner: 'articles' | 'orders', objectId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
+    return this.patch(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`, data);
   }
 
-  // Prozess aus der Stückliste entfernen (nur den Link – Objekt bleibt bestehen)
-  removeProcessLink(objectId: number, processId: number): Promise<{ unlinked: boolean }> {
-    return this.delete(`/api/v1/erp/articles/${objectId}/process-links/${processId}`);
-  }
-
-  // Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge)
-  reorderProcessLinks(objectId: number, orderedProcessIds: number[]): Promise<Process[]> {
-    return this.patch(`/api/v1/erp/articles/${objectId}/process-links/reorder`, { ordered_process_ids: orderedProcessIds });
-  }
-
-  // Prozesse (Feed-Typ «Prozesse», alle Prozess-Objekte)
-  getProcesses(): Promise<Process[]> {
-    return this.get('/api/v1/erp/processes');
-  }
-
-  getProcess(objectId: number): Promise<Process> {
-    return this.get(`/api/v1/erp/processes/${objectId}`);
-  }
-
-  createProcess(data: ProcessInput): Promise<Process> {
-    return this.post('/api/v1/erp/processes', data);
-  }
-
-  updateProcess(objectId: number, data: ProcessUpdateInput): Promise<Process> {
-    return this.patch(`/api/v1/erp/processes/${objectId}`, data);
-  }
-
-  // Ersetzen: Nachfolger (Entwurf) anlegen, Stücklisten-Links umhängen, Original deaktivieren
-  replaceProcess(objectId: number): Promise<Process> {
-    return this.post(`/api/v1/erp/processes/${objectId}/replace`, {});
-  }
-
-  deleteProcess(objectId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/processes/${objectId}`);
-  }
-
-  // ─── Prozessschritte – verwaltet je Prozess (process_id, intern) ──────────────
-
-  getProcessSteps(processId: number): Promise<ArticleProcessStep[]> {
-    return this.get(`/api/v1/erp/processes/${processId}/steps`);
-  }
-
-  createProcessStep(processId: number, data: ArticleProcessStepInput): Promise<ArticleProcessStep> {
-    return this.post(`/api/v1/erp/processes/${processId}/steps`, data);
-  }
-
-  updateProcessStep(processId: number, stepId: number, data: ArticleProcessStepUpdateInput): Promise<ArticleProcessStep> {
-    return this.patch(`/api/v1/erp/processes/${processId}/steps/${stepId}`, data);
-  }
-
-  deleteProcessStep(processId: number, stepId: number): Promise<{ deleted: boolean }> {
-    return this.delete(`/api/v1/erp/processes/${processId}/steps/${stepId}`);
+  deleteStep(owner: 'articles' | 'orders', objectId: number, stepId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/${owner}/${objectId}/steps/${stepId}`);
   }
 
   // Reihenfolge der frei sortierbaren Schritte; Pflicht-Bewegungen ordnet der Server.
-  reorderProcessSteps(processId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
-    return this.patch(`/api/v1/erp/processes/${processId}/steps/reorder`, { ordered_ids: orderedIds });
+  reorderSteps(owner: 'articles' | 'orders', objectId: number, orderedIds: number[]): Promise<ArticleProcessStep[]> {
+    return this.patch(`/api/v1/erp/${owner}/${objectId}/steps/reorder`, { ordered_ids: orderedIds });
   }
 
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────

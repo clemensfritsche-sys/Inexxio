@@ -51,26 +51,14 @@ _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.
 RESOURCE_STEP_TYPES = event_types.RESOURCE_TYPES
 
 
-def step_defs(db: Session, process_id: int | None) -> list[ArticleProcessStep]:
-    """Aktive Schritt-Definitionen **eines Prozesses** in Reihenfolge.
-
-    Schritte gehören zu einem Prozess (``processes``), nicht mehr direkt zum
-    Artikel – ein Artikel kann mehrere Prozesse haben (Entstehung, Verkauf, …)."""
-    if not process_id:
-        return []
-    return (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
-        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
-        .all()
-    )
-
-
 def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
-    """Schritte des vom Auftrag gewählten Prozesses (Fallback: Default-Entstehung)."""
-    from .processes import process_for_order
-    proc = process_for_order(db, order)
-    return step_defs(db, proc.id) if proc else []
+    """Die Prozessschritte eines Auftrags in Reihenfolge.
+
+    CUSTOM-Modus: der Auftrag trägt eigene Schritte (auf bestehende Instanzen).
+    MAKE-Modus: der Auftrag fährt den Prozess seines **Artikels** (erzeugt Instanzen)."""
+    from .processes import article_steps, order_custom_steps
+    custom = order_custom_steps(db, order.id)
+    return custom if custom else article_steps(db, order.article_id)
 
 
 def _facts(db: Session, order: Order, step_type: str) -> list:
@@ -265,38 +253,22 @@ def release_instances(db: Session, order: Order) -> None:
 
 
 def _finalize_subjects(db: Session, order: Order) -> None:
-    """Subjekt-Disposition bei Abschluss – **abgeleitet** aus Prozess-Quelle + Schritten
-    (Frage 2: keine manuelle Richtungswahl):
+    """Verbleib der vom Auftrag bearbeiteten Bestands-Instanzen bei Abschluss.
 
-    - ``stock``    → Subjekte verlassen den Bestand: Verkauf → ``sold``, sonst
-      Entnahme/Abgang → ``consumed`` (beides ≠ ``passed`` → raus aus FIFO, bleibt
-      rückverfolgbar). = Lager-Richtung *mindernd*.
-    - ``instance`` → nur bei einem **Verkaufs-Schritt** wird die Instanz abgegeben
-      (``sold``); sonst bleibt sie (Wartung/Kontrolle) = *neutral*.
-    - ``produce``  → über ``release_instances`` behandelt (neue Instanzen → ``passed``).
-    """
-    from .processes import process_for_order
-    proc = process_for_order(db, order)
-    src = proc.source if proc else "produce"
-    has_sale = any(d.step_type == "sale" for d in order_step_defs(db, order))
-
-    if src == "stock":
-        subjects = (
-            db.query(Instance)
-            .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
-            .all()
-        )
-        new_disp = "sold" if has_sale else "consumed"   # Verbleib (Qualität bleibt)
-        for inst in subjects:
-            if inst.disposition != "scrapped" and inst.quality != "failed":
-                inst.disposition = new_disp
-    elif src == "instance" and has_sale and order.subject_instance_id:
-        inst = (
-            db.query(Instance)
-            .filter(Instance.object_id == order.subject_instance_id, Instance.is_active == True)
-            .first()
-        )
-        if inst and inst.disposition not in ("scrapped", "consumed") and inst.quality != "failed":
+    CUSTOM-Aufträge wirken auf ausgewählte, bereits vorhandene Instanzen
+    (``subject_of_order_id``). Enthält der individuelle Ablauf einen **Verkauf**,
+    verlassen diese den Bestand (``sold``); sonst bleibt der Verbleib unverändert
+    (Wartung/Bewegung/Kontrolle = neutral). MAKE-Aufträge (neue Instanzen) werden über
+    ``release_instances`` behandelt."""
+    subjects = (
+        db.query(Instance)
+        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+        .all()
+    )
+    if not subjects or not any(d.step_type == "sale" for d in order_step_defs(db, order)):
+        return
+    for inst in subjects:
+        if inst.disposition not in ("scrapped", "consumed") and inst.quality != "failed":
             inst.disposition = "sold"
 
 
@@ -313,9 +285,8 @@ def _spawn_recurrence(db: Session, order: Order) -> None:
     base = order.recurrence_anchor or (order.completed_at.date() if order.completed_at else utcnow().date())
     new_anchor = base + timedelta(days=order.recurrence_interval_days)
     child = Order(
-        object_id=next_object_id(db, "order"), status="draft",
+        object_id=next_object_id(db, "order"), status="draft", mode=order.mode,
         article_id=order.article_id, quantity=order.quantity,
-        process_id=order.process_id, subject_instance_id=order.subject_instance_id,
         desired_delivery_date=new_anchor,
         recurrence_active=True, recurrence_interval_days=order.recurrence_interval_days,
         recurrence_lead_time_days=order.recurrence_lead_time_days,

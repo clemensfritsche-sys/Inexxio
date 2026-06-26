@@ -18,12 +18,13 @@ type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
 const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
 
-export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
-  processId: number | null;
+export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
+  owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
+  ownerObjectId: number | null;          // Objektnummer des Trägers
   suppliers: UserProfile[];
   readOnly?: boolean;
   onStepsCount?: (n: number) => void;
-  selfArticleObjectId?: number | null;   // Artikel des Prozesses (Ressource-Selbst-Ausschluss)
+  selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -48,12 +49,12 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
   const [over, setOver] = useState<number | null>(null);
 
   useEffect(() => {
-    if (processId == null) return;
+    if (ownerObjectId == null) return;
     setLoading(true);
-    api.getProcessSteps(processId).then(setSteps).catch(() => {}).finally(() => setLoading(false));
+    api.getSteps(owner, ownerObjectId!).then(setSteps).catch(() => {}).finally(() => setLoading(false));
     // Lagerplätze für den (editierbaren) Wareneingang-Zielselektor der Pflicht-Bewegung
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
-  }, [processId]);
+  }, [owner, ownerObjectId]);
 
   // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
   useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
@@ -81,7 +82,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
     api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
 
-  if (processId == null) {
+  if (ownerObjectId == null) {
     return (
       <div style={noticeStyle}>
         <Info size={15} style={{ flexShrink: 0, marginTop: 1 }} />
@@ -89,7 +90,6 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
       </div>
     );
   }
-  const pid = processId;
 
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
@@ -100,7 +100,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
   // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
   // Pflicht-Bewegungen + serverseitiger Positionen).
   async function reload() {
-    try { setSteps(await api.getProcessSteps(pid)); } catch { /* ignore */ }
+    try { setSteps(await api.getSteps(owner, ownerObjectId!)); } catch { /* ignore */ }
   }
 
   // Rolle einer Pflicht-Bewegung: Versand zum Kunden (mode=customer), Versand zum
@@ -114,7 +114,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
   async function setLockedTarget(stepId: number, value: string) {
     const tgt = value ? value.split(':') : null;
     try {
-      const updated = await api.updateProcessStep(pid, stepId, {
+      const updated = await api.updateStep(owner, ownerObjectId!, stepId, {
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
       });
@@ -153,7 +153,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
-      await api.createProcessStep(pid, {
+      await api.createStep(owner, ownerObjectId!, {
         step_type: type,
         mode: type === 'purchase' ? mode : undefined,
         supplier_id: type === 'purchase' && mode === 'supplier' ? Number(supplierId) : null,
@@ -177,7 +177,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
 
   async function removeStep(stepId: number) {
     try {
-      await api.deleteProcessStep(pid, stepId);
+      await api.deleteStep(owner, ownerObjectId!, stepId);
       // Entfernt eine Beschaffung evtl. zugehörige Pflicht-Bewegungen → neu laden.
       await reload();
     } catch { /* ignore */ }
@@ -185,7 +185,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
 
   async function saveShared(stepId: number) {
     try {
-      const updated = await api.updateProcessStep(pid, stepId, { shared_fields: editShared });
+      const updated = await api.updateStep(owner, ownerObjectId!, stepId, { shared_fields: editShared });
       setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
       setEditId(null);
     } catch { /* ignore */ }
@@ -196,7 +196,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
     // Nur die frei sortierbaren (nicht-Pflicht) Schritte werden gesendet; der
     // Server fügt die Pflicht-Bewegungen automatisch wieder an der richtigen Stelle ein.
     const ids = orderedFull.filter((s) => !s.locked).map((s) => s.id);
-    try { setSteps(await api.reorderProcessSteps(pid, ids)); }
+    try { setSteps(await api.reorderSteps(owner, ownerObjectId!, ids)); }
     catch { reload(); }
   }
 
@@ -401,7 +401,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>Lieferadresse aus der Systemkonfiguration. Der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
                   </div>
-                  <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
+                  <div><Label>Für den Lieferanten sichtbare Spezifikation</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
                 </>
               )}
 

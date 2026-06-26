@@ -205,20 +205,22 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     «Verwendung» (Eingebaut in/Enthält, Betriebsmittel-Nutzung) – `services/resource.py`. Das Panel
     zeigt den Verbrauch **je Produkt-Instanz** (welche Komponenten-Instanz in welche Produkt-Instanz
     verbaut wird; Vorschau = FIFO-Plan, danach das Protokoll) – `ResourceEmbed.products`.
-- **Prozess = eigenständiges Objekt** (Migration `027`): JEDER Prozess hat eine **Objektnummer + Name**
-  und einen eigenen Lebenszyklus **Entwurf → Freigegeben → Inaktiv** (Ersetzen via `replaced_by_id`).
-  Schritte sind nur im **Entwurf** editierbar; nach Freigabe eingefroren → Änderung = **Ersetzen** (neue
-  Nummer, kopierte Schritte, Links umgehängt). Feed-Typ heisst **«Prozesse»** (nicht mehr nur Standard).
-  **Prozessstückliste (n:m):** Artikel ↔ Prozess über `article_process_links` – derselbe Prozess kann bei
-  **mehreren Artikeln** liegen. **Hinzufügen/Entfernen** in der Stückliste wirkt nur auf DIESEN Artikel
-  (Link); **Inaktiv/Ersetzen** wirkt am Prozess-Objekt und damit auf ALLE Artikel, die ihn führen.
-  **Standard** (`is_standard`, unscheinbares **Favoriten-Sternchen**, nur im Entwurf setzbar) = global
-  geerbt für jeden Artikel ohne Link; in aller Regel ist ein Prozess artikelbezogen.
-  `services/processes.py` (own/available über Links, `stock_effect`).
-- **Stammdaten-Freigabe entkoppelt** (Frage 1): die Artikel-Freigabe friert nur die Spezifikation ein
-  (kein Prozessschritt mehr nötig). Ein **Auftrag startet nur**, wenn der Artikel **freigegeben** UND der
-  gewählte **Prozess freigegeben** ist (Vorbedingung in `routers/orders.py`). Auto-«Entstehung» bei
-  Artikelanlage als **Entwurf**-Prozess + Link.
+- **KEIN Prozess-Objekt mehr** (Migration `031`): Ein Prozess ist nur noch die geordnete Schrittliste,
+  die ENTWEDER am **Artikel** (`article_process_steps.article_id`, «wie etwas entsteht», EIN Prozess je
+  Artikel) ODER am **Auftrag** (`order_id`, individueller Ablauf) hängt. Keine Objektnummer, kein eigener
+  Lebenszyklus, keine n:m-Verknüpfung, kein `is_standard`, keine `source`. Tabellen `processes` +
+  `article_process_links` sind entfernt; Feed-Typ «Prozesse» weg. `services/processes.py` liefert nur noch
+  `article_steps`/`order_custom_steps`/`has_custom_steps`. Schritt-CRUD generisch über
+  `routers/article_process.py` (`/articles/{id}/steps` und `/orders/{id}/steps`).
+- **Auftrags-Modi (`orders.mode`)**: **make** (Artikel + Menge → fährt den Artikel-Prozess, ERZEUGT
+  Instanzen) | **custom** (ausgewählte, vorhandene Instanzen via `instances.subject_of_order_id` +
+  eigener Prozess am Auftrag, wirkt auf den Bestand). Anlage wählt eines von beiden
+  (`OrderCreate.mode`/`instance_object_ids`); `subject.order_instances`/`materialize_subject` verzweigen
+  am Modus. `subject_instance_id`/`process_id` sind entfernt.
+- **Freigabe auf Artikel-Ebene**: Die Artikel-Freigabe (Reiter «Spezifikation») friert Spezifikation **und**
+  Prozess gemeinsam ein – Schritte sind nur im Artikel-Entwurf editierbar. Ein **make-Auftrag startet nur**,
+  wenn der **Artikel freigegeben** ist (einzige Vorbedingung, `routers/orders.py`). Bei der Artikelanlage
+  entsteht KEIN Auto-Prozess mehr; Schritte werden im Reiter «Prozess» direkt am Artikel gepflegt.
 - **Deklarative Ereignis-Registry (REA-Kern, `app/domain/event_types.py`)**: EINE Quelle der Wahrheit
   für jeden Schritt-/Ereignistyp – Label, **Bestands-Polarität** (increase/decrease/move/neutral),
   **Subjekt-Rolle** (produce/stock/instance) und Fachtabelle. Die Polarität ist **deklariert**, nicht
@@ -301,20 +303,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button «Scannen»
   öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 
-> **HINWEIS:** Artikel **Stammdaten** + **Prozessstückliste** + **Bestand** (Instanzen mit Standort) sind
-> gefüllt. **Prozesse sind eigenständige Objekte** (Nummer + Name + Lebenszyklus, Feed «Prozesse»); ein
-> Prozess kann bei mehreren Artikeln liegen (n:m via `article_process_links`). Schritttypen: purchase,
-> inspection, movement, **consume** (Verbrauch, FIFO/Chargen-Teilentnahme) und **tool** (Betriebsmittel) –
-> der Modus ist der **Schritttyp** (kein `article.kind` mehr). **Stammdaten-Freigabe** ist entkoppelt und **Vorbedingung** für den
-> Prozessstart (Auftrag); **Lager-Richtung** wird abgeleitet (`stock_effect`), nicht gewählt.
-> **Reklamation (RMA)** ist als eigenständiges Objekt umgesetzt (ohne konfigurierbare Prozessschritte).
-> E-Mail-Versand ist nur als TODO vermerkt (Gmail API, Phase 2). Stripe ist **noch nicht** implementiert.
-> **Mehr-Operationen-Routing**: mehrere gleichartige Prozessschritte (inkl. mehrerer consume/tool-Operationen)
-> laufen unabhängig (`step_id` auf den Fachtabellen).
+> **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
+> **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
+> Objektnummer, keine n:m-Verknüpfung). **Freigabe auf Artikel-Ebene** friert Spezifikation + Prozess.
+> Ein **Auftrag** ist der Trigger in zwei **Modi**: **make** (Artikel + Menge → fährt den Artikel-Prozess,
+> ERZEUGT Instanzen) oder **custom** (ausgewählte vorhandene Instanzen + individueller Prozess am Auftrag).
+> **Instanzschritte verarbeiten nur Instanzen**; Artikel dienen v. a. als FIFO-Bezug. Schritttypen: purchase,
+> inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), sale. `quality`+
+> `disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-Polarität.
+> **Reklamation (RMA)** ist eigenständiges Objekt. E-Mail (Gmail API) + Stripe sind **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Scan-Quittierung auch im Wareneingang (`purchase` «received») via `useScan`;
-Reklamation – konfigurierbare Prozessschritte je RMA; E-Mail-Versand (Gmail API); Arbeitspläne
-(vollständiges Routing-UI auf Basis des Mehr-Operationen-Routings); Stripe
+Nächste Aufgabe: Custom-Auftrag-UX verfeinern (Instanz-Mehrfachauswahl/Filter); Instanz = vollständige
+Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang; Reklamation – Prozessschritte je RMA;
+E-Mail (Gmail API); Stripe.
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

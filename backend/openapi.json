@@ -1137,566 +1137,13 @@
         }
       }
     },
-    "/api/v1/erp/articles/{object_id}/processes": {
-      "get": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "List Article Processes",
-        "description": "Wählbare Prozesse des Artikels: Stückliste + geerbte freigegebene Standards.",
-        "operationId": "list_article_processes_api_v1_erp_articles__object_id__processes_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProcessResponse"
-                  },
-                  "title": "Response List Article Processes Api V1 Erp Articles  Object Id  Processes Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Create Article Process",
-        "description": "Neuen Prozess anlegen (eigene Objektnummer, Entwurf) und der Stückliste\ndieses Artikels hinzufügen.",
-        "operationId": "create_article_process_api_v1_erp_articles__object_id__processes_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/articles/{object_id}/process-links": {
-      "post": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Add Process Link",
-        "description": "Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel).",
-        "operationId": "add_process_link_api_v1_erp_articles__object_id__process_links_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessLinkCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/articles/{object_id}/process-links/reorder": {
-      "patch": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Reorder Process Links",
-        "description": "Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge).",
-        "operationId": "reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessLinkReorder"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProcessResponse"
-                  },
-                  "title": "Response Reorder Process Links Api V1 Erp Articles  Object Id  Process Links Reorder Patch"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/articles/{object_id}/process-links/{process_id}": {
-      "delete": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Remove Process Link",
-        "description": "Prozess aus der Stückliste entfernen (nur den Link – das Prozess-Objekt\nbleibt für andere Artikel bestehen).",
-        "operationId": "remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          },
-          {
-            "name": "process_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Process Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/processes": {
-      "get": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "List Processes",
-        "description": "Alle Prozesse (Artikel-Prozesse + Standards), neueste zuerst – für den Feed.",
-        "operationId": "list_processes_api_v1_erp_processes_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProcessResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Processes Api V1 Erp Processes Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Create Process",
-        "description": "Eigenständigen Prozess anlegen (Objektnummer, startet als Entwurf). Ohne\nArtikel-Bindung – die Zuordnung erfolgt über die Stückliste je Artikel.",
-        "operationId": "create_process_api_v1_erp_processes_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/erp/processes/{object_id}": {
-      "get": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Get Process",
-        "operationId": "get_process_api_v1_erp_processes__object_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Update Process",
-        "operationId": "update_process_api_v1_erp_processes__object_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProcessUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Delete Process",
-        "description": "Prozess-Objekt deaktivieren (soft). Verschwindet aus allen Stücklisten/\nAuswahllisten; laufende Aufträge behalten ihren Prozess.",
-        "operationId": "delete_process_api_v1_erp_processes__object_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/processes/{object_id}/replace": {
-      "post": {
-        "tags": [
-          "processes"
-        ],
-        "summary": "Replace Process",
-        "description": "Ersetzen: Nachfolger (Entwurf, mit kopierten Schritten) anlegen, alle\nStücklisten-Links auf ihn umhängen, Original deaktivieren + verknüpfen.\nBetrifft **alle** Artikel, die den Prozess führen (gemeinsames Objekt).",
-        "operationId": "replace_process_api_v1_erp_processes__object_id__replace_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/processes/{process_id}/steps": {
+    "/api/v1/erp/articles/{object_id}/steps": {
       "get": {
         "tags": [
           "process-steps"
         ],
-        "summary": "List Steps",
-        "operationId": "list_steps_api_v1_erp_processes__process_id__steps_get",
+        "summary": "List Article Steps",
+        "operationId": "list_article_steps_api_v1_erp_articles__object_id__steps_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1704,12 +1151,12 @@
         ],
         "parameters": [
           {
-            "name": "process_id",
+            "name": "object_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Process Id"
+              "title": "Object Id"
             }
           }
         ],
@@ -1723,7 +1170,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ArticleProcessStepResponse"
                   },
-                  "title": "Response List Steps Api V1 Erp Processes  Process Id  Steps Get"
+                  "title": "Response List Article Steps Api V1 Erp Articles  Object Id  Steps Get"
                 }
               }
             }
@@ -1744,8 +1191,8 @@
         "tags": [
           "process-steps"
         ],
-        "summary": "Create Step",
-        "operationId": "create_step_api_v1_erp_processes__process_id__steps_post",
+        "summary": "Create Article Step",
+        "operationId": "create_article_step_api_v1_erp_articles__object_id__steps_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1753,12 +1200,12 @@
         ],
         "parameters": [
           {
-            "name": "process_id",
+            "name": "object_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Process Id"
+              "title": "Object Id"
             }
           }
         ],
@@ -1796,14 +1243,13 @@
         }
       }
     },
-    "/api/v1/erp/processes/{process_id}/steps/reorder": {
+    "/api/v1/erp/articles/{object_id}/steps/reorder": {
       "patch": {
         "tags": [
           "process-steps"
         ],
-        "summary": "Reorder Steps",
-        "description": "Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden\nserverseitig automatisch (neu) eingefügt und positioniert.",
-        "operationId": "reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch",
+        "summary": "Reorder Article Steps",
+        "operationId": "reorder_article_steps_api_v1_erp_articles__object_id__steps_reorder_patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1811,12 +1257,12 @@
         ],
         "parameters": [
           {
-            "name": "process_id",
+            "name": "object_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Process Id"
+              "title": "Object Id"
             }
           }
         ],
@@ -1840,7 +1286,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ArticleProcessStepResponse"
                   },
-                  "title": "Response Reorder Steps Api V1 Erp Processes  Process Id  Steps Reorder Patch"
+                  "title": "Response Reorder Article Steps Api V1 Erp Articles  Object Id  Steps Reorder Patch"
                 }
               }
             }
@@ -1858,13 +1304,13 @@
         }
       }
     },
-    "/api/v1/erp/processes/{process_id}/steps/{step_id}": {
+    "/api/v1/erp/articles/{object_id}/steps/{step_id}": {
       "patch": {
         "tags": [
           "process-steps"
         ],
-        "summary": "Update Step",
-        "operationId": "update_step_api_v1_erp_processes__process_id__steps__step_id__patch",
+        "summary": "Update Article Step",
+        "operationId": "update_article_step_api_v1_erp_articles__object_id__steps__step_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -1872,12 +1318,12 @@
         ],
         "parameters": [
           {
-            "name": "process_id",
+            "name": "object_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Process Id"
+              "title": "Object Id"
             }
           },
           {
@@ -1927,8 +1373,8 @@
         "tags": [
           "process-steps"
         ],
-        "summary": "Delete Step",
-        "operationId": "delete_step_api_v1_erp_processes__process_id__steps__step_id__delete",
+        "summary": "Delete Article Step",
+        "operationId": "delete_article_step_api_v1_erp_articles__object_id__steps__step_id__delete",
         "security": [
           {
             "HTTPBearer": []
@@ -1936,12 +1382,297 @@
         ],
         "parameters": [
           {
-            "name": "process_id",
+            "name": "object_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Process Id"
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps": {
+      "get": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "List Order Steps",
+        "operationId": "list_order_steps_api_v1_erp_orders__object_id__steps_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                  },
+                  "title": "Response List Order Steps Api V1 Erp Orders  Object Id  Steps Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "Create Order Step",
+        "operationId": "create_order_step_api_v1_erp_orders__object_id__steps_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleProcessStepCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/reorder": {
+      "patch": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "Reorder Order Steps",
+        "operationId": "reorder_order_steps_api_v1_erp_orders__object_id__steps_reorder_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                  },
+                  "title": "Response Reorder Order Steps Api V1 Erp Orders  Object Id  Steps Reorder Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}": {
+      "patch": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "Update Order Step",
+        "operationId": "update_order_step_api_v1_erp_orders__object_id__steps__step_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleProcessStepUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleProcessStepResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "process-steps"
+        ],
+        "summary": "Delete Order Step",
+        "operationId": "delete_order_step_api_v1_erp_orders__object_id__steps__step_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
             }
           },
           {
@@ -3652,7 +3383,7 @@
             ],
             "title": "Article Id"
           },
-          "process_id": {
+          "order_id": {
             "anyOf": [
               {
                 "type": "integer"
@@ -3661,7 +3392,7 @@
                 "type": "null"
               }
             ],
-            "title": "Process Id"
+            "title": "Order Id"
           },
           "position": {
             "type": "integer",
@@ -6447,6 +6178,11 @@
       },
       "OrderCreate": {
         "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "make"
+          },
           "article_id": {
             "anyOf": [
               {
@@ -6469,6 +6205,20 @@
             ],
             "title": "Quantity"
           },
+          "instance_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Ids"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -6480,28 +6230,6 @@
               }
             ],
             "title": "Desired Delivery Date"
-          },
-          "process_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Id"
-          },
-          "subject_instance_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject Instance Id"
           },
           "recurrence_active": {
             "anyOf": [
@@ -6551,7 +6279,7 @@
         },
         "type": "object",
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\nDer Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».\n\nSubjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess\nvia Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine\nkonkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt\nden anzuwendenden Prozess (leer = Default-Entstehung des Artikels)."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:\n\nMAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des\n         Artikels** und ERZEUGT bei Freigabe die Instanzen.\nCUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller\n         Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen."
       },
       "OrderResponse": {
         "properties": {
@@ -6573,6 +6301,11 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "make"
           },
           "title": {
             "anyOf": [
@@ -6632,72 +6365,6 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
-          },
-          "process_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Id"
-          },
-          "process_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Object Id"
-          },
-          "process_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Name"
-          },
-          "process_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Source"
-          },
-          "process_stock_effect": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Stock Effect"
-          },
-          "subject_instance_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject Instance Id"
           },
           "recurrence_active": {
             "type": "boolean",
@@ -7057,6 +6724,11 @@
             "type": "string",
             "title": "Status"
           },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "make"
+          },
           "article_id": {
             "anyOf": [
               {
@@ -7149,28 +6821,6 @@
             ],
             "title": "Purchase Status"
           },
-          "process_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Name"
-          },
-          "process_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Source"
-          },
           "recurrence_active": {
             "type": "boolean",
             "title": "Recurrence Active",
@@ -7255,28 +6905,6 @@
             ],
             "title": "Desired Delivery Date"
           },
-          "process_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Process Id"
-          },
-          "subject_instance_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subject Instance Id"
-          },
           "recurrence_active": {
             "anyOf": [
               {
@@ -7348,253 +6976,6 @@
         },
         "type": "object",
         "title": "OrderUpdate"
-      },
-      "ProcessCreate": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "position": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Position"
-          },
-          "is_standard": {
-            "type": "boolean",
-            "title": "Is Standard",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "ProcessCreate",
-        "description": "Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).\n\nDer **Name** ist frei. Es gibt **keine** Wahl der Quelle/Richtung – das Verhalten\n(erhöhend/mindernd/neutral) ergibt sich aus den **Schritten** des Prozesses.\n``is_standard`` (global geerbt) ist optional (Favoriten-Markierung), nur bei der\nAnlage bzw. im Entwurf setzbar."
-      },
-      "ProcessLinkCreate": {
-        "properties": {
-          "process_id": {
-            "type": "integer",
-            "title": "Process Id"
-          },
-          "position": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Position"
-          }
-        },
-        "type": "object",
-        "required": [
-          "process_id"
-        ],
-        "title": "ProcessLinkCreate",
-        "description": "Einen bestehenden Prozess der Prozessstückliste eines Artikels hinzufügen."
-      },
-      "ProcessLinkReorder": {
-        "properties": {
-          "ordered_process_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Ordered Process Ids"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ordered_process_ids"
-        ],
-        "title": "ProcessLinkReorder",
-        "description": "Neue Reihenfolge der Prozessstückliste (Prozess-IDs in Zielreihenfolge)."
-      },
-      "ProcessResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "article_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "source": {
-            "type": "string",
-            "title": "Source"
-          },
-          "is_standard": {
-            "type": "boolean",
-            "title": "Is Standard"
-          },
-          "position": {
-            "type": "integer",
-            "title": "Position"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
-          "replaced_by_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaced By Id"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "step_count": {
-            "type": "integer",
-            "title": "Step Count",
-            "default": 0
-          },
-          "stock_effect": {
-            "type": "string",
-            "title": "Stock Effect",
-            "default": "neutral"
-          },
-          "replaces_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaces Id"
-          },
-          "linked_article_count": {
-            "type": "integer",
-            "title": "Linked Article Count",
-            "default": 0
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "source",
-          "is_standard",
-          "position",
-          "status",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "ProcessResponse"
-      },
-      "ProcessUpdate": {
-        "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "position": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Position"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "is_standard": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Standard"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          }
-        },
-        "type": "object",
-        "title": "ProcessUpdate"
       },
       "PurchaseEmbed": {
         "properties": {

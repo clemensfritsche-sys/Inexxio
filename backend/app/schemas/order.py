@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
@@ -48,31 +48,35 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
 
 
 class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
-    Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
+    """Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:
 
-    Subjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess
-    via Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine
-    konkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt
-    den anzuwendenden Prozess (leer = Default-Entstehung des Artikels)."""
+    MAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des
+             Artikels** und ERZEUGT bei Freigabe die Instanzen.
+    CUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller
+             Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen."""
 
+    mode: str = "make"
     article_id: Optional[int] = None
     quantity: Optional[int] = None
+    instance_object_ids: Optional[list[int]] = None
     desired_delivery_date: Optional[date] = None
-    process_id: Optional[int] = None
-    subject_instance_id: Optional[int] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
     recurrence_interval_days: Optional[int] = None
     recurrence_lead_time_days: Optional[int] = None
     recurrence_anchor: Optional[date] = None
 
+    @field_validator("mode")
+    @classmethod
+    def _mode_ok(cls, v: str) -> str:
+        if v not in ("make", "custom"):
+            raise ValueError("Modus muss 'make' oder 'custom' sein")
+        return v
+
     @field_validator("quantity")
     @classmethod
     def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
-        if v is None:
-            return v
-        if v <= 0:
+        if v is not None and v <= 0:
             raise ValueError("Menge muss grösser als 0 sein")
         return v
 
@@ -81,14 +85,22 @@ class OrderCreate(BaseModel):
     def _date_future(cls, v: Optional[date]) -> Optional[date]:
         return _validate_future_date(v)
 
+    @model_validator(mode="after")
+    def _consistent(self) -> "OrderCreate":
+        if self.mode == "make":
+            if not self.article_id or not self.quantity:
+                raise ValueError("Für einen Artikel-Auftrag sind Artikel und Menge Pflicht")
+        else:
+            if not self.instance_object_ids:
+                raise ValueError("Für einen individuellen Auftrag mindestens eine Instanz wählen")
+        return self
+
 
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     desired_delivery_date: Optional[date] = None
-    process_id: Optional[int] = None
-    subject_instance_id: Optional[int] = None
     recurrence_active: Optional[bool] = None
     recurrence_interval_days: Optional[int] = None
     recurrence_lead_time_days: Optional[int] = None
@@ -131,6 +143,7 @@ class OrderSummary(BaseModel):
     id: int
     object_id: Optional[int]
     status: str
+    mode: str = "make"
     article_id: Optional[int]
     quantity: Optional[int]
     desired_delivery_date: Optional[date]
@@ -142,8 +155,6 @@ class OrderSummary(BaseModel):
     article_object_id: Optional[int] = None
     article_unit: Optional[str] = None
     purchase_status: Optional[str] = None   # für das Status-Badge im Feed
-    process_name: Optional[str] = None      # welcher Prozess (Entstehung/Verkauf/Wartung …)
-    process_source: Optional[str] = None    # produce | stock | instance
     recurrence_active: bool = False         # wiederkehrender Auftrag (Badge)
     recurrence_due: bool = False            # fällig (Termin − Vorlaufzeit erreicht)
     replaced_by_id: Optional[int] = None
@@ -155,6 +166,7 @@ class OrderResponse(BaseModel):
     id: int
     object_id: Optional[int]
     status: str
+    mode: str = "make"
     title: Optional[str]
     article_id: Optional[int]
     quantity: Optional[int]
@@ -163,13 +175,6 @@ class OrderResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Gewählter Prozess (welches «Verb» + Subjekt-Quelle)
-    process_id: Optional[int] = None
-    process_object_id: Optional[int] = None   # Objektnummer des Prozesses
-    process_name: Optional[str] = None
-    process_source: Optional[str] = None       # produce | stock | instance (Subjekt)
-    process_stock_effect: Optional[str] = None  # abgeleitet: increase | decrease | neutral
-    subject_instance_id: Optional[int] = None
     # Wiederkehrend (am Auftrag)
     recurrence_active: bool = False
     recurrence_interval_days: Optional[int] = None

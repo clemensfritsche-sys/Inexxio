@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderStep, Process } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderStep, OrderMode } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState, STEP_META, sourceLabel } from '@/lib/process';
+import { toStepperState, STEP_META, instanceKindLabel } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
-import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { SearchSelect, StatusBadge, StatusFlow, Label, Segmented } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -21,22 +21,26 @@ import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
+import { ProcessSteps } from '@/components/erp/process-steps';
 
 type ViewerRole = 'staff' | 'supplier';
 
+// Zwei Anlage-Modi: MAKE (Artikel+Menge → Artikel-Prozess erzeugt Instanzen) |
+// CUSTOM (ausgewählte, vorhandene Instanzen + individueller Prozess am Auftrag).
 type Form = {
+  mode: OrderMode;
   article_id: string; quantity: string; desired_delivery_date: string;
-  process_id: string; subject_instance_id: string;
+  instance_object_ids: number[];
 };
 
 function seedFrom(record: Order | null): Form {
-  if (!record) return { article_id: '', quantity: '', desired_delivery_date: '', process_id: '', subject_instance_id: '' };
+  if (!record) return { mode: 'make', article_id: '', quantity: '', desired_delivery_date: '', instance_object_ids: [] };
   return {
+    mode: (record.mode as OrderMode) ?? 'make',
     article_id: record.article_id != null ? String(record.article_id) : '',
     quantity: record.quantity != null ? String(record.quantity) : '',
     desired_delivery_date: record.desired_delivery_date ?? '',
-    process_id: record.process_id != null ? String(record.process_id) : '',
-    subject_instance_id: record.subject_instance_id != null ? String(record.subject_instance_id) : '',
+    instance_object_ids: (record.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null),
   };
 }
 
@@ -106,34 +110,27 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const selectedArticle = releasedArticles.find((a) => String(a.id) === form.article_id) ?? null;
   const qtyUnit = selectedArticle ? unitLabel(selectedArticle.unit) : (record?.article_unit ? unitLabel(record.article_unit) : '');
 
-  // Prozesse des gewählten Artikels (Entstehung/Verkauf/Wartung … + Standardprozesse).
-  const artObjId = selectedArticle?.object_id ?? null;
-  const artDbId = selectedArticle?.id ?? null;
-  const [procs, setProcs] = useState<Process[]>([]);
-  const [insts, setInsts] = useState<Instance[]>([]);
+  // CUSTOM-Modus: vorhandene Instanzen zur Auswahl (nur bei der Anlage relevant).
+  const isCustom = form.mode === 'custom';
+  const [allInstances, setAllInstances] = useState<Instance[]>([]);
   useEffect(() => {
-    if (!demandEditable || !artObjId) { setProcs([]); return; }
-    api.getArticleProcesses(artObjId).then((ps) => {
-      setProcs(ps);
-      setForm((f) => (f.process_id && ps.some((p) => String(p.id) === f.process_id)) ? f
-        : { ...f, process_id: ps[0] ? String(ps[0].id) : '' });
-    }).catch(() => {});
-  }, [artObjId, demandEditable]);
-
-  const selProc = procs.find((p) => String(p.id) === form.process_id) ?? null;
-  const needsInstance = selProc?.source === 'instance';
-  useEffect(() => {
-    if (!needsInstance || !artDbId) { return; }
-    api.getInstances(200).then((all) => setInsts(all.filter((i) => i.article_id === artDbId))).catch(() => {});
-  }, [needsInstance, artDbId]);
+    if (!isCreate || !isCustom) return;
+    api.getInstances(500).then(setAllInstances).catch(() => {});
+  }, [isCreate, isCustom]);
+  // Auswahl auf den Artikel der ersten gewählten Instanz einschränken (alle gleich).
+  const firstSel = allInstances.find((i) => i.object_id === form.instance_object_ids[0]) ?? null;
+  const customArticleId = firstSel?.article_id ?? null;
+  const customInstanceOptions = allInstances.filter((i) =>
+    i.object_id != null && !form.instance_object_ids.includes(i.object_id) &&
+    (customArticleId == null || i.article_id === customArticleId));
 
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
-  const demandValid = needsInstance
-    ? (!!form.article_id && !!form.process_id && !!form.subject_instance_id)
+  const demandValid = isCustom
+    ? form.instance_object_ids.length > 0
     : (!!form.article_id && qtyNum != null && qtyNum > 0);
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
-  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate,
-    process_id: form.process_id, subject_instance_id: needsInstance ? form.subject_instance_id : '' });
+  const sig = JSON.stringify({ mode: form.mode, article_id: form.article_id, quantity: form.quantity.trim(),
+    date: effectiveDate, instances: form.instance_object_ids });
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
   // Freigabe erst möglich, wenn der Bedarf gespeichert ist (keine offenen Änderungen)
   const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
@@ -144,19 +141,18 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setSaving(true);
     setError(null);
     try {
-      const article_id = form.article_id ? Number(form.article_id) : null;
-      const payload = {
-        article_id,
-        quantity: needsInstance ? null : qtyNum,
-        desired_delivery_date: effectiveDate,
-        process_id: form.process_id ? Number(form.process_id) : null,
-        subject_instance_id: needsInstance && form.subject_instance_id ? Number(form.subject_instance_id) : null,
-      };
       if (isCreate) {
+        const payload = isCustom
+          ? { mode: 'custom' as const, instance_object_ids: form.instance_object_ids, desired_delivery_date: effectiveDate }
+          : { mode: 'make' as const, article_id: Number(form.article_id), quantity: qtyNum, desired_delivery_date: effectiveDate };
         onSaved(await api.createOrder(payload));
       } else {
-        const saved = await api.updateOrder(record.object_id as number,
-          { ...payload, expected_updated_at: verRef.current });
+        // Nach der Anlage ist nur der Bedarf (Menge/Termin) bei MAKE änderbar.
+        const saved = await api.updateOrder(record.object_id as number, {
+          article_id: form.article_id ? Number(form.article_id) : null,
+          quantity: qtyNum, desired_delivery_date: effectiveDate,
+          expected_updated_at: verRef.current,
+        });
         verRef.current = saved.updated_at;
         onSaved(saved);
         setSavedSig(current);
@@ -284,28 +280,41 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         <div style={cardStyle}>
           {demandEditable ? (
             <>
-              <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
-              {releasedArticles.length === 0 && (
-                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
-                  Kein freigegebener Artikel vorhanden. Nur Artikel im Status «Freigegeben» können referenziert werden.
-                </div>
+              {isCreate && (
+                <Segmented label="Was wird angelegt?" value={form.mode} onChange={(v) => set('mode', v as OrderMode)}
+                  options={[{ value: 'make', label: 'Artikel (neu)' }, { value: 'custom', label: 'Instanzen (bestehend)' }]} />
               )}
-              {form.article_id && procs.length > 0 && (
-                <div>
-                  <SearchSelect label="Prozess" value={form.process_id} onChange={(v) => set('process_id', v)} required
-                    options={procs.map((p) => ({ value: String(p.id), label: `${p.name}${p.is_standard ? ' · Standard' : ''} (${sourceLabel(p.source)})` }))} />
-                  {selProc && selProc.status !== 'released' && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '4px 8px', borderRadius: 6, display: 'inline-block' }}>
-                      Prozess noch nicht freigegeben – vor dem Start freigeben
+              {form.mode === 'make' ? (
+                <>
+                  <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
+                  {releasedArticles.length === 0 && (
+                    <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
+                      Kein freigegebener Artikel vorhanden. Nur Artikel im Status «Freigegeben» können referenziert werden.
                     </div>
+                  )}
+                </>
+              ) : (
+                <div>
+                  <Label>Instanzen (alle vom selben Artikel)</Label>
+                  {form.instance_object_ids.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+                      {form.instance_object_ids.map((oid) => (
+                        <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
+                          {fmtObjId(oid)}
+                          <button type="button" onClick={() => set('instance_object_ids', form.instance_object_ids.filter((x) => x !== oid))}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {isCreate && (
+                    <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) set('instance_object_ids', [...form.instance_object_ids, n]); }}
+                      options={[{ value: '', label: '— Instanz hinzufügen —' }, ...customInstanceOptions.map((i) => ({ value: String(i.object_id), label: `${fmtObjId(i.object_id)} · ${i.article_name ?? ''} · ${instanceKindLabel(i.kind)}` }))]} />
                   )}
                 </div>
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                {needsInstance ? (
-                  <SearchSelect label="Instanz (Subjekt)" value={form.subject_instance_id} onChange={(v) => set('subject_instance_id', v)} required
-                    options={[{ value: '', label: '— Instanz wählen —' }, ...insts.filter((i) => i.object_id != null).map((i) => ({ value: String(i.object_id), label: `${fmtObjId(i.object_id)} · ${i.article_name ?? ''}` }))]} />
-                ) : (
+                {form.mode === 'make' && (
                   <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
                 )}
                 <div>
@@ -336,15 +345,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               </div>
               <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
-              {record?.process_name && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, alignItems: 'center' }}>
-                  <span style={{ color: '#94a3b8', flexShrink: 0 }}>Prozess</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {record.process_object_id != null && <ObjId value={record.process_object_id} />}
-                    <span style={{ fontWeight: 600, color: '#0F172A' }}>{record.process_name}</span>
-                  </span>
-                </div>
-              )}
+              <Row k="Art" v={record?.mode === 'custom' ? 'Individueller Prozess (vorhandene Instanzen)' : 'Artikel-Prozess (erzeugt Instanzen)'} />
             </>
           )}
         </div>
@@ -365,6 +366,17 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
         {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
         {record && <OrderInstances order={record} />}
+
+        {/* Individueller Prozess (CUSTOM, im Entwurf editierbar) */}
+        {isStaff && record?.mode === 'custom' && record.status === 'draft' && (
+          <>
+            <SectionTitle icon={Workflow}>Individueller Prozess</SectionTitle>
+            <div style={cardStyle}>
+              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+                selfArticleObjectId={record.article_object_id ?? null} />
+            </div>
+          </>
+        )}
 
         {/* Prozess */}
         {showProcess ? (

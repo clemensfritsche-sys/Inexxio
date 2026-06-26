@@ -176,28 +176,9 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   expected_updated_at?: string | null;   // Optimistic Locking
 };
 
-// ─── Prozesse: eigenständige Objekte (Feed «Prozesse»), Stückliste je Artikel ──
-
-// Quelle = SUBJEKT (worauf der Prozess wirkt), KEINE Richtungswahl.
-export type ProcessSource = 'produce' | 'stock' | 'instance';
-// Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, nicht gewählt).
-// 'mixed' = der Prozess hat erhöhende UND mindernde Schritte (z. B. Beschaffung + Verkauf).
-export type ProcessStockEffect = 'increase' | 'decrease' | 'mixed' | 'neutral';
-export type Process = components['schemas']['ProcessResponse'];
-
-export interface ProcessInput {
-  name: string;
-  position?: number | null;
-  is_standard?: boolean;   // Favoriten-Markierung «Standard» (selten); nur bei Anlage/Entwurf
-}
-
-export interface ProcessUpdateInput {
-  name?: string;
-  position?: number | null;
-  status?: 'draft' | 'released' | 'inactive';
-  is_standard?: boolean;   // nur im Entwurf änderbar
-  is_active?: boolean;
-}
+// ─── Prozess = Schritte am Artikel (Entstehung) ODER am Auftrag (CUSTOM) ───────
+// Es gibt KEIN eigenständiges Prozess-Objekt mehr. Auftrags-Modus:
+export type OrderMode = 'make' | 'custom';
 
 // ─── Verkaufsschritt (Spiegel der Beschaffung) ─────────────────────────────────
 
@@ -370,7 +351,7 @@ export interface ClaimUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim' | 'process';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

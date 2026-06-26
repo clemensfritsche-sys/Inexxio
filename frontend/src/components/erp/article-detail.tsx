@@ -15,24 +15,23 @@ import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
-import { ArticleProcesses } from '@/components/erp/article-processes';
+import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
-// Artikel-Lebenszyklus: Die **Stammdaten-Freigabe** ist von den Prozessen entkoppelt
-// (sie friert nur die Spezifikation ein). Ob produzierbar/bestellbar, entscheidet sich
-// am Auftrag (dort braucht es zusätzlich einen freigegebenen Prozess).
-// Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
+// Artikel-Lebenszyklus: Die **Spezifikation-Freigabe** friert die Spezifikation ein.
+// Ob produzierbar/bestellbar, entscheidet sich am Auftrag (dort braucht es zusätzlich
+// einen freigegebenen Prozess). Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
 function articleActions(status: string, replaced: boolean): StatusAction[] {
   if (status === 'draft')
-    return [{ label: 'Stammdaten freigeben', target: 'released', tone: 'primary' }];
+    return [{ label: 'Spezifikation freigeben', target: 'released', tone: 'primary' }];
   return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
 }
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: 'stammdaten', label: 'Stammdaten', icon: FileText },
+  { key: 'stammdaten', label: 'Spezifikation', icon: FileText },
   { key: 'prozess', label: 'Prozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
 ];
@@ -79,7 +78,7 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh, onProcessesChanged }: {
+export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
   articleNames?: string[];         // wählbare Artikelnamen (Systemkonfiguration)
@@ -87,7 +86,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   onCancel: () => void;
   onBack: () => void;
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
-  onProcessesChanged?: () => void; // Prozess-Feed aktualisieren (Stückliste geändert)
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
@@ -351,7 +349,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           </div>
         )}
         {tab === 'prozess' && (
-          <ArticleProcesses articleObjectId={record?.object_id ?? null} suppliers={suppliers} readOnly={record?.status === 'inactive'} onChanged={onProcessesChanged} />
+          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
+            readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />

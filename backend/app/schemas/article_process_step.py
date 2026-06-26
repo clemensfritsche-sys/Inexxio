@@ -245,7 +245,7 @@ class ArticleProcessStepResponse(BaseModel):
 
     id: int
     article_id: Optional[int] = None
-    process_id: Optional[int] = None
+    order_id: Optional[int] = None
     position: int
     step_type: str
     locked: bool = False   # Pflicht-Bewegung (System, nicht löschbar/editierbar)

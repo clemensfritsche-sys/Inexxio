@@ -400,52 +400,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/processes": {
+    "/api/v1/erp/articles/{object_id}/steps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Article Processes
-         * @description Wählbare Prozesse des Artikels: Stückliste + geerbte freigegebene Standards.
-         */
-        get: operations["list_article_processes_api_v1_erp_articles__object_id__processes_get"];
+        /** List Article Steps */
+        get: operations["list_article_steps_api_v1_erp_articles__object_id__steps_get"];
         put?: never;
-        /**
-         * Create Article Process
-         * @description Neuen Prozess anlegen (eigene Objektnummer, Entwurf) und der Stückliste
-         *     dieses Artikels hinzufügen.
-         */
-        post: operations["create_article_process_api_v1_erp_articles__object_id__processes_post"];
+        /** Create Article Step */
+        post: operations["create_article_step_api_v1_erp_articles__object_id__steps_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process-links": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add Process Link
-         * @description Bestehenden Prozess der Stückliste hinzufügen (wirkt nur auf diesen Artikel).
-         */
-        post: operations["add_process_link_api_v1_erp_articles__object_id__process_links_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/articles/{object_id}/process-links/reorder": {
+    "/api/v1/erp/articles/{object_id}/steps/reorder": {
         parameters: {
             query?: never;
             header?: never;
@@ -458,14 +431,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Reorder Process Links
-         * @description Reihenfolge der Prozessstückliste setzen (Prozess-IDs in Zielreihenfolge).
-         */
-        patch: operations["reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch"];
+        /** Reorder Article Steps */
+        patch: operations["reorder_article_steps_api_v1_erp_articles__object_id__steps_reorder_patch"];
         trace?: never;
     };
-    "/api/v1/erp/articles/{object_id}/process-links/{process_id}": {
+    "/api/v1/erp/articles/{object_id}/steps/{step_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -475,106 +445,33 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /**
-         * Remove Process Link
-         * @description Prozess aus der Stückliste entfernen (nur den Link – das Prozess-Objekt
-         *     bleibt für andere Artikel bestehen).
-         */
-        delete: operations["remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete"];
+        /** Delete Article Step */
+        delete: operations["delete_article_step_api_v1_erp_articles__object_id__steps__step_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Article Step */
+        patch: operations["update_article_step_api_v1_erp_articles__object_id__steps__step_id__patch"];
         trace?: never;
     };
-    "/api/v1/erp/processes": {
+    "/api/v1/erp/orders/{object_id}/steps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Processes
-         * @description Alle Prozesse (Artikel-Prozesse + Standards), neueste zuerst – für den Feed.
-         */
-        get: operations["list_processes_api_v1_erp_processes_get"];
+        /** List Order Steps */
+        get: operations["list_order_steps_api_v1_erp_orders__object_id__steps_get"];
         put?: never;
-        /**
-         * Create Process
-         * @description Eigenständigen Prozess anlegen (Objektnummer, startet als Entwurf). Ohne
-         *     Artikel-Bindung – die Zuordnung erfolgt über die Stückliste je Artikel.
-         */
-        post: operations["create_process_api_v1_erp_processes_post"];
+        /** Create Order Step */
+        post: operations["create_order_step_api_v1_erp_orders__object_id__steps_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/processes/{object_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Process */
-        get: operations["get_process_api_v1_erp_processes__object_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Process
-         * @description Prozess-Objekt deaktivieren (soft). Verschwindet aus allen Stücklisten/
-         *     Auswahllisten; laufende Aufträge behalten ihren Prozess.
-         */
-        delete: operations["delete_process_api_v1_erp_processes__object_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Process */
-        patch: operations["update_process_api_v1_erp_processes__object_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/erp/processes/{object_id}/replace": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Replace Process
-         * @description Ersetzen: Nachfolger (Entwurf, mit kopierten Schritten) anlegen, alle
-         *     Stücklisten-Links auf ihn umhängen, Original deaktivieren + verknüpfen.
-         *     Betrifft **alle** Artikel, die den Prozess führen (gemeinsames Objekt).
-         */
-        post: operations["replace_process_api_v1_erp_processes__object_id__replace_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/processes/{process_id}/steps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Steps */
-        get: operations["list_steps_api_v1_erp_processes__process_id__steps_get"];
-        put?: never;
-        /** Create Step */
-        post: operations["create_step_api_v1_erp_processes__process_id__steps_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/processes/{process_id}/steps/reorder": {
+    "/api/v1/erp/orders/{object_id}/steps/reorder": {
         parameters: {
             query?: never;
             header?: never;
@@ -587,15 +484,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Reorder Steps
-         * @description Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
-         *     serverseitig automatisch (neu) eingefügt und positioniert.
-         */
-        patch: operations["reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch"];
+        /** Reorder Order Steps */
+        patch: operations["reorder_order_steps_api_v1_erp_orders__object_id__steps_reorder_patch"];
         trace?: never;
     };
-    "/api/v1/erp/processes/{process_id}/steps/{step_id}": {
+    "/api/v1/erp/orders/{object_id}/steps/{step_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -605,12 +498,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Step */
-        delete: operations["delete_step_api_v1_erp_processes__process_id__steps__step_id__delete"];
+        /** Delete Order Step */
+        delete: operations["delete_order_step_api_v1_erp_orders__object_id__steps__step_id__delete"];
         options?: never;
         head?: never;
-        /** Update Step */
-        patch: operations["update_step_api_v1_erp_processes__process_id__steps__step_id__patch"];
+        /** Update Order Step */
+        patch: operations["update_order_step_api_v1_erp_orders__object_id__steps__step_id__patch"];
         trace?: never;
     };
     "/api/v1/erp/orders": {
@@ -1100,8 +993,8 @@ export interface components {
             id: number;
             /** Article Id */
             article_id?: number | null;
-            /** Process Id */
-            process_id?: number | null;
+            /** Order Id */
+            order_id?: number | null;
             /** Position */
             position: number;
             /** Step Type */
@@ -1901,25 +1794,27 @@ export interface components {
         };
         /**
          * OrderCreate
-         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
-         *     Der Auftrag trägt keinen freien Namen – er heisst immer «Auftrag».
+         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:
          *
-         *     Subjekt: entweder ein Artikel (+Menge) – dann bestimmt der gewählte Prozess
-         *     via Start-Quelle, ob neu produziert oder aus Bestand entnommen wird – ODER eine
-         *     konkrete Instanz (``subject_instance_id``, z. B. Wartung). ``process_id`` wählt
-         *     den anzuwendenden Prozess (leer = Default-Entstehung des Artikels).
+         *     MAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des
+         *              Artikels** und ERZEUGT bei Freigabe die Instanzen.
+         *     CUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller
+         *              Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen.
          */
         OrderCreate: {
+            /**
+             * Mode
+             * @default make
+             */
+            mode: string;
             /** Article Id */
             article_id?: number | null;
             /** Quantity */
             quantity?: number | null;
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
-            /** Process Id */
-            process_id?: number | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
             /** Recurrence Active */
             recurrence_active?: boolean | null;
             /** Recurrence Interval Days */
@@ -1937,6 +1832,11 @@ export interface components {
             object_id: number | null;
             /** Status */
             status: string;
+            /**
+             * Mode
+             * @default make
+             */
+            mode: string;
             /** Title */
             title: string | null;
             /** Article Id */
@@ -1957,18 +1857,6 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
-            /** Process Id */
-            process_id?: number | null;
-            /** Process Object Id */
-            process_object_id?: number | null;
-            /** Process Name */
-            process_name?: string | null;
-            /** Process Source */
-            process_source?: string | null;
-            /** Process Stock Effect */
-            process_stock_effect?: string | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
             /**
              * Recurrence Active
              * @default false
@@ -2070,6 +1958,11 @@ export interface components {
             object_id: number | null;
             /** Status */
             status: string;
+            /**
+             * Mode
+             * @default make
+             */
+            mode: string;
             /** Article Id */
             article_id: number | null;
             /** Quantity */
@@ -2096,10 +1989,6 @@ export interface components {
             article_unit?: string | null;
             /** Purchase Status */
             purchase_status?: string | null;
-            /** Process Name */
-            process_name?: string | null;
-            /** Process Source */
-            process_source?: string | null;
             /**
              * Recurrence Active
              * @default false
@@ -2123,10 +2012,6 @@ export interface components {
             quantity?: number | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
-            /** Process Id */
-            process_id?: number | null;
-            /** Subject Instance Id */
-            subject_instance_id?: number | null;
             /** Recurrence Active */
             recurrence_active?: boolean | null;
             /** Recurrence Interval Days */
@@ -2139,107 +2024,6 @@ export interface components {
             is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
-        };
-        /**
-         * ProcessCreate
-         * @description Anlage eines Prozesses (eigenständiges Objekt mit Objektnummer).
-         *
-         *     Der **Name** ist frei. Es gibt **keine** Wahl der Quelle/Richtung – das Verhalten
-         *     (erhöhend/mindernd/neutral) ergibt sich aus den **Schritten** des Prozesses.
-         *     ``is_standard`` (global geerbt) ist optional (Favoriten-Markierung), nur bei der
-         *     Anlage bzw. im Entwurf setzbar.
-         */
-        ProcessCreate: {
-            /** Name */
-            name: string;
-            /** Position */
-            position?: number | null;
-            /**
-             * Is Standard
-             * @default false
-             */
-            is_standard: boolean;
-        };
-        /**
-         * ProcessLinkCreate
-         * @description Einen bestehenden Prozess der Prozessstückliste eines Artikels hinzufügen.
-         */
-        ProcessLinkCreate: {
-            /** Process Id */
-            process_id: number;
-            /** Position */
-            position?: number | null;
-        };
-        /**
-         * ProcessLinkReorder
-         * @description Neue Reihenfolge der Prozessstückliste (Prozess-IDs in Zielreihenfolge).
-         */
-        ProcessLinkReorder: {
-            /** Ordered Process Ids */
-            ordered_process_ids: number[];
-        };
-        /** ProcessResponse */
-        ProcessResponse: {
-            /** Id */
-            id: number;
-            /** Object Id */
-            object_id?: number | null;
-            /** Article Id */
-            article_id?: number | null;
-            /** Name */
-            name: string;
-            /** Source */
-            source: string;
-            /** Is Standard */
-            is_standard: boolean;
-            /** Position */
-            position: number;
-            /** Status */
-            status: string;
-            /** Is Active */
-            is_active: boolean;
-            /** Replaced By Id */
-            replaced_by_id?: number | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /**
-             * Step Count
-             * @default 0
-             */
-            step_count: number;
-            /**
-             * Stock Effect
-             * @default neutral
-             */
-            stock_effect: string;
-            /** Replaces Id */
-            replaces_id?: number | null;
-            /**
-             * Linked Article Count
-             * @default 0
-             */
-            linked_article_count: number;
-        };
-        /** ProcessUpdate */
-        ProcessUpdate: {
-            /** Name */
-            name?: string | null;
-            /** Position */
-            position?: number | null;
-            /** Status */
-            status?: string | null;
-            /** Is Standard */
-            is_standard?: boolean | null;
-            /** Is Active */
-            is_active?: boolean | null;
         };
         /**
          * PurchaseEmbed
@@ -3750,361 +3534,12 @@ export interface operations {
             };
         };
     };
-    list_article_processes_api_v1_erp_articles__object_id__processes_get: {
+    list_article_steps_api_v1_erp_articles__object_id__steps_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_article_process_api_v1_erp_articles__object_id__processes_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    add_process_link_api_v1_erp_articles__object_id__process_links_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessLinkCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reorder_process_links_api_v1_erp_articles__object_id__process_links_reorder_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessLinkReorder"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    remove_process_link_api_v1_erp_articles__object_id__process_links__process_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-                process_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_processes_api_v1_erp_processes_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"][];
-                };
-            };
-        };
-    };
-    create_process_api_v1_erp_processes_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_process_api_v1_erp_processes__object_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_process_api_v1_erp_processes__object_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_process_api_v1_erp_processes__object_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProcessUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    replace_process_api_v1_erp_processes__object_id__replace_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProcessResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_steps_api_v1_erp_processes__process_id__steps_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                process_id: number;
             };
             cookie?: never;
         };
@@ -4130,12 +3565,12 @@ export interface operations {
             };
         };
     };
-    create_step_api_v1_erp_processes__process_id__steps_post: {
+    create_article_step_api_v1_erp_articles__object_id__steps_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                process_id: number;
+                object_id: number;
             };
             cookie?: never;
         };
@@ -4165,12 +3600,12 @@ export interface operations {
             };
         };
     };
-    reorder_steps_api_v1_erp_processes__process_id__steps_reorder_patch: {
+    reorder_article_steps_api_v1_erp_articles__object_id__steps_reorder_patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                process_id: number;
+                object_id: number;
             };
             cookie?: never;
         };
@@ -4200,12 +3635,12 @@ export interface operations {
             };
         };
     };
-    delete_step_api_v1_erp_processes__process_id__steps__step_id__delete: {
+    delete_article_step_api_v1_erp_articles__object_id__steps__step_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                process_id: number;
+                object_id: number;
                 step_id: number;
             };
             cookie?: never;
@@ -4232,12 +3667,181 @@ export interface operations {
             };
         };
     };
-    update_step_api_v1_erp_processes__process_id__steps__step_id__patch: {
+    update_article_step_api_v1_erp_articles__object_id__steps__step_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                process_id: number;
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleProcessStepUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_order_steps_api_v1_erp_orders__object_id__steps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_order_step_api_v1_erp_orders__object_id__steps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleProcessStepCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_order_steps_api_v1_erp_orders__object_id__steps_reorder_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepReorder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleProcessStepResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_order_step_api_v1_erp_orders__object_id__steps__step_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                step_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_step_api_v1_erp_orders__object_id__steps__step_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
                 step_id: number;
             };
             cookie?: never;
