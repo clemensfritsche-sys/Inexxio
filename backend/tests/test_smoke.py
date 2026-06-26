@@ -472,11 +472,12 @@ def test_order_desired_date_must_be_future():
 
     from app.schemas.order import OrderCreate
 
-    assert OrderCreate(desired_delivery_date=date.today()).desired_delivery_date == date.today()
+    base = dict(mode="make", article_id=100_000_001, quantity=1)
+    assert OrderCreate(**base, desired_delivery_date=date.today()).desired_delivery_date == date.today()
     future = date.today() + timedelta(days=5)
-    assert OrderCreate(desired_delivery_date=future).desired_delivery_date == future
+    assert OrderCreate(**base, desired_delivery_date=future).desired_delivery_date == future
     with pytest.raises(ValueError):
-        OrderCreate(desired_delivery_date=date.today() - timedelta(days=1))
+        OrderCreate(**base, desired_delivery_date=date.today() - timedelta(days=1))
 
 
 def test_lifecycle_locks_after_release():
@@ -729,10 +730,9 @@ def test_object_registry_wired():
     from app.services import objects
 
     assert ObjectRef.__tablename__ == "objects"
-    # Alle eigenständigen Objekttypen sind in der Typ-Map (für Backfill/Resolve).
-    # ``process`` (nur Standardprozesse) + ``recurring_order`` sind eigene Objekte.
+    # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "claim", "process"}
+        "user", "article", "order", "instance", "storage_location", "claim"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -810,55 +810,51 @@ def test_resource_embed_per_product_breakdown():
     assert plan.components == []
 
 
-def test_process_model_and_sources():
-    """Mehr-Prozess-Modell: Prozesse sind eigenständige Objekte; die Quelle/Richtung
-    wird aus den Schritten ABGELEITET (keine manuelle Wahl mehr)."""
-    from app.models import Process
-    from app.schemas.process import ProcessCreate, ProcessResponse
-    from app.services.processes import SOURCES, derive_source
+def test_no_process_object_anymore():
+    """Prozesse sind keine eigenständigen Objekte mehr (kein Modell/Schema/Router)."""
+    import importlib
 
-    assert Process.__tablename__ == "processes"
-    assert set(SOURCES) == {"produce", "stock", "instance"}
-    # Quelle wird NICHT gewählt – sie ergibt sich aus den Schritt-Typen.
-    assert derive_source({"sale"}) == "stock"            # Verkauf → mindernd
-    assert derive_source({"purchase"}) == "produce"      # Beschaffung → erhöhend
-    assert derive_source({"resource"}) == "produce"      # Ressource (Produktion) → erhöhend
-    assert derive_source({"movement", "inspection"}) == "instance"  # neutral
-    assert derive_source(set()) == "instance"            # ohne Schritt → neutral
-    # ProcessCreate kennt KEINE Quelle mehr; Name wird normalisiert, leer = Fehler.
-    p = ProcessCreate(name="  Jahreswartung  ")
-    assert p.name == "Jahreswartung" and p.is_standard is False
-    assert "source" not in ProcessCreate.model_fields
     import pytest
-    with pytest.raises(ValueError):
-        ProcessCreate(name="   ")
-    # is_standard (Favoriten-Stern) ist optional bei der Anlage
-    assert ProcessCreate(name="Entnahme", is_standard=True).is_standard is True
-    for f in ("step_count", "stock_effect", "is_standard", "replaced_by_id"):
-        assert f in ProcessResponse.model_fields
+
+    import app.models as models
+    assert not hasattr(models, "Process")
+    assert not hasattr(models, "ArticleProcessLink")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.schemas.process")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.routers.processes")
 
 
-def test_article_step_belongs_to_process():
-    """Schritte hängen am Prozess (process_id); article_id ist nur noch Denormalisierung."""
+def test_step_belongs_to_article_or_order():
+    """Ein Schritt hängt am Artikel (Entstehung) ODER am Auftrag (CUSTOM) – kein process_id."""
     from app.models import ArticleProcessStep
     cols = ArticleProcessStep.__table__.columns.keys()
-    assert "process_id" in cols
-    assert ArticleProcessStep.__table__.c.article_id.nullable is True
+    assert "article_id" in cols and "order_id" in cols
+    assert "process_id" not in cols
 
 
-def test_order_carries_process_and_subject():
-    """Auftrag wählt einen Prozess + Subjekt (Artikel ODER konkrete Instanz)."""
+def test_order_modes_make_and_custom():
+    """Auftrag trägt einen Modus (make|custom) statt Prozesswahl/Subjekt-Instanz."""
+    import pytest
+
     from app.models import Order
-    from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderStepInfo
+    from app.schemas.order import OrderCreate, OrderResponse
 
-    for col in ("process_id", "subject_instance_id"):
-        assert col in Order.__table__.columns.keys()
-    assert "process_id" in OrderCreate.model_fields
-    assert "subject_instance_id" in OrderCreate.model_fields
-    assert "process_id" in OrderUpdate.model_fields
-    for f in ("process_source", "process_name", "sale", "subject_instance_id"):
+    assert "mode" in Order.__table__.columns.keys()
+    for gone in ("process_id", "subject_instance_id"):
+        assert gone not in Order.__table__.columns.keys()
+    # MAKE: Artikel + Menge Pflicht
+    assert OrderCreate(mode="make", article_id=100_000_001, quantity=5).quantity == 5
+    with pytest.raises(ValueError):
+        OrderCreate(mode="make")                       # Artikel/Menge fehlen
+    # CUSTOM: mindestens eine Instanz Pflicht
+    assert OrderCreate(mode="custom", instance_object_ids=[100_000_010]).instance_object_ids == [100_000_010]
+    with pytest.raises(ValueError):
+        OrderCreate(mode="custom")                     # keine Instanz gewählt
+    for f in ("mode", "sale", "instances", "steps"):
         assert f in OrderResponse.model_fields
-    assert "sale" in OrderStepInfo.model_fields
+    for gone in ("process_id", "process_source", "subject_instance_id"):
+        assert gone not in OrderResponse.model_fields
 
 
 def test_sale_step_mirrors_purchase():
@@ -992,32 +988,6 @@ def test_event_type_registry_declares_polarity():
     assert ev.delta_sign("purchase") == 1
     assert ev.delta_sign("sale") == -1
     assert ev.delta_sign("movement") == 0
-
-
-def test_stock_effect_aggregates_and_supports_mixed():
-    """Lager-Richtung = Aggregat der Schritt-Polaritäten; Zu- UND Abgang → 'mixed'
-    (früher fälschlich in einen Topf geworfen)."""
-    from app.domain import event_types as ev
-    from app.services.processes import STOCK_EFFECTS
-
-    assert ev.aggregate_stock_effect({"purchase"}) == "increase"
-    assert ev.aggregate_stock_effect({"sale"}) == "decrease"
-    assert ev.aggregate_stock_effect({"purchase", "sale"}) == "mixed"     # neu/ehrlich
-    assert ev.aggregate_stock_effect({"movement", "inspection"}) == "neutral"
-    assert ev.aggregate_stock_effect(set()) == "neutral"
-    assert "mixed" in STOCK_EFFECTS
-
-
-def test_subject_mode_precedence_is_declared():
-    """Subjektart über die DEKLARIERTE Vorrangordnung (stock ≻ produce ≻ instance) –
-    statt einer versteckten if-Kette."""
-    from app.domain import event_types as ev
-    from app.services.processes import derive_source
-
-    assert ev.SUBJECT_PRECEDENCE == ("stock", "produce", "instance")
-    assert derive_source({"sale", "purchase"}) == "stock"      # Abgang dominiert Produktion
-    assert derive_source({"purchase", "movement"}) == "produce"
-    assert derive_source({"movement"}) == "instance"
 
 
 def test_legacy_resource_aliases_removed():

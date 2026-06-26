@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Layers, Repeat, Loader2 } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Repeat, Loader2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, Process, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { claimStatusConfig } from '@/lib/claim';
-import { instanceStatusConfig, instanceKindLabel, processStatusConfig } from '@/lib/process';
+import { instanceStatusConfig, instanceKindLabel } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
@@ -20,7 +20,6 @@ import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 import { ClaimDetail } from '@/components/erp/claim-detail';
-import { ProcessDetail } from '@/components/erp/process-detail';
 
 // ─── Type metadata ───────────────────────────────────────────────────────────
 
@@ -31,10 +30,9 @@ const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType 
   instance:         { label: 'Instanzen',    icon: Boxes },
   storage_location: { label: 'Lagerplatz',   icon: Warehouse },
   claim:            { label: 'Reklamationen', icon: AlertTriangle },
-  process:          { label: 'Prozesse', icon: Layers },
 };
 
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim', 'process'];
+const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim'];
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
 
 type Row =
@@ -43,8 +41,7 @@ type Row =
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
-  | { type: 'claim'; key: string; objectId: number | null; data: Claim }
-  | { type: 'process'; key: string; objectId: number | null; data: Process };
+  | { type: 'claim'; key: string; objectId: number | null; data: Claim };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
@@ -52,7 +49,6 @@ function rowTitle(row: Row): string {
   if (row.type === 'instance') return instanceKindLabel(row.data.kind);
   if (row.type === 'storage_location') return 'Lagerplatz';
   if (row.type === 'claim') return 'Reklamation';   // starr – wie Auftrag/Lagerplatz
-  if (row.type === 'process') return row.data.name;
   return row.data.name; // article
 }
 
@@ -63,7 +59,6 @@ function rowSearchText(row: Row): string {
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'claim') return `reklamation rma ${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
-  if (row.type === 'process') return `prozess ${row.data.name} ${row.data.source} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -86,7 +81,6 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
-  else if (row.type === 'process') badge = processStatusConfig(row.data.status);
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -151,13 +145,12 @@ export default function ErpPage() {
   // (funktioniert auch für Instanzen, die (noch) nicht im Feed geladen sind).
   const [instanceDetail, setInstanceDetail] = useState<Instance | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [processes, setProcesses] = useState<Process[]>([]);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | 'claim' | 'process' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | 'claim' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -192,7 +185,6 @@ export default function ErpPage() {
     // Nicht-blockierend nachladen (Shell erscheint sofort). Instanzen werden
     // separat server-paginiert/-durchsucht geladen (Effekt unten).
     api.getClaims().then(setClaims).catch(() => {});
-    api.getProcesses().then(setProcesses).catch(() => {});
     api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 
@@ -254,7 +246,6 @@ export default function ErpPage() {
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
     ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
     ...claims.map((c): Row => ({ type: 'claim', key: `c${c.id}`, objectId: c.object_id, data: c })),
-    ...processes.map((p): Row => ({ type: 'process', key: `p${p.id}`, objectId: p.object_id ?? null, data: p })),
   ].sort((x, y) => (y.objectId ?? -Infinity) - (x.objectId ?? -Infinity));   // höchste Nummer zuerst
 
   const counts = rows.reduce<Record<string, number>>((acc, r) => {
@@ -333,7 +324,7 @@ export default function ErpPage() {
     });
   }
 
-  function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim' | 'process') {
+  function startCreate(type: 'article' | 'order' | 'storage_location' | 'claim') {
     setPlusOpen(false);
     setSel(null);
     setCreating(type);
@@ -344,15 +335,6 @@ export default function ErpPage() {
     setArticles((prev) => (prev.some((x) => x.id === a.id) ? prev.map((x) => (x.id === a.id ? a : x)) : [...prev, a]));
     setCreating(null);
     if (a.object_id != null) setSel({ type: 'article', objectId: a.object_id });
-    // Bei Artikelanlage entsteht automatisch ein «Entstehung»-Prozess → Feed nachladen,
-    // damit der neue Prozess-Datensatz sofort sichtbar ist (kein Reload nötig).
-    api.getProcesses().then(setProcesses).catch(() => {});
-  }
-
-  // Prozessstückliste/Prozesse im Artikel geändert (anlegen/verlinken/ersetzen) →
-  // den Prozess-Feed sofort aktualisieren.
-  function refreshProcesses() {
-    api.getProcesses().then(setProcesses).catch(() => {});
   }
 
   function handleOrderSaved(o: Order) {
@@ -391,13 +373,6 @@ export default function ErpPage() {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
   }
 
-  function handleProcessSaved(p: Process) {
-    setProcesses((prev) => (prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p]));
-    setCreating(null);
-    if (p.object_id != null) setSel({ type: 'process', objectId: p.object_id });
-    // Ersetzen/Deaktivieren wirkt auf weitere Datensätze (alt → inaktiv) → frisch laden.
-    api.getProcesses().then(setProcesses).catch(() => {});
-  }
 
   function cancelCreate() {
     setCreating(null);
@@ -442,9 +417,6 @@ export default function ErpPage() {
                     </button>
                     <button onClick={() => startCreate('claim')} style={menuItemStyle}>
                       <AlertTriangle size={15} style={{ color: '#64748b' }} /> Reklamation
-                    </button>
-                    <button onClick={() => startCreate('process')} style={menuItemStyle}>
-                      <Layers size={15} style={{ color: '#64748b' }} /> Prozess
                     </button>
                   </div>
                 )}
@@ -553,14 +525,11 @@ export default function ErpPage() {
           {creating === 'claim' && (
             <ClaimDetail key="new-claim" record={null} instances={instances} onSaved={handleClaimSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
-          {creating === 'process' && (
-            <ProcessDetail key="new-process" record={null} suppliers={suppliers} onSaved={handleProcessSaved} onBack={cancelCreate} />
-          )}
           {!creating && selectedRow?.type === 'user' && (
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onProcessesChanged={refreshProcesses} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
@@ -579,9 +548,6 @@ export default function ErpPage() {
           )}
           {!creating && selectedRow?.type === 'claim' && (
             <ClaimDetail key={selectedRow.key} record={selectedRow.data} instances={instances} onSaved={handleClaimSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
-          )}
-          {!creating && selectedRow?.type === 'process' && (
-            <ProcessDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} onSaved={handleProcessSaved} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>

@@ -5,14 +5,14 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import (
-    Article, Instance, Order, Process, PurchaseOrder, UserProfile,
+    Article, Instance, Order, PurchaseOrder, UserProfile,
 )
 from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
 from ..schemas.deactivation import (
     DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
 )
 from ..schemas.instance import InstanceResponse
-from ..services import deactivation, processes as processes_svc
+from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.locations import location_label, physical_location_label
@@ -168,17 +168,8 @@ async def create_article(
     )
     db.add(article)
     db.flush()
-    # Default-Prozess «Entstehung» (Quelle produce) – eigenständiges Objekt mit
-    # Nummer, startet als **Entwurf** (Schritte ergänzen → freigeben). Wird der
-    # Prozessstückliste des Artikels hinzugefügt. Weitere Prozesse (Verkauf,
-    # Wartung …) kann der Nutzer ergänzen oder bestehende verlinken.
-    entstehung = Process(
-        object_id=next_object_id(db, "process"), article_id=article.id,
-        name="Entstehung", is_standard=False, status="draft", position=1)
-    db.add(entstehung)
-    db.flush()
-    processes_svc.recompute_source(db, entstehung.id)   # noch ohne Schritt → neutral
-    processes_svc.link_process(db, article.id, entstehung.id, 1)
+    # Der Artikel trägt seinen (einen) Prozess inline – Schritte werden im Reiter
+    # «Prozess» ergänzt und mit dem Artikel freigegeben. Kein separates Prozess-Objekt.
     log_audit(db, "articles", None, f"Artikel '{article.name}' angelegt",
               current_user.id, object_id=article.object_id)
     db.commit()

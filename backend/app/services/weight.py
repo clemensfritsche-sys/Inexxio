@@ -17,8 +17,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from ..domain import event_types
-from ..models import Article, ArticleProcessStep, Process
+from ..models import Article, ArticleProcessStep
 
 _Q = Decimal("0.001")  # 3 Nachkommastellen wie weight_kg (Numeric(12,3))
 
@@ -27,38 +26,31 @@ def _graph(db: Session) -> tuple[dict[int, Decimal], dict[int, list[tuple[int, D
     """(weight_map, consume_map) über alle aktiven Artikel/Ressourcen-Schritte.
 
     consume_map[article_id] = [(component_article_id, menge_pro_stück), …]."""
-    from . import processes as processes_svc
     weights: dict[int, Decimal] = {}
     for aid, w in db.query(Article.id, Article.weight_kg).filter(Article.is_active == True).all():
         weights[aid] = w if w is not None else Decimal(0)
     consume: dict[int, list[tuple[int, Decimal]]] = {}
-    # Nur die **Produktions**-Rezeptur (Prozess-Quelle ``produce``) bestimmt das
-    # Gewicht – über die **Verbrauch**-Zeilen (``mode='consume'``) der Ressourcen-Schritte.
-    # Betriebsmittel-Zeilen (``mode='tool'``) zählen NICHT. Der/die Produkt-Artikel sind
-    # die Artikel, die den Prozess in ihrer Stückliste führen (n:m).
+    # Die **Verbrauch**-Zeilen (``mode='consume'``) der Ressourcen-Schritte im
+    # **Artikel-Prozess** (``article_id`` gesetzt, ``order_id`` NULL) bestimmen das
+    # Gewicht. Betriebsmittel-Zeilen (``mode='tool'``) zählen NICHT.
     steps = (
         db.query(ArticleProcessStep)
-        .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
+        .filter(ArticleProcessStep.step_type == "resource",
                 ArticleProcessStep.is_active == True,
-                Process.source == "produce", Process.is_active == True)
+                ArticleProcessStep.article_id.isnot(None),
+                ArticleProcessStep.order_id.is_(None))
         .all()
     )
-    parents_cache: dict[int, list[int]] = {}
     for s in steps:
-        if s.process_id not in parents_cache:
-            parents_cache[s.process_id] = processes_svc.linked_article_ids(db, s.process_id)
-        parents = parents_cache[s.process_id]
-        if not parents:
+        parent = s.article_id
+        if not parent:
             continue
         for line in (s.resource_lines or []):
             comp = line.get("article_id")
-            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
-            if comp is None or mode != "consume":
+            if comp is None or (line.get("mode") or "consume") != "consume":
                 continue
             qty = Decimal(str(line.get("quantity", 1)))
-            for parent in parents:
-                consume.setdefault(parent, []).append((comp, qty))
+            consume.setdefault(parent, []).append((comp, qty))
     return weights, consume
 
 

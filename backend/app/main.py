@@ -12,7 +12,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, claims, contact, erp, events, health,
-    instances, orders, processes, storage_locations,
+    instances, orders, storage_locations,
 )
 
 settings = get_settings()
@@ -100,16 +100,13 @@ _COLUMN_SAFETY_NET = (
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),
     ("storage_locations", "replaced_by_id", "BIGINT"),
-    # Mehrere Prozesse je Artikel + Auftrags-Subjekt/Prozesswahl + Sales-Tracking
-    ("article_process_steps", "process_id", "BIGINT"),
-    ("orders", "process_id", "BIGINT"),
-    ("orders", "subject_instance_id", "BIGINT"),
+    # Prozess am Artikel ODER am Auftrag (kein Prozess-Objekt mehr) + Auftrags-Modus
+    ("article_process_steps", "order_id", "BIGINT"),
+    ("orders", "mode", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
     ("instances", "subject_of_order_id", "BIGINT"),
     # qc_status in zwei Achsen aufgeteilt: quality (QC-Verdikt) + disposition (Verbleib)
     ("instances", "quality", "VARCHAR(20) DEFAULT 'pending' NOT NULL"),
     ("instances", "disposition", "VARCHAR(20) DEFAULT 'in_process' NOT NULL"),
-    # Prozess = eigenständiges Objekt (Ersetzen-Kette)
-    ("processes", "replaced_by_id", "BIGINT"),
     ("movements", "tracking_number", "VARCHAR(100)"),
     ("movements", "carrier", "VARCHAR(60)"),
     # Wiederkehrende Aufträge: Konfiguration direkt am Auftrag (kein eigenes Objekt mehr)
@@ -146,8 +143,8 @@ _INDEX_SAFETY_NET = (
     # Bestands-Aggregate (Verfügbarkeit/FIFO je Artikel) + Ressourcen-Schritt-Scans
     ("ix_instances_article_id", "instances", "article_id"),
     ("ix_aps_step_type", "article_process_steps", "step_type"),
-    # Mehr-Prozess-Modell: Schritte je Prozess, Bestands-Subjekte je Auftrag
-    ("ix_aps_process_id", "article_process_steps", "process_id"),
+    # Schritte am Artikel/Auftrag, Bestands-Subjekte je Auftrag
+    ("ix_aps_order_id", "article_process_steps", "order_id"),
     ("ix_instances_subject_of_order", "instances", "subject_of_order_id"),
 )
 
@@ -298,140 +295,6 @@ def _backfill_object_registry() -> None:
         db.close()
 
 
-def _backfill_processes() -> None:
-    """Auf das Mehr-Prozess-Modell migrieren (idempotent).
-
-    Bisher hingen die Schritte direkt am Artikel (ein impliziter Prozess). Hier wird
-    je Artikel mit «losen» Schritten ein Default-Prozess «Entstehung» (Quelle
-    ``produce``) angelegt, die Schritte werden ihm zugeordnet und die bestehenden
-    Aufträge des Artikels darauf gesetzt. ``article_id`` der Schritte wird nullable
-    (Standardprozess-Schritte haben keinen Artikel)."""
-    from .models import Process
-    db = SessionLocal()
-    try:
-        insp = inspect(engine)
-        tables = set(insp.get_table_names())
-        if "article_process_steps" not in tables or "processes" not in tables:
-            return
-        # Standardprozess-Schritte haben keinen Artikel → NOT NULL lösen (idempotent).
-        try:
-            db.execute(text("ALTER TABLE article_process_steps ALTER COLUMN article_id DROP NOT NULL"))
-            db.commit()
-        except Exception:
-            db.rollback()
-        rows = db.execute(text(
-            "SELECT DISTINCT article_id FROM article_process_steps "
-            "WHERE process_id IS NULL AND article_id IS NOT NULL AND is_active = true"
-        )).fetchall()
-        for (aid,) in rows:
-            proc = Process(article_id=aid, name="Entstehung", source="produce",
-                           is_standard=False, status="released", position=1)
-            db.add(proc)
-            db.flush()
-            db.execute(text(
-                "UPDATE article_process_steps SET process_id = :pid "
-                "WHERE article_id = :aid AND process_id IS NULL"
-            ), {"pid": proc.id, "aid": aid})
-            db.execute(text(
-                "UPDATE orders SET process_id = :pid WHERE article_id = :aid AND process_id IS NULL"
-            ), {"pid": proc.id, "aid": aid})
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"WARNING: _backfill_processes() failed: {e}", flush=True)
-    finally:
-        db.close()
-
-
-def _backfill_process_objects_and_links() -> None:
-    """Fallback zu Migration 027 (falls sie nicht lief): jedem Prozess eine
-    Objektnummer geben und die **Prozessstückliste** aus ``processes.article_id``
-    erzeugen. Idempotent – nummeriert nur number-lose Prozesse und legt fehlende
-    Links an (überschreibt nichts)."""
-    from .services.objects import next_object_ids
-    db = SessionLocal()
-    try:
-        insp = inspect(engine)
-        tables = set(insp.get_table_names())
-        if "processes" not in tables or "article_process_links" not in tables:
-            return
-        ids = [r[0] for r in db.execute(text(
-            "SELECT id FROM processes WHERE object_id IS NULL ORDER BY id")).fetchall()]
-        if ids:
-            new_ids = next_object_ids(db, len(ids), "process")
-            for pid, oid in zip(ids, new_ids):
-                db.execute(text("UPDATE processes SET object_id=:o WHERE id=:p"), {"o": oid, "p": pid})
-        db.execute(text(
-            "INSERT INTO article_process_links (article_id, process_id, position, is_active, created_at, updated_at) "
-            "SELECT p.article_id, p.id, p.position, true, now(), now() FROM processes p "
-            "WHERE p.is_standard=false AND p.article_id IS NOT NULL AND p.is_active=true "
-            "AND NOT EXISTS (SELECT 1 FROM article_process_links l "
-            "WHERE l.article_id=p.article_id AND l.process_id=p.id)"
-        ))
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"WARNING: _backfill_process_objects_and_links() failed: {e}", flush=True)
-    finally:
-        db.close()
-
-
-def _sync_locked_movements_bootstrap() -> None:
-    """Pflicht-Bewegungen rund um Beschaffungsschritte herstellen – jetzt **je
-    Prozess** (Idempotent; nur über Prozesse mit Beschaffungs-/Bewegungsschritten)."""
-    from .models import ArticleProcessStep, Process
-    from .services.process_steps import sync_locked_movements
-    db = SessionLocal()
-    try:
-        rows = (
-            db.query(ArticleProcessStep.process_id)
-            .filter(ArticleProcessStep.is_active == True,
-                    ArticleProcessStep.process_id.isnot(None),
-                    ArticleProcessStep.step_type.in_(("purchase", "movement")))
-            .distinct()
-            .all()
-        )
-        active = {pid for (pid,) in db.query(Process.id).filter(Process.is_active == True).all()}
-        for (pid,) in rows:
-            if pid in active:
-                sync_locked_movements(db, pid)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"WARNING: _sync_locked_movements_bootstrap() failed: {e}", flush=True)
-    finally:
-        db.close()
-
-
-def _dedupe_processes() -> None:
-    """Race-Duplikate bereinigen: hatte ein Artikel durch eine frühere Mehr-Worker-
-    Startup-Race mehrere «Entstehung»-Prozesse (produce), wird der erste behalten und
-    die übrigen (samt ihren Schritten/Aufträgen) darauf zusammengeführt + deaktiviert."""
-    db = SessionLocal()
-    try:
-        rows = db.execute(text(
-            "SELECT article_id FROM processes WHERE is_standard=false AND source='produce' "
-            "AND is_active=true AND article_id IS NOT NULL "
-            "GROUP BY article_id HAVING count(*) > 1"
-        )).fetchall()
-        for (aid,) in rows:
-            ids = [r[0] for r in db.execute(text(
-                "SELECT id FROM processes WHERE article_id=:a AND is_standard=false "
-                "AND source='produce' AND is_active=true ORDER BY id"), {"a": aid}).fetchall()]
-            keep, extra = ids[0], ids[1:]
-            if not extra:
-                continue
-            db.execute(text("UPDATE article_process_steps SET process_id=:k WHERE process_id = ANY(:e)"),
-                       {"k": keep, "e": extra})
-            db.execute(text("UPDATE orders SET process_id=:k WHERE process_id = ANY(:e)"),
-                       {"k": keep, "e": extra})
-            db.execute(text("UPDATE processes SET is_active=false WHERE id = ANY(:e)"), {"e": extra})
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        print(f"WARNING: _dedupe_processes() failed: {e}", flush=True)
-    finally:
-        db.close()
 
 
 # Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
@@ -455,10 +318,6 @@ def _run_startup_fixups_once() -> None:
         _ensure_columns()
         _ensure_object_id_sequence()
         _backfill_object_registry()
-        _dedupe_processes()
-        _backfill_processes()
-        _backfill_process_objects_and_links()
-        _sync_locked_movements_bootstrap()
     except Exception as e:
         print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)
     finally:
@@ -537,7 +396,6 @@ app.include_router(contact.router)
 app.include_router(admin.router)
 app.include_router(erp.router)
 app.include_router(articles.router)
-app.include_router(processes.router)
 app.include_router(article_process.router)
 app.include_router(orders.router)
 app.include_router(instances.router)

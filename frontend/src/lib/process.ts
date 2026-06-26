@@ -1,5 +1,5 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Sparkles, Layers, Target, TrendingUp, TrendingDown, ArrowUpDown, Minus, FilePen, Ban } from 'lucide-react';
-import type { StepType, LocationType, ProcessSource, ProcessStockEffect } from '@/types';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote } from 'lucide-react';
+import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
 
@@ -10,40 +10,6 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   sale:       { label: 'Verkauf',        icon: Receipt },
 };
-
-// Prozess-Quelle = SUBJEKT (worauf der Prozess wirkt) – KEINE Richtungswahl.
-export const PROCESS_SOURCE_META: Record<ProcessSource, { label: string; hint: string; icon: React.ElementType }> = {
-  produce:  { label: 'Neu', icon: Sparkles, hint: 'Subjekt: der Prozess erzeugt neue Instanzen (Produktion).' },
-  stock:    { label: 'Bestand', icon: Layers, hint: 'Subjekt: vorhandener Bestand (FIFO) – z. B. Verkauf, Entnahme.' },
-  instance: { label: 'Instanz', icon: Target, hint: 'Subjekt: eine konkrete bestehende Instanz – z. B. Wartung, Kontrolle.' },
-};
-
-export function sourceLabel(source: string | null | undefined): string {
-  return source ? (PROCESS_SOURCE_META[source as ProcessSource]?.label ?? source) : '—';
-}
-
-// Deklarierte Lager-Richtung (Aggregat der Schritt-Polaritäten, NICHT gewählt).
-export const STOCK_EFFECT_META: Record<ProcessStockEffect, StatusCfg> = {
-  increase: { label: 'Bestand erhöhend', color: '#16a34a', bg: '#f0fdf4', icon: TrendingUp },
-  decrease: { label: 'Bestand mindernd', color: '#dc2626', bg: '#fef2f2', icon: TrendingDown },
-  mixed:    { label: 'Zu- und Abgang',   color: '#7c3aed', bg: '#f5f3ff', icon: ArrowUpDown },
-  neutral:  { label: 'Bestandsneutral',  color: '#64748b', bg: '#f1f5f9', icon: Minus },
-};
-
-export function stockEffectConfig(effect: string | null | undefined): StatusCfg {
-  return STOCK_EFFECT_META[effect as ProcessStockEffect] ?? STOCK_EFFECT_META.neutral;
-}
-
-// Prozess-Lebenszyklus (eigenständiges Objekt): Entwurf → Freigegeben → Inaktiv.
-export const PROCESS_STATUS: Record<string, StatusCfg> = {
-  draft:    { label: 'Entwurf',     color: '#d97706', bg: '#fffbeb', icon: FilePen },
-  released: { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
-  inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9', icon: Ban },
-};
-
-export function processStatusConfig(status: string): StatusCfg {
-  return PROCESS_STATUS[status] ?? PROCESS_STATUS.draft;
-}
 
 // Standort-Typen (Bewegung): Label + Icon
 export const LOCATION_META: Record<LocationType, { label: string; icon: React.ElementType }> = {

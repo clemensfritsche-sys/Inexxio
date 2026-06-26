@@ -27,8 +27,7 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..domain import event_types
-from ..models import Article, ArticleProcessStep, Instance, Order, Process, StorageLocation
+from ..models import Article, ArticleProcessStep, Instance, Order, StorageLocation
 from .admin import log_audit
 from .events import emit
 from .inventory import in_stock_clauses
@@ -40,35 +39,26 @@ from .objects import next_object_id
 def _consume_parent_map(db: Session) -> dict[int, set[int]]:
     """Umkehr-Index Komponente → {Eltern-Artikel, die sie verbrauchen}.
 
-    Eltern = Artikel, die den ``produce``-Prozess in ihrer Stückliste führen (n:m).
-    Verbrauch (consume) leitet sich aus der **Artikel-Art** ab: Betriebsmittel
-    (``equipment``) kaskadiert NICHT."""
-    from . import processes as processes_svc
+    Eltern = der Artikel, dessen **Artikel-Prozess** die Komponente in einer
+    ``consume``-Zeile führt. Betriebsmittel-Zeilen (``tool``) kaskadieren NICHT."""
     out: dict[int, set[int]] = {}
-    # Nur die Produktions-Rezeptur (Quelle ``produce``) bildet die Stückliste – und
-    # darin nur **Verbrauch**-Zeilen (``mode='consume'``). Betriebsmittel-Zeilen (``tool``)
-    # machen das Produkt nicht herstellungs-abhängig vom Werkzeug (keine Kaskade).
     steps = (
         db.query(ArticleProcessStep)
-        .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
+        .filter(ArticleProcessStep.step_type == "resource",
                 ArticleProcessStep.is_active == True,
-                Process.source == "produce", Process.is_active == True)
+                ArticleProcessStep.article_id.isnot(None),
+                ArticleProcessStep.order_id.is_(None))
         .all()
     )
-    parents_cache: dict[int, list[int]] = {}
     for s in steps:
-        if s.process_id not in parents_cache:
-            parents_cache[s.process_id] = processes_svc.linked_article_ids(db, s.process_id)
-        parents = parents_cache[s.process_id]
-        if not parents:
+        parent = s.article_id
+        if not parent:
             continue
         for line in (s.resource_lines or []):
             aid = line.get("article_id")
-            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
-            if aid is None or mode != "consume":
+            if aid is None or (line.get("mode") or "consume") != "consume":
                 continue
-            out.setdefault(aid, set()).update(parents)
+            out.setdefault(aid, set()).add(parent)
     return out
 
 
@@ -149,24 +139,18 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
     er wurde ersetzt, oder eine verbaute Komponente ist nicht (mehr) freigegeben."""
     if article.replaced_by_id:
         return "Artikel wurde ersetzt – bitte den Nachfolger verwenden"
-    from . import processes as processes_svc
-    linked_ids = processes_svc.linked_process_ids(db, article.id)
-    if not linked_ids:
-        return None
     steps = (
         db.query(ArticleProcessStep)
-        .join(Process, Process.id == ArticleProcessStep.process_id)
-        .filter(Process.id.in_(linked_ids), Process.source == "produce",
-                Process.is_active == True,
-                ArticleProcessStep.step_type.in_(event_types.RESOURCE_TYPES),
+        .filter(ArticleProcessStep.article_id == article.id,
+                ArticleProcessStep.order_id.is_(None),
+                ArticleProcessStep.step_type == "resource",
                 ArticleProcessStep.is_active == True)
         .all()
     )
     for s in steps:
         for line in (s.resource_lines or []):
             aid = line.get("article_id")
-            mode = line.get("mode") or ("tool" if s.step_type == "tool" else "consume")
-            if aid is None or mode != "consume":
+            if aid is None or (line.get("mode") or "consume") != "consume":
                 continue
             comp = db.query(Article).filter(Article.id == aid).first()
             if comp and comp.status != "released":
@@ -210,13 +194,30 @@ def storage_location_in_use(db: Session, loc: StorageLocation) -> bool:
 
 # ─── Ersetzen: Duplikat als Entwurf + Verknüpfung ────────────────────────────
 
-def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
-    """Stammdaten in einen neuen Entwurf kopieren und die **Prozessstückliste**
-    übernehmen (dieselben Prozess-Objekte erneut verlinken).
+def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id: int | None = None,
+                dst_article_id: int | None = None, dst_order_id: int | None = None) -> None:
+    """Aktive Prozessschritte (Artikel- oder Auftrags-Prozess) tief kopieren."""
+    q = db.query(ArticleProcessStep).filter(ArticleProcessStep.is_active == True)
+    if src_article_id is not None:
+        q = q.filter(ArticleProcessStep.article_id == src_article_id,
+                     ArticleProcessStep.order_id.is_(None))
+    else:
+        q = q.filter(ArticleProcessStep.order_id == src_order_id)
+    for s in q.order_by(ArticleProcessStep.position, ArticleProcessStep.id).all():
+        db.add(ArticleProcessStep(
+            article_id=dst_article_id, order_id=dst_order_id,
+            position=s.position, step_type=s.step_type, locked=s.locked, mode=s.mode,
+            supplier_id=s.supplier_id, webshop_url=s.webshop_url, shared_fields=s.shared_fields,
+            sample_percent=s.sample_percent, capture_fields=s.capture_fields,
+            target_location_type=s.target_location_type, target_location_id=s.target_location_id,
+            resource_lines=s.resource_lines,
+        ))
+    db.flush()
 
-    Prozesse sind wiederverwendbare Objekte – beim Ersetzen wird der Recipe nicht
-    dupliziert; soll der Nachfolger einen abweichenden Prozess haben, wird der
-    Prozess einzeln ersetzt (und der Link getauscht)."""
+
+def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
+    """Spezifikation in einen neuen Entwurf kopieren – inkl. des **Artikel-Prozesses**
+    (die Schritte werden mitkopiert; es gibt kein wiederverwendbares Prozess-Objekt)."""
     new = Article(
         object_id=next_object_id(db, "article"), status="draft",
         name=src.name, unit=src.unit, serialization=src.serialization, size=src.size,
@@ -227,9 +228,7 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     )
     db.add(new)
     db.flush()
-    from . import processes as processes_svc
-    for pid in processes_svc.linked_process_ids(db, src.id):
-        processes_svc.link_process(db, new.id, pid)
+    _copy_steps(db, src_article_id=src.id, dst_article_id=new.id)
     log_audit(db, "articles", None, f"Artikel als Ersatz für {src.object_id} angelegt",
               actor_id, object_id=new.object_id)
     return new
@@ -237,11 +236,12 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
 
 def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
     new = Order(object_id=next_object_id(db, "order"), status="draft", title=src.title,
-                article_id=src.article_id, quantity=src.quantity,
-                desired_delivery_date=src.desired_delivery_date,
-                process_id=src.process_id, subject_instance_id=src.subject_instance_id)
+                mode=src.mode, article_id=src.article_id, quantity=src.quantity,
+                desired_delivery_date=src.desired_delivery_date)
     db.add(new)
     db.flush()
+    if src.mode == "custom":   # individuellen Ablauf mitkopieren
+        _copy_steps(db, src_order_id=src.id, dst_order_id=new.id)
     log_audit(db, "orders", None, f"Auftrag als Ersatz für {src.object_id} angelegt",
               actor_id, object_id=new.object_id)
     return new

@@ -1,17 +1,19 @@
-"""Prozessschritte – verwaltet **unter einem Prozess** (``processes``).
+"""Prozessschritte – verwaltet am **Artikel** (wie etwas entsteht) oder am
+**Auftrag** (individueller Ablauf auf bestehende Instanzen, CUSTOM-Modus).
 
-Ein Artikel kann mehrere Prozesse haben (Entstehung, Verkauf, Wartung …); Schritte
-gehören deshalb zu einem Prozess, nicht mehr direkt zum Artikel. Standardprozesse
-(global) nutzen dieselben Endpunkte.
+Es gibt kein eigenständiges Prozess-Objekt mehr: ein Schritt hängt entweder an
+``article_id`` (Artikel-Prozess) oder an ``order_id`` (Auftrags-Prozess). Beide
+nutzen dieselbe CRUD-Logik über die ``_Owner``-Abstraktion. Editierbar, solange
+der Träger im Entwurf ist (Auftrag zusätzlich: nur im CUSTOM-Modus).
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import Article, ArticleProcessStep, Process, UserProfile
+from ..models import Article, ArticleProcessStep, Order, UserProfile
 from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
     ArticleProcessStepResponse,
@@ -20,35 +22,59 @@ from ..schemas.article_process_step import (
     StepReorder,
     normalize_capture_fields,
 )
-from ..services import processes as processes_svc
 from ..services.admin import log_audit
 from ..services.process_steps import sync_locked_movements
 
-router = APIRouter(prefix="/api/v1/erp/processes", tags=["process-steps"])
+router = APIRouter(prefix="/api/v1/erp", tags=["process-steps"])
 
 
-def _get_process(db: Session, process_id: int) -> Process:
-    proc = (
-        db.query(Process)
-        .filter(Process.id == process_id, Process.is_active == True)
-        .first()
-    )
-    if not proc:
-        raise HTTPException(404, detail="Prozess nicht gefunden")
-    return proc
+# ─── Owner-Abstraktion (Artikel- oder Auftrags-Prozess) ──────────────────────────
+
+class _Owner:
+    def __init__(self, kind: str, record):
+        self.kind = kind                       # 'article' | 'order'
+        self.record = record
+        self.object_id = record.object_id
+        self.article_id = record.id if kind == "article" else None
+        self.order_id = record.id if kind == "order" else None
+
+    def ensure_editable(self) -> None:
+        if self.kind == "article" and self.record.status != "draft":
+            raise HTTPException(409, detail="Spezifikation ist freigegeben und gesperrt – zum Ändern bitte ersetzen")
+        if self.kind == "order":
+            if self.record.mode != "custom":
+                raise HTTPException(409, detail="Nur individuelle Aufträge tragen eigene Prozessschritte")
+            if self.record.status != "draft":
+                raise HTTPException(409, detail="Auftrag ist freigegeben und gesperrt")
+
+    def filter(self):
+        if self.kind == "order":
+            return ArticleProcessStep.order_id == self.order_id
+        return and_(ArticleProcessStep.article_id == self.article_id,
+                    ArticleProcessStep.order_id.is_(None))
+
+    def sync(self, db: Session) -> None:
+        sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)
+
+    def new_step_kwargs(self) -> dict:
+        return {"article_id": self.article_id, "order_id": self.order_id}
 
 
-def _ensure_editable(db: Session, proc: Process) -> None:
-    """Schritte sind editierbar, solange der **Prozess** im Entwurf ist. Jeder
-    Prozess hat einen eigenen Lebenszyklus (draft → released → inactive); nach der
-    Freigabe ist er eingefroren – Änderungen erfolgen über **Ersetzen** (neue
-    Prozessnummer). Gilt einheitlich für Standard- und Artikel-Prozesse."""
-    if proc.status != "draft":
-        raise HTTPException(
-            409,
-            detail="Prozess ist freigegeben und gesperrt – zum Ändern bitte ersetzen",
-        )
+def _article_owner(db: Session, object_id: int) -> _Owner:
+    art = db.query(Article).filter(Article.object_id == object_id, Article.is_active == True).first()
+    if not art:
+        raise HTTPException(404, detail="Artikel nicht gefunden")
+    return _Owner("article", art)
 
+
+def _order_owner(db: Session, object_id: int) -> _Owner:
+    o = db.query(Order).filter(Order.object_id == object_id, Order.is_active == True).first()
+    if not o:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+    return _Owner("order", o)
+
+
+# ─── Gemeinsame Helfer ───────────────────────────────────────────────────────────
 
 def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
     if not supplier_id:
@@ -87,52 +113,46 @@ def _validate_supplier(db: Session, supplier_id: int | None) -> None:
     if supplier_id is None:
         return
     u = db.query(UserProfile).filter(
-        UserProfile.id == supplier_id, UserProfile.is_active == True
-    ).first()
+        UserProfile.id == supplier_id, UserProfile.is_active == True).first()
     if not u or u.role != "supplier":
         raise HTTPException(400, detail="Gewählter Benutzer ist kein aktiver Lieferant")
 
 
 def _validate_resource_lines(db: Session, raw_lines: list | None) -> None:
-    """Nur freigegebene, existierende Artikel sind als Ressource referenzierbar."""
     for line in raw_lines or []:
         art = db.query(Article).filter(
-            Article.id == line["article_id"], Article.is_active == True
-        ).first()
+            Article.id == line["article_id"], Article.is_active == True).first()
         if not art:
             raise HTTPException(400, detail="Ressourcen-Artikel nicht gefunden")
         if art.status != "released":
             raise HTTPException(400, detail="Nur freigegebene Artikel sind als Ressource referenzierbar")
 
 
-def _active_steps(db: Session, process_id: int) -> list[ArticleProcessStep]:
+def _active_steps(db: Session, owner: _Owner) -> list[ArticleProcessStep]:
     return (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
+        .filter(owner.filter(), ArticleProcessStep.is_active == True)
         .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
         .all()
     )
 
 
-@router.get("/{process_id}/steps", response_model=list[ArticleProcessStepResponse])
-async def list_steps(
-    process_id: int,
-    db: Session = Depends(get_db),
-    _: UserProfile = Depends(require_employee),
-):
-    _get_process(db, process_id)
-    return [_to_response(db, s) for s in _active_steps(db, process_id)]
+def _get_step(db: Session, owner: _Owner, step_id: int) -> ArticleProcessStep:
+    step = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.id == step_id, owner.filter(),
+                ArticleProcessStep.is_active == True)
+        .first()
+    )
+    if not step:
+        raise HTTPException(404, detail="Prozessschritt nicht gefunden")
+    return step
 
 
-@router.post("/{process_id}/steps", response_model=ArticleProcessStepResponse, status_code=201)
-async def create_step(
-    process_id: int,
-    data: ArticleProcessStepCreate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    proc = _get_process(db, process_id)
-    _ensure_editable(db, proc)
+# ─── CRUD (owner-agnostisch) ─────────────────────────────────────────────────────
+
+def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
+    owner.ensure_editable()
     is_purchase = data.step_type == "purchase"
     if is_purchase:
         _validate_supplier(db, data.supplier_id)
@@ -141,19 +161,16 @@ async def create_step(
     else:
         max_pos = (
             db.query(func.max(ArticleProcessStep.position))
-            .filter(ArticleProcessStep.process_id == process_id, ArticleProcessStep.is_active == True)
-            .scalar()
+            .filter(owner.filter(), ArticleProcessStep.is_active == True).scalar()
         )
         position = (max_pos or 0) + 1
-    is_movement = data.step_type == "movement"
     is_resource = data.step_type == "resource"
-    keeps_target = is_movement
+    keeps_target = data.step_type == "movement"
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:
         _validate_resource_lines(db, resource_raw)
     step = ArticleProcessStep(
-        process_id=process_id,
-        article_id=proc.article_id,
+        **owner.new_step_kwargs(),
         position=position,
         step_type=data.step_type,
         mode=data.mode,
@@ -169,29 +186,18 @@ async def create_step(
     db.add(step)
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
-              current_user.id, object_id=proc.object_id)
-    sync_locked_movements(db, process_id)
-    processes_svc.recompute_source(db, process_id)   # Richtung aus Schritten ableiten
+              user.id, object_id=owner.object_id)
+    owner.sync(db)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
 
 
-@router.patch("/{process_id}/steps/reorder", response_model=list[ArticleProcessStepResponse])
-async def reorder_steps(
-    process_id: int,
-    data: StepReorder,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Reihenfolge der frei sortierbaren Schritte setzen. Pflicht-Bewegungen werden
-    serverseitig automatisch (neu) eingefügt und positioniert."""
-    proc = _get_process(db, process_id)
-    _ensure_editable(db, proc)
+def _reorder(db: Session, owner: _Owner, data: StepReorder, user: UserProfile) -> list[ArticleProcessStepResponse]:
+    owner.ensure_editable()
     free = (
         db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.process_id == process_id,
-                ArticleProcessStep.is_active == True, ArticleProcessStep.locked == False)
+        .filter(owner.filter(), ArticleProcessStep.is_active == True, ArticleProcessStep.locked == False)
         .all()
     )
     by_id = {s.id: s for s in free}
@@ -200,39 +206,16 @@ async def reorder_steps(
     for i, sid in enumerate(data.ordered_ids):
         by_id[sid].position = i * 2
     db.flush()
-    sync_locked_movements(db, process_id)
-    log_audit(db, "article_process_steps", "reorder", str(data.ordered_ids),
-              current_user.id, object_id=proc.object_id)
+    owner.sync(db)
+    log_audit(db, "article_process_steps", "reorder", str(data.ordered_ids), user.id,
+              object_id=owner.object_id)
     db.commit()
-    return [_to_response(db, s) for s in _active_steps(db, process_id)]
+    return [_to_response(db, s) for s in _active_steps(db, owner)]
 
 
-def _get_step(db: Session, process_id: int, step_id: int) -> ArticleProcessStep:
-    step = (
-        db.query(ArticleProcessStep)
-        .filter(
-            ArticleProcessStep.id == step_id,
-            ArticleProcessStep.process_id == process_id,
-            ArticleProcessStep.is_active == True,
-        )
-        .first()
-    )
-    if not step:
-        raise HTTPException(404, detail="Prozessschritt nicht gefunden")
-    return step
-
-
-@router.patch("/{process_id}/steps/{step_id}", response_model=ArticleProcessStepResponse)
-async def update_step(
-    process_id: int,
-    step_id: int,
-    data: ArticleProcessStepUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    proc = _get_process(db, process_id)
-    _ensure_editable(db, proc)
-    step = _get_step(db, process_id, step_id)
+def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUpdate, user: UserProfile) -> ArticleProcessStepResponse:
+    owner.ensure_editable()
+    step = _get_step(db, owner, step_id)
     payload = data.model_dump(exclude_unset=True)
     if step.locked:
         if step.target_location_type == "user":
@@ -244,8 +227,6 @@ async def update_step(
             raise HTTPException(400, detail="Wareneingang-Ziel muss ein Lagerplatz sein")
         step.target_location_type = ttype
         step.target_location_id = payload.get("target_location_id") if ttype else None
-        log_audit(db, "article_process_steps", "wareneingang_target",
-                  str(step.target_location_id), current_user.id, object_id=proc.object_id)
         db.commit()
         db.refresh(step)
         return _to_response(db, step)
@@ -261,29 +242,74 @@ async def update_step(
         step.webshop_url = None
     elif step.mode == "webshop":
         step.supplier_id = None
-    log_audit(db, "article_process_steps", "update", str(payload), current_user.id,
-              object_id=proc.object_id)
+    log_audit(db, "article_process_steps", "update", str(payload), user.id, object_id=owner.object_id)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
 
 
-@router.delete("/{process_id}/steps/{step_id}")
-async def delete_step(
-    process_id: int,
-    step_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    proc = _get_process(db, process_id)
-    _ensure_editable(db, proc)
-    step = _get_step(db, process_id, step_id)
+def _delete(db: Session, owner: _Owner, step_id: int, user: UserProfile) -> dict:
+    owner.ensure_editable()
+    step = _get_step(db, owner, step_id)
     if step.locked:
         raise HTTPException(400, detail="Pflicht-Bewegung zu einer Beschaffung – nicht löschbar")
     step.is_active = False
-    log_audit(db, "article_process_steps", "is_active", "false", current_user.id,
-              object_id=proc.object_id, old_value="true")
-    sync_locked_movements(db, process_id)
-    processes_svc.recompute_source(db, process_id)   # Richtung aus Schritten ableiten
+    log_audit(db, "article_process_steps", "is_active", "false", user.id,
+              object_id=owner.object_id, old_value="true")
+    owner.sync(db)
     db.commit()
     return {"deleted": True}
+
+
+# ─── Routen: Artikel-Prozess ─────────────────────────────────────────────────────
+
+@router.get("/articles/{object_id}/steps", response_model=list[ArticleProcessStepResponse])
+async def list_article_steps(object_id: int, db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
+    return [_to_response(db, s) for s in _active_steps(db, _article_owner(db, object_id))]
+
+
+@router.post("/articles/{object_id}/steps", response_model=ArticleProcessStepResponse, status_code=201)
+async def create_article_step(object_id: int, data: ArticleProcessStepCreate, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _create(db, _article_owner(db, object_id), data, user)
+
+
+@router.patch("/articles/{object_id}/steps/reorder", response_model=list[ArticleProcessStepResponse])
+async def reorder_article_steps(object_id: int, data: StepReorder, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _reorder(db, _article_owner(db, object_id), data, user)
+
+
+@router.patch("/articles/{object_id}/steps/{step_id}", response_model=ArticleProcessStepResponse)
+async def update_article_step(object_id: int, step_id: int, data: ArticleProcessStepUpdate, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _update(db, _article_owner(db, object_id), step_id, data, user)
+
+
+@router.delete("/articles/{object_id}/steps/{step_id}")
+async def delete_article_step(object_id: int, step_id: int, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _delete(db, _article_owner(db, object_id), step_id, user)
+
+
+# ─── Routen: Auftrags-Prozess (CUSTOM) ───────────────────────────────────────────
+
+@router.get("/orders/{object_id}/steps", response_model=list[ArticleProcessStepResponse])
+async def list_order_steps(object_id: int, db: Session = Depends(get_db), _: UserProfile = Depends(require_employee)):
+    return [_to_response(db, s) for s in _active_steps(db, _order_owner(db, object_id))]
+
+
+@router.post("/orders/{object_id}/steps", response_model=ArticleProcessStepResponse, status_code=201)
+async def create_order_step(object_id: int, data: ArticleProcessStepCreate, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _create(db, _order_owner(db, object_id), data, user)
+
+
+@router.patch("/orders/{object_id}/steps/reorder", response_model=list[ArticleProcessStepResponse])
+async def reorder_order_steps(object_id: int, data: StepReorder, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _reorder(db, _order_owner(db, object_id), data, user)
+
+
+@router.patch("/orders/{object_id}/steps/{step_id}", response_model=ArticleProcessStepResponse)
+async def update_order_step(object_id: int, step_id: int, data: ArticleProcessStepUpdate, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _update(db, _order_owner(db, object_id), step_id, data, user)
+
+
+@router.delete("/orders/{object_id}/steps/{step_id}")
+async def delete_order_step(object_id: int, step_id: int, db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
+    return _delete(db, _order_owner(db, object_id), step_id, user)

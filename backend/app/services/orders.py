@@ -8,7 +8,7 @@ from sqlalchemy.orm import Query, Session
 
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection,
-    Movement, Order, Process, PurchaseOrder, Sale, UserProfile,
+    Movement, Order, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.inspection import InspectionEmbed, InspectionSample
@@ -17,7 +17,7 @@ from ..schemas.movement import MovementEmbed
 from ..schemas.order import OrderResponse, OrderStepInfo, OrderSummary
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..schemas.sale import SaleEmbed
-from . import process, processes
+from . import process
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, physical_location_label
@@ -168,18 +168,9 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             resp.article_serialization = art.serialization
             resp.article_supplier_article_number = art.supplier_article_number
 
-    # Prozess-Info (welcher Prozess kommt zur Anwendung + Subjekt-Quelle).
-    proc = processes.process_for_order(db, order)
-    if proc:
-        resp.process_id = proc.id
-        resp.process_name = proc.name
-        resp.process_source = proc.source
-        resp.process_object_id = proc.object_id
-        resp.process_stock_effect = processes.stock_effect(db, proc)
-    resp.subject_instance_id = order.subject_instance_id
     resp.recurrence_due = recurrence_due(order)
 
-    # Subjekt-Instanzen: worauf der Auftrag wirkt (produce/stock/instance einheitlich).
+    # Subjekt-Instanzen: worauf der Auftrag wirkt (MAKE: erzeugt | CUSTOM: ausgewählt).
     instances = order_instances(db, order)
     instance_embeds: list[InstanceEmbed] = []
     for i in instances:
@@ -264,9 +255,6 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
         .all()
     ):
         po_status[po.order_id] = po.status
-    proc_ids = {o.process_id for o in orders if o.process_id}
-    procs = ({p.id: p for p in db.query(Process).filter(Process.id.in_(proc_ids)).all()}
-             if proc_ids else {})
     out: list[OrderSummary] = []
     for o in orders:
         s = OrderSummary.model_validate(o)
@@ -276,10 +264,6 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
             s.article_object_id = art.object_id
             s.article_unit = art.unit
         s.purchase_status = po_status.get(o.id)
-        p = procs.get(o.process_id)
-        if p:
-            s.process_name = p.name
-            s.process_source = p.source
         s.recurrence_due = recurrence_due(o)
         out.append(s)
     return out

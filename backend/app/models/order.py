@@ -28,17 +28,21 @@ class Order(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Bedarf: welcher Artikel in welcher Menge (löst den Prozess aus)
+    # Auftrags-Modus: ``make`` (Artikel+Menge → fährt den Artikel-Prozess, ERZEUGT
+    # Instanzen) | ``custom`` (eigener Prozess auf ausgewählte, vorhandene Instanzen).
+    mode: Mapped[str] = mapped_column(String(10), default="make", server_default="make", nullable=False)
+
+    # Bedarf: welcher Artikel in welcher Menge.
+    #
+    # ZWEI Auftrags-Modi (kein Prozess-Objekt mehr):
+    #   MAKE   – ``article_id`` + ``quantity`` gesetzt, KEINE eigenen Schritte:
+    #            der Auftrag fährt den **Prozess des Artikels** und ERZEUGT Instanzen.
+    #   CUSTOM – der Auftrag trägt **eigene** Prozessschritte (``article_process_steps``
+    #            mit ``order_id`` = dieser Auftrag) und wirkt auf **bereits vorhandene**,
+    #            ausgewählte Instanzen (markiert über ``instances.subject_of_order_id``).
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
-    # Welcher Prozess kommt zur Anwendung (``processes``). NULL = Default-
-    # «Entstehung» des Artikels (Rückwärtskompatibilität / Produktion).
-    process_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
-    # Bei Prozess-Quelle ``instance``: Objektnummer der konkreten Subjekt-Instanz
-    # (z. B. die zu wartende Maschine). Bei ``produce``/``stock`` NULL.
-    subject_instance_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

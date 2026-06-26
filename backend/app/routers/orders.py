@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
-from ..models import Article, Instance, Order, Process, PurchaseOrder, Sale, UserProfile
+from ..models import Article, Instance, Order, PurchaseOrder, Sale, UserProfile
 from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
@@ -11,7 +11,7 @@ from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdat
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, processes as processes_svc, sale as sale_svc, subject
+from ..services import deactivation, sale as sale_svc, subject
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -47,32 +47,19 @@ def _validate_article(db: Session, article_id: int | None) -> None:
         raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
 
 
-def _resolve_subject(db: Session, article_id, quantity, process_id, subject_instance_id):
-    """Subjekt + Prozess eines Auftrags auflösen/validieren.
-
-    Quelle ``instance`` (Prozess wirkt auf eine konkrete Instanz): der Artikel wird
-    aus der Instanz abgeleitet, Menge = 1. Sonst zählt der gewählte (oder Default-)
-    Prozess des Artikels. Liefert (article_id, quantity, process_id) – der Prozess
-    wird auf den Default («Entstehung») aufgelöst, falls keiner gewählt wurde."""
-    proc = processes_svc.get_process(db, process_id) if process_id else None
-    source = proc.source if proc else "produce"
-    if source == "instance":
-        if not subject_instance_id:
-            raise HTTPException(400, detail="Für diesen Prozess ist eine Instanz als Subjekt erforderlich")
-        inst = db.query(Instance).filter(
-            Instance.object_id == subject_instance_id, Instance.is_active == True).first()
-        if not inst:
-            raise HTTPException(400, detail="Subjekt-Instanz nicht gefunden")
-        return inst.article_id, 1, process_id
-    _validate_article(db, article_id)
-    if proc and not proc.is_standard and not processes_svc.is_available_for(db, article_id, proc):
-        raise HTTPException(400, detail="Der gewählte Prozess ist nicht in der Stückliste dieses Artikels")
-    # Kein Prozess gewählt → Default-«Entstehung» des Artikels persistieren (Feed/Konsistenz).
-    resolved = process_id
-    if resolved is None and article_id:
-        dp = processes_svc.default_process(db, article_id)
-        resolved = dp.id if dp else None
-    return article_id, quantity, resolved
+def _resolve_custom_instances(db: Session, object_ids: list[int] | None) -> tuple[int, list[Instance]]:
+    """CUSTOM-Modus: die ausgewählten Instanzen prüfen (alle vom selben Artikel)."""
+    if not object_ids:
+        raise HTTPException(400, detail="Bitte mindestens eine Instanz wählen")
+    insts: list[Instance] = []
+    for oid in object_ids:
+        i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
+        if not i:
+            raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
+        insts.append(i)
+    if len({i.article_id for i in insts}) > 1:
+        raise HTTPException(400, detail="Alle gewählten Instanzen müssen vom selben Artikel sein")
+    return insts[0].article_id, insts
 
 
 @router.get("", response_model=list[OrderSummary])
@@ -96,23 +83,28 @@ async def create_order(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    article_id, quantity, process_id = _resolve_subject(
-        db, data.article_id, data.quantity, data.process_id, data.subject_instance_id)
     order = Order(
         object_id=next_object_id(db, "order"),
         status="draft",
-        article_id=article_id,
-        quantity=quantity,
+        mode=data.mode,
         desired_delivery_date=data.desired_delivery_date,
-        process_id=process_id,
-        subject_instance_id=data.subject_instance_id,
         recurrence_active=bool(data.recurrence_active),
         recurrence_interval_days=data.recurrence_interval_days,
         recurrence_lead_time_days=data.recurrence_lead_time_days or 0,
         recurrence_anchor=data.recurrence_anchor,
     )
+    custom_insts: list[Instance] = []
+    if data.mode == "make":
+        _validate_article(db, data.article_id)        # nur freigegebene Artikel
+        order.article_id = data.article_id
+        order.quantity = data.quantity
+    else:                                              # custom: auf vorhandene Instanzen
+        order.article_id, custom_insts = _resolve_custom_instances(db, data.instance_object_ids)
+        order.quantity = len(custom_insts)
     db.add(order)
     db.flush()
+    for i in custom_insts:                             # ausgewählte Instanzen markieren
+        i.subject_of_order_id = order.id
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
     db.commit()
@@ -166,36 +158,29 @@ async def update_order(
                       object_id=order.object_id, old_value=old_str)
         setattr(order, key, value)
 
-    # Freigabe (draft → released) stösst den gewählten Prozess an und stellt das
-    # **Subjekt** her – je nach Prozess-Quelle: produce → neue Instanzen erzeugen,
-    # stock → FIFO-Bestand wählen/reservieren, instance → die Instanz binden.
+    # Freigabe (draft → released) stösst den Prozess an und stellt das Subjekt her:
+    #   MAKE   – der **Artikel-Prozess** läuft, neue Instanzen entstehen.
+    #   CUSTOM – der **eigene Prozess** läuft auf die ausgewählten Instanzen.
     if order.status == "released" and not was_released:
-        if not order.article_id or not order.quantity:
-            raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
-        # Vorbedingung 1: Stammdaten des Artikels müssen freigegeben sein
-        # (Spezifikation klar, bevor ein Prozess gestartet wird).
-        art = db.query(Article).filter(Article.id == order.article_id).first()
-        if not art or art.status != "released":
-            raise HTTPException(
-                400,
-                detail="Die Stammdaten des Artikels müssen freigegeben sein, bevor der Prozess gestartet werden kann",
-            )
-        # Vorbedingung 2: der gewählte Prozess muss freigegeben sein.
-        proc = processes_svc.process_for_order(db, order)
-        if not proc:
-            raise HTTPException(400, detail="Für diesen Auftrag ist kein Prozess gewählt")
-        if proc.status != "released":
-            raise HTTPException(
-                400,
-                detail="Der gewählte Prozess ist nicht freigegeben – bitte zuerst den Prozess freigeben",
-            )
+        if order.mode == "make":
+            if not order.article_id or not order.quantity:
+                raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+            # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
+            art = db.query(Article).filter(Article.id == order.article_id).first()
+            if not art or art.status != "released":
+                raise HTTPException(
+                    400,
+                    detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann",
+                )
+        else:                                          # custom
+            if not subject.order_instances(db, order):
+                raise HTTPException(400, detail="Für diesen Auftrag sind keine Instanzen ausgewählt")
         if order.released_at is None:
             order.released_at = utcnow()   # Start der Durchlaufzeit
         subject.materialize_subject(db, order, current_user.id)
         instantiate_for_order(db, order, current_user.id)        # Beschaffung
         sale_svc.instantiate_for_order(db, order, current_user.id)  # Verkauf
-        # Zu verbrauchende Komponenten für diesen Auftrag reservieren (FIFO),
-        # damit sie kein anderer Auftrag mehr verbrauchen kann.
+        # Zu verbrauchende Komponenten für diesen Auftrag reservieren (FIFO).
         reserve_resources(db, order, current_user.id)
         emit(db, "order.released", object_type="order", object_id=order.object_id,
              payload={"article_id": order.article_id, "quantity": order.quantity},
