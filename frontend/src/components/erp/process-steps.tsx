@@ -401,7 +401,7 @@ export function ProcessSteps({ processId, suppliers, readOnly = false, onStepsCo
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>Lieferadresse aus der Systemkonfiguration. Der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
                   </div>
-                  <div><Label>Für den Lieferanten sichtbare Stammdaten</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
+                  <div><Label>Für den Lieferanten sichtbare Spezifikation</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
                 </>
               )}
 

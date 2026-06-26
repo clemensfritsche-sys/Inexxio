@@ -278,7 +278,7 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <FileText size={13} style={{ color: '#94a3b8' }} />
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-              Artikel-Stammdaten{isStaff ? ' (für Lieferant sichtbar)' : ''}
+              Artikel-Spezifikation{isStaff ? ' (für Lieferant sichtbar)' : ''}
             </span>
           </div>
           {sharedRows.map((r) => <Row key={r.key} k={r.label} v={r.value} />)}
