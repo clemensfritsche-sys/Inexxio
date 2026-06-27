@@ -136,13 +136,11 @@ async def update_order(
 
     payload = data.model_dump(exclude_unset=True)
     ensure_version(order, payload.pop("expected_updated_at", None))
-    # Wiederkehr-Einstellung ändert nicht die Arbeit – auch nach Freigabe erlaubt.
-    _RECURRENCE_KEYS = ("recurrence_active", "recurrence_interval_days",
-                        "recurrence_lead_time_days", "recurrence_anchor")
-    recurrence_payload = {k: payload.pop(k) for k in _RECURRENCE_KEYS if k in payload}
+    # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
+    # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
+    # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
+    # erlaubt dann nur noch status/is_active).
     ensure_mutable(order.status, payload, "Auftrag")
-    for key, value in recurrence_payload.items():
-        setattr(order, key, value)
     if "article_id" in payload:
         _validate_article(db, payload["article_id"])
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.

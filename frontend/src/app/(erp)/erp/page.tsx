@@ -11,7 +11,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { claimStatusConfig } from '@/lib/claim';
-import { instanceStatusConfig, instanceKindLabel } from '@/lib/process';
+import { instanceStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { useScan } from '@/components/scan/scan-provider';
@@ -46,7 +46,7 @@ type Row =
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
-  if (row.type === 'instance') return instanceKindLabel(row.data.kind);
+  if (row.type === 'instance') return 'Instanz';   // starr – Instanz trägt keinen freien Namen
   if (row.type === 'storage_location') return 'Lagerplatz';
   if (row.type === 'claim') return 'Reklamation';   // starr – wie Auftrag/Lagerplatz
   return row.data.name; // article
@@ -541,7 +541,7 @@ export default function ErpPage() {
             )
           )}
           {!creating && sel?.type === 'instance' && instanceDetail && (
-            <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onRefresh={reloadInstances} onBack={() => setMobileView('list')} />
+            <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'storage_location' && (
             <StorageLocationDetail key={selectedRow.key} record={selectedRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />

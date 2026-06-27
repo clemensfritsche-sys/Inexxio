@@ -3,7 +3,7 @@ import type {
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
-  Instance, InstanceReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
 } from '@/types';
@@ -293,14 +293,9 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}`);
   }
 
-  // Verwendungsnachweise (Referenzen) einer Instanz
-  getInstanceReferences(objectId: number): Promise<InstanceReference[]> {
-    return this.get(`/api/v1/erp/instances/${objectId}/references`);
-  }
-
-  // Instanz verschrotten (manuell): aus Bestand/FIFO raus, bleibt sichtbar
-  scrapInstance(objectId: number): Promise<Instance> {
-    return this.post(`/api/v1/erp/instances/${objectId}/scrap`, {});
+  // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
+  getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
+    return this.get(`/api/v1/erp/instances/${objectId}/orders`);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
@@ -327,7 +322,7 @@ class ApiClient {
   }
 
   // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
-  getStorageLocationReferences(objectId: number): Promise<InstanceReference[]> {
+  getStorageLocationReferences(objectId: number): Promise<ObjectReference[]> {
     return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
   }
 

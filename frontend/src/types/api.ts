@@ -726,7 +726,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/instances/{object_id}/references": {
+    "/api/v1/erp/instances/{object_id}/orders": {
         parameters: {
             query?: never;
             header?: never;
@@ -734,34 +734,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Instance References
-         * @description Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt).
+         * List Instance Orders
+         * @description Alle Aufträge, die diese Instanz angefasst haben (Herkunft zuerst) – die
+         *     Instanz ist die Summe aller Prozesse, die ein Auftrag an ihr ausgelöst hat.
          */
-        get: operations["list_instance_references_api_v1_erp_instances__object_id__references_get"];
+        get: operations["list_instance_orders_api_v1_erp_instances__object_id__orders_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/instances/{object_id}/scrap": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Scrap Instance
-         * @description Instanz verschrotten (manuell): ``disposition`` → ``scrapped``. Aus Bestand/FIFO
-         *     raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
-         *     (``consumed``) können nicht verschrottet werden.
-         */
-        post: operations["scrap_instance_api_v1_erp_instances__object_id__scrap_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1646,18 +1625,19 @@ export interface components {
             physical_location_label?: string | null;
         };
         /**
-         * InstanceReference
-         * @description Ein Verwendungsnachweis: wo wird diese Instanz referenziert?
+         * InstanceOrderRef
+         * @description Ein Auftrag, der diese Instanz angefasst hat – eine Instanz ist die Summe
+         *     aller Prozesse, und Prozesse werden ausschliesslich durch Aufträge angestossen.
          */
-        InstanceReference: {
-            /** Kind */
-            kind: string;
-            /** Ref Type */
-            ref_type: string;
+        InstanceOrderRef: {
             /** Object Id */
             object_id: number;
-            /** Label */
-            label: string;
+            /** Mode */
+            mode: string;
+            /** Status */
+            status: string;
+            /** Roles */
+            roles: string[];
             /**
              * At
              * Format: date-time
@@ -1781,6 +1761,26 @@ export interface components {
             tracking_number?: string | null;
             /** Carrier */
             carrier?: string | null;
+        };
+        /**
+         * ObjectReference
+         * @description Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet,
+         *     z. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes.
+         */
+        ObjectReference: {
+            /** Kind */
+            kind: string;
+            /** Ref Type */
+            ref_type: string;
+            /** Object Id */
+            object_id: number;
+            /** Label */
+            label: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
         };
         /**
          * ObjectResolution
@@ -4307,7 +4307,7 @@ export interface operations {
             };
         };
     };
-    list_instance_references_api_v1_erp_instances__object_id__references_get: {
+    list_instance_orders_api_v1_erp_instances__object_id__orders_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4324,38 +4324,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstanceReference"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    scrap_instance_api_v1_erp_instances__object_id__scrap_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
+                    "application/json": components["schemas"]["InstanceOrderRef"][];
                 };
             };
             /** @description Validation Error */
@@ -4505,7 +4474,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InstanceReference"][];
+                    "application/json": components["schemas"]["ObjectReference"][];
                 };
             };
             /** @description Validation Error */

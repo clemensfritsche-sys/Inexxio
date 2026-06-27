@@ -2435,14 +2435,14 @@
         }
       }
     },
-    "/api/v1/erp/instances/{object_id}/references": {
+    "/api/v1/erp/instances/{object_id}/orders": {
       "get": {
         "tags": [
           "instances"
         ],
-        "summary": "List Instance References",
-        "description": "Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt).",
-        "operationId": "list_instance_references_api_v1_erp_instances__object_id__references_get",
+        "summary": "List Instance Orders",
+        "description": "Alle Aufträge, die diese Instanz angefasst haben (Herkunft zuerst) – die\nInstanz ist die Summe aller Prozesse, die ein Auftrag an ihr ausgelöst hat.",
+        "operationId": "list_instance_orders_api_v1_erp_instances__object_id__orders_get",
         "security": [
           {
             "HTTPBearer": []
@@ -2467,57 +2467,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/InstanceReference"
+                    "$ref": "#/components/schemas/InstanceOrderRef"
                   },
-                  "title": "Response List Instance References Api V1 Erp Instances  Object Id  References Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/instances/{object_id}/scrap": {
-      "post": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Scrap Instance",
-        "description": "Instanz verschrotten (manuell): ``disposition`` → ``scrapped``. Aus Bestand/FIFO\nraus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen\n(``consumed``) können nicht verschrottet werden.",
-        "operationId": "scrap_instance_api_v1_erp_instances__object_id__scrap_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
+                  "title": "Response List Instance Orders Api V1 Erp Instances  Object Id  Orders Get"
                 }
               }
             }
@@ -2743,7 +2695,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/InstanceReference"
+                    "$ref": "#/components/schemas/ObjectReference"
                   },
                   "title": "Response List Storage Location References Api V1 Erp Storage Locations  Object Id  References Get"
                 }
@@ -5762,23 +5714,26 @@
         "title": "InstanceEmbed",
         "description": "Kurzform für die Einbettung in den Auftrag (Instanzen-/Bewegungs-Panel)."
       },
-      "InstanceReference": {
+      "InstanceOrderRef": {
         "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "ref_type": {
-            "type": "string",
-            "title": "Ref Type"
-          },
           "object_id": {
             "type": "integer",
             "title": "Object Id"
           },
-          "label": {
+          "mode": {
             "type": "string",
-            "title": "Label"
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
           },
           "at": {
             "type": "string",
@@ -5788,14 +5743,14 @@
         },
         "type": "object",
         "required": [
-          "kind",
-          "ref_type",
           "object_id",
-          "label",
+          "mode",
+          "status",
+          "roles",
           "at"
         ],
-        "title": "InstanceReference",
-        "description": "Ein Verwendungsnachweis: wo wird diese Instanz referenziert?"
+        "title": "InstanceOrderRef",
+        "description": "Ein Auftrag, der diese Instanz angefasst hat – eine Instanz ist die Summe\naller Prozesse, und Prozesse werden ausschliesslich durch Aufträge angestossen."
       },
       "InstanceResponse": {
         "properties": {
@@ -6156,6 +6111,41 @@
         "type": "object",
         "title": "MovementUpdate",
         "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.\n\nBei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."
+      },
+      "ObjectReference": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "ref_type": {
+            "type": "string",
+            "title": "Ref Type"
+          },
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "ref_type",
+          "object_id",
+          "label",
+          "at"
+        ],
+        "title": "ObjectReference",
+        "description": "Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet,\nz. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes."
       },
       "ObjectResolution": {
         "properties": {

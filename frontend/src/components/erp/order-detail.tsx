@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep, OrderMode } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState, STEP_META, instanceKindLabel } from '@/lib/process';
+import { toStepperState, STEP_META, instanceLabel } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
@@ -309,7 +309,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   )}
                   {isCreate && (
                     <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) set('instance_object_ids', [...form.instance_object_ids, n]); }}
-                      options={[{ value: '', label: '— Instanz hinzufügen —' }, ...customInstanceOptions.map((i) => ({ value: String(i.object_id), label: `${fmtObjId(i.object_id)} · ${i.article_name ?? ''} · ${instanceKindLabel(i.kind)}` }))]} />
+                      options={[{ value: '', label: '— Instanz hinzufügen —' }, ...customInstanceOptions.map((i) => ({ value: String(i.object_id), label: `${fmtObjId(i.object_id)} · ${i.article_name ?? ''} · ${instanceLabel(i.kind, i.quantity)}` }))]} />
                   )}
                 </div>
               )}
@@ -350,8 +350,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           )}
         </div>
 
-        {/* Wiederkehrend – direkt am Auftrag (kein eigenes Objekt) */}
-        {isStaff && record && <RecurrenceCard order={record} onSaved={onSaved} />}
+        {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
+            ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). */}
+        {isStaff && record?.status === 'draft' && <RecurrenceCard order={record} onSaved={onSaved} />}
 
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
@@ -540,7 +541,7 @@ function Row({ k, v }: { k: string; v: string }) {
 const recInput = "w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
 /** «Wiederkehrend» direkt am Auftrag: bei Abschluss entsteht automatisch der nächste
- *  (Entwurf), Termin = Termin + Periode. Auch nach Freigabe einstellbar. */
+ *  (Entwurf), Termin = Termin + Periode. Nur im Entwurf einstellbar. */
 function RecurrenceCard({ order, onSaved }: { order: Order; onSaved: (o: Order) => void }) {
   const [active, setActive] = useState(!!order.recurrence_active);
   const [interval, setIntervalDays] = useState(order.recurrence_interval_days ? String(order.recurrence_interval_days) : '365');

@@ -19,12 +19,12 @@ import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
-// Artikel-Lebenszyklus: Die **Spezifikation-Freigabe** friert die Spezifikation ein.
-// Ob produzierbar/bestellbar, entscheidet sich am Auftrag (dort braucht es zusätzlich
-// einen freigegebenen Prozess). Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
+// Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
+// Spezifikation UND Prozess. Ob produzierbar/bestellbar, entscheidet sich danach am
+// Auftrag. Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
 function articleActions(status: string, replaced: boolean): StatusAction[] {
   if (status === 'draft')
-    return [{ label: 'Spezifikation freigeben', target: 'released', tone: 'primary' }];
+    return [{ label: 'Freigeben', target: 'released', tone: 'primary' }];
   return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
 }
 
