@@ -51,7 +51,6 @@ class InstanceOrderRef(BaseModel):
     aller Prozesse, und Prozesse werden ausschliesslich durch Aufträge angestossen."""
 
     object_id: int       # Auftragsnummer (klickbar)
-    mode: str            # make | custom
     status: str          # draft | released | completed | inactive
     roles: list[str]     # was der Auftrag mit der Instanz tat (z. B. Erzeugt, Datenerfassung)
     at: datetime         # Zeitpunkt (Sortierung/Anzeige)

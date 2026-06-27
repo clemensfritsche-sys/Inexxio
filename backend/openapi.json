@@ -5720,10 +5720,6 @@
             "type": "integer",
             "title": "Object Id"
           },
-          "mode": {
-            "type": "string",
-            "title": "Mode"
-          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -5744,7 +5740,6 @@
         "type": "object",
         "required": [
           "object_id",
-          "mode",
           "status",
           "roles",
           "at"
@@ -6168,11 +6163,6 @@
       },
       "OrderCreate": {
         "properties": {
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "make"
-          },
           "article_id": {
             "anyOf": [
               {
@@ -6269,7 +6259,7 @@
         },
         "type": "object",
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:\n\nMAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des\n         Artikels** und ERZEUGT bei Freigabe die Instanzen.\nCUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller\n         Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart\nwird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER\neine Auswahl vorhandener Instanzen angegeben:\n\nArtikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe\n                       die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag\n                       eigene Schritte trägt – Verkauf/Entnahme).\nInstanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die\n                       gewählten, bereits vorhandenen Instanzen (gleicher Artikel)."
       },
       "OrderResponse": {
         "properties": {
@@ -6292,10 +6282,15 @@
             "type": "string",
             "title": "Status"
           },
-          "mode": {
+          "subject_role": {
             "type": "string",
-            "title": "Mode",
-            "default": "make"
+            "title": "Subject Role",
+            "default": "produce"
+          },
+          "stock_effect": {
+            "type": "string",
+            "title": "Stock Effect",
+            "default": "neutral"
           },
           "title": {
             "anyOf": [
@@ -6713,11 +6708,6 @@
           "status": {
             "type": "string",
             "title": "Status"
-          },
-          "mode": {
-            "type": "string",
-            "title": "Mode",
-            "default": "make"
           },
           "article_id": {
             "anyOf": [

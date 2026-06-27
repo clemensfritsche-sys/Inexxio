@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
 
+from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection,
     Movement, Order, PurchaseOrder, Sale, UserProfile,
@@ -229,6 +230,11 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         steps.append(si)
 
     resp.steps = steps
+    # Subjektart + Bestandswirkung aus den (effektiven) Schritt-Typen ableiten –
+    # EINE Quelle der Wahrheit (REA-Registry), kein gespeichertes Modus-Flag.
+    step_types = {s.step_type for s in steps}
+    resp.subject_role = event_types.derive_subject_mode(step_types)
+    resp.stock_effect = event_types.aggregate_stock_effect(step_types)
     resp.purchase = first.get("purchase")          # Lieferanten-Sicht / Kurzform
     resp.sale = first.get("sale")
     resp.inspection = first.get("inspection")

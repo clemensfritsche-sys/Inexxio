@@ -179,9 +179,9 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   expected_updated_at?: string | null;   // Optimistic Locking
 };
 
-// ─── Prozess = Schritte am Artikel (Entstehung) ODER am Auftrag (CUSTOM) ───────
-// Es gibt KEIN eigenständiges Prozess-Objekt mehr. Auftrags-Modus:
-export type OrderMode = 'make' | 'custom';
+// ─── Prozess = Schritte am Artikel (Entstehung) ODER am Auftrag (individuell) ──
+// Es gibt KEIN eigenständiges Prozess-Objekt und KEIN Auftrags-Modus-Flag mehr –
+// die Subjektart (produce | stock | instance) wird im Backend abgeleitet.
 
 // ─── Verkaufsschritt (Spiegel der Beschaffung) ─────────────────────────────────
 

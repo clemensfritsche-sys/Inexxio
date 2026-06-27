@@ -15,11 +15,6 @@ function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
-// Auftrags-Modus → kurzes Label für die Auftragsliste der Instanz.
-function modeLabel(mode: string): string {
-  return mode === 'custom' ? 'Individueller Auftrag' : 'Artikel-Auftrag';
-}
-
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
  * **Summe aller Prozesse**, und Prozesse werden ausschliesslich durch **Aufträge**
@@ -132,7 +127,6 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
                   <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <ObjId value={o.object_id} />
-                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{modeLabel(o.mode)}</span>
                     </div>
                     {o.roles.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>

@@ -51,14 +51,29 @@ _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.
 RESOURCE_STEP_TYPES = event_types.RESOURCE_TYPES
 
 
-def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
-    """Die Prozessschritte eines Auftrags in Reihenfolge.
+def _has_chosen_subjects(db: Session, order: Order) -> bool:
+    """Wirkt der Auftrag auf vorgewählte, vorhandene Instanzen (Bestands-Auftrag)?"""
+    return (
+        db.query(Instance.id)
+        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+        .first() is not None
+    )
 
-    CUSTOM-Modus: der Auftrag trägt eigene Schritte (auf bestehende Instanzen).
-    MAKE-Modus: der Auftrag fährt den Prozess seines **Artikels** (erzeugt Instanzen)."""
+
+def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
+    """Die Prozessschritte eines Auftrags in Reihenfolge (kein Modus-Flag):
+
+    • trägt der Auftrag **eigene** Schritte → diese (individueller Ablauf);
+    • wirkt er auf **vorgewählte Instanzen** ohne eigene Schritte → KEINE (vorhandene
+      Instanzen werden nicht hergestellt – kein Rückgriff auf den Artikel-Prozess);
+    • sonst (reiner Artikel-Auftrag) → der **Prozess des Artikels** (erzeugt Instanzen)."""
     from .processes import article_steps, order_custom_steps
     custom = order_custom_steps(db, order.id)
-    return custom if custom else article_steps(db, order.article_id)
+    if custom:
+        return custom
+    if _has_chosen_subjects(db, order):
+        return []
+    return article_steps(db, order.article_id)
 
 
 def _facts(db: Session, order: Order, step_type: str) -> list:
@@ -285,7 +300,7 @@ def _spawn_recurrence(db: Session, order: Order) -> None:
     base = order.recurrence_anchor or (order.completed_at.date() if order.completed_at else utcnow().date())
     new_anchor = base + timedelta(days=order.recurrence_interval_days)
     child = Order(
-        object_id=next_object_id(db, "order"), status="draft", mode=order.mode,
+        object_id=next_object_id(db, "order"), status="draft",
         article_id=order.article_id, quantity=order.quantity,
         desired_delivery_date=new_anchor,
         recurrence_active=True, recurrence_interval_days=order.recurrence_interval_days,
