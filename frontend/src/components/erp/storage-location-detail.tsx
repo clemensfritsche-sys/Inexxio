@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { StorageLocation, StorageLocationStatus, StorageLocationInput, InstanceReference } from '@/types';
+import type { StorageLocation, StorageLocationStatus, StorageLocationInput, ObjectReference } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
@@ -102,7 +102,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
-  const [refs, setRefs] = useState<InstanceReference[] | null>(null);
+  const [refs, setRefs] = useState<ObjectReference[] | null>(null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
 
   // Verwendung (lagernde Instanzen + referenzierende Artikel) bei Bedarf laden
@@ -404,7 +404,7 @@ function Row({ k, v }: { k: string; v: string }) {
 }
 
 // Reiter «Verwendung»: lagernde Instanzen + Artikel, die diesen Lagerplatz referenzieren
-function UsageList({ refs }: { refs: InstanceReference[] | null }) {
+function UsageList({ refs }: { refs: ObjectReference[] | null }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 2 }}>

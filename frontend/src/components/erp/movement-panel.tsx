@@ -5,7 +5,7 @@ import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine } from 'luci
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, StorageLocation, UserProfile } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
-import { LOCATION_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
+import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
@@ -67,7 +67,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     if (!fixedType || fixedType === 'instance') {
       allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) => {
         targetType.set(i.object_id as number, 'instance');
-        out.push({ objectId: i.object_id as number, label: instanceKindLabel(i.kind) });
+        out.push({ objectId: i.object_id as number, label: instanceLabel(i.kind) });
       });
     }
     return out;
@@ -95,7 +95,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     }
     steps.push({
       label: 'Instanz', hint: 'Zu bewegende Instanz scannen', expected: iid, kind: 'instance',
-      candidates: [{ objectId: iid, label: instanceKindLabel(inst.kind) }],
+      candidates: [{ objectId: iid, label: instanceLabel(inst.kind) }],
     });
     if (fixedType && fixedId) {
       steps.push({
@@ -203,7 +203,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
           return (
             <div key={i.id} style={{ border: `1px solid ${t ? '#bbf7d0' : '#f1f5f9'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
-              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(i.kind)}</span>
+              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind)}</span>
               {t ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#16a34a' }}>
                   <CheckCircle2 size={13} /> Ziel {fmtObjId(tgtId)}
@@ -250,7 +250,7 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
       <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceKindLabel(instance.kind)}</span>
+      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(instance.kind)}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
         <Icon size={13} style={{ color: '#2563eb' }} /> {instance.location_label ?? '—'}
       </span>

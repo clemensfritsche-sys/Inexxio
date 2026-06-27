@@ -319,12 +319,34 @@ def test_order_step_info_carries_completion():
     assert "completed_at" in OrderStepInfo.model_fields
 
 
-def test_instance_reference_schema():
-    """Verwendungsnachweis-Schema enthält Typ, Objektnummer, Label und Zeit."""
-    from app.schemas.instance import InstanceReference
+def test_object_reference_schema():
+    """Generischer Verweis (Lagerplatz-Verwendung): Typ, Objektnummer, Label, Zeit."""
+    from app.schemas.instance import ObjectReference
 
     for f in ("kind", "ref_type", "object_id", "label", "at"):
-        assert f in InstanceReference.model_fields
+        assert f in ObjectReference.model_fields
+
+
+def test_instance_orders_schema_and_service():
+    """Eine Instanz ist die Summe aller Aufträge, die sie angefasst haben."""
+    from app.schemas.instance import InstanceOrderRef
+    from app.services import references
+
+    for f in ("object_id", "mode", "status", "roles", "at"):
+        assert f in InstanceOrderRef.model_fields
+    assert callable(references.instance_orders)
+
+
+def test_recurrence_locked_after_release():
+    """Wiederkehr ist nur im Entwurf einstellbar – nach Freigabe sperrt
+    ensure_mutable jede Inhaltsänderung (inkl. der Wiederkehr-Felder)."""
+    import pytest
+    from fastapi import HTTPException
+    from app.services.lifecycle import ensure_mutable
+
+    ensure_mutable("draft", {"recurrence_active": True}, "Auftrag")   # erlaubt
+    with pytest.raises(HTTPException):
+        ensure_mutable("released", {"recurrence_active": True}, "Auftrag")
 
 
 def test_capture_field_evaluation():

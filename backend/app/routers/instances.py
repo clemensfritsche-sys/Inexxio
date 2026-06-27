@@ -6,11 +6,9 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
-from ..schemas.instance import InstanceReference, InstanceResponse
-from ..services.admin import log_audit
-from ..services.events import emit
+from ..schemas.instance import InstanceOrderRef, InstanceResponse
 from ..services.locations import location_label, physical_location_label
-from ..services.references import instance_references
+from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -103,13 +101,14 @@ async def get_instance(
     return _denorm(db, [inst])[0]
 
 
-@router.get("/{object_id}/references", response_model=list[InstanceReference])
-async def list_instance_references(
+@router.get("/{object_id}/orders", response_model=list[InstanceOrderRef])
+async def list_instance_orders(
     object_id: int,
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
-    """Verwendungsnachweise: wo wird diese Instanz überall referenziert (neu→alt)."""
+    """Alle Aufträge, die diese Instanz angefasst haben (Herkunft zuerst) – die
+    Instanz ist die Summe aller Prozesse, die ein Auftrag an ihr ausgelöst hat."""
     inst = (
         db.query(Instance)
         .filter(Instance.object_id == object_id, Instance.is_active == True)
@@ -117,35 +116,4 @@ async def list_instance_references(
     )
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
-    return [InstanceReference(**r) for r in instance_references(db, inst)]
-
-
-@router.post("/{object_id}/scrap", response_model=InstanceResponse)
-async def scrap_instance(
-    object_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Instanz verschrotten (manuell): ``disposition`` → ``scrapped``. Aus Bestand/FIFO
-    raus, bleibt aber für die Rückverfolgung sichtbar. Verbaute Instanzen
-    (``consumed``) können nicht verschrottet werden."""
-    inst = (
-        db.query(Instance)
-        .filter(Instance.object_id == object_id, Instance.is_active == True)
-        .first()
-    )
-    if not inst:
-        raise HTTPException(404, detail="Instanz nicht gefunden")
-    if inst.disposition == "consumed":
-        raise HTTPException(400, detail="Verbaute Instanz kann nicht verschrottet werden")
-    if inst.disposition == "scrapped":
-        raise HTTPException(400, detail="Instanz ist bereits verschrottet")
-    old = inst.disposition
-    inst.disposition = "scrapped"
-    inst.reserved_for_order_id = None
-    log_audit(db, "instances", "disposition", "scrapped", current_user.id,
-              object_id=inst.object_id, old_value=old)
-    emit(db, "instance.scrapped", object_type="instance", object_id=inst.object_id,
-         actor_id=current_user.id)
-    db.commit()
-    return _denorm(db, [inst])[0]
+    return [InstanceOrderRef(**r) for r in instance_orders(db, inst)]

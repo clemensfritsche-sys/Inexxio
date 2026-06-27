@@ -7,7 +7,7 @@ import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType,
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { unitLabel } from '@/lib/article';
-import { STEP_META, locationTypeLabel, instanceKindLabel } from '@/lib/process';
+import { STEP_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -424,7 +424,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                       ...allUsers.filter((u) => u.object_id != null).map((u) => ({
                         value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({
-                        value: `instance:${i.object_id}`, label: `${instanceKindLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
+                        value: `instance:${i.object_id}`, label: `${instanceLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
                     ]} />
                 </>
               )}

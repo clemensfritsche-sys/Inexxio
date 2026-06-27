@@ -2,7 +2,7 @@
 
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order } from '@/types';
-import { instanceStatusConfig, instanceKindLabel, LOCATION_META } from '@/lib/process';
+import { instanceStatusConfig, instanceLabel, LOCATION_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 
@@ -32,7 +32,7 @@ export function OrderInstances({ order }: { order: Order }) {
             <div key={i.id} style={rowStyle}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                {i.kind === 'batch' ? `Charge · ${i.quantity} ${unit}`.trim() : instanceKindLabel(i.kind)}
+                {instanceLabel(i.kind, i.quantity, unit)}
               </span>
               {i.location_label && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}>

@@ -25,8 +25,6 @@ from .resource import build_resource_embed
 from .subject import order_instances
 
 _STAFF_ROLES = ("admin", "employee")
-# alte Statuswerte → verschlanktes Modell (für Audit-Verlauf)
-_STATUS_ALIASES = {"approved": "ordered", "confirmed": "ordered"}
 
 
 def recurrence_due(order: Order) -> bool:
@@ -65,7 +63,6 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
             continue
         if not status:
             continue
-        status = _STATUS_ALIASES.get(status, status)
         if lg.user_id is not None and lg.user_id not in names:
             names[lg.user_id] = _supplier_name(
                 db.query(UserProfile).filter(UserProfile.id == lg.user_id).first()

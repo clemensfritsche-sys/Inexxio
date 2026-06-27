@@ -143,7 +143,10 @@ export type Instance = InstanceApi;
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
 export type InstanceQuality = 'pending' | 'passed' | 'failed';                       // «ist es gut?»
 export type InstanceDisposition = 'in_process' | 'in_stock' | 'consumed' | 'sold' | 'scrapped'; // «wo ist es?»
-export type InstanceReference = components['schemas']['InstanceReference'];
+// Generischer Objekt-Verweis (Lagerplatz-Verwendung)
+export type ObjectReference = components['schemas']['ObjectReference'];
+// Auftrag, der eine Instanz angefasst hat (Instanz = Summe aller Prozesse)
+export type InstanceOrderRef = components['schemas']['InstanceOrderRef'];
 
 // Inaktiv setzen / Ersetzen (ohne Versionierung)
 export type DeactivationImpact = components['schemas']['DeactivationImpact'];

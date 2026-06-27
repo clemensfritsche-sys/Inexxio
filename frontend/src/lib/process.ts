@@ -22,9 +22,15 @@ export function locationTypeLabel(type: string | null | undefined): string {
   return type ? (LOCATION_META[type as LocationType]?.label ?? type) : '—';
 }
 
-/** Einheitliche Bezeichnung einer Instanz: Charge (batch) bzw. Unit (Einzelteil). */
-export function instanceKindLabel(kind: string | null | undefined): string {
-  return kind === 'batch' ? 'Charge' : 'Unit';
+/** Eine Instanz heisst schlicht «Instanz». Bei einer Charge (kind='batch') kann
+ *  optional die Menge ergänzt werden (z. B. «Instanz · 5 Stk»). */
+export function instanceLabel(
+  kind?: string | null,
+  quantity?: number | null,
+  unit?: string,
+): string {
+  if (kind === 'batch' && quantity != null) return `Instanz · ${quantity} ${unit ?? ''}`.trim();
+  return 'Instanz';
 }
 
 export function stepLabel(type: string): string {

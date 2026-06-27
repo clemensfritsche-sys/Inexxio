@@ -35,14 +35,26 @@ class InstanceResponse(BaseModel):
     reserved_for_order_object_id: Optional[int] = None
 
 
-class InstanceReference(BaseModel):
-    """Ein Verwendungsnachweis: wo wird diese Instanz referenziert?"""
+class ObjectReference(BaseModel):
+    """Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet,
+    z. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes."""
 
-    kind: str          # Herkunftsauftrag | Datenerfassung | Eingebaut in | Enthält Instanz | Aktueller Standort
-    ref_type: str      # order | instance | lagerplatz | user
+    kind: str          # menschenlesbare Rolle des Verweises
+    ref_type: str      # order | instance | article | lagerplatz | user | claim
     object_id: int
     label: str
     at: datetime
+
+
+class InstanceOrderRef(BaseModel):
+    """Ein Auftrag, der diese Instanz angefasst hat – eine Instanz ist die Summe
+    aller Prozesse, und Prozesse werden ausschliesslich durch Aufträge angestossen."""
+
+    object_id: int       # Auftragsnummer (klickbar)
+    mode: str            # make | custom
+    status: str          # draft | released | completed | inactive
+    roles: list[str]     # was der Auftrag mit der Instanz tat (z. B. Erzeugt, Datenerfassung)
+    at: datetime         # Zeitpunkt (Sortierung/Anzeige)
 
 
 class InstanceEmbed(BaseModel):

@@ -8,7 +8,7 @@ import {
   claimStatusConfig, claimActions, CLAIM_DIRECTIONS, CLAIM_REASONS, CLAIM_RESOLUTIONS,
   claimDirectionLabel, claimReasonLabel, claimResolutionLabel,
 } from '@/lib/claim';
-import { instanceKindLabel } from '@/lib/process';
+import { instanceLabel } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
@@ -139,7 +139,7 @@ export function ClaimDetail({ record, instances, onSaved, onCancel, onBack }: {
     { value: '', label: '— Instanz wählen —' },
     ...instances.map((i) => ({
       value: String(i.object_id),
-      label: `${instanceKindLabel(i.kind)} · ${fmtObjId(i.object_id ?? null)}${i.article_name ? ` · ${i.article_name}` : ''}`,
+      label: `${instanceLabel(i.kind)} · ${fmtObjId(i.object_id ?? null)}${i.article_name ? ` · ${i.article_name}` : ''}`,
     })),
   ];
   const directionOptions = CLAIM_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }));
@@ -203,7 +203,6 @@ export function ClaimDetail({ record, instances, onSaved, onCancel, onBack }: {
           ) : (
             <>
               <RowNode k="Instanz">{record.instance_object_id != null ? <ObjId value={record.instance_object_id} /> : '—'}</RowNode>
-              <Row k="Art" v={record.instance_kind ? instanceKindLabel(record.instance_kind) : '—'} />
               <RowNode k="Artikel">{record.article_object_id != null ? <ObjId value={record.article_object_id} /> : (record.article_name ?? '—')}</RowNode>
               <RowNode k="Herkunftsauftrag">{record.order_object_id != null ? <ObjId value={record.order_object_id} /> : '—'}</RowNode>
             </>

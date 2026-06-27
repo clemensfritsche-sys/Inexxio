@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import StorageLocation, UserProfile
-from ..schemas.instance import InstanceReference
+from ..schemas.instance import ObjectReference
 from ..schemas.storage_location import (
     StorageLocationCreate,
     StorageLocationResponse,
@@ -86,7 +86,7 @@ async def get_storage_location(
     return _to_resp(db, _get_active(db, object_id))
 
 
-@router.get("/{object_id}/references", response_model=list[InstanceReference])
+@router.get("/{object_id}/references", response_model=list[ObjectReference])
 async def list_storage_location_references(
     object_id: int,
     db: Session = Depends(get_db),
