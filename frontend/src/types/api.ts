@@ -1632,8 +1632,6 @@ export interface components {
         InstanceOrderRef: {
             /** Object Id */
             object_id: number;
-            /** Mode */
-            mode: string;
             /** Status */
             status: string;
             /** Roles */
@@ -1794,19 +1792,17 @@ export interface components {
         };
         /**
          * OrderCreate
-         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:
+         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart
+         *     wird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER
+         *     eine Auswahl vorhandener Instanzen angegeben:
          *
-         *     MAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des
-         *              Artikels** und ERZEUGT bei Freigabe die Instanzen.
-         *     CUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller
-         *              Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen.
+         *     Artikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe
+         *                            die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag
+         *                            eigene Schritte trägt – Verkauf/Entnahme).
+         *     Instanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die
+         *                            gewählten, bereits vorhandenen Instanzen (gleicher Artikel).
          */
         OrderCreate: {
-            /**
-             * Mode
-             * @default make
-             */
-            mode: string;
             /** Article Id */
             article_id?: number | null;
             /** Quantity */
@@ -1833,10 +1829,15 @@ export interface components {
             /** Status */
             status: string;
             /**
-             * Mode
-             * @default make
+             * Subject Role
+             * @default produce
              */
-            mode: string;
+            subject_role: string;
+            /**
+             * Stock Effect
+             * @default neutral
+             */
+            stock_effect: string;
             /** Title */
             title: string | null;
             /** Article Id */
@@ -1958,11 +1959,6 @@ export interface components {
             object_id: number | null;
             /** Status */
             status: string;
-            /**
-             * Mode
-             * @default make
-             */
-            mode: string;
             /** Article Id */
             article_id: number | null;
             /** Quantity */

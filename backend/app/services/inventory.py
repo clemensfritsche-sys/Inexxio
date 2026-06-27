@@ -15,6 +15,36 @@ from sqlalchemy.orm import Session
 from ..models import Instance
 
 
+def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
+    """Verbrauchbare/verkäufliche Instanzen eines Artikels: **freigegeben** (qc passed,
+    am Lager), Restmenge > 0, **FIFO nach Freigabe** (``released_at``, ersatzweise
+    ``created_at``), dann Objektnummer.
+
+    Reservierungen: ``for_order_id=None`` liefert nur **unreservierte** Instanzen (Basis
+    für eine neue Reservierung). Mit ``for_order_id`` kommen zusätzlich die **für diesen
+    Auftrag reservierten** Instanzen dazu – und werden **zuerst** verbraucht."""
+    q = db.query(Instance).filter(
+        Instance.article_id == article_db_id,
+        Instance.is_active == True,
+        *in_stock_clauses(),
+    )
+    if for_order_id is None:
+        q = q.filter(Instance.reserved_for_order_id.is_(None))
+    else:
+        q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
+                         Instance.reserved_for_order_id == for_order_id))
+    rows = q.all()
+    rows.sort(key=lambda i: (
+        0 if (for_order_id is not None and i.reserved_for_order_id == for_order_id) else 1,
+        i.released_at or i.created_at, i.object_id or 0))
+    return rows
+
+
+def available_qty(candidates: list[Instance]) -> int:
+    """Summe der Restmengen einer Kandidatenliste (Stück)."""
+    return sum(c.quantity for c in candidates)
+
+
 def in_stock_clauses() -> tuple:
     """SQLAlchemy-Bedingungen für „am Lager verfügbar" – die EINE Stelle, die die
     beiden Achsen kombiniert: qualitativ freigegeben (``quality=passed``) UND dispositiv

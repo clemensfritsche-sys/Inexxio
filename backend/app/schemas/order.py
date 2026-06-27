@@ -48,14 +48,16 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
 
 
 class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'. Zwei Modi:
+    """Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart
+    wird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER
+    eine Auswahl vorhandener Instanzen angegeben:
 
-    MAKE   – ``article_id`` + ``quantity`` (beide Pflicht): fährt den **Prozess des
-             Artikels** und ERZEUGT bei Freigabe die Instanzen.
-    CUSTOM – ``instance_object_ids`` (≥1, gleicher Artikel): ein **individueller
-             Prozess** (eigene Schritte) wirkt auf bereits vorhandene Instanzen."""
+    Artikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe
+                           die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag
+                           eigene Schritte trägt – Verkauf/Entnahme).
+    Instanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die
+                           gewählten, bereits vorhandenen Instanzen (gleicher Artikel)."""
 
-    mode: str = "make"
     article_id: Optional[int] = None
     quantity: Optional[int] = None
     instance_object_ids: Optional[list[int]] = None
@@ -65,13 +67,6 @@ class OrderCreate(BaseModel):
     recurrence_interval_days: Optional[int] = None
     recurrence_lead_time_days: Optional[int] = None
     recurrence_anchor: Optional[date] = None
-
-    @field_validator("mode")
-    @classmethod
-    def _mode_ok(cls, v: str) -> str:
-        if v not in ("make", "custom"):
-            raise ValueError("Modus muss 'make' oder 'custom' sein")
-        return v
 
     @field_validator("quantity")
     @classmethod
@@ -87,12 +82,12 @@ class OrderCreate(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> "OrderCreate":
-        if self.mode == "make":
-            if not self.article_id or not self.quantity:
-                raise ValueError("Für einen Artikel-Auftrag sind Artikel und Menge Pflicht")
-        else:
-            if not self.instance_object_ids:
-                raise ValueError("Für einen individuellen Auftrag mindestens eine Instanz wählen")
+        if self.instance_object_ids:
+            if self.article_id is not None:
+                raise ValueError("Entweder einen Artikel mit Menge ODER vorhandene Instanzen wählen – nicht beides")
+            return self
+        if not self.article_id or not self.quantity:
+            raise ValueError("Bitte einen Artikel mit Menge oder vorhandene Instanzen wählen")
         return self
 
 
@@ -143,7 +138,6 @@ class OrderSummary(BaseModel):
     id: int
     object_id: Optional[int]
     status: str
-    mode: str = "make"
     article_id: Optional[int]
     quantity: Optional[int]
     desired_delivery_date: Optional[date]
@@ -166,7 +160,10 @@ class OrderResponse(BaseModel):
     id: int
     object_id: Optional[int]
     status: str
-    mode: str = "make"
+    # Abgeleitete Subjektart (kein Modus-Flag): produce | stock | instance
+    subject_role: str = "produce"
+    # Aggregierte Bestandswirkung des Prozesses: increase | decrease | mixed | neutral
+    stock_effect: str = "neutral"
     title: Optional[str]
     article_id: Optional[int]
     quantity: Optional[int]

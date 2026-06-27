@@ -11,7 +11,7 @@ from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdat
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, sale as sale_svc, subject
+from ..services import deactivation, process, sale as sale_svc, subject
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -86,24 +86,24 @@ async def create_order(
     order = Order(
         object_id=next_object_id(db, "order"),
         status="draft",
-        mode=data.mode,
         desired_delivery_date=data.desired_delivery_date,
         recurrence_active=bool(data.recurrence_active),
         recurrence_interval_days=data.recurrence_interval_days,
         recurrence_lead_time_days=data.recurrence_lead_time_days or 0,
         recurrence_anchor=data.recurrence_anchor,
     )
-    custom_insts: list[Instance] = []
-    if data.mode == "make":
-        _validate_article(db, data.article_id)        # nur freigegebene Artikel
+    # Subjektart wird abgeleitet: vorgewählte Instanzen (chosen) ODER Artikel + Menge.
+    chosen_insts: list[Instance] = []
+    if data.instance_object_ids:                       # auf vorhandene Instanzen wirken
+        order.article_id, chosen_insts = _resolve_custom_instances(db, data.instance_object_ids)
+        order.quantity = len(chosen_insts)
+    else:                                              # Artikel + Menge (produce bzw. FIFO ab Lager)
+        _validate_article(db, data.article_id)         # nur freigegebene Artikel
         order.article_id = data.article_id
         order.quantity = data.quantity
-    else:                                              # custom: auf vorhandene Instanzen
-        order.article_id, custom_insts = _resolve_custom_instances(db, data.instance_object_ids)
-        order.quantity = len(custom_insts)
     db.add(order)
     db.flush()
-    for i in custom_insts:                             # ausgewählte Instanzen markieren
+    for i in chosen_insts:                             # ausgewählte Instanzen markieren
         i.subject_of_order_id = order.id
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
@@ -160,7 +160,9 @@ async def update_order(
     #   MAKE   – der **Artikel-Prozess** läuft, neue Instanzen entstehen.
     #   CUSTOM – der **eigene Prozess** läuft auf die ausgewählten Instanzen.
     if order.status == "released" and not was_released:
-        if order.mode == "make":
+        kind = subject.subject_kind(db, order)
+        if kind == "produce":
+            # Reiner Artikel-Auftrag (kein eigener Ablauf): fährt den Artikel-Prozess.
             if not order.article_id or not order.quantity:
                 raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
             # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
@@ -170,9 +172,16 @@ async def update_order(
                     400,
                     detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann",
                 )
-        else:                                          # custom
+        elif kind == "stock":
+            # Bestands-Auftrag per Artikel + Menge (FIFO ab Lager): Menge erforderlich;
+            # die Verfügbarkeit prüft ``materialize_subject`` (Allokation).
+            if not order.article_id or not order.quantity:
+                raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        else:                                          # chosen: vorgewählte Instanzen
             if not subject.order_instances(db, order):
                 raise HTTPException(400, detail="Für diesen Auftrag sind keine Instanzen ausgewählt")
+            if not process.order_step_infos(db, order):
+                raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
         if order.released_at is None:
             order.released_at = utcnow()   # Start der Durchlaufzeit
         subject.materialize_subject(db, order, current_user.id)

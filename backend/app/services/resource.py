@@ -15,7 +15,6 @@ verbrauchbar/nutzbar.
 """
 
 from fastapi import HTTPException
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..domain import event_types
@@ -28,7 +27,7 @@ from ..schemas.resource import (
 from . import process
 from .admin import log_audit
 from .events import emit
-from .inventory import allocate, available, in_stock_clauses
+from .inventory import allocate, available, available_qty, fifo_candidates, in_stock_clauses
 from .locations import _obj_nr, location_label, resolve_physical_location
 from .objects import next_object_id
 from .subject import order_instances
@@ -58,36 +57,6 @@ def _user_name(u: UserProfile | None) -> str | None:
         return None
     name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
     return u.company_name or name or u.email
-
-
-def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
-    """Verbrauchbare Instanzen eines Artikels: **freigegeben** (qc passed = Auftrag
-    abgeschlossen & ab Lager verfügbar), Restmenge > 0, FIFO nach Freigabe
-    (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
-
-    Reservierungen: ``for_order_id=None`` liefert nur **unreservierte** Instanzen
-    (Basis für eine neue Reservierung). Mit ``for_order_id`` kommen zusätzlich die
-    **für diesen Auftrag reservierten** Instanzen dazu – und werden **zuerst**
-    verbraucht (der Auftrag entnimmt erst seine eigene Reservierung).
-
-    Kein Standort-Filter nötig: bereits verbaute Instanzen tragen den Status
-    ``consumed`` (nicht ``passed``) und fallen damit automatisch heraus."""
-    q = db.query(Instance).filter(
-        Instance.article_id == article_db_id,
-        Instance.is_active == True,
-        *in_stock_clauses(),
-    )
-    if for_order_id is None:
-        q = q.filter(Instance.reserved_for_order_id.is_(None))
-    else:
-        q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
-                         Instance.reserved_for_order_id == for_order_id))
-    rows = q.all()
-    # Eigene Reservierung zuerst, dann FIFO nach Freigabe, dann Objektnummer.
-    rows.sort(key=lambda i: (
-        0 if (for_order_id is not None and i.reserved_for_order_id == for_order_id) else 1,
-        i.released_at or i.created_at, i.object_id or 0))
-    return rows
 
 
 def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
@@ -145,10 +114,6 @@ def _tool_candidates(db: Session, article_db_id: int) -> list[Instance]:
         .order_by(Instance.object_id)
         .all()
     )
-
-
-def available_qty(candidates: list[Instance]) -> int:
-    return sum(c.quantity for c in candidates)
 
 
 # ─── Ausführung ───────────────────────────────────────────────────────────────

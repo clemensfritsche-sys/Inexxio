@@ -28,18 +28,13 @@ class Order(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Auftrags-Modus: ``make`` (Artikel+Menge → fährt den Artikel-Prozess, ERZEUGT
-    # Instanzen) | ``custom`` (eigener Prozess auf ausgewählte, vorhandene Instanzen).
-    mode: Mapped[str] = mapped_column(String(10), default="make", server_default="make", nullable=False)
-
-    # Bedarf: welcher Artikel in welcher Menge.
-    #
-    # ZWEI Auftrags-Modi (kein Prozess-Objekt mehr):
-    #   MAKE   – ``article_id`` + ``quantity`` gesetzt, KEINE eigenen Schritte:
-    #            der Auftrag fährt den **Prozess des Artikels** und ERZEUGT Instanzen.
-    #   CUSTOM – der Auftrag trägt **eigene** Prozessschritte (``article_process_steps``
-    #            mit ``order_id`` = dieser Auftrag) und wirkt auf **bereits vorhandene**,
-    #            ausgewählte Instanzen (markiert über ``instances.subject_of_order_id``).
+    # Bedarf: welcher Artikel in welcher Menge. Die **Subjektart wird abgeleitet**
+    # (kein Modus-Flag, siehe ``services/subject.py``):
+    #   produce – ``article_id`` + ``quantity``, KEINE eigenen Schritte → fährt den
+    #             **Prozess des Artikels** und ERZEUGT Instanzen.
+    #   stock   – eigene Schritte (``article_process_steps`` mit ``order_id``) ohne
+    #             vorgewählte Instanzen → Subjekt FIFO ab Lager (Verkauf/Entnahme).
+    #   chosen  – wirkt auf vorgewählte, vorhandene Instanzen (``instances.subject_of_order_id``).
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

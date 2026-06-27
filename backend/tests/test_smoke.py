@@ -332,7 +332,7 @@ def test_instance_orders_schema_and_service():
     from app.schemas.instance import InstanceOrderRef
     from app.services import references
 
-    for f in ("object_id", "mode", "status", "roles", "at"):
+    for f in ("object_id", "status", "roles", "at"):
         assert f in InstanceOrderRef.model_fields
     assert callable(references.instance_orders)
 
@@ -494,7 +494,7 @@ def test_order_desired_date_must_be_future():
 
     from app.schemas.order import OrderCreate
 
-    base = dict(mode="make", article_id=100_000_001, quantity=1)
+    base = dict(article_id=100_000_001, quantity=1)
     assert OrderCreate(**base, desired_delivery_date=date.today()).desired_delivery_date == date.today()
     future = date.today() + timedelta(days=5)
     assert OrderCreate(**base, desired_delivery_date=future).desired_delivery_date == future
@@ -862,21 +862,58 @@ def test_order_modes_make_and_custom():
     from app.models import Order
     from app.schemas.order import OrderCreate, OrderResponse
 
-    assert "mode" in Order.__table__.columns.keys()
-    for gone in ("process_id", "subject_instance_id"):
+    # Kein Modus-Flag mehr – die Subjektart wird abgeleitet (services/subject.py).
+    for gone in ("mode", "process_id", "subject_instance_id"):
         assert gone not in Order.__table__.columns.keys()
-    # MAKE: Artikel + Menge Pflicht
-    assert OrderCreate(mode="make", article_id=100_000_001, quantity=5).quantity == 5
+    # Artikel + Menge (produce bzw. FIFO ab Lager)
+    assert OrderCreate(article_id=100_000_001, quantity=5).quantity == 5
     with pytest.raises(ValueError):
-        OrderCreate(mode="make")                       # Artikel/Menge fehlen
-    # CUSTOM: mindestens eine Instanz Pflicht
-    assert OrderCreate(mode="custom", instance_object_ids=[100_000_010]).instance_object_ids == [100_000_010]
+        OrderCreate()                                  # weder Artikel/Menge noch Instanzen
+    # Vorhandene Instanzen (chosen): mindestens eine, NICHT zusammen mit einem Artikel
+    assert OrderCreate(instance_object_ids=[100_000_010]).instance_object_ids == [100_000_010]
     with pytest.raises(ValueError):
-        OrderCreate(mode="custom")                     # keine Instanz gewählt
-    for f in ("mode", "sale", "instances", "steps"):
+        OrderCreate(article_id=100_000_001, quantity=1, instance_object_ids=[100_000_010])
+    for f in ("subject_role", "stock_effect", "sale", "instances", "steps"):
         assert f in OrderResponse.model_fields
-    for gone in ("process_id", "process_source", "subject_instance_id"):
+    for gone in ("mode", "process_id", "process_source", "subject_instance_id"):
         assert gone not in OrderResponse.model_fields
+
+
+def test_subject_role_and_stock_effect_declared():
+    """Subjektart + Bestandswirkung werden aus den Schritt-Typen ABGELEITET (REA-Registry):
+    Verkauf greift FIFO auf den Bestand zu (stock) und mindert ihn (decrease)."""
+    from app.domain import event_types
+
+    assert event_types.derive_subject_mode({"sale"}) == "stock"
+    assert event_types.derive_subject_mode({"purchase", "resource"}) == "produce"
+    assert event_types.derive_subject_mode({"inspection", "movement"}) == "instance"
+    # gemischter Prozess: Verkauf dominiert die Subjektart (stock ≻ produce ≻ instance)
+    assert event_types.derive_subject_mode({"purchase", "sale"}) == "stock"
+
+    assert event_types.aggregate_stock_effect({"sale"}) == "decrease"
+    assert event_types.aggregate_stock_effect({"purchase"}) == "increase"
+    assert event_types.aggregate_stock_effect({"purchase", "sale"}) == "mixed"
+    assert event_types.aggregate_stock_effect({"inspection", "movement"}) == "neutral"
+
+
+def test_subject_service_derives_kind_without_mode_flag():
+    """Das Subjekt wird ohne Modus-Flag abgeleitet; FIFO-Allokation lebt im Bestandsmodul."""
+    from app.services import subject
+    from app.services.inventory import available_qty, fifo_candidates
+
+    assert callable(subject.subject_kind)         # chosen ≻ stock ≻ produce
+    assert callable(subject.materialize_subject)
+    assert callable(subject._allocate_stock_subject)
+    assert callable(fifo_candidates) and callable(available_qty)
+
+
+def test_instance_order_ref_has_no_mode_flag():
+    """Die Auftragsliste einer Instanz zeigt Rollen + Status (kein Modus-Flag mehr)."""
+    from app.schemas.instance import InstanceOrderRef
+
+    assert "mode" not in InstanceOrderRef.model_fields
+    for f in ("object_id", "status", "roles", "at"):
+        assert f in InstanceOrderRef.model_fields
 
 
 def test_sale_step_mirrors_purchase():

@@ -32,6 +32,7 @@ from .admin import log_audit
 from .events import emit
 from .inventory import in_stock_clauses
 from .objects import next_object_id
+from .processes import has_custom_steps
 
 
 # ─── Artikel: Kaskade über consume-Ressourcen ────────────────────────────────
@@ -236,11 +237,11 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
 
 def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
     new = Order(object_id=next_object_id(db, "order"), status="draft", title=src.title,
-                mode=src.mode, article_id=src.article_id, quantity=src.quantity,
+                article_id=src.article_id, quantity=src.quantity,
                 desired_delivery_date=src.desired_delivery_date)
     db.add(new)
     db.flush()
-    if src.mode == "custom":   # individuellen Ablauf mitkopieren
+    if has_custom_steps(db, src):   # individuellen Ablauf mitkopieren
         _copy_steps(db, src_order_id=src.id, dst_order_id=new.id)
     log_audit(db, "orders", None, f"Auftrag als Ersatz für {src.object_id} angelegt",
               actor_id, object_id=new.object_id)

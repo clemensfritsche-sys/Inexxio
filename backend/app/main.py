@@ -100,9 +100,8 @@ _COLUMN_SAFETY_NET = (
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),
     ("storage_locations", "replaced_by_id", "BIGINT"),
-    # Prozess am Artikel ODER am Auftrag (kein Prozess-Objekt mehr) + Auftrags-Modus
+    # Prozess am Artikel ODER am Auftrag (kein Prozess-Objekt mehr)
     ("article_process_steps", "order_id", "BIGINT"),
-    ("orders", "mode", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
     ("instances", "subject_of_order_id", "BIGINT"),
     # qc_status in zwei Achsen aufgeteilt: quality (QC-Verdikt) + disposition (Verbleib)
     ("instances", "quality", "VARCHAR(20) DEFAULT 'pending' NOT NULL"),

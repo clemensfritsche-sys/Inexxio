@@ -68,7 +68,7 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
         if not o or not o.object_id:
             continue
         out.append({
-            "object_id": o.object_id, "mode": o.mode, "status": o.status,
+            "object_id": o.object_id, "status": o.status,
             "roles": h["roles"], "at": h["at"] or o.created_at,
         })
     out.sort(key=lambda r: r["object_id"])   # chronologisch: Herkunft zuerst
