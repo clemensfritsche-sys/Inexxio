@@ -594,6 +594,10 @@ def test_deviation_endpoint_creates_sub_order():
     # Abweichung = Auftrag mit Eltern, übernimmt die Instanzen als Subjekt
     assert "parent_order_id=parent.object_id" in create
     assert "subject_of_order_id" in create
+    # Die Abweichung wird SOFORT dauerhaft in der Instanz-Historie festgehalten
+    # (InstanceOrderLink), damit sie ab Anlage unter «Aufträge» der Instanz erscheint –
+    # nicht erst bei Freigabe und unabhängig von der wandernden subject_of_order_id-Bindung.
+    assert "record_link" in create
 
 
 def test_failed_inspection_triggers_deviation():

@@ -53,18 +53,19 @@ function todayIso(): string {
 
 // Abgeleitete Subjektart des Auftrags (kein Modus-Flag) – für die Anzeige.
 function subjectRoleLabel(role: string | null | undefined): string {
+  if (role === 'deviation') return 'Abweichung – wirkt auf vorhandene Instanzen';
   return role === 'stock' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
 }
 
-// Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig).
-// Kein Reaktivieren – ein abgebrochener Auftrag wird neu gestartet (Ersetzen).
-function orderActions(status: string, canRelease: boolean): StatusAction[] {
+// Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
+// Auftrag kennt nur noch **Abbrechen** (Ersetzen entfällt – ein Abbruch erzwingt ohnehin
+// den Folgeauftrag mit denselben Instanzen).
+function orderActions(status: string, canRelease: boolean, releaseHint?: string): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
-      hint: canRelease ? undefined : 'Erst Artikel und Menge speichern' }];
+      hint: canRelease ? undefined : releaseHint }];
   if (status === 'released')
-    return [{ label: 'Ersetzen', target: 'replace', tone: 'neutral' },
-            { label: 'Abbrechen', target: 'inactive', tone: 'danger' }];
+    return [{ label: 'Abbrechen', target: 'inactive', tone: 'danger' }];
   return [];   // inactive/completed → kein manueller Wechsel
 }
 
@@ -87,7 +88,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
@@ -95,8 +96,11 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setForm((p) => ({ ...p, [key]: value }));
   }
 
-  // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only) und nur für Mitarbeiter
-  const demandEditable = isStaff && (isCreate || record?.status === 'draft');
+  // Abweichung (Unter-Auftrag): Subjekt-Instanzen + Bedarf stehen bereits fest (aus dem
+  // Eltern-Auftrag) – keine Ziel-Karten/Instanzauswahl, kein editierbarer Bedarf.
+  const isDeviation = record?.parent_order_id != null;
+  // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only); bei einer Abweichung fix.
+  const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isDeviation;
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
   // «Abweichung melden»: nur bei realen, in-Arbeit/fertigen Instanzen (freigegeben/
@@ -138,9 +142,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const reqQty = record?.quantity ?? 0;
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
-    if (!isDraftStaff || record?.article_id == null) { setPinPool([]); return; }
+    // Bei einer Abweichung stehen die Instanzen fest – kein Lagerpool nötig.
+    if (!isDraftStaff || isDeviation || record?.article_id == null) { setPinPool([]); return; }
     api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isDraftStaff, record?.article_id]);
+  }, [isDraftStaff, isDeviation, record?.article_id]);
   const articleStock = pinPool.filter((i) =>
     i.object_id != null && i.article_id === record?.article_id &&
     i.quality === 'passed' && i.disposition === 'in_stock' &&
@@ -170,10 +175,17 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
   // «Instanz wählen» verlangt, dass die gewählten Instanzen die Auftragsmenge GENAU decken.
   const specificComplete = goal !== 'specific' || pinnedQty === reqQty;
-  // Freigabe erst möglich, wenn der Bedarf gespeichert ist UND (bei «Instanz wählen») die
-  // Stückzahl vollständig gewählt wurde.
+  // Abweichung: Instanzen sind schon gebunden – Freigabe braucht nur einen definierten Ablauf
+  // (mind. einen Schritt, der festlegt, was mit den Instanzen geschieht).
+  const stepCount = orderStepCount ?? (record?.steps?.length ?? 0);
+  const deviationReady = stepCount > 0;
+  // Freigabe: Bedarf gespeichert UND – je nach Auftragsart – Ablauf definiert (Abweichung)
+  // bzw. Instanzauswahl vollständig (reguläre Bestands-Operation «Instanz wählen»).
   const canRelease = !isCreate && !!record?.article_id && !!record?.quantity
-    && sig === savedSig && specificComplete;
+    && sig === savedSig && (isDeviation ? deviationReady : specificComplete);
+  const releaseHint = isDeviation
+    ? (deviationReady ? undefined : 'Erst einen Prozessschritt für die Abweichung hinzufügen')
+    : (!specificComplete ? `Erst genau ${reqQty} Instanz(en) wählen` : 'Erst Artikel und Menge speichern');
 
   async function setPins(ids: number[]) {
     if (!record) return;
@@ -247,10 +259,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     }
   }
 
-  // Abbrechen/Ersetzen laufen über einen Bestätigungsdialog.
+  // Abbrechen läuft über einen Bestätigungsdialog (Ersetzen entfällt).
   function onStatusAction(target: string) {
     if (target === 'inactive') { setDialog('deactivate'); return; }
-    if (target === 'replace') { setDialog('replace'); return; }
     changeStatus(target);
   }
 
@@ -259,12 +270,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     // Abbruch erzwingt einen Folgeauftrag (Abweichung), der die im Prozess befindlichen
     // Instanzen übernimmt; bei einem Entwurf wird direkt inaktiviert. Navigiert zum Ergebnis.
     onSaved(await api.abortOrder(record.object_id as number));
-    setDialog(null);
-  }
-
-  async function confirmReplace() {
-    if (!record) return;
-    onSaved(await api.replaceOrder(record.object_id as number));   // navigiert zum neuen Auftrag
     setDialog(null);
   }
 
@@ -308,7 +313,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               ) : (isCompleted || !isStaff) ? (
                 <StatusBadge cfg={orderStatusConfig(record.status)} />
               ) : (
-                <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
               )}
               {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
             </div>
@@ -392,7 +397,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). */}
-        {isStaff && record?.status === 'draft' && <RecurrenceCard order={record} onSaved={onSaved} />}
+        {isStaff && record?.status === 'draft' && !isDeviation && <RecurrenceCard order={record} onSaved={onSaved} />}
 
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
@@ -435,9 +440,26 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </>
         )}
 
+        {/* Abweichung (Entwurf): Subjekt-Instanzen stehen fest (oben gelistet) – KEINE
+            Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren (was mit ihnen geschieht),
+            dann freigeben. */}
+        {isStaff && record?.status === 'draft' && isDeviation && (
+          <>
+            <SectionTitle icon={Workflow}>Ablauf der Abweichung</SectionTitle>
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten,
+                prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.
+              </div>
+              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
+            </div>
+          </>
+        )}
+
         {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
             Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung). */}
-        {isStaff && record?.status === 'draft' && (
+        {isStaff && record?.status === 'draft' && !isDeviation && (
           <>
             <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
@@ -577,14 +599,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       {dialog && record && (
         <DeactivateDialog
           mode={dialog}
-          title={dialog === 'replace' ? 'Auftrag ersetzen' : 'Auftrag abbrechen'}
-          message={dialog === 'replace'
-            ? 'Ein neuer Auftrag (Entwurf, gleicher Artikel/Menge) wird angelegt und verknüpft; dieser wird abgebrochen.'
-            : record.status === 'released'
-              ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
-              : 'Der Entwurf wird inaktiv gesetzt.'}
-          confirmLabel={dialog === 'replace' ? 'Ersetzen' : record.status === 'released' ? 'Folgeauftrag anlegen' : 'Abbrechen'}
-          onConfirm={async () => { if (dialog === 'replace') await confirmReplace(); else await confirmCancel(); }}
+          title="Auftrag abbrechen"
+          message={record.status === 'released'
+            ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
+            : 'Der Entwurf wird inaktiv gesetzt.'}
+          confirmLabel={record.status === 'released' ? 'Folgeauftrag anlegen' : 'Abbrechen'}
+          onConfirm={confirmCancel}
           onClose={() => setDialog(null)}
         />
       )}

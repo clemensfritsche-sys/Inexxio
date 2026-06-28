@@ -17,7 +17,7 @@ from ..models import Instance, Order
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
-from .subject import order_instances
+from .subject import order_instances, record_link
 
 
 def open_deviations(db: Session, parent: Order) -> list[Order]:
@@ -66,6 +66,10 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     db.flush()
     for inst in insts:                       # betroffene Instanzen an die Abweichung binden
         inst.subject_of_order_id = devi.id
+        # Sofort dauerhaft in der Instanz-Historie festhalten (nicht erst bei Freigabe):
+        # die Abweichung erscheint ab Anlage unter «Aufträge» der Instanz, unabhängig von
+        # der wandernden ``subject_of_order_id``-Bindung (InstanceOrderLink = Quelle der Wahrheit).
+        record_link(db, inst.object_id, devi.id)
     log_audit(db, "orders", None, f"Abweichung zu {parent.object_id} angelegt", actor_id,
               object_id=devi.object_id)
     emit(db, "order.deviation_opened", object_type="order", object_id=devi.object_id,
