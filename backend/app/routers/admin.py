@@ -71,6 +71,7 @@ async def get_public_settings(db: Session = Depends(get_db)):
         return {"company_name": "Inexxio AG", "legal_form": "AG", "email": "info@inexxio.com",
                 "website": "https://inexxio.com", "country": "Schweiz"}
     return {
+        "object_id": s.object_id,
         "company_name": s.company_name, "legal_form": s.legal_form,
         "street": s.street, "street_nr": s.street_nr, "zip_code": s.zip_code,
         "city": s.city, "country": s.country, "uid_number": s.uid_number,

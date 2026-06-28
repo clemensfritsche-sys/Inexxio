@@ -297,6 +297,22 @@ def _backfill_object_registry() -> None:
         db.close()
 
 
+def _ensure_company_object_id() -> None:
+    """Das Unternehmen (Singleton) als nummerierten ERP-Datensatz sicherstellen:
+    fehlt die Objektnummer, wird sie hier EINMALIG beim Start vergeben – deploy-
+    deterministisch und unabhängig davon, ob jemand die Admin-Einstellungen öffnet
+    (der öffentliche Settings-Endpoint vergibt bewusst keine Nummern)."""
+    from .services.admin import get_or_create_settings
+    db = SessionLocal()
+    try:
+        get_or_create_settings(db)   # legt Settings an + vergibt object_id (committet)
+    except Exception as e:
+        db.rollback()
+        print(f"WARNING: _ensure_company_object_id() failed: {e}", flush=True)
+    finally:
+        db.close()
+
+
 
 
 # Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
@@ -320,6 +336,7 @@ def _run_startup_fixups_once() -> None:
         _ensure_columns()
         _ensure_object_id_sequence()
         _backfill_object_registry()
+        _ensure_company_object_id()   # Firma = nummerierter ERP-Datensatz
     except Exception as e:
         print(f"WARNING: _run_startup_fixups_once() failed: {e}", flush=True)
     finally:
