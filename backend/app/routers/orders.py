@@ -5,6 +5,7 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, PurchaseOrder, Sale, UserProfile
 from ..models.base import utcnow
+from ..schemas.disposal import ScrapUpdate
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import OrderCreate, OrderDeviationCreate, OrderResponse, OrderSummary, OrderUpdate
@@ -17,6 +18,7 @@ from ..services.events import emit
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
+from ..services.scrap import record_scrap
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order
@@ -391,5 +393,19 @@ async def update_order_resource(
     """Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel."""
     order = _get_staff_order(db, object_id)
     record_resource(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/scrap", response_model=OrderResponse)
+async def update_order_scrap(
+    object_id: int,
+    data: ScrapUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')."""
+    order = _get_staff_order(db, object_id)
+    record_scrap(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)

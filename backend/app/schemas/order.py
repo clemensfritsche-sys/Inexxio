@@ -4,6 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .disposal import DisposalEmbed
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
 from .movement import MovementEmbed
@@ -33,6 +34,7 @@ class OrderStepInfo(BaseModel):
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
+    disposal: Optional[DisposalEmbed] = None
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
@@ -190,6 +192,7 @@ class OrderResponse(BaseModel):
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
+    disposal: Optional[DisposalEmbed] = None
     steps: list[OrderStepInfo] = []
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None

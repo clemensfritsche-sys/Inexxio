@@ -20,6 +20,7 @@ import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
+import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 
@@ -621,6 +622,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     inspection: step.inspection ?? order.inspection,
     movement: step.movement ?? order.movement,
     resource: step.resource ?? order.resource,
+    disposal: step.disposal ?? order.disposal,
   };
   const stepState = step.state;
   const stepId = step.id;
@@ -640,6 +642,9 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   }
   if (step.step_type === 'resource' || step.step_type === 'consume' || step.step_type === 'tool') {
     return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+  }
+  if (step.step_type === 'scrap') {
+    return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return null;
 }

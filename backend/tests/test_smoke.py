@@ -196,7 +196,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "sale"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -932,12 +932,13 @@ def test_step_type_whitelist_per_context():
 
     art = event_types.allowed_step_types("article")
     order = event_types.allowed_step_types("order")
-    # Artikel-Prozess (Herstellung): alles ausser Verkauf.
-    assert "sale" not in art
+    # Artikel-Prozess (Herstellung): kein Verkauf UND kein Verschrotten (beides wirkt
+    # auf vorhandenen Bestand, läuft über einen Auftrag).
+    assert "sale" not in art and "scrap" not in art
     assert {"purchase", "resource", "inspection", "movement"} <= set(art)
     # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
-    # (z. B. Wartung mit Verbrauchsmaterial oder auswärtiger Vergabe) und Verkauf.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "sale"}
+    # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
 
 
 def test_webshop_url_is_validated():
@@ -1080,12 +1081,14 @@ def test_event_type_registry_declares_polarity():
     Richtung)."""
     from app.domain import event_types as ev
 
-    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "sale"}
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
     assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
     # Polarität ist deklariert, nicht abgeleitet:
     assert ev.polarity("purchase") == ev.INCREASE
     assert ev.polarity("resource") == ev.INCREASE
     assert ev.polarity("sale") == ev.DECREASE
+    assert ev.polarity("scrap") == ev.DECREASE     # Verschrotten mindert den Bestand
+    assert ev.subject_role("scrap") == ev.INSTANCE  # wirkt auf bestehende Instanzen
     assert ev.polarity("movement") == ev.MOVE
     assert ev.polarity("inspection") == ev.NEUTRAL
     # Vorzeichen fürs Ledger (Event-Payload-Anreicherung):
@@ -1103,8 +1106,39 @@ def test_legacy_resource_aliases_removed():
         assert alias not in STEP_LABELS
         assert alias not in _FACT_MODEL
     assert RESOURCE_STEP_TYPES == ("resource",)
-    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "sale"}
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
     assert STEP_LABELS["resource"] == "Ressource"
+
+
+def test_scrap_step_is_wired_end_to_end():
+    """«Verschrotten» (scrap) ist ein vollwertiger Schritttyp: deklarierte Polarität,
+    eigene Fachtabelle (Disposal), Service setzt disposition='scrapped' + schliesst ab."""
+    import inspect as _inspect
+
+    from app.domain import event_types as ev
+    from app.models import Disposal
+    from app.schemas.disposal import ScrapUpdate
+    from app.schemas.order import OrderResponse, OrderStepInfo
+    from app.services import process, scrap
+
+    # Registry: Verschrotten mindert Bestand, wirkt auf bestehende Instanzen, Fact = Disposal.
+    assert ev.REGISTRY["scrap"].fact == "Disposal"
+    assert process._FACT_MODEL["scrap"] is Disposal
+    # Fachtabelle (Abschluss-Marker, keine eigene Objektnummer)
+    assert Disposal.__tablename__ == "disposals"
+    assert "object_id" not in Disposal.__table__.columns.keys()
+    # Schritt gilt als erledigt, sobald eine Disposal-Zeile existiert
+    assert process._fact_status("scrap", None) == "open"
+    assert process._fact_status("scrap", object()) == "done"
+    # Embed im Auftrag/Schritt verfügbar
+    assert "disposal" in OrderStepInfo.model_fields
+    assert "disposal" in OrderResponse.model_fields
+    # Service setzt disposition='scrapped' und schliesst den Schritt ab
+    src = _inspect.getsource(scrap.record_scrap)
+    assert 'inst.disposition = "scrapped"' in src
+    assert "recompute_completion" in src
+    # Mindestens eine Instanz wählen (kein leeres Verschrotten)
+    assert ScrapUpdate().instance_ids == []
 
 
 # ─── qc_status → quality + disposition (zwei orthogonale Achsen) ─────────────────

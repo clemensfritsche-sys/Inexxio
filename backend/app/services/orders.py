@@ -8,10 +8,11 @@ from sqlalchemy.orm import Query, Session
 
 from ..domain import event_types
 from ..models import (
-    Article, ArticleProcessStep, AuditLog, CompanySettings, Inspection,
+    Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
     Movement, Order, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
+from ..schemas.disposal import DisposalEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
@@ -139,6 +140,16 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     return me
 
 
+def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
+                    scrapped_count: int) -> DisposalEmbed:
+    de = DisposalEmbed(id=disp.id if disp else 0, done=disp is not None,
+                       note=disp.note if disp else None, scrapped_count=scrapped_count)
+    if disp and disp.scrapped_by_id:
+        de.scrapped_by_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == disp.scrapped_by_id).first())
+    return de
+
+
 def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     """Wer/Wann den Wareneingang bestätigt hat (aus dem Bestell-Verlauf)."""
     for h in po_embed.history:
@@ -218,6 +229,13 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             first.setdefault("movement", emb)
             if done:
                 by_name, at = emb.moved_by_name, (fact.updated_at if fact else None)
+        elif step.step_type == "scrap":
+            scrapped_count = sum(1 for i in instances if i.disposition == "scrapped")
+            emb = _disposal_embed(db, order, fact, scrapped_count)
+            si.disposal = emb
+            first.setdefault("disposal", emb)
+            if done:
+                by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
         elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
@@ -239,6 +257,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.inspection = first.get("inspection")
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
+    resp.disposal = first.get("disposal")
     return resp
 
 

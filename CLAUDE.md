@@ -264,15 +264,25 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Durchlaufzeit** je Artikel (read-only, analog Preisspanne): kürzeste–längste Zeit zwischen Freigabe
   (`orders.released_at`) und Abschluss (`orders.completed_at`) über erledigte Aufträge
   (`ArticleResponse.lead_time_days_low/high`, berechnet in `routers/articles.py`).
-- **Reklamation (RMA)**: eigenständiger ERP-Objekttyp mit eigener Objektnummer (= RMA-Nr., Tabelle
-  `claims`, Feed-Typ «Reklamationen»). Bezieht sich auf **genau eine Instanz**; Artikel/Auftrag werden
-  daraus abgeleitet. `direction` (intern/Lieferant/Kunde), `reason` (Defekt/Schaden/Falschlieferung/
-  Menge/Doku/Sonstiges), `resolution` (Nacharbeit/Ersatz/Rücksendung/Gutschrift). Status als **Prozess**:
-  Offen →[Annehmen]→ Angenommen →[Abschliessen]→ Abgeschlossen (+[Ablehnen]→ Abgelehnt, Wiedereröffnen).
-  Inhalte nach Abschluss/Ablehnung gesperrt. **Auto-Trigger**: fehlgeschlagene Datenerfassung legt
-  automatisch eine interne Reklamation an (idempotent, `source='inspection'`). Instanz-«Verwendung» listet
-  zugehörige Reklamationen (`services/claims.py`, `routers/claims.py`). **Konfigurierbare
-  Prozessschritte je RMA sind bewusst noch nicht umgesetzt** (späterer Ausbau).
+- **Abweichung (vereinheitlicht Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit)**: KEIN eigener
+  Datentyp – eine Abweichung ist ein **Unter-Auftrag** (`orders.parent_order_id`), der aus einem laufenden
+  Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt – OHNE Lager-FIFO/-Reservierung (die
+  Instanzen sind bereits in Arbeit/im Besitz). Der Eltern-Auftrag **pausiert** (`process._is_paused_by_
+  deviation`), solange eine Abweichung offen ist. `services/deviation.py`; Endpoint `POST /orders/{id}/
+  deviation` («Abweichung melden», am Auftrag- und Instanz-Detail). **Auto-Trigger**: fehlgeschlagene
+  Datenerfassung legt automatisch eine Abweichung auf die Durchfaller-Instanzen an (idempotent,
+  `auto_deviation_from_inspection`). Der frühere eigenständige `Claim`-Typ ist **vollständig entfernt**
+  (Migration 037 droppt `claims`).
+  - **Abbruch erzwingt einen Folgeauftrag**: «Abbrechen» (`POST /orders/{id}/abort`) setzt einen
+    freigegebenen Auftrag NICHT direkt inaktiv, sondern erzeugt einen Folgeauftrag (Abweichung), der die
+    im Prozess befindlichen Instanzen übernimmt (`abort_into_id`). Das Original wird erst inaktiv, wenn der
+    Folgeauftrag **freigegeben** ist (`apply_abort_on_release`, `keep_instances=True`) – keine herrenlosen
+    Teile. Ein Entwurf ohne Instanzen wird direkt inaktiv.
+  - **Verschrotten** (`scrap`, Schritttyp, Migration 038, `services/scrap.py`): die definierte Auflösung
+    einer Abweichung – gewählte Instanzen → `disposition='scrapped'` (Bestandsabgang, DECREASE/INSTANCE in
+    der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig
+    (nicht im Artikel-Prozess). Durchfaller sind im Panel vorausgewählt. **«Ersatz»** = Komposition aus
+    `scrap` (defektes Teil raus) + Beschaffung/Bestand (neues herein) – kein monolithischer Schritt.
 - **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
   grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
   durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern
@@ -309,12 +319,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > Ein **Auftrag** ist der Trigger in zwei **Modi**: **make** (Artikel + Menge → fährt den Artikel-Prozess,
 > ERZEUGT Instanzen) oder **custom** (ausgewählte vorhandene Instanzen + individueller Prozess am Auftrag).
 > **Instanzschritte verarbeiten nur Instanzen**; Artikel dienen v. a. als FIFO-Bezug. Schritttypen: purchase,
-> inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), sale. `quality`+
-> `disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-Polarität.
-> **Reklamation (RMA)** ist eigenständiges Objekt. E-Mail (Gmail API) + Stripe sind **noch nicht** umgesetzt.
+> inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), **scrap** (Verschrotten),
+> sale. `quality`+`disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-
+> Polarität. **Abweichung** (Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit) ist KEIN eigener Typ
+> mehr, sondern ein **Unter-Auftrag** (`parent_order_id`); der frühere `Claim`-Typ ist entfernt. E-Mail
+> (Gmail API) + Stripe sind **noch nicht** umgesetzt.
 
 Nächste Aufgabe: Custom-Auftrag-UX verfeinern (Instanz-Mehrfachauswahl/Filter); Instanz = vollständige
-Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang; Reklamation – Prozessschritte je RMA;
+Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang & beim Verschrotten;
 E-Mail (Gmail API); Stripe.
 
 ## Deployment
