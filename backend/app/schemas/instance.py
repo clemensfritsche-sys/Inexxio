@@ -67,6 +67,7 @@ class InstanceEmbed(BaseModel):
     quantity: int
     quality: str          # QC-Verdikt: pending | passed | failed
     disposition: str      # Verbleib: in_process | in_stock | consumed | sold | scrapped
+    reserved_for_order_id: Optional[int] = None   # fest reserviert (scharf ab Freigabe)
     location_type: Optional[str] = None
     location_id: Optional[int] = None
     location_label: Optional[str] = None   # vom Router denormalisiert

@@ -5668,6 +5668,17 @@
             "type": "string",
             "title": "Disposition"
           },
+          "reserved_for_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved For Order Id"
+          },
           "location_type": {
             "anyOf": [
               {

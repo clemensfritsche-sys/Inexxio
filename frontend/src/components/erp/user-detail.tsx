@@ -59,7 +59,7 @@ interface FieldProps {
   span2?: boolean;
 }
 
-function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldProps) {
+export function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldProps) {
   const editable = 'w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
   const readonlyCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-100 bg-slate-50 text-slate-400 outline-none cursor-default';
 
@@ -94,7 +94,7 @@ function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldPr
 
 // ─── Section card ────────────────────────────────────────────────────────────
 
-function Sec({ title, children, editable, icon: Icon }: {
+export function Sec({ title, children, editable, icon: Icon }: {
   title: string;
   children: React.ReactNode;
   editable?: boolean;

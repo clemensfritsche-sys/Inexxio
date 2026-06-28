@@ -1617,6 +1617,8 @@ export interface components {
             quality: string;
             /** Disposition */
             disposition: string;
+            /** Reserved For Order Id */
+            reserved_for_order_id?: number | null;
             /** Location Type */
             location_type?: string | null;
             /** Location Id */

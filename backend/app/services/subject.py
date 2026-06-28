@@ -55,11 +55,17 @@ def subject_kind(db: Session, order: Order) -> str:
     """Abgeleitete Subjektart (Artikel ist immer der Anker):
 
     ``produce`` – KEINE eigenen Schritte → der Auftrag fährt den Artikel-Prozess und
-      ERZEUGT neue Instanzen.
-    ``stock``   – eigene Schritte (oder vorgewählte Instanzen) → der Auftrag wirkt auf
-      vorhandene Instanzen des Artikels: ``quantity`` Stück, FIFO ab Lager, optional
-      durch fixierte (gepinnte) Instanzen ergänzt/ersetzt."""
-    if has_custom_steps(db, order) or chosen_subjects(db, order):
+      ERZEUGT neue Instanzen (auch jede **Beschaffung**: der Artikel-Prozess bringt den
+      Bestand herein – es wird NIE vorhandener Bestand vorausgesetzt).
+    ``stock``   – eigene Schritte → der Auftrag wirkt auf **vorhandene** Instanzen des
+      Artikels (Wartung/Verkauf/Bewegung): ``quantity`` Stück, FIFO ab Lager, optional
+      durch fixierte (gepinnte) Instanzen ergänzt/ersetzt.
+
+    Massgeblich ist **allein** ``has_custom_steps`` – eigene Schritte = Operation am
+    Bestand, keine = Herstellung. Eine reine (Entwurfs-)Pin-Auswahl ohne Schritte kippt
+    den Auftrag NICHT in eine Bestands-Operation (sonst scheitert die Herstellung an
+    „kein Bestand")."""
+    if has_custom_steps(db, order):
         return "stock"
     return "produce"
 
@@ -100,8 +106,11 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
 
     stock   → ``quantity`` Instanzen des Artikels binden: zuerst die fixierten (gepinnten)
       Instanzen, den Rest **FIFO ab Lager** auffüllen – alle für diesen Auftrag reserviert.
-    produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel)."""
-    if has_custom_steps(db, order) or chosen_subjects(db, order):
+    produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel).
+
+    Entscheidend ist **allein** ``has_custom_steps`` (siehe ``subject_kind``); eine
+    Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern)."""
+    if has_custom_steps(db, order):
         _allocate_stock_subject(db, order, actor_id)
         return
     create_instances_for_order(db, order, actor_id)

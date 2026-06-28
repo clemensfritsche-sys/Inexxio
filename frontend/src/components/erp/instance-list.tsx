@@ -46,7 +46,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
             {instanceLabel(i.kind, i.quantity, unit)}
             {i.order_object_id ? ` · Auftrag ${fmtObjId(i.order_object_id)}` : ''}
           </span>
-          <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition)} />
+          <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, i.reserved_for_order_object_id != null)} />
         </div>
       ))}
     </div>

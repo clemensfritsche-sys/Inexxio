@@ -49,8 +49,10 @@ def _validate_article(db: Session, article_id: int | None) -> None:
 
 def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Instance]:
     """Zu fixierende (gepinnte) Instanzen prüfen: Artikel des Auftrags, am Lager verfügbar
-    und nicht bereits von einem ANDEREN aktiven Auftrag gewählt/reserviert. Die Festlegung
-    ist eine Vormerkung; **scharf reserviert** wird erst bei der Freigabe."""
+    und nicht bereits **fest reserviert** von einem anderen Auftrag. Die Festlegung im
+    Entwurf ist nur eine **Vormerkung** – sie sperrt die Instanz NICHT; **scharf
+    reserviert** wird erst bei der Freigabe. Mehrere Entwürfe dürfen dieselbe Instanz
+    vormerken; wer zuerst freigibt, reserviert, der zweite scheitert dann an der Prüfung."""
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
@@ -60,8 +62,8 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
         if not (i.quality == "passed" and i.disposition == "in_stock"):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if i.reserved_for_order_id not in (None, order.id) or i.subject_of_order_id not in (None, order.id):
-            raise HTTPException(409, detail=f"Instanz {oid} ist bereits von einem anderen Auftrag gewählt")
+        if i.reserved_for_order_id not in (None, order.id):
+            raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
         insts.append(i)
     return insts
 

@@ -16,20 +16,19 @@ from ..models import Instance
 
 
 def claim_clauses(for_order_id: int | None) -> tuple:
-    """Eine Instanz ist für eine **neue/laufende Allokation frei**, wenn sie weder fest
-    **reserviert** (``reserved_for_order_id``) noch an einen Auftrag **gebunden**
-    (``subject_of_order_id``) ist – ausser an genau diesen Auftrag (``for_order_id``).
+    """Eine Instanz ist für eine **neue/laufende Allokation frei**, wenn sie nicht fest
+    **reserviert** ist (``reserved_for_order_id``) – ausser für genau diesen Auftrag
+    (``for_order_id``).
 
-    Beide Achsen werden symmetrisch behandelt: eine **gepinnte** (vorgemerkte) Instanz
-    eines anderen Auftrags ist genauso wenig verfügbar wie eine reservierte, damit ein
-    expliziter Pin nicht von einer anonymen FIFO-Allokation überholt wird. Bindung UND
-    Reservierung werden bei Abschluss/Abbruch gelöst – danach ist die Instanz wieder frei."""
+    Die Reservierung wird **erst bei der Freigabe** scharf (``_allocate_stock_subject``).
+    Eine blosse Vormerkung im Entwurf (``subject_of_order_id``) blockiert den Bestand für
+    andere Aufträge **nicht** – sie ist nur eine unverbindliche Auswahl. Wer zuerst
+    freigibt, reserviert; ein später freigegebener Auftrag mit demselben Pin scheitert dann
+    sauber an der Reservierungs-Prüfung. Die Reservierung wird bei Abschluss/Abbruch gelöst."""
     if for_order_id is None:
-        return (Instance.reserved_for_order_id.is_(None),
-                Instance.subject_of_order_id.is_(None))
+        return (Instance.reserved_for_order_id.is_(None),)
     return (
         or_(Instance.reserved_for_order_id.is_(None), Instance.reserved_for_order_id == for_order_id),
-        or_(Instance.subject_of_order_id.is_(None), Instance.subject_of_order_id == for_order_id),
     )
 
 

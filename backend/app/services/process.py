@@ -52,28 +52,19 @@ _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.
 RESOURCE_STEP_TYPES = event_types.RESOURCE_TYPES
 
 
-def _has_chosen_subjects(db: Session, order: Order) -> bool:
-    """Wirkt der Auftrag auf vorgewählte, vorhandene Instanzen (Bestands-Auftrag)?"""
-    return (
-        db.query(Instance.id)
-        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
-        .first() is not None
-    )
-
-
 def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
     """Die Prozessschritte eines Auftrags in Reihenfolge (kein Modus-Flag):
 
-    • trägt der Auftrag **eigene** Schritte → diese (individueller Ablauf);
-    • wirkt er auf **vorgewählte Instanzen** ohne eigene Schritte → KEINE (vorhandene
-      Instanzen werden nicht hergestellt – kein Rückgriff auf den Artikel-Prozess);
-    • sonst (reiner Artikel-Auftrag) → der **Prozess des Artikels** (erzeugt Instanzen)."""
+    • trägt der Auftrag **eigene** Schritte → diese (individueller Ablauf, Bestands-Operation);
+    • sonst → der **Prozess des Artikels** (Herstellung/Beschaffung, erzeugt Instanzen).
+
+    Massgeblich ist allein, ob **eigene** Schritte vorliegen (konsistent zu
+    ``subject.subject_kind``). Eine blosse Pin-Auswahl ohne Schritte kippt den Auftrag
+    NICHT – er bleibt eine Herstellung über den Artikel-Prozess."""
     from .processes import article_steps, order_custom_steps
     custom = order_custom_steps(db, order.id)
     if custom:
         return custom
-    if _has_chosen_subjects(db, order):
-        return []
     return article_steps(db, order.article_id)
 
 
