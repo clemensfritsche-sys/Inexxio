@@ -119,18 +119,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
   const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate });
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
-  // Freigabe erst möglich, wenn der Bedarf gespeichert ist (keine offenen Änderungen)
-  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
-
   // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt. Live über ProcessSteps;
   // initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
   const [orderStepCount, setOrderStepCount] = useState<number | null>(null);
   const isDraftStaff = isStaff && !isCreate && record?.status === 'draft';
   const hasCustomSteps = orderStepCount != null ? orderStepCount > 0 : record?.subject_role === 'stock';
 
-  // Fixierte (gepinnte) Instanzen + verfügbarer Lagerbestand des Artikels (für die
-  // Ziel-Karten). Persistieren sofort; ohne Pins greift FIFO ab Lager.
+  // Fixierte (gewählte) Instanzen + verfügbarer Lagerbestand des Artikels (für die Ziel-Karten).
   const pins = (record?.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null);
+  const pinnedQty = (record?.instances ?? []).reduce((s, i) => s + (i.quantity ?? 0), 0);
+  const reqQty = record?.quantity ?? 0;
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
     if (!isDraftStaff || record?.article_id == null) { setPinPool([]); return; }
@@ -141,17 +139,34 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     i.quality === 'passed' && i.disposition === 'in_stock' &&
     (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
   const availableQty = articleStock.reduce((s, i) => s + (i.quantity ?? 0), 0);
-  const pinnable = articleStock.filter((i) => !pins.includes(i.object_id!));
+  // Genug Bestand für eine reine Bestands-Operation? (Menge darf den Lagerbestand nicht übersteigen)
+  const enoughStock = reqQty > 0 && availableQty >= reqQty;
 
-  // Ziel der Auftragsanlage (Ziel-Karten, «Was möchten Sie tun?»). Abgeleitet aus dem
-  // aktuellen Stand (Pins ⇒ bestimmte, Schritte ⇒ ab Lager, sonst herstellen); der
-  // Nutzer kann unter den möglichen Zielen wechseln (setGoalSel).
+  // Ziel der Auftragsanlage (Ziel-Karten). Pins ⇒ «Instanz wählen»; eigene Schritte ⇒
+  // «Aus Lager»; sonst «Herstellen». Über die Karten wechselbar (pickGoal räumt Pins beim
+  // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
   const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
   const goal: OrderGoal = pins.length > 0
     ? 'specific'
     : hasCustomSteps
       ? (goalSel === 'specific' ? 'specific' : 'stock')
       : (goalSel ?? 'produce');
+
+  function pickGoal(g: OrderGoal) {
+    setGoalSel(g);
+    if (g !== 'specific' && pins.length > 0) setPins([]);   // «Aus Lager»/«Herstellen» = ohne Pins
+  }
+  function togglePin(oid: number) {
+    if (pins.includes(oid)) { setPins(pins.filter((x) => x !== oid)); return; }
+    setPins([...pins, oid]);
+  }
+
+  // «Instanz wählen» verlangt, dass die gewählten Instanzen die Auftragsmenge GENAU decken.
+  const specificComplete = goal !== 'specific' || pinnedQty === reqQty;
+  // Freigabe erst möglich, wenn der Bedarf gespeichert ist UND (bei «Instanz wählen») die
+  // Stückzahl vollständig gewählt wurde.
+  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity
+    && sig === savedSig && specificComplete;
 
   async function setPins(ids: number[]) {
     if (!record) return;
@@ -369,26 +384,26 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
               <GoalCard icon={Factory} tone="#0f766e" active={goal === 'produce'}
-                disabled={hasCustomSteps || pins.length > 0}
-                disabledHint="Erst Auftrags-Schritte/Instanzen entfernen"
+                disabled={hasCustomSteps}
+                disabledHint="Erst die Auftrags-Schritte entfernen"
                 title="Herstellen / Beschaffen"
-                desc={`Bei Freigabe entstehen ${record.quantity ?? ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
+                desc={`Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
                 footer="Neuer Bestand"
-                onClick={() => setGoalSel('produce')} />
+                onClick={() => pickGoal('produce')} />
               <GoalCard icon={Warehouse} tone="#2563eb" active={goal === 'stock'}
-                disabled={availableQty < 1}
-                disabledHint="Kein Bestand vorhanden"
+                disabled={!enoughStock}
+                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
                 title="Aus dem Lager"
                 desc="Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO)."
                 footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
-                onClick={() => setGoalSel('stock')} />
+                onClick={() => pickGoal('stock')} />
               <GoalCard icon={Target} tone="#7c3aed" active={goal === 'specific'}
-                disabled={availableQty < 1}
-                disabledHint="Kein Bestand vorhanden"
-                title="Bestimmte Stücke"
+                disabled={!enoughStock}
+                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
+                title="Instanz wählen"
                 desc="Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Reklamation)."
                 footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
-                onClick={() => setGoalSel('specific')} />
+                onClick={() => pickGoal('specific')} />
             </div>
 
             {/* Editor je nach Ziel */}
@@ -397,48 +412,61 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 <Factory size={18} style={{ color: '#0f766e', flexShrink: 0 }} />
                 <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
                   <strong style={{ color: '#0f172a' }}>Herstellung.</strong> Bei der Freigabe werden{' '}
-                  <strong style={{ color: '#0f172a' }}>{record.quantity ?? ''} {qtyUnit}</strong> nach dem
+                  <strong style={{ color: '#0f172a' }}>{reqQty || ''} {qtyUnit}</strong> nach dem
                   Prozess des Artikels erzeugt – keine eigenen Auftrags-Schritte nötig.
                 </div>
               </div>
             ) : (
               <>
+                {/* «Instanz wählen»: Instanzen direkt hier wählen – genau die Auftragsmenge. */}
+                {goal === 'specific' && (
+                  <>
+                    <SectionTitle icon={Boxes}>Instanzen wählen</SectionTitle>
+                    <div style={cardStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>Genau {reqQty} {qtyUnit} wählen:</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: pinnedQty === reqQty ? '#16a34a' : '#d97706' }}>
+                          {pinnedQty} / {reqQty} gewählt
+                        </span>
+                      </div>
+                      {articleStock.length === 0 ? (
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verfügbaren Instanzen.</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {articleStock.map((i) => {
+                            const sel = pins.includes(i.object_id!);
+                            const atLimit = !sel && pinnedQty + (i.quantity ?? 1) > reqQty;
+                            return (
+                              <button key={i.object_id} type="button" disabled={atLimit}
+                                onClick={() => togglePin(i.object_id!)}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                                  padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
+                                  border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
+                                  background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                                  opacity: atLimit ? 0.4 : 1,
+                                }}>
+                                {sel && <CheckCircle2 size={12} />}
+                                {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
                 <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
                   <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
                     {goal === 'specific'
                       ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
-                      : `Schritte definieren, was mit ${record.quantity ?? ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}
+                      : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}
                   </div>
                   <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                     selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
                 </div>
-
-                {goal === 'specific' && (
-                  <>
-                    <SectionTitle icon={Boxes}>Instanzen</SectionTitle>
-                    <div style={cardStyle}>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>
-                        {pins.length > 0
-                          ? `${pins.length} fixiert${record.quantity && pins.length < record.quantity ? ` · die übrigen ${record.quantity - pins.length} automatisch nach FIFO` : ''}.`
-                          : 'Bestimmte Instanzen festlegen – die übrigen werden automatisch nach FIFO ergänzt:'}
-                      </div>
-                      {pins.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {pins.map((oid) => (
-                            <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
-                              {fmtObjId(oid)}
-                              <button type="button" onClick={() => setPins(pins.filter((x) => x !== oid))}
-                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) setPins([...pins, n]); }}
-                        options={[{ value: '', label: '— Instanz fixieren —' }, ...pinnable.map((i) => ({ value: String(i.object_id), label: fmtObjId(i.object_id) }))]} />
-                    </div>
-                  </>
-                )}
               </>
             )}
           </>

@@ -53,7 +53,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Instanz</div>
             <div style={{ marginTop: 4 }}>
-              <StatusBadge cfg={instanceStatusConfig(inst.quality, inst.disposition)} />
+              <StatusBadge cfg={instanceStatusConfig(inst.quality, inst.disposition, inst.reserved_for_order_object_id != null)} />
             </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>

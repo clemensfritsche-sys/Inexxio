@@ -1147,22 +1147,40 @@ def test_instance_order_link_is_immutable_history():
     assert "object_id" not in InstanceOrderLink.__table__.columns.keys()
 
 
-def test_claim_clauses_exclude_pinned_and_reserved_symmetrically():
-    """FIFO/Verfügbarkeit blendet sowohl **reservierte** als auch **gepinnte** (an einen
-    anderen Auftrag gebundene) Instanzen aus – ein expliziter Pin schlägt die anonyme
-    FIFO-Allokation. Für ``for_order_id`` kommen die eigenen wieder hinzu."""
+def test_claim_clauses_block_only_on_firm_reservation():
+    """Verfügbarkeit/FIFO sperrt **nur** fest **reservierte** Instanzen (scharf erst bei
+    der Freigabe). Eine blosse Entwurfs-Vormerkung (``subject_of_order_id``) blockiert den
+    Bestand NICHT – mehrere Entwürfe dürfen denselben Artikel/dieselbe Instanz vormerken."""
     from app.services.inventory import claim_clauses
 
     free = claim_clauses(None)
-    assert len(free) == 2
+    assert len(free) == 1
     rendered = " ".join(str(c) for c in free)
-    assert "reserved_for_order_id" in rendered and "subject_of_order_id" in rendered
-    assert " IS NULL" in rendered          # neue Allokation: nur freie Instanzen
+    assert "reserved_for_order_id" in rendered
+    assert "subject_of_order_id" not in rendered   # Vormerkung sperrt NICHT
+    assert " IS NULL" in rendered
 
     own = claim_clauses(42)
     own_rendered = " ".join(str(c) for c in own)
-    assert "reserved_for_order_id" in own_rendered and "subject_of_order_id" in own_rendered
-    assert " OR " in own_rendered          # eigene (for_order_id) zusätzlich erlaubt
+    assert "reserved_for_order_id" in own_rendered and " OR " in own_rendered
+
+
+def test_subject_kind_is_decided_by_custom_steps_only():
+    """#4b: Herstellung vs. Bestands-Operation hängt **allein** an eigenen Schritten –
+    NICHT an einer Pin-Auswahl. Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich
+    als Bestands-Operation behandelt und an „kein Bestand" scheitern."""
+    import inspect as _inspect
+    from app.services import subject, process
+
+    kind_src = _inspect.getsource(subject.subject_kind)
+    mat_src = _inspect.getsource(subject.materialize_subject)
+    # Entscheidung NUR über has_custom_steps – keine chosen_subjects-Disjunktion mehr.
+    assert "has_custom_steps(db, order):" in kind_src and "chosen_subjects" not in kind_src
+    assert "has_custom_steps(db, order):" in mat_src and "chosen_subjects" not in mat_src
+    # order_step_defs ohne Schritte → Artikel-Prozess (Herstellung), unabhängig von Pins.
+    defs_src = _inspect.getsource(process.order_step_defs)
+    assert "_has_chosen_subjects" not in defs_src
+    assert "article_steps(db, order.article_id)" in defs_src
 
 
 def test_reservation_becomes_firm_only_at_release():

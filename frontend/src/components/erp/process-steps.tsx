@@ -17,10 +17,11 @@ type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string
 type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
 // Zulässige Schritttypen je Kontext (Spiegel von Backend domain.event_types):
-// Artikel = Herstellung (kein Verkauf); Auftrag = Operation am Bestand (kein
-// purchase/resource). So sind die Prozessschritte immer kompatibel.
+// Artikel = Herstellung (kein Verkauf); Auftrag = Operation am Bestand mit **allen**
+// Typen – auch purchase (auswärtige Vergabe, z. B. Wartung) und resource (Verbrauchs-/
+// Hilfsmaterial, Ersatzteile). So sind die Prozessschritte immer kompatibel.
 const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement'];
-const ORDER_STEP_ORDER: StepType[] = ['sale', 'movement', 'inspection'];
+const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'sale'];
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
 function isValidWebshopUrl(v: string): boolean {

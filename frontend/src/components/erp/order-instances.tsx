@@ -42,7 +42,7 @@ export function OrderInstances({ order }: { order: Order }) {
                   )}
                 </span>
               )}
-              <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition)} />
+              <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, i.reserved_for_order_id != null)} />
             </div>
           );
         })}
