@@ -87,6 +87,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  const [deviationBusy, setDeviationBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -97,6 +98,11 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const demandEditable = isStaff && (isCreate || record?.status === 'draft');
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
+  // «Abweichung melden»: nur bei realen, in-Arbeit/fertigen Instanzen (freigegeben/
+  // abgeschlossen) und nicht während eines laufenden Abbruchs.
+  const canReportDeviation = isStaff && !isCreate && record != null
+    && (record.status === 'released' || record.status === 'completed')
+    && record.abort_into_id == null;
 
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
@@ -261,6 +267,21 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setDialog(null);
   }
 
+  // «Abweichung melden»: eröffnet einen Unterauftrag (Abweichung) auf den Instanzen
+  // dieses Auftrags und navigiert dorthin – der Nutzer definiert dort den Ablauf und gibt frei.
+  async function reportDeviation() {
+    if (!record) return;
+    setDeviationBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.createDeviation(record.object_id as number));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
+    } finally {
+      setDeviationBusy(false);
+    }
+  }
+
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
@@ -386,6 +407,33 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
         {record && <OrderInstances order={record} />}
 
+        {/* Abweichung melden – Unterauftrag auf den Instanzen dieses Auftrags (Defekt,
+            Nacharbeit, Reklamation – EIN Konzept). Erst nach Freigabe der Abweichung scharf. */}
+        {canReportDeviation && (
+          <>
+            <SectionTitle icon={AlertTriangle}>Abweichung</SectionTitle>
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                Weicht die Realität vom Prozess ab (Defekt, Nacharbeit, Reklamation)? Eröffne eine{' '}
+                <strong style={{ color: '#0f172a' }}>Abweichung</strong> – einen Unterauftrag auf
+                den Instanzen dieses Auftrags. Du legst dort fest, was geschieht, und gibst sie frei.
+              </div>
+              {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+              <button type="button" onClick={reportDeviation} disabled={deviationBusy}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8,
+                  border: '1px solid #fbbf24', background: deviationBusy ? '#fef3c7' : '#fffbeb',
+                  color: '#b45309', fontSize: 13, fontWeight: 700,
+                  cursor: deviationBusy ? 'default' : 'pointer',
+                }}>
+                {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
+                Abweichung melden
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
             Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung). */}
         {isStaff && record?.status === 'draft' && (
@@ -410,7 +458,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 disabled={!enoughStock}
                 disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
                 title="Instanz wählen"
-                desc="Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Reklamation)."
+                desc="Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung)."
                 footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('specific')} />
             </div>

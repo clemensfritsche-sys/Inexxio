@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/v1/events", tags=["events"])
 async def list_events(
     after_id: int = Query(0, ge=0, description="Nur Events mit id > after_id (Vorwärts-Cursor für Konsumenten)"),
     object_id: Optional[int] = Query(None, description="Nur Events zu dieser Objektnummer"),
-    object_type: Optional[str] = Query(None, description="z. B. order | claim | article"),
+    object_type: Optional[str] = Query(None, description="z. B. order | instance | article"),
     event_type: Optional[str] = Query(None, description="z. B. order.completed"),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),

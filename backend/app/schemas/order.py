@@ -115,6 +115,12 @@ class OrderUpdate(BaseModel):
         return _validate_future_date(v)
 
 
+class OrderDeviationCreate(BaseModel):
+    """«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
+    Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."""
+    instance_object_ids: Optional[list[int]] = None
+
+
 class OrderSummary(BaseModel):
     """Schlanke Auftrags-Sicht für den Feed (OHNE Prozess-Embeds).
 

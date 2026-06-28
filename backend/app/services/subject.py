@@ -7,7 +7,7 @@ Die Subjektart wird aus der **Gestalt des Auftrags abgeleitet** (kein Modus-Flag
   • **stock**   – eigene Schritte ohne vorgewählte Instanzen → das Subjekt wird per
     Artikel + Menge **FIFO ab Lager** allokiert (z. B. Verkauf über den Shop).
   • **chosen**  – ausgewählte, vorhandene Instanzen (``subject_of_order_id`` bei der
-    Anlage gesetzt) → genau diese sind das Subjekt (Reklamation, gezielter Verkauf).
+    Anlage gesetzt) → genau diese sind das Subjekt (Abweichung, gezielter Verkauf).
 
 Das Subjekt wird bei der **Freigabe** hergestellt und – beim Bestands-Zugriff (stock/
 chosen) – zugleich für genau diesen Auftrag **reserviert** (kein Doppelverkauf/-verbrauch).

@@ -13,7 +13,7 @@ nie undefinierte Teile herum.
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Order
+from ..models import Instance, Order
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
@@ -33,6 +33,47 @@ def open_deviations(db: Session, parent: Order) -> list[Order]:
     )
 
 
+def _resolve_subjects(db: Session, parent: Order, instance_object_ids: list[int] | None) -> list[Instance]:
+    """Die betroffenen Instanzen einer Abweichung: explizit gewählte (Instanz-Ebene) oder –
+    ohne Auswahl – alle Instanzen des Eltern-Auftrags (Prozess-Ebene)."""
+    if instance_object_ids:
+        rows = (
+            db.query(Instance)
+            .filter(Instance.object_id.in_(instance_object_ids), Instance.is_active == True)
+            .order_by(Instance.object_id)
+            .all()
+        )
+        if len(rows) != len(set(instance_object_ids)):
+            raise HTTPException(400, detail="Mindestens eine gewählte Instanz wurde nicht gefunden")
+        return rows
+    return order_instances(db, parent)
+
+
+def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] | None,
+                     actor_id: int, title_prefix: str = "Abweichung zu") -> Order:
+    """Eine **Abweichung** (Unter-Auftrag) zu ``parent`` anlegen, die auf die betroffenen
+    Instanzen wirkt (Instanz- oder Prozess-Ebene). Entwurf; der Nutzer definiert die
+    Auflösung (Schritte) und gibt frei. Committet NICHT (der Aufrufer schliesst ab)."""
+    insts = _resolve_subjects(db, parent, instance_object_ids)
+    if not insts:
+        raise HTTPException(409, detail="Keine Instanzen für die Abweichung vorhanden")
+    devi = Order(
+        object_id=next_object_id(db, "order"), status="draft",
+        article_id=parent.article_id, quantity=len(insts),
+        parent_order_id=parent.object_id, title=f"{title_prefix} {parent.object_id}",
+    )
+    db.add(devi)
+    db.flush()
+    for inst in insts:                       # betroffene Instanzen an die Abweichung binden
+        inst.subject_of_order_id = devi.id
+    log_audit(db, "orders", None, f"Abweichung zu {parent.object_id} angelegt", actor_id,
+              object_id=devi.object_id)
+    emit(db, "order.deviation_opened", object_type="order", object_id=devi.object_id,
+         payload={"parent": parent.object_id, "instances": [i.object_id for i in insts]},
+         actor_id=actor_id)
+    return devi
+
+
 def create_abort_followup(db: Session, order: Order, actor_id: int) -> Order:
     """Beim Abbruch einen **Folgeauftrag** (Abweichung) erzeugen, der die im Prozess
     befindlichen Instanzen übernimmt. Committet NICHT (der Aufrufer schliesst ab)."""
@@ -40,21 +81,30 @@ def create_abort_followup(db: Session, order: Order, actor_id: int) -> Order:
         raise HTTPException(400, detail="Nur ein freigegebener Auftrag braucht einen Folgeauftrag")
     if order.abort_into_id:
         raise HTTPException(409, detail="Für diesen Auftrag ist bereits ein Folgeauftrag offen")
-    insts = order_instances(db, order)
-    follow = Order(
-        object_id=next_object_id(db, "order"), status="draft",
-        article_id=order.article_id, quantity=len(insts) or order.quantity,
-        parent_order_id=order.object_id, title=f"Abbruch von {order.object_id}",
-    )
-    db.add(follow)
-    db.flush()
-    for inst in insts:                       # Instanzen an den Folgeauftrag binden
-        inst.subject_of_order_id = follow.id
+    follow = create_deviation(db, order, None, actor_id, title_prefix="Abbruch von")
     order.abort_into_id = follow.object_id   # Original = «Abbruch ausstehend»
     log_audit(db, "orders", "abort_into_id", str(follow.object_id), actor_id, object_id=order.object_id)
     emit(db, "order.abort_requested", object_type="order", object_id=order.object_id,
          payload={"followup": follow.object_id}, actor_id=actor_id)
     return follow
+
+
+def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | None) -> Order | None:
+    """Bei **fehlgeschlagener Datenerfassung** automatisch eine Abweichung auf die
+    durchgefallenen Instanzen anlegen (ersetzt die frühere Auto-Reklamation). Idempotent:
+    solange eine Abweichung dieses Auftrags offen ist, wird keine weitere erzeugt."""
+    if open_deviations(db, order):
+        return None
+    insts = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True)
+        .order_by(Instance.object_id)
+        .all()
+    )
+    failed = [i.object_id for i in insts if i.quality == "failed" and i.object_id]
+    if not failed:
+        return None
+    return create_deviation(db, order, failed, actor_id or 0, title_prefix="Datenerfassung-Abweichung zu")
 
 
 def apply_abort_on_release(db: Session, followup: Order, actor_id: int) -> None:

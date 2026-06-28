@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from ..models import ArticleProcessStep, Inspection, Order
 from . import process
 from .admin import log_audit
-from .claims import auto_claim_from_inspection
+from .deviation import auto_deviation_from_inspection
 from .events import emit
 from .subject import order_instances
 
@@ -182,9 +182,11 @@ def record_inspection(db: Session, order: Order, data, actor_id: int) -> Inspect
     log_audit(db, "inspections", "result", insp.result, actor_id, object_id=order.object_id)
     emit(db, f"inspection.{insp.result}", object_type="order", object_id=order.object_id,
          payload={"checked": need, "step_id": step.id}, actor_id=actor_id)
-    # Bei Nichtbestehen automatisch eine interne Reklamation eröffnen (idempotent)
+    # Bei Nichtbestehen automatisch eine **Abweichung** auf die durchgefallenen Instanzen
+    # eröffnen (idempotent) – ersetzt die frühere Auto-Reklamation. Der Eltern-Auftrag
+    # pausiert dadurch, bis die Abweichung geklärt ist.
     if insp.result == "failed":
-        auto_claim_from_inspection(db, order, actor_id)
+        auto_deviation_from_inspection(db, order, actor_id)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(insp)
