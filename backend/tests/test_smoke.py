@@ -865,14 +865,12 @@ def test_order_modes_make_and_custom():
     # Kein Modus-Flag mehr – die Subjektart wird abgeleitet (services/subject.py).
     for gone in ("mode", "process_id", "subject_instance_id"):
         assert gone not in Order.__table__.columns.keys()
-    # Artikel + Menge (produce bzw. FIFO ab Lager)
+    # Anker ist IMMER Artikel + Menge (kein Instanz-Pfad mehr bei der Anlage).
     assert OrderCreate(article_id=100_000_001, quantity=5).quantity == 5
     with pytest.raises(ValueError):
-        OrderCreate()                                  # weder Artikel/Menge noch Instanzen
-    # Vorhandene Instanzen (chosen): mindestens eine, NICHT zusammen mit einem Artikel
-    assert OrderCreate(instance_object_ids=[100_000_010]).instance_object_ids == [100_000_010]
+        OrderCreate()                                  # Artikel/Menge fehlen
     with pytest.raises(ValueError):
-        OrderCreate(article_id=100_000_001, quantity=1, instance_object_ids=[100_000_010])
+        OrderCreate(article_id=100_000_001, quantity=0)  # Menge muss > 0 sein
     for f in ("subject_role", "stock_effect", "sale", "instances", "steps"):
         assert f in OrderResponse.model_fields
     for gone in ("mode", "process_id", "process_source", "subject_instance_id"):
@@ -923,11 +921,12 @@ def test_step_type_whitelist_per_context():
 
     art = event_types.allowed_step_types("article")
     order = event_types.allowed_step_types("order")
-    assert "sale" not in art and "purchase" in art and "resource" in art
-    assert "sale" in order and "purchase" not in order and "resource" not in order
-    # gemeinsam erlaubt: bewegen & prüfen
-    assert "movement" in art and "movement" in order
-    assert "inspection" in art and "inspection" in order
+    # Artikel-Prozess (Herstellung): alles ausser Verkauf.
+    assert "sale" not in art
+    assert {"purchase", "resource", "inspection", "movement"} <= set(art)
+    # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
+    # (z. B. Wartung mit Verbrauchsmaterial oder auswärtiger Vergabe) und Verkauf.
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "sale"}
 
 
 def test_webshop_url_is_validated():

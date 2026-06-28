@@ -6164,40 +6164,12 @@
       "OrderCreate": {
         "properties": {
           "article_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Article Id"
           },
           "quantity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Quantity"
-          },
-          "instance_object_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "integer"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Object Ids"
           },
           "desired_delivery_date": {
             "anyOf": [
@@ -6258,8 +6230,12 @@
           }
         },
         "type": "object",
+        "required": [
+          "article_id",
+          "quantity"
+        ],
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart\nwird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER\neine Auswahl vorhandener Instanzen angegeben:\n\nArtikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe\n                       die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag\n                       eigene Schritte trägt – Verkauf/Entnahme).\nInstanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die\n                       gewählten, bereits vorhandenen Instanzen (gleicher Artikel)."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet."
       },
       "OrderResponse": {
         "properties": {

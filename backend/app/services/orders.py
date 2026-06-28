@@ -23,7 +23,7 @@ from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, physical_location_label
 from .resource import build_resource_embed
-from .subject import order_instances
+from .subject import order_instances, subject_kind
 
 _STAFF_ROLES = ("admin", "employee")
 
@@ -230,11 +230,10 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         steps.append(si)
 
     resp.steps = steps
-    # Subjektart + Bestandswirkung aus den (effektiven) Schritt-Typen ableiten –
-    # EINE Quelle der Wahrheit (REA-Registry), kein gespeichertes Modus-Flag.
-    step_types = {s.step_type for s in steps}
-    resp.subject_role = event_types.derive_subject_mode(step_types)
-    resp.stock_effect = event_types.aggregate_stock_effect(step_types)
+    # Subjektart aus der Auftragsgestalt (produce | stock) und Bestandswirkung als
+    # Aggregat der Schritt-Polaritäten – EINE Quelle der Wahrheit (REA-Registry).
+    resp.subject_role = subject_kind(db, order)
+    resp.stock_effect = event_types.aggregate_stock_effect({s.step_type for s in steps})
     resp.purchase = first.get("purchase")          # Lieferanten-Sicht / Kurzform
     resp.sale = first.get("sale")
     resp.inspection = first.get("inspection")

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
@@ -48,19 +48,15 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
 
 
 class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart
-    wird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER
-    eine Auswahl vorhandener Instanzen angegeben:
+    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
 
-    Artikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe
-                           die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag
-                           eigene Schritte trägt – Verkauf/Entnahme).
-    Instanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die
-                           gewählten, bereits vorhandenen Instanzen (gleicher Artikel)."""
+    Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
+    der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
+    eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
+    optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet."""
 
-    article_id: Optional[int] = None
-    quantity: Optional[int] = None
-    instance_object_ids: Optional[list[int]] = None
+    article_id: int
+    quantity: int
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -70,8 +66,8 @@ class OrderCreate(BaseModel):
 
     @field_validator("quantity")
     @classmethod
-    def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v <= 0:
+    def _qty_positive(cls, v: int) -> int:
+        if v <= 0:
             raise ValueError("Menge muss grösser als 0 sein")
         return v
 
@@ -79,16 +75,6 @@ class OrderCreate(BaseModel):
     @classmethod
     def _date_future(cls, v: Optional[date]) -> Optional[date]:
         return _validate_future_date(v)
-
-    @model_validator(mode="after")
-    def _consistent(self) -> "OrderCreate":
-        if self.instance_object_ids:
-            if self.article_id is not None:
-                raise ValueError("Entweder einen Artikel mit Menge ODER vorhandene Instanzen wählen – nicht beides")
-            return self
-        if not self.article_id or not self.quantity:
-            raise ValueError("Bitte einen Artikel mit Menge oder vorhandene Instanzen wählen")
-        return self
 
 
 class OrderUpdate(BaseModel):

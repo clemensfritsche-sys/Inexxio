@@ -47,39 +47,47 @@ def _validate_article(db: Session, article_id: int | None) -> None:
         raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
 
 
-def _resolve_custom_instances(db: Session, object_ids: list[int] | None) -> tuple[int, list[Instance]]:
-    """CUSTOM-Modus: die ausgewählten Instanzen prüfen (alle vom selben Artikel)."""
-    if not object_ids:
-        raise HTTPException(400, detail="Bitte mindestens eine Instanz wählen")
+def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Instance]:
+    """Zu fixierende (gepinnte) Instanzen prüfen: Artikel des Auftrags, am Lager verfügbar
+    und nicht bereits für einen ANDEREN Auftrag reserviert."""
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
         if not i:
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
+        if order.article_id and i.article_id != order.article_id:
+            raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
+        if not (i.quality == "passed" and i.disposition == "in_stock"):
+            raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
+        if i.reserved_for_order_id not in (None, order.id):
+            raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
         insts.append(i)
-    if len({i.article_id for i in insts}) > 1:
-        raise HTTPException(400, detail="Alle gewählten Instanzen müssen vom selben Artikel sein")
-    return insts[0].article_id, insts
+    return insts
 
 
 def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> None:
-    """Die vorgewählten Subjekt-Instanzen eines Entwurfs (neu) setzen: bisherige Auswahl
-    lösen, neue markieren, Artikel/Menge daraus ableiten (Mehrfachauswahl im Entwurf)."""
+    """Die **fixierten** (gepinnten) Subjekt-Instanzen eines Entwurfs neu setzen: bisherige
+    lösen (Reservierung freigeben), neue prüfen und **sofort reservieren** (kein Doppel-
+    zugriff). Artikel + Menge bleiben unverändert – der Artikel ist der Anker, die Pins
+    sind eine optionale Festlegung innerhalb der FIFO-Auswahl."""
     for prev in (
         db.query(Instance)
         .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
         .all()
     ):
         prev.subject_of_order_id = None
+        if prev.reserved_for_order_id == order.id:
+            prev.reserved_for_order_id = None
     if not object_ids:
-        order.article_id = None
-        order.quantity = None
         return
-    order.article_id, insts = _resolve_custom_instances(db, object_ids)
-    order.quantity = len(insts)
-    db.flush()
+    insts = _validate_pins(db, order, object_ids)
+    pinned_qty = sum(i.quantity for i in insts)
+    if order.quantity and pinned_qty > order.quantity:
+        raise HTTPException(
+            400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
     for i in insts:
         i.subject_of_order_id = order.id
+        i.reserved_for_order_id = order.id            # sofort reservieren
 
 
 @router.get("", response_model=list[OrderSummary])
@@ -112,19 +120,14 @@ async def create_order(
         recurrence_lead_time_days=data.recurrence_lead_time_days or 0,
         recurrence_anchor=data.recurrence_anchor,
     )
-    # Subjektart wird abgeleitet: vorgewählte Instanzen (chosen) ODER Artikel + Menge.
-    chosen_insts: list[Instance] = []
-    if data.instance_object_ids:                       # auf vorhandene Instanzen wirken
-        order.article_id, chosen_insts = _resolve_custom_instances(db, data.instance_object_ids)
-        order.quantity = len(chosen_insts)
-    else:                                              # Artikel + Menge (produce bzw. FIFO ab Lager)
-        _validate_article(db, data.article_id)         # nur freigegebene Artikel
-        order.article_id = data.article_id
-        order.quantity = data.quantity
+    # Anker ist IMMER der Artikel + Menge. Was damit geschieht (Erzeugung vs. Operation
+    # am Bestand, FIFO/fixiert) ergibt sich aus dem Ablauf, der danach im Entwurf
+    # definiert wird – nicht aus der Anlage.
+    _validate_article(db, data.article_id)             # nur freigegebene Artikel
+    order.article_id = data.article_id
+    order.quantity = data.quantity
     db.add(order)
     db.flush()
-    for i in chosen_insts:                             # ausgewählte Instanzen markieren
-        i.subject_of_order_id = order.id
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
     db.commit()
@@ -182,15 +185,15 @@ async def update_order(
                       object_id=order.object_id, old_value=old_str)
         setattr(order, key, value)
 
-    # Freigabe (draft → released) stösst den Prozess an und stellt das Subjekt her:
-    #   MAKE   – der **Artikel-Prozess** läuft, neue Instanzen entstehen.
-    #   CUSTOM – der **eigene Prozess** läuft auf die ausgewählten Instanzen.
+    # Freigabe (draft → released) stösst den Prozess an und stellt das Subjekt her.
+    # Anker ist immer Artikel + Menge:
+    #   produce – KEIN eigener Ablauf → der **Artikel-Prozess** läuft, neue Instanzen entstehen.
+    #   stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
+    #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
     if order.status == "released" and not was_released:
-        kind = subject.subject_kind(db, order)
-        if kind == "produce":
-            # Reiner Artikel-Auftrag (kein eigener Ablauf): fährt den Artikel-Prozess.
-            if not order.article_id or not order.quantity:
-                raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        if not order.article_id or not order.quantity:
+            raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+        if subject.subject_kind(db, order) == "produce":
             # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
             art = db.query(Article).filter(Article.id == order.article_id).first()
             if not art or art.status != "released":
@@ -198,16 +201,8 @@ async def update_order(
                     400,
                     detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann",
                 )
-        elif kind == "stock":
-            # Bestands-Auftrag per Artikel + Menge (FIFO ab Lager): Menge erforderlich;
-            # die Verfügbarkeit prüft ``materialize_subject`` (Allokation).
-            if not order.article_id or not order.quantity:
-                raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
-        else:                                          # chosen: vorgewählte Instanzen
-            if not subject.order_instances(db, order):
-                raise HTTPException(400, detail="Für diesen Auftrag sind keine Instanzen ausgewählt")
-            if not process.order_step_infos(db, order):
-                raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
+        elif not process.order_step_infos(db, order):
+            raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
         if order.released_at is None:
             order.released_at = utcnow()   # Start der Durchlaufzeit
         subject.materialize_subject(db, order, current_user.id)
