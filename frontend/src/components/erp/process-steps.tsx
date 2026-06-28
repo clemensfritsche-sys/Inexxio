@@ -16,7 +16,21 @@ type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string
 // EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
 type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
-const STEP_ORDER: StepType[] = ['purchase', 'inspection', 'movement', 'resource', 'sale'];
+// Zulässige Schritttypen je Kontext (Spiegel von Backend domain.event_types):
+// Artikel = Herstellung (kein Verkauf); Auftrag = Operation am Bestand (kein
+// purchase/resource). So sind die Prozessschritte immer kompatibel.
+const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement'];
+const ORDER_STEP_ORDER: StepType[] = ['sale', 'movement', 'inspection'];
+
+// Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
+function isValidWebshopUrl(v: string): boolean {
+  try {
+    const u = new URL(v.trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
 
 export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
@@ -137,7 +151,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
     setError(null);
     if (type === 'purchase') {
       if (mode === 'supplier' && !supplierId) { setError('Bitte einen Lieferanten wählen'); return; }
-      if (mode === 'webshop' && !url.trim()) { setError('Bitte einen Webshop-Link angeben'); return; }
+      if (mode === 'webshop') {
+        if (!url.trim()) { setError('Bitte einen Webshop-Link angeben'); return; }
+        if (!isValidWebshopUrl(url)) { setError('Bitte einen gültigen Link angeben (z. B. https://shop.example.com/…)'); return; }
+      }
     }
     if (type === 'inspection') {
       const p = Number(samplePercent);
@@ -364,7 +381,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Welcher Schritt?</span>
                 <button onClick={resetForm} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
               </div>
-              {STEP_ORDER.map((t) => {
+              {(owner === 'articles' ? ARTICLE_STEP_ORDER : ORDER_STEP_ORDER).map((t) => {
                 const m = STEP_META[t]; const Icon = m.icon;
                 return (
                   <button key={t} onClick={() => setAdding(t)} style={chooserBtn}>

@@ -163,18 +163,18 @@ export interface OrderRecurrenceInput {
 export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
+  // Vorgewählte Instanzen (Bestands-Auftrag) statt Artikel + Menge.
+  instance_object_ids?: number[] | null;
   desired_delivery_date?: string | null;
-  process_id?: number | null;
-  subject_instance_id?: number | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
   status?: OrderStatus;
   article_id?: number | null;
   quantity?: number | null;
+  // Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl).
+  instance_object_ids?: number[] | null;
   desired_delivery_date?: string | null;
-  process_id?: number | null;
-  subject_instance_id?: number | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking
 };

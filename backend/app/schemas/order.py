@@ -95,6 +95,8 @@ class OrderUpdate(BaseModel):
     status: Optional[str] = None
     article_id: Optional[int] = None
     quantity: Optional[int] = None
+    # Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl, gleicher Artikel).
+    instance_object_ids: Optional[list[int]] = None
     desired_delivery_date: Optional[date] = None
     recurrence_active: Optional[bool] = None
     recurrence_interval_days: Optional[int] = None
