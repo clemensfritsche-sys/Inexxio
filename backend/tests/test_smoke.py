@@ -1225,3 +1225,18 @@ def test_company_is_numbered_erp_record():
     src = _inspect.getsource(admin.get_or_create_settings)
     assert "object_id is None" in src
     assert 'next_object_id(db, "organization")' in src
+
+
+def test_company_object_id_assigned_at_startup_and_exposed_public():
+    """#5-Bug: Die Objektnummer der Firma wird DETERMINISTISCH beim Start vergeben
+    (nicht erst, wenn jemand die Admin-Einstellungen öffnet) und über den öffentlichen
+    Settings-Endpoint mitgeliefert – sonst erscheint der ERP-Datensatz «Unternehmen» nie."""
+    import inspect as _inspect
+    from app import main
+    from app.routers import admin as admin_router
+
+    fixups = _inspect.getsource(main._run_startup_fixups_once)
+    assert "_ensure_company_object_id()" in fixups
+    assert "get_or_create_settings" in _inspect.getsource(main._ensure_company_object_id)
+    # Öffentlicher Endpoint (vom ERP-Feed genutzt) liefert die Objektnummer mit.
+    assert '"object_id": s.object_id' in _inspect.getsource(admin_router.get_public_settings)

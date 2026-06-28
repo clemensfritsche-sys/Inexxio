@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -24,6 +24,9 @@ import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 
 type ViewerRole = 'staff' | 'supplier';
+
+// Ziel der Auftragsanlage (Ziel-Karten): herstellen | aus Lager (FIFO) | bestimmte Stücke.
+type OrderGoal = 'produce' | 'stock' | 'specific';
 
 // Anker ist IMMER der Artikel + Menge. Was damit geschieht, ergibt sich aus dem Ablauf,
 // der danach im Entwurf definiert wird (Erzeugung vs. Operation am Bestand). Optional
@@ -119,22 +122,36 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   // Freigabe erst möglich, wenn der Bedarf gespeichert ist (keine offenen Änderungen)
   const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
 
-  // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt (live über ProcessSteps).
+  // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt. Live über ProcessSteps;
+  // initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
   const [orderStepCount, setOrderStepCount] = useState<number | null>(null);
-  const isStockOp = !isCreate && record?.status === 'draft' && (orderStepCount ?? 0) > 0;
+  const isDraftStaff = isStaff && !isCreate && record?.status === 'draft';
+  const hasCustomSteps = orderStepCount != null ? orderStepCount > 0 : record?.subject_role === 'stock';
 
-  // Optional fixierte (gepinnte) Instanzen einer Bestands-Operation. Persistieren sofort
-  // (Backend reserviert sie → kein Doppelzugriff); ohne Pins greift FIFO ab Lager.
+  // Fixierte (gepinnte) Instanzen + verfügbarer Lagerbestand des Artikels (für die
+  // Ziel-Karten). Persistieren sofort; ohne Pins greift FIFO ab Lager.
   const pins = (record?.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null);
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
-    if (!isStockOp || record?.article_id == null) { setPinPool([]); return; }
+    if (!isDraftStaff || record?.article_id == null) { setPinPool([]); return; }
     api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isStockOp, record?.article_id]);
-  const pinnable = pinPool.filter((i) =>
+  }, [isDraftStaff, record?.article_id]);
+  const articleStock = pinPool.filter((i) =>
     i.object_id != null && i.article_id === record?.article_id &&
-    i.quality === 'passed' && i.disposition === 'in_stock' && !pins.includes(i.object_id) &&
+    i.quality === 'passed' && i.disposition === 'in_stock' &&
     (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
+  const availableQty = articleStock.reduce((s, i) => s + (i.quantity ?? 0), 0);
+  const pinnable = articleStock.filter((i) => !pins.includes(i.object_id!));
+
+  // Ziel der Auftragsanlage (Ziel-Karten, «Was möchten Sie tun?»). Abgeleitet aus dem
+  // aktuellen Stand (Pins ⇒ bestimmte, Schritte ⇒ ab Lager, sonst herstellen); der
+  // Nutzer kann unter den möglichen Zielen wechseln (setGoalSel).
+  const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
+  const goal: OrderGoal = pins.length > 0
+    ? 'specific'
+    : hasCustomSteps
+      ? (goalSel === 'specific' ? 'specific' : 'stock')
+      : (goalSel ?? 'produce');
 
   async function setPins(ids: number[]) {
     if (!record) return;
@@ -345,43 +362,83 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
         {record && <OrderInstances order={record} />}
 
-        {/* Ablauf – im Entwurf editierbar. Leer = Erzeugung (Artikel-Prozess);
-            eigene Schritte = Operation auf Instanzen des Artikels (FIFO ab Lager). */}
+        {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
+            Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung). */}
         {isStaff && record?.status === 'draft' && (
           <>
-            <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
-            <div style={cardStyle}>
-              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                <>Ohne Schritte: <strong style={{ color: '#0f172a' }}>Erzeugung</strong> – fährt den Prozess des Artikels. Schritte hinzufügen, um stattdessen <strong style={{ color: '#0f172a' }}>{record.quantity ?? ''} Stück ab Lager</strong> zu verarbeiten (FIFO) – z. B. bewegen, verkaufen, warten.</>
-              </div>
-              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
-                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
+            <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
+              <GoalCard icon={Factory} tone="#0f766e" active={goal === 'produce'}
+                disabled={hasCustomSteps || pins.length > 0}
+                disabledHint="Erst Auftrags-Schritte/Instanzen entfernen"
+                title="Herstellen / Beschaffen"
+                desc={`Bei Freigabe entstehen ${record.quantity ?? ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
+                footer="Neuer Bestand"
+                onClick={() => setGoalSel('produce')} />
+              <GoalCard icon={Warehouse} tone="#2563eb" active={goal === 'stock'}
+                disabled={availableQty < 1}
+                disabledHint="Kein Bestand vorhanden"
+                title="Aus dem Lager"
+                desc="Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO)."
+                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                onClick={() => setGoalSel('stock')} />
+              <GoalCard icon={Target} tone="#7c3aed" active={goal === 'specific'}
+                disabled={availableQty < 1}
+                disabledHint="Kein Bestand vorhanden"
+                title="Bestimmte Stücke"
+                desc="Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Reklamation)."
+                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                onClick={() => setGoalSel('specific')} />
             </div>
 
-            {/* Optional bestimmte Instanzen fixieren – sonst FIFO ab Lager (nur Bestands-Operation) */}
-            {isStockOp && (
-              <>
-                <SectionTitle icon={Boxes}>Instanzen</SectionTitle>
-                <div style={cardStyle}>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    {pins.length > 0
-                      ? `${pins.length} fixiert${record.quantity && pins.length < record.quantity ? ` · die übrigen ${record.quantity - pins.length} automatisch nach FIFO` : ''}.`
-                      : `Alle ${record.quantity ?? ''} Stück werden automatisch nach FIFO gewählt. Optional bestimmte Instanzen festlegen:`}
-                  </div>
-                  {pins.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {pins.map((oid) => (
-                        <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
-                          {fmtObjId(oid)}
-                          <button type="button" onClick={() => setPins(pins.filter((x) => x !== oid))}
-                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) setPins([...pins, n]); }}
-                    options={[{ value: '', label: '— Instanz fixieren —' }, ...pinnable.map((i) => ({ value: String(i.object_id), label: fmtObjId(i.object_id) }))]} />
+            {/* Editor je nach Ziel */}
+            {goal === 'produce' ? (
+              <div style={{ ...cardStyle, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Factory size={18} style={{ color: '#0f766e', flexShrink: 0 }} />
+                <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#0f172a' }}>Herstellung.</strong> Bei der Freigabe werden{' '}
+                  <strong style={{ color: '#0f172a' }}>{record.quantity ?? ''} {qtyUnit}</strong> nach dem
+                  Prozess des Artikels erzeugt – keine eigenen Auftrags-Schritte nötig.
                 </div>
+              </div>
+            ) : (
+              <>
+                <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
+                <div style={cardStyle}>
+                  <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                    {goal === 'specific'
+                      ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
+                      : `Schritte definieren, was mit ${record.quantity ?? ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}
+                  </div>
+                  <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+                    selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
+                </div>
+
+                {goal === 'specific' && (
+                  <>
+                    <SectionTitle icon={Boxes}>Instanzen</SectionTitle>
+                    <div style={cardStyle}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        {pins.length > 0
+                          ? `${pins.length} fixiert${record.quantity && pins.length < record.quantity ? ` · die übrigen ${record.quantity - pins.length} automatisch nach FIFO` : ''}.`
+                          : 'Bestimmte Instanzen festlegen – die übrigen werden automatisch nach FIFO ergänzt:'}
+                      </div>
+                      {pins.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {pins.map((oid) => (
+                            <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
+                              {fmtObjId(oid)}
+                              <button type="button" onClick={() => setPins(pins.filter((x) => x !== oid))}
+                                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) setPins([...pins, n]); }}
+                        options={[{ value: '', label: '— Instanz fixieren —' }, ...pinnable.map((i) => ({ value: String(i.object_id), label: fmtObjId(i.object_id) }))]} />
+                    </div>
+                  </>
+                )}
               </>
             )}
           </>
@@ -527,6 +584,38 @@ const linkBtn: React.CSSProperties = {
   alignSelf: 'flex-start', border: 'none', background: 'none', padding: 0,
   fontSize: 12, color: '#2563eb', cursor: 'pointer', fontWeight: 600,
 };
+
+// Ziel-Karte («Was möchten Sie tun?»): Symbol + Farbe + Klartext + Live-Fussnote.
+// Unmögliche Optionen sind deaktiviert und nennen den Grund (DAU-sicher).
+function GoalCard({ icon: Icon, tone, active, disabled, disabledHint, title, desc, footer, onClick }: {
+  icon: React.ElementType; tone: string; active: boolean; disabled?: boolean;
+  disabledHint?: string; title: string; desc: string; footer: string; onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={disabled ? undefined : onClick} disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'left', width: '100%',
+        padding: '12px 14px', borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer',
+        border: `1.5px solid ${active ? tone : '#E2E8F0'}`,
+        background: disabled ? '#f8fafc' : active ? `${tone}14` : '#fff',
+        opacity: disabled ? 0.65 : 1, transition: 'border-color 0.15s, background 0.15s',
+      }}>
+      <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: active ? tone : '#F1F5F9', color: active ? '#fff' : tone, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={18} />
+      </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: '#0f172a' }}>{title}</span>
+          {active && <CheckCircle2 size={15} style={{ color: tone, flexShrink: 0 }} />}
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.45, marginTop: 2 }}>{desc}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: disabled ? '#dc2626' : tone, marginTop: 5 }}>
+          {disabled ? (disabledHint ?? 'Nicht möglich') : footer}
+        </div>
+      </div>
+    </button>
+  );
+}
 
 function SectionTitle({ icon: Icon, children }: { icon?: React.ElementType; children: React.ReactNode }) {
   return (
