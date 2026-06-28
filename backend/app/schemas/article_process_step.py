@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -105,9 +106,16 @@ def normalize_capture_fields(fields: Optional[list]) -> list[dict]:
 
 
 def _clean_url(v: Optional[str]) -> Optional[str]:
+    """Webshop-Link säubern und auf ein gültiges http(s)-URL prüfen."""
     if v is None:
         return v
-    return v.strip() or None
+    v = v.strip()
+    if not v:
+        return None
+    parsed = urlparse(v)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc or "." not in parsed.netloc:
+        raise ValueError("Bitte einen gültigen Link angeben (z. B. https://shop.example.com/…)")
+    return v
 
 
 def _check_percent(v: Optional[int]) -> Optional[int]:

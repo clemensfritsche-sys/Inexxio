@@ -6873,6 +6873,20 @@
             ],
             "title": "Quantity"
           },
+          "instance_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Ids"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {

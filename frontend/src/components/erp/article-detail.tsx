@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
@@ -20,11 +20,12 @@ import { InstanceList } from '@/components/erp/instance-list';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
-// Spezifikation UND Prozess. Ob produzierbar/bestellbar, entscheidet sich danach am
-// Auftrag. Reaktivieren entfällt, sobald der Artikel ersetzt wurde.
-function articleActions(status: string, replaced: boolean): StatusAction[] {
+// Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
+// (sonst „kann" der Artikel nichts). Reaktivieren entfällt, sobald ersetzt.
+function articleActions(status: string, replaced: boolean, hasProcess: boolean): StatusAction[] {
   if (status === 'draft')
-    return [{ label: 'Freigeben', target: 'released', tone: 'primary' }];
+    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !hasProcess,
+      hint: hasProcess ? undefined : 'Erst im Reiter «Prozess» einen Schritt hinterlegen' }];
   return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
 }
 
@@ -98,6 +99,13 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Prozessschritt-Anzahl (für die Freigabe-Bedingung) – tab-unabhängig vorgeladen,
+  // im Prozess-Reiter live über onStepsCount aktualisiert.
+  const [stepsCount, setStepsCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (isCreate || record?.object_id == null) { setStepsCount(0); return; }
+    api.getSteps('articles', record.object_id).then((s) => setStepsCount(s.length)).catch(() => {});
+  }, [isCreate, record?.object_id]);
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<OptKey[]>(() => {
     const s = seedFrom(record);
@@ -253,7 +261,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, record.replaced_by_id != null)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, record.replaced_by_id != null, (stepsCount ?? 0) > 0)} busy={statusBusy} onAction={onStatusAction} />
               )}
               <SaveIndicator saving={saving} flash={flash} />
             </div>
@@ -350,7 +358,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         )}
         {tab === 'prozess' && (
           <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
-            readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null} />
+            readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
+            onStepsCount={setStepsCount} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />

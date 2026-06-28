@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
+from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Order, UserProfile
 from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
@@ -37,15 +38,17 @@ class _Owner:
         self.object_id = record.object_id
         self.article_id = record.id if kind == "article" else None
         self.order_id = record.id if kind == "order" else None
+        # Zulässige Schritttypen je Kontext (Herstellung vs. Bestands-Operation) –
+        # erzwingt die Kompatibilität der Prozessschritte (siehe domain.event_types).
+        self.allowed_step_types = event_types.allowed_step_types(kind)
 
     def ensure_editable(self) -> None:
         if self.kind == "article" and self.record.status != "draft":
             raise HTTPException(409, detail="Spezifikation ist freigegeben und gesperrt – zum Ändern bitte ersetzen")
-        if self.kind == "order":
-            if self.record.mode != "custom":
-                raise HTTPException(409, detail="Nur individuelle Aufträge tragen eigene Prozessschritte")
-            if self.record.status != "draft":
-                raise HTTPException(409, detail="Auftrag ist freigegeben und gesperrt")
+        # Ein Auftrag trägt eigene Schritte (Bestands-Ablauf), solange er im Entwurf ist –
+        # unabhängig davon, ob er auf Artikel+Menge (FIFO) oder gewählte Instanzen wirkt.
+        if self.kind == "order" and self.record.status != "draft":
+            raise HTTPException(409, detail="Auftrag ist freigegeben und gesperrt")
 
     def filter(self):
         if self.kind == "order":
@@ -153,6 +156,15 @@ def _get_step(db: Session, owner: _Owner, step_id: int) -> ArticleProcessStep:
 
 def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
     owner.ensure_editable()
+    # Kompatibilität erzwingen: nur kontext-zulässige Schritttypen (kein „gemischter"
+    # Prozess). Herstellung (Artikel) ≠ Bestands-Operation (Auftrag).
+    if data.step_type not in owner.allowed_step_types:
+        detail = ("Im Artikel-Prozess (Herstellung) sind nur Beschaffung, Ressource, "
+                  "Datenerfassung und Bewegung zulässig – kein Verkauf."
+                  if owner.kind == "article" else
+                  "Im Auftrags-Ablauf (Bestand) sind nur Verkauf, Bewegung und "
+                  "Datenerfassung zulässig – keine Beschaffung/Ressource.")
+        raise HTTPException(400, detail=detail)
     is_purchase = data.step_type == "purchase"
     if is_purchase:
         _validate_supplier(db, data.supplier_id)

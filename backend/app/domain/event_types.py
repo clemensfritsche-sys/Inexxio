@@ -66,6 +66,22 @@ REGISTRY: dict[str, EventType] = {
 STEP_TYPES: tuple[str, ...] = tuple(REGISTRY.keys())
 RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 
+# ─── Kompatibilität: welche Schritte in welchem Prozess-Kontext zulässig sind ─────
+# Damit Prozessschritte IMMER zueinander passen, wird je Kontext eine Whitelist
+# erzwungen. So kann ein Prozess strukturell nicht „mischen" (Zu- UND Abgang) und
+# die Subjektart bleibt kohärent:
+#   • Artikel-Prozess = HERSTELLUNG (wie etwas entsteht): beschaffen, montieren
+#     (Ressource), prüfen, bewegen. KEIN Verkauf (verkauft wird nicht beim Herstellen).
+#   • Auftrags-Ablauf  = OPERATION AM BESTAND (vorhandene/FIFO-Instanzen): verkaufen,
+#     bewegen, prüfen. KEINE Beschaffung/Ressource (das erzeugt Bestand = Herstellung).
+ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
+ORDER_STEP_TYPES: tuple[str, ...] = ("sale", "movement", "inspection")
+
+
+def allowed_step_types(owner_kind: str) -> tuple[str, ...]:
+    """Zulässige Schritttypen je Träger: ``article`` (Herstellung) | ``order`` (Bestand)."""
+    return ARTICLE_STEP_TYPES if owner_kind == "article" else ORDER_STEP_TYPES
+
 
 # ─── Reine Helfer (kein DB-Zugriff – testbar) ────────────────────────────────────
 

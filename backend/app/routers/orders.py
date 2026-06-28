@@ -62,6 +62,26 @@ def _resolve_custom_instances(db: Session, object_ids: list[int] | None) -> tupl
     return insts[0].article_id, insts
 
 
+def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> None:
+    """Die vorgewählten Subjekt-Instanzen eines Entwurfs (neu) setzen: bisherige Auswahl
+    lösen, neue markieren, Artikel/Menge daraus ableiten (Mehrfachauswahl im Entwurf)."""
+    for prev in (
+        db.query(Instance)
+        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+        .all()
+    ):
+        prev.subject_of_order_id = None
+    if not object_ids:
+        order.article_id = None
+        order.quantity = None
+        return
+    order.article_id, insts = _resolve_custom_instances(db, object_ids)
+    order.quantity = len(insts)
+    db.flush()
+    for i in insts:
+        i.subject_of_order_id = order.id
+
+
 @router.get("", response_model=list[OrderSummary])
 async def list_orders(
     limit: int = Query(0, ge=0, le=1000, description="0 = keine Begrenzung; sonst Seitengröße"),
@@ -136,11 +156,17 @@ async def update_order(
 
     payload = data.model_dump(exclude_unset=True)
     ensure_version(order, payload.pop("expected_updated_at", None))
+    # Vorgewählte Subjekt-Instanzen (Mehrfachauswahl) gesondert – kein Modellfeld.
+    new_instances = payload.pop("instance_object_ids", None)
     # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
     # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
     # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
     # erlaubt dann nur noch status/is_active).
     ensure_mutable(order.status, payload, "Auftrag")
+    if new_instances is not None:
+        if order.status != "draft":
+            raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
+        _set_chosen_instances(db, order, new_instances)
     if "article_id" in payload:
         _validate_article(db, payload["article_id"])
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.

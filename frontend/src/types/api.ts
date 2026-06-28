@@ -2006,6 +2006,8 @@ export interface components {
             article_id?: number | null;
             /** Quantity */
             quantity?: number | null;
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */

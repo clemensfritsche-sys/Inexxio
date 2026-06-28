@@ -16,6 +16,7 @@ from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.locations import location_label, physical_location_label
+from ..services.processes import article_steps
 from ..services.objects import next_object_id
 from ..services.weight import computed_weights
 
@@ -200,6 +201,14 @@ async def update_article(
     ensure_mutable(article.status, payload, "Artikel")
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
     reactivating = payload.get("status") == "released" and article.status == "inactive"
+    # Freigabe nur mit hinterlegtem Prozess: Ohne Prozessschritt gäbe es nichts, was der
+    # Artikel „kann" – die Freigabe friert Spezifikation UND Prozess gemeinsam ein.
+    releasing = payload.get("status") == "released" and article.status == "draft"
+    if releasing and not article_steps(db, article.id):
+        raise HTTPException(
+            400,
+            detail="Ohne Prozessschritt kann der Artikel nicht freigegeben werden – bitte zuerst im Reiter «Prozess» einen Ablauf hinterlegen.",
+        )
     # Stammdaten-Freigabe ist **entkoppelt** von den Prozessen: Sie friert die
     # Spezifikation ein (Identität). Ob der Artikel produzierbar/bestellbar ist,
     # entscheidet sich am Auftrag (dort muss zusätzlich ein **freigegebener Prozess**

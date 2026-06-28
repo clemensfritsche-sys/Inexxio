@@ -916,6 +916,41 @@ def test_instance_order_ref_has_no_mode_flag():
         assert f in InstanceOrderRef.model_fields
 
 
+def test_step_type_whitelist_per_context():
+    """Kompatibilität: Artikel-Prozess = Herstellung (kein Verkauf); Auftrags-Ablauf =
+    Bestands-Operation (keine Beschaffung/Ressource). Verhindert gemischte Prozesse."""
+    from app.domain import event_types
+
+    art = event_types.allowed_step_types("article")
+    order = event_types.allowed_step_types("order")
+    assert "sale" not in art and "purchase" in art and "resource" in art
+    assert "sale" in order and "purchase" not in order and "resource" not in order
+    # gemeinsam erlaubt: bewegen & prüfen
+    assert "movement" in art and "movement" in order
+    assert "inspection" in art and "inspection" in order
+
+
+def test_webshop_url_is_validated():
+    """Ein Webshop-Link muss ein gültiges http(s)-URL sein."""
+    import pytest
+    from app.schemas.article_process_step import ArticleProcessStepCreate
+
+    ok = ArticleProcessStepCreate(step_type="purchase", mode="webshop",
+                                  webshop_url="https://shop.example.com/artikel/5")
+    assert ok.webshop_url.startswith("https://")
+    for bad in ("kein-link", "ftp://example.com", "https://", "example.com"):
+        with pytest.raises(ValueError):
+            ArticleProcessStepCreate(step_type="purchase", mode="webshop", webshop_url=bad)
+
+
+def test_order_update_accepts_instance_selection():
+    """Die vorgewählten Subjekt-Instanzen lassen sich im Entwurf anpassen (Mehrfachauswahl)."""
+    from app.schemas.order import OrderUpdate
+
+    assert "instance_object_ids" in OrderUpdate.model_fields
+    assert OrderUpdate(instance_object_ids=[100_000_010, 100_000_011]).instance_object_ids == [100_000_010, 100_000_011]
+
+
 def test_sale_step_mirrors_purchase():
     """Verkauf = kaufmännisches Schrittmodul (Spiegel der Beschaffung), ohne Nummer."""
     from app.models import Sale
