@@ -1969,6 +1969,54 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/abort": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Abort Order",
+        "description": "Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**\nAuftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**\n(Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der\nFolgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück.",
+        "operationId": "abort_order_api_v1_erp_orders__object_id__abort_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [
@@ -6572,6 +6620,28 @@
               }
             ],
             "title": "Replaces Id"
+          },
+          "parent_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Order Id"
+          },
+          "abort_into_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abort Into Id"
           }
         },
         "type": "object",
@@ -6829,6 +6899,28 @@
               }
             ],
             "title": "Replaced By Id"
+          },
+          "parent_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Order Id"
+          },
+          "abort_into_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abort Into Id"
           }
         },
         "type": "object",

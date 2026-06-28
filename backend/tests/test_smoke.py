@@ -1250,6 +1250,51 @@ def test_no_batch_split_anywhere():
         assert col in Instance.__table__.columns.keys()
 
 
+def test_order_deviation_fields_and_kind():
+    """Abweichung = Auftrag mit Eltern (parent_order_id); Abbruch-Folgeauftrag via abort_into_id.
+    Eine Abweichung ist subjektartig «deviation» und wirkt auf vorhandene Instanzen ohne
+    Lager-Allokation; ohne eigene Schritte hat sie (noch) keinen Ablauf."""
+    from types import SimpleNamespace
+    from app.models import Order
+    from app.services import subject
+
+    for col in ("parent_order_id", "abort_into_id"):
+        assert col in Order.__table__.columns.keys()
+
+    assert subject.is_deviation(SimpleNamespace(parent_order_id=100_000_010)) is True
+    assert subject.is_deviation(SimpleNamespace(parent_order_id=None)) is False
+
+    import inspect as _inspect
+    kind_src = _inspect.getsource(subject.subject_kind)
+    assert 'is_deviation(order)' in kind_src and '"deviation"' in kind_src
+    # materialize bindet Abweichungs-Instanzen ohne Stock-Allokation
+    mat_src = _inspect.getsource(subject.materialize_subject)
+    assert "_bind_deviation_subjects" in mat_src
+
+
+def test_abort_requires_followup_order():
+    """Abbruch eines freigegebenen Auftrags erzwingt einen Folgeauftrag; das Original wird
+    erst inaktiv, wenn der Folgeauftrag freigegeben ist (keine herrenlosen Teile)."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import deviation, process
+
+    # Endpoint vorhanden + erzeugt einen Folgeauftrag (statt direkt inaktiv zu setzen).
+    src = _inspect.getsource(orders.abort_order)
+    assert "create_abort_followup" in src
+    # Direkter PATCH released→inactive ist gesperrt (Abbruch nur über Folgeauftrag).
+    upd = _inspect.getsource(orders.update_order)
+    assert "apply_abort_on_release" in upd
+    # Folgeauftrag übernimmt die Instanzen, Original NICHT deaktivieren (keep_instances).
+    rel = _inspect.getsource(deviation.apply_abort_on_release)
+    assert "keep_instances=True" in rel
+    create = _inspect.getsource(deviation.create_abort_followup)
+    assert "parent_order_id=order.object_id" in create and "abort_into_id" in create
+    # Eltern pausiert, solange eine Abweichung offen / Abbruch ausstehend ist.
+    pause = _inspect.getsource(process._is_paused_by_deviation)
+    assert "abort_into_id" in pause and "parent_order_id" in pause
+
+
 def test_sale_customer_is_never_optional():
     """#2: Ein Verkauf ohne Kunde ist fachlich unzulässig – spätestens zur Bestätigung Pflicht."""
     import inspect as _inspect

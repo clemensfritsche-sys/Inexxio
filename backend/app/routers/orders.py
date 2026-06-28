@@ -11,7 +11,7 @@ from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdat
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, process, sale as sale_svc, subject
+from ..services import deactivation, deviation, process, sale as sale_svc, subject
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -54,6 +54,9 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
     Entwurf ist nur eine **Vormerkung** – sie sperrt die Instanz NICHT; **scharf
     reserviert** wird erst bei der Freigabe. Mehrere Entwürfe dürfen dieselbe Instanz
     vormerken; wer zuerst freigibt, reserviert, der zweite scheitert dann an der Prüfung."""
+    # Abweichung (Unter-Auftrag) wirkt auf bereits «in der Hand» befindliche Instanzen –
+    # diese dürfen jeden Verbleib haben (in Arbeit, am Lager, …) und sind nicht zu reservieren.
+    devi = subject.is_deviation(order)
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
@@ -61,9 +64,9 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
         if order.article_id and i.article_id != order.article_id:
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
-        if not (i.quality == "passed" and i.disposition == "in_stock"):
+        if not devi and not (i.quality == "passed" and i.disposition == "in_stock"):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if free_qty(i) + reserved_for(i, order.id) < i.quantity:
+        if not devi and free_qty(i) + reserved_for(i, order.id) < i.quantity:
             raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
         insts.append(i)
     return insts
@@ -213,10 +216,16 @@ async def update_order(
         emit(db, "order.released", object_type="order", object_id=order.object_id,
              payload={"article_id": order.article_id, "quantity": order.quantity},
              actor_id=current_user.id)
+        # War das ein Abbruch-Folgeauftrag? → mit seiner Freigabe das Original abbrechen
+        # (die übernommenen Instanzen bleiben erhalten und gehören jetzt diesem Auftrag).
+        if order.parent_order_id is not None:
+            deviation.apply_abort_on_release(db, order, current_user.id)
 
-    # Abbruch (released → inactive): Reservierungen freigeben + unfertige Instanzen deaktivieren.
+    # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
+    # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).
     if order.status == "inactive" and was_released:
-        deactivation.cancel_order_effects(db, order, current_user.id)
+        raise HTTPException(
+            409, detail="Bitte «Abbrechen» verwenden – ein freigegebener Auftrag braucht einen Folgeauftrag")
 
     db.commit()
     db.refresh(order)
@@ -245,6 +254,38 @@ async def replace_order(
     db.commit()
     db.refresh(new)
     return to_order_response(db, new)
+
+
+@router.post("/{object_id}/abort", response_model=OrderResponse)
+async def abort_order(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**
+    Auftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**
+    (Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der
+    Folgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück."""
+    order = _get_staff_order(db, object_id)
+    if order.status in ("inactive", "completed"):
+        raise HTTPException(400, detail="Auftrag ist bereits abgeschlossen/inaktiv")
+    if order.abort_into_id:
+        raise HTTPException(409, detail="Für diesen Auftrag ist bereits ein Folgeauftrag offen")
+
+    # Entwurf oder ein Auftrag ohne im Prozess befindliche Instanzen → direkt inaktiv.
+    if order.status == "draft" or not subject.order_instances(db, order):
+        was_released = order.status == "released"
+        order.status = "inactive"
+        if was_released:
+            deactivation.cancel_order_effects(db, order, current_user.id)
+        db.commit()
+        db.refresh(order)
+        return to_order_response(db, order)
+
+    follow = deviation.create_abort_followup(db, order, current_user.id)
+    db.commit()
+    db.refresh(follow)
+    return to_order_response(db, follow)
 
 
 @router.patch("/{object_id}/purchase", response_model=OrderResponse)

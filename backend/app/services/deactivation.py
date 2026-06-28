@@ -162,10 +162,14 @@ def article_reactivation_blocker(db: Session, article: Article) -> str | None:
 
 # ─── Auftrag: Abbruch ─────────────────────────────────────────────────────────
 
-def cancel_order_effects(db: Session, order: Order, actor_id: int) -> None:
+def cancel_order_effects(db: Session, order: Order, actor_id: int,
+                         keep_instances: bool = False) -> None:
     """Beim Abbruch eines Auftrags: Reservierungen UND Bestands-Subjekte freigeben
-    (Verkauf/Entnahme – zurück in den freien Bestand) und unfertige (``pending``)
-    Produkt-Instanzen deaktivieren. Setzt NICHT den Status (Aufrufer)."""
+    (Verkauf/Entnahme – zurück in den freien Bestand). Setzt NICHT den Status (Aufrufer).
+
+    ``keep_instances`` – beim **Abbruch mit Folgeauftrag**: die im Prozess befindlichen
+    Instanzen werden NICHT deaktiviert; sie gehören jetzt dem Folgeauftrag (kein
+    Verschwinden physisch vorhandener Teile)."""
     # Reservierte Komponenten + als Subjekt gewählte Bestands-Instanzen freigeben
     # (mengengenau: nur die Reservierung dieses Auftrags lösen, Instanz bleibt erhalten).
     for inst in db.query(Instance).filter(
@@ -174,14 +178,17 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int) -> None:
         Instance.is_active == True,
     ).all():
         release(inst, order.id)
-        inst.subject_of_order_id = None
-    # Bei Freigabe erzeugte, noch unfertige Produkt-Instanzen deaktivieren.
-    for inst in db.query(Instance).filter(
-        Instance.order_id == order.id, Instance.is_active == True, Instance.quality == "pending"
-    ).all():
-        log_audit(db, "instances", "is_active", "false", actor_id,
-                  object_id=inst.object_id, old_value="true")
-        inst.is_active = False
+        if inst.subject_of_order_id == order.id:
+            inst.subject_of_order_id = None
+    # Bei Freigabe erzeugte, noch unfertige Produkt-Instanzen deaktivieren – ausser beim
+    # Abbruch mit Folgeauftrag (dort übernimmt der Folgeauftrag die Instanzen).
+    if not keep_instances:
+        for inst in db.query(Instance).filter(
+            Instance.order_id == order.id, Instance.is_active == True, Instance.quality == "pending"
+        ).all():
+            log_audit(db, "instances", "is_active", "false", actor_id,
+                      object_id=inst.object_id, old_value="true")
+            inst.is_active = False
     emit(db, "order.cancelled", object_type="order", object_id=order.object_id, actor_id=actor_id)
 
 

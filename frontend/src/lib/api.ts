@@ -239,6 +239,12 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/replace`, {});
   }
 
+  // Abbrechen: erzwingt einen Folgeauftrag (Abweichung); liefert diesen zurück (bzw. bei
+  // einem Entwurf den direkt inaktivierten Auftrag).
+  abortOrder(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
+  }
+
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);

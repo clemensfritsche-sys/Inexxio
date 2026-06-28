@@ -66,6 +66,10 @@ def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
     custom = order_custom_steps(db, order.id)
     if custom:
         return custom
+    # Abweichung (Unter-Auftrag): NUR eigene Schritte (die Auflösung) – nie der Artikel-
+    # Prozess. Ohne eigene Schritte hat sie (noch) keinen Ablauf.
+    if getattr(order, "parent_order_id", None) is not None:
+        return []
     return article_steps(db, order.article_id)
 
 
@@ -315,8 +319,24 @@ def _spawn_recurrence(db: Session, order: Order) -> None:
          payload={"parent": order.object_id})
 
 
+def _is_paused_by_deviation(db: Session, order: Order) -> bool:
+    """Pausiert der Auftrag wegen einer offenen Abweichung oder eines ausstehenden Abbruchs?
+    Solange darf er NICHT abschliessen – erst muss die Abweichung geklärt sein."""
+    if getattr(order, "abort_into_id", None) is not None:
+        return True
+    if not order.object_id:
+        return False
+    return db.query(Order.id).filter(
+        Order.parent_order_id == order.object_id, Order.is_active == True,
+        Order.status.in_(("draft", "released")),
+    ).first() is not None
+
+
 def recompute_completion(db: Session, order: Order) -> None:
-    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind."""
+    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind – aber NICHT,
+    solange eine Abweichung offen oder ein Abbruch ausstehend ist (der Auftrag pausiert)."""
+    if _is_paused_by_deviation(db, order):
+        return
     if order.status != "completed" and all_steps_done(db, order):
         order.status = "completed"
         if order.completed_at is None:
