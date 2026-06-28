@@ -32,6 +32,9 @@ export function useBarcodeScanner(active: boolean, onText: (text: string) => voi
     const supported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
     if (!supported) { setState('unsupported'); return; }
 
+    // Video-Element einmal festhalten – stabil für die Lebensdauer dieses Effekts
+    // (und im Cleanup verlässlich verfügbar, ohne den wandernden Ref erneut zu lesen).
+    const videoEl = videoRef.current;
     let controls: IScannerControls | null = null;
     let cancelled = false;
     setState('starting');
@@ -40,7 +43,7 @@ export function useBarcodeScanner(active: boolean, onText: (text: string) => voi
     reader
       .decodeFromConstraints(
         { video: { facingMode: 'environment' } },
-        videoRef.current ?? undefined,
+        videoEl ?? undefined,
         (result) => { if (result) onTextRef.current(result.getText()); },
       )
       .then((c) => {
@@ -53,6 +56,15 @@ export function useBarcodeScanner(active: boolean, onText: (text: string) => voi
     return () => {
       cancelled = true;
       controls?.stop();
+      // ZXing's `stop()` beendet je nach Version nur die Decode-Schleife, lässt aber
+      // den Kamera-MediaStream am Video-Element offen. Über mehrere Scan-Vorgänge
+      // hinweg summieren sich die Video-Puffer zu enormem Speicherverbrauch (mehrere
+      // GB). Darum den Stream + alle Tracks hier explizit freigeben.
+      const stream = videoEl?.srcObject as MediaStream | null;
+      if (stream && typeof stream.getTracks === 'function') {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      if (videoEl) videoEl.srcObject = null;
     };
   }, [active]);
 

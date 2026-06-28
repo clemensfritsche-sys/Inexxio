@@ -75,6 +75,8 @@ _COLUMN_SAFETY_NET = (
     ("instances", "reserved_for_order_id", "BIGINT"),
     ("storage_locations", "note", "VARCHAR(500)"),
     ("company_settings", "article_names", "JSONB"),
+    # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
+    ("company_settings", "object_id", "BIGINT"),
     ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ("purchase_orders", "receiving_location_id", "BIGINT"),
     ("instances", "released_at", "TIMESTAMP WITH TIME ZONE"),
@@ -145,6 +147,7 @@ _INDEX_SAFETY_NET = (
     # Schritte am Artikel/Auftrag, Bestands-Subjekte je Auftrag
     ("ix_aps_order_id", "article_process_steps", "order_id"),
     ("ix_instances_subject_of_order", "instances", "subject_of_order_id"),
+    ("ix_company_settings_object_id", "company_settings", "object_id"),
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.

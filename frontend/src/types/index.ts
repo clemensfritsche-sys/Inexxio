@@ -354,7 +354,7 @@ export interface ClaimUpdateInput {
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'claim' | 'organization';
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
@@ -363,6 +363,7 @@ export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage
 // diese camelCase-nahe Frontend-Sicht (mapSettingsFromBackend/ToBackend).
 
 export interface CompanySettings {
+  object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
   company_name: string;
   legal_form: string | null;
   street: string;

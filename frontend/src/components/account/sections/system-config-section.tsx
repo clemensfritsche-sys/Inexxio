@@ -26,7 +26,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_receiving_location_id: null, article_names: [],
 };
 
-export function SystemConfigSection() {
+export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState<SectionKey | null>(null);
   const [saved, setSaved] = useState<SectionKey | null>(null);
@@ -41,6 +41,7 @@ export function SystemConfigSection() {
     mutationFn: (data: Partial<CompanySettings>) => api.updateSettings(data),
     onSuccess: (updated) => {
       queryClient.setQueryData(['settings'], updated);
+      onSaved?.(updated);   // Eltern-Feed (ERP «Unternehmen») synchron halten
     },
   });
 

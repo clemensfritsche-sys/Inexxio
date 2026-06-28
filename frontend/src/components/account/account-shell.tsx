@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { User, MapPin, FileText, Shield, Bell, Lock, Loader2, Package } from 'lucide-react';
+import { User, MapPin, FileText, Shield, Bell, Lock, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -12,9 +12,8 @@ import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
 import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
-import { SystemConfigSection } from './sections/system-config-section';
 
-type SectionId = 'profile' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy' | 'systemkonfig';
+type SectionId = 'profile' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
 
 interface Props {
   profile: UserProfile | null;
@@ -59,11 +58,10 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
       { id: 'privacy', label: 'Datenschutz', icon: Lock },
     ];
-    if (profile?.role === 'admin') {
-      base.push({ id: 'systemkonfig', label: 'Systemkonfiguration', icon: Package });
-    }
+    // Systemkonfiguration ist neu ein ERP-Datensatz («Unternehmen» im ERP-Feed) und
+    // wird daher nicht mehr in den Profileinstellungen geführt.
     return base;
-  }, [profile?.role]);
+  }, []);
 
   const fullName = profile ? userDisplayName(profile) : '';
 
@@ -80,7 +78,6 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       case 'security': return <SecuritySection profile={profile} />;
       case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
       case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;
-      case 'systemkonfig': return <SystemConfigSection />;
     }
   }
 

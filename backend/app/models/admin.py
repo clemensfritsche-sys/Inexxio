@@ -13,6 +13,10 @@ class CompanySettings(Base):
     __tablename__ = "company_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    # Universelle Objektnummer: Das Unternehmen ist ein vollwertiger ERP-Datensatz
+    # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
+    # Abfrage lazy vergeben (services/admin.get_or_create_settings).
+    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
     company_name: Mapped[str] = mapped_column(String(255), default="Inexxio AG")
     legal_form: Mapped[str] = mapped_column(String(50), default="AG")
     street: Mapped[Optional[str]] = mapped_column(String(255))

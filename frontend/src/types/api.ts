@@ -1277,6 +1277,8 @@ export interface components {
         CompanySettingsResponse: {
             /** Id */
             id: number;
+            /** Object Id */
+            object_id?: number | null;
             /** Company Name */
             company_name: string;
             /** Legal Form */
