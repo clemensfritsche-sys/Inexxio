@@ -25,6 +25,7 @@ automatisch ``completed``, wenn alle definierten Schritte erledigt sind.
 from math import ceil
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..domain import event_types
@@ -322,11 +323,17 @@ def recompute_completion(db: Session, order: Order) -> None:
             order.completed_at = utcnow()
         release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
         _finalize_subjects(db, order)        # Subjekt-Disposition (abgeleitet: sold/consumed/neutral)
-        # Reservierungen dieses Auftrags auflösen (Verbrauch ist erfolgt / Auftrag fertig).
+        # Reservierung UND Bindung dieses Auftrags lösen (Auftrag fertig): verkaufte/
+        # verbaute Subjekte sind über ihre ``disposition`` ohnehin aus dem Bestand; ein
+        # neutral gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar.
+        # Die Auftrags-Historie der Instanz bleibt über ``instance_order_links`` erhalten.
         for inst in db.query(Instance).filter(
-            Instance.reserved_for_order_id == order.id, Instance.is_active == True
+            or_(Instance.reserved_for_order_id == order.id,
+                Instance.subject_of_order_id == order.id),
+            Instance.is_active == True,
         ).all():
             inst.reserved_for_order_id = None
+            inst.subject_of_order_id = None
         _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
 

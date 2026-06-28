@@ -13,7 +13,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, ArticleProcessStep, Inspection, Instance, Order, ResourceUsage, StorageLocation,
+    Article, ArticleProcessStep, Inspection, Instance, InstanceOrderLink, Order,
+    ResourceUsage, StorageLocation,
 )
 from .locations import _obj_nr
 
@@ -33,10 +34,21 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
         if at and (h["at"] is None or at < h["at"]):
             h["at"] = at
 
-    # Herkunft (make: erzeugt) / Subjekt eines individuellen Auftrags / Reservierung
+    # Herkunft (make: erzeugt) / aktuelle Bindung (Entwurf) / Reservierung
     add(instance.order_id, "Erzeugt", instance.created_at)
     add(instance.subject_of_order_id, "Bearbeitet", instance.updated_at)
     add(instance.reserved_for_order_id, "Reserviert", instance.updated_at)
+
+    # Dauerhafte Verarbeitungs-Historie: jeder Auftrag, der diese Instanz als Subjekt
+    # verarbeitet hat (bei der Freigabe festgehalten) – unabhängig davon, dass die
+    # veränderliche Bindung bei Abschluss/Abbruch gelöst wird (behebt „Auftrag fehlt
+    # nach Abschluss"). Eine Quelle der Wahrheit für die Auftrags-Historie der Instanz.
+    for link in (
+        db.query(InstanceOrderLink)
+        .filter(InstanceOrderLink.instance_object_id == oid, InstanceOrderLink.is_active == True)
+        .all()
+    ):
+        add(link.order_id, "Bearbeitet", link.created_at)
 
     # Datenerfassungen, deren Stichprobe diese Instanz nennt
     for ins in (

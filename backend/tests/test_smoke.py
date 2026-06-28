@@ -1130,3 +1130,81 @@ def test_claim_exposes_quality_and_disposition():
     assert "instance_quality" in ClaimResponse.model_fields
     assert "instance_disposition" in ClaimResponse.model_fields
     assert "instance_qc_status" not in ClaimResponse.model_fields
+
+
+def test_instance_order_link_is_immutable_history():
+    """Die Auftrags-Historie einer Instanz hängt an einer UNVERÄNDERLICHEN Verweis-Tabelle
+    (nicht an den wandernden Zeigern subject_/reserved_for_order_id)."""
+    import app.models as models
+    from app.models import InstanceOrderLink
+
+    assert InstanceOrderLink.__tablename__ == "instance_order_links"
+    assert "InstanceOrderLink" in models.__all__
+    for col in ("instance_object_id", "order_id"):
+        assert col in InstanceOrderLink.__table__.columns.keys()
+    # KEINE eigene Objektnummer (läuft als reine Verknüpfung)
+    assert "object_id" not in InstanceOrderLink.__table__.columns.keys()
+
+
+def test_claim_clauses_exclude_pinned_and_reserved_symmetrically():
+    """FIFO/Verfügbarkeit blendet sowohl **reservierte** als auch **gepinnte** (an einen
+    anderen Auftrag gebundene) Instanzen aus – ein expliziter Pin schlägt die anonyme
+    FIFO-Allokation. Für ``for_order_id`` kommen die eigenen wieder hinzu."""
+    from app.services.inventory import claim_clauses
+
+    free = claim_clauses(None)
+    assert len(free) == 2
+    rendered = " ".join(str(c) for c in free)
+    assert "reserved_for_order_id" in rendered and "subject_of_order_id" in rendered
+    assert " IS NULL" in rendered          # neue Allokation: nur freie Instanzen
+
+    own = claim_clauses(42)
+    own_rendered = " ".join(str(c) for c in own)
+    assert "reserved_for_order_id" in own_rendered and "subject_of_order_id" in own_rendered
+    assert " OR " in own_rendered          # eigene (for_order_id) zusätzlich erlaubt
+
+
+def test_reservation_becomes_firm_only_at_release():
+    """#1: Der Pin im Entwurf merkt nur **vor** (subject_of_order_id); **scharf reserviert**
+    (reserved_for_order_id) wird erst bei der Freigabe – mit Freigabe-Validierung."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import subject
+
+    pin_src = _inspect.getsource(orders._set_chosen_instances)
+    assert "subject_of_order_id = order.id" in pin_src
+    assert "reserved_for_order_id" not in pin_src        # Entwurf reserviert NICHT
+
+    alloc_src = _inspect.getsource(subject._allocate_stock_subject)
+    assert "reserved_for_order_id = order.id" in alloc_src  # erst hier scharf
+    # Freigabe-Validierung: nur freigegebene (passed/in_stock) Instanzen sind freigebbar
+    assert 'quality == "passed"' in alloc_src and 'disposition == "in_stock"' in alloc_src
+    assert "record_link" in alloc_src                   # Historie dauerhaft festhalten
+
+
+def test_completion_releases_binding_history_survives():
+    """#1/#4: Bei Abschluss werden Reservierung UND Bindung gelöst (Instanz wird wieder frei),
+    aber die Auftrags-Historie bleibt über instance_order_links erhalten."""
+    import inspect as _inspect
+    from app.services import process, references, subject
+
+    comp_src = _inspect.getsource(process.recompute_completion)
+    assert "inst.reserved_for_order_id = None" in comp_src
+    assert "inst.subject_of_order_id = None" in comp_src
+
+    # Die Auftragsliste einer Instanz liest die dauerhafte Verknüpfung (nicht nur Zeiger).
+    ref_src = _inspect.getsource(references.instance_orders)
+    assert "InstanceOrderLink" in ref_src
+    # order_instances zeigt die Subjekte auch nach Abschluss (über die Verknüpfung).
+    oi_src = _inspect.getsource(subject.order_instances)
+    assert "InstanceOrderLink" in oi_src
+
+
+def test_sale_customer_is_never_optional():
+    """#2: Ein Verkauf ohne Kunde ist fachlich unzulässig – spätestens zur Bestätigung Pflicht."""
+    import inspect as _inspect
+    from app.services import sale
+
+    src = _inspect.getsource(sale._apply_transition)
+    assert "customer_id is None" in src
+    assert "Kunde ist erforderlich" in src

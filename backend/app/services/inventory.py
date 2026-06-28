@@ -15,24 +15,39 @@ from sqlalchemy.orm import Session
 from ..models import Instance
 
 
+def claim_clauses(for_order_id: int | None) -> tuple:
+    """Eine Instanz ist für eine **neue/laufende Allokation frei**, wenn sie weder fest
+    **reserviert** (``reserved_for_order_id``) noch an einen Auftrag **gebunden**
+    (``subject_of_order_id``) ist – ausser an genau diesen Auftrag (``for_order_id``).
+
+    Beide Achsen werden symmetrisch behandelt: eine **gepinnte** (vorgemerkte) Instanz
+    eines anderen Auftrags ist genauso wenig verfügbar wie eine reservierte, damit ein
+    expliziter Pin nicht von einer anonymen FIFO-Allokation überholt wird. Bindung UND
+    Reservierung werden bei Abschluss/Abbruch gelöst – danach ist die Instanz wieder frei."""
+    if for_order_id is None:
+        return (Instance.reserved_for_order_id.is_(None),
+                Instance.subject_of_order_id.is_(None))
+    return (
+        or_(Instance.reserved_for_order_id.is_(None), Instance.reserved_for_order_id == for_order_id),
+        or_(Instance.subject_of_order_id.is_(None), Instance.subject_of_order_id == for_order_id),
+    )
+
+
 def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
     """Verbrauchbare/verkäufliche Instanzen eines Artikels: **freigegeben** (qc passed,
     am Lager), Restmenge > 0, **FIFO nach Freigabe** (``released_at``, ersatzweise
     ``created_at``), dann Objektnummer.
 
-    Reservierungen: ``for_order_id=None`` liefert nur **unreservierte** Instanzen (Basis
-    für eine neue Reservierung). Mit ``for_order_id`` kommen zusätzlich die **für diesen
-    Auftrag reservierten** Instanzen dazu – und werden **zuerst** verbraucht."""
+    Verfügbarkeit: ``for_order_id=None`` liefert nur **freie** Instanzen (weder reserviert
+    noch gepinnt) – die Basis für eine neue Bindung. Mit ``for_order_id`` kommen zusätzlich
+    die **für diesen Auftrag** reservierten/gebundenen Instanzen dazu und werden **zuerst**
+    verbraucht (siehe ``claim_clauses``)."""
     q = db.query(Instance).filter(
         Instance.article_id == article_db_id,
         Instance.is_active == True,
         *in_stock_clauses(),
+        *claim_clauses(for_order_id),
     )
-    if for_order_id is None:
-        q = q.filter(Instance.reserved_for_order_id.is_(None))
-    else:
-        q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
-                         Instance.reserved_for_order_id == for_order_id))
     rows = q.all()
     rows.sort(key=lambda i: (
         0 if (for_order_id is not None and i.reserved_for_order_id == for_order_id) else 1,
@@ -77,12 +92,8 @@ def available(db: Session, article_db_id: int, for_order_id: int | None = None) 
         Instance.article_id == article_db_id,
         Instance.is_active == True,
         *in_stock_clauses(),
+        *claim_clauses(for_order_id),
     )
-    if for_order_id is None:
-        q = q.filter(Instance.reserved_for_order_id.is_(None))
-    else:
-        q = q.filter(or_(Instance.reserved_for_order_id.is_(None),
-                         Instance.reserved_for_order_id == for_order_id))
     return int(q.scalar() or 0)
 
 
