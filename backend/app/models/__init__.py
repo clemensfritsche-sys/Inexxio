@@ -7,6 +7,7 @@ from .order import Order
 from .purchase_order import PurchaseOrder
 from .sale import Sale
 from .instance import Instance
+from .instance_order_link import InstanceOrderLink
 from .inspection import Inspection
 from .movement import Movement
 from .resource_usage import ResourceUsage
@@ -20,6 +21,6 @@ from .object_ref import ObjectRef
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticleProcessStep", "Order", "PurchaseOrder", "Sale",
-    "Instance", "Inspection", "Movement", "ResourceUsage", "StorageLocation",
+    "Instance", "InstanceOrderLink", "Inspection", "Movement", "ResourceUsage", "StorageLocation",
     "Claim", "AuditLog", "Event", "Notification", "ObjectRef",
 ]

@@ -49,7 +49,8 @@ def _validate_article(db: Session, article_id: int | None) -> None:
 
 def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Instance]:
     """Zu fixierende (gepinnte) Instanzen prüfen: Artikel des Auftrags, am Lager verfügbar
-    und nicht bereits für einen ANDEREN Auftrag reserviert."""
+    und nicht bereits von einem ANDEREN aktiven Auftrag gewählt/reserviert. Die Festlegung
+    ist eine Vormerkung; **scharf reserviert** wird erst bei der Freigabe."""
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
@@ -59,25 +60,22 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
         if not (i.quality == "passed" and i.disposition == "in_stock"):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if i.reserved_for_order_id not in (None, order.id):
-            raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
+        if i.reserved_for_order_id not in (None, order.id) or i.subject_of_order_id not in (None, order.id):
+            raise HTTPException(409, detail=f"Instanz {oid} ist bereits von einem anderen Auftrag gewählt")
         insts.append(i)
     return insts
 
 
 def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> None:
     """Die **fixierten** (gepinnten) Subjekt-Instanzen eines Entwurfs neu setzen: bisherige
-    lösen (Reservierung freigeben), neue prüfen und **sofort reservieren** (kein Doppel-
-    zugriff). Artikel + Menge bleiben unverändert – der Artikel ist der Anker, die Pins
-    sind eine optionale Festlegung innerhalb der FIFO-Auswahl."""
+    lösen, neue prüfen und **vormerken** (``subject_of_order_id``). KEINE feste Reservierung –
+    die wird erst bei der Freigabe scharf. Artikel + Menge bleiben unverändert (Anker)."""
     for prev in (
         db.query(Instance)
         .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
         .all()
     ):
         prev.subject_of_order_id = None
-        if prev.reserved_for_order_id == order.id:
-            prev.reserved_for_order_id = None
     if not object_ids:
         return
     insts = _validate_pins(db, order, object_ids)
@@ -86,8 +84,7 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> N
         raise HTTPException(
             400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
     for i in insts:
-        i.subject_of_order_id = order.id
-        i.reserved_for_order_id = order.id            # sofort reservieren
+        i.subject_of_order_id = order.id              # nur vormerken (Reservierung bei Freigabe)
 
 
 @router.get("", response_model=list[OrderSummary])

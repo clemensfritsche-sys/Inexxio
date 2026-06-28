@@ -66,8 +66,13 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
         raise HTTPException(400, detail="Unbekannter Zielstatus")
     if sale.status not in _FROM[target]:
         raise HTTPException(400, detail=f"Übergang {sale.status} → {target} ist nicht erlaubt")
-    if target in ("confirmed", "invoiced") and sale.order_total is None:
-        raise HTTPException(400, detail="Verkaufsbetrag ist erforderlich")
+    if target in ("confirmed", "invoiced"):
+        if sale.order_total is None:
+            raise HTTPException(400, detail="Verkaufsbetrag ist erforderlich")
+        # Ein Verkauf ohne Kunde ist fachlich nicht zulässig – der Kunde ist NIE optional,
+        # sobald der Verkauf bestätigt/fortgeschrieben wird (spätestens zur Bestätigung).
+        if sale.customer_id is None:
+            raise HTTPException(400, detail="Kunde ist erforderlich")
     now = utcnow()
     if target == "confirmed":
         sale.confirmed_at = now
