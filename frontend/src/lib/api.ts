@@ -361,6 +361,7 @@ class ApiClient {
 
 function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
   return {
+    object_id: (s.object_id as number | null) ?? null,
     company_name: (s.company_name as string) ?? '',
     legal_form: (s.legal_form as string | null) ?? null,
     street: (s.street as string) ?? '',

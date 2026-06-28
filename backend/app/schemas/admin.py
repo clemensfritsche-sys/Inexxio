@@ -57,6 +57,7 @@ class CompanySettingsResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    object_id: Optional[int] = None
     company_name: str
     legal_form: str
     street: Optional[str]

@@ -4473,6 +4473,17 @@
             "type": "integer",
             "title": "Id"
           },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
           "company_name": {
             "type": "string",
             "title": "Company Name"

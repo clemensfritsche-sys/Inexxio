@@ -753,8 +753,9 @@ def test_object_registry_wired():
 
     assert ObjectRef.__tablename__ == "objects"
     # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
+    # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "claim"}
+        "user", "article", "order", "instance", "storage_location", "claim", "organization"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -1208,3 +1209,19 @@ def test_sale_customer_is_never_optional():
     src = _inspect.getsource(sale._apply_transition)
     assert "customer_id is None" in src
     assert "Kunde ist erforderlich" in src
+
+
+def test_company_is_numbered_erp_record():
+    """#5: Das Unternehmen ist ein vollwertiger ERP-Datensatz mit universeller Objektnummer.
+    Die Nummer wird lazy bei der ersten Abfrage vergeben (kein Profil-Sonderfall mehr)."""
+    import inspect as _inspect
+    from app.models import CompanySettings
+    from app.schemas.admin import CompanySettingsResponse
+    from app.services import admin
+
+    assert "object_id" in CompanySettings.__table__.columns.keys()
+    assert "object_id" in CompanySettingsResponse.model_fields
+    # get_or_create_settings vergibt die Objektnummer lazy (Typ "organization").
+    src = _inspect.getsource(admin.get_or_create_settings)
+    assert "object_id is None" in src
+    assert 'next_object_id(db, "organization")' in src

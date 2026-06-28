@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Repeat, Loader2 } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Claim, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
@@ -20,6 +20,7 @@ import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 import { ClaimDetail } from '@/components/erp/claim-detail';
+import { OrganizationDetail } from '@/components/erp/organization-detail';
 
 // ─── Type metadata ───────────────────────────────────────────────────────────
 
@@ -30,9 +31,11 @@ const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType 
   instance:         { label: 'Instanzen',    icon: Boxes },
   storage_location: { label: 'Lagerplatz',   icon: Warehouse },
   claim:            { label: 'Reklamationen', icon: AlertTriangle },
+  organization:     { label: 'Unternehmen',  icon: Building2 },
 };
 
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim'];
+// 'organization' erscheint nur für Admins als Chip (displayCount blendet 0-Zähler aus).
+const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'claim', 'organization'];
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
 
 type Row =
@@ -41,7 +44,8 @@ type Row =
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
-  | { type: 'claim'; key: string; objectId: number | null; data: Claim };
+  | { type: 'claim'; key: string; objectId: number | null; data: Claim }
+  | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
@@ -49,6 +53,7 @@ function rowTitle(row: Row): string {
   if (row.type === 'instance') return 'Instanz';   // starr – Instanz trägt keinen freien Namen
   if (row.type === 'storage_location') return 'Lagerplatz';
   if (row.type === 'claim') return 'Reklamation';   // starr – wie Auftrag/Lagerplatz
+  if (row.type === 'organization') return row.data.company_name || 'Unternehmen';
   return row.data.name; // article
 }
 
@@ -59,6 +64,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'claim') return `reklamation rma ${row.data.title ?? ''} ${row.data.article_name ?? ''} ${id}`.toLowerCase();
+  if (row.type === 'organization') return `unternehmen firma ${row.data.company_name} ${id}`.toLowerCase();
   return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
 }
 
@@ -81,6 +87,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
+  else if (row.type === 'organization') badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
   else badge = storageStatusConfig(row.data.status);
 
   const TypeIcon = TYPE_META[row.type].icon;
@@ -240,6 +247,11 @@ export default function ErpPage() {
   useEffect(() => { setVisibleCount(50); }, [typeFilter, search]);
 
   const rows: Row[] = [
+    // Das Unternehmen ist ein nummerierter ERP-Datensatz – nur für Admins sichtbar
+    // (Firmen-/Bank-/API-Konfiguration ist sensibel).
+    ...(isAdmin && settings?.object_id
+      ? [{ type: 'organization', key: 'org', objectId: settings.object_id, data: settings } as Row]
+      : []),
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
@@ -548,6 +560,10 @@ export default function ErpPage() {
           )}
           {!creating && selectedRow?.type === 'claim' && (
             <ClaimDetail key={selectedRow.key} record={selectedRow.data} instances={instances} onSaved={handleClaimSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          )}
+          {!creating && selectedRow?.type === 'organization' && (
+            <OrganizationDetail key={selectedRow.key} record={selectedRow.data}
+              onSaved={(s) => setSettings(s)} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
