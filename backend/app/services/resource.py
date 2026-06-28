@@ -27,9 +27,9 @@ from ..schemas.resource import (
 from . import process
 from .admin import log_audit
 from .events import emit
-from .inventory import allocate, available, available_qty, fifo_candidates, in_stock_clauses
+from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
 from .locations import _obj_nr, location_label, resolve_physical_location
-from .objects import next_object_id
+from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
 from .subject import order_instances
 
 
@@ -64,10 +64,10 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     reservieren.
 
     Über alle **Verbrauch**-Schritte (``consume``) des Auftrags werden die Mengen
-    summiert und – FIFO aus unreserviertem freigegebenem Bestand – exakt die benötigte
-    Menge gesperrt. Betriebsmittel-Schritte (``tool``) reservieren nichts. Deckt eine
-    Charge mehr als den Bedarf, wird sie **geteilt**: der reservierte Teil geht an den
-    Auftrag (``reserved_for_order_id``), der Rest bleibt frei. Committet NICHT."""
+    summiert und – FIFO aus freiem freigegebenem Bestand – exakt die benötigte Menge
+    gesperrt. Betriebsmittel-Schritte (``tool``) reservieren nichts. Deckt eine Charge
+    mehr als den Bedarf, wird die **Menge mengengenau reserviert** (``reservations``) –
+    die Charge wird **nicht geteilt**, die Objektnummer bleibt erhalten. Committet NICHT."""
     if not order.article_id or not order.quantity:
         return
     needs: dict[int, int] = {}
@@ -83,22 +83,9 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
         if art_id == order.article_id:
             continue
         cands = fifo_candidates(db, art_id, for_order_id=None)
-        for cand, take in zip(cands, allocate(need, [c.quantity for c in cands])):
-            if take <= 0:
-                continue
-            if take == cand.quantity:
-                cand.reserved_for_order_id = order.id           # ganze Instanz reservieren
-            else:
-                cand.quantity -= take                            # Charge teilen
-                db.add(Instance(
-                    object_id=next_object_id(db, "instance"), article_id=cand.article_id,
-                    order_id=cand.order_id, kind=cand.kind, quantity=take,
-                    quality="passed", disposition="in_stock",
-                    released_at=cand.released_at or cand.created_at,
-                    location_type=cand.location_type, location_id=cand.location_id,
-                    reserved_for_order_id=order.id,
-                ))
-                db.flush()
+        for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
+            if take > 0:
+                reserve(cand, order.id, take)   # mengengenau, OHNE Teilung
     log_audit(db, "instances", None, "Ressourcen reserviert", actor_id, object_id=order.object_id)
 
 
@@ -121,19 +108,22 @@ def _tool_candidates(db: Session, article_db_id: int) -> list[Instance]:
 class _Fifo:
     """Läuft die FIFO-Kandidaten ab; gibt je Zug (Instanz, Menge, ganz?) zurück.
 
-    ``ganz`` = die Instanz wird vollständig verbraucht (umlagern); sonst Charge
-    teilentnehmen (Restmenge bleibt im Lager)."""
+    ``ganz`` = die **komplette physische Instanz** wandert ins Produkt (umlagern); sonst
+    Teilentnahme – die Instanz bleibt mit Restmenge im Lager (**dieselbe Objektnummer**,
+    keine Teilung). Entnehmbar je Auftrag ist die freie Restmenge plus die eigene
+    Reservierung (``avail_amount``)."""
 
-    def __init__(self, candidates: list[Instance]):
+    def __init__(self, candidates: list[Instance], order_id: int):
         self.cands = candidates
+        self.order_id = order_id
         self.i = 0
 
     def take(self, need: int):
         cand = self.cands[self.i]
-        avail = cand.quantity
+        avail = avail_amount(cand, self.order_id)
         take = min(avail, need)
-        whole = take == avail
-        if whole:
+        whole = take == cand.quantity          # die GANZE Instanz geht ins Produkt
+        if take >= avail:                      # für diesen Auftrag erschöpft → nächste
             self.i += 1
         return cand, take, whole
 
@@ -154,7 +144,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
         raise HTTPException(400, detail="Ein Artikel kann sich nicht selbst verbrauchen")
     cands = fifo_candidates(db, article_db_id, order.id)
     total_need = sum(per_unit * p.quantity for p in products)
-    have = available_qty(cands)
+    have = available_qty(cands, order.id)
     if have < total_need:
         art = _article(db, article_db_id)
         name = art.name if art else f"#{article_db_id}"
@@ -163,34 +153,26 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
             detail=f"Nicht genügend freigegebener Bestand für «{name}»: benötigt {total_need}, verfügbar {have}",
         )
 
-    fifo = _Fifo(cands)
+    fifo = _Fifo(cands, order.id)
     picks: list[dict] = []
     for product in products:
         need = per_unit * product.quantity
         while need > 0:
             cand, take, whole = fifo.take(need)
+            if take <= 0:
+                break
             if whole:
+                # Die komplette Instanz wandert ins Produkt (Objektnummer bleibt erhalten).
+                release(cand, order.id)
                 _relocate(db, cand, product, actor_id)
-                picks.append({"instance_id": cand.object_id, "quantity": take,
-                              "into_instance_id": product.object_id})
             else:
-                # Charge teilentnehmen: Rest bleibt im Lager, Teilcharge wandert ins Produkt
-                cand.quantity -= take
-                sub = Instance(
-                    object_id=next_object_id(db, "instance"), article_id=cand.article_id,
-                    order_id=cand.order_id, kind="batch", quantity=take,
-                    quality="passed", disposition="consumed",
-                    released_at=cand.released_at or cand.created_at,
-                    location_type="instance", location_id=product.object_id,
-                )
-                db.add(sub)
-                db.flush()
-                log_audit(db, "instances", None,
-                          f"Teilcharge {take} aus {cand.object_id} verbaut", actor_id,
-                          object_id=sub.object_id)
-                picks.append({"instance_id": sub.object_id, "quantity": take,
-                              "into_instance_id": product.object_id,
-                              "split_from": cand.object_id})
+                # Teilentnahme aus einer Charge: Menge mindern, KEINE neue Instanz/Nummer.
+                consume_qty(cand, order.id, take)
+                log_audit(db, "instances", "quantity", str(cand.quantity), actor_id,
+                          object_id=cand.object_id,
+                          old_value=f"{cand.quantity + take} (− {take} verbaut in {product.object_id})")
+            picks.append({"instance_id": cand.object_id, "quantity": take,
+                          "into_instance_id": product.object_id})
             need -= take
     return picks
 
@@ -293,7 +275,7 @@ def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
     Bildet ``_consume_line`` nach, damit vorab sichtbar ist, welche Instanz in
     welche Produkt-Instanz wandert."""
     cands = fifo_candidates(db, article_db_id, for_order_id)
-    remaining = [[c.object_id or 0, c.quantity] for c in cands]
+    remaining = [[c.object_id or 0, avail_amount(c, for_order_id)] for c in cands]
     out: dict[int, list[dict]] = {}
     idx = 0
     for product in products:
@@ -302,10 +284,10 @@ def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
         while need > 0 and idx < len(remaining):
             oid, avail = remaining[idx]
             take = min(avail, need)
-            whole = take == avail
-            picks.append({"instance_id": oid, "quantity": take,
-                          "split_from": None if whole else oid})
-            if whole:
+            # Kein Teilen mehr: die Charge bleibt EINE Instanz; der Pick nennt die Charge
+            # direkt mit der entnommenen Menge (split_from entfällt).
+            picks.append({"instance_id": oid, "quantity": take, "split_from": None})
+            if take >= avail:
                 idx += 1
             else:
                 remaining[idx][1] = avail - take

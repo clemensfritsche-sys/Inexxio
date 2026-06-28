@@ -73,6 +73,9 @@ _COLUMN_SAFETY_NET = (
     ("instances", "location_type", "VARCHAR(20)"),
     ("instances", "location_id", "BIGINT"),
     ("instances", "reserved_for_order_id", "BIGINT"),
+    # Mengengenaue Reservierung ohne Instanz-Teilung
+    ("instances", "reservations", "JSONB"),
+    ("instances", "reserved_quantity", "INTEGER DEFAULT 0 NOT NULL"),
     ("storage_locations", "note", "VARCHAR(500)"),
     ("company_settings", "article_names", "JSONB"),
     # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)

@@ -85,7 +85,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
         : orderStatusConfig(row.data.status);
   }
-  else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, row.data.reserved_for_order_object_id != null);
+  else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);
   else if (row.type === 'organization') badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
   else badge = storageStatusConfig(row.data.status);

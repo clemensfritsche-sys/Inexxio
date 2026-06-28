@@ -1,46 +1,41 @@
-"""Bestandslogik: Verfügbarkeit, Reservierung (mengengenau) und FIFO-Allokation.
+"""Bestandslogik: Verfügbarkeit, **mengengenaue** Reservierung und FIFO-Allokation.
 
-Reservierung ist **mengengenau**: bei der Auftragsfreigabe wird je Komponente nur
-die **benötigte Menge** gesperrt. Übersteigt eine Charge den Bedarf, wird sie
-geteilt – der reservierte Teil geht an den Auftrag, der Rest bleibt frei für
-andere Aufträge (behebt das frühere Über-Sperren ganzer Chargen).
+Reservierung ist **mengengenau ohne Teilung der Instanz**: je Komponente wird nur die
+benötigte Menge gesperrt (``instances.reservations`` = ``{auftrag: menge}``), die
+Objektnummer bleibt erhalten. Eine Charge von 1000 Schrauben mit 30 reservierten Stück
+bleibt mit 970 frei verfügbar – es entsteht **keine** zweite Instanz mit eigener Nummer.
 
-Verfügbarkeit wird per **SQL-Aggregat** (indiziert) berechnet, nicht durch Laden
-und Summieren aller Instanzen (Punkt 6 der Architektur-Review).
+Frei verfügbar = ``quantity − reserved_quantity``; ``reserved_quantity`` ist die
+denormalisierte Summe der Reservierungen (für die SQL-Verfügbarkeitsfilter).
 """
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models import Instance
+from .reservation import free_qty, reserved_for
 
 
 def claim_clauses(for_order_id: int | None) -> tuple:
-    """Eine Instanz ist für eine **neue/laufende Allokation frei**, wenn sie nicht fest
-    **reserviert** ist (``reserved_for_order_id``) – ausser für genau diesen Auftrag
-    (``for_order_id``).
-
-    Die Reservierung wird **erst bei der Freigabe** scharf (``_allocate_stock_subject``).
-    Eine blosse Vormerkung im Entwurf (``subject_of_order_id``) blockiert den Bestand für
-    andere Aufträge **nicht** – sie ist nur eine unverbindliche Auswahl. Wer zuerst
-    freigibt, reserviert; ein später freigegebener Auftrag mit demselben Pin scheitert dann
-    sauber an der Reservierungs-Prüfung. Die Reservierung wird bei Abschluss/Abbruch gelöst."""
+    """Eine Instanz steht für eine Allokation zur Verfügung, wenn sie **freie Restmenge**
+    hat (``reserved_quantity < quantity``) – oder bereits eine Reservierung für genau
+    diesen Auftrag trägt (``for_order_id``). Reservierung wird **erst bei der Freigabe**
+    scharf; eine Entwurfs-Vormerkung (``subject_of_order_id``) blockiert nichts."""
     if for_order_id is None:
-        return (Instance.reserved_for_order_id.is_(None),)
+        return (Instance.reserved_quantity < Instance.quantity,)
     return (
-        or_(Instance.reserved_for_order_id.is_(None), Instance.reserved_for_order_id == for_order_id),
+        or_(Instance.reserved_quantity < Instance.quantity,
+            Instance.reservations.has_key(str(for_order_id))),  # noqa: W601 (JSONB ?-Operator)
     )
 
 
 def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
     """Verbrauchbare/verkäufliche Instanzen eines Artikels: **freigegeben** (qc passed,
-    am Lager), Restmenge > 0, **FIFO nach Freigabe** (``released_at``, ersatzweise
-    ``created_at``), dann Objektnummer.
+    am Lager), **freie Restmenge** (bzw. für diesen Auftrag reserviert), **FIFO nach
+    Freigabe** (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
 
-    Verfügbarkeit: ``for_order_id=None`` liefert nur **freie** Instanzen (weder reserviert
-    noch gepinnt) – die Basis für eine neue Bindung. Mit ``for_order_id`` kommen zusätzlich
-    die **für diesen Auftrag** reservierten/gebundenen Instanzen dazu und werden **zuerst**
-    verbraucht (siehe ``claim_clauses``)."""
+    Mit ``for_order_id`` werden die für diesen Auftrag reservierten Instanzen **zuerst**
+    verbraucht (Reservierung ist „vorgemerkter" Bestand dieses Auftrags)."""
     q = db.query(Instance).filter(
         Instance.article_id == article_db_id,
         Instance.is_active == True,
@@ -49,21 +44,28 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
     )
     rows = q.all()
     rows.sort(key=lambda i: (
-        0 if (for_order_id is not None and i.reserved_for_order_id == for_order_id) else 1,
+        0 if (for_order_id is not None and reserved_for(i, for_order_id) > 0) else 1,
         i.released_at or i.created_at, i.object_id or 0))
     return rows
 
 
-def available_qty(candidates: list[Instance]) -> int:
-    """Summe der Restmengen einer Kandidatenliste (Stück)."""
-    return sum(c.quantity for c in candidates)
+def avail_amount(inst: Instance, for_order_id: int | None) -> int:
+    """Wie viel dieser Instanz für die Allokation zur Verfügung steht: die **freie**
+    Restmenge plus die für DIESEN Auftrag bereits reservierte Menge."""
+    amt = free_qty(inst)
+    if for_order_id is not None:
+        amt += reserved_for(inst, for_order_id)
+    return amt
+
+
+def available_qty(candidates: list[Instance], for_order_id: int | None = None) -> int:
+    """Summe der **verfügbaren** Mengen einer Kandidatenliste (frei + eigene Reservierung)."""
+    return sum(avail_amount(c, for_order_id) for c in candidates)
 
 
 def in_stock_clauses() -> tuple:
-    """SQLAlchemy-Bedingungen für „am Lager verfügbar" – die EINE Stelle, die die
-    beiden Achsen kombiniert: qualitativ freigegeben (``quality=passed``) UND dispositiv
-    am Lager (``disposition=in_stock``), Restmenge > 0. Verbaute/verkaufte/verschrottete
-    Instanzen tragen eine andere ``disposition`` und fallen damit automatisch heraus."""
+    """SQLAlchemy-Bedingungen für „physisch am Lager" – qualitativ freigegeben
+    (``quality=passed``) UND dispositiv am Lager (``disposition=in_stock``), Menge > 0."""
     return (
         Instance.quality == "passed",
         Instance.disposition == "in_stock",
@@ -84,20 +86,14 @@ def allocate(need: int, quantities: list[int]) -> list[int]:
 
 
 def available(db: Session, article_db_id: int, for_order_id: int | None = None) -> int:
-    """Verfügbare Menge eines Artikels (SQL-Aggregat): freigegeben (``passed``),
-    Restmenge > 0. ``for_order_id=None`` zählt nur unreservierten Bestand; mit
-    ``for_order_id`` zusätzlich die für diesen Auftrag reservierte Menge."""
-    q = db.query(func.coalesce(func.sum(Instance.quantity), 0)).filter(
-        Instance.article_id == article_db_id,
-        Instance.is_active == True,
-        *in_stock_clauses(),
-        *claim_clauses(for_order_id),
-    )
-    return int(q.scalar() or 0)
+    """Verfügbare (allozierbare) Menge eines Artikels: freie Restmenge plus – mit
+    ``for_order_id`` – die für diesen Auftrag bereits reservierte Menge."""
+    return available_qty(fifo_candidates(db, article_db_id, for_order_id), for_order_id)
 
 
 def on_hand(db: Session, article_db_id: int) -> int:
-    """Gesamter freigegebener Lagerbestand eines Artikels (Stück, SQL-Aggregat)."""
+    """Gesamter freigegebener Lagerbestand eines Artikels (Stück, SQL-Aggregat) –
+    physische Menge inkl. reservierter Teile."""
     return int(
         db.query(func.coalesce(func.sum(Instance.quantity), 0)).filter(
             Instance.article_id == article_db_id,

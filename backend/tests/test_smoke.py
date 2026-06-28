@@ -457,22 +457,36 @@ def test_resource_step_in_engine_and_model():
     assert hasattr(Instance, "released_at")     # FIFO-Basis
 
 
-def test_resource_fifo_consumer_whole_and_split():
-    """FIFO-Verbraucher: ganze Instanz umlagern vs. Charge teilentnehmen."""
-    from app.services.resource import _Fifo, available_qty
+def test_reservation_no_split_keeps_object_number():
+    """Mengengenaue Reservierung/Verbrauch OHNE Teilung: die Instanz behält IMMER ihre
+    Objektnummer; nur Menge und Reservierung ändern sich – es entsteht KEIN neues Objekt.
+    Eine Charge kann sich auf mehrere Aufträge aufteilen (Reservierungs-Map)."""
+    from app.services.reservation import reserve, consume, free_qty, reserved_for
+    from app.services.resource import _Fifo
+    from app.services.inventory import available_qty
 
     class C:
-        def __init__(self, q): self.quantity = q
+        def __init__(self, q):
+            self.quantity = q
+            self.reservations = None
+            self.reserved_quantity = 0
 
+    batch = C(100)
+    reserve(batch, 7, 30)
+    assert batch.reserved_quantity == 30 and reserved_for(batch, 7) == 30
+    assert free_qty(batch) == 70                  # 70 bleiben frei verfügbar (keine Teilung)
+    reserve(batch, 9, 20)                          # zweiter Auftrag teilt sich dieselbe Charge
+    assert batch.reserved_quantity == 50 and free_qty(batch) == 50
+    consume(batch, 7, 30)                          # Auftrag 7 verbraucht seine 30
+    assert batch.quantity == 70                    # selbe Instanz, nur weniger Menge
+    assert reserved_for(batch, 7) == 0 and reserved_for(batch, 9) == 20
+
+    # available_qty zählt frei + eigene Reservierung; _Fifo entnimmt je Auftrag entsprechend.
     a, b = C(1), C(5)
-    assert available_qty([a, b]) == 6
-    f = _Fifo([a, b])
-    assert f.take(3) == (a, 1, True)        # Einzelteil ganz verbraucht
-    cand, take, whole = f.take(2)           # Charge teilentnehmen
-    assert cand is b and take == 2 and whole is False
-    b.quantity -= 2                          # Aufrufer reduziert die Charge
-    cand, take, whole = f.take(3)           # Restcharge (3) ganz
-    assert cand is b and take == 3 and whole is True
+    assert available_qty([a, b], None) == 6
+    f = _Fifo([a, b], order_id=9)
+    cand, take, whole = f.take(3)
+    assert cand is a and take == 1 and whole is True    # Einzelteil ganz ins Produkt
 
 
 def test_required_sample_math():
@@ -1147,22 +1161,21 @@ def test_instance_order_link_is_immutable_history():
     assert "object_id" not in InstanceOrderLink.__table__.columns.keys()
 
 
-def test_claim_clauses_block_only_on_firm_reservation():
-    """Verfügbarkeit/FIFO sperrt **nur** fest **reservierte** Instanzen (scharf erst bei
-    der Freigabe). Eine blosse Entwurfs-Vormerkung (``subject_of_order_id``) blockiert den
-    Bestand NICHT – mehrere Entwürfe dürfen denselben Artikel/dieselbe Instanz vormerken."""
+def test_claim_clauses_use_free_capacity():
+    """Verfügbarkeit/FIFO richtet sich nach der **freien Restmenge** (quantity −
+    reserved_quantity), nicht nach einem Ganz-Instanz-Schloss: eine Charge mit freier
+    Restmenge bleibt verfügbar (mengengenaue Reservierung, keine Teilung)."""
     from app.services.inventory import claim_clauses
 
     free = claim_clauses(None)
     assert len(free) == 1
     rendered = " ".join(str(c) for c in free)
-    assert "reserved_for_order_id" in rendered
+    assert "reserved_quantity" in rendered and "quantity" in rendered
     assert "subject_of_order_id" not in rendered   # Vormerkung sperrt NICHT
-    assert " IS NULL" in rendered
 
     own = claim_clauses(42)
     own_rendered = " ".join(str(c) for c in own)
-    assert "reserved_for_order_id" in own_rendered and " OR " in own_rendered
+    assert "reserved_quantity" in own_rendered and " OR " in own_rendered   # + eigene Reservierung
 
 
 def test_subject_kind_is_decided_by_custom_steps_only():
@@ -1195,7 +1208,8 @@ def test_reservation_becomes_firm_only_at_release():
     assert "reserved_for_order_id" not in pin_src        # Entwurf reserviert NICHT
 
     alloc_src = _inspect.getsource(subject._allocate_stock_subject)
-    assert "reserved_for_order_id = order.id" in alloc_src  # erst hier scharf
+    assert "reserve(cand, order.id, take)" in alloc_src  # erst hier scharf (mengengenau)
+    assert "next_object_id" not in alloc_src             # KEINE Teilung / neue Nummer
     # Freigabe-Validierung: nur freigegebene (passed/in_stock) Instanzen sind freigebbar
     assert 'quality == "passed"' in alloc_src and 'disposition == "in_stock"' in alloc_src
     assert "record_link" in alloc_src                   # Historie dauerhaft festhalten
@@ -1208,7 +1222,7 @@ def test_completion_releases_binding_history_survives():
     from app.services import process, references, subject
 
     comp_src = _inspect.getsource(process.recompute_completion)
-    assert "inst.reserved_for_order_id = None" in comp_src
+    assert "release(inst, order.id)" in comp_src          # Reservierung mengengenau lösen
     assert "inst.subject_of_order_id = None" in comp_src
 
     # Die Auftragsliste einer Instanz liest die dauerhafte Verknüpfung (nicht nur Zeiger).
@@ -1217,6 +1231,23 @@ def test_completion_releases_binding_history_survives():
     # order_instances zeigt die Subjekte auch nach Abschluss (über die Verknüpfung).
     oi_src = _inspect.getsource(subject.order_instances)
     assert "InstanceOrderLink" in oi_src
+
+
+def test_no_batch_split_anywhere():
+    """Eine Charge wird NIE in eine zweite Instanz mit eigener Objektnummer geteilt –
+    weder bei der Subjekt-Allokation noch beim Reservieren oder Verbrauchen von Komponenten
+    (die physische Etikett-/Objektnummer muss erhalten bleiben)."""
+    import inspect as _inspect
+    from app.services import subject, resource
+    from app.models import Instance
+
+    for fn in (subject._allocate_stock_subject, resource.reserve_resources, resource._consume_line):
+        src = _inspect.getsource(fn)
+        assert "next_object_id" not in src, f"{fn.__name__} darf keine neue Instanz-Nummer vergeben"
+
+    # Reservierung wird mengengenau auf der Instanz geführt (Map + Summe), nicht durch Teilung.
+    for col in ("reservations", "reserved_quantity"):
+        assert col in Instance.__table__.columns.keys()
 
 
 def test_sale_customer_is_never_optional():

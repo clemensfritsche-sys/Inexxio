@@ -21,8 +21,8 @@ from sqlalchemy.orm import Session
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .inventory import allocate, available_qty, fifo_candidates
-from .objects import next_object_id
 from .processes import has_custom_steps
+from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
 
@@ -131,36 +131,25 @@ def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
         if not (inst.quality == "passed" and inst.disposition == "in_stock"):
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist nicht freigegeben/am Lager – Freigabe nicht möglich")
-        if inst.reserved_for_order_id not in (None, order.id):
+        need = inst.quantity - reserved_for(inst, order.id)
+        if free_qty(inst) < need:                          # von einem anderen Auftrag belegt
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
-        inst.reserved_for_order_id = order.id
+        reserve(inst, order.id, need)                      # ganze Pin-Instanz, OHNE Teilung
         record_link(db, inst.object_id, order.id)
     remaining = order.quantity - sum(i.quantity for i in pinned)
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
-    cands = fifo_candidates(db, order.article_id, for_order_id=None)   # frei & nicht gepinnt
+    cands = fifo_candidates(db, order.article_id, for_order_id=None)   # freie Restmengen
     have = available_qty(cands)
     if have < remaining:
         raise HTTPException(
             409, detail=f"Nicht genügend freigegebener Bestand: benötigt {remaining} weitere, verfügbar {have}")
-    for cand, take in zip(cands, allocate(remaining, [c.quantity for c in cands])):
+    # FIFO mengengenau reservieren – die Instanz wird NIE geteilt (Objektnummer bleibt).
+    for cand, take in zip(cands, allocate(remaining, [free_qty(c) for c in cands])):
         if take <= 0:
             continue
-        if take == cand.quantity:
-            cand.subject_of_order_id = order.id           # ganze Instanz binden
-            cand.reserved_for_order_id = order.id
-            record_link(db, cand.object_id, order.id)
-        else:
-            cand.quantity -= take                          # Charge teilen
-            sub = Instance(
-                object_id=next_object_id(db, "instance"), article_id=cand.article_id,
-                order_id=cand.order_id, kind=cand.kind, quantity=take,
-                quality="passed", disposition="in_stock",
-                released_at=cand.released_at or cand.created_at,
-                location_type=cand.location_type, location_id=cand.location_id,
-                subject_of_order_id=order.id, reserved_for_order_id=order.id)
-            db.add(sub)
-            db.flush()
-            record_link(db, sub.object_id, order.id)
+        cand.subject_of_order_id = order.id               # Subjekt-Markierung (ganz/teilweise)
+        reserve(cand, order.id, take)                     # mengengenaue Reservierung
+        record_link(db, cand.object_id, order.id)
     log_audit(db, "instances", None, "Bestand für Auftrag reserviert", actor_id, object_id=order.object_id)
