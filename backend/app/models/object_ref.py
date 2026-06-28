@@ -13,7 +13,7 @@ class ObjectRef(Base):
     Jede vergebene 9-stellige Objektnummer wird hier mit ihrem **Objekttyp**
     registriert. Damit lässt sich eine gescannte/referenzierte Nummer in **O(1)**
     auflösen (statt jede Fachtabelle abzusuchen) – die Grundlage, um Quer-
-    Referenzen (Standort, Ersetzen, Reklamation) künftig typsicher/integritäts-
+    Referenzen (Standort, Ersetzen, Abweichung) künftig typsicher/integritäts-
     geschützt zu führen. Bewusst schlank: nur Nummer → Typ; die Fachtabellen
     bleiben die Quelle der Wahrheit für Inhalte/``is_active``.
     """

@@ -11,7 +11,7 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
-    admin, article_process, articles, auth, claims, contact, erp, events, health,
+    admin, article_process, articles, auth, contact, erp, events, health,
     instances, orders, storage_locations,
 )
 
@@ -145,7 +145,6 @@ _DROP_COLUMN_SAFETY_NET = (
 _INDEX_SAFETY_NET = (
     ("ix_audit_log_object_id", "audit_log", "object_id"),
     ("ix_audit_log_table_name", "audit_log", "table_name"),
-    ("ix_claims_order_object_id", "claims", "order_object_id"),
     ("ix_instances_location_id", "instances", "location_id"),
     # Bestands-Aggregate (Verfügbarkeit/FIFO je Artikel) + Ressourcen-Schritt-Scans
     ("ix_instances_article_id", "instances", "article_id"),
@@ -425,7 +424,6 @@ app.include_router(article_process.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(storage_locations.router)
-app.include_router(claims.router)
 app.include_router(events.router)
 
 

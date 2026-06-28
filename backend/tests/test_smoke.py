@@ -3,7 +3,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.routers import (
-    admin, article_process, articles, auth, claims, contact, erp, health,
+    admin, article_process, articles, auth, contact, erp, health,
     orders, storage_locations,
 )
 
@@ -19,7 +19,6 @@ def test_routers_importable():
     assert hasattr(article_process, "router")
     assert hasattr(orders, "router")
     assert hasattr(storage_locations, "router")
-    assert hasattr(claims, "router")
     assert hasattr(auth, "router")
     assert hasattr(contact, "router")
     assert hasattr(erp, "router")
@@ -95,8 +94,7 @@ def test_object_id_allocator_shared_across_types():
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS
-    # Reklamationen sind eigenständige Objekte mit eigener Nummer (RMA-Nr.)
-    assert objects.Claim.object_id in objects._OBJECT_ID_COLUMNS
+    assert objects.Instance.object_id in objects._OBJECT_ID_COLUMNS
     # Bestellungen laufen unter der Auftragsnummer → KEINE eigene Objektnummer
     assert not hasattr(objects, "PurchaseOrder")
 
@@ -553,66 +551,64 @@ def test_purchase_runs_under_order_without_own_number():
     assert "purchase" in OrderResponse.model_fields
 
 
-def test_claim_is_standalone_object_with_number():
-    """Reklamation ist ein eigenständiges Objekt mit eigener Nummer (RMA-Nr.)."""
-    from app.models import Claim
+def test_reclamation_is_a_deviation_order_not_a_separate_type():
+    """Reklamation ist KEIN eigener Datentyp mehr – sie ist eine «Abweichung»
+    (= Auftrag mit ``parent_order_id``). Der alte Claim-Typ ist vollständig
+    entfernt: Modell, Schema, Router und Service existieren nicht mehr."""
+    import importlib
 
-    assert Claim.__tablename__ == "claims"
-    assert hasattr(Claim, "object_id")
-    # Bezug auf genau eine Instanz; Artikel/Auftrag werden denormalisiert geführt
-    for f in ("instance_object_id", "article_object_id", "order_object_id",
-              "direction", "reason", "resolution", "source"):
-        assert hasattr(Claim, f)
-
-
-def test_claim_schema_validates_enums():
-    """Reklamation: Richtung/Grund/Status/Lösung werden gegen Whitelist geprüft."""
     import pytest
 
-    from app.schemas.claim import ClaimCreate, ClaimUpdate
+    from app import models
 
-    ok = ClaimCreate(instance_object_id=100_000_010, direction="supplier",
-                     reason="damage", title="  kaputt  ")
-    assert ok.direction == "supplier" and ok.reason == "damage"
-    assert ok.title == "kaputt"   # getrimmt
-
-    assert ClaimUpdate(status="accepted").status == "accepted"
-    assert ClaimUpdate(resolution="replace").resolution == "replace"
-    with pytest.raises(ValueError):
-        ClaimCreate(instance_object_id=1, direction="unsinn")
-    with pytest.raises(ValueError):
-        ClaimUpdate(status="erledigt")    # kein gültiger Status
-    with pytest.raises(ValueError):
-        ClaimUpdate(resolution="zauberei")
-    with pytest.raises(ValueError):
-        ClaimCreate(instance_object_id=1, quantity=0)   # Menge > 0
+    assert not hasattr(models, "Claim")
+    for mod in ("app.models.claim", "app.schemas.claim",
+                "app.routers.claims", "app.services.claims"):
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(mod)
 
 
-def test_claim_locks_after_terminal_status():
-    """Abgeschlossene/abgelehnte Reklamationen sind inhaltlich gesperrt."""
-    import pytest
+def test_deviation_create_schema_is_minimal():
+    """Eine Abweichung wird über die vorhandenen Instanzen eröffnet (optional eine
+    Teilmenge) – keine eigene Richtungs-/Grund-Taxonomie mehr nötig."""
+    from app.schemas.order import OrderDeviationCreate
 
-    from app.services.claims import ensure_claim_mutable
-
-    # Offen/angenommen: Inhalte änderbar
-    ensure_claim_mutable("open", {"description": "x", "resolution": "rework"})
-    ensure_claim_mutable("accepted", {"resolution_note": "ok"})
-    # Terminal: nur Status/is_active
-    ensure_claim_mutable("closed", {"status": "open"})
-    ensure_claim_mutable("rejected", {"is_active": False})
-    with pytest.raises(Exception):
-        ensure_claim_mutable("closed", {"description": "neu"})
-    with pytest.raises(Exception):
-        ensure_claim_mutable("rejected", {"resolution": "credit"})
+    # Ohne Angabe → alle Instanzen des Eltern-Auftrags
+    assert OrderDeviationCreate().instance_object_ids is None
+    # Explizite Teilmenge wird übernommen
+    chosen = OrderDeviationCreate(instance_object_ids=[100_000_010, 100_000_011])
+    assert chosen.instance_object_ids == [100_000_010, 100_000_011]
 
 
-def test_failed_inspection_triggers_claim():
-    """Die Datenerfassung eröffnet bei Nichtbestehen automatisch eine Reklamation."""
-    from app.services import claims, inspection
+def test_deviation_endpoint_creates_sub_order():
+    """Der Endpoint ``POST /orders/{id}/deviation`` eröffnet einen Unterauftrag auf
+    den Instanzen des Eltern-Auftrags (gleiche Logik wie der Abbruch-Folgeauftrag)."""
+    import inspect as _inspect
 
-    assert callable(claims.auto_claim_from_inspection)
+    from app.routers import orders
+    from app.services import deviation
+
+    src = _inspect.getsource(orders.open_deviation)
+    assert "create_deviation" in src
+    create = _inspect.getsource(deviation.create_deviation)
+    # Abweichung = Auftrag mit Eltern, übernimmt die Instanzen als Subjekt
+    assert "parent_order_id=parent.object_id" in create
+    assert "subject_of_order_id" in create
+
+
+def test_failed_inspection_triggers_deviation():
+    """Die Datenerfassung eröffnet bei Nichtbestehen automatisch eine Abweichung
+    (vormals «interne Reklamation») – idempotent, auf den Durchfaller-Instanzen."""
+    import inspect as _inspect
+
+    from app.services import deviation, inspection
+
+    assert callable(deviation.auto_deviation_from_inspection)
     # Der Auto-Trigger ist in der Datenerfassung verdrahtet
-    assert inspection.auto_claim_from_inspection is claims.auto_claim_from_inspection
+    assert inspection.auto_deviation_from_inspection is deviation.auto_deviation_from_inspection
+    src = _inspect.getsource(deviation.auto_deviation_from_inspection)
+    # idempotent: nichts tun, wenn bereits eine Abweichung offen ist
+    assert "open_deviations" in src
 
 
 def test_article_optional_fields_validation():
@@ -769,7 +765,7 @@ def test_object_registry_wired():
     # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
     # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "claim", "organization"}
+        "user", "article", "order", "instance", "storage_location", "organization"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -1138,15 +1134,6 @@ def test_in_stock_clauses_combine_both_axes():
     assert "quality" in rendered and "disposition" in rendered
 
 
-def test_claim_exposes_quality_and_disposition():
-    """Reklamation denormalisiert beide Instanz-Achsen statt des alten qc_status."""
-    from app.schemas.claim import ClaimResponse
-
-    assert "instance_quality" in ClaimResponse.model_fields
-    assert "instance_disposition" in ClaimResponse.model_fields
-    assert "instance_qc_status" not in ClaimResponse.model_fields
-
-
 def test_instance_order_link_is_immutable_history():
     """Die Auftrags-Historie einer Instanz hängt an einer UNVERÄNDERLICHEN Verweis-Tabelle
     (nicht an den wandernden Zeigern subject_/reserved_for_order_id)."""
@@ -1288,8 +1275,10 @@ def test_abort_requires_followup_order():
     # Folgeauftrag übernimmt die Instanzen, Original NICHT deaktivieren (keep_instances).
     rel = _inspect.getsource(deviation.apply_abort_on_release)
     assert "keep_instances=True" in rel
+    # Folgeauftrag = Abweichung (create_deviation setzt parent_order_id) + abort_into_id am Original.
     create = _inspect.getsource(deviation.create_abort_followup)
-    assert "parent_order_id=order.object_id" in create and "abort_into_id" in create
+    assert "create_deviation" in create and "abort_into_id" in create
+    assert "parent_order_id=parent.object_id" in _inspect.getsource(deviation.create_deviation)
     # Eltern pausiert, solange eine Abweichung offen / Abbruch ausstehend ist.
     pause = _inspect.getsource(process._is_paused_by_deviation)
     assert "abort_into_id" in pause and "parent_order_id" in pause

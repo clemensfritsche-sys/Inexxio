@@ -4,7 +4,6 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
-  Claim, ClaimInput, ClaimUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
 } from '@/types';
 
@@ -245,6 +244,13 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
+  // «Abweichung melden»: eröffnet einen Unterauftrag (Abweichung) auf den Instanzen
+  // dieses Auftrags (optional eine Teilmenge); liefert den Entwurf der Abweichung zurück.
+  createDeviation(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/deviation`,
+      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
+  }
+
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);
@@ -330,24 +336,6 @@ class ApiClient {
   // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
   getStorageLocationReferences(objectId: number): Promise<ObjectReference[]> {
     return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
-  }
-
-  // ─── ERP Claims (Reklamationen) ──────────────────────────────────────────────
-
-  getClaims(): Promise<Claim[]> {
-    return this.get('/api/v1/erp/claims');
-  }
-
-  getClaim(objectId: number): Promise<Claim> {
-    return this.get(`/api/v1/erp/claims/${objectId}`);
-  }
-
-  createClaim(data: ClaimInput): Promise<Claim> {
-    return this.post('/api/v1/erp/claims', data);
-  }
-
-  updateClaim(objectId: number, data: ClaimUpdateInput): Promise<Claim> {
-    return this.patch(`/api/v1/erp/claims/${objectId}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

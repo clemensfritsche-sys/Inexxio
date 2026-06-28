@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, Claim, CompanySettings, Instance, ObjectRef, Order, StorageLocation,
+    Article, CompanySettings, Instance, ObjectRef, Order, StorageLocation,
     UserProfile,
 )
 
@@ -27,14 +27,14 @@ _TYPE_MODELS = {
     "order": Order,
     "instance": Instance,
     "storage_location": StorageLocation,
-    "claim": Claim,
     # Das Unternehmen selbst (Singleton) ist ebenfalls ein nummerierter ERP-Datensatz.
     "organization": CompanySettings,
 }
 
 # Alle Spalten, die Objektnummern aus dem gemeinsamen Kreis vergeben.
 # Bestellungen/Eingangskontrollen bekommen KEINE eigene Nummer (laufen unter dem
-# Auftrag); Instanzen und Reklamationen hingegen sind eigenständige Objekte.
+# Auftrag); Instanzen hingegen sind eigenständige Objekte. Abweichungen sind
+# Unteraufträge (parent_order_id) und laufen daher als Auftrag mit Objektnummer.
 _OBJECT_ID_COLUMNS = tuple(m.object_id for m in _TYPE_MODELS.values())
 
 

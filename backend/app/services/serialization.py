@@ -2,7 +2,7 @@
 
 Es gibt keinen eigenen Prozessschritt «Serialisierung» mehr: Sobald ein Auftrag
 freigegeben wird, legt das System sofort die Bestands-Instanzen an. Das schafft
-Rückverfolgbarkeit ab dem ersten Moment (Standort, Seriennummer, Reklamation …).
+Rückverfolgbarkeit ab dem ersten Moment (Standort, Seriennummer, Abweichung …).
 
 Abgeleitet aus der Artikel-Einstellung ``serialization``:
     unit  → N Einzel-Instanzen (je quantity=1, eigene Nummer)

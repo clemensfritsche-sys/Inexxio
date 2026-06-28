@@ -590,6 +590,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/deviation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Deviation
+         * @description «Abweichung melden» zu einem Auftrag (Fehler/Reklamation/Nacharbeit – ein Konzept):
+         *     legt einen **Unter-Auftrag** auf die betroffenen Instanzen an (Instanz-Ebene mit Auswahl,
+         *     sonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung
+         *     geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
+         */
+        post: operations["open_deviation_api_v1_erp_orders__object_id__deviation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/purchase": {
         parameters: {
             query?: never;
@@ -845,42 +868,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/claims": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Claims */
-        get: operations["list_claims_api_v1_erp_claims_get"];
-        put?: never;
-        /** Create Claim Endpoint */
-        post: operations["create_claim_endpoint_api_v1_erp_claims_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/claims/{object_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Claim */
-        get: operations["get_claim_api_v1_erp_claims__object_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Claim */
-        patch: operations["update_claim_api_v1_erp_claims__object_id__patch"];
         trace?: never;
     };
     "/api/v1/events": {
@@ -1192,109 +1179,6 @@ export interface components {
             tolerance?: number | null;
             /** Unit */
             unit?: string | null;
-        };
-        /**
-         * ClaimCreate
-         * @description Anlage einer Reklamation über '+'. Status startet als 'open'.
-         *
-         *     Es wird genau eine Instanz (über ihre Objektnummer) reklamiert; Artikel- und
-         *     Auftragsbezug leitet der Server daraus ab.
-         */
-        ClaimCreate: {
-            /** Instance Object Id */
-            instance_object_id: number;
-            /**
-             * Direction
-             * @default internal
-             */
-            direction: string | null;
-            /**
-             * Reason
-             * @default defect
-             */
-            reason: string | null;
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Quantity */
-            quantity?: number | null;
-        };
-        /** ClaimResponse */
-        ClaimResponse: {
-            /** Id */
-            id: number;
-            /** Object Id */
-            object_id: number | null;
-            /** Status */
-            status: string;
-            /** Direction */
-            direction: string;
-            /** Instance Object Id */
-            instance_object_id: number | null;
-            /** Article Object Id */
-            article_object_id: number | null;
-            /** Order Object Id */
-            order_object_id: number | null;
-            /** Reason */
-            reason: string;
-            /** Title */
-            title: string | null;
-            /** Description */
-            description: string | null;
-            /** Quantity */
-            quantity: number | null;
-            /** Resolution */
-            resolution: string;
-            /** Resolution Note */
-            resolution_note: string | null;
-            /** Source */
-            source: string;
-            /** Reported By Id */
-            reported_by_id: number | null;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Article Name */
-            article_name?: string | null;
-            /** Instance Kind */
-            instance_kind?: string | null;
-            /** Instance Quality */
-            instance_quality?: string | null;
-            /** Instance Disposition */
-            instance_disposition?: string | null;
-            /** Reported By Name */
-            reported_by_name?: string | null;
-        };
-        /** ClaimUpdate */
-        ClaimUpdate: {
-            /** Status */
-            status?: string | null;
-            /** Direction */
-            direction?: string | null;
-            /** Reason */
-            reason?: string | null;
-            /** Title */
-            title?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Quantity */
-            quantity?: number | null;
-            /** Resolution */
-            resolution?: string | null;
-            /** Resolution Note */
-            resolution_note?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
         };
         /** CompanySettingsResponse */
         CompanySettingsResponse: {
@@ -1851,6 +1735,15 @@ export interface components {
             recurrence_lead_time_days?: number | null;
             /** Recurrence Anchor */
             recurrence_anchor?: string | null;
+        };
+        /**
+         * OrderDeviationCreate
+         * @description «Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
+         *     Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
+         */
+        OrderDeviationCreate: {
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -4104,6 +3997,41 @@ export interface operations {
             };
         };
     };
+    open_deviation_api_v1_erp_orders__object_id__deviation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderDeviationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_order_purchase_api_v1_erp_orders__object_id__purchase_patch: {
         parameters: {
             query?: never;
@@ -4588,125 +4516,6 @@ export interface operations {
             };
         };
     };
-    list_claims_api_v1_erp_claims_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClaimResponse"][];
-                };
-            };
-        };
-    };
-    create_claim_endpoint_api_v1_erp_claims_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClaimCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClaimResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_claim_api_v1_erp_claims__object_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClaimResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_claim_api_v1_erp_claims__object_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClaimUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClaimResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_events_api_v1_events_get: {
         parameters: {
             query?: {
@@ -4714,7 +4523,7 @@ export interface operations {
                 after_id?: number;
                 /** @description Nur Events zu dieser Objektnummer */
                 object_id?: number | null;
-                /** @description z. B. order | claim | article */
+                /** @description z. B. order | instance | article */
                 object_type?: string | null;
                 /** @description z. B. order.completed */
                 event_type?: string | null;

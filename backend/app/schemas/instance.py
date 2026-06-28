@@ -41,7 +41,7 @@ class ObjectReference(BaseModel):
     z. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes."""
 
     kind: str          # menschenlesbare Rolle des Verweises
-    ref_type: str      # order | instance | article | lagerplatz | user | claim
+    ref_type: str      # order | instance | article | lagerplatz | user
     object_id: int
     label: str
     at: datetime

@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, ArrowLeft, FileText, ClipboardList, MapPin } from 'lucide-react';
+import { Boxes, ArrowLeft, FileText, ClipboardList, MapPin, AlertTriangle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, LocationType } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ObjId } from '@/components/erp/obj-id';
+import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 import { ObjectLabel } from '@/components/scan/object-label';
 
@@ -26,7 +26,10 @@ function localDate(iso: string | null | undefined): string {
  */
 export function InstanceDetail({ record, onBack }: { record: Instance; onBack: () => void }) {
   const inst = record;
+  const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
+  const [devBusy, setDevBusy] = useState(false);
+  const [devErr, setDevErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (inst.object_id == null) return;
@@ -38,6 +41,25 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
   }, [inst.object_id]);
 
   const LocIcon = LOCATION_META[(inst.location_type as LocationType)]?.icon ?? MapPin;
+
+  // Eine Abweichung an genau dieser Instanz läuft – wie jede Aktion – über einen Auftrag:
+  // einen Unter-Auftrag am (Herkunfts-)Auftrag, der freigegeben/abgeschlossen ist.
+  // «Herkunft zuerst» → bevorzugt der Ursprungsauftrag, der die Instanz erzeugt hat.
+  const deviationParent = (orders ?? []).find((o) => o.status === 'released' || o.status === 'completed') ?? null;
+
+  async function reportDeviation() {
+    if (!deviationParent || inst.object_id == null) return;
+    setDevBusy(true);
+    setDevErr(null);
+    try {
+      const devi = await api.createDeviation(deviationParent.object_id, [inst.object_id]);
+      if (devi.object_id != null) nav?.(devi.object_id);   // zur neuen Abweichung springen
+    } catch (e) {
+      setDevErr(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
+    } finally {
+      setDevBusy(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -143,6 +165,33 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
             </div>
           )}
         </div>
+
+        {/* Abweichung melden – ein Unter-Auftrag genau auf diese Instanz (Defekt,
+            Nacharbeit, Reklamation – EIN Konzept). Nur wenn ein Herkunfts-/Bezugs-
+            auftrag (freigegeben/abgeschlossen) existiert. */}
+        {deviationParent && (
+          <div style={card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertTriangle size={15} style={{ color: '#d97706' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', flex: 1 }}>Abweichung</span>
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+              Defekt oder Nacharbeit an dieser Instanz? Eröffnet einen Unter-Auftrag (Abweichung)
+              am Auftrag <ObjId value={deviationParent.object_id} /> – dort legst du den Ablauf fest und gibst frei.
+            </div>
+            {devErr && <span style={{ fontSize: 12, color: '#dc2626' }}>{devErr}</span>}
+            <button type="button" onClick={reportDeviation} disabled={devBusy}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8,
+                border: '1px solid #fbbf24', background: devBusy ? '#fef3c7' : '#fffbeb',
+                color: '#b45309', fontSize: 13, fontWeight: 700, cursor: devBusy ? 'default' : 'pointer',
+              }}>
+              {devBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
+              Abweichung melden
+            </button>
+          </div>
+        )}
 
         {/* Etikett / QR (scannbar) */}
         {inst.object_id != null && (

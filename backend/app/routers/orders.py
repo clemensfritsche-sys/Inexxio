@@ -7,7 +7,7 @@ from ..models import Article, Instance, Order, PurchaseOrder, Sale, UserProfile
 from ..models.base import utcnow
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
-from ..schemas.order import OrderCreate, OrderResponse, OrderSummary, OrderUpdate
+from ..schemas.order import OrderCreate, OrderDeviationCreate, OrderResponse, OrderSummary, OrderUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
@@ -286,6 +286,26 @@ async def abort_order(
     db.commit()
     db.refresh(follow)
     return to_order_response(db, follow)
+
+
+@router.post("/{object_id}/deviation", response_model=OrderResponse)
+async def open_deviation(
+    object_id: int,
+    data: OrderDeviationCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Abweichung melden» zu einem Auftrag (Fehler/Reklamation/Nacharbeit – ein Konzept):
+    legt einen **Unter-Auftrag** auf die betroffenen Instanzen an (Instanz-Ebene mit Auswahl,
+    sonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung
+    geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
+    parent = _get_staff_order(db, object_id)
+    if parent.status not in ("released", "completed"):
+        raise HTTPException(400, detail="Abweichungen lassen sich nur an einem laufenden/abgeschlossenen Auftrag eröffnen")
+    devi = deviation.create_deviation(db, parent, data.instance_object_ids, current_user.id)
+    db.commit()
+    db.refresh(devi)
+    return to_order_response(db, devi)
 
 
 @router.patch("/{object_id}/purchase", response_model=OrderResponse)
