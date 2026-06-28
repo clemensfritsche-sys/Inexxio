@@ -67,19 +67,21 @@ STEP_TYPES: tuple[str, ...] = tuple(REGISTRY.keys())
 RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 
 # ─── Kompatibilität: welche Schritte in welchem Prozess-Kontext zulässig sind ─────
-# Damit Prozessschritte IMMER zueinander passen, wird je Kontext eine Whitelist
-# erzwungen. So kann ein Prozess strukturell nicht „mischen" (Zu- UND Abgang) und
-# die Subjektart bleibt kohärent:
-#   • Artikel-Prozess = HERSTELLUNG (wie etwas entsteht): beschaffen, montieren
-#     (Ressource), prüfen, bewegen. KEIN Verkauf (verkauft wird nicht beim Herstellen).
-#   • Auftrags-Ablauf  = OPERATION AM BESTAND (vorhandene/FIFO-Instanzen): verkaufen,
-#     bewegen, prüfen. KEINE Beschaffung/Ressource (das erzeugt Bestand = Herstellung).
+# Alles ist instanzbasiert: ein Auftrag wirkt auf Instanzen eines Artikels (neu erzeugt
+# bei „Herstellung", vorhandene/FIFO bei einer „Bestands-Operation"). Daher sind im
+# **Auftrags-Ablauf alle Schritttypen** sinnvoll und zulässig – z. B. Wartung mit
+# Verbrauchsmaterial/Betriebsmitteln (resource) oder auswärtiger Vergabe (purchase).
+#
+# Im **Artikel-Prozess** (HERSTELLUNG, „wie etwas entsteht") ist nur **kein Verkauf**
+# erlaubt: verkauft wird nie beim Herstellen, sondern über einen Auftrag auf den Bestand
+# (sonst würden die erzeugten Instanzen nicht als verkauft markiert). Sonst alles erlaubt.
 ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
-ORDER_STEP_TYPES: tuple[str, ...] = ("sale", "movement", "inspection")
+ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "sale")
 
 
 def allowed_step_types(owner_kind: str) -> tuple[str, ...]:
-    """Zulässige Schritttypen je Träger: ``article`` (Herstellung) | ``order`` (Bestand)."""
+    """Zulässige Schritttypen je Träger: ``article`` (Herstellung, kein Verkauf) |
+    ``order`` (Bestands-Operation, alle Typen)."""
     return ARTICLE_STEP_TYPES if owner_kind == "article" else ORDER_STEP_TYPES
 
 

@@ -1792,23 +1792,18 @@ export interface components {
         };
         /**
          * OrderCreate
-         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'. Die **Subjektart
-         *     wird abgeleitet** (kein Modus-Flag) – es wird ENTWEDER ein Artikel mit Menge ODER
-         *     eine Auswahl vorhandener Instanzen angegeben:
+         * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *
-         *     Artikel + Menge      – fährt den **Prozess des Artikels** und ERZEUGT bei Freigabe
-         *                            die Instanzen (bzw. greift FIFO ab Lager, sobald der Auftrag
-         *                            eigene Schritte trägt – Verkauf/Entnahme).
-         *     Instanzen (≥1)       – ein **individueller Prozess** (eigene Schritte) wirkt auf die
-         *                            gewählten, bereits vorhandenen Instanzen (gleicher Artikel).
+         *     Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
+         *     der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
+         *     eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
+         *     optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.
          */
         OrderCreate: {
             /** Article Id */
-            article_id?: number | null;
+            article_id: number;
             /** Quantity */
-            quantity?: number | null;
-            /** Instance Object Ids */
-            instance_object_ids?: number[] | null;
+            quantity: number;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */

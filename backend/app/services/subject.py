@@ -37,11 +37,14 @@ def chosen_subjects(db: Session, order: Order) -> list[Instance]:
 
 
 def subject_kind(db: Session, order: Order) -> str:
-    """Abgeleitete Subjektart: ``chosen`` (vorgewählte Instanzen) ≻ ``stock`` (eigene
-    Schritte, FIFO ab Lager) ≻ ``produce`` (Artikel-Prozess, erzeugt Instanzen)."""
-    if chosen_subjects(db, order):
-        return "chosen"
-    if has_custom_steps(db, order):
+    """Abgeleitete Subjektart (Artikel ist immer der Anker):
+
+    ``produce`` – KEINE eigenen Schritte → der Auftrag fährt den Artikel-Prozess und
+      ERZEUGT neue Instanzen.
+    ``stock``   – eigene Schritte (oder vorgewählte Instanzen) → der Auftrag wirkt auf
+      vorhandene Instanzen des Artikels: ``quantity`` Stück, FIFO ab Lager, optional
+      durch fixierte (gepinnte) Instanzen ergänzt/ersetzt."""
+    if has_custom_steps(db, order) or chosen_subjects(db, order):
         return "stock"
     return "produce"
 
@@ -63,34 +66,31 @@ def order_instances(db: Session, order: Order) -> list[Instance]:
 def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
     """Bei Freigabe das Subjekt herstellen. Committet NICHT – der Aufrufer schliesst ab.
 
-    chosen  → die ausgewählten Instanzen für diesen Auftrag reservieren;
-    stock   → Subjekt FIFO ab Lager allokieren + reservieren (Verkauf/Entnahme);
+    stock   → ``quantity`` Instanzen des Artikels binden: zuerst die fixierten (gepinnten)
+      Instanzen, den Rest **FIFO ab Lager** auffüllen – alle für diesen Auftrag reserviert.
     produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel)."""
-    chosen = chosen_subjects(db, order)
-    if chosen:
-        for inst in chosen:
-            inst.reserved_for_order_id = order.id
-        return
-    if has_custom_steps(db, order):
+    if has_custom_steps(db, order) or chosen_subjects(db, order):
         _allocate_stock_subject(db, order, actor_id)
         return
     create_instances_for_order(db, order, actor_id)
 
 
 def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
-    """Subjekt eines Bestands-Auftrags **FIFO ab Lager** binden: genau ``quantity`` Stück
-    des Artikels werden als Subjekt markiert UND für diesen Auftrag reserviert. Deckt eine
-    Charge mehr als den Bedarf, wird sie **geteilt** (Rest bleibt frei) – analog zur
-    Komponenten-Reservierung."""
+    """Subjekt eines Bestands-Auftrags binden: die bereits fixierten (gepinnten) Instanzen
+    zählen, den **Rest FIFO ab Lager** auffüllen (Charge bei Bedarf geteilt). Gepinnte
+    Instanzen sind bereits beim Anheften reserviert; hier kommt nur die Auffüllung dazu."""
     if not order.article_id or not order.quantity:
         raise HTTPException(400, detail="Artikel und Menge sind für diesen Auftrag erforderlich")
-    need = order.quantity
-    cands = fifo_candidates(db, order.article_id, for_order_id=None)
+    pinned_qty = sum(i.quantity for i in chosen_subjects(db, order))
+    remaining = order.quantity - pinned_qty
+    if remaining <= 0:
+        return                                             # vollständig durch fixierte gedeckt
+    cands = fifo_candidates(db, order.article_id, for_order_id=None)   # nur unreservierte
     have = available_qty(cands)
-    if have < need:
+    if have < remaining:
         raise HTTPException(
-            409, detail=f"Nicht genügend Bestand am Lager: benötigt {need}, verfügbar {have}")
-    for cand, take in zip(cands, allocate(need, [c.quantity for c in cands])):
+            409, detail=f"Nicht genügend Bestand am Lager: benötigt {remaining} weitere, verfügbar {have}")
+    for cand, take in zip(cands, allocate(remaining, [c.quantity for c in cands])):
         if take <= 0:
             continue
         if take == cand.quantity:

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -25,21 +25,17 @@ import { ProcessSteps } from '@/components/erp/process-steps';
 
 type ViewerRole = 'staff' | 'supplier';
 
-// EIN Auswahlfeld statt Modus-Toggle: entweder ein freigegebener **Artikel** (+ Menge →
-// fährt den Artikel-Prozess, ERZEUGT Instanzen) ODER vorhandene **Instanzen** (+ eigener
-// Prozess am Auftrag, wirkt auf den Bestand). Die Subjektart leitet das Backend daraus ab.
-type Form = {
-  article_id: string; quantity: string; desired_delivery_date: string;
-  instance_object_ids: number[];
-};
+// Anker ist IMMER der Artikel + Menge. Was damit geschieht, ergibt sich aus dem Ablauf,
+// der danach im Entwurf definiert wird (Erzeugung vs. Operation am Bestand). Optional
+// lassen sich für eine Bestands-Operation bestimmte Instanzen fixieren (sonst FIFO).
+type Form = { article_id: string; quantity: string; desired_delivery_date: string };
 
 function seedFrom(record: Order | null): Form {
-  if (!record) return { article_id: '', quantity: '', desired_delivery_date: '', instance_object_ids: [] };
+  if (!record) return { article_id: '', quantity: '', desired_delivery_date: '' };
   return {
     article_id: record.article_id != null ? String(record.article_id) : '',
     quantity: record.quantity != null ? String(record.quantity) : '',
     desired_delivery_date: record.desired_delivery_date ?? '',
-    instance_object_ids: (record.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null),
   };
 }
 
@@ -53,9 +49,7 @@ function todayIso(): string {
 
 // Abgeleitete Subjektart des Auftrags (kein Modus-Flag) – für die Anzeige.
 function subjectRoleLabel(role: string | null | undefined): string {
-  if (role === 'stock') return 'Ab Lager – Verkauf/Entnahme (FIFO)';
-  if (role === 'instance') return 'Bearbeitung vorhandener Instanzen';
-  return 'Herstellung – erzeugt Instanzen';
+  return role === 'stock' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig).
@@ -116,36 +110,41 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const selectedArticle = releasedArticles.find((a) => String(a.id) === form.article_id) ?? null;
   const qtyUnit = selectedArticle ? unitLabel(selectedArticle.unit) : (record?.article_unit ? unitLabel(record.article_unit) : '');
 
-  // Anlage-Auswahl: Artikel (+ Menge) ODER vorhandene Instanzen. Die Maske richtet
-  // sich schlicht nach dem, was gewählt wurde – die Subjektart leitet das Backend ab.
-  const pickedInstances = form.instance_object_ids.length > 0;
-  const [allInstances, setAllInstances] = useState<Instance[]>([]);
-  // Auswahllisten bei Anlage UND im Entwurf laden (Instanzen lassen sich im Entwurf
-  // weiter ergänzen/entfernen – Mehrfachauswahl).
-  const editingDraft = isStaff && (isCreate || record?.status === 'draft');
-  useEffect(() => {
-    if (!editingDraft) return;
-    api.getInstances(500).then(setAllInstances).catch(() => {});
-  }, [editingDraft]);
-  // Wählbare Instanzen: freigegeben & am Lager (verbrauchbar/verkäuflich).
-  const stockInstances = allInstances.filter((i) => i.quality === 'passed' && i.disposition === 'in_stock' && i.object_id != null);
-  // Mehrfachauswahl: alle gewählten Instanzen müssen vom selben Artikel sein.
-  const firstSel = allInstances.find((i) => i.object_id === form.instance_object_ids[0]) ?? null;
-  const customArticleId = firstSel?.article_id ?? null;
-  const addableInstances = stockInstances.filter((i) =>
-    !form.instance_object_ids.includes(i.object_id as number) &&
-    (customArticleId == null || i.article_id === customArticleId));
-
+  // Anker: Artikel + Menge. Bedarf (Artikel/Menge/Termin) wird per Auto-Save persistiert.
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
-  const demandValid = pickedInstances
-    ? true
-    : (!!form.article_id && qtyNum != null && qtyNum > 0);
+  const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
-  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(),
-    date: effectiveDate, instances: form.instance_object_ids });
+  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate });
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
   // Freigabe erst möglich, wenn der Bedarf gespeichert ist (keine offenen Änderungen)
   const canRelease = !isCreate && !!record?.article_id && !!record?.quantity && sig === savedSig;
+
+  // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt (live über ProcessSteps).
+  const [orderStepCount, setOrderStepCount] = useState<number | null>(null);
+  const isStockOp = !isCreate && record?.status === 'draft' && (orderStepCount ?? 0) > 0;
+
+  // Optional fixierte (gepinnte) Instanzen einer Bestands-Operation. Persistieren sofort
+  // (Backend reserviert sie → kein Doppelzugriff); ohne Pins greift FIFO ab Lager.
+  const pins = (record?.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null);
+  const [pinPool, setPinPool] = useState<Instance[]>([]);
+  useEffect(() => {
+    if (!isStockOp || record?.article_id == null) { setPinPool([]); return; }
+    api.getInstances(500).then(setPinPool).catch(() => {});
+  }, [isStockOp, record?.article_id]);
+  const pinnable = pinPool.filter((i) =>
+    i.object_id != null && i.article_id === record?.article_id &&
+    i.quality === 'passed' && i.disposition === 'in_stock' && !pins.includes(i.object_id) &&
+    (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
+
+  async function setPins(ids: number[]) {
+    if (!record) return;
+    try {
+      const saved = await api.updateOrder(record.object_id as number,
+        { instance_object_ids: ids, expected_updated_at: verRef.current });
+      verRef.current = saved.updated_at;
+      onSaved(saved);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen'); }
+  }
 
   async function save() {
     if (!demandValid) return;
@@ -154,17 +153,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setError(null);
     try {
       if (isCreate) {
-        const payload = pickedInstances
-          ? { instance_object_ids: form.instance_object_ids, desired_delivery_date: effectiveDate }
-          : { article_id: Number(form.article_id), quantity: qtyNum, desired_delivery_date: effectiveDate };
-        onSaved(await api.createOrder(payload));
+        onSaved(await api.createOrder({ article_id: Number(form.article_id), quantity: qtyNum, desired_delivery_date: effectiveDate }));
       } else {
-        // Im Entwurf editierbar: bei gewählten Instanzen deren Auswahl (Mehrfach),
-        // sonst Artikel + Menge. Termin immer.
-        const base = { desired_delivery_date: effectiveDate, expected_updated_at: verRef.current };
-        const saved = await api.updateOrder(record.object_id as number, pickedInstances
-          ? { ...base, instance_object_ids: form.instance_object_ids }
-          : { ...base, article_id: form.article_id ? Number(form.article_id) : null, quantity: qtyNum });
+        const saved = await api.updateOrder(record.object_id as number, {
+          article_id: form.article_id ? Number(form.article_id) : null,
+          quantity: qtyNum, desired_delivery_date: effectiveDate, expected_updated_at: verRef.current,
+        });
         verRef.current = saved.updated_at;
         onSaved(saved);
         setSavedSig(current);
@@ -240,21 +234,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
   ];
-  // EIN Auswahlfeld: freigegebene Artikel UND Instanzen am Lager. Präfix a: / i: trennt sie.
-  const instOpt = (i: Instance) => ({ value: `i:${i.object_id}`, label: `Instanz · ${fmtObjId(i.object_id)}${i.article_name ? ` · ${i.article_name}` : ''}` });
-  const unifiedOptions = [
-    { value: '', label: '— Artikel oder Instanz wählen —' },
-    ...releasedArticles.map((a) => ({ value: `a:${a.id}`, label: `Artikel · ${fmtObjId(a.object_id)} · ${a.name}` })),
-    ...stockInstances.map(instOpt),
-  ];
-  function pickUnified(v: string) {
-    if (v.startsWith('a:')) { set('instance_object_ids', []); set('article_id', v.slice(2)); }
-    else if (v.startsWith('i:')) {
-      const oid = Number(v.slice(2));
-      set('article_id', '');
-      if (!form.instance_object_ids.includes(oid)) set('instance_object_ids', [...form.instance_object_ids, oid]);
-    }
-  }
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
 
   return (
@@ -307,38 +286,14 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         <div style={cardStyle}>
           {demandEditable ? (
             <>
-              {pickedInstances ? (
-                <div>
-                  <Label>Instanzen (alle vom selben Artikel)</Label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-                    {form.instance_object_ids.map((oid) => (
-                      <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
-                        {fmtObjId(oid)}
-                        <button type="button" onClick={() => set('instance_object_ids', form.instance_object_ids.filter((x) => x !== oid))}
-                          style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
-                      </span>
-                    ))}
-                  </div>
-                  <SearchSelect label="" value="" onChange={pickUnified}
-                    options={[{ value: '', label: '— weitere Instanz hinzufügen —' }, ...addableInstances.map(instOpt)]} />
-                  <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>Den Ablauf darunter definieren (z. B. Verkauf, Bewegung, Datenerfassung).</div>
+              <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
+              {isCreate && releasedArticles.length === 0 && (
+                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
+                  Kein freigegebener Artikel vorhanden. Nur freigegebene Artikel sind referenzierbar.
                 </div>
-              ) : isCreate ? (
-                <>
-                  <SearchSelect label="Artikel oder Instanz" value={form.article_id ? `a:${form.article_id}` : ''} onChange={pickUnified} options={unifiedOptions} required />
-                  {releasedArticles.length === 0 && stockInstances.length === 0 && (
-                    <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
-                      Kein freigegebener Artikel und keine Instanz am Lager. Nur Freigegebenes ist referenzierbar.
-                    </div>
-                  )}
-                </>
-              ) : (
-                <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
               )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                {!pickedInstances && (
-                  <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
-                )}
+                <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
                 <div>
                   <Label>Wunsch-Liefertermin</Label>
                   {dateOpen ? (
@@ -391,21 +346,44 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {record && <OrderInstances order={record} />}
 
         {/* Ablauf – im Entwurf editierbar. Leer = Erzeugung (Artikel-Prozess);
-            eigene Schritte = Operation am Bestand (FIFO) bzw. an den gewählten Instanzen. */}
+            eigene Schritte = Operation auf Instanzen des Artikels (FIFO ab Lager). */}
         {isStaff && record?.status === 'draft' && (
           <>
             <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
             <div style={cardStyle}>
               <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                {(record.instances?.length ?? 0) > 0 ? (
-                  'Ablauf für die gewählten Instanzen – z. B. Verkauf, Bewegung, Datenerfassung.'
-                ) : (
-                  <>Ohne Schritte: <strong style={{ color: '#0f172a' }}>Erzeugung</strong> – fährt den Prozess des Artikels. Schritte hinzufügen, um stattdessen <strong style={{ color: '#0f172a' }}>{record.quantity ?? ''} Stück ab Lager</strong> zu verarbeiten (FIFO) – z. B. bewegen, verkaufen.</>
-                )}
+                <>Ohne Schritte: <strong style={{ color: '#0f172a' }}>Erzeugung</strong> – fährt den Prozess des Artikels. Schritte hinzufügen, um stattdessen <strong style={{ color: '#0f172a' }}>{record.quantity ?? ''} Stück ab Lager</strong> zu verarbeiten (FIFO) – z. B. bewegen, verkaufen, warten.</>
               </div>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
-                selfArticleObjectId={record.article_object_id ?? null} />
+                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
             </div>
+
+            {/* Optional bestimmte Instanzen fixieren – sonst FIFO ab Lager (nur Bestands-Operation) */}
+            {isStockOp && (
+              <>
+                <SectionTitle icon={Boxes}>Instanzen</SectionTitle>
+                <div style={cardStyle}>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {pins.length > 0
+                      ? `${pins.length} fixiert${record.quantity && pins.length < record.quantity ? ` · die übrigen ${record.quantity - pins.length} automatisch nach FIFO` : ''}.`
+                      : `Alle ${record.quantity ?? ''} Stück werden automatisch nach FIFO gewählt. Optional bestimmte Instanzen festlegen:`}
+                  </div>
+                  {pins.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {pins.map((oid) => (
+                        <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'monospace', background: '#eef2ff', color: '#3730a3', padding: '2px 8px', borderRadius: 999 }}>
+                          {fmtObjId(oid)}
+                          <button type="button" onClick={() => setPins(pins.filter((x) => x !== oid))}
+                            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#3730a3', padding: 0, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <SearchSelect label="" value="" onChange={(v) => { const n = Number(v); if (n) setPins([...pins, n]); }}
+                    options={[{ value: '', label: '— Instanz fixieren —' }, ...pinnable.map((i) => ({ value: String(i.object_id), label: fmtObjId(i.object_id) }))]} />
+                </div>
+              </>
+            )}
           </>
         )}
 
