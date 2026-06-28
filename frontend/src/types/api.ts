@@ -567,6 +567,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Abort Order
+         * @description Abbruch eines Auftrags. Ein **Entwurf** wird direkt inaktiv. Ein **freigegebener**
+         *     Auftrag mit im Prozess befindlichen Instanzen erzwingt einen **Folgeauftrag**
+         *     (Abweichung): dieser übernimmt die Instanzen; das Original wird erst inaktiv, wenn der
+         *     Folgeauftrag freigegeben ist. Liefert den **Folgeauftrag** (bzw. das Original) zurück.
+         */
+        post: operations["abort_order_api_v1_erp_orders__object_id__abort_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/purchase": {
         parameters: {
             query?: never;
@@ -1921,6 +1944,10 @@ export interface components {
             replaced_by_id?: number | null;
             /** Replaces Id */
             replaces_id?: number | null;
+            /** Parent Order Id */
+            parent_order_id?: number | null;
+            /** Abort Into Id */
+            abort_into_id?: number | null;
         };
         /**
          * OrderStepInfo
@@ -2006,6 +2033,10 @@ export interface components {
             recurrence_due: boolean;
             /** Replaced By Id */
             replaced_by_id?: number | null;
+            /** Parent Order Id */
+            parent_order_id?: number | null;
+            /** Abort Into Id */
+            abort_into_id?: number | null;
         };
         /** OrderUpdate */
         OrderUpdate: {
@@ -4012,6 +4043,37 @@ export interface operations {
         };
     };
     replace_order_api_v1_erp_orders__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abort_order_api_v1_erp_orders__object_id__abort_post: {
         parameters: {
             query?: never;
             header?: never;

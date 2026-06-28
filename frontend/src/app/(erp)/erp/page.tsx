@@ -78,12 +78,14 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
-    // Wiederkehrend & fällig hat Vorrang; sonst Beschaffungs- bzw. Auftragsstatus.
-    badge = row.data.recurrence_due
-      ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
-      : row.data.status === 'released' && row.data.purchase_status
-        ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
-        : orderStatusConfig(row.data.status);
+    // Abweichung (Unter-Auftrag) hat Vorrang; dann wiederkehrend & fällig; sonst Status.
+    badge = row.data.parent_order_id != null
+      ? { label: 'Abweichung', color: '#d97706', bg: '#fffbeb', icon: AlertTriangle }
+      : row.data.recurrence_due
+        ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
+        : row.data.status === 'released' && row.data.purchase_status
+          ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
+          : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
   else if (row.type === 'claim') badge = claimStatusConfig(row.data.status);

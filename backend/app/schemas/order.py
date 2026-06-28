@@ -140,6 +140,8 @@ class OrderSummary(BaseModel):
     recurrence_active: bool = False         # wiederkehrender Auftrag (Badge)
     recurrence_due: bool = False            # fällig (Termin − Vorlaufzeit erreicht)
     replaced_by_id: Optional[int] = None
+    parent_order_id: Optional[int] = None   # gesetzt → Abweichung (Badge)
+    abort_into_id: Optional[int] = None     # gesetzt → «Abbruch ausstehend»
 
 
 class OrderResponse(BaseModel):
@@ -186,3 +188,6 @@ class OrderResponse(BaseModel):
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None
+    # Abweichung (Unter-Auftrag) + Abbruch-Folgeauftrag (Objektnummern)
+    parent_order_id: Optional[int] = None
+    abort_into_id: Optional[int] = None

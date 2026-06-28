@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -249,10 +249,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
   async function confirmCancel() {
     if (!record) return;
-    const saved = await api.updateOrder(record.object_id as number,
-      { status: 'inactive', expected_updated_at: verRef.current });
-    verRef.current = saved.updated_at;
-    onSaved(saved);
+    // Abbruch erzwingt einen Folgeauftrag (Abweichung), der die im Prozess befindlichen
+    // Instanzen übernimmt; bei einem Entwurf wird direkt inaktiviert. Navigiert zum Ergebnis.
+    onSaved(await api.abortOrder(record.object_id as number));
     setDialog(null);
   }
 
@@ -307,6 +306,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       {/* Content */}
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        {!isCreate && record.parent_order_id != null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+            <AlertTriangle size={16} /> Abweichung zu Auftrag <ObjId value={record.parent_order_id} /> – wirkt auf dessen Instanzen.
+          </div>
+        )}
+        {!isCreate && record.abort_into_id != null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+            <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
+          </div>
+        )}
         {isCompleted && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
             <CheckCircle2 size={16} /> Auftrag abgeschlossen – alle Prozessschritte erledigt.
@@ -522,8 +531,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           title={dialog === 'replace' ? 'Auftrag ersetzen' : 'Auftrag abbrechen'}
           message={dialog === 'replace'
             ? 'Ein neuer Auftrag (Entwurf, gleicher Artikel/Menge) wird angelegt und verknüpft; dieser wird abgebrochen.'
-            : 'Reservierungen werden freigegeben und unfertige Instanzen verworfen.'}
-          confirmLabel={dialog === 'replace' ? 'Ersetzen' : 'Abbrechen'}
+            : record.status === 'released'
+              ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
+              : 'Der Entwurf wird inaktiv gesetzt.'}
+          confirmLabel={dialog === 'replace' ? 'Ersetzen' : record.status === 'released' ? 'Folgeauftrag anlegen' : 'Abbrechen'}
           onConfirm={async () => { if (dialog === 'replace') await confirmReplace(); else await confirmCancel(); }}
           onClose={() => setDialog(null)}
         />

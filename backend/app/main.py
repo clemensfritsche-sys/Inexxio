@@ -119,6 +119,9 @@ _COLUMN_SAFETY_NET = (
     ("orders", "recurrence_lead_time_days", "INTEGER DEFAULT 0 NOT NULL"),
     ("orders", "recurrence_anchor", "DATE"),
     ("orders", "recurring_parent_id", "BIGINT"),
+    # Abweichung als Auftrag (Unter-Auftrag) + Abbruch-Folgeauftrag
+    ("orders", "parent_order_id", "BIGINT"),
+    ("orders", "abort_into_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

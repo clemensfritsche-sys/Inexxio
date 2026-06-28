@@ -56,3 +56,15 @@ class Order(Base, TimestampMixin):
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Auftrags (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # **Abweichung** (vereinheitlicht Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag):
+    # Ein Auftrag mit ``parent_order_id`` ist ein **Unter-Auftrag**, der aus einem laufenden
+    # Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt. Der Eltern-Auftrag
+    # **pausiert** (schliesst nicht ab), solange eine Abweichung offen ist. Objektnummer des
+    # Eltern-Auftrags (eine Abweichung ist selbst ein vollwertiger Auftrag mit eigener Nummer).
+    parent_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
+    # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**
+    # wird er erst, wenn der Folgeauftrag **freigegeben** ist (die Instanzen gehen über).
+    abort_into_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

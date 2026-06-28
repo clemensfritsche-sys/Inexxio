@@ -51,6 +51,12 @@ def chosen_subjects(db: Session, order: Order) -> list[Instance]:
     )
 
 
+def is_deviation(order: Order) -> bool:
+    """Abweichung = **Unter-Auftrag** (hat einen Eltern-Auftrag). Wirkt auf bereits «in der
+    Hand» befindliche Instanzen des Eltern-Auftrags – ohne Lager-FIFO/-Reservierung."""
+    return getattr(order, "parent_order_id", None) is not None
+
+
 def subject_kind(db: Session, order: Order) -> str:
     """Abgeleitete Subjektart (Artikel ist immer der Anker):
 
@@ -65,6 +71,8 @@ def subject_kind(db: Session, order: Order) -> str:
     Bestand, keine = Herstellung. Eine reine (Entwurfs-)Pin-Auswahl ohne Schritte kippt
     den Auftrag NICHT in eine Bestands-Operation (sonst scheitert die Herstellung an
     „kein Bestand")."""
+    if is_deviation(order):
+        return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
     if has_custom_steps(db, order):
         return "stock"
     return "produce"
@@ -109,11 +117,29 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
     produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel).
 
     Entscheidend ist **allein** ``has_custom_steps`` (siehe ``subject_kind``); eine
-    Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern)."""
+    Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern).
+
+    deviation → die (bereits vorhandenen) Subjekt-Instanzen werden nur übernommen, ohne
+      Lager-Allokation/-Reservierung (sie sind schon in Arbeit/im Besitz)."""
+    if is_deviation(order):
+        _bind_deviation_subjects(db, order, actor_id)
+        return
     if has_custom_steps(db, order):
         _allocate_stock_subject(db, order, actor_id)
         return
     create_instances_for_order(db, order, actor_id)
+
+
+def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
+    """Abweichung: die gewählten Instanzen nur **dauerhaft als verarbeitet** vermerken –
+    KEINE Lager-Allokation/-Reservierung. Die Instanzen können jeden Verbleib haben
+    (in Arbeit, am Lager, …); die Abweichung wirkt direkt auf sie."""
+    bound = chosen_subjects(db, order)
+    if not bound:
+        raise HTTPException(409, detail="Für die Abweichung sind keine Instanzen gewählt")
+    for inst in bound:
+        record_link(db, inst.object_id, order.id)
+    log_audit(db, "instances", None, "Abweichung übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
 def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
