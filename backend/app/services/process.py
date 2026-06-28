@@ -35,6 +35,7 @@ from ..models import (
 )
 from ..models.base import utcnow
 from .events import emit
+from .reservation import consume as consume_qty, release, reserved_for
 
 # Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
 # (``domain.event_types``) – EINE Quelle der Wahrheit statt verstreuter Dicts.
@@ -262,21 +263,29 @@ def release_instances(db: Session, order: Order) -> None:
 def _finalize_subjects(db: Session, order: Order) -> None:
     """Verbleib der vom Auftrag bearbeiteten Bestands-Instanzen bei Abschluss.
 
-    CUSTOM-Aufträge wirken auf ausgewählte, bereits vorhandene Instanzen
-    (``subject_of_order_id``). Enthält der individuelle Ablauf einen **Verkauf**,
-    verlassen diese den Bestand (``sold``); sonst bleibt der Verbleib unverändert
-    (Wartung/Bewegung/Kontrolle = neutral). MAKE-Aufträge (neue Instanzen) werden über
-    ``release_instances`` behandelt."""
+    Enthält der individuelle Ablauf einen **Verkauf**, verlässt die **für diesen Auftrag
+    reservierte Menge** den Bestand: die Instanz wird **mengengenau gemindert** (keine
+    Teilung!) – eine vollständig verkaufte Instanz wird ``sold``, eine teilweise verkaufte
+    Charge bleibt mit der Restmenge am Lager. Sonst (Wartung/Bewegung/Kontrolle) bleibt der
+    Verbleib unverändert. MAKE-Aufträge (neue Instanzen) laufen über ``release_instances``."""
+    if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
+        return
     subjects = (
         db.query(Instance)
-        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+        .filter(Instance.reservations.has_key(str(order.id)),  # noqa: W601
+                Instance.article_id == order.article_id, Instance.is_active == True)
         .all()
     )
-    if not subjects or not any(d.step_type == "sale" for d in order_step_defs(db, order)):
-        return
     for inst in subjects:
-        if inst.disposition not in ("scrapped", "consumed") and inst.quality != "failed":
-            inst.disposition = "sold"
+        if inst.quality == "failed":
+            continue
+        sold = reserved_for(inst, order.id)
+        consume_qty(inst, order.id, sold)        # Menge mindern + Reservierung lösen
+        if (inst.quantity or 0) <= 0:
+            inst.disposition = "sold"            # vollständig verkauft
+        emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
+             payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
+                      "order": order.object_id})
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:
@@ -313,17 +322,16 @@ def recompute_completion(db: Session, order: Order) -> None:
         if order.completed_at is None:
             order.completed_at = utcnow()
         release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
-        _finalize_subjects(db, order)        # Subjekt-Disposition (abgeleitet: sold/consumed/neutral)
-        # Reservierung UND Bindung dieses Auftrags lösen (Auftrag fertig): verkaufte/
-        # verbaute Subjekte sind über ihre ``disposition`` ohnehin aus dem Bestand; ein
-        # neutral gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar.
-        # Die Auftrags-Historie der Instanz bleibt über ``instance_order_links`` erhalten.
+        _finalize_subjects(db, order)        # Verkauf: reservierte Menge mengengenau abbuchen
+        # Restliche Reservierungen dieses Auftrags lösen (Auftrag fertig): ein neutral
+        # gebliebenes Subjekt (Bewegung/Kontrolle) wird so wieder frei verfügbar; die
+        # Subjekt-Markierung wird entfernt. Historie bleibt über ``instance_order_links``.
         for inst in db.query(Instance).filter(
-            or_(Instance.reserved_for_order_id == order.id,
+            or_(Instance.reservations.has_key(str(order.id)),  # noqa: W601
                 Instance.subject_of_order_id == order.id),
             Instance.is_active == True,
         ).all():
-            inst.reserved_for_order_id = None
+            release(inst, order.id)
             inst.subject_of_order_id = None
         _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)

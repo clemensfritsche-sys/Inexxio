@@ -1619,6 +1619,11 @@ export interface components {
             disposition: string;
             /** Reserved For Order Id */
             reserved_for_order_id?: number | null;
+            /**
+             * Reserved Quantity
+             * @default 0
+             */
+            reserved_quantity: number;
             /** Location Type */
             location_type?: string | null;
             /** Location Id */
@@ -1684,6 +1689,11 @@ export interface components {
             updated_at: string;
             /** Reserved For Order Id */
             reserved_for_order_id?: number | null;
+            /**
+             * Reserved Quantity
+             * @default 0
+             */
+            reserved_quantity: number;
             /** Order Object Id */
             order_object_id?: number | null;
             /** Article Object Id */

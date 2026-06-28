@@ -5679,6 +5679,11 @@
             ],
             "title": "Reserved For Order Id"
           },
+          "reserved_quantity": {
+            "type": "integer",
+            "title": "Reserved Quantity",
+            "default": 0
+          },
           "location_type": {
             "anyOf": [
               {
@@ -5867,6 +5872,11 @@
               }
             ],
             "title": "Reserved For Order Id"
+          },
+          "reserved_quantity": {
+            "type": "integer",
+            "title": "Reserved Quantity",
+            "default": 0
           },
           "order_object_id": {
             "anyOf": [

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import BigInteger, DateTime, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -47,9 +48,18 @@ class Instance(Base, TimestampMixin):
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
-    # Reservierung: bei Auftragsfreigabe werden die zu verbrauchenden Komponenten-
-    # Instanzen für genau diesen Auftrag reserviert (DB-id des Auftrags). Reservierte
-    # Instanzen sind für ANDERE Aufträge nicht mehr verbrauchbar (FIFO blendet sie aus).
+    # Reservierung – **mengengenau, ohne Teilung der Instanz** (die Objektnummer bleibt
+    # IMMER erhalten – physisch sind die Teile mit dieser Nummer beschriftet):
+    #   reservations      = {auftrag_db_id: menge}  – wer wie viel dieser Instanz beansprucht
+    #   reserved_quantity = Summe der Reservierungen (denormalisiert, für SQL-Verfügbarkeit)
+    # Frei verfügbar (für andere Aufträge) = quantity − reserved_quantity. Eine Charge von
+    # 1000 Schrauben, von der 30 reserviert sind, bleibt also mit 970 frei verfügbar –
+    # **ohne** dass eine zweite Instanz mit eigener Nummer entsteht.
+    reservations: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    reserved_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
+    # Einzel-Reservierungs-Zeiger (Altfeld / Schnellprüfung): gesetzt, solange genau EIN
+    # Auftrag die Instanz (teil-)reserviert. Massgeblich ist die ``reservations``-Map.
     reserved_for_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
     # **Subjekt** eines Bestands-Auftrags (Prozess-Quelle ``stock``: Verkauf/Entnahme):

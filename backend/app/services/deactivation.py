@@ -24,7 +24,7 @@ Ersetzen: alter Datensatz inaktiv + **Duplikat als Entwurf** + Verknüpfung
 """
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models import Article, ArticleProcessStep, Instance, Order, StorageLocation
@@ -33,6 +33,7 @@ from .events import emit
 from .inventory import in_stock_clauses
 from .objects import next_object_id
 from .processes import has_custom_steps
+from .reservation import release
 
 
 # ─── Artikel: Kaskade über consume-Ressourcen ────────────────────────────────
@@ -165,14 +166,14 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int) -> None:
     """Beim Abbruch eines Auftrags: Reservierungen UND Bestands-Subjekte freigeben
     (Verkauf/Entnahme – zurück in den freien Bestand) und unfertige (``pending``)
     Produkt-Instanzen deaktivieren. Setzt NICHT den Status (Aufrufer)."""
-    # Reservierte Komponenten + als Subjekt gewählte Bestands-Instanzen freigeben.
+    # Reservierte Komponenten + als Subjekt gewählte Bestands-Instanzen freigeben
+    # (mengengenau: nur die Reservierung dieses Auftrags lösen, Instanz bleibt erhalten).
     for inst in db.query(Instance).filter(
-        Instance.reserved_for_order_id == order.id, Instance.is_active == True
+        or_(Instance.reservations.has_key(str(order.id)),  # noqa: W601
+            Instance.subject_of_order_id == order.id),
+        Instance.is_active == True,
     ).all():
-        inst.reserved_for_order_id = None
-    for inst in db.query(Instance).filter(
-        Instance.subject_of_order_id == order.id, Instance.is_active == True
-    ).all():
+        release(inst, order.id)
         inst.subject_of_order_id = None
     # Bei Freigabe erzeugte, noch unfertige Produkt-Instanzen deaktivieren.
     for inst in db.query(Instance).filter(

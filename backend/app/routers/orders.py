@@ -20,6 +20,7 @@ from ..services.movement import record_movement
 from ..services.objects import next_object_id
 from ..services.orders import to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order
+from ..services.reservation import free_qty, reserved_for
 from ..services.resource import record_resource, reserve_resources
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
@@ -62,7 +63,7 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
         if not (i.quality == "passed" and i.disposition == "in_stock"):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if i.reserved_for_order_id not in (None, order.id):
+        if free_qty(i) + reserved_for(i, order.id) < i.quantity:
             raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
         insts.append(i)
     return insts

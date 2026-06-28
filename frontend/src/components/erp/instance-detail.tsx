@@ -53,7 +53,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Instanz</div>
             <div style={{ marginTop: 4 }}>
-              <StatusBadge cfg={instanceStatusConfig(inst.quality, inst.disposition, inst.reserved_for_order_object_id != null)} />
+              <StatusBadge cfg={instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0)} />
             </div>
           </div>
           <div style={{ flexShrink: 0, textAlign: 'right' }}>
@@ -85,6 +85,9 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
         {/* Eckdaten der Instanz */}
         <div style={card}>
           <FactRow label="Menge" value={String(inst.quantity)} />
+          {(inst.reserved_quantity ?? 0) > 0 && (
+            <FactRow label="Reserviert" value={`${inst.reserved_quantity} von ${inst.quantity}`} />
+          )}
           {inst.serial_number && <FactRow label="Seriennummer" value={inst.serial_number} />}
           <FactRow
             label="Standort"
