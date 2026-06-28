@@ -2,7 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
-  MovementUpdateInput, ResourceUpdateInput, SaleUpdateInput,
+  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
 } from '@/types';
@@ -269,6 +269,11 @@ class ApiClient {
   // Schritt «Ressource»: Verbrauch (FIFO) + Betriebsmittel erfassen
   updateOrderResource(objectId: number, data: ResourceUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/resource`, data);
+  }
+
+  // Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')
+  updateOrderScrap(objectId: number, data: ScrapUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/scrap`, data);
   }
 
   // Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung

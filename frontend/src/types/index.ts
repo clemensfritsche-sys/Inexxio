@@ -79,7 +79,7 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
 // EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'sale';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -118,6 +118,15 @@ export interface MovementUpdateInput {
   note?: string | null;
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
+
+// Verschrotten: die zu verschrottenden Instanzen (per Objektnummer) + optionale Notiz.
+export interface ScrapUpdateInput {
+  instance_ids: number[];
+  note?: string | null;
+  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
+}
+
+export type OrderDisposal = NonNullable<OrderApi['disposal']>;
 
 export type CaptureField = components['schemas']['CaptureField'];
 export type CaptureFieldType = 'measure' | 'bool' | 'text';

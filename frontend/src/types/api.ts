@@ -714,6 +714,26 @@ export interface paths {
         patch: operations["update_order_resource_api_v1_erp_orders__object_id__resource_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/scrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Scrap
+         * @description Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped').
+         */
+        patch: operations["update_order_scrap_api_v1_erp_orders__object_id__scrap_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -1381,6 +1401,34 @@ export interface components {
             stock: number;
         };
         /**
+         * DisposalEmbed
+         * @description Eingebetteter Stand der Verschrottung (im Auftrag).
+         *
+         *     Welche Instanzen verschrottet wurden, steht in ``OrderResponse.instances``
+         *     (``disposition='scrapped'``); dieser Embed trägt nur den Abschluss-Status.
+         */
+        DisposalEmbed: {
+            /**
+             * Id
+             * @default 0
+             */
+            id: number;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /** Note */
+            note?: string | null;
+            /** Scrapped By Name */
+            scrapped_by_name?: string | null;
+            /**
+             * Scrapped Count
+             * @default 0
+             */
+            scrapped_count: number;
+        };
+        /**
          * ErpAdminUpdate
          * @description Fields an admin may change from the ERP panel.
          */
@@ -1828,6 +1876,7 @@ export interface components {
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
+            disposal?: components["schemas"]["DisposalEmbed"] | null;
             /**
              * Steps
              * @default []
@@ -1873,6 +1922,7 @@ export interface components {
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
+            disposal?: components["schemas"]["DisposalEmbed"] | null;
         };
         /**
          * OrderSummary
@@ -2319,6 +2369,22 @@ export interface components {
             customer_id?: number | null;
             /** Invoice Number */
             invoice_number?: string | null;
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
+         * ScrapUpdate
+         * @description Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen (per
+         *     Objektnummer) + optionale Notiz/Grund. Mindestens eine Instanz.
+         */
+        ScrapUpdate: {
+            /**
+             * Instance Ids
+             * @default []
+             */
+            instance_ids: number[];
+            /** Note */
+            note?: string | null;
             /** Step Id */
             step_id?: number | null;
         };
@@ -4184,6 +4250,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ResourceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_scrap_api_v1_erp_orders__object_id__scrap_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScrapUpdate"];
             };
         };
         responses: {

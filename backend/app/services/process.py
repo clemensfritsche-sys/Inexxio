@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import (
-    ArticleProcessStep, Inspection, Instance, Movement, Order, PurchaseOrder,
+    ArticleProcessStep, Disposal, Inspection, Instance, Movement, Order, PurchaseOrder,
     ResourceUsage, Sale,
 )
 from ..models.base import utcnow
@@ -43,7 +43,7 @@ STEP_LABELS = {key: et.label for key, et in event_types.REGISTRY.items()}
 
 _MODEL_BY_NAME = {
     "PurchaseOrder": PurchaseOrder, "Inspection": Inspection, "Movement": Movement,
-    "ResourceUsage": ResourceUsage, "Sale": Sale,
+    "Disposal": Disposal, "ResourceUsage": ResourceUsage, "Sale": Sale,
 }
 # Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung).
 _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.items()}
@@ -108,7 +108,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource"):
+    if step_type in ("movement", "resource", "scrap"):
         return "done" if fact else "open"
     return "open"
 

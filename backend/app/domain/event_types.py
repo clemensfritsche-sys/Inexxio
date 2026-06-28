@@ -58,6 +58,7 @@ REGISTRY: dict[str, EventType] = {
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage"),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection"),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement"),
+    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal"),
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
 }
 
@@ -72,11 +73,12 @@ RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 # **Auftrags-Ablauf alle Schritttypen** sinnvoll und zulässig – z. B. Wartung mit
 # Verbrauchsmaterial/Betriebsmitteln (resource) oder auswärtiger Vergabe (purchase).
 #
-# Im **Artikel-Prozess** (HERSTELLUNG, „wie etwas entsteht") ist nur **kein Verkauf**
-# erlaubt: verkauft wird nie beim Herstellen, sondern über einen Auftrag auf den Bestand
-# (sonst würden die erzeugten Instanzen nicht als verkauft markiert). Sonst alles erlaubt.
+# Im **Artikel-Prozess** (HERSTELLUNG, „wie etwas entsteht") sind **kein Verkauf** und
+# **kein Verschrotten** erlaubt: beides wirkt auf vorhandenen Bestand und läuft über einen
+# Auftrag (sonst würden die erzeugten Instanzen nicht korrekt markiert). Sonst alles erlaubt.
+# **Verschrotten** (scrap) ist die definierte Auflösung einer Abweichung (defektes Teil raus).
 ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
-ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "sale")
+ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale")
 
 
 def allowed_step_types(owner_kind: str) -> tuple[str, ...]:

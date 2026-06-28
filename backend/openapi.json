@@ -2365,6 +2365,64 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/scrap": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Scrap",
+        "description": "Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped').",
+        "operationId": "update_order_scrap_api_v1_erp_orders__object_id__scrap_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScrapUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/instances": {
       "get": {
         "tags": [
@@ -4826,6 +4884,50 @@
         "title": "DeactivationImpact",
         "description": "Wirkungsanalyse (Dry-Run) vor dem Inaktiv-Setzen/Ersetzen eines Artikels."
       },
+      "DisposalEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "default": 0
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "scrapped_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scrapped By Name"
+          },
+          "scrapped_count": {
+            "type": "integer",
+            "title": "Scrapped Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "DisposalEmbed",
+        "description": "Eingebetteter Stand der Verschrottung (im Auftrag).\n\nWelche Instanzen verschrottet wurden, steht in ``OrderResponse.instances``\n(``disposition='scrapped'``); dieser Embed trägt nur den Abschluss-Status."
+      },
       "ErpAdminUpdate": {
         "properties": {
           "role": {
@@ -6100,6 +6202,16 @@
               }
             ]
           },
+          "disposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisposalEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/OrderStepInfo"
@@ -6258,6 +6370,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ResourceEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisposalEmbed"
               },
               {
                 "type": "null"
@@ -7554,6 +7676,43 @@
         "type": "object",
         "title": "SaleUpdate",
         "description": "Statusübergänge & Feldeingaben des Verkaufsschritts (kaufmännisch).\n\nEIN Verkaufsbetrag (netto); der Stückpreis wird berechnet (read-only)."
+      },
+      "ScrapUpdate": {
+        "properties": {
+          "instance_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Ids",
+            "default": []
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "title": "ScrapUpdate",
+        "description": "Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen (per\nObjektnummer) + optionale Notiz/Grund. Mindestens eine Instanz."
       },
       "StepReorder": {
         "properties": {
