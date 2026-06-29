@@ -43,6 +43,14 @@ function seedFrom(record: Order | null): Form {
   };
 }
 
+// Signatur des Bedarfs (Artikel/Menge/Termin) – EINE Stelle, damit «gespeichert» (savedSig)
+// und «aktuell» (sig) IMMER dieselbe Form haben. (Früher verglich savedSig die Roh-Form mit
+// anderem Schlüssel/Datumswert → nie gleich; bei nicht-autosave-baren Aufträgen wie einer
+// Abweichung blieb die Freigabe dauerhaft gesperrt.)
+function demandSig(articleId: string, quantity: string, date: string | null): string {
+  return JSON.stringify({ article_id: articleId, quantity: quantity.trim(), date: date || null });
+}
+
 function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
@@ -82,7 +90,11 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const isStaff = viewerRole === 'staff';
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [dateOpen, setDateOpen] = useState<boolean>(!!record?.desired_delivery_date);
-  const [savedSig, setSavedSig] = useState<string>(() => (record === null ? '' : JSON.stringify(seedFrom(record))));
+  const [savedSig, setSavedSig] = useState<string>(() => {
+    if (record === null) return '';
+    const s = seedFrom(record);
+    return demandSig(s.article_id, s.quantity, record.desired_delivery_date ?? null);
+  });
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
@@ -128,7 +140,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
   const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
-  const sig = JSON.stringify({ article_id: form.article_id, quantity: form.quantity.trim(), date: effectiveDate });
+  const sig = demandSig(form.article_id, form.quantity, effectiveDate);
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
   // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt. Live über ProcessSteps;
   // initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.

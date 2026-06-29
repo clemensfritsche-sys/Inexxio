@@ -24,7 +24,11 @@ function localDate(iso: string | null | undefined): string {
  * Aktionen an einer Instanz (verschrotten, verkaufen, …) laufen ausschliesslich
  * über einen Auftrag – hier gibt es daher keine direkten Mutationen.
  */
-export function InstanceDetail({ record, onBack }: { record: Instance; onBack: () => void }) {
+export function InstanceDetail({ record, onBack, onChanged }: {
+  record: Instance;
+  onBack: () => void;
+  onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Anlage einer Abweichung)
+}) {
   const inst = record;
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
@@ -53,6 +57,7 @@ export function InstanceDetail({ record, onBack }: { record: Instance; onBack: (
     setDevErr(null);
     try {
       const devi = await api.createDeviation(deviationParent.object_id, [inst.object_id]);
+      onChanged?.();                                       // Auftrag-Feed sofort aktualisieren
       if (devi.object_id != null) nav?.(devi.object_id);   // zur neuen Abweichung springen
     } catch (e) {
       setDevErr(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
