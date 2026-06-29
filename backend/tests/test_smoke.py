@@ -615,6 +615,31 @@ def test_failed_inspection_triggers_deviation():
     assert "open_deviations" in src
 
 
+def test_only_one_open_deviation_per_instance():
+    """Höchstens EINE aktive Abweichung je Instanz: create_deviation prüft jede Zielinstanz
+    gegen offene Abweichungen und lehnt sonst ab (kein gleichzeitiges Greifen Instanz-/Prozess-Ebene)."""
+    import inspect as _inspect
+
+    from app.services import deviation
+
+    assert callable(deviation.instance_open_deviation)
+    guard = _inspect.getsource(deviation.instance_open_deviation)
+    # Sucht eine offene (Entwurf/freigegeben) Abweichung (Unter-Auftrag) über die Instanz-Verknüpfung
+    assert "parent_order_id" in guard and "InstanceOrderLink" in guard
+    create = _inspect.getsource(deviation.create_deviation)
+    assert "instance_open_deviation" in create and "409" in create
+
+
+def test_order_response_exposes_sub_deviations_and_pause():
+    """Der Eltern-Auftrag macht seine Abweichungs-Unteraufträge sichtbar (+ Pause-Zustand)."""
+    from app.schemas.order import OrderDeviationInfo, OrderResponse
+
+    assert "deviations" in OrderResponse.model_fields
+    assert "paused" in OrderResponse.model_fields
+    for f in ("object_id", "status", "instance_count", "instance_object_ids"):
+        assert f in OrderDeviationInfo.model_fields
+
+
 def test_article_optional_fields_validation():
     """Optionale Stammdaten: Text getrimmt, leere → None, Mengen ≥ 0."""
     from decimal import Decimal

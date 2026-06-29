@@ -13,7 +13,7 @@ nie undefinierte Teile herum.
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Instance, Order
+from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
@@ -30,6 +30,23 @@ def open_deviations(db: Session, parent: Order) -> list[Order]:
                 Order.status.in_(("draft", "released")))
         .order_by(Order.object_id)
         .all()
+    )
+
+
+def instance_open_deviation(db: Session, instance_object_id: int | None) -> Order | None:
+    """Die (eine) noch offene Abweichung, die diese Instanz bereits als Subjekt führt –
+    sonst ``None``. Grundlage für die Regel «höchstens EINE aktive Abweichung je Instanz»:
+    verhindert, dass Instanz- und Prozess-Ebene gleichzeitig dieselbe Instanz greifen."""
+    if not instance_object_id:
+        return None
+    return (
+        db.query(Order)
+        .join(InstanceOrderLink, InstanceOrderLink.order_id == Order.id)
+        .filter(Order.parent_order_id.isnot(None), Order.is_active == True,
+                Order.status.in_(("draft", "released")),
+                InstanceOrderLink.instance_object_id == instance_object_id,
+                InstanceOrderLink.is_active == True)
+        .first()
     )
 
 
@@ -57,6 +74,16 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     insts = _resolve_subjects(db, parent, instance_object_ids)
     if not insts:
         raise HTTPException(409, detail="Keine Instanzen für die Abweichung vorhanden")
+    # Regel: höchstens EINE aktive Abweichung je Instanz (kein gleichzeitiges Greifen auf
+    # Instanz- UND Prozess-Ebene). Wer zuerst kommt, hält die Instanz, bis er abgeschlossen ist.
+    for inst in insts:
+        existing = instance_open_deviation(db, inst.object_id)
+        if existing:
+            raise HTTPException(
+                409,
+                detail=f"Instanz {inst.object_id} hat bereits eine offene Abweichung "
+                       f"(Auftrag {existing.object_id}) – diese zuerst abschliessen.",
+            )
     devi = Order(
         object_id=next_object_id(db, "order"), status="draft",
         article_id=parent.article_id, quantity=len(insts),

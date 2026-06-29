@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
-import { orderStatusConfig } from '@/lib/order';
+import { orderStatusConfig, deviationBadge } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ObjId } from '@/components/erp/obj-id';
+import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
@@ -88,6 +88,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 }) {
   const isCreate = record === null;
   const isStaff = viewerRole === 'staff';
+  const nav = useErpNav();   // Navigation per Objektnummer (Unteraufträge anklickbar)
   const [form, setForm] = useState<Form>(() => seedFrom(record));
   const [dateOpen, setDateOpen] = useState<boolean>(!!record?.desired_delivery_date);
   const [savedSig, setSavedSig] = useState<string>(() => {
@@ -353,6 +354,39 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
+          </div>
+        )}
+
+        {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
+            klickbare Objektnummern, grüne Badge bei erledigter Abweichung. Pausiert der Auftrag,
+            steht das gross zuoberst. (Der Abbruch-Folgeauftrag hat oben schon seinen Banner.) */}
+        {!isCreate && isStaff && (record.deviations?.length ?? 0) > 0 && record.abort_into_id == null && (
+          <div style={{ marginBottom: 12, border: `1px solid ${record.paused ? '#fde68a' : '#e2e8f0'}`, borderRadius: 10, background: record.paused ? '#fffbeb' : '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: record.paused ? '#92400e' : '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              {record.paused ? <PauseCircle size={16} /> : <AlertTriangle size={16} style={{ color: '#d97706' }} />}
+              {record.paused ? 'Pausiert – Abweichung offen' : 'Abweichungen'}
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.deviations!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.deviations!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
+                    {d.instance_object_ids && d.instance_object_ids.length > 0 && (
+                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
+                    )}
+                  </span>
+                  <StatusBadge cfg={deviationBadge(d.status)} />
+                </button>
+              ))}
+            </div>
+            {record.paused && (
+              <div style={{ padding: '8px 14px', fontSize: 12, color: '#92400e', borderTop: '1px solid #fef3c7' }}>
+                Der Auftrag läuft automatisch weiter, sobald die offene Abweichung abgeschlossen ist.
+              </div>
+            )}
           </div>
         )}
         {isCompleted && (

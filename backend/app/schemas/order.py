@@ -123,6 +123,15 @@ class OrderDeviationCreate(BaseModel):
     instance_object_ids: Optional[list[int]] = None
 
 
+class OrderDeviationInfo(BaseModel):
+    """Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag."""
+    object_id: int
+    status: str
+    instance_count: int = 0
+    instance_object_ids: list[int] = []
+    title: Optional[str] = None
+
+
 class OrderSummary(BaseModel):
     """Schlanke Auftrags-Sicht für den Feed (OHNE Prozess-Embeds).
 
@@ -200,3 +209,6 @@ class OrderResponse(BaseModel):
     # Abweichung (Unter-Auftrag) + Abbruch-Folgeauftrag (Objektnummern)
     parent_order_id: Optional[int] = None
     abort_into_id: Optional[int] = None
+    # Sichtbarkeit der Unteraufträge (Abweichungen) im Eltern-Auftrag + Pause-Zustand
+    deviations: list[OrderDeviationInfo] = []
+    paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist

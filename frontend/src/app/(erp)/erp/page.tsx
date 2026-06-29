@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, AlertTriangle, ChevronDown, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
+import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, ChevronDown, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
-import { orderStatusConfig } from '@/lib/order';
+import { orderStatusConfig, deviationBadge } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { instanceStatusConfig } from '@/lib/process';
@@ -73,8 +73,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
     // Abweichung (Unter-Auftrag) hat Vorrang; dann wiederkehrend & fällig; sonst Status.
+    // Die Abweichungs-Badge folgt dem Status (grün, sobald erledigt).
     badge = row.data.parent_order_id != null
-      ? { label: 'Abweichung', color: '#d97706', bg: '#fffbeb', icon: AlertTriangle }
+      ? deviationBadge(row.data.status)
       : row.data.recurrence_due
         ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
         : row.data.status === 'released' && row.data.purchase_status
