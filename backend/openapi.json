@@ -2927,6 +2927,858 @@
         }
       }
     },
+    "/api/v1/erp/articles/{object_id}/sales": {
+      "get": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Get Sales",
+        "operationId": "get_sales_api_v1_erp_articles__object_id__sales_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleSalesProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Update Sales",
+        "operationId": "update_sales_api_v1_erp_articles__object_id__sales_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticleSalesUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticleSalesProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/sales/prices": {
+      "get": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "List Prices",
+        "operationId": "list_prices_api_v1_erp_articles__object_id__sales_prices_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticlePriceResponse"
+                  },
+                  "title": "Response List Prices Api V1 Erp Articles  Object Id  Sales Prices Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Create Price",
+        "operationId": "create_price_api_v1_erp_articles__object_id__sales_prices_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticlePriceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePriceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/sales/prices/{price_id}": {
+      "patch": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Update Price",
+        "operationId": "update_price_api_v1_erp_articles__object_id__sales_prices__price_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "price_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Price Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArticlePriceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlePriceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Delete Price",
+        "operationId": "delete_price_api_v1_erp_articles__object_id__sales_prices__price_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "price_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Price Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/sales/audience": {
+      "get": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "List Audience",
+        "operationId": "list_audience_api_v1_erp_articles__object_id__sales_audience_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AudienceMember"
+                  },
+                  "title": "Response List Audience Api V1 Erp Articles  Object Id  Sales Audience Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Add Audience",
+        "operationId": "add_audience_api_v1_erp_articles__object_id__sales_audience_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AudienceAdd"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AudienceMember"
+                  },
+                  "title": "Response Add Audience Api V1 Erp Articles  Object Id  Sales Audience Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/articles/{object_id}/sales/audience/{row_id}": {
+      "delete": {
+        "tags": [
+          "sales"
+        ],
+        "summary": "Remove Audience",
+        "operationId": "remove_audience_api_v1_erp_articles__object_id__sales_audience__row_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "row_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Row Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/config": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Shop Config",
+        "description": "Öffentliche Shop-Konfiguration für den Frontend-Währungsumschalter.",
+        "operationId": "shop_config_api_v1_shop_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/products": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "List Products",
+        "operationId": "list_products_api_v1_shop_products_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShopProduct"
+                  },
+                  "title": "Response List Products Api V1 Shop Products Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/products/{object_id}": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Get Product",
+        "operationId": "get_product_api_v1_shop_products__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lang"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/checkout": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Checkout",
+        "operationId": "checkout_api_v1_shop_checkout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopCheckout"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopCheckoutResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/shop/payment/{token}": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Payment Status",
+        "description": "Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite).",
+        "operationId": "payment_status_api_v1_shop_payment__token__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/payments/simulate": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Simulate Payment",
+        "description": "Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests/Überbrückung).",
+        "operationId": "simulate_payment_api_v1_shop_payments_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentSimulate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/shop/payments/webhook": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Payment Webhook",
+        "description": "Provider-Webhook (Stripe, später). Beim manuellen Provider ungenutzt.",
+        "operationId": "payment_webhook_api_v1_shop_payments_webhook_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -3180,6 +4032,220 @@
         ],
         "title": "ArticleCreate",
         "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'."
+      },
+      "ArticlePriceCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "one_time"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "amount_chf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount Chf"
+          },
+          "compare_at_chf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare At Chf"
+          },
+          "tax_class": {
+            "type": "string",
+            "title": "Tax Class",
+            "default": "standard"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_chf"
+        ],
+        "title": "ArticlePriceCreate"
+      },
+      "ArticlePriceResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "amount_chf": {
+            "type": "string",
+            "title": "Amount Chf"
+          },
+          "compare_at_chf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare At Chf"
+          },
+          "tax_class": {
+            "type": "string",
+            "title": "Tax Class"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "article_id",
+          "kind",
+          "amount_chf",
+          "tax_class",
+          "is_primary",
+          "is_active"
+        ],
+        "title": "ArticlePriceResponse"
+      },
+      "ArticlePriceUpdate": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "amount_chf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Chf"
+          },
+          "compare_at_chf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare At Chf"
+          },
+          "tax_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Class"
+          },
+          "is_primary": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Primary"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "title": "ArticlePriceUpdate"
       },
       "ArticleProcessStepCreate": {
         "properties": {
@@ -3725,6 +4791,16 @@
             ],
             "title": "Landed Unit Cost"
           },
+          "sales_published": {
+            "type": "boolean",
+            "title": "Sales Published",
+            "default": false
+          },
+          "sales_visibility": {
+            "type": "string",
+            "title": "Sales Visibility",
+            "default": "public"
+          },
           "computed_weight_kg": {
             "anyOf": [
               {
@@ -3832,6 +4908,115 @@
           "updated_at"
         ],
         "title": "ArticleResponse"
+      },
+      "ArticleSalesProfile": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "sales_published": {
+            "type": "boolean",
+            "title": "Sales Published"
+          },
+          "sales_visibility": {
+            "type": "string",
+            "title": "Sales Visibility"
+          },
+          "sales_content": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Content"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/ArticlePriceResponse"
+            },
+            "type": "array",
+            "title": "Prices",
+            "default": []
+          },
+          "audience": {
+            "items": {
+              "$ref": "#/components/schemas/AudienceMember"
+            },
+            "type": "array",
+            "title": "Audience",
+            "default": []
+          },
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/PriceView"
+            },
+            "type": "array",
+            "title": "Previews",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "sales_published",
+          "sales_visibility"
+        ],
+        "title": "ArticleSalesProfile",
+        "description": "Vollständige Verkaufs-Ebene eines Artikels (ERP-Reiter «Verkauf»)."
+      },
+      "ArticleSalesUpdate": {
+        "properties": {
+          "sales_published": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Published"
+          },
+          "sales_visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Visibility"
+          },
+          "sales_content": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Content"
+          }
+        },
+        "type": "object",
+        "title": "ArticleSalesUpdate"
       },
       "ArticleUpdate": {
         "properties": {
@@ -4003,6 +5188,70 @@
         "type": "object",
         "title": "ArticleUpdate",
         "description": "Teil-Update aus dem Detailfenster. Alle Felder optional."
+      },
+      "AudienceAdd": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "AudienceAdd"
+      },
+      "AudienceMember": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id"
+        ],
+        "title": "AudienceMember"
       },
       "CaptureField": {
         "properties": {
@@ -4378,6 +5627,47 @@
             "type": "array",
             "title": "Article Names",
             "default": []
+          },
+          "shop_currencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shop Currencies"
+          },
+          "shop_country_currency": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shop Country Currency"
+          },
+          "shop_default_currency": {
+            "type": "string",
+            "title": "Shop Default Currency",
+            "default": "CHF"
+          },
+          "payments_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payments Provider"
           }
         },
         "type": "object",
@@ -4786,6 +6076,53 @@
               }
             ],
             "title": "Article Names"
+          },
+          "shop_currencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shop Currencies"
+          },
+          "shop_country_currency": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shop Country Currency"
+          },
+          "shop_default_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shop Default Currency"
+          },
+          "payments_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payments Provider"
           }
         },
         "type": "object",
@@ -6758,6 +8095,80 @@
         "type": "object",
         "title": "OrderUpdate"
       },
+      "PaymentSimulate": {
+        "properties": {
+          "sale_token": {
+            "type": "string",
+            "title": "Sale Token"
+          },
+          "result": {
+            "type": "string",
+            "title": "Result",
+            "default": "paid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sale_token"
+        ],
+        "title": "PaymentSimulate"
+      },
+      "PriceView": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "one_time"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "net": {
+            "type": "string",
+            "title": "Net"
+          },
+          "compare_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare At"
+          },
+          "tax_rate": {
+            "type": "string",
+            "title": "Tax Rate"
+          },
+          "gross": {
+            "type": "string",
+            "title": "Gross"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "net",
+          "tax_rate",
+          "gross"
+        ],
+        "title": "PriceView",
+        "description": "Berechneter Anzeige-Preis (eine Währung) – Ergebnis der Preis-Pipeline."
+      },
       "PurchaseEmbed": {
         "properties": {
           "id": {
@@ -7769,6 +9180,132 @@
         "type": "object",
         "title": "ScrapUpdate",
         "description": "Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen (per\nObjektnummer) + optionale Notiz/Grund. Mindestens eine Instanz."
+      },
+      "ShopCheckout": {
+        "properties": {
+          "article_object_id": {
+            "type": "integer",
+            "title": "Article Object Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_object_id"
+        ],
+        "title": "ShopCheckout"
+      },
+      "ShopCheckoutResult": {
+        "properties": {
+          "order_object_id": {
+            "type": "integer",
+            "title": "Order Object Id"
+          },
+          "sale_token": {
+            "type": "string",
+            "title": "Sale Token"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "payment_url": {
+            "type": "string",
+            "title": "Payment Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_object_id",
+          "sale_token",
+          "provider",
+          "payment_url"
+        ],
+        "title": "ShopCheckoutResult"
+      },
+      "ShopProduct": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images",
+            "default": []
+          },
+          "visibility": {
+            "type": "string",
+            "title": "Visibility",
+            "default": "public"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PriceView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "title"
+        ],
+        "title": "ShopProduct",
+        "description": "Ein publiziertes Produkt im Shop (lokalisierter Inhalt + berechneter Preis)."
       },
       "StepReorder": {
         "properties": {

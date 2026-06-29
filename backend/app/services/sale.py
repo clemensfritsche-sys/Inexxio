@@ -88,6 +88,53 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
     process.recompute_completion(db, order)
 
 
+def mark_paid(db: Session, sale: Sale) -> Sale:
+    """Zahlungseingang (vom Zahlungs-Provider) – den Beleg-Fluss durchlaufen und den
+    Verkauf auf ``paid`` setzen. Idempotent: ein bereits bezahlter Verkauf bleibt so.
+
+    Im Shop-Fluss überspringt die Zahlung die manuellen Zwischenschritte (Bestätigung/
+    Rechnung); deren Zeitstempel werden zur Beleg-Vollständigkeit nachgezogen."""
+    if sale.status == "paid":
+        return sale
+    now = utcnow()
+    if sale.confirmed_at is None:
+        sale.confirmed_at = now
+    if sale.invoiced_at is None:
+        sale.invoiced_at = now
+    sale.paid_at = now
+    sale.status = "paid"
+    order = db.query(Order).filter(Order.id == sale.order_id).first()
+    oid = order.object_id if order else None
+    log_audit(db, "sales", "status", "paid", None, object_id=oid)
+    emit(db, "sale.paid", object_type="order", object_id=oid)
+    if order:
+        process.recompute_completion(db, order)   # ggf. Auftrag abschliessen (Versand erfolgt)
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+
+def mark_cancelled(db: Session, sale: Sale) -> Sale:
+    """Zahlung abgebrochen/storniert: Verkauf ``cancelled`` und den (unbezahlten)
+    Auftrag auflösen – Reservierungen freigeben, Auftrag inaktiv (kein herrenloser
+    Bestand). Idempotent."""
+    if sale.status in ("paid", "cancelled"):
+        return sale
+    sale.status = "cancelled"
+    order = db.query(Order).filter(Order.id == sale.order_id).first()
+    oid = order.object_id if order else None
+    log_audit(db, "sales", "status", "cancelled", None, object_id=oid)
+    emit(db, "sale.cancelled", object_type="order", object_id=oid)
+    if order and order.status in ("draft", "released"):
+        from .deactivation import cancel_order_effects
+        if order.status == "released":
+            cancel_order_effects(db, order, None)
+        order.status = "inactive"
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+
 def apply_update(db: Session, sale: Sale, data, user: UserProfile) -> Sale:
     if user.role not in _STAFF_ROLES:
         raise HTTPException(403, detail="Keine Berechtigung für diesen Verkauf")

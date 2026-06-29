@@ -5,6 +5,8 @@ import type {
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
+  ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
+  AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -341,6 +343,73 @@ class ApiClient {
   // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
   getStorageLocationReferences(objectId: number): Promise<ObjectReference[]> {
     return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
+  }
+
+  // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
+  // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
+
+  getArticleSales(objectId: number): Promise<ArticleSalesProfile> {
+    return this.get(`/api/v1/erp/articles/${objectId}/sales`);
+  }
+
+  updateArticleSales(objectId: number, data: ArticleSalesUpdateInput): Promise<ArticleSalesProfile> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/sales`, data);
+  }
+
+  createArticlePrice(objectId: number, data: ArticlePriceInput): Promise<ArticlePrice> {
+    return this.post(`/api/v1/erp/articles/${objectId}/sales/prices`, data);
+  }
+
+  updateArticlePrice(objectId: number, priceId: number, data: ArticlePriceUpdateInput): Promise<ArticlePrice> {
+    return this.patch(`/api/v1/erp/articles/${objectId}/sales/prices/${priceId}`, data);
+  }
+
+  deleteArticlePrice(objectId: number, priceId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/sales/prices/${priceId}`);
+  }
+
+  addArticleAudience(objectId: number, userId: number): Promise<AudienceMember[]> {
+    return this.post(`/api/v1/erp/articles/${objectId}/sales/audience`, { user_id: userId });
+  }
+
+  removeArticleAudience(objectId: number, rowId: number): Promise<{ removed: boolean }> {
+    return this.delete(`/api/v1/erp/articles/${objectId}/sales/audience/${rowId}`);
+  }
+
+  // ─── Shop (öffentlich / Kunde) ──────────────────────────────────────────────
+
+  getShopConfig(): Promise<ShopConfig> {
+    return this.get('/api/v1/shop/config');
+  }
+
+  getShopProducts(currency?: string, country?: string, lang?: string): Promise<ShopProduct[]> {
+    const p = new URLSearchParams();
+    if (currency) p.set('currency', currency);
+    if (country) p.set('country', country);
+    if (lang) p.set('lang', lang);
+    const qs = p.toString();
+    return this.get(`/api/v1/shop/products${qs ? `?${qs}` : ''}`);
+  }
+
+  getShopProduct(objectId: number, currency?: string, country?: string, lang?: string): Promise<ShopProduct> {
+    const p = new URLSearchParams();
+    if (currency) p.set('currency', currency);
+    if (country) p.set('country', country);
+    if (lang) p.set('lang', lang);
+    const qs = p.toString();
+    return this.get(`/api/v1/shop/products/${objectId}${qs ? `?${qs}` : ''}`);
+  }
+
+  shopCheckout(articleObjectId: number, quantity: number, currency: string): Promise<ShopCheckoutResult> {
+    return this.post('/api/v1/shop/checkout', { article_object_id: articleObjectId, quantity, currency });
+  }
+
+  getPaymentStatus(token: string): Promise<PaymentStatus> {
+    return this.get(`/api/v1/shop/payment/${token}`);
+  }
+
+  simulatePayment(token: string, result: 'paid' | 'cancelled'): Promise<{ status: SaleStatus }> {
+    return this.post('/api/v1/shop/payments/simulate', { sale_token: token, result });
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

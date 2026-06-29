@@ -27,6 +27,18 @@ class Settings(BaseSettings):
 
     initial_admin_email: str = "clemens.fritsche@gmail.com"
 
+    # ── Shop / Verkauf ───────────────────────────────────────────────────────────
+    # Zahlungs-Provider: 'manual' (Default, kein externer Call – überbrückbar für Tests)
+    # oder 'stripe' (Gerüst; ohne STRIPE_SECRET_KEY niemals aktiv, kein Crash).
+    payments_provider: str = "manual"
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
+    # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
+    fx_source_url: str = "https://api.exchangerate.host/latest"
+    # Öffentliche Basis-URL des Frontends (für interne Zahl-/Bestätigungs-Links).
+    frontend_base_url: str = "http://localhost:3000"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

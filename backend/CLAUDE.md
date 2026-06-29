@@ -72,7 +72,19 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/erp/orders/{object_id} | user | Auftrag lesen (inkl. Beschaffungs-Embed) |
 | PATCH | /api/v1/erp/orders/{object_id} | staff | Auftrag ändern (Freigabe stösst Prozess an) |
 | PATCH | /api/v1/erp/orders/{object_id}/purchase | user | Beschaffungsschritt (Offerte/Status, rollenabhängig) |
-| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen |
+| GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
+| GET/POST | /api/v1/erp/articles/{object_id}/sales/prices | staff | Verkaufspreise (1:n) lesen/anlegen |
+| PATCH/DELETE | /api/v1/erp/articles/{object_id}/sales/prices/{price_id} | staff | Preis ändern/entfernen |
+| GET/POST | /api/v1/erp/articles/{object_id}/sales/audience | staff | Zielgruppe (private/unlisted) lesen/zuweisen |
+| DELETE | /api/v1/erp/articles/{object_id}/sales/audience/{row_id} | staff | Kunden-Zuweisung entfernen |
+| GET | /api/v1/shop/config | – | Shop-Währungen + Default (Frontend-Umschalter) |
+| GET | /api/v1/shop/products | optional | Publizierte Produkte (public + private des Kunden), Preis-View |
+| GET | /api/v1/shop/products/{object_id} | optional | Produktdetail (kanonisch über replaced_by_id) |
+| POST | /api/v1/shop/checkout | user | Kauf → Auftrag (sale+movement, FIFO) + Snapshot → payment_url |
+| GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manuelle Zahl-/Bestätigungsseite) |
+| POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung Erfolg/Abbruch |
+| POST | /api/v1/shop/payments/webhook | – | Provider-Webhook (Stripe, später) |
+| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen (inkl. Shop-Währungen/Provider) |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
 | PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |

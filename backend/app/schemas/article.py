@@ -236,6 +236,9 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     landed_unit_cost: Optional[Decimal] = None  # read-only, aus letzter Freigabe
+    # Verkauf/Shop (bewusst lebende Ebene – auch nach der Freigabe editierbar)
+    sales_published: bool = False
+    sales_visibility: str = "public"
     # Aufsummiertes Gewicht aus den verbauten Ressourcen (read-only, rekursiv über
     # die Stückliste). Nur gesetzt, wenn der Artikel consume-Ressourcen hat.
     computed_weight_kg: Optional[Decimal] = None
