@@ -356,6 +356,13 @@ def recompute_completion(db: Session, order: Order) -> None:
             inst.subject_of_order_id = None
         _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
+        # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: er ist jetzt nicht
+        # mehr pausiert und schliesst automatisch ab, falls er nur noch auf diese Abweichung
+        # gewartet hat (sonst läuft er einfach normal weiter).
+        if order.parent_order_id is not None:
+            parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
+            if parent and parent.status == "released":
+                recompute_completion(db, parent)
 
 
 def required_sample(quantity: int | None, sample_percent: int | None) -> int:

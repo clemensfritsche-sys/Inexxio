@@ -667,6 +667,48 @@ def test_scrapped_instances_excluded_from_processing_and_completion():
     assert "order_instances(db, order)" in _inspect.getsource(orders_svc.to_order_response)
 
 
+def test_no_order_level_deviation_on_completed_order():
+    """Auf Auftragsebene (alle Instanzen) lässt sich nur an einem LAUFENDEN Auftrag eine
+    Abweichung melden – ein abgeschlossener Prozess ist durch. Instanz-Ebene bleibt möglich."""
+    import inspect as _inspect
+
+    from app.routers import orders
+
+    src = _inspect.getsource(orders.open_deviation)
+    # Ohne explizite Instanzauswahl (Auftragsebene) → nur status 'released'
+    assert "not data.instance_object_ids" in src and '!= "released"' in src
+
+
+def test_paused_order_blocks_step_execution_and_parent_recompute():
+    """Ein durch eine offene Abweichung pausierter Auftrag darf nicht weiterverarbeitet werden;
+    schliesst die Abweichung ab, wird der Eltern-Auftrag neu bewertet (un-pausiert/abgeschlossen)."""
+    import inspect as _inspect
+
+    from app.routers import orders
+    from app.services import process
+
+    # Pause-Guard an den Schritt-Endpunkten
+    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_movement)
+    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_resource)
+    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_inspection)
+    guard = _inspect.getsource(orders._assert_not_paused)
+    assert "_is_paused_by_deviation" in guard and "409" in guard
+    # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
+    rc = _inspect.getsource(process.recompute_completion)
+    assert "parent_order_id" in rc and "recompute_completion(db, parent)" in rc
+
+
+def test_article_deactivate_cancel_creates_followup():
+    """Beim Deaktivieren eines Artikels mit «Abbrechen» erzwingen laufende Aufträge mit
+    Instanzen einen Folgeauftrag (statt Teile zu vernichten) – analog zum Auftrag-Abbruch."""
+    import inspect as _inspect
+
+    from app.services import deactivation
+
+    src = _inspect.getsource(deactivation.deactivate_article)
+    assert "create_abort_followup" in src and "order_active_instances" in src
+
+
 def test_article_optional_fields_validation():
     """Optionale Stammdaten: Text getrimmt, leere → None, Mengen ≥ 0."""
     from decimal import Decimal

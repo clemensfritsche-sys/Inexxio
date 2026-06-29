@@ -144,7 +144,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             {orders && orders.length > 0 && <span style={{ fontSize: 12, color: '#94a3b8' }}>{orders.length}</span>}
           </div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
-            Alle Aufträge, die diese Instanz angefasst haben – Herkunft zuerst.
+            Alle Aufträge, die diese Instanz angefasst haben – neueste zuerst.
           </div>
           {orders === null ? (
             <div style={{ fontSize: 13, color: '#94a3b8' }}>Laden…</div>
@@ -152,17 +152,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             <div style={{ fontSize: 13, color: '#94a3b8' }}>Noch kein Auftrag hat diese Instanz verarbeitet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {orders.map((o) => (
+              {[...orders].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0)).map((o) => (
                 <div key={o.object_id} style={orderRow}>
-                  <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <ObjId value={o.object_id} />
-                    </div>
-                    {o.roles.length > 0 && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                        {o.roles.map((r) => <span key={r} style={roleChip}>{r}</span>)}
-                      </div>
-                    )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <ObjId value={o.object_id} />
                   </div>
                   <StatusBadge cfg={orderStatusConfig(o.status)} />
                 </div>
@@ -219,10 +212,6 @@ const sectionLabel: React.CSSProperties = {
 const orderRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
   border: '1px solid #f1f5f9', borderRadius: 8,
-};
-const roleChip: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#475569', background: '#f1f5f9',
-  padding: '1px 7px', borderRadius: 999,
 };
 
 function FactRow({ label, value, node }: { label: string; value?: string; node?: React.ReactNode }) {

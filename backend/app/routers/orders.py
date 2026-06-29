@@ -39,6 +39,16 @@ def _get_staff_order(db: Session, object_id: int) -> Order:
     return order
 
 
+def _assert_not_paused(db: Session, order: Order) -> None:
+    """Ein durch eine offene Abweichung **pausierter** Auftrag darf nicht weiterverarbeitet
+    werden – erst die Abweichung klären. (Die Abweichung selbst pausiert nicht und läuft.)"""
+    if process._is_paused_by_deviation(db, order):
+        raise HTTPException(
+            409,
+            detail="Auftrag pausiert: erst die offene Abweichung abschliessen, dann den Prozess fortsetzen.",
+        )
+
+
 def _validate_article(db: Session, article_id: int | None) -> None:
     """Im Auftrag dürfen nur freigegebene Artikel referenziert werden."""
     if article_id is None:
@@ -303,7 +313,13 @@ async def open_deviation(
     sonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung
     geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
     parent = _get_staff_order(db, object_id)
-    if parent.status not in ("released", "completed"):
+    if not data.instance_object_ids:
+        # **Auftragsebene** (alle Instanzen): nur an einem LAUFENDEN Auftrag – ist der Prozess
+        # abgeschlossen, gibt es nichts mehr am Auftrag selbst abzuweichen.
+        if parent.status != "released":
+            raise HTTPException(400, detail="Auf Auftragsebene lässt sich eine Abweichung nur an einem laufenden Auftrag melden")
+    elif parent.status not in ("released", "completed"):
+        # **Instanz-Ebene**: auch nach Abschluss möglich (z. B. spätere Reklamation eines Teils).
         raise HTTPException(400, detail="Abweichungen lassen sich nur an einem laufenden/abgeschlossenen Auftrag eröffnen")
     devi = deviation.create_deviation(db, parent, data.instance_object_ids, current_user.id)
     db.commit()
@@ -323,6 +339,7 @@ async def update_order_purchase(
     order = visible_orders(db, user).filter(Order.object_id == object_id).first()
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
+    _assert_not_paused(db, order)
     po = (
         db.query(PurchaseOrder)
         .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
@@ -344,6 +361,7 @@ async def update_order_sale(
 ):
     """Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung."""
     order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
     sale = (
         db.query(Sale)
         .filter(Sale.order_id == order.id, Sale.is_active == True)
@@ -365,6 +383,7 @@ async def update_order_inspection(
 ):
     """Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed)."""
     order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
     record_inspection(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -379,6 +398,7 @@ async def update_order_movement(
 ):
     """Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)."""
     order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
     record_movement(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -393,6 +413,7 @@ async def update_order_resource(
 ):
     """Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel."""
     order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
     record_resource(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -407,6 +428,7 @@ async def update_order_scrap(
 ):
     """Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')."""
     order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
     record_scrap(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
