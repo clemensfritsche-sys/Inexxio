@@ -30,7 +30,7 @@ from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
 from .locations import _obj_nr, location_label, resolve_physical_location
 from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
-from .subject import order_instances
+from .subject import order_active_instances
 
 
 def _current_usage(db: Session, order: Order, step: ArticleProcessStep | None) -> ResourceUsage | None:
@@ -214,7 +214,7 @@ def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceU
     lines = (step.resource_lines if step else None) or []
     if not lines:
         raise HTTPException(400, detail="Für diesen Schritt sind keine Zeilen definiert")
-    products = order_instances(db, order)
+    products = order_active_instances(db, order)
     if not products:
         raise HTTPException(409, detail="Keine Produkt-Instanzen vorhanden")
 
@@ -317,7 +317,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
         for t in (details.get("tools", []) if details else [])
     }
 
-    products = order_instances(db, order)
+    products = order_active_instances(db, order)
     art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
                  for raw in step.resource_lines}
     # Verbrauch je Produkt-Instanz: aus dem Protokoll (done) oder als FIFO-Vorschau.

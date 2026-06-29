@@ -17,7 +17,7 @@ from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
-from .subject import order_instances, record_link
+from .subject import order_active_instances, record_link
 
 
 def open_deviations(db: Session, parent: Order) -> list[Order]:
@@ -63,7 +63,9 @@ def _resolve_subjects(db: Session, parent: Order, instance_object_ids: list[int]
         if len(rows) != len(set(instance_object_ids)):
             raise HTTPException(400, detail="Mindestens eine gewählte Instanz wurde nicht gefunden")
         return rows
-    return order_instances(db, parent)
+    # Prozess-Ebene (ohne Auswahl): alle noch AKTIVEN Instanzen – ein bereits verschrottetes
+    # Teil wird nicht erneut in eine Abweichung gezogen.
+    return order_active_instances(db, parent)
 
 
 def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] | None,

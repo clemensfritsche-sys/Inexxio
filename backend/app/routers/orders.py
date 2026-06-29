@@ -274,8 +274,9 @@ async def abort_order(
     if order.abort_into_id:
         raise HTTPException(409, detail="Für diesen Auftrag ist bereits ein Folgeauftrag offen")
 
-    # Entwurf oder ein Auftrag ohne im Prozess befindliche Instanzen → direkt inaktiv.
-    if order.status == "draft" or not subject.order_instances(db, order):
+    # Entwurf oder ein Auftrag ohne (noch aktive) im Prozess befindliche Instanzen → direkt
+    # inaktiv. Verschrottete/terminale Teile zählen nicht als «zu retten».
+    if order.status == "draft" or not subject.order_active_instances(db, order):
         was_released = order.status == "released"
         order.status = "inactive"
         if was_released:
