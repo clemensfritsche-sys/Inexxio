@@ -60,3 +60,13 @@ class CompanySettings(Base):
     # Artikel: Katalog wählbarer Artikelnamen (Pflege durch den Admin). Beim
     # Anlegen eines Artikels wird der Name aus dieser Liste gewählt.
     article_names: Mapped[Optional[list]] = mapped_column(JSONB)
+
+    # ── Shop / Verkauf ──────────────────────────────────────────────────────────
+    # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
+    # Land → Default-Währung (editierbar) und die Fallback-Währung.
+    shop_currencies: Mapped[Optional[list]] = mapped_column(JSONB)
+    shop_country_currency: Mapped[Optional[dict]] = mapped_column(JSONB)
+    shop_default_currency: Mapped[str] = mapped_column(
+        String(3), default="CHF", server_default="CHF", nullable=False)
+    # Zahlungs-Provider (überschreibt die Env ``PAYMENTS_PROVIDER``): 'manual' | 'stripe'.
+    payments_provider: Mapped[Optional[str]] = mapped_column(String(16))

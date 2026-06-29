@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, Numeric, String
+from sqlalchemy import BigInteger, Date, DateTime, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -43,6 +43,16 @@ class Sale(Base, TimestampMixin):
     order_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     vat_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))   # z. B. 8.10 (CH Standard)
     currency: Mapped[str] = mapped_column(String(3), default="CHF", nullable=False)
+
+    # ── Preis-Snapshot beim Kauf (Katalog ist mutabel, Transaktion unveränderlich) ──
+    # Der Shop friert Preis/Währung/FX-Kurs/Steuerklasse zum Kaufzeitpunkt auf den Beleg
+    # ein: ``order_total`` ist der Netto-Betrag in ``currency``, ``base_amount_chf`` die
+    # Netto-Basis in CHF, ``fx_rate``/``fx_date`` der angewandte Tageskurs, ``tax_class``
+    # die Steuerklasse des Preises. Spätere Katalog-Änderungen berühren den Beleg nie.
+    base_amount_chf: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
+    fx_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 8))
+    fx_date: Mapped[Optional[date]] = mapped_column(Date)
+    tax_class: Mapped[Optional[str]] = mapped_column(String(16))
 
     # Belege/Abwicklung (TODO Phase 2: PDF-Erzeugung, Stripe, Gmail).
     invoice_number: Mapped[Optional[str]] = mapped_column(String(60))

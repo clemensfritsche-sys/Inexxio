@@ -13,6 +13,7 @@ const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';
 
 const navLinks = [
+  { href: '/shop', label: 'Shop' },
   { href: '/ueber-uns', label: 'Über uns' },
   { href: '/kontakt', label: 'Kontakt' },
 ];

@@ -318,6 +318,27 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (Produkt-Instanz → Komponente; Betriebsmittel), Datenerfassung (Instanz vor Erfassung).
   Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button «Scannen»
   öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
+- **Verkauf / Shop (MVP, am Artikel – kein eigenes «Angebot»-Objekt)**: Der Verkauf ist eine dritte,
+  bewusst **lebende** Ebene am Artikel (analog `landed_unit_cost`): `articles.sales_published/
+  sales_visibility/sales_content` + 1:n `article_prices` (mutabel, Soft-Delete) + `article_sales_audience`
+  (private/unlisted). Die **Freigabe friert NUR Spezifikation + Prozess** ein – die Verkaufs-Ebene bleibt
+  in jedem Status editierbar (eigene Endpunkte `…/articles/{id}/sales[/prices|/audience]`, alles geloggt).
+  **Preis-Pipeline** (`services/pricing.py`): Basis-CHF → (Vergleichspreis, visuell) → Netto-CHF →
+  Währung (Tageskurs `services/fx.py`, **schön gerundet** `charm_round`) → MWST (`services/tax.py`,
+  CH 8.1/2.6/3.8, Ausland 0 %) → Anzeige. Tageskurse liegen unveränderlich in `fx_rates` (Within-Day-stabil,
+  Env `FX_SOURCE_URL`). **Kauf = ganz normaler Auftrag** (Bestands-Operation, FIFO ab Lager) mit `sale`-
+  Schritt (requested→confirmed→invoiced→paid) + `movement` (Versand); Preis/Währung/FX/Steuer werden auf
+  den `sale`-Beleg **eingefroren** (Snapshot `sales.base_amount_chf/fx_rate/fx_date/tax_class`). Abo-Preis →
+  `orders.recurrence_*`. **Zahlungs-Bridge** (`services/payments/`): Provider-Interface mit **manual**
+  (Default, überbrückbar – interne `/shop/pay?token=…`-Seite + `POST /shop/payments/simulate`) und
+  **stripe** (Gerüst, ohne `STRIPE_SECRET_KEY` nie aktiv, kein Crash); Auswahl via Env `PAYMENTS_PROVIDER`
+  bzw. `company_settings.payments_provider`. **Shop** (öffentlich): `GET /shop/products|products/{id}`
+  (public für alle, private nur zugewiesene Kunden, unlisted nur per Link; kanonisiert über
+  `replaced_by_id`), `POST /shop/checkout` (Login-Pflicht, kein Gast-Checkout). Frontend: ERP-Reiter
+  **Verkauf** am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Live-Vorschau) + rudimentärer
+  öffentlicher Shop (`/shop`, `/shop/product`, `/shop/pay`). **Ersetzen** kopiert das Verkaufs-Profil auf
+  den Nachfolger. *Bewusst NICHT gebaut: PPP-Zonen, Coupon-Engine, OSS/IOSS/Stripe Tax, echte Stripe-Charge,
+  Bundles, Gast-Checkout (TODO-Kommentare an Ort).*
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -328,12 +349,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), **scrap** (Verschrotten),
 > sale. `quality`+`disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-
 > Polarität. **Abweichung** (Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit) ist KEIN eigener Typ
-> mehr, sondern ein **Unter-Auftrag** (`parent_order_id`); der frühere `Claim`-Typ ist entfernt. E-Mail
-> (Gmail API) + Stripe sind **noch nicht** umgesetzt.
+> mehr, sondern ein **Unter-Auftrag** (`parent_order_id`); der frühere `Claim`-Typ ist entfernt.
+> **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience), Kauf = Auftrag mit
+> `sale`+`movement`-Schritt (FIFO ab Lager) + Preis-Snapshot; Zahlung via überbrückbarem manual-Provider,
+> Stripe als geschütztes Gerüst. E-Mail (Gmail API) + echte Stripe-Charge sind **noch nicht** umgesetzt.
 
 Nächste Aufgabe: Custom-Auftrag-UX verfeinern (Instanz-Mehrfachauswahl/Filter); Instanz = vollständige
 Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang & beim Verschrotten;
-E-Mail (Gmail API); Stripe.
+Shop ausbauen (Kundenportal-Bestellsicht, Stripe live, PPP/Coupons); E-Mail (Gmail API).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

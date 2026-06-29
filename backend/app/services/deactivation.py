@@ -247,6 +247,10 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     db.add(new)
     db.flush()
     _copy_steps(db, src_article_id=src.id, dst_article_id=new.id)
+    # Verkaufs-Profil + Preise + Zielgruppe mitkopieren, damit das Shop-Listing über den
+    # Versionswechsel kanonisch fortbesteht (siehe ``services/sales.copy_sales_profile``).
+    from .sales import copy_sales_profile
+    copy_sales_profile(db, src, new)
     log_audit(db, "articles", None, f"Artikel als Ersatz für {src.object_id} angelegt",
               actor_id, object_id=new.object_id)
     return new

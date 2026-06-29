@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock } from 'lucide-react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock, Tag } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
@@ -16,6 +16,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
+import { SalesPanel } from '@/components/erp/sales-panel';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
@@ -34,12 +35,13 @@ function articleActions(status: string, replaced: boolean, hasProcess: boolean):
   return [];
 }
 
-type TabKey = 'stammdaten' | 'prozess' | 'bestand';
+type TabKey = 'stammdaten' | 'prozess' | 'bestand' | 'verkauf';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'stammdaten', label: 'Spezifikation', icon: FileText },
   { key: 'prozess', label: 'Prozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
+  { key: 'verkauf', label: 'Verkauf', icon: Tag },
 ];
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock';
@@ -364,6 +366,9 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
+        )}
+        {tab === 'verkauf' && (
+          <SalesPanel articleObjectId={record?.object_id ?? null} />
         )}
       </div>
 

@@ -1,7 +1,8 @@
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Numeric, String
+from sqlalchemy import BigInteger, Boolean, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -50,3 +51,17 @@ class Article(Base, TimestampMixin):
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Artikels (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # ── Verkauf / Shop (dritte, bewusst LEBENDE Ebene am Artikel) ───────────────────
+    # Anders als Spezifikation + Prozess (die mit der Freigabe einfrieren) bleibt die
+    # Verkaufs-Ebene in JEDEM Status editierbar (analog ``landed_unit_cost``): Preise,
+    # Texte/Bilder, Sichtbarkeit und Zielgruppe ändern sich, während der Artikel
+    # produktiv verkauft wird. Kein eigenes «Angebot»-Objekt, keine Objektnummer.
+    sales_published: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    # Sichtbarkeit: public (im Shop gelistet) | private (nur zugewiesene Kunden) |
+    # unlisted (nur per direktem Link, nicht gelistet).
+    sales_visibility: Mapped[str] = mapped_column(
+        String(10), default="public", server_default="public", nullable=False)
+    # Lokalisierter Inhalt: {"de": {title, subtitle, description, images: [url]}, "en": {…}}.
+    sales_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

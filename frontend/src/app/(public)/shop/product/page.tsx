@@ -1,0 +1,138 @@
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { Package, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+import type { ShopProduct, ShopConfig } from '@/types';
+
+function fmt(amount: number | string | null | undefined, currency: string): string {
+  if (amount == null) return '—';
+  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ProductView() {
+  const search = useSearchParams();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const objectId = Number(search.get('id'));
+  const [currency, setCurrency] = useState(search.get('currency') || 'CHF');
+  const [config, setConfig] = useState<ShopConfig | null>(null);
+
+  const [product, setProduct] = useState<ShopProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [qty, setQty] = useState(1);
+  const [buying, setBuying] = useState(false);
+
+  useEffect(() => {
+    api.getShopConfig().then(setConfig).catch(() => setConfig({ currencies: ['CHF', 'EUR', 'USD'], default_currency: 'CHF' }));
+  }, []);
+
+  useEffect(() => {
+    if (!objectId) { setLoading(false); return; }
+    setLoading(true);
+    api.getShopProduct(objectId, currency)
+      .then(setProduct)
+      .catch((e) => setError(e instanceof Error ? e.message : 'Produkt nicht gefunden'))
+      .finally(() => setLoading(false));
+  }, [objectId, currency]);
+
+  async function buy() {
+    if (!user) { router.push('/login'); return; }
+    setBuying(true);
+    setError(null);
+    try {
+      const result = await api.shopCheckout(objectId, qty, currency);
+      window.location.href = result.payment_url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Kauf fehlgeschlagen');
+      setBuying(false);
+    }
+  }
+
+  if (loading) return <div className="max-w-4xl mx-auto px-6 py-12 text-slate-400 text-sm">Lädt…</div>;
+  if (!product) return (
+    <div className="max-w-4xl mx-auto px-6 py-12">
+      <p className="text-slate-500">{error ?? 'Produkt nicht gefunden.'}</p>
+      <Link href="/shop" className="text-blue-600 text-sm mt-3 inline-flex items-center gap-1"><ArrowLeft size={14} /> Zum Shop</Link>
+    </div>
+  );
+
+  const price = product.price;
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-10">
+      <Link href="/shop" className="text-blue-600 text-sm mb-6 inline-flex items-center gap-1"><ArrowLeft size={14} /> Zum Shop</Link>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-2">
+        <div className="aspect-square rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+          {product.images?.[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover" />
+          ) : (
+            <Package size={64} strokeWidth={1} className="text-slate-300" />
+          )}
+        </div>
+        <div>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
+              {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-1 bg-white shrink-0">
+              {(config?.currencies ?? ['CHF', 'EUR', 'USD']).map((c) => (
+                <button key={c} onClick={() => setCurrency(c)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                    currency === c ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 flex items-baseline gap-3">
+            <span className="text-3xl font-bold text-slate-900">{fmt(price?.gross, price?.currency ?? currency)}</span>
+            {price?.compare_at != null && (
+              <span className="text-lg text-slate-400 line-through">{fmt(price.compare_at, price.currency)}</span>
+            )}
+          </div>
+          <div className="text-xs text-slate-400 mt-1">
+            inkl. {price ? Number(price.tax_rate) : 0}% MWST · netto {fmt(price?.net, price?.currency ?? currency)}
+            {price?.interval ? ` · pro ${price.interval === 'year' ? 'Jahr' : 'Monat'}` : ''}
+          </div>
+
+          {product.description && (
+            <p className="mt-5 text-sm text-slate-600 whitespace-pre-line leading-relaxed">{product.description}</p>
+          )}
+
+          <div className="mt-6 flex items-center gap-3">
+            <label className="text-sm text-slate-500">Menge</label>
+            <input type="number" min={1} value={qty}
+              onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+              className="w-20 px-2.5 py-1.5 text-sm rounded-md border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <button onClick={buy} disabled={buying || !price}
+            className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 text-white font-semibold py-3 hover:bg-blue-700 transition-colors disabled:opacity-60">
+            {buying ? <Loader2 size={18} className="animate-spin" /> : <ShoppingCart size={18} />}
+            {user ? 'Kaufen' : 'Zum Kauf anmelden'}
+          </button>
+          {!authLoading && !user && (
+            <p className="mt-2 text-xs text-slate-400 text-center">Für den Kauf ist eine Anmeldung erforderlich.</p>
+          )}
+          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ProductPage() {
+  return (
+    <Suspense fallback={<div className="max-w-4xl mx-auto px-6 py-12 text-slate-400 text-sm">Lädt…</div>}>
+      <ProductView />
+    </Suspense>
+  );
+}

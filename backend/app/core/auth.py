@@ -153,6 +153,27 @@ def get_current_user(
     return user
 
 
+def get_optional_user(
+    request: Request,
+    credentials_: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> UserProfile | None:
+    """Wie ``get_current_user``, aber ohne Token → ``None`` (öffentliche Endpunkte,
+    die für eingeloggte Nutzer mehr zeigen, z. B. der Shop). Ein **ungültiges** Token
+    liefert ebenfalls ``None`` (kein 401 – die Seite ist öffentlich)."""
+    if not credentials_:
+        return None
+    try:
+        decoded = _verify_firebase_token(credentials_.credentials)
+    except Exception:
+        return None
+    uid = decoded["uid"]
+    email = decoded.get("email", "")
+    user = _resolve_user(db, uid, email, decoded, request)
+    _sync_user_profile(db, user, email, decoded)
+    return user
+
+
 def require_role(*roles: str):
     def checker(user: UserProfile = Depends(get_current_user)) -> UserProfile:
         if user.role not in roles:

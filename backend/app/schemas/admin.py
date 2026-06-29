@@ -39,6 +39,11 @@ class CompanySettingsUpdate(BaseModel):
     google_maps_api_key: Optional[str] = None
     default_receiving_location_id: Optional[int] = None
     article_names: Optional[list[str]] = None
+    # Shop / Verkauf
+    shop_currencies: Optional[list[str]] = None
+    shop_country_currency: Optional[dict] = None
+    shop_default_currency: Optional[str] = None
+    payments_provider: Optional[str] = None
 
     @field_validator("article_names")
     @classmethod
@@ -92,6 +97,11 @@ class CompanySettingsResponse(BaseModel):
     google_maps_api_key: Optional[str]
     default_receiving_location_id: Optional[int] = None
     article_names: list[str] = []
+    # Shop / Verkauf
+    shop_currencies: Optional[list[str]] = None
+    shop_country_currency: Optional[dict] = None
+    shop_default_currency: str = "CHF"
+    payments_provider: Optional[str] = None
 
     @field_validator("article_names", mode="before")
     @classmethod

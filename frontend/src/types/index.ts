@@ -208,6 +208,71 @@ export interface SaleUpdateInput {
 }
 
 
+// ─── Verkauf / Shop ────────────────────────────────────────────────────────────
+// Der Verkauf lebt AM ARTIKEL (dritte, lebende Ebene) – kein eigenes Objekt.
+
+export type SalesVisibility = 'public' | 'private' | 'unlisted';
+export type PriceKind = 'one_time' | 'subscription';
+export type PriceInterval = 'month' | 'year';
+export type TaxClass = 'standard' | 'reduced' | 'lodging' | 'zero';
+
+export type PriceView = components['schemas']['PriceView'];
+export type ArticlePrice = components['schemas']['ArticlePriceResponse'];
+export type AudienceMember = components['schemas']['AudienceMember'];
+export type ShopProduct = components['schemas']['ShopProduct'];
+export type ShopCheckoutResult = components['schemas']['ShopCheckoutResult'];
+
+// Lokalisierter Verkaufs-Inhalt (de/en) – Titel/Untertitel/Beschreibung/Bilder.
+export interface SalesContentBlock {
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  images?: string[];
+}
+export interface SalesContent {
+  de?: SalesContentBlock;
+  en?: SalesContentBlock;
+}
+
+type ArticleSalesProfileApi = components['schemas']['ArticleSalesProfile'];
+export type ArticleSalesProfile = Omit<ArticleSalesProfileApi, 'sales_visibility' | 'sales_content'> & {
+  sales_visibility: SalesVisibility;
+  sales_content: SalesContent | null;
+};
+
+export interface ArticleSalesUpdateInput {
+  sales_published?: boolean;
+  sales_visibility?: SalesVisibility;
+  sales_content?: SalesContent | null;
+}
+
+export interface ArticlePriceInput {
+  kind: PriceKind;
+  interval?: PriceInterval | null;
+  amount_chf: number | string;
+  compare_at_chf?: number | string | null;
+  tax_class: TaxClass;
+  is_primary?: boolean;
+}
+
+export type ArticlePriceUpdateInput = Partial<ArticlePriceInput> & { is_active?: boolean };
+
+export interface ShopConfig {
+  currencies: string[];
+  default_currency: string;
+}
+
+export interface PaymentStatus {
+  order_object_id: number;
+  status: SaleStatus;
+  currency: string;
+  net_total: number | string;
+  vat_rate: number | string;
+  gross_total: number | string;
+  provider: string;
+  paid: boolean;
+}
+
 // ─── Article Process Steps (Prozess-Definition) ───────────────────────────────
 
 export type ProcessStepMode = 'supplier' | 'webshop';
@@ -374,6 +439,11 @@ export interface CompanySettings {
   google_maps_api_key: string | null;
   default_receiving_location_id: number | null;
   article_names: string[];
+  // Shop / Verkauf
+  shop_currencies: string[];
+  shop_country_currency: Record<string, string> | null;
+  shop_default_currency: string;
+  payments_provider: string | null;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, article_process, articles, auth, contact, erp, events, health,
-    instances, orders, storage_locations,
+    instances, orders, sales, shop, storage_locations,
 )
 
 settings = get_settings()
@@ -122,6 +122,20 @@ _COLUMN_SAFETY_NET = (
     # Abweichung als Auftrag (Unter-Auftrag) + Abbruch-Folgeauftrag
     ("orders", "parent_order_id", "BIGINT"),
     ("orders", "abort_into_id", "BIGINT"),
+    # Verkauf/Shop: Verkaufs-Ebene am Artikel (NICHT von der Freigabe eingefroren)
+    ("articles", "sales_published", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("articles", "sales_visibility", "VARCHAR(10) DEFAULT 'public' NOT NULL"),
+    ("articles", "sales_content", "JSONB"),
+    # Preis-Snapshot beim Kauf (Beleg unveränderlich)
+    ("sales", "base_amount_chf", "NUMERIC(12,2)"),
+    ("sales", "fx_rate", "NUMERIC(18,8)"),
+    ("sales", "fx_date", "DATE"),
+    ("sales", "tax_class", "VARCHAR(16)"),
+    # Shop-Konfiguration
+    ("company_settings", "shop_currencies", "JSONB"),
+    ("company_settings", "shop_country_currency", "JSONB"),
+    ("company_settings", "shop_default_currency", "VARCHAR(3) DEFAULT 'CHF' NOT NULL"),
+    ("company_settings", "payments_provider", "VARCHAR(16)"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -424,6 +438,8 @@ app.include_router(article_process.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(storage_locations.router)
+app.include_router(sales.router)
+app.include_router(shop.router)
 app.include_router(events.router)
 
 
