@@ -136,6 +136,11 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "shop_country_currency", "JSONB"),
     ("company_settings", "shop_default_currency", "VARCHAR(3) DEFAULT 'CHF' NOT NULL"),
     ("company_settings", "payments_provider", "VARCHAR(16)"),
+    # Shop-Optimierung: Verfügbarkeits-Achse, Subjekt-Quelle, Pinning, Zonen-Faktoren
+    ("articles", "sales_fulfillment", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
+    ("orders", "subject_source", "VARCHAR(10)"),
+    ("article_prices", "pinned", "JSONB"),
+    ("company_settings", "pricing_zone_factors", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

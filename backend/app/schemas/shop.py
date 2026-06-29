@@ -16,6 +16,7 @@ class ShopProduct(BaseModel):
     description: Optional[str] = None
     images: list[str] = []
     visibility: str = "public"
+    fulfillment: str = "make"   # make = auf Bestellung gefertigt | stock = ab Lager
     unit: Optional[str] = None
     price: Optional[PriceView] = None
 

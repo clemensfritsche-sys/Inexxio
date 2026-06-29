@@ -893,9 +893,10 @@ def test_deactivation_replace_wired():
 
     for f in ("consume_parents", "article_impact", "deactivate_article",
               "cancel_order_effects", "storage_location_in_use",
-              "duplicate_article", "duplicate_order", "duplicate_storage_location",
-              "article_reactivation_blocker"):
+              "duplicate_article", "duplicate_order", "duplicate_storage_location"):
         assert hasattr(deactivation, f)
+    # Reaktivieren von Artikeln ist entfallen (inaktiv ist endgültig).
+    assert not hasattr(deactivation, "article_reactivation_blocker")
     # replaced_by_id auf allen drei Datensatztypen
     for m in (Article, Order, StorageLocation):
         assert hasattr(m, "replaced_by_id")
@@ -1298,17 +1299,20 @@ def test_claim_clauses_use_free_capacity():
 
 
 def test_subject_kind_is_decided_by_custom_steps_only():
-    """#4b: Herstellung vs. Bestands-Operation hängt **allein** an eigenen Schritten –
-    NICHT an einer Pin-Auswahl. Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich
-    als Bestands-Operation behandelt und an „kein Bestand" scheitern."""
+    """#4b: Herstellung vs. Bestands-Operation hängt an eigenen Schritten (Ableitung) bzw.
+    an einer expliziten Subjekt-Quelle (Shop-Made-to-Order) – NICHT an einer Pin-Auswahl.
+    Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich als Bestands-Operation
+    behandelt und an „kein Bestand" scheitern."""
     import inspect as _inspect
     from app.services import subject, process
 
     kind_src = _inspect.getsource(subject.subject_kind)
     mat_src = _inspect.getsource(subject.materialize_subject)
-    # Entscheidung NUR über has_custom_steps – keine chosen_subjects-Disjunktion mehr.
+    # Ableitung über has_custom_steps (mit subject_source-Vorrang) – keine Pin-Disjunktion.
     assert "has_custom_steps(db, order):" in kind_src and "chosen_subjects" not in kind_src
-    assert "has_custom_steps(db, order):" in mat_src and "chosen_subjects" not in mat_src
+    assert "subject_source" in kind_src
+    # materialize delegiert an subject_kind (respektiert subject_source) – ohne Pin-Disjunktion.
+    assert "subject_kind(db, order)" in mat_src and "chosen_subjects" not in mat_src
     # order_step_defs ohne Schritte → Artikel-Prozess (Herstellung), unabhängig von Pins.
     defs_src = _inspect.getsource(process.order_step_defs)
     assert "_has_chosen_subjects" not in defs_src

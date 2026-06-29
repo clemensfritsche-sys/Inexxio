@@ -39,6 +39,13 @@ class Order(Base, TimestampMixin):
     quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
+    # Explizite Subjekt-Quelle (überschreibt die Ableitung aus ``has_custom_steps``):
+    #   None/''  → automatisch ableiten (Default: eigene Schritte = stock, sonst produce)
+    #   'produce'→ neue Instanzen erzeugen, AUCH wenn eigene Schritte vorliegen
+    #              (Shop-Made-to-Order: Verkaufsablauf + Artikel-Produktion in einem Auftrag)
+    #   'stock'  → FIFO ab Lager
+    subject_source: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

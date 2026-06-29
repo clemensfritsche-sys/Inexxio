@@ -239,6 +239,7 @@ class ArticleResponse(BaseModel):
     # Verkauf/Shop (bewusst lebende Ebene – auch nach der Freigabe editierbar)
     sales_published: bool = False
     sales_visibility: str = "public"
+    sales_fulfillment: str = "make"
     # Aufsummiertes Gewicht aus den verbauten Ressourcen (read-only, rekursiv über
     # die Stückliste). Nur gesetzt, wenn der Artikel consume-Ressourcen hat.
     computed_weight_kg: Optional[Decimal] = None

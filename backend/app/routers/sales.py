@@ -34,6 +34,7 @@ def _profile(db: Session, article: Article) -> ArticleSalesProfile:
         status=article.status,
         sales_published=article.sales_published,
         sales_visibility=article.sales_visibility,
+        sales_fulfillment=article.sales_fulfillment,
         sales_content=article.sales_content,
         prices=[ArticlePriceResponse.model_validate(p) for p in sales_svc.prices_for(db, article.id)],
         audience=[AudienceMember(**m) for m in sales_svc.audience_for(db, article.id)],

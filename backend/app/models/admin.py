@@ -70,3 +70,6 @@ class CompanySettings(Base):
         String(3), default="CHF", server_default="CHF", nullable=False)
     # Zahlungs-Provider (überschreibt die Env ``PAYMENTS_PROVIDER``): 'manual' | 'stripe'.
     payments_provider: Mapped[Optional[str]] = mapped_column(String(16))
+    # Optionale Preis-Pipeline-Stufe ② (PPP/Kaufkraft): Land → Faktor, z. B.
+    # {"Deutschland": 1.1, "USA": 0.9}. Leer/NULL = Stufe abgeschaltet (Default).
+    pricing_zone_factors: Mapped[Optional[dict]] = mapped_column(JSONB)

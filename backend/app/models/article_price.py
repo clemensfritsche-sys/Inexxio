@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, Boolean, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -34,3 +35,8 @@ class ArticlePrice(Base, TimestampMixin):
     tax_class: Mapped[str] = mapped_column(String(16), default="standard", nullable=False)
 
     is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Gepinnte Fremdwährungspreise (State of the Art statt Live-Umrechnung):
+    # {"EUR": {"net": "990.00", "rate": "1.05", "base": "1000.00"}, "USD": {…}}.
+    # Bleibt stabil bis Basis-Änderung oder Kurs-Drift > 3 % (services/pricing.py).
+    pinned: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

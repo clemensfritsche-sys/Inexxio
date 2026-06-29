@@ -21,18 +21,16 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
-// (sonst „kann" der Artikel nichts). Reaktivieren entfällt, sobald ersetzt.
-function articleActions(status: string, replaced: boolean, hasProcess: boolean): StatusAction[] {
+// (sonst „kann" der Artikel nichts). **Inaktiv ist endgültig** – kein Reaktivieren
+// (Neustart = neuer Artikel bzw. «Ersetzen»).
+function articleActions(status: string, hasProcess: boolean): StatusAction[] {
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !hasProcess,
       hint: hasProcess ? undefined : 'Erst im Reiter «Prozess» einen Schritt hinterlegen' }];
-  // EIN «Deaktivieren»-Knopf – «Ersetzen» (Nachfolger anlegen) ist als Option in den Dialog
-  // gewandert (kein zweiter Knopf mehr). Inaktiv → Reaktivieren (sofern nicht ersetzt).
+  // EIN «Deaktivieren»-Knopf – «Ersetzen» (Nachfolger anlegen) ist als Option im Dialog.
   if (status === 'released')
     return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
-  if (status === 'inactive' && !replaced)
-    return [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }];
-  return [];
+  return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand' | 'verkauf';
@@ -264,7 +262,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               {isCreate ? (
                 <StatusBadge cfg={statusConfig('draft')} />
               ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, record.replaced_by_id != null, (stepsCount ?? 0) > 0)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, (stepsCount ?? 0) > 0)} busy={statusBusy} onAction={onStatusAction} />
               )}
               <SaveIndicator saving={saving} flash={flash} />
             </div>

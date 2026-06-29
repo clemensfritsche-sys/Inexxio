@@ -102,6 +102,9 @@ function ProductView() {
             inkl. {price ? Number(price.tax_rate) : 0}% MWST · netto {fmt(price?.net, price?.currency ?? currency)}
             {price?.interval ? ` · pro ${price.interval === 'year' ? 'Jahr' : 'Monat'}` : ''}
           </div>
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+            {product.fulfillment === 'stock' ? 'Ab Lager – solange Vorrat reicht' : 'Auf Bestellung gefertigt'}
+          </div>
 
           {product.description && (
             <p className="mt-5 text-sm text-slate-600 whitespace-pre-line leading-relaxed">{product.description}</p>

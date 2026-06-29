@@ -67,3 +67,45 @@ def test_shop_router_wired():
 
     assert hasattr(sales, "router")
     assert hasattr(shop, "router")
+
+
+def test_fulfillment_validation():
+    from app.schemas.sales import ArticleSalesUpdate
+
+    assert ArticleSalesUpdate(sales_fulfillment="make").sales_fulfillment == "make"
+    assert ArticleSalesUpdate(sales_fulfillment="stock").sales_fulfillment == "stock"
+    with pytest.raises(ValueError):
+        ArticleSalesUpdate(sales_fulfillment="airdrop")
+
+
+def test_subject_source_overrides_derivation():
+    """Ein expliziter subject_source='produce' erzwingt Herstellung trotz eigener Schritte
+    (Shop-Made-to-Order). subject_kind/materialize berücksichtigen ihn (Quellcode-Vertrag)."""
+    import inspect as _inspect
+    from app.services import subject
+
+    assert "subject_source" in _inspect.getsource(subject.subject_kind)
+    # materialize verzweigt über subject_kind (das den Override kennt).
+    assert "subject_kind(db, order)" in _inspect.getsource(subject.materialize_subject)
+
+
+def test_article_reactivation_removed():
+    """Inaktive Artikel sind endgültig – der Reaktivierungs-Blocker ist entfernt und der
+    Router lehnt inactive→released ab."""
+    import inspect as _inspect
+    from app.services import deactivation
+    from app.routers import articles
+
+    assert not hasattr(deactivation, "article_reactivation_blocker")
+    src = _inspect.getsource(articles.update_article)
+    assert "nicht reaktiviert" in src.lower() or "können nicht reaktiviert" in src.lower()
+
+
+def test_pricing_pipeline_has_optional_stages():
+    """Die Preis-Pipeline ist gestaffelt: Zonen-Faktor (②) + Pinning (④) als Funktionen."""
+    from app.services import pricing
+
+    assert hasattr(pricing, "_zone_factor")
+    assert hasattr(pricing, "_pinned_net")
+    assert hasattr(pricing, "_net_chf")
+    assert pricing.DRIFT_THRESHOLD == __import__("decimal").Decimal("0.03")

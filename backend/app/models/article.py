@@ -63,5 +63,12 @@ class Article(Base, TimestampMixin):
     # unlisted (nur per direktem Link, nicht gelistet).
     sales_visibility: Mapped[str] = mapped_column(
         String(10), default="public", server_default="public", nullable=False)
+    # **Verfügbarkeit (Achse B)** – unabhängig vom Preismodell (Einmalkauf/Abo):
+    #   make  → «auf Bestellung gefertigt» (Made-to-Order): der Kauf löst einen
+    #           Produktions-Auftrag aus, der den **Artikel-Prozess** fährt (kein Lager nötig).
+    #   stock → «ab Lager / limitierte Auflage»: der Kauf bedient sich FIFO aus dem
+    #           Bestand, bis dieser erschöpft ist.
+    sales_fulfillment: Mapped[str] = mapped_column(
+        String(10), default="make", server_default="make", nullable=False)
     # Lokalisierter Inhalt: {"de": {title, subtitle, description, images: [url]}, "en": {…}}.
     sales_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

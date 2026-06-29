@@ -25,7 +25,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
   default_receiving_location_id: null, article_names: [],
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
-  shop_default_currency: 'CHF', payments_provider: null,
+  shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
 };
 
 export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {
@@ -214,6 +214,9 @@ function ShopConfigCard({ settings, onSave, saving, saved }: {
   const [countryMap, setCountryMap] = useState(
     Object.entries(settings.shop_country_currency ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'),
   );
+  const [zoneMap, setZoneMap] = useState(
+    Object.entries(settings.pricing_zone_factors ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'),
+  );
 
   function save() {
     const curList = currencies.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
@@ -222,11 +225,18 @@ function ShopConfigCard({ settings, onSave, saving, saved }: {
       const [k, v] = line.split('=').map((x) => x.trim());
       if (k && v) map[k] = v.toUpperCase();
     }
+    const zones: Record<string, number> = {};
+    for (const line of zoneMap.split('\n')) {
+      const [k, v] = line.split('=').map((x) => x.trim());
+      const f = Number(v);
+      if (k && v && !Number.isNaN(f) && f > 0) zones[k] = f;
+    }
     onSave({
       shop_currencies: curList.length ? curList : ['CHF'],
       shop_default_currency: defaultCur.trim().toUpperCase() || 'CHF',
       payments_provider: provider,
       shop_country_currency: Object.keys(map).length ? map : null,
+      pricing_zone_factors: Object.keys(zones).length ? zones : null,
     });
   }
 
@@ -264,6 +274,12 @@ function ShopConfigCard({ settings, onSave, saving, saved }: {
           <textarea value={countryMap} onChange={(e) => setCountryMap(e.target.value)} rows={3}
             className="form-input" placeholder={'Deutschland=EUR\nUSA=USD'} />
           <p className="mt-1 text-xs text-slate-500">Eine Zuordnung pro Zeile: <code>Land=WÄHRUNG</code>. Bestimmt die Default-Währung je Land.</p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Kaufkraft-Faktoren / Zonen (optional, PPP)</label>
+          <textarea value={zoneMap} onChange={(e) => setZoneMap(e.target.value)} rows={2}
+            className="form-input" placeholder={'Deutschland=1.1\nUSA=0.9'} />
+          <p className="mt-1 text-xs text-slate-500">Eine Zeile je Land: <code>Land=Faktor</code> (z. B. 1.1). Leer = abgeschaltet – der Basispreis gilt unverändert.</p>
         </div>
       </div>
       <div className="mt-4">

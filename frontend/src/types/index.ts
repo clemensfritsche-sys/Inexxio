@@ -212,6 +212,7 @@ export interface SaleUpdateInput {
 // Der Verkauf lebt AM ARTIKEL (dritte, lebende Ebene) – kein eigenes Objekt.
 
 export type SalesVisibility = 'public' | 'private' | 'unlisted';
+export type SalesFulfillment = 'make' | 'stock';
 export type PriceKind = 'one_time' | 'subscription';
 export type PriceInterval = 'month' | 'year';
 export type TaxClass = 'standard' | 'reduced' | 'lodging' | 'zero';
@@ -235,14 +236,16 @@ export interface SalesContent {
 }
 
 type ArticleSalesProfileApi = components['schemas']['ArticleSalesProfile'];
-export type ArticleSalesProfile = Omit<ArticleSalesProfileApi, 'sales_visibility' | 'sales_content'> & {
+export type ArticleSalesProfile = Omit<ArticleSalesProfileApi, 'sales_visibility' | 'sales_fulfillment' | 'sales_content'> & {
   sales_visibility: SalesVisibility;
+  sales_fulfillment: SalesFulfillment;
   sales_content: SalesContent | null;
 };
 
 export interface ArticleSalesUpdateInput {
   sales_published?: boolean;
   sales_visibility?: SalesVisibility;
+  sales_fulfillment?: SalesFulfillment;
   sales_content?: SalesContent | null;
 }
 
@@ -444,6 +447,7 @@ export interface CompanySettings {
   shop_country_currency: Record<string, string> | null;
   shop_default_currency: string;
   payments_provider: string | null;
+  pricing_zone_factors: Record<string, number> | null;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { Tag, Plus, Trash2, Globe, Lock, EyeOff, Image as ImageIcon, Languages, 
 import { api } from '@/lib/api';
 import type {
   ArticleSalesProfile, ArticlePrice, AudienceMember, PriceView,
-  SalesVisibility, SalesContent, SalesContentBlock, PriceKind, PriceInterval, TaxClass, UserProfile,
+  SalesVisibility, SalesFulfillment, SalesContent, SalesContentBlock, PriceKind, PriceInterval, TaxClass, UserProfile,
 } from '@/types';
 import {
   Label, TextField, SelectField, Segmented, SearchSelect, SectionTitle, InfoHint, Placeholder,
@@ -94,19 +94,22 @@ function ProfileCard({ profile, onSaved, articleObjectId }: {
     setContent((c) => ({ ...c, [lang]: { ...(c[lang] ?? emptyBlock()), ...patch } }));
   }
 
-  const sig = JSON.stringify({ published, visibility, content });
+  const [fulfillment, setFulfillment] = useState<SalesFulfillment>(profile.sales_fulfillment);
+
+  const sig = JSON.stringify({ published, visibility, fulfillment, content });
   const [savedSig, setSavedSig] = useState(sig);
 
   const save = useCallback(async () => {
     try {
       const saved = await api.updateArticleSales(articleObjectId, {
-        sales_published: published, sales_visibility: visibility, sales_content: content,
+        sales_published: published, sales_visibility: visibility,
+        sales_fulfillment: fulfillment, sales_content: content,
       });
       onSaved(saved);
-      setSavedSig(JSON.stringify({ published: saved.sales_published, visibility: saved.sales_visibility, content: saved.sales_content ?? { de: emptyBlock(), en: emptyBlock() } }));
+      setSavedSig(JSON.stringify({ published: saved.sales_published, visibility: saved.sales_visibility, fulfillment: saved.sales_fulfillment, content: saved.sales_content ?? { de: emptyBlock(), en: emptyBlock() } }));
       setFlash(true); setTimeout(() => setFlash(false), 700);
     } catch { /* belassen */ }
-  }, [articleObjectId, published, visibility, content, onSaved]);
+  }, [articleObjectId, published, visibility, fulfillment, content, onSaved]);
 
   const flush = useAutosave(sig, sig !== savedSig, save);
 
@@ -136,6 +139,17 @@ function ProfileCard({ profile, onSaved, articleObjectId }: {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      <div>
+        <Label>Verfügbarkeit</Label>
+        <Segmented label="" value={fulfillment} onChange={(v) => setFulfillment(v as SalesFulfillment)}
+          options={[{ value: 'make', label: 'Auf Bestellung' }, { value: 'stock', label: 'Ab Lager' }]} />
+        <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+          {fulfillment === 'make'
+            ? 'Made-to-Order: jeder Kauf erzeugt die Einheiten (kein Lager nötig).'
+            : 'Ab Lager (FIFO): Verkauf bedient sich aus dem Bestand, bis dieser erschöpft ist.'}
         </div>
       </div>
 
