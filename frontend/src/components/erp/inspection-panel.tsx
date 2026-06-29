@@ -5,7 +5,7 @@ import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanL
 import { api } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, PrimaryButton } from '@/components/erp/fields';
+import { Label, PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 type Val = string | number | boolean | undefined;
@@ -119,7 +119,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header />
+      <Header info="Je genannter Instanz die Werte erfassen. Eine ungenügende Teil-Stichprobe stuft die Prüfung automatisch auf 100 % hoch." />
 
       <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#374151' }}>
         Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: '#94a3b8' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
@@ -249,13 +249,8 @@ function Toggle({ label, active, tone, onClick, disabled }: { label: string; act
   );
 }
 
-function Header() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <ClipboardCheck size={15} style={{ color: '#2563eb' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Datenerfassung</span>
-    </div>
-  );
+function Header({ info }: { info?: string }) {
+  return <PanelHeader icon={ClipboardCheck} title="Datenerfassung" info={info} />;
 }
 
 const cardStyle: React.CSSProperties = {

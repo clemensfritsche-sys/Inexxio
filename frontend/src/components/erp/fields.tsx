@@ -1,8 +1,75 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ChevronDown, Search } from 'lucide-react';
+import type { ElementType, ReactNode } from 'react';
+import { AlertCircle, ChevronDown, Search, Info } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
+
+// ─── Hover-Hilfen: Erklärungen/Infotexte gehören in den Hover, nicht in die Fläche ──
+
+/** Leichter Hover-/Fokus-Tooltip (dunkle Sprechblase). Trägt erklärende Texte, ohne
+ *  die Oberfläche zu fluten – «weniger ist mehr». */
+export function Tooltip({ text, children, side = 'top' }: {
+  text: string; children: ReactNode; side?: 'top' | 'bottom';
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)} onBlur={() => setShow(false)}>
+      {children}
+      {show && (
+        <span role="tooltip" style={{
+          position: 'absolute', zIndex: 50, left: '50%', transform: 'translateX(-50%)',
+          ...(side === 'top' ? { bottom: '100%', marginBottom: 7 } : { top: '100%', marginTop: 7 }),
+          padding: '7px 10px', borderRadius: 7, background: '#0f172a', color: '#fff',
+          fontSize: 11, fontWeight: 500, lineHeight: 1.4, width: 'max-content', maxWidth: 240,
+          textAlign: 'left', whiteSpace: 'normal', boxShadow: '0 6px 18px rgba(0,0,0,0.22)', pointerEvents: 'none',
+        }}>{text}</span>
+      )}
+    </span>
+  );
+}
+
+/** Dezentes ⓘ-Symbol; die Erklärung erscheint im Hover. Ersetzt Infotext-Blöcke. */
+export function InfoHint({ text, side }: { text: string; side?: 'top' | 'bottom' }) {
+  return (
+    <Tooltip text={text} side={side}>
+      <Info size={13} style={{ color: '#cbd5e1', cursor: 'help', flexShrink: 0 }} />
+    </Tooltip>
+  );
+}
+
+/** Einheitlicher Abschnitts-Titel (Symbol + Versalien-Label + optional ⓘ-Hover + rechte Slot). */
+export function SectionTitle({ icon: Icon, info, right, children }: {
+  icon?: ElementType; info?: string; right?: ReactNode; children: ReactNode;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}>
+      {Icon && <Icon size={13} style={{ color: '#94a3b8' }} />}
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
+      {info && <InfoHint text={info} />}
+      {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
+    </div>
+  );
+}
+
+/** Einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + optional ⓘ-Hover + rechter
+ *  Slot (z. B. Status). EIN Look über alle Schritt-Panels (Bewegung/Ressource/…). */
+export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }: {
+  icon: ElementType; title: string; tone?: string; info?: string; right?: ReactNode;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${tone}14`, color: tone, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Icon size={15} />
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{title}</span>
+      {info && <InfoHint text={info} />}
+      {right && <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center' }}>{right}</span>}
+    </div>
+  );
+}
 
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
 

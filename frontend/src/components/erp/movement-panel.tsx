@@ -9,7 +9,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
-import { PrimaryButton } from '@/components/erp/fields';
+import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 type OrderInstance = NonNullable<Order['instances']>[number];
@@ -187,18 +187,12 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   const allScanned = instances.every((i) => i.object_id != null && targets[i.object_id as number]);
 
+  const moveInfo = fixedType
+    ? `Ziel ist fest: ${locationTypeLabel(fixedType)}${mv?.target_location_label ? ` (${mv.target_location_label})` : ''}. Pro Instanz aktuellen Standort + Instanz scannen.`
+    : 'Pro Instanz scannen: aktueller Standort → Instanz → Zielstandort (wird zugewiesen).';
   return (
     <div style={cardStyle}>
-      <Header />
-
-      <div style={infoStyle}>
-        <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>
-          {fixedType
-            ? <>Validierung: richtiger Standort &amp; richtige Instanz. Ziel ist fest ein <b>{locationTypeLabel(fixedType)}</b>{mv?.target_location_label ? ` (${mv.target_location_label})` : ''}.</>
-            : <>Pro Instanz scannen: aktueller Standort → Instanz → Zielstandort (wird zugewiesen).</>}
-        </span>
-      </div>
+      <Header info={moveInfo} />
 
       {/* Pro Instanz: Status (gescannt/offen) + Einzel-Scan */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
@@ -263,20 +257,11 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   );
 }
 
-function Header() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <ArrowLeftRight size={15} style={{ color: '#2563eb' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Bewegung</span>
-    </div>
-  );
+function Header({ info }: { info?: string }) {
+  return <PanelHeader icon={ArrowLeftRight} title="Bewegung" info={info} />;
 }
 
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
   display: 'flex', flexDirection: 'column', gap: 12,
-};
-const infoStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
-  background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 12, color: '#1e40af',
 };

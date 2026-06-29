@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, User as UserIcon, FileText, MapPin } from 'lucide-react';
+import { Link2, Calculator, User as UserIcon, FileText, MapPin, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
-import { TextField, StatusBadge } from '@/components/erp/fields';
+import { TextField, StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 
 type ViewerRole = 'staff' | 'supplier';
@@ -166,13 +166,9 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Card>
         {/* Kopf */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>1</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Bestellung (Beschaffung)</div>
-          </div>
-          <StatusBadge cfg={cfg} size={11} />
-        </div>
+        <PanelHeader icon={ShoppingCart} title="Bestellung (Beschaffung)"
+          info="Beschaffung beim Lieferanten unter dieser Auftragsnummer: Anfrage → Offerte → Bestellung → Wareneingang."
+          right={<StatusBadge cfg={cfg} size={11} />} />
 
         {/* Fortschritt inkl. Lieferungs-Animation + Audit-Hover */}
         <div style={{ padding: '8px 2px 2px' }}>

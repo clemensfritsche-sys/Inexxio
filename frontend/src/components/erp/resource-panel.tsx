@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Wrench, Lock, CheckCircle2, Package, Boxes, ScanLine, Info } from 'lucide-react';
+import { Wrench, Lock, CheckCircle2, Package, Boxes, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
   Order, OrderResourceLine, OrderResourceProduct, ResourceToolPickInput,
@@ -9,7 +9,7 @@ import type {
 import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { PrimaryButton } from '@/components/erp/fields';
+import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { instanceLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { useScan } from '@/components/scan/scan-provider';
@@ -116,20 +116,13 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header />
+      <Header info="Verbrauchte Komponenten werden in die Produkt-Instanz eingebaut, Betriebsmittel an deren Standort gebracht – der Standort wandert mit dem Produkt mit." />
 
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
           <CheckCircle2 size={16} />
           <span style={{ fontSize: 13, fontWeight: 700 }}>Ressourcen erfasst</span>
           {res?.used_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{res.used_by_name}</span>}
-        </div>
-      )}
-
-      {!done && (
-        <div style={infoStyle}>
-          <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-          <span>Verbrauchte Komponenten werden in die Produkt-Instanz eingebaut, Betriebsmittel an deren Standort gebracht – der Standort wandert mit dem Produkt mit.</span>
         </div>
       )}
 
@@ -262,22 +255,13 @@ function SubTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Header() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <Wrench size={15} style={{ color: '#2563eb' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Ressource</span>
-    </div>
-  );
+function Header({ info }: { info?: string }) {
+  return <PanelHeader icon={Wrench} title="Ressource" info={info} />;
 }
 
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
   display: 'flex', flexDirection: 'column', gap: 12,
-};
-const infoStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
-  background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 12, color: '#1e40af',
 };
 const lineBox: React.CSSProperties = {
   border: '1px solid #f1f5f9', borderRadius: 8, padding: '8px 10px',

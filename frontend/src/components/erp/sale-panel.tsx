@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Order, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { saleStatusConfig, saleNodes } from '@/lib/sale';
-import { PrimaryButton, SearchSelect, TextField, ErrorText, StatusBadge } from '@/components/erp/fields';
+import { PrimaryButton, SearchSelect, TextField, ErrorText, StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { PurchaseProgress } from '@/components/erp/purchase-progress';
 import { fmtObjId } from '@/components/erp/user-detail';
 
@@ -64,15 +64,9 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
   return (
     <Card>
       {/* Kopf */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, background: '#f0fdfa', color: '#0d9488', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Receipt size={16} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Verkauf</div>
-        </div>
-        <StatusBadge cfg={cfg} size={11} />
-      </div>
+      <PanelHeader icon={Receipt} title="Verkauf" tone="#0d9488"
+        info="Kaufmännischer Ablauf: Bestätigung → Rechnung → Zahlung."
+        right={<StatusBadge cfg={cfg} size={11} />} />
 
       {/* Fortschritt der Unter-Schritte (analog Beschaffung) */}
       <div style={{ padding: '8px 2px 2px' }}>

@@ -1,11 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Trash2, Lock, CheckCircle2, Info, AlertTriangle, ScanLine } from 'lucide-react';
+import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
-import { StatusBadge } from '@/components/erp/fields';
+import { StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useScan } from '@/components/scan/scan-provider';
@@ -123,13 +123,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header />
-
-      <div style={infoStyle}>
-        <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Jede Instanz wird vor dem Verschrotten <b>gescannt</b> (Verifikation). Gescannte Instanzen
-          werden mit «Verschrotten» endgültig aus dem Bestand genommen.</span>
-      </div>
+      <Header info="Jede Instanz wird vor dem Verschrotten gescannt (Verifikation). Gescannte Instanzen werden mit «Verschrotten» endgültig aus dem Bestand genommen." />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {
@@ -200,20 +194,11 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   );
 }
 
-function Header() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <Trash2 size={15} style={{ color: '#dc2626' }} />
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Verschrotten</span>
-    </div>
-  );
+function Header({ info }: { info?: string }) {
+  return <PanelHeader icon={Trash2} title="Verschrotten" tone="#dc2626" info={info} />;
 }
 
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
   display: 'flex', flexDirection: 'column', gap: 12,
-};
-const infoStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
-  background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 12, color: '#b91c1c',
 };

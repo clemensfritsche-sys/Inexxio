@@ -12,7 +12,7 @@ import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { SearchSelect, StatusBadge, StatusFlow, Label } from '@/components/erp/fields';
+import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -492,12 +492,8 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             dann freigeben. */}
         {isStaff && record?.status === 'draft' && isDeviation && (
           <>
-            <SectionTitle icon={Workflow}>Ablauf der Abweichung</SectionTitle>
+            <SectionTitle icon={Workflow} info="Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.">Ablauf der Abweichung</SectionTitle>
             <div style={cardStyle}>
-              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten,
-                prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.
-              </div>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
             </div>
@@ -584,13 +580,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   </>
                 )}
 
-                <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
+                <SectionTitle icon={Workflow} info={goal === 'specific'
+                  ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
+                  : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
-                  <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                    {goal === 'specific'
-                      ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
-                      : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}
-                  </div>
                   <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                     selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
                 </div>
@@ -773,15 +766,6 @@ function GoalCard({ icon: Icon, tone, active, disabled, disabledHint, title, des
         </div>
       </div>
     </button>
-  );
-}
-
-function SectionTitle({ icon: Icon, children }: { icon?: React.ElementType; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}>
-      {Icon && <Icon size={13} style={{ color: '#94a3b8' }} />}
-      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
-    </div>
   );
 }
 
