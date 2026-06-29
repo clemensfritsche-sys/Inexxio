@@ -640,6 +640,33 @@ def test_order_response_exposes_sub_deviations_and_pause():
         assert f in OrderDeviationInfo.model_fields
 
 
+def test_scrapped_instances_excluded_from_processing_and_completion():
+    """Verschrottete/terminale Teile werden aus der weiteren Eltern-Verarbeitung UND dem
+    Abschluss genommen – der Auftrag wird mit seinen GUTEN Teilen fertig (sie werden nicht
+    mehr bewegt/geprüft/bestückt; die Anzeige zeigt sie weiter)."""
+    import inspect as _inspect
+
+    from app.services import inspection, movement, process, resource, subject
+
+    # Terminaler Verbleib zentral deklariert + Filter-Helper
+    assert set(subject.TERMINAL_DISPOSITIONS) == {"scrapped", "sold", "consumed"}
+    src = _inspect.getsource(subject.order_active_instances)
+    assert "TERMINAL_DISPOSITIONS" in src
+    # Verarbeitungs-Pfade nutzen die AKTIVE Liste (nicht die volle)
+    assert "order_active_instances" in _inspect.getsource(movement.record_movement)
+    assert "order_active_instances" in _inspect.getsource(resource) \
+        and "order_instances(" not in _inspect.getsource(resource)
+    insp_src = _inspect.getsource(inspection)
+    assert "order_active_instances" in insp_src and "order_instances(" not in insp_src
+    # Abschluss: nur «im Prozess» befindliche Instanzen kommen ans Lager (kein Wieder-
+    # beleben eines verschrotteten, noch nicht bewerteten Teils)
+    rel = _inspect.getsource(process.release_instances)
+    assert 'disposition == "in_process"' in rel
+    # Anzeige bleibt vollständig (to_order_response nutzt weiter die volle Liste)
+    from app.services import orders as orders_svc
+    assert "order_instances(db, order)" in _inspect.getsource(orders_svc.to_order_response)
+
+
 def test_article_optional_fields_validation():
     """Optionale Stammdaten: Text getrimmt, leere → None, Mengen ≥ 0."""
     from decimal import Decimal

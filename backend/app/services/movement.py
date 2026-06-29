@@ -15,13 +15,14 @@ from . import process
 from .admin import log_audit
 from .events import emit
 from .locations import validate_location
-from .subject import order_instances
+from .subject import order_active_instances
 
 
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
-    instances = order_instances(db, order)
+    # Nur aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus».
+    instances = order_active_instances(db, order)
     if not instances:
         raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 

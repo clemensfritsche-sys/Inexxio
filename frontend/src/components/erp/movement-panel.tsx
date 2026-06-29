@@ -22,7 +22,12 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 }) {
   const mv = order.movement;
   const done = !!mv?.done;
-  const instances = useMemo(() => order.instances ?? [], [order.instances]);
+  // Nur noch aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus»
+  // und blockieren den Schritt nicht mehr (sie sind oben unter «Instanzen» weiter sichtbar).
+  const instances = useMemo(
+    () => (order.instances ?? []).filter((i) => !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
+    [order.instances],
+  );
   const scan = useScan();
 
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);

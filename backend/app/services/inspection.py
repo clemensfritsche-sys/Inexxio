@@ -27,7 +27,7 @@ from . import process
 from .admin import log_audit
 from .deviation import auto_deviation_from_inspection
 from .events import emit
-from .subject import order_instances
+from .subject import order_active_instances
 
 # Synthetisches Bewertungsfeld, wenn keine Maske definiert ist (reines Gut/Schlecht).
 DEFAULT_OK_FIELD = {"key": "_ok", "label": "Ergebnis", "type": "bool"}
@@ -71,7 +71,7 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
     Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben
     ``pending`` («Im Prozess») und werden erst beim Auftrags-Abschluss freigegeben
     (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig."""
-    insts = order_instances(db, order)
+    insts = order_active_instances(db, order)
     if len(insts) == 1 and insts[0].kind == "batch":
         insts[0].quality = "failed"
         return
@@ -95,7 +95,7 @@ def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -
 
     Charge → eine Instanz mit mehreren Proben (slot 1..N); Einzelteil → N zufällig
     ausgewählte Instanzen (je slot 1)."""
-    insts = order_instances(db, order)
+    insts = order_active_instances(db, order)
     need = required_count(db, order, step)
     if not insts or need <= 0:
         return []

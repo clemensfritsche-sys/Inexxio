@@ -109,6 +109,20 @@ def order_instances(db: Session, order: Order) -> list[Instance]:
     )
 
 
+# Terminaler Verbleib: das Teil ist aus dem Auftrag «raus» – verschrottet, verkauft oder
+# verbaut. Solche Instanzen werden nicht mehr weiterverarbeitet (bewegt/geprüft/bestückt).
+TERMINAL_DISPOSITIONS = ("scrapped", "sold", "consumed")
+
+
+def order_active_instances(db: Session, order: Order) -> list[Instance]:
+    """Wie ``order_instances``, aber OHNE Instanzen mit **terminalem Verbleib** (verschrottet/
+    verkauft/verbaut). Für die laufende Verarbeitung UND den Abschluss: ein verschrottetes Teil
+    soll nicht mehr bewegt/geprüft/bestückt werden – der Auftrag wird mit seinen GUTEN Teilen
+    fertig (die volle Liste inkl. terminaler Teile bleibt für die Anzeige via ``order_instances``)."""
+    return [i for i in order_instances(db, order)
+            if (i.disposition or "") not in TERMINAL_DISPOSITIONS]
+
+
 def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
     """Bei Freigabe das Subjekt herstellen. Committet NICHT – der Aufrufer schliesst ab.
 

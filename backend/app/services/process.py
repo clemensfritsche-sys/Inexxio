@@ -241,12 +241,13 @@ def release_instances(db: Session, order: Order) -> None:
     Erst ein abgeschlossener Auftrag bedeutet «fertig & ab Lager verfügbar»: die
     Instanzen werden zu «Freigegeben» und damit für den Ressource-Verbrauch (FIFO)
     nutzbar. ``released_at`` ist die FIFO-Basis. Bereits bewertete Instanzen
-    (failed/consumed/passed) bleiben unverändert."""
+    (failed/consumed/passed) bleiben unverändert. **Terminale Teile** (verschrottet/verkauft/
+    verbaut) werden NICHT ans Lager freigegeben – nur noch «im Prozess» befindliche."""
     now = utcnow()
     rows = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.quality == "pending")
+                Instance.quality == "pending", Instance.disposition == "in_process")
         .all()
     )
     total = 0
