@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package, Plus, X,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, Package, Plus, X, ShoppingBag,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -11,7 +11,7 @@ import type { CompanySettings } from '@/types';
 
 const fmtObjId = (id: number | null | undefined) => (id == null ? '—' : String(id).padStart(9, '0'));
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'articles';
+type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'articles' | 'shop';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -24,6 +24,8 @@ const EMPTY_SETTINGS: CompanySettings = {
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
   default_receiving_location_id: null, article_names: [],
+  shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
+  shop_default_currency: 'CHF', payments_provider: null,
 };
 
 export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {
@@ -190,6 +192,86 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         saved={saved === 'articles'}
         onSave={(names) => saveSection('articles', { article_names: names })}
       />
+
+      <ShopConfigCard
+        settings={s}
+        saving={saving === 'shop'}
+        saved={saved === 'shop'}
+        onSave={(d) => saveSection('shop', d)}
+      />
+    </div>
+  );
+}
+
+// ─── Shop / Verkauf ───────────────────────────────────────────────────────────
+
+function ShopConfigCard({ settings, onSave, saving, saved }: {
+  settings: CompanySettings; onSave: (d: Partial<CompanySettings>) => void; saving: boolean; saved: boolean;
+}) {
+  const [currencies, setCurrencies] = useState((settings.shop_currencies ?? ['CHF', 'EUR', 'USD']).join(', '));
+  const [defaultCur, setDefaultCur] = useState(settings.shop_default_currency || 'CHF');
+  const [provider, setProvider] = useState(settings.payments_provider || 'manual');
+  const [countryMap, setCountryMap] = useState(
+    Object.entries(settings.shop_country_currency ?? {}).map(([k, v]) => `${k}=${v}`).join('\n'),
+  );
+
+  function save() {
+    const curList = currencies.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+    const map: Record<string, string> = {};
+    for (const line of countryMap.split('\n')) {
+      const [k, v] = line.split('=').map((x) => x.trim());
+      if (k && v) map[k] = v.toUpperCase();
+    }
+    onSave({
+      shop_currencies: curList.length ? curList : ['CHF'],
+      shop_default_currency: defaultCur.trim().toUpperCase() || 'CHF',
+      payments_provider: provider,
+      shop_country_currency: Object.keys(map).length ? map : null,
+    });
+  }
+
+  return (
+    <div className="card p-4 sm:p-6">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><ShoppingBag className="h-5 w-5" /></div>
+          <h2 className="text-base font-semibold text-slate-900">Shop / Verkauf</h2>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs shrink-0">
+          {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" /><span className="text-slate-400">Speichert…</span></>}
+          {saved && !saving && <><CheckCircle2 className="h-3.5 w-3.5 text-green-500" /><span className="text-green-600">Gespeichert</span></>}
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Währungen (Shop-Umschalter)</label>
+          <input value={currencies} onChange={(e) => setCurrencies(e.target.value)} className="form-input" placeholder="CHF, EUR, USD" />
+          <p className="mt-1 text-xs text-slate-500">Komma-getrennt. Die erste/markierte ist die Standard-Währung.</p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Standard-Währung</label>
+          <input value={defaultCur} onChange={(e) => setDefaultCur(e.target.value)} className="form-input" placeholder="CHF" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Zahlungs-Provider</label>
+          <select value={provider} onChange={(e) => setProvider(e.target.value)} className="form-input">
+            <option value="manual">Manuell (Test, ohne externen Dienst)</option>
+            <option value="stripe">Stripe (Gerüst – Keys erforderlich)</option>
+          </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Land → Währung (optional)</label>
+          <textarea value={countryMap} onChange={(e) => setCountryMap(e.target.value)} rows={3}
+            className="form-input" placeholder={'Deutschland=EUR\nUSA=USD'} />
+          <p className="mt-1 text-xs text-slate-500">Eine Zuordnung pro Zeile: <code>Land=WÄHRUNG</code>. Bestimmt die Default-Währung je Land.</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <button type="button" onClick={save} disabled={saving}
+          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+          Speichern
+        </button>
+      </div>
     </div>
   );
 }

@@ -77,6 +77,8 @@ async def get_product(
 async def checkout(
     data: ShopCheckout,
     db: Session = Depends(get_db),
+    # Login-Pflicht (kein Gast-Checkout – bewusst NICHT gebaut). Ein eingeloggter
+    # Kunde (Firebase Magic Link) ist immer der Käufer.
     user: UserProfile = Depends(get_current_user),
 ):
     article = db.query(Article).filter(

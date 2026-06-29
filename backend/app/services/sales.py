@@ -363,7 +363,11 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
         article_id=article.id, quantity=quantity,
         title=f"Shop-Kauf: {article.name}",
     )
+    # TODO(Erweiterung – NICHT gebaut): Coupon-/Rabatt-Engine (über `compare_at` hinaus)
+    #   und Bundles (mehrere Artikel je Kauf) wären hier die nächsten Stufen.
     if price.kind == "subscription":
+        # Abo nutzt die vorhandenen recurrence_*-Felder (Kette beim Abschluss).
+        # TODO(Erweiterung – NICHT gebaut): metered/limited-term Abos (verbrauchsbasiert).
         order.recurrence_active = True
         order.recurrence_interval_days = _interval_days(price.interval)
         order.recurrence_anchor = today + timedelta(days=order.recurrence_interval_days)

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Package, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import type { ShopProduct } from '@/types';
+import type { ShopProduct, ShopConfig } from '@/types';
 
 function fmt(amount: number | string | null | undefined, currency: string): string {
   if (amount == null) return '—';
@@ -18,13 +18,18 @@ function ProductView() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const objectId = Number(search.get('id'));
-  const currency = search.get('currency') || 'CHF';
+  const [currency, setCurrency] = useState(search.get('currency') || 'CHF');
+  const [config, setConfig] = useState<ShopConfig | null>(null);
 
   const [product, setProduct] = useState<ShopProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
   const [buying, setBuying] = useState(false);
+
+  useEffect(() => {
+    api.getShopConfig().then(setConfig).catch(() => setConfig({ currencies: ['CHF', 'EUR', 'USD'], default_currency: 'CHF' }));
+  }, []);
 
   useEffect(() => {
     if (!objectId) { setLoading(false); return; }
@@ -71,8 +76,21 @@ function ProductView() {
           )}
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
-          {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
+              {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-1 bg-white shrink-0">
+              {(config?.currencies ?? ['CHF', 'EUR', 'USD']).map((c) => (
+                <button key={c} onClick={() => setCurrency(c)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+                    currency === c ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-5 flex items-baseline gap-3">
             <span className="text-3xl font-bold text-slate-900">{fmt(price?.gross, price?.currency ?? currency)}</span>

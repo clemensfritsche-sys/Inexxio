@@ -439,6 +439,11 @@ export interface CompanySettings {
   google_maps_api_key: string | null;
   default_receiving_location_id: number | null;
   article_names: string[];
+  // Shop / Verkauf
+  shop_currencies: string[];
+  shop_country_currency: Record<string, string> | null;
+  shop_default_currency: string;
+  payments_provider: string | null;
 }
 
 // ─── API response wrappers ────────────────────────────────────────────────────
