@@ -295,6 +295,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Blau = aktiv/Aktion, Grün = erledigt/ok, Rot = Fehler/gesperrt, Slate = inaktiv. Der Prozess-Stepper
   zeigt **Schritt-Symbole** statt Zahlen. Aktive Prozessschritte haben **eine** grosse, touch-taugliche
   Hauptaktion (`PrimaryButton`, ≥44 px, volle Breite) – «Was muss ich jetzt tun?» auf einen Blick.
+  **Gemeinsames UI-Vokabular (`components/erp/fields.tsx`) – konsequent verwenden statt Eigenbau:**
+  `Tooltip`/`InfoHint` (Erklärungen/Infotexte gehören in den **Hover**, ⓘ-Symbol – nicht in die
+  Fläche), `SectionTitle` (Symbol + Versalien-Label + optional ⓘ + rechter Slot), `PanelHeader`
+  (einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + ⓘ + rechter Slot/Status – EIN Look
+  über ALLE Schritt-Panels), `StatusBadge`, `PrimaryButton`. Leitsatz: «weniger ist mehr» – Symbole
+  statt Text, Infotexte in den Hover, sofort erkennbar was Sache ist / was zu tun ist.
 - **Performance/Infra** (siehe `docs/architecture-review-2026-06.md`): Objektnummern über die
   Postgres-Sequence `object_id_seq` (race-sicher, `services/objects.py`). Auftrags-Feed `GET /orders`
   liefert schlanke `OrderSummary` (ohne Embeds); das Detail kommt **on-demand** via `getOrder(id)`.
