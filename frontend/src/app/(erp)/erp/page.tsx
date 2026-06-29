@@ -13,6 +13,7 @@ import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { instanceStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
+import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { useScan } from '@/components/scan/scan-provider';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
@@ -509,6 +510,13 @@ export default function ErpPage() {
           'flex-1 overflow-hidden flex flex-col',
           !showList ? 'flex' : 'hidden md:flex',
         )}>
+          {/* Ein Render-Fehler in EINEM Datensatz darf nie die ganze ERP-Oberfläche
+              sperren – der Boundary zeigt eine erholbare Meldung; `resetKey` setzt ihn
+              beim Wechsel der Auswahl zurück, «Zurück» führt in die Liste. */}
+          <ErrorBoundary
+            resetKey={creating ?? (sel ? `${sel.type}-${sel.objectId}` : 'none')}
+            onReset={() => { setSel(null); setCreating(null); setMobileView('list'); }}
+          >
           {creating === 'article' && (
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
@@ -550,6 +558,7 @@ export default function ErpPage() {
               <p style={{ marginTop: 12, fontSize: 14, color: '#94a3b8' }}>Datensatz auswählen oder neu anlegen</p>
             </div>
           )}
+          </ErrorBoundary>
         </div>
       </div>
     </div>
