@@ -323,22 +323,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   sales_visibility/sales_content` + 1:n `article_prices` (mutabel, Soft-Delete) + `article_sales_audience`
   (private/unlisted). Die **Freigabe friert NUR Spezifikation + Prozess** ein – die Verkaufs-Ebene bleibt
   in jedem Status editierbar (eigene Endpunkte `…/articles/{id}/sales[/prices|/audience]`, alles geloggt).
-  **Preis-Pipeline** (`services/pricing.py`): Basis-CHF → (Vergleichspreis, visuell) → Netto-CHF →
-  Währung (Tageskurs `services/fx.py`, **schön gerundet** `charm_round`) → MWST (`services/tax.py`,
-  CH 8.1/2.6/3.8, Ausland 0 %) → Anzeige. Tageskurse liegen unveränderlich in `fx_rates` (Within-Day-stabil,
-  Env `FX_SOURCE_URL`). **Kauf = ganz normaler Auftrag** (Bestands-Operation, FIFO ab Lager) mit `sale`-
-  Schritt (requested→confirmed→invoiced→paid) + `movement` (Versand); Preis/Währung/FX/Steuer werden auf
-  den `sale`-Beleg **eingefroren** (Snapshot `sales.base_amount_chf/fx_rate/fx_date/tax_class`). Abo-Preis →
-  `orders.recurrence_*`. **Zahlungs-Bridge** (`services/payments/`): Provider-Interface mit **manual**
-  (Default, überbrückbar – interne `/shop/pay?token=…`-Seite + `POST /shop/payments/simulate`) und
-  **stripe** (Gerüst, ohne `STRIPE_SECRET_KEY` nie aktiv, kein Crash); Auswahl via Env `PAYMENTS_PROVIDER`
-  bzw. `company_settings.payments_provider`. **Shop** (öffentlich): `GET /shop/products|products/{id}`
-  (public für alle, private nur zugewiesene Kunden, unlisted nur per Link; kanonisiert über
-  `replaced_by_id`), `POST /shop/checkout` (Login-Pflicht, kein Gast-Checkout). Frontend: ERP-Reiter
-  **Verkauf** am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Live-Vorschau) + rudimentärer
-  öffentlicher Shop (`/shop`, `/shop/product`, `/shop/pay`). **Ersetzen** kopiert das Verkaufs-Profil auf
-  den Nachfolger. *Bewusst NICHT gebaut: PPP-Zonen, Coupon-Engine, OSS/IOSS/Stripe Tax, echte Stripe-Charge,
-  Bundles, Gast-Checkout (TODO-Kommentare an Ort).*
+  **Du pflegst NUR den Basispreis in CHF** (genau eine Zahl je Preis); alles andere wird abgeleitet.
+  **Zwei unabhängige Achsen:** *Preismodell* (`article_prices.kind` = Einmalkauf | Abo → `orders.recurrence_*`)
+  und *Verfügbarkeit* (`articles.sales_fulfillment`): **make** = Made-to-Order (Kauf ERZEUGT die Einheiten,
+  kein Lager nötig) | **stock** = ab Lager FIFO (limitierte Auflage, bis erschöpft). Im Auftrag steuert
+  `orders.subject_source` (produce|stock) die Subjekt-Quelle – beide fahren denselben Ablauf [Verkauf→Versand].
+  **Preis-Pipeline** (`services/pricing.py`, gestaffelt, jede Stufe optional): Basis-CHF → ① Kunden-/
+  Gruppenpreis (Hook) → ② Zonen-/Kaufkraft-Faktor (PPP, `company_settings.pricing_zone_factors`, Default aus)
+  → ③ Rabatt (Vergleichspreis visuell; Coupons = Erweiterung) → **Netto-CHF** → ④ Währung: **gepinnter** Kurs
+  (`article_prices.pinned`, `charm_round`, **stabil bis Basis-Änderung oder >3 % Kurs-Drift** – KEINE
+  Live-Umrechnung) → ⑤ MWST (`services/tax.py`, CH 8.1/2.6/3.8, Ausland 0 %). Tageskurse unveränderlich in
+  `fx_rates` (Env `FX_SOURCE_URL`); CHF=Basis, EUR/USD abgeleitet. **Kauf = ganz normaler Auftrag** mit
+  `sale`-Schritt (requested→confirmed→invoiced→paid) + `movement` (Versand); Preis/Währung/FX/Steuer werden
+  auf den `sale`-Beleg **eingefroren** (Snapshot `sales.base_amount_chf/fx_rate/fx_date/tax_class`).
+  **Zahlungs-Bridge** (`services/payments/`): **manual** (Default, überbrückbar – `/shop/pay?token=…` +
+  `POST /shop/payments/simulate`) und **stripe** (Gerüst, ohne `STRIPE_SECRET_KEY` nie aktiv, kein Crash);
+  Auswahl via Env `PAYMENTS_PROVIDER` bzw. `company_settings.payments_provider`. **Shop** (öffentlich):
+  `GET /shop/products|products/{id}` (public für alle, private nur zugewiesene Kunden, unlisted nur per Link;
+  **kanonisiert über `replaced_by_id`** – ein ersetzter Artikel zeigt nahtlos auf den Nachfolger, URL/Listing
+  brechen nicht), `POST /shop/checkout` (Login-Pflicht, kein Gast-Checkout). Frontend: ERP-Reiter **Verkauf**
+  am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Verfügbarkeit/Live-Vorschau) + Admin-Shop-Konfig
+  (Währungen/Provider/Land→Währung/Zonen) + öffentlicher Shop (`/shop`, `/shop/product`, `/shop/pay`).
+  **Ersetzen** kopiert das Verkaufs-Profil auf den Nachfolger. *Bewusst NICHT gebaut: Coupon-Engine,
+  OSS/IOSS/Stripe Tax, echte Stripe-Charge/Adaptive Pricing, Bundles, Gast-Checkout, metered-Abos,
+  kunden-/gruppenspezifische Preislisten (TODO-/Extension-Hooks an Ort).*
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -350,13 +358,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > sale. `quality`+`disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-
 > Polarität. **Abweichung** (Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit) ist KEIN eigener Typ
 > mehr, sondern ein **Unter-Auftrag** (`parent_order_id`); der frühere `Claim`-Typ ist entfernt.
-> **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience), Kauf = Auftrag mit
-> `sale`+`movement`-Schritt (FIFO ab Lager) + Preis-Snapshot; Zahlung via überbrückbarem manual-Provider,
-> Stripe als geschütztes Gerüst. E-Mail (Gmail API) + echte Stripe-Charge sind **noch nicht** umgesetzt.
+> **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
+> gepflegt, Rest abgeleitet (gestaffelte Pipeline, gepinnte Fremdwährung). Zwei Achsen: Preismodell
+> (Einmalkauf/Abo) + Verfügbarkeit (`sales_fulfillment` make=Made-to-Order | stock=FIFO). Kauf = Auftrag
+> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. Zahlung via
+> überbrückbarem manual-Provider, Stripe als geschütztes Gerüst. **Inaktive Artikel sind endgültig** (kein
+> Reaktivieren). E-Mail (Gmail API) + echte Stripe-Charge sind **noch nicht** umgesetzt.
 
 Nächste Aufgabe: Custom-Auftrag-UX verfeinern (Instanz-Mehrfachauswahl/Filter); Instanz = vollständige
 Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang & beim Verschrotten;
-Shop ausbauen (Kundenportal-Bestellsicht, Stripe live, PPP/Coupons); E-Mail (Gmail API).
+Shop ausbauen (Kundenportal-Bestellsicht, Stripe live + Adaptive Pricing, Coupons); E-Mail (Gmail API).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

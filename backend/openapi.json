@@ -4801,6 +4801,11 @@
             "title": "Sales Visibility",
             "default": "public"
           },
+          "sales_fulfillment": {
+            "type": "string",
+            "title": "Sales Fulfillment",
+            "default": "make"
+          },
           "computed_weight_kg": {
             "anyOf": [
               {
@@ -4934,6 +4939,11 @@
             "type": "string",
             "title": "Sales Visibility"
           },
+          "sales_fulfillment": {
+            "type": "string",
+            "title": "Sales Fulfillment",
+            "default": "make"
+          },
           "sales_content": {
             "anyOf": [
               {
@@ -5002,6 +5012,17 @@
               }
             ],
             "title": "Sales Visibility"
+          },
+          "sales_fulfillment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Fulfillment"
           },
           "sales_content": {
             "anyOf": [
@@ -5668,6 +5689,17 @@
               }
             ],
             "title": "Payments Provider"
+          },
+          "pricing_zone_factors": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Zone Factors"
           }
         },
         "type": "object",
@@ -6123,6 +6155,17 @@
               }
             ],
             "title": "Payments Provider"
+          },
+          "pricing_zone_factors": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricing Zone Factors"
           }
         },
         "type": "object",
@@ -9276,6 +9319,11 @@
             "type": "string",
             "title": "Visibility",
             "default": "public"
+          },
+          "fulfillment": {
+            "type": "string",
+            "title": "Fulfillment",
+            "default": "make"
           },
           "unit": {
             "anyOf": [

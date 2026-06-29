@@ -1407,6 +1407,11 @@ export interface components {
              * @default public
              */
             sales_visibility: string;
+            /**
+             * Sales Fulfillment
+             * @default make
+             */
+            sales_fulfillment: string;
             /** Computed Weight Kg */
             computed_weight_kg?: string | null;
             /** Replaced By Id */
@@ -1447,6 +1452,11 @@ export interface components {
             sales_published: boolean;
             /** Sales Visibility */
             sales_visibility: string;
+            /**
+             * Sales Fulfillment
+             * @default make
+             */
+            sales_fulfillment: string;
             /** Sales Content */
             sales_content?: Record<string, never> | null;
             /**
@@ -1471,6 +1481,8 @@ export interface components {
             sales_published?: boolean | null;
             /** Sales Visibility */
             sales_visibility?: string | null;
+            /** Sales Fulfillment */
+            sales_fulfillment?: string | null;
             /** Sales Content */
             sales_content?: Record<string, never> | null;
         };
@@ -1638,6 +1650,8 @@ export interface components {
             shop_default_currency: string;
             /** Payments Provider */
             payments_provider?: string | null;
+            /** Pricing Zone Factors */
+            pricing_zone_factors?: Record<string, never> | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -1715,6 +1729,8 @@ export interface components {
             shop_default_currency?: string | null;
             /** Payments Provider */
             payments_provider?: string | null;
+            /** Pricing Zone Factors */
+            pricing_zone_factors?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -2871,6 +2887,11 @@ export interface components {
              * @default public
              */
             visibility: string;
+            /**
+             * Fulfillment
+             * @default make
+             */
+            fulfillment: string;
             /** Unit */
             unit?: string | null;
             price?: components["schemas"]["PriceView"] | null;

@@ -44,6 +44,7 @@ class CompanySettingsUpdate(BaseModel):
     shop_country_currency: Optional[dict] = None
     shop_default_currency: Optional[str] = None
     payments_provider: Optional[str] = None
+    pricing_zone_factors: Optional[dict] = None
 
     @field_validator("article_names")
     @classmethod
@@ -102,6 +103,7 @@ class CompanySettingsResponse(BaseModel):
     shop_country_currency: Optional[dict] = None
     shop_default_currency: str = "CHF"
     payments_provider: Optional[str] = None
+    pricing_zone_factors: Optional[dict] = None
 
     @field_validator("article_names", mode="before")
     @classmethod

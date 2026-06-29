@@ -200,7 +200,13 @@ async def update_article(
     ensure_version(article, payload.pop("expected_updated_at", None))
     ensure_mutable(article.status, payload, "Artikel")
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
-    reactivating = payload.get("status") == "released" and article.status == "inactive"
+    # Inaktiv ist **endgültig**: ein deaktivierter Artikel kann NICHT reaktiviert werden
+    # (die Identität ist abgeschlossen – Neustart = neuer Artikel/Nachfolger via «Ersetzen»).
+    if payload.get("status") == "released" and article.status == "inactive":
+        raise HTTPException(
+            409,
+            detail="Inaktive Artikel können nicht reaktiviert werden – bitte einen neuen Artikel anlegen (oder «Ersetzen»).",
+        )
     # Freigabe nur mit hinterlegtem Prozess: Ohne Prozessschritt gäbe es nichts, was der
     # Artikel „kann" – die Freigabe friert Spezifikation UND Prozess gemeinsam ein.
     releasing = payload.get("status") == "released" and article.status == "draft"
@@ -209,16 +215,6 @@ async def update_article(
             400,
             detail="Ohne Prozessschritt kann der Artikel nicht freigegeben werden – bitte zuerst im Reiter «Prozess» einen Ablauf hinterlegen.",
         )
-    # Stammdaten-Freigabe ist **entkoppelt** von den Prozessen: Sie friert die
-    # Spezifikation ein (Identität). Ob der Artikel produzierbar/bestellbar ist,
-    # entscheidet sich am Auftrag (dort muss zusätzlich ein **freigegebener Prozess**
-    # vorliegen – siehe routers/orders.py). So ist die Stammdaten-Freigabe eine
-    # klare Vorbedingung, bevor ein Prozess gestartet werden kann.
-    # Reaktivieren nur, wenn nicht ersetzt und keine Komponente inaktiv ist
-    if reactivating:
-        blk = deactivation.article_reactivation_blocker(db, article)
-        if blk:
-            raise HTTPException(409, detail=f"Reaktivieren nicht möglich: {blk}")
     for key, value in payload.items():
         if key == "status" and going_inactive:
             continue   # via deactivate_article (inkl. Kaskade) unten

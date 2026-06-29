@@ -145,30 +145,6 @@ def deactivate_article(db: Session, article: Article, actor_id: int,
          payload={"orders_mode": orders_mode, "affected": len(ids)}, actor_id=actor_id)
 
 
-def article_reactivation_blocker(db: Session, article: Article) -> str | None:
-    """Grund, warum ein Artikel NICHT reaktiviert werden darf (sonst ``None``):
-    er wurde ersetzt, oder eine verbaute Komponente ist nicht (mehr) freigegeben."""
-    if article.replaced_by_id:
-        return "Artikel wurde ersetzt – bitte den Nachfolger verwenden"
-    steps = (
-        db.query(ArticleProcessStep)
-        .filter(ArticleProcessStep.article_id == article.id,
-                ArticleProcessStep.order_id.is_(None),
-                ArticleProcessStep.step_type == "resource",
-                ArticleProcessStep.is_active == True)
-        .all()
-    )
-    for s in steps:
-        for line in (s.resource_lines or []):
-            aid = line.get("article_id")
-            if aid is None or (line.get("mode") or "consume") != "consume":
-                continue
-            comp = db.query(Article).filter(Article.id == aid).first()
-            if comp and comp.status != "released":
-                return f"Komponente {comp.object_id} ist nicht freigegeben"
-    return None
-
-
 # ─── Auftrag: Abbruch ─────────────────────────────────────────────────────────
 
 def cancel_order_effects(db: Session, order: Order, actor_id: int,

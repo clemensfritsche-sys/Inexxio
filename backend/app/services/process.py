@@ -275,6 +275,8 @@ def _finalize_subjects(db: Session, order: Order) -> None:
     Verbleib unverändert. MAKE-Aufträge (neue Instanzen) laufen über ``release_instances``."""
     if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
         return
+    # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt
+    #     den Bestand (mengengenau, keine Teilung).
     subjects = (
         db.query(Instance)
         .filter(Instance.reservations.has_key(str(order.id)),  # noqa: W601
@@ -291,6 +293,20 @@ def _finalize_subjects(db: Session, order: Order) -> None:
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
                       "order": order.object_id})
+    # (b) Made-to-Order-Verkauf: die **unter diesem Auftrag erzeugten** Instanzen werden
+    #     direkt verkauft (sie wurden gerade via ``release_instances`` freigegeben). Kein
+    #     FIFO/keine Reservierung – sie gehören dem Kunden dieses Auftrags.
+    produced = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True,
+                Instance.quality != "failed", Instance.disposition == "in_stock")
+        .all()
+    )
+    for inst in produced:
+        inst.disposition = "sold"
+        emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
+             payload={"quantity": inst.quantity or 0, "delta": -(inst.quantity or 0),
+                      "polarity": event_types.DECREASE, "order": order.object_id})
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:

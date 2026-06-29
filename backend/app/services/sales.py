@@ -295,6 +295,7 @@ def to_product(db: Session, article: Article, currency: str, country: str | None
         "description": c.get("description"),
         "images": [i for i in images if i],
         "visibility": article.sales_visibility,
+        "fulfillment": article.sales_fulfillment or "make",
         "unit": article.unit,
         "price": pricing.price_view(db, article, currency, country, user),
     }
@@ -336,9 +337,12 @@ def _interval_days(interval: str | None) -> int:
 
 def checkout(db: Session, article: Article, quantity: int, currency: str,
              customer: UserProfile) -> tuple[Order, Sale, str, str]:
-    """Kauf abwickeln: Auftrag (Bestands-Operation, FIFO) mit ``sale``- und
-    ``movement``-Schritt anlegen, freigeben, Preis-Snapshot auf den Verkauf einfrieren
-    und die Zahl-URL des Providers zurückgeben. Liefert (Auftrag, Verkauf, URL, Provider)."""
+    """Kauf abwickeln: Auftrag mit ``sale``- und ``movement``-Schritt anlegen, freigeben,
+    Preis-Snapshot auf den Verkauf einfrieren und die Zahl-URL des Providers zurückgeben.
+
+    Verfügbarkeit (Achse B) entscheidet die Subjekt-Quelle: **make** erzeugt die Einheiten
+    (Made-to-Order, kein Lager nötig), **stock** bedient sich FIFO ab Lager (limitiert).
+    Liefert (Auftrag, Verkauf, URL, Provider)."""
     # Spät importiert (Vermeidung von Import-Zyklen über die Prozess-/Auftrags-Services).
     from . import process, sale as sale_svc, subject
     from .events import emit
@@ -352,37 +356,50 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
     if not price:
         raise HTTPException(400, detail="Für dieses Produkt ist kein Preis hinterlegt")
 
+    # Kauf nur eines **freigegebenen** Artikels (Spezifikation + Prozess eingefroren).
+    if article.status != "released":
+        raise HTTPException(400, detail="Dieses Produkt ist noch nicht zum Kauf freigegeben")
+
     from . import fx
     country = getattr(customer, "ship_country", None) or getattr(customer, "country", None)
     view = pricing.price_view(db, article, currency, country, customer)
     fx_rate = fx.get_rate(db, currency)
     today = utcnow().date()
 
+    # ── Achse B – Verfügbarkeit (unabhängig vom Preismodell Einmalkauf/Abo) ──────────
+    #   make  → Made-to-Order: der Auftrag ERZEUGT die Einheiten (kein Lager nötig).
+    #   stock → ab Lager (FIFO), bis erschöpft (limitierte Auflage → sonst „ausverkauft").
+    # Beide fahren denselben Verkaufsablauf [Verkauf → Versand]; nur die Subjekt-Quelle
+    # unterscheidet sich (``subject_source``).
+    fulfillment = article.sales_fulfillment or "make"
     order = Order(
         object_id=next_object_id(db, "order"), status="draft",
         article_id=article.id, quantity=quantity,
         title=f"Shop-Kauf: {article.name}",
+        subject_source="produce" if fulfillment == "make" else "stock",
     )
     # TODO(Erweiterung – NICHT gebaut): Coupon-/Rabatt-Engine (über `compare_at` hinaus)
     #   und Bundles (mehrere Artikel je Kauf) wären hier die nächsten Stufen.
     if price.kind == "subscription":
-        # Abo nutzt die vorhandenen recurrence_*-Felder (Kette beim Abschluss).
-        # TODO(Erweiterung – NICHT gebaut): metered/limited-term Abos (verbrauchsbasiert).
+        # Abo (Achse A) = wiederkehrender Verkaufsauftrag – nutzt die vorhandenen
+        # recurrence_*-Felder (Kette beim Abschluss). Unabhängig von make/stock.
+        # TODO(Erweiterung – NICHT gebaut): metered/limited-term Abos (verbrauchsbasiert);
+        #   die wiederkehrende Verrechnung übernimmt später Stripe Billing (Spiegelung).
         order.recurrence_active = True
         order.recurrence_interval_days = _interval_days(price.interval)
         order.recurrence_anchor = today + timedelta(days=order.recurrence_interval_days)
     db.add(order)
     db.flush()
 
-    # Bestands-Operation: eigene Schritte ⇒ subject_kind = stock (FIFO ab Lager).
-    # Reihenfolge: kaufmännischer Verkauf (Zahlung) → Bewegung (Versand zum Kunden).
+    # Verkaufsablauf: kaufmännischer Verkauf (Zahlung) → Bewegung (Versand zum Kunden).
     db.add(ArticleProcessStep(order_id=order.id, position=0, step_type="sale"))
     db.add(ArticleProcessStep(order_id=order.id, position=2, step_type="movement",
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()
 
-    # Freigabe (wie routers/orders.py): Subjekt herstellen (FIFO reservieren) + Verkauf anlegen.
+    # Freigabe (wie routers/orders.py): Subjekt herstellen + Verkauf anlegen. make → neue
+    # Instanzen erzeugen (produce); stock → FIFO ab Lager reservieren (subject_source).
     order.status = "released"
     order.released_at = utcnow()
     subject.materialize_subject(db, order, customer.id)

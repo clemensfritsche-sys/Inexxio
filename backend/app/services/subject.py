@@ -73,6 +73,11 @@ def subject_kind(db: Session, order: Order) -> str:
     „kein Bestand")."""
     if is_deviation(order):
         return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
+    # Expliziter subject_source (Shop-Made-to-Order: 'produce') hat Vorrang vor der
+    # Ableitung – so erzeugt ein Verkaufsablauf (eigene Schritte) trotzdem neue Instanzen.
+    forced = getattr(order, "subject_source", None)
+    if forced in ("produce", "stock"):
+        return forced
     if has_custom_steps(db, order):
         return "stock"
     return "produce"
@@ -138,7 +143,8 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
     if is_deviation(order):
         _bind_deviation_subjects(db, order, actor_id)
         return
-    if has_custom_steps(db, order):
+    kind = subject_kind(db, order)   # berücksichtigt subject_source (Made-to-Order)
+    if kind == "stock":
         _allocate_stock_subject(db, order, actor_id)
         return
     create_instances_for_order(db, order, actor_id)

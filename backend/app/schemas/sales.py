@@ -138,9 +138,13 @@ class AudienceAdd(BaseModel):
 
 # ─── Profil ──────────────────────────────────────────────────────────────────────
 
+FULFILLMENTS = ("make", "stock")
+
+
 class ArticleSalesUpdate(BaseModel):
     sales_published: Optional[bool] = None
     sales_visibility: Optional[str] = None
+    sales_fulfillment: Optional[str] = None
     sales_content: Optional[dict] = None
 
     @field_validator("sales_visibility")
@@ -150,6 +154,13 @@ class ArticleSalesUpdate(BaseModel):
             raise ValueError(f"Sichtbarkeit muss eine von {', '.join(VISIBILITIES)} sein")
         return v
 
+    @field_validator("sales_fulfillment")
+    @classmethod
+    def _fulfillment_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in FULFILLMENTS:
+            raise ValueError(f"Verfügbarkeit muss eine von {', '.join(FULFILLMENTS)} sein")
+        return v
+
 
 class ArticleSalesProfile(BaseModel):
     """Vollständige Verkaufs-Ebene eines Artikels (ERP-Reiter «Verkauf»)."""
@@ -157,6 +168,7 @@ class ArticleSalesProfile(BaseModel):
     status: str
     sales_published: bool
     sales_visibility: str
+    sales_fulfillment: str = "make"
     sales_content: Optional[dict] = None
     prices: list[ArticlePriceResponse] = []
     audience: list[AudienceMember] = []
