@@ -5928,6 +5928,49 @@
         "title": "OrderDeviationCreate",
         "description": "«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-\nEbene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."
       },
+      "OrderDeviationInfo": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "instance_count": {
+            "type": "integer",
+            "title": "Instance Count",
+            "default": 0
+          },
+          "instance_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Object Ids",
+            "default": []
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "status"
+        ],
+        "title": "OrderDeviationInfo",
+        "description": "Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag."
+      },
       "OrderResponse": {
         "properties": {
           "id": {
@@ -6263,6 +6306,19 @@
               }
             ],
             "title": "Abort Into Id"
+          },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDeviationInfo"
+            },
+            "type": "array",
+            "title": "Deviations",
+            "default": []
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "default": false
           }
         },
         "type": "object",

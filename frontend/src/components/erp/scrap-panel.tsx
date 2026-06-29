@@ -1,20 +1,22 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Trash2, Lock, CheckCircle2, Info, AlertTriangle } from 'lucide-react';
+import { Trash2, Lock, CheckCircle2, Info, AlertTriangle, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
 import { StatusBadge } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
+import { fmtObjId } from '@/components/erp/user-detail';
+import { useScan } from '@/components/scan/scan-provider';
 
 type OrderInstance = NonNullable<Order['instances']>[number];
 
 /**
  * Prozessschritt «Verschrotten» – die definierte Auflösung einer Abweichung: ein
  * defektes/nicht mehr benötigtes Teil verlässt den Bestand (disposition='scrapped').
- * Der Nutzer wählt genau die zu verschrottenden Instanzen (Durchfaller vorausgewählt)
- * und bestätigt. So gibt es keine „herumliegenden, undefinierten Teile".
+ * **Quittierung per Scan ist verbindlich:** jede Instanz wird vor dem Verschrotten
+ * physisch gescannt (kein blosses Anklicken) – so wird nie das falsche Teil ausgeschleust.
  */
 export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -25,32 +27,47 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
   const disp = order.disposal;
   const done = !!disp?.done;
   const instances = useMemo(() => order.instances ?? [], [order.instances]);
+  const scan = useScan();
 
-  // Noch verschrottbar = nicht bereits verschrottet/verkauft/verbraucht.
+  // Noch verschrottbar = nicht bereits verschrottet/verkauft/verbaut.
   const scrappable = useMemo(
-    () => instances.filter((i) => !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
+    () => instances.filter((i) => i.object_id != null && !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
     [instances],
   );
 
-  // Defekte (durchgefallene) Instanzen sind die typischen Verschrottungs-Kandidaten → vorwählen.
-  const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(scrappable.filter((i) => i.quality === 'failed' && i.object_id != null).map((i) => i.object_id as number)),
-  );
+  const [scanned, setScanned] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggle(oid: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(oid)) next.delete(oid); else next.add(oid);
-      return next;
+  // Eine Instanz nach der anderen scannen (Verifikation gegen die Objektnummer). Jede
+  // bestätigte Instanz wandert in die «gescannt»-Menge; danach folgt die nächste.
+  function runSequence(queue: OrderInstance[], acc: Set<number>) {
+    if (queue.length === 0) return;
+    const inst = queue[0];
+    const oid = inst.object_id as number;
+    scan({
+      title: `Verschrotten · ${fmtObjId(oid)}`,
+      steps: [{
+        label: 'Instanz', hint: 'Zu verschrottende Instanz scannen', expected: oid, kind: 'instance',
+        candidates: [{ objectId: oid, label: instanceLabel(inst.kind) }],
+      }],
+      onComplete: () => {
+        const next = new Set(acc); next.add(oid); setScanned(next);
+        runSequence(queue.slice(1), next);
+      },
     });
   }
 
+  function startScan(only?: OrderInstance) {
+    setError(null);
+    const queue = only ? [only] : scrappable.filter((i) => !scanned.has(i.object_id as number));
+    if (queue.length) runSequence(queue, scanned);
+  }
+
   async function submit() {
-    const ids = [...selected];
-    if (ids.length === 0) { setError('Bitte mindestens eine Instanz wählen'); return; }
+    const ids = [...scanned];
+    if (ids.length === 0) { setError('Bitte zuerst die zu verschrottenden Instanzen scannen'); return; }
     setSaving(true); setError(null);
     try {
       onOrderUpdated(await api.updateOrderScrap(order.object_id as number,
@@ -102,31 +119,42 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
     );
   }
 
+  const allScanned = scrappable.length > 0 && scrappable.every((i) => scanned.has(i.object_id as number));
+
   return (
     <div style={cardStyle}>
       <Header />
 
       <div style={infoStyle}>
         <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Gewählte Instanzen werden <b>verschrottet</b> und verlassen den Bestand – dieser Schritt
-          ist endgültig. Defekte Instanzen sind vorausgewählt.</span>
+        <span>Jede Instanz wird vor dem Verschrotten <b>gescannt</b> (Verifikation). Gescannte Instanzen
+          werden mit «Verschrotten» endgültig aus dem Bestand genommen.</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {
           const oid = i.object_id as number;
-          const sel = selected.has(oid);
+          const sel = scanned.has(oid);
           return (
-            <label key={i.id} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer',
+            <div key={i.id} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               border: `1px solid ${sel ? '#fecaca' : '#f1f5f9'}`, borderRadius: 8,
               background: sel ? '#fef2f2' : '#fff',
             }}>
-              <input type="checkbox" checked={sel} onChange={() => toggle(oid)} />
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind, i.quantity, order.article_unit ?? undefined)}</span>
-              <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
-            </label>
+              {sel ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#dc2626' }}>
+                  <CheckCircle2 size={13} /> gescannt
+                </span>
+              ) : (
+                <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
+              )}
+              <button onClick={() => startScan(i)} title="Diese Instanz scannen"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>
+                <ScanLine size={15} />
+              </button>
+            </div>
           );
         })}
       </div>
@@ -138,15 +166,26 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      <button onClick={submit} disabled={saving || selected.size === 0}
-        style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-          minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff',
-          fontSize: 14, fontWeight: 700, cursor: saving || selected.size === 0 ? 'not-allowed' : 'pointer',
-          opacity: saving || selected.size === 0 ? 0.55 : 1,
-        }}>
-        <Trash2 size={18} /> {saving ? 'Verschrottet…' : `Verschrotten${selected.size ? ` (${selected.size})` : ''}`}
-      </button>
+      {scanned.size > 0 && (
+        <button onClick={submit} disabled={saving}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
+            minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff',
+            fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.55 : 1,
+          }}>
+          <Trash2 size={18} /> {saving ? 'Verschrottet…' : `Verschrotten (${scanned.size})`}
+        </button>
+      )}
+      {!allScanned && (
+        <button onClick={() => startScan()} disabled={saving}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
+            minHeight: 44, padding: '0 16px', borderRadius: 10, border: '1px solid #fecaca', background: '#fff', color: '#dc2626',
+            fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.55 : 1,
+          }}>
+          <ScanLine size={18} /> {scanned.size > 0 ? 'Weitere scannen' : 'Scannen & verschrotten'}
+        </button>
+      )}
     </div>
   );
 }

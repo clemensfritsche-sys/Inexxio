@@ -9,14 +9,14 @@ from sqlalchemy.orm import Query, Session
 from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
-    Movement, Order, PurchaseOrder, Sale, UserProfile,
+    InstanceOrderLink, Movement, Order, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
-from ..schemas.order import OrderResponse, OrderStepInfo, OrderSummary
+from ..schemas.order import OrderDeviationInfo, OrderResponse, OrderStepInfo, OrderSummary
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..schemas.sale import SaleEmbed
 from . import process
@@ -158,10 +158,36 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
+def _order_deviations(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], bool]:
+    """Die Abweichungs-Unteraufträge eines Auftrags (für die Sichtbarkeit im Eltern-Detail)
+    + ob der Auftrag deshalb pausiert. Leere Liste, wenn keine vorhanden."""
+    if not order.object_id:
+        return [], False
+    children = (
+        db.query(Order)
+        .filter(Order.parent_order_id == order.object_id, Order.is_active == True)
+        .order_by(Order.object_id)
+        .all()
+    )
+    infos: list[OrderDeviationInfo] = []
+    for c in children:
+        ids = [
+            row[0] for row in
+            db.query(InstanceOrderLink.instance_object_id)
+            .filter(InstanceOrderLink.order_id == c.id, InstanceOrderLink.is_active == True)
+            .all()
+        ]
+        infos.append(OrderDeviationInfo(
+            object_id=c.object_id, status=c.status, instance_count=len(ids),
+            instance_object_ids=ids, title=c.title))
+    return infos, process._is_paused_by_deviation(db, order)
+
+
 def to_order_response(db: Session, order: Order) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
     resp = OrderResponse.model_validate(order)
+    resp.deviations, resp.paused = _order_deviations(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()

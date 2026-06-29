@@ -1793,6 +1793,28 @@ export interface components {
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
         };
+        /**
+         * OrderDeviationInfo
+         * @description Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag.
+         */
+        OrderDeviationInfo: {
+            /** Object Id */
+            object_id: number;
+            /** Status */
+            status: string;
+            /**
+             * Instance Count
+             * @default 0
+             */
+            instance_count: number;
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
+            /** Title */
+            title?: string | null;
+        };
         /** OrderResponse */
         OrderResponse: {
             /** Id */
@@ -1890,6 +1912,16 @@ export interface components {
             parent_order_id?: number | null;
             /** Abort Into Id */
             abort_into_id?: number | null;
+            /**
+             * Deviations
+             * @default []
+             */
+            deviations: components["schemas"]["OrderDeviationInfo"][];
+            /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
         };
         /**
          * OrderStepInfo
