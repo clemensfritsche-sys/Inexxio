@@ -123,15 +123,24 @@ def deactivate_article(db: Session, article: Article, actor_id: int,
         Order.is_active == True, Order.status == "draft", Order.article_id.in_(ids)
     ).all():
         o.status = "inactive"
-    # Freigegebene Aufträge: abbrechen (sonst auslaufen lassen)
+    # Freigegebene Aufträge: abbrechen (sonst auslaufen lassen). Ein Abbruch erzwingt – wie
+    # das Auftrag-«Abbrechen» – einen **Folgeauftrag** für die im Prozess befindlichen Instanzen
+    # (keine herrenlosen/vernichteten Teile). Nur Aufträge OHNE aktive Instanzen werden direkt inaktiv.
     if orders_mode == "cancel":
+        from .deviation import create_abort_followup
+        from .subject import order_active_instances
         for o in db.query(Order).filter(
             Order.is_active == True, Order.status == "released", Order.article_id.in_(ids)
         ).all():
-            log_audit(db, "orders", "status", "inactive", actor_id,
-                      object_id=o.object_id, old_value=o.status)
-            o.status = "inactive"
-            cancel_order_effects(db, o, actor_id)
+            if o.abort_into_id:
+                continue                                  # bereits «Abbruch ausstehend»
+            if order_active_instances(db, o):
+                create_abort_followup(db, o, actor_id)    # Folgeauftrag übernimmt die Instanzen
+            else:
+                log_audit(db, "orders", "status", "inactive", actor_id,
+                          object_id=o.object_id, old_value=o.status)
+                o.status = "inactive"
+                cancel_order_effects(db, o, actor_id)
     emit(db, "article.deactivated", object_type="article", object_id=article.object_id,
          payload={"orders_mode": orders_mode, "affected": len(ids)}, actor_id=actor_id)
 

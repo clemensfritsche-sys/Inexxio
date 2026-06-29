@@ -116,11 +116,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isDeviation;
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
-  // «Abweichung melden»: nur bei realen, in-Arbeit/fertigen Instanzen (freigegeben/
-  // abgeschlossen) und nicht während eines laufenden Abbruchs.
+  // «Abweichung melden» auf **Auftragsebene**: nur am LAUFENDEN Auftrag (ein abgeschlossener
+  // Prozess ist durch) und nicht, während bereits eine Abweichung offen/ein Abbruch ausstehend
+  // ist (erst die offene klären). Eine spätere Reklamation eines fertigen Teils läuft über die
+  // Instanz (Instanz-Detail), nicht über den abgeschlossenen Auftrag.
   const canReportDeviation = isStaff && !isCreate && record != null
-    && (record.status === 'released' || record.status === 'completed')
-    && record.abort_into_id == null;
+    && record.status === 'released' && record.abort_into_id == null && !record.paused;
 
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.

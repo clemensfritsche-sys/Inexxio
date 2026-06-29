@@ -10,7 +10,6 @@ import {
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
 import type { StatusAction } from '@/lib/status-flow';
-import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -26,7 +25,13 @@ function articleActions(status: string, replaced: boolean, hasProcess: boolean):
   if (status === 'draft')
     return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !hasProcess,
       hint: hasProcess ? undefined : 'Erst im Reiter «Prozess» einen Schritt hinterlegen' }];
-  return lifecycleActions(status, { canReactivate: !replaced, canReplace: true });
+  // EIN «Deaktivieren»-Knopf – «Ersetzen» (Nachfolger anlegen) ist als Option in den Dialog
+  // gewandert (kein zweiter Knopf mehr). Inaktiv → Reaktivieren (sofern nicht ersetzt).
+  if (status === 'released')
+    return [{ label: 'Deaktivieren', target: 'inactive', tone: 'danger' }];
+  if (status === 'inactive' && !replaced)
+    return [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }];
+  return [];
 }
 
 type TabKey = 'stammdaten' | 'prozess' | 'bestand';
@@ -90,7 +95,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 }) {
   const isCreate = record === null;
   const [tab, setTab] = useState<TabKey>('stammdaten');
-  const [dialog, setDialog] = useState<'deactivate' | 'replace' | null>(null);
+  const [dialog, setDialog] = useState<'deactivate' | null>(null);
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
@@ -180,23 +185,19 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     }
   }
 
-  // Inaktiv/Ersetzen laufen über den Dialog (Wirkungsanalyse + Auftrags-Wahl).
+  // Deaktivieren läuft über den Dialog (Wirkungsanalyse + Auftrags-Wahl + optional Nachfolger).
   function onStatusAction(target: string) {
     if (target === 'inactive') { setDialog('deactivate'); return; }
-    if (target === 'replace') { setDialog('replace'); return; }
     changeStatus(target);   // Freigeben / Reaktivieren
   }
 
-  async function confirmDeactivate(ordersMode: OrdersMode) {
+  // EIN kombinierter Knopf: optional einen Nachfolger anlegen («Ersetzen») oder nur deaktivieren.
+  async function confirmDeactivate(ordersMode: OrdersMode, createSuccessor: boolean) {
     if (!record) return;
-    const updated = await api.deactivateArticle(record.object_id as number, ordersMode);
-    setDialog(null); onRefresh?.(); onSaved(updated);
-  }
-
-  async function confirmReplace(ordersMode: OrdersMode) {
-    if (!record) return;
-    const created = await api.replaceArticle(record.object_id as number, ordersMode);
-    setDialog(null); onRefresh?.(); onSaved(created);   // navigiert zum neuen Artikel
+    const result = createSuccessor
+      ? await api.replaceArticle(record.object_id as number, ordersMode)   // Nachfolger + inaktiv
+      : await api.deactivateArticle(record.object_id as number, ordersMode);
+    setDialog(null); onRefresh?.(); onSaved(result);   // bei Nachfolger: navigiert zum neuen Artikel
   }
 
   async function save() {
@@ -392,14 +393,12 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
       {dialog && record && (
         <DeactivateDialog
-          mode={dialog}
+          mode="deactivate"
           articleObjectId={record.object_id}
-          title={dialog === 'replace' ? 'Artikel ersetzen' : 'Artikel inaktiv setzen'}
-          message={dialog === 'replace'
-            ? 'Eine Kopie wird als Entwurf angelegt und verknüpft; dieser Artikel wird inaktiv.'
-            : undefined}
-          confirmLabel={dialog === 'replace' ? 'Ersetzen' : 'Inaktiv setzen'}
-          onConfirm={dialog === 'replace' ? confirmReplace : confirmDeactivate}
+          title="Artikel deaktivieren"
+          offerSuccessor
+          confirmLabel="Deaktivieren"
+          onConfirm={confirmDeactivate}
           onClose={() => setDialog(null)}
         />
       )}

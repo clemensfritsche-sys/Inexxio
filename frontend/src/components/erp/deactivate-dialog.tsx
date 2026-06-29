@@ -20,18 +20,20 @@ export function ReplacedBanner({ replacedBy, replaces }: { replacedBy: number | 
 
 // Dialog für «Inaktiv setzen» / «Ersetzen» – mit Wirkungsanalyse (nur Artikel) und
 // der einen Entscheidung «Auslaufen vs. Abbrechen», sobald laufende Aufträge betroffen sind.
-export function DeactivateDialog({ mode, articleObjectId, title, message, confirmLabel, onConfirm, onClose }: {
+export function DeactivateDialog({ mode, articleObjectId, title, message, confirmLabel, offerSuccessor, onConfirm, onClose }: {
   mode: 'deactivate' | 'replace';
   articleObjectId?: number | null;   // gesetzt ⇒ Wirkungsanalyse (Artikel) laden
   title: string;
   message?: string;
   confirmLabel: string;
-  onConfirm: (ordersMode: OrdersMode) => Promise<void>;
+  offerSuccessor?: boolean;          // gesetzt ⇒ optional einen Nachfolger anlegen («Ersetzen»)
+  onConfirm: (ordersMode: OrdersMode, createSuccessor: boolean) => Promise<void>;
   onClose: () => void;
 }) {
   const [impact, setImpact] = useState<DeactivationImpact | null>(null);
   const [loading, setLoading] = useState(articleObjectId != null);
   const [ordersMode, setOrdersMode] = useState<OrdersMode>('phase_out');
+  const [successor, setSuccessor] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +51,7 @@ export function DeactivateDialog({ mode, articleObjectId, title, message, confir
   async function confirm() {
     setBusy(true); setError(null);
     try {
-      await onConfirm(ordersMode);
+      await onConfirm(ordersMode, successor);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler');
       setBusy(false);
@@ -88,7 +90,17 @@ export function DeactivateDialog({ mode, articleObjectId, title, message, confir
             <ModeOption active={ordersMode === 'phase_out'} onClick={() => setOrdersMode('phase_out')}
               title="Auslaufen lassen (empfohlen)" desc="Laufende Aufträge dürfen normal fertig werden." />
             <ModeOption active={ordersMode === 'cancel'} onClick={() => setOrdersMode('cancel')}
-              title="Abbrechen" desc="Aufträge abbrechen: Reservierungen frei, unfertige Instanzen verworfen." />
+              title="Abbrechen (Folgeauftrag)" desc="Freigegebene Aufträge werden abgebrochen – ihre Instanzen gehen in einen Folgeauftrag (keine herrenlosen Teile)." />
+          </div>
+        )}
+
+        {offerSuccessor && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>Nachfolger:</span>
+            <ModeOption active={!successor} onClick={() => setSuccessor(false)}
+              title="Nur deaktivieren" desc="Der Artikel wird ausser Betrieb genommen – kein Nachfolger." />
+            <ModeOption active={successor} onClick={() => setSuccessor(true)}
+              title="Nachfolger anlegen (Ersatz)" desc="Eine Kopie wird als Entwurf angelegt und verknüpft – die neue Version ersetzt diesen Artikel." />
           </div>
         )}
 
@@ -98,7 +110,7 @@ export function DeactivateDialog({ mode, articleObjectId, title, message, confir
           <button onClick={onClose} disabled={busy} style={btnGhost}>Abbrechen</button>
           <button onClick={confirm} disabled={busy || loading}
             style={{ ...btnPrimary, background: mode === 'replace' ? '#2563eb' : '#dc2626' }}>
-            {busy ? '…' : confirmLabel}
+            {busy ? '…' : offerSuccessor ? (successor ? 'Deaktivieren & Nachfolger anlegen' : 'Deaktivieren') : confirmLabel}
           </button>
         </div>
       </div>
