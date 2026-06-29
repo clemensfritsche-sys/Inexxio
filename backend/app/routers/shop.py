@@ -85,8 +85,9 @@ async def checkout(
         Article.object_id == data.article_object_id, Article.is_active == True).first()
     if not article:
         raise HTTPException(404, detail="Produkt nicht gefunden")
-    cur = sales_svc.resolve_currency(db, data.currency, getattr(user, "ship_country", None))
-    order, sale, url, prov = sales_svc.checkout(db, article, data.quantity, cur, user)
+    # Währung wird NICHT mehr gewählt: Stripe Adaptive Pricing zeigt dem Kunden seine
+    # Lokalwährung an der Kasse. Basis ist immer CHF.
+    order, sale, url, prov = sales_svc.checkout(db, article, data.quantity, "CHF", user)
     return ShopCheckoutResult(
         order_object_id=order.object_id, sale_token=str(order.object_id),
         provider=prov, payment_url=url,
@@ -131,17 +132,59 @@ async def payment_status(token: str, db: Session = Depends(get_db),
 @router.post("/payments/simulate")
 async def simulate_payment(data: PaymentSimulate, db: Session = Depends(get_db),
                            user: UserProfile = Depends(get_current_user)):
-    """Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests/Überbrückung)."""
+    """Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests ohne Stripe-Keys)."""
+    if provider_name(db) != "manual":
+        raise HTTPException(400, detail="Simulation nur im manuellen Modus – mit Stripe über die echte Kasse bezahlen.")
     _resolve_owned_sale(db, data.sale_token, user)   # Ownership prüfen
     provider = get_provider(db)
-    sale = provider.handle_event(db, {"sale_token": data.sale_token, "result": data.result})
+    sale = provider.handle_webhook(db, b"", None, {"sale_token": data.sale_token, "result": data.result})
     return {"status": sale.status if sale else "unknown"}
+
+
+@router.get("/session/{session_id}")
+async def session_status(session_id: str, db: Session = Depends(get_db),
+                         user: UserProfile = Depends(get_current_user)):
+    """Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).
+
+    Der Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der
+    Status noch ``requested`` sein («wird verarbeitet»)."""
+    order = db.query(Order).filter(Order.stripe_checkout_session_id == session_id).first()
+    if not order:
+        raise HTTPException(404, detail="Bestellung nicht gefunden")
+    sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
+    if user.role not in ("admin", "employee") and (not sale or sale.customer_id != user.id):
+        raise HTTPException(403, detail="Keine Berechtigung")
+    return {
+        "order_object_id": order.object_id,
+        "status": sale.status if sale else "requested",
+        "paid": bool(sale and sale.status == "paid"),
+    }
+
+
+@router.post("/portal")
+async def customer_portal(request: Request, db: Session = Depends(get_db),
+                          user: UserProfile = Depends(get_current_user)):
+    """Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten). Liefert die Portal-URL."""
+    from ..core.config import get_settings
+    provider = get_provider(db)
+    return_url = f"{get_settings().frontend_base_url.rstrip('/')}/konto"
+    url = provider.create_portal_session(db, user, return_url)
+    if not url:
+        raise HTTPException(400, detail="Kundenportal ist im aktuellen Zahlungsmodus nicht verfügbar.")
+    return {"url": url}
 
 
 @router.post("/payments/webhook")
 async def payment_webhook(request: Request, db: Session = Depends(get_db)):
-    """Provider-Webhook (Stripe, später). Beim manuellen Provider ungenutzt."""
+    """Provider-Webhook (Stripe: signaturgeprüft). Verarbeitet Zahlung/Abo-Ereignisse."""
     provider = get_provider(db)
-    payload = await request.json()
-    sale = provider.handle_event(db, payload)
+    raw = await request.body()
+    sig = request.headers.get("stripe-signature")
+    payload = None
+    if provider_name(db) == "manual":
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = None
+    sale = provider.handle_webhook(db, raw, sig, payload)
     return {"status": sale.status if sale else "ok"}

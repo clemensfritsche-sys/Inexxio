@@ -88,14 +88,57 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
     process.recompute_completion(db, order)
 
 
-def mark_paid(db: Session, sale: Sale) -> Sale:
-    """Zahlungseingang (vom Zahlungs-Provider) – den Beleg-Fluss durchlaufen und den
-    Verkauf auf ``paid`` setzen. Idempotent: ein bereits bezahlter Verkauf bleibt so.
+def _release_on_payment(db: Session, order: Order, actor_id: int | None) -> None:
+    """Auftrag bei bestätigter Zahlung freigeben (Defer-Modell: erst zahlen, dann erfüllen).
 
-    Im Shop-Fluss überspringt die Zahlung die manuellen Zwischenschritte (Bestätigung/
-    Rechnung); deren Zeitstempel werden zur Beleg-Vollständigkeit nachgezogen."""
+    make → erzeugt jetzt die Instanzen; stock → war bereits bei der Bestellung reserviert
+    (dann ist der Auftrag schon ``released`` und dies ist ein No-op). Idempotent."""
+    if order.status != "draft":
+        return
+    from .events import emit as _emit
+    from .resource import reserve_resources
+    from .subject import materialize_subject
+    order.status = "released"
+    if order.released_at is None:
+        order.released_at = utcnow()
+    materialize_subject(db, order, actor_id)
+    reserve_resources(db, order, actor_id)
+    _emit(db, "order.released", object_type="order", object_id=order.object_id,
+          payload={"article_id": order.article_id, "quantity": order.quantity, "via": "payment"},
+          actor_id=actor_id)
+
+
+def _apply_stripe_snapshot(sale: Sale, snap: dict) -> None:
+    """Real bezahlten Betrag/Währung/Steuer (Stripe) auf den Beleg einfrieren."""
+    settlement = snap.get("settlement") or {}
+    cur = (settlement.get("currency") or sale.currency or "CHF").upper()
+    total = Decimal(str(settlement.get("total") or 0))      # brutto (inkl. Steuer)
+    tax = Decimal(str(settlement.get("tax") or 0))
+    net = total - tax
+    sale.currency = cur
+    sale.order_total = net.quantize(Decimal("0.01"))        # netto im Settlement (CHF)
+    if net > 0:
+        sale.vat_rate = (tax / net * Decimal("100")).quantize(Decimal("0.01"))
+    sale.stripe_payment_intent_id = snap.get("payment_intent")
+    sale.stripe_snapshot = snap
+
+
+def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None) -> Sale:
+    """Zahlungseingang verarbeiten: Auftrag freigeben (falls noch Entwurf), Snapshot
+    einfrieren und den Verkauf auf ``paid`` setzen. Idempotent (Webhooks treffen mehrfach).
+
+    ``stripe`` (optional): real bezahlte Beträge von Stripe (sonst gilt die eigene CHF-Pipeline,
+    deren Snapshot bei der Bestellung gesetzt wurde)."""
     if sale.status == "paid":
         return sale
+    order = db.query(Order).filter(Order.id == sale.order_id).first()
+    actor_id = sale.customer_id
+    if order:
+        _release_on_payment(db, order, actor_id)
+        if stripe and stripe.get("subscription") and not order.stripe_subscription_id:
+            order.stripe_subscription_id = stripe["subscription"]
+    if stripe:
+        _apply_stripe_snapshot(sale, stripe)
     now = utcnow()
     if sale.confirmed_at is None:
         sale.confirmed_at = now
@@ -103,7 +146,6 @@ def mark_paid(db: Session, sale: Sale) -> Sale:
         sale.invoiced_at = now
     sale.paid_at = now
     sale.status = "paid"
-    order = db.query(Order).filter(Order.id == sale.order_id).first()
     oid = order.object_id if order else None
     log_audit(db, "sales", "status", "paid", None, object_id=oid)
     emit(db, "sale.paid", object_type="order", object_id=oid)
@@ -112,6 +154,11 @@ def mark_paid(db: Session, sale: Sale) -> Sale:
     db.commit()
     db.refresh(sale)
     return sale
+
+
+def mark_paid(db: Session, sale: Sale) -> Sale:
+    """Kompatibilität: Zahlungseingang ohne externen Snapshot (eigene CHF-Pipeline)."""
+    return finalize_paid(db, sale, stripe=None)
 
 
 def mark_cancelled(db: Session, sale: Sale) -> Sale:

@@ -46,6 +46,11 @@ class Order(Base, TimestampMixin):
     #   'stock'  → FIFO ab Lager
     subject_source: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
+    # Stripe-Bezüge (Quelle der Wahrheit für Zahlung/Abo): die Checkout-Session, über die
+    # bezahlt wurde, und – bei Abos – die Stripe-Subscription (Status wird gespiegelt).
+    stripe_checkout_session_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)
+
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

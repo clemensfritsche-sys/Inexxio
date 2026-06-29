@@ -1081,9 +1081,52 @@ export interface paths {
         put?: never;
         /**
          * Simulate Payment
-         * @description Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests/Überbrückung).
+         * @description Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests ohne Stripe-Keys).
          */
         post: operations["simulate_payment_api_v1_shop_payments_simulate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shop/session/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session Status
+         * @description Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).
+         *
+         *     Der Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der
+         *     Status noch ``requested`` sein («wird verarbeitet»).
+         */
+        get: operations["session_status_api_v1_shop_session__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shop/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Customer Portal
+         * @description Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten). Liefert die Portal-URL.
+         */
+        post: operations["customer_portal_api_v1_shop_portal_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1101,7 +1144,7 @@ export interface paths {
         put?: never;
         /**
          * Payment Webhook
-         * @description Provider-Webhook (Stripe, später). Beim manuellen Provider ungenutzt.
+         * @description Provider-Webhook (Stripe: signaturgeprüft). Verarbeitet Zahlung/Abo-Ereignisse.
          */
         post: operations["payment_webhook_api_v1_shop_payments_webhook_post"];
         delete?: never;
@@ -5604,6 +5647,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_status_api_v1_shop_session__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    customer_portal_api_v1_shop_portal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

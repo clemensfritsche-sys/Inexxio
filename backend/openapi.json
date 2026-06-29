@@ -3720,7 +3720,7 @@
           "shop"
         ],
         "summary": "Simulate Payment",
-        "description": "Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests/Überbrückung).",
+        "description": "Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests ohne Stripe-Keys).",
         "operationId": "simulate_payment_api_v1_shop_payments_simulate_post",
         "requestBody": {
           "content": {
@@ -3759,13 +3759,84 @@
         ]
       }
     },
+    "/api/v1/shop/session/{session_id}": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Session Status",
+        "description": "Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).\n\nDer Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der\nStatus noch ``requested`` sein («wird verarbeitet»).",
+        "operationId": "session_status_api_v1_shop_session__session_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/shop/portal": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Customer Portal",
+        "description": "Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten). Liefert die Portal-URL.",
+        "operationId": "customer_portal_api_v1_shop_portal_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/shop/payments/webhook": {
       "post": {
         "tags": [
           "shop"
         ],
         "summary": "Payment Webhook",
-        "description": "Provider-Webhook (Stripe, später). Beim manuellen Provider ungenutzt.",
+        "description": "Provider-Webhook (Stripe: signaturgeprüft). Verarbeitet Zahlung/Abo-Ereignisse.",
         "operationId": "payment_webhook_api_v1_shop_payments_webhook_post",
         "responses": {
           "200": {

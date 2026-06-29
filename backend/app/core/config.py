@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     payments_provider: str = "manual"
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    # Stripe Tax: Default-Steuercode (physische Güter). Pro Artikel überschreibbar (später).
+    stripe_default_tax_code: str = "txcd_99999999"   # General - Tangible Goods
+    # Preisauszeichnung: Basispreise sind brutto (inkl. MWST). Bei False: netto (MWST oben drauf).
+    prices_tax_inclusive: bool = True
+    # Länder, in die wir liefern (Stripe Checkout shipping_address_collection). Komma-Liste.
+    shop_ship_countries: str = "CH,LI,DE,AT,FR,IT,NL,BE,LU,ES,PT,SE,DK,FI,IE,PL,US"
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
     fx_source_url: str = "https://api.exchangerate.host/latest"

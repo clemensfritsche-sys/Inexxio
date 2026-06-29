@@ -141,6 +141,12 @@ _COLUMN_SAFETY_NET = (
     ("orders", "subject_source", "VARCHAR(10)"),
     ("article_prices", "pinned", "JSONB"),
     ("company_settings", "pricing_zone_factors", "JSONB"),
+    # Stripe-Integration: Customer-/Session-/Subscription-/PaymentIntent-Bezüge + Snapshot
+    ("user_profiles", "stripe_customer_id", "VARCHAR(64)"),
+    ("orders", "stripe_checkout_session_id", "VARCHAR(80)"),
+    ("orders", "stripe_subscription_id", "VARCHAR(80)"),
+    ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
+    ("sales", "stripe_snapshot", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
