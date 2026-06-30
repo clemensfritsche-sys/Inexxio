@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Package, ShoppingBag } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ShopProduct } from '@/types';
 
@@ -22,10 +22,7 @@ export default function ShopPage() {
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <ShoppingBag className="text-blue-600" size={26} />
-          <h1 className="text-2xl font-bold text-slate-900">Shop</h1>
-        </div>
+        <h1 className="text-2xl font-bold text-slate-900">Produkte</h1>
         <p className="text-xs text-slate-400 max-w-xs text-right">
           Preise in CHF. Deine Landeswährung &amp; die Steuer werden an der Kasse automatisch berechnet.
         </p>

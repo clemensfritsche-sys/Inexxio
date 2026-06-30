@@ -4,6 +4,7 @@ from .user import UserProfile
 from .article import Article
 from .article_price import ArticlePrice
 from .article_sales_audience import ArticleSalesAudience
+from .checkout_intent import CheckoutIntent
 from .article_process_step import ArticleProcessStep
 from .fx_rate import FxRate
 from .order import Order
@@ -23,7 +24,7 @@ from .object_ref import ObjectRef
 
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
-    "ArticlePrice", "ArticleSalesAudience", "FxRate",
+    "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage", "StorageLocation",
     "AuditLog", "Event", "Notification", "ObjectRef",

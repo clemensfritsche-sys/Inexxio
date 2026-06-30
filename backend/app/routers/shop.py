@@ -1,4 +1,4 @@
-"""Öffentlicher Shop (Kunde): Produkt-Listing/-Detail, Checkout, Zahlung.
+"""Öffentlicher Shop (Kunde): Produkt-Listing/-Detail, Warenkorb-Checkout, Zahlung.
 
 Listing/Detail sind öffentlich (eingeloggte Kunden sehen zusätzlich ihre privaten
 Produkte). Checkout/Zahlung erfordern Login (kein Gast-Checkout).
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, get_optional_user
 from ..core.database import get_db
-from ..models import Article, CompanySettings, Order, Sale, UserProfile
+from ..models import Article, CheckoutIntent, CompanySettings, UserProfile
 from ..schemas.shop import (
     PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct,
 )
@@ -31,11 +31,14 @@ def _lang(request: Request, lang: str | None) -> str:
 
 @router.get("/config")
 async def shop_config(db: Session = Depends(get_db)):
-    """Öffentliche Shop-Konfiguration für den Frontend-Währungsumschalter."""
+    """Öffentliche Shop-Konfiguration: Währungen, Zahlungs-Provider und – für die
+    eingebettete Stripe-Kasse – der **Publishable Key** (öffentlich, kein Secret)."""
     s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
     return {
         "currencies": sales_svc.shop_currencies(db),
         "default_currency": (s.shop_default_currency if s else None) or "CHF",
+        "provider": provider_name(db),
+        "stripe_publishable_key": (s.stripe_publishable_key if s else None) or None,
     }
 
 
@@ -81,51 +84,51 @@ async def checkout(
     # Kunde (Firebase Magic Link) ist immer der Käufer.
     user: UserProfile = Depends(get_current_user),
 ):
-    article = db.query(Article).filter(
-        Article.object_id == data.article_object_id, Article.is_active == True).first()
-    if not article:
-        raise HTTPException(404, detail="Produkt nicht gefunden")
-    # Währung wird NICHT mehr gewählt: Stripe Adaptive Pricing zeigt dem Kunden seine
-    # Lokalwährung an der Kasse. Basis ist immer CHF.
-    order, sale, url, prov = sales_svc.checkout(db, article, data.quantity, "CHF", user)
+    intent, result = sales_svc.checkout(db, data.items, user)
     return ShopCheckoutResult(
-        order_object_id=order.object_id, sale_token=str(order.object_id),
-        provider=prov, payment_url=url,
+        token=str(intent.id),
+        provider=result.get("provider") or provider_name(db),
+        session_id=result.get("session_id"),
+        client_secret=result.get("client_secret"),
+        payment_url=result.get("payment_url"),
     )
 
 
-def _resolve_owned_sale(db: Session, token: str, user: UserProfile) -> tuple[Order, Sale]:
+def _resolve_owned_intent(db: Session, token: str, user: UserProfile) -> CheckoutIntent:
     try:
-        oid = int(token)
+        iid = int(token)
     except (TypeError, ValueError):
         raise HTTPException(400, detail="Ungültiges Zahlungs-Token")
-    order = db.query(Order).filter(Order.object_id == oid, Order.is_active == True).first()
-    sale = (db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-            if order else None)
-    if not order or not sale:
-        raise HTTPException(404, detail="Zahlung nicht gefunden")
-    if user.role not in ("admin", "employee") and sale.customer_id != user.id:
+    intent = db.query(CheckoutIntent).filter(
+        CheckoutIntent.id == iid, CheckoutIntent.is_active == True).first()
+    if not intent:
+        raise HTTPException(404, detail="Checkout nicht gefunden")
+    if user.role not in ("admin", "employee") and intent.customer_id != user.id:
         raise HTTPException(403, detail="Keine Berechtigung für diese Zahlung")
-    return order, sale
+    return intent
+
+
+def _intent_orders(intent: CheckoutIntent) -> list[int]:
+    return [l.get("order_id") for l in (intent.lines or []) if l.get("order_id")]
 
 
 @router.get("/payment/{token}")
 async def payment_status(token: str, db: Session = Depends(get_db),
                          user: UserProfile = Depends(get_current_user)):
-    """Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite)."""
-    order, sale = _resolve_owned_sale(db, token, user)
-    net = Decimal(sale.order_total or 0)
-    vat = Decimal(sale.vat_rate or 0)
-    gross = (net * (Decimal("1") + vat / Decimal("100"))).quantize(Decimal("0.01"))
+    """Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite). Token = Intent-id."""
+    intent = _resolve_owned_intent(db, token, user)
+    gross = Decimal(intent.amount_chf or 0)   # Basis ist brutto (inkl. MWST)
     return {
-        "order_object_id": order.object_id,
-        "status": sale.status,
-        "currency": sale.currency,
-        "net_total": net,
-        "vat_rate": vat,
+        "order_object_id": (_intent_orders(intent) or [None])[0],
+        "order_object_ids": _intent_orders(intent),
+        "status": "paid" if intent.status == "completed" else (
+            "cancelled" if intent.status == "cancelled" else "requested"),
+        "currency": "CHF",
+        "net_total": gross,
+        "vat_rate": Decimal("0"),
         "gross_total": gross,
         "provider": provider_name(db),
-        "paid": sale.status == "paid",
+        "paid": intent.status == "completed",
     }
 
 
@@ -135,29 +138,31 @@ async def simulate_payment(data: PaymentSimulate, db: Session = Depends(get_db),
     """Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests ohne Stripe-Keys)."""
     if provider_name(db) != "manual":
         raise HTTPException(400, detail="Simulation nur im manuellen Modus – mit Stripe über die echte Kasse bezahlen.")
-    _resolve_owned_sale(db, data.sale_token, user)   # Ownership prüfen
+    _resolve_owned_intent(db, data.sale_token, user)   # Ownership prüfen
     provider = get_provider(db)
-    sale = provider.handle_webhook(db, b"", None, {"sale_token": data.sale_token, "result": data.result})
-    return {"status": sale.status if sale else "unknown"}
+    intent = provider.handle_webhook(db, b"", None, {"sale_token": data.sale_token, "result": data.result})
+    return {"status": "paid" if (intent and intent.status == "completed") else (
+        "cancelled" if (intent and intent.status == "cancelled") else "unknown")}
 
 
 @router.get("/session/{session_id}")
 async def session_status(session_id: str, db: Session = Depends(get_db),
                          user: UserProfile = Depends(get_current_user)):
-    """Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).
-
-    Der Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der
-    Status noch ``requested`` sein («wird verarbeitet»)."""
-    order = db.query(Order).filter(Order.stripe_checkout_session_id == session_id).first()
-    if not order:
+    """Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/
+    finalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch
+    ``pending`` sein («wird verarbeitet»)."""
+    intent = db.query(CheckoutIntent).filter(
+        CheckoutIntent.stripe_session_id == session_id).first()
+    if not intent:
         raise HTTPException(404, detail="Bestellung nicht gefunden")
-    sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-    if user.role not in ("admin", "employee") and (not sale or sale.customer_id != user.id):
+    if user.role not in ("admin", "employee") and intent.customer_id != user.id:
         raise HTTPException(403, detail="Keine Berechtigung")
+    orders = _intent_orders(intent)
     return {
-        "order_object_id": order.object_id,
-        "status": sale.status if sale else "requested",
-        "paid": bool(sale and sale.status == "paid"),
+        "order_object_id": (orders or [None])[0],
+        "order_object_ids": orders,
+        "status": "paid" if intent.status == "completed" else "requested",
+        "paid": intent.status == "completed",
     }
 
 
@@ -186,5 +191,5 @@ async def payment_webhook(request: Request, db: Session = Depends(get_db)):
             payload = await request.json()
         except Exception:
             payload = None
-    sale = provider.handle_webhook(db, raw, sig, payload)
-    return {"status": sale.status if sale else "ok"}
+    intent = provider.handle_webhook(db, raw, sig, payload)
+    return {"status": intent.status if intent else "ok"}

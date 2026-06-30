@@ -1,4 +1,4 @@
-"""Schemas für den öffentlichen Shop (Kunde): Produkt-Listing/-Detail, Checkout,
+"""Schemas für den öffentlichen Shop (Kunde): Produkt-Listing/-Detail, Warenkorb-Checkout,
 Zahlungs-Simulation."""
 
 from typing import Optional
@@ -8,8 +8,19 @@ from pydantic import BaseModel, field_validator
 from .sales import PriceView
 
 
+class ShopPriceOption(BaseModel):
+    """Eine **wählbare Preis-Option** eines Produkts (mehrere je Artikel möglich):
+    Einmalkauf, Nutzungsabo, Produktabo … – der Kunde wählt eine im Shop."""
+    price_id: int
+    kind: str = "one_time"               # one_time | subscription
+    interval: Optional[str] = None       # month | year (nur Abo)
+    sub_type: Optional[str] = None       # usage | product (nur Abo)
+    is_primary: bool = False
+    view: PriceView
+
+
 class ShopProduct(BaseModel):
-    """Ein publiziertes Produkt im Shop (lokalisierter Inhalt + berechneter Preis)."""
+    """Ein publiziertes Produkt im Shop (lokalisierter Inhalt + Preis-Optionen)."""
     object_id: int
     title: str
     subtitle: Optional[str] = None
@@ -18,13 +29,16 @@ class ShopProduct(BaseModel):
     visibility: str = "public"
     fulfillment: str = "make"   # make = auf Bestellung gefertigt | stock = ab Lager
     unit: Optional[str] = None
+    # Hauptpreis (für die Listing-Kachel) + alle wählbaren Optionen (Detail/Warenkorb).
     price: Optional[PriceView] = None
+    prices: list[ShopPriceOption] = []
 
 
-class ShopCheckout(BaseModel):
+class ShopCheckoutItem(BaseModel):
+    """Eine Warenkorb-Position: konkretes Produkt + gewählte Preis-Option + Menge."""
     article_object_id: int
+    price_id: Optional[int] = None       # gewählte Option; None = Hauptpreis
     quantity: int = 1
-    currency: str = "CHF"
 
     @field_validator("quantity")
     @classmethod
@@ -34,11 +48,27 @@ class ShopCheckout(BaseModel):
         return v
 
 
+class ShopCheckout(BaseModel):
+    """Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session."""
+    items: list[ShopCheckoutItem]
+
+    @field_validator("items")
+    @classmethod
+    def _items_nonempty(cls, v: list) -> list:
+        if not v:
+            raise ValueError("Der Warenkorb ist leer")
+        return v
+
+
 class ShopCheckoutResult(BaseModel):
-    order_object_id: int
-    sale_token: str
+    """Ergebnis des Checkouts. Embedded (Stripe): ``client_secret`` + ``session_id``
+    füllen das eingebettete Kassen-Widget. Manual (Fallback): ``payment_url`` (Redirect
+    auf die interne Test-Seite). ``token`` referenziert den CheckoutIntent."""
+    token: str
     provider: str
-    payment_url: str
+    session_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    payment_url: Optional[str] = None
 
 
 class PaymentSimulate(BaseModel):

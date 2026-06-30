@@ -3423,7 +3423,7 @@
           "shop"
         ],
         "summary": "Shop Config",
-        "description": "Öffentliche Shop-Konfiguration für den Frontend-Währungsumschalter.",
+        "description": "Öffentliche Shop-Konfiguration: Währungen, Zahlungs-Provider und – für die\neingebettete Stripe-Kasse – der **Publishable Key** (öffentlich, kein Secret).",
         "operationId": "shop_config_api_v1_shop_config_get",
         "responses": {
           "200": {
@@ -3674,7 +3674,7 @@
           "shop"
         ],
         "summary": "Payment Status",
-        "description": "Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite).",
+        "description": "Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite). Token = Intent-id.",
         "operationId": "payment_status_api_v1_shop_payment__token__get",
         "security": [
           {
@@ -3765,7 +3765,7 @@
           "shop"
         ],
         "summary": "Session Status",
-        "description": "Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).\n\nDer Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der\nStatus noch ``requested`` sein («wird verarbeitet»).",
+        "description": "Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/\nfinalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch\n``pending`` sein («wird verarbeitet»).",
         "operationId": "session_status_api_v1_shop_session__session_id__get",
         "security": [
           {
@@ -4122,6 +4122,17 @@
             ],
             "title": "Interval"
           },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
           "amount_chf": {
             "anyOf": [
               {
@@ -4146,11 +4157,6 @@
               }
             ],
             "title": "Compare At Chf"
-          },
-          "tax_class": {
-            "type": "string",
-            "title": "Tax Class",
-            "default": "standard"
           },
           "is_primary": {
             "type": "boolean",
@@ -4189,6 +4195,17 @@
             ],
             "title": "Interval"
           },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
           "amount_chf": {
             "type": "string",
             "title": "Amount Chf"
@@ -4203,10 +4220,6 @@
               }
             ],
             "title": "Compare At Chf"
-          },
-          "tax_class": {
-            "type": "string",
-            "title": "Tax Class"
           },
           "is_primary": {
             "type": "boolean",
@@ -4223,7 +4236,6 @@
           "article_id",
           "kind",
           "amount_chf",
-          "tax_class",
           "is_primary",
           "is_active"
         ],
@@ -4253,6 +4265,17 @@
             ],
             "title": "Interval"
           },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
           "amount_chf": {
             "anyOf": [
               {
@@ -4280,17 +4303,6 @@
               }
             ],
             "title": "Compare At Chf"
-          },
-          "tax_class": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tax Class"
           },
           "is_primary": {
             "anyOf": [
@@ -8249,6 +8261,17 @@
             ],
             "title": "Interval"
           },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
           "net": {
             "type": "string",
             "title": "Net"
@@ -9297,54 +9320,152 @@
       },
       "ShopCheckout": {
         "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ShopCheckoutItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ShopCheckout",
+        "description": "Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session."
+      },
+      "ShopCheckoutItem": {
+        "properties": {
           "article_object_id": {
             "type": "integer",
             "title": "Article Object Id"
+          },
+          "price_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Id"
           },
           "quantity": {
             "type": "integer",
             "title": "Quantity",
             "default": 1
-          },
-          "currency": {
-            "type": "string",
-            "title": "Currency",
-            "default": "CHF"
           }
         },
         "type": "object",
         "required": [
           "article_object_id"
         ],
-        "title": "ShopCheckout"
+        "title": "ShopCheckoutItem",
+        "description": "Eine Warenkorb-Position: konkretes Produkt + gewählte Preis-Option + Menge."
       },
       "ShopCheckoutResult": {
         "properties": {
-          "order_object_id": {
-            "type": "integer",
-            "title": "Order Object Id"
-          },
-          "sale_token": {
+          "token": {
             "type": "string",
-            "title": "Sale Token"
+            "title": "Token"
           },
           "provider": {
             "type": "string",
             "title": "Provider"
           },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
           "payment_url": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Payment Url"
           }
         },
         "type": "object",
         "required": [
-          "order_object_id",
-          "sale_token",
-          "provider",
-          "payment_url"
+          "token",
+          "provider"
         ],
-        "title": "ShopCheckoutResult"
+        "title": "ShopCheckoutResult",
+        "description": "Ergebnis des Checkouts. Embedded (Stripe): ``client_secret`` + ``session_id``\nfüllen das eingebettete Kassen-Widget. Manual (Fallback): ``payment_url`` (Redirect\nauf die interne Test-Seite). ``token`` referenziert den CheckoutIntent."
+      },
+      "ShopPriceOption": {
+        "properties": {
+          "price_id": {
+            "type": "integer",
+            "title": "Price Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "one_time"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": false
+          },
+          "view": {
+            "$ref": "#/components/schemas/PriceView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "price_id",
+          "view"
+        ],
+        "title": "ShopPriceOption",
+        "description": "Eine **wählbare Preis-Option** eines Produkts (mehrere je Artikel möglich):\nEinmalkauf, Nutzungsabo, Produktabo … – der Kunde wählt eine im Shop."
       },
       "ShopProduct": {
         "properties": {
@@ -9416,6 +9537,14 @@
                 "type": "null"
               }
             ]
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/ShopPriceOption"
+            },
+            "type": "array",
+            "title": "Prices",
+            "default": []
           }
         },
         "type": "object",
@@ -9424,7 +9553,7 @@
           "title"
         ],
         "title": "ShopProduct",
-        "description": "Ein publiziertes Produkt im Shop (lokalisierter Inhalt + berechneter Preis)."
+        "description": "Ein publiziertes Produkt im Shop (lokalisierter Inhalt + Preis-Optionen)."
       },
       "StepReorder": {
         "properties": {

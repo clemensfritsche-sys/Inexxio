@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { CheckCircle2, Loader2, Settings } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 import type { SaleStatus } from '@/types';
 
 function SuccessView() {
   const search = useSearchParams();
   const sessionId = search.get('session_id') || '';
   const { user, loading: authLoading } = useAuth();
+  const { clear } = useCart();
   const [status, setStatus] = useState<SaleStatus | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
   const [tries, setTries] = useState(0);
@@ -21,18 +23,18 @@ function SuccessView() {
     try {
       const s = await api.getCheckoutSession(sessionId);
       setStatus(s.status);
-      setOrderId(s.order_object_id);
+      setOrderId(s.order_object_id ?? (s.order_object_ids?.[0] ?? null));
     } catch { /* still processing */ }
   }, [sessionId]);
 
   // Der Webhook setzt den Status asynchron – kurz nachpollen, bis «paid».
   useEffect(() => {
     if (authLoading || !user || !sessionId) return;
-    if (status === 'paid') return;
+    if (status === 'paid') { clear(); return; }   // bezahlt → Warenkorb leeren
     if (tries > 10) return;
     const t = setTimeout(() => { load(); setTries((n) => n + 1); }, tries === 0 ? 0 : 1500);
     return () => clearTimeout(t);
-  }, [authLoading, user, sessionId, status, tries, load]);
+  }, [authLoading, user, sessionId, status, tries, load, clear]);
 
   async function openPortal() {
     setPortalBusy(true);

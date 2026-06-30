@@ -211,16 +211,17 @@ export interface SaleUpdateInput {
 // ─── Verkauf / Shop ────────────────────────────────────────────────────────────
 // Der Verkauf lebt AM ARTIKEL (dritte, lebende Ebene) – kein eigenes Objekt.
 
-export type SalesVisibility = 'public' | 'private' | 'unlisted';
+export type SalesVisibility = 'public' | 'private';
 export type SalesFulfillment = 'make' | 'stock';
 export type PriceKind = 'one_time' | 'subscription';
 export type PriceInterval = 'month' | 'year';
-export type TaxClass = 'standard' | 'reduced' | 'lodging' | 'zero';
+export type PriceSubType = 'usage' | 'product';   // Nutzungsabo | Produktabo
 
 export type PriceView = components['schemas']['PriceView'];
 export type ArticlePrice = components['schemas']['ArticlePriceResponse'];
 export type AudienceMember = components['schemas']['AudienceMember'];
 export type ShopProduct = components['schemas']['ShopProduct'];
+export type ShopPriceOption = components['schemas']['ShopPriceOption'];
 export type ShopCheckoutResult = components['schemas']['ShopCheckoutResult'];
 
 // Lokalisierter Verkaufs-Inhalt (de/en) – Titel/Untertitel/Beschreibung/Bilder.
@@ -252,10 +253,26 @@ export interface ArticleSalesUpdateInput {
 export interface ArticlePriceInput {
   kind: PriceKind;
   interval?: PriceInterval | null;
+  sub_type?: PriceSubType | null;
   amount_chf: number | string;
   compare_at_chf?: number | string | null;
-  tax_class: TaxClass;
   is_primary?: boolean;
+}
+
+// Warenkorb-Position (lokaler State) – konkretes Produkt + gewählte Preis-Option.
+export interface CartItem {
+  article_object_id: number;
+  price_id: number;
+  quantity: number;
+  title: string;
+  unit?: string | null;
+  fulfillment: SalesFulfillment;
+  kind: PriceKind;
+  interval?: PriceInterval | null;
+  sub_type?: PriceSubType | null;
+  currency: string;
+  gross: number;          // Stück-Bruttopreis (indikativ, CHF)
+  image?: string | null;
 }
 
 export type ArticlePriceUpdateInput = Partial<ArticlePriceInput> & { is_active?: boolean };
@@ -263,10 +280,13 @@ export type ArticlePriceUpdateInput = Partial<ArticlePriceInput> & { is_active?:
 export interface ShopConfig {
   currencies: string[];
   default_currency: string;
+  provider: string;                       // 'stripe' | 'manual'
+  stripe_publishable_key: string | null;  // öffentlich – für die eingebettete Kasse
 }
 
 export interface PaymentStatus {
-  order_object_id: number;
+  order_object_id: number | null;
+  order_object_ids?: number[];
   status: SaleStatus;
   currency: string;
   net_total: number | string;

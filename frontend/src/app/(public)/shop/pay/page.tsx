@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { CheckCircle2, XCircle, Loader2, CreditCard } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 import type { PaymentStatus } from '@/types';
 
 function fmt(amount: number | string | null | undefined, currency: string): string {
@@ -17,6 +18,7 @@ function PayView() {
   const search = useSearchParams();
   const token = search.get('token') || '';
   const { user, loading: authLoading } = useAuth();
+  const { clear } = useCart();
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,7 @@ function PayView() {
     setError(null);
     try {
       await api.simulatePayment(token, result);
+      if (result === 'paid') clear();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Aktion fehlgeschlagen');

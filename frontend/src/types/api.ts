@@ -988,7 +988,8 @@ export interface paths {
         };
         /**
          * Shop Config
-         * @description Öffentliche Shop-Konfiguration für den Frontend-Währungsumschalter.
+         * @description Öffentliche Shop-Konfiguration: Währungen, Zahlungs-Provider und – für die
+         *     eingebettete Stripe-Kasse – der **Publishable Key** (öffentlich, kein Secret).
          */
         get: operations["shop_config_api_v1_shop_config_get"];
         put?: never;
@@ -1059,7 +1060,7 @@ export interface paths {
         };
         /**
          * Payment Status
-         * @description Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite).
+         * @description Anzeige der Zahlung (für die manuelle Zahl-/Bestätigungsseite). Token = Intent-id.
          */
         get: operations["payment_status_api_v1_shop_payment__token__get"];
         put?: never;
@@ -1099,10 +1100,9 @@ export interface paths {
         };
         /**
          * Session Status
-         * @description Status zu einer Stripe-Checkout-Session (für die Erfolgsseite nach Redirect).
-         *
-         *     Der Webhook setzt den Verkauf asynchron auf ``paid`` – kurz nach dem Redirect kann der
-         *     Status noch ``requested`` sein («wird verarbeitet»).
+         * @description Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/
+         *     finalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch
+         *     ``pending`` sein («wird verarbeitet»).
          */
         get: operations["session_status_api_v1_shop_session__session_id__get"];
         put?: never;
@@ -1234,15 +1234,12 @@ export interface components {
             kind: string;
             /** Interval */
             interval?: string | null;
+            /** Sub Type */
+            sub_type?: string | null;
             /** Amount Chf */
             amount_chf: number | string;
             /** Compare At Chf */
             compare_at_chf?: number | string | null;
-            /**
-             * Tax Class
-             * @default standard
-             */
-            tax_class: string;
             /**
              * Is Primary
              * @default false
@@ -1259,12 +1256,12 @@ export interface components {
             kind: string;
             /** Interval */
             interval?: string | null;
+            /** Sub Type */
+            sub_type?: string | null;
             /** Amount Chf */
             amount_chf: string;
             /** Compare At Chf */
             compare_at_chf?: string | null;
-            /** Tax Class */
-            tax_class: string;
             /** Is Primary */
             is_primary: boolean;
             /** Is Active */
@@ -1276,12 +1273,12 @@ export interface components {
             kind?: string | null;
             /** Interval */
             interval?: string | null;
+            /** Sub Type */
+            sub_type?: string | null;
             /** Amount Chf */
             amount_chf?: number | string | null;
             /** Compare At Chf */
             compare_at_chf?: number | string | null;
-            /** Tax Class */
-            tax_class?: string | null;
             /** Is Primary */
             is_primary?: boolean | null;
             /** Is Active */
@@ -2490,6 +2487,8 @@ export interface components {
             kind: string;
             /** Interval */
             interval?: string | null;
+            /** Sub Type */
+            sub_type?: string | null;
             /** Net */
             net: string;
             /** Compare At */
@@ -2881,35 +2880,74 @@ export interface components {
             /** Step Id */
             step_id?: number | null;
         };
-        /** ShopCheckout */
+        /**
+         * ShopCheckout
+         * @description Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session.
+         */
         ShopCheckout: {
+            /** Items */
+            items: components["schemas"]["ShopCheckoutItem"][];
+        };
+        /**
+         * ShopCheckoutItem
+         * @description Eine Warenkorb-Position: konkretes Produkt + gewählte Preis-Option + Menge.
+         */
+        ShopCheckoutItem: {
             /** Article Object Id */
             article_object_id: number;
+            /** Price Id */
+            price_id?: number | null;
             /**
              * Quantity
              * @default 1
              */
             quantity: number;
-            /**
-             * Currency
-             * @default CHF
-             */
-            currency: string;
         };
-        /** ShopCheckoutResult */
+        /**
+         * ShopCheckoutResult
+         * @description Ergebnis des Checkouts. Embedded (Stripe): ``client_secret`` + ``session_id``
+         *     füllen das eingebettete Kassen-Widget. Manual (Fallback): ``payment_url`` (Redirect
+         *     auf die interne Test-Seite). ``token`` referenziert den CheckoutIntent.
+         */
         ShopCheckoutResult: {
-            /** Order Object Id */
-            order_object_id: number;
-            /** Sale Token */
-            sale_token: string;
+            /** Token */
+            token: string;
             /** Provider */
             provider: string;
+            /** Session Id */
+            session_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
             /** Payment Url */
-            payment_url: string;
+            payment_url?: string | null;
+        };
+        /**
+         * ShopPriceOption
+         * @description Eine **wählbare Preis-Option** eines Produkts (mehrere je Artikel möglich):
+         *     Einmalkauf, Nutzungsabo, Produktabo … – der Kunde wählt eine im Shop.
+         */
+        ShopPriceOption: {
+            /** Price Id */
+            price_id: number;
+            /**
+             * Kind
+             * @default one_time
+             */
+            kind: string;
+            /** Interval */
+            interval?: string | null;
+            /** Sub Type */
+            sub_type?: string | null;
+            /**
+             * Is Primary
+             * @default false
+             */
+            is_primary: boolean;
+            view: components["schemas"]["PriceView"];
         };
         /**
          * ShopProduct
-         * @description Ein publiziertes Produkt im Shop (lokalisierter Inhalt + berechneter Preis).
+         * @description Ein publiziertes Produkt im Shop (lokalisierter Inhalt + Preis-Optionen).
          */
         ShopProduct: {
             /** Object Id */
@@ -2938,6 +2976,11 @@ export interface components {
             /** Unit */
             unit?: string | null;
             price?: components["schemas"]["PriceView"] | null;
+            /**
+             * Prices
+             * @default []
+             */
+            prices: components["schemas"]["ShopPriceOption"][];
         };
         /**
          * StepReorder

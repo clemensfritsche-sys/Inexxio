@@ -11,21 +11,24 @@ from abc import ABC, abstractmethod
 
 from sqlalchemy.orm import Session
 
-from ...models import Order, Sale, UserProfile
+from ...models import CheckoutIntent, UserProfile
 
 
 class PaymentProvider(ABC):
     name: str = "base"
 
     @abstractmethod
-    def create_checkout(self, db: Session, order: Order, sale: Sale) -> str:
-        """Zahl-URL für diesen Verkauf erzeugen (Redirect-Ziel des Kunden)."""
+    def create_checkout(self, db: Session, intent: CheckoutIntent,
+                        customer: UserProfile) -> dict:
+        """Zahlungs-Session für einen Warenkorb-Intent erzeugen. Liefert ein Dict mit
+        ``session_id``/``client_secret`` (Stripe, eingebettete Kasse) bzw. ``payment_url``
+        (Redirect, manueller Fallback)."""
 
     @abstractmethod
     def handle_webhook(self, db: Session, raw: bytes, sig: str | None,
-                       payload: dict | None) -> Sale | None:
-        """Provider-Ereignis verarbeiten und den Verkaufs-Status setzen. Liefert den
-        betroffenen Verkauf (oder None, wenn das Ereignis nichts betrifft)."""
+                       payload: dict | None) -> CheckoutIntent | None:
+        """Provider-Ereignis verarbeiten (Zahlung/Abo). Liefert den betroffenen
+        ``CheckoutIntent`` (oder None, wenn das Ereignis nichts betrifft)."""
 
     def create_portal_session(self, db: Session, user: UserProfile, return_url: str) -> str | None:
         """Self-Service-Portal (Abo/Zahlungsmittel verwalten). Default: nicht unterstützt."""

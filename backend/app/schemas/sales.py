@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 PRICE_KINDS = ("one_time", "subscription")
 INTERVALS = ("month", "year")
-TAX_CLASSES = ("standard", "reduced", "lodging", "zero")
-VISIBILITIES = ("public", "private", "unlisted")
+SUB_TYPES = ("usage", "product")          # Nutzungsabo | Produktabo
+VISIBILITIES = ("public", "private")      # 'unlisted' (Verborgen) entfernt
 
 
 # ─── Preis (Anzeige-View aus der Pipeline) ───────────────────────────────────────
@@ -19,9 +19,10 @@ class PriceView(BaseModel):
     currency: str
     kind: str = "one_time"
     interval: Optional[str] = None
+    sub_type: Optional[str] = None        # usage | product (nur bei kind='subscription')
     net: Decimal
     compare_at: Optional[Decimal] = None
-    tax_rate: Decimal           # MWST-Satz in Prozent (z. B. 8.1)
+    tax_rate: Decimal           # MWST-Satz in Prozent (z. B. 8.1) – Anzeige (Stripe Tax final)
     gross: Decimal
 
 
@@ -30,9 +31,9 @@ class PriceView(BaseModel):
 class ArticlePriceBase(BaseModel):
     kind: str = "one_time"
     interval: Optional[str] = None
+    sub_type: Optional[str] = None        # usage | product (Pflicht-Sinn nur bei subscription)
     amount_chf: Decimal
     compare_at_chf: Optional[Decimal] = None
-    tax_class: str = "standard"
     is_primary: bool = False
 
     @field_validator("kind")
@@ -51,11 +52,11 @@ class ArticlePriceBase(BaseModel):
             raise ValueError(f"Intervall muss eine von {', '.join(INTERVALS)} sein")
         return v
 
-    @field_validator("tax_class")
+    @field_validator("sub_type")
     @classmethod
-    def _tax_ok(cls, v: str) -> str:
-        if v not in TAX_CLASSES:
-            raise ValueError(f"Steuerklasse muss eine von {', '.join(TAX_CLASSES)} sein")
+    def _sub_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in SUB_TYPES:
+            raise ValueError(f"Abo-Typ muss eine von {', '.join(SUB_TYPES)} sein")
         return v
 
     @field_validator("amount_chf")
@@ -73,9 +74,9 @@ class ArticlePriceCreate(ArticlePriceBase):
 class ArticlePriceUpdate(BaseModel):
     kind: Optional[str] = None
     interval: Optional[str] = None
+    sub_type: Optional[str] = None
     amount_chf: Optional[Decimal] = None
     compare_at_chf: Optional[Decimal] = None
-    tax_class: Optional[str] = None
     is_primary: Optional[bool] = None
     is_active: Optional[bool] = None
 
@@ -93,11 +94,11 @@ class ArticlePriceUpdate(BaseModel):
             raise ValueError(f"Intervall muss eine von {', '.join(INTERVALS)} sein")
         return v
 
-    @field_validator("tax_class")
+    @field_validator("sub_type")
     @classmethod
-    def _tax_ok(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in TAX_CLASSES:
-            raise ValueError(f"Steuerklasse muss eine von {', '.join(TAX_CLASSES)} sein")
+    def _sub_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in SUB_TYPES:
+            raise ValueError(f"Abo-Typ muss eine von {', '.join(SUB_TYPES)} sein")
         return v
 
     @field_validator("amount_chf")
@@ -115,9 +116,9 @@ class ArticlePriceResponse(BaseModel):
     article_id: int
     kind: str
     interval: Optional[str] = None
+    sub_type: Optional[str] = None
     amount_chf: Decimal
     compare_at_chf: Optional[Decimal] = None
-    tax_class: str
     is_primary: bool
     is_active: bool
 

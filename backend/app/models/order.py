@@ -65,6 +65,10 @@ class Order(Base, TimestampMixin):
         Integer, default=0, server_default="0", nullable=False)
     recurrence_anchor: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # nächster Soll-/Ablauftermin
     recurring_parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Auftrag, aus dem dieser entstand
+    # Abo-Typ (gespiegelt vom Verkaufspreis): usage = Nutzungsabo | product = Produktabo.
+    # Steuert die per-Zyklus-Logik (``invoice.paid``): Produktabo erzeugt je Zyklus ein
+    # Folge-Fulfillment, Nutzungsabo nicht (reiner Zugang/Miete, einmalig erfüllt).
+    recurrence_kind: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Auftrags (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

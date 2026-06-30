@@ -147,6 +147,9 @@ _COLUMN_SAFETY_NET = (
     ("orders", "stripe_subscription_id", "VARCHAR(80)"),
     ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
     ("sales", "stripe_snapshot", "JSONB"),
+    # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
+    ("article_prices", "sub_type", "VARCHAR(10)"),
+    ("orders", "recurrence_kind", "VARCHAR(10)"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -200,6 +203,11 @@ _INSTANCE_DATA_FIXES = (
     "AND order_id IN (SELECT id FROM orders WHERE status <> 'completed')",
 )
 
+# Verkaufs-Sichtbarkeit 'unlisted' wird nicht mehr unterstützt → auf 'private' normalisieren.
+_ARTICLE_DATA_FIXES = (
+    "UPDATE articles SET sales_visibility='private' WHERE sales_visibility='unlisted'",
+)
+
 
 def _ensure_columns() -> None:
     """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
@@ -232,6 +240,9 @@ def _ensure_columns() -> None:
                     conn.execute(text(stmt))
             if "instances" in tables and "orders" in tables:
                 for stmt in _INSTANCE_DATA_FIXES:
+                    conn.execute(text(stmt))
+            if "articles" in tables:
+                for stmt in _ARTICLE_DATA_FIXES:
                     conn.execute(text(stmt))
             conn.commit()
     except Exception as e:

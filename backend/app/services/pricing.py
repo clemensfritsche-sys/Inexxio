@@ -142,11 +142,18 @@ def _to_currency_simple(amount_chf: Decimal, currency: str, rate: Decimal) -> De
 
 def price_view(db: Session, article: Article, currency: str = "CHF",
                country: str | None = None, customer=None) -> dict | None:
-    """Anzeige-Preis eines Artikels: {currency, kind, interval, net, compare_at, tax_rate,
-    gross}. ``None``, wenn kein Preis gepflegt ist. Alle Beträge in ``currency``."""
+    """Anzeige-Preis des **Hauptpreises** eines Artikels. ``None``, wenn kein Preis gepflegt
+    ist. Bequeme Hülle um ``price_view_for`` (siehe dort)."""
     price = resolve_primary_price(db, article)
     if not price:
         return None
+    return price_view_for(db, price, currency, country, customer)
+
+
+def price_view_for(db: Session, price: ArticlePrice, currency: str = "CHF",
+                   country: str | None = None, customer=None) -> dict:
+    """Anzeige-Preis EINER konkreten Preis-Option: {currency, kind, interval, sub_type,
+    net, compare_at, tax_rate, gross}. Alle Beträge in ``currency``."""
     cur = (currency or "CHF").upper()
 
     net_chf = _net_chf(db, price, country, customer)          # ①②③
@@ -166,7 +173,9 @@ def price_view(db: Session, article: Article, currency: str = "CHF",
 
     has_vat_id = bool(getattr(customer, "vat_number", None)) if customer else False
     is_b2b = bool(getattr(customer, "company_name", None)) if customer else False
-    rate_pct = tax.vat_rate(price.tax_class, country, is_b2b, has_vat_id)   # ⑤ Steuer
+    # Steuerklasse ist kein UI-Feld mehr (Stripe Tax übernimmt die finale Steuer); für die
+    # CHF-Anzeige gilt der CH-Standardsatz (bzw. die historisch gepflegte Klasse).
+    rate_pct = tax.vat_rate(getattr(price, "tax_class", None) or "standard", country, is_b2b, has_vat_id)   # ⑤ Steuer
     # Preisauszeichnung (tax_behavior): brutto/inklusive → der Basispreis IST der Brutto-
     # Endpreis (schöne Zahl), die MWST wird herausgerechnet; netto/exklusive → MWST oben drauf.
     # (Die finale, länderabhängige Steuer rechnet Stripe Tax an der Kasse; dies ist die Anzeige.)
@@ -184,6 +193,7 @@ def price_view(db: Session, article: Article, currency: str = "CHF",
         "currency": cur,
         "kind": price.kind,
         "interval": price.interval,
+        "sub_type": getattr(price, "sub_type", None),
         "net": net,
         "compare_at": compare_at,
         "tax_rate": rate_pct,
