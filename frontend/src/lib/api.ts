@@ -414,6 +414,11 @@ class ApiClient {
     return this.get('/api/v1/shop/orders');
   }
 
+  // Abo on-site kündigen (kündigt zuerst bei Stripe, dann lokal)
+  cancelSubscription(orderObjectId: number): Promise<{ cancelled: boolean; subscription_active: boolean }> {
+    return this.post(`/api/v1/shop/orders/${orderObjectId}/cancel-subscription`, {});
+  }
+
   // Bestellungen eines Benutzers (ERP-Reiter, staff)
   getRecordOrders(objectId: number): Promise<CustomerOrder[]> {
     return this.get(`/api/v1/erp/records/${objectId}/orders`);

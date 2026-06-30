@@ -426,12 +426,14 @@ def checkout(db: Session, items: list, customer: UserProfile) -> tuple["object",
     db.add(intent)
     db.flush()
 
-    # stock-Positionen schon jetzt als reservierten Verkaufsauftrag anlegen (Überverkauf
-    # vermeiden). make-Positionen bleiben aufgeschoben (Produktion erst bei Zahlung).
-    for line in lines:
-        if line["fulfillment"] == "stock":
-            order = _create_sale_order(db, line, customer, release=True)
-            line["order_id"] = order.object_id
+    # stock-Positionen: EIN gemeinsamer Verkaufsauftrag (mehrere Positionen = ein Auftrag,
+    # ein Versand) – schon jetzt reserviert (Überverkauf vermeiden). make-Positionen bleiben
+    # aufgeschoben (eigene Produktion + Verkauf erst bei Zahlung).
+    stock_lines = [l for l in lines if l["fulfillment"] == "stock"]
+    if stock_lines:
+        order = _create_multiline_sale_order(db, stock_lines, customer, release=True)
+        for l in stock_lines:
+            l["order_id"] = order.object_id
     _store_lines(intent, lines)
     db.commit()
     db.refresh(intent)
@@ -450,64 +452,92 @@ def _store_lines(intent, lines: list) -> None:
     flag_modified(intent, "lines")
 
 
-def _create_sale_order(db: Session, line: dict, customer: UserProfile,
-                       release: bool) -> Order:
-    """Den **Verkaufsauftrag** einer Position bauen (Verkauf + Versand). Er **erzeugt NIE
-    Instanzen** – die Subjekt-Quelle ist immer ``stock`` (FIFO-Zuordnung vorhandener,
-    freigegebener Instanzen; das Sales-Prozessschrittmodul wählt automatisiert aus).
+def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile,
+                                 release: bool) -> Order:
+    """EIN **Verkaufsauftrag** über eine oder mehrere Positionen (Instanz X + Y zusammen
+    verkaufen & versenden). Er **erzeugt NIE Instanzen** – die Subjekt-Quelle ist ``stock``
+    (FIFO-Zuordnung vorhandener, freigegebener Instanzen je Position). Je Position ein
+    ``sale``-Schritt + ``Sale``-Beleg; EIN gemeinsamer ``movement``-Schritt (ein Versand).
 
-    ``release=True`` (stock ab Lager) bindet sofort per FIFO; ``release=False`` (make) bleibt
-    Entwurf, bis der verknüpfte Produktionsauftrag fertig ist (dann FIFO + Versand)."""
+    ``release=True`` (ab Lager) bindet sofort per FIFO (alle Positionen); ``release=False``
+    (make) bleibt Entwurf bis die verknüpfte Produktion fertig ist (dann FIFO + Versand)."""
     from .events import emit
     from .objects import next_object_id
-    from .subject import materialize_subject
 
-    is_sub = line["kind"] == "subscription"
-    qty = line["quantity"]
+    single = len(lines) == 1
+    title = (f"Shop-Kauf: {lines[0]['article_name']}" if single
+             else f"Shop-Bestellung ({len(lines)} Positionen)")
     order = Order(
         object_id=next_object_id(db, "order"), status="draft",
-        article_id=line["article_id"], quantity=qty,
-        title=f"Shop-Verkauf: {line['article_name']}",
+        # Mehrpositionen-Auftrag hat keinen einzelnen Artikel; bei einer Position gesetzt.
+        article_id=lines[0]["article_id"] if single else None,
+        quantity=lines[0]["quantity"] if single else None,
+        title=title,
         subject_source="stock",   # ein Verkauf SELEKTIERT (FIFO), er produziert nie
     )
-    if is_sub:
-        # Abo = wiederkehrender Verkaufsauftrag. Stripe Billing verrechnet wiederkehrend;
-        # Inexxio spiegelt Status/Typ. recurrence_kind steuert die per-Zyklus-Erfüllung.
+    # Abo nur bei genau einer Position (Abos werden einzeln gekauft).
+    if single and lines[0]["kind"] == "subscription":
+        l0 = lines[0]
         order.recurrence_active = True
-        order.recurrence_kind = line.get("sub_type") or "usage"
-        order.recurrence_interval_days = _interval_days(line.get("interval"))
+        order.recurrence_kind = l0.get("sub_type") or "usage"
+        order.recurrence_interval_days = _interval_days(l0.get("interval"))
         order.recurrence_anchor = utcnow().date() + timedelta(days=order.recurrence_interval_days)
     db.add(order)
     db.flush()
 
-    # Auto-Ablauf (kein Pflicht-Verkaufsprozess): kaufmännischer Verkauf → Versand zum Kunden.
-    sale_step = ArticleProcessStep(order_id=order.id, position=0, step_type="sale")
-    db.add(sale_step)
-    db.add(ArticleProcessStep(order_id=order.id, position=2, step_type="movement",
+    # Je Position: ein Verkaufs-Schritt + Verkaufsbeleg.
+    for i, line in enumerate(lines):
+        sale_step = ArticleProcessStep(order_id=order.id, position=i, step_type="sale")
+        db.add(sale_step)
+        db.flush()
+        db.add(Sale(
+            order_id=order.id, article_id=line["article_id"], quantity=line["quantity"],
+            step_id=sale_step.id, status="requested", customer_id=customer.id, currency="CHF",
+            order_total=Decimal(line["net_chf"]) if line.get("net_chf") else None,
+            vat_rate=Decimal(line["vat_rate"]) if line.get("vat_rate") else None,
+            base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
+        ))
+    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden).
+    db.add(ArticleProcessStep(order_id=order.id, position=100, step_type="movement",
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()
-
-    sale = Sale(
-        order_id=order.id, article_id=line["article_id"], quantity=qty, step_id=sale_step.id,
-        status="requested", customer_id=customer.id, currency="CHF",
-        order_total=Decimal(line["net_chf"]) if line.get("net_chf") else None,
-        vat_rate=Decimal(line["vat_rate"]) if line.get("vat_rate") else None,
-        base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
-    )
-    db.add(sale)
-    log_audit(db, "sales", None, f"Shop-Verkauf angefragt ({line.get('fulfillment')})",
+    log_audit(db, "sales", None, f"Shop-Verkauf angefragt ({len(lines)} Position(en))",
               customer.id, object_id=order.object_id)
 
     if release:
         order.status = "released"
         order.released_at = utcnow()
-        materialize_subject(db, order, customer.id)   # stock → FIFO-Zuordnung vorhandener Instanzen
+        _materialize_multiline(db, order, lines, customer)   # FIFO je Position, alles reservieren
         emit(db, "order.released", object_type="order", object_id=order.object_id,
-             payload={"article_id": order.article_id, "quantity": qty, "via": "shop"},
-             actor_id=customer.id)
+             payload={"positions": len(lines), "via": "shop"}, actor_id=customer.id)
     db.flush()
     return order
+
+
+def _materialize_multiline(db: Session, order: Order, lines: list, customer: UserProfile) -> None:
+    """Subjekt eines Mehrpositionen-Verkaufsauftrags binden: je Position ``quantity`` Stück
+    des Artikels **FIFO ab Lager** auswählen, dem Auftrag zuordnen und reservieren."""
+    from .inventory import allocate, available_qty, fifo_candidates
+    from .reservation import free_qty, reserve
+    from .subject import record_link
+
+    for line in lines:
+        art_id, need = line["article_id"], line["quantity"]
+        cands = fifo_candidates(db, art_id, for_order_id=None)
+        have = available_qty(cands)
+        if have < need:
+            raise HTTPException(
+                409, detail=f"Nicht genügend freigegebener Bestand für {line['article_name']}: "
+                            f"benötigt {need}, verfügbar {have}")
+        for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
+            if take <= 0:
+                continue
+            cand.subject_of_order_id = order.id
+            reserve(cand, order.id, take)
+            record_link(db, cand.object_id, order.id)
+    log_audit(db, "instances", None, "Bestand für Verkaufsauftrag reserviert",
+              customer.id, object_id=order.object_id)
 
 
 def _create_production_order(db: Session, line: dict, customer: UserProfile) -> Order:
@@ -566,35 +596,41 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
     lines = list(intent.lines or [])
     total_base = sum((Decimal(l.get("base_amount_chf") or 0) for l in lines), Decimal("0"))
     done = 0
+    processed: set[int] = set()
+
+    def _finalize_order_sales(order: Order, release_order: bool) -> int:
+        """Alle Verkaufsbelege eines (Mehrpositionen-) Auftrags als bezahlt verbuchen."""
+        n = 0
+        for s in db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).all():
+            per = _split_snapshot(snapshot, Decimal(s.base_amount_chf or 0), total_base)
+            if snapshot and snapshot.get("subscription") and not order.stripe_subscription_id:
+                order.stripe_subscription_id = snapshot["subscription"]
+            sale_svc.finalize_paid(db, s, stripe=per, release_order=release_order)
+            n += 1
+        return n
+
     for line in lines:
-        production = None
         if line.get("order_id"):
-            # stock: Verkaufsauftrag wurde schon bei der Bestellung angelegt + reserviert.
-            order = db.query(Order).filter(Order.object_id == line["order_id"]).first()
-            release_order = True
+            # stock: gemeinsamer Verkaufsauftrag (schon angelegt + reserviert) – nur einmal je Auftrag.
+            oid = line["order_id"]
+            if oid in processed:
+                continue
+            processed.add(oid)
+            order = db.query(Order).filter(Order.object_id == oid).first()
+            if order:
+                done += _finalize_order_sales(order, release_order=False)  # bereits released
         else:
-            # make: zuerst Produktion (Artikel-Prozess erzeugt Instanzen), dann Verkaufsauftrag,
+            # make: Produktion (Artikel-Prozess erzeugt Instanzen) + eigener Verkaufsauftrag,
             # der NICHT selbst produziert und erst bei fertiger Produktion erfüllt wird.
             production = _create_production_order(db, line, customer)
-            order = _create_sale_order(db, line, customer, release=False)
+            order = _create_multiline_sale_order(db, [line], customer, release=False)
             order.fulfilled_by_order_id = production.object_id
             db.flush()
             line["order_id"] = order.object_id
-            release_order = False   # Freigabe erfolgt, wenn die Produktion abgeschlossen ist
-        if not order:
-            continue
-        sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-        if not sale:
-            continue
-        per_line = _split_snapshot(snapshot, Decimal(line.get("base_amount_chf") or 0), total_base)
-        if snapshot and snapshot.get("subscription"):
-            order.stripe_subscription_id = snapshot["subscription"]
-        sale_svc.finalize_paid(db, sale, stripe=per_line, release_order=release_order)
-        # Produktion jetzt bewerten: hat der Artikel keinen Prozess, ist sie sofort fertig →
-        # Hook in recompute_completion gibt den (eben verknüpften) Verkaufsauftrag frei.
-        if production is not None:
+            done += _finalize_order_sales(order, release_order=False)
+            # Produktion jetzt bewerten: hat der Artikel keinen Prozess, ist sie sofort fertig →
+            # Hook in recompute_completion gibt den verknüpften Verkaufsauftrag frei.
             process.recompute_completion(db, production)
-        done += 1
     intent.status = "completed"
     _store_lines(intent, lines)
     db.commit()
@@ -660,14 +696,17 @@ def cancel_intent(db: Session, intent) -> None:
 
     if intent.status in ("completed", "cancelled"):
         return
+    processed: set[int] = set()
     for line in list(intent.lines or []):
-        if not line.get("order_id"):
+        oid = line.get("order_id")
+        if not oid or oid in processed:
             continue
-        order = db.query(Order).filter(Order.object_id == line["order_id"]).first()
+        processed.add(oid)
+        order = db.query(Order).filter(Order.object_id == oid).first()
         if not order:
             continue
-        sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-        if sale:
+        # Alle Belege des (Mehrpositionen-) Auftrags stornieren (löst Reservierungen).
+        for sale in db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).all():
             sale_svc.mark_cancelled(db, sale)
     intent.status = "cancelled"
     db.commit()

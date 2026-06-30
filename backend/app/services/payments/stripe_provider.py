@@ -275,6 +275,26 @@ class StripeProvider(PaymentProvider):
             "tax_rate": str((tax / net * 100).quantize(Decimal("0.01"))) if net > 0 else "0",
         }
 
+    # ─── Abo kündigen (on-site) ──────────────────────────────────────────────────
+    def cancel_subscription(self, db: Session, order) -> bool:
+        """Das Stripe-Abo **sofort** kündigen, dann lokal spiegeln. Schlägt der Stripe-Call
+        fehl, wird NICHT lokal gekündigt (sauberer Fehler) – der Kunde sieht das Abo weiter
+        aktiv und kann erneut kündigen, statt dass es im Hintergrund weiterläuft."""
+        sub_id = getattr(order, "stripe_subscription_id", None)
+        if sub_id:
+            stripe = _stripe()
+            try:
+                stripe.Subscription.cancel(sub_id)
+            except Exception as e:
+                # Bereits gekündigt? → als Erfolg behandeln; sonst sauberer Fehler.
+                msg = str(e).lower()
+                if "no such subscription" not in msg and "canceled" not in msg:
+                    raise HTTPException(502, detail=f"Kündigung bei Stripe fehlgeschlagen: {e}")
+        order.recurrence_active = False
+        emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
+        db.commit()
+        return True
+
     # ─── Customer Portal ─────────────────────────────────────────────────────────
     def create_portal_session(self, db: Session, user: UserProfile, return_url: str) -> str | None:
         stripe = _stripe()

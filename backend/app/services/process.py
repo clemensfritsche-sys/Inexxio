@@ -276,11 +276,13 @@ def _finalize_subjects(db: Session, order: Order) -> None:
     if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
         return
     # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt
-    #     den Bestand (mengengenau, keine Teilung).
+    #     den Bestand (mengengenau, keine Teilung). KEIN Artikel-Filter – ein Auftrag kann
+    #     mehrere Artikel/Instanzen verkaufen (Mehrpositionen-Verkaufsauftrag); alle für
+    #     diesen Auftrag reservierten Instanzen werden verkauft.
     subjects = (
         db.query(Instance)
         .filter(Instance.reservations.has_key(str(order.id)),  # noqa: W601
-                Instance.article_id == order.article_id, Instance.is_active == True)
+                Instance.is_active == True)
         .all()
     )
     for inst in subjects:

@@ -3888,6 +3888,52 @@
         ]
       }
     },
+    "/api/v1/shop/orders/{order_object_id}/cancel-subscription": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Cancel Subscription",
+        "description": "Abo **on-site** kündigen. Kündigt zuerst beim Zahlungs-Provider (Stripe) und spiegelt\nerst danach lokal – scheitert der Provider-Call, bleibt das Abo aktiv (sauberer Fehler).",
+        "operationId": "cancel_subscription_api_v1_shop_orders__order_object_id__cancel_subscription_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/shop/portal": {
       "post": {
         "tags": [

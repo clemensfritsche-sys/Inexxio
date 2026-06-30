@@ -33,3 +33,13 @@ class PaymentProvider(ABC):
     def create_portal_session(self, db: Session, user: UserProfile, return_url: str) -> str | None:
         """Self-Service-Portal (Abo/Zahlungsmittel verwalten). Default: nicht unterstützt."""
         return None
+
+    def cancel_subscription(self, db: Session, order) -> bool:
+        """Ein Abo (Auftrag) **on-site** kündigen. Default (manual): nur lokal beenden.
+        Stripe-Provider kündigt zuerst beim Provider und spiegelt erst danach – so bleibt der
+        lokale Status NIE fälschlich «aktiv», wenn die Kündigung beim Provider scheitert."""
+        from ..events import emit
+        order.recurrence_active = False
+        emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
+        db.commit()
+        return True

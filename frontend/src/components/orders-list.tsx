@@ -1,6 +1,7 @@
 'use client';
 
-import { Package, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { Package, RefreshCw, Loader2 } from 'lucide-react';
 import type { CustomerOrder } from '@/types';
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -26,7 +27,19 @@ function subLabel(o: CustomerOrder): string {
   return `${base} · ${iv}`;
 }
 
-export function OrdersList({ orders }: { orders: CustomerOrder[] }) {
+export function OrdersList({ orders, onCancel }: {
+  orders: CustomerOrder[];
+  onCancel?: (orderObjectId: number) => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  async function cancel(o: CustomerOrder) {
+    if (!onCancel || !o.order_object_id) return;
+    if (!window.confirm('Abo wirklich kündigen? Es wird sofort beendet.')) return;
+    setBusyId(o.order_object_id);
+    try { await onCancel(o.order_object_id); } finally { setBusyId(null); }
+  }
+
   if (orders.length === 0) {
     return (
       <div className="text-center py-10 text-slate-400">
@@ -62,6 +75,15 @@ export function OrdersList({ orders }: { orders: CustomerOrder[] }) {
                   style={{ color: st.color, background: st.bg }}>{st.label}</span>
               </div>
             </div>
+            {o.is_subscription && o.subscription_active && onCancel && (
+              <div className="mt-2 flex justify-end">
+                <button onClick={() => cancel(o)} disabled={busyId === o.order_object_id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold py-1.5 px-3 hover:bg-red-50 disabled:opacity-60">
+                  {busyId === o.order_object_id ? <Loader2 size={13} className="animate-spin" /> : null}
+                  Abo kündigen
+                </button>
+              </div>
+            )}
             {o.is_subscription && !o.subscription_active && (
               <div className="mt-2 text-[11px] text-slate-400">Abo gekündigt / nicht aktiv.</div>
             )}

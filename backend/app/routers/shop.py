@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, get_optional_user
 from ..core.database import get_db
-from ..models import Article, CheckoutIntent, CompanySettings, UserProfile
+from ..models import Article, CheckoutIntent, CompanySettings, Order, Sale, UserProfile
 from ..schemas.shop import (
     CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct,
 )
@@ -171,6 +171,26 @@ async def my_orders(db: Session = Depends(get_db),
                     user: UserProfile = Depends(get_current_user)):
     """Eigene Bestellungen + Abos (Kunden-Selbstbedienung)."""
     return [CustomerOrder(**o) for o in sales_svc.list_customer_orders(db, user.id)]
+
+
+@router.post("/orders/{order_object_id}/cancel-subscription")
+async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db),
+                              user: UserProfile = Depends(get_current_user)):
+    """Abo **on-site** kündigen. Kündigt zuerst beim Zahlungs-Provider (Stripe) und spiegelt
+    erst danach lokal – scheitert der Provider-Call, bleibt das Abo aktiv (sauberer Fehler)."""
+    from ..models import Order
+    order = db.query(Order).filter(Order.object_id == order_object_id, Order.is_active == True).first()
+    if not order:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+    # Eigentümer-Prüfung über den Verkaufsbeleg (Kunde) – Personal darf ebenfalls.
+    owns = db.query(Sale.id).filter(
+        Sale.order_id == order.id, Sale.customer_id == user.id, Sale.is_active == True).first()
+    if user.role not in ("admin", "employee") and not owns:
+        raise HTTPException(403, detail="Keine Berechtigung für dieses Abo")
+    if not order.recurrence_active:
+        return {"cancelled": True, "subscription_active": False}
+    get_provider(db).cancel_subscription(db, order)
+    return {"cancelled": True, "subscription_active": bool(order.recurrence_active)}
 
 
 @router.post("/portal")
