@@ -46,10 +46,10 @@ def _is_owner_supplier(po: PurchaseOrder, user: UserProfile) -> bool:
 
 
 def _offer_editor(po: PurchaseOrder, user: UserProfile) -> bool:
-    """Wer die Offerte/Bestellsumme erfasst: im Webshop-Modus der Mitarbeiter, sonst der Lieferant."""
-    if po.mode == "webshop":
-        return _is_staff(user)
-    return _is_owner_supplier(po, user)
+    """Wer die Offerte/Bestellsumme erfassen darf: der **Besteller (Mitarbeiter) immer**
+    (Selbst-Beschaffung – er ist nie blockiert, auch ohne zugewiesenen Lieferanten) sowie –
+    im Lieferanten-Modus – der zugewiesene **Lieferant** über sein Portal."""
+    return _is_staff(user) or _is_owner_supplier(po, user)
 
 
 def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
@@ -125,9 +125,11 @@ def _transition_allowed(po: PurchaseOrder, target: str, user: UserProfile) -> bo
     if po.mode == "webshop":
         # kein externer Lieferant – der Mitarbeiter führt den ganzen Schritt
         return _is_staff(user)
-    # supplier-Modus: saubere Trennung der Verantwortlichkeiten
+    # supplier-Modus: der Lieferant darf offerieren, der Besteller (Mitarbeiter) darf alles
+    # treiben – inkl. Offerte selbst erfassen ODER direkt bestellen (Selbst-Beschaffung),
+    # damit er nie auf einen separaten Lieferanten-Login angewiesen ist.
     if target == "quoted":
-        return _is_owner_supplier(po, user)              # Lieferant offeriert
+        return _is_staff(user) or _is_owner_supplier(po, user)
     if target in ("ordered", "rejected", "received"):
         return _is_staff(user)                           # Besteller
     return False

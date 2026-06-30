@@ -125,7 +125,9 @@ def test_supplier_fields_mandatory_always_included():
 
 
 def test_purchase_responsibility_separation():
-    """Lieferant offeriert/bestätigt, Besteller gibt frei/nimmt Ware an – getrennt."""
+    """Besteller (Mitarbeiter) kann selbst beschaffen (offerieren UND bestellen); der
+    zugewiesene Lieferant kann zusätzlich selbst offerieren; nur Bestellen/Annehmen bleibt
+    dem Besteller vorbehalten."""
     from app.models import PurchaseOrder, UserProfile
     from app.services.purchase import _transition_allowed
 
@@ -133,9 +135,9 @@ def test_purchase_responsibility_separation():
     supplier = UserProfile(role="supplier", id=2)
     po = PurchaseOrder(order_id=1, article_id=1, quantity=1, mode="supplier", supplier_id=2)
 
-    # Lieferant offeriert, Besteller bestellt/lehnt ab/nimmt Ware an
+    # Offerte: Lieferant ODER Besteller (Selbst-Beschaffung). Bestellen/Annehmen: nur Besteller.
     assert _transition_allowed(po, "quoted", supplier) is True
-    assert _transition_allowed(po, "quoted", staff) is False
+    assert _transition_allowed(po, "quoted", staff) is True
     assert _transition_allowed(po, "ordered", staff) is True
     assert _transition_allowed(po, "ordered", supplier) is False
     assert _transition_allowed(po, "rejected", staff) is True
@@ -1315,6 +1317,27 @@ def test_abort_is_reversible_and_supply_not_special_cased():
     assert "deviation.revoke(" in _inspect.getsource(orders.revoke_followup)
     # Keine Nachschub-Sonderbehandlung mehr beim Abbruch.
     assert 'reason == "supply"' not in _inspect.getsource(deactivation.cancel_order_effects)
+
+
+def test_buyer_can_self_procure_in_supplier_mode():
+    """Beschaffung «auf Lieferant» ist nie eine Sackgasse: der Besteller (Mitarbeiter) darf
+    die Bestellsumme selbst erfassen UND direkt bestellen – auch ohne zugewiesenen Lieferanten.
+    Der zugewiesene Lieferant darf weiterhin selbst offerieren; ein fremder Lieferant nicht."""
+    from types import SimpleNamespace
+    from app.services import purchase
+
+    staff = SimpleNamespace(role="employee", id=1)
+    po_no_sup = SimpleNamespace(mode="supplier", supplier_id=None, status="requested")
+    assert purchase._offer_editor(po_no_sup, staff) is True          # Felder editierbar
+    assert purchase._editable_fields(po_no_sup, staff)               # Offerte-Felder freigegeben
+    assert purchase._transition_allowed(po_no_sup, "ordered", staff) is True   # direkt bestellen
+    assert purchase._transition_allowed(po_no_sup, "quoted", staff) is True    # oder Offerte erfassen
+
+    po_sup = SimpleNamespace(mode="supplier", supplier_id=9, status="requested")
+    owner = SimpleNamespace(role="supplier", id=9)
+    other = SimpleNamespace(role="supplier", id=8)
+    assert purchase._transition_allowed(po_sup, "quoted", owner) is True       # Lieferant offeriert
+    assert purchase._offer_editor(po_sup, other) is False                      # fremder Lieferant nicht
 
 
 def test_demand_supply_model_is_one_mechanism():
