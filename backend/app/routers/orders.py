@@ -291,6 +291,24 @@ async def abort_order(
     return to_order_response(db, follow)
 
 
+@router.post("/{object_id}/revoke", response_model=OrderResponse)
+async def revoke_followup(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Abbruch zurücknehmen / Folgeauftrag verwerfen»: einen noch im **Entwurf** befindlichen
+    Folgeauftrag (Abbruch/Abweichung) zurücknehmen. Das Original läuft danach **unverändert**
+    weiter (kein Vollzug, Reservierungen blieben erhalten). ``object_id`` = der Folgeauftrag.
+    Liefert den wieder laufenden Eltern-Auftrag zurück."""
+    followup = _get_staff_order(db, object_id)
+    parent = deviation.revoke(db, followup, current_user.id)
+    db.commit()
+    target = parent or followup
+    db.refresh(target)
+    return to_order_response(db, target)
+
+
 @router.post("/{object_id}/deviation", response_model=OrderResponse)
 async def open_deviation(
     object_id: int,

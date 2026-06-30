@@ -64,9 +64,18 @@ frei – **rekursiv** (mehrstufige Stückliste: fehlt dem Nachschub Material, de
   Mechanismus. Kein `fulfilled_by_order_id`, kein `subject_source`, keine Make-Verkettung. „3 ab
   Lager + 7 produzieren" und mehrstufige Stücklisten fallen gratis heraus. Manuell == automatisch.
 - **Pegging** verhindert, dass FIFO den Nachschub eines Auftrags „klaut" (deterministisch).
-- **Abbruch/Sackgasse:** Bricht der Eltern ab, werden offene Nachschub-Unteraufträge mit aufgelöst
-  (`deactivation.cancel_order_effects`, rekursiv). Kann ein Bedarf nicht gedeckt werden (Artikel
-  ohne Prozess), bleibt der Schritt sichtbar blockiert (manuelle Klärung) – kein stiller Schaden.
+- **Abbruch ist ein Antrag, kein Vollzug (reversibel):** «Abbrechen» legt einen Folgeauftrag
+  (Entwurf) an und pausiert das Original; erst die **Freigabe** des Folgeauftrags vollzieht den
+  Abbruch. Bis dahin **zwei** Wege über DENSELBEN Mechanismus: Folgeauftrag **freigeben** (mit
+  Schritt einlagern/verschrotten/nacharbeiten = Auflösung) **oder** **verwerfen** = «Abbruch
+  zurücknehmen» (`deviation.revoke`, `POST /orders/{id}/revoke`) → Original läuft **unverändert**
+  weiter (ein Entwurf hat die Reservierungen nie gelöst). „Weitermachen" ist damit KEIN eigener
+  Schritttyp, sondern das Zurücknehmen des Abbruchs.
+- **Nachschub-Kinder sind keine Ausnahme:** sie werden beim Eltern-Abbruch NICHT gesondert
+  aufgelöst. Fällt der Bedarf weg, ist `_peg_supply_to_parent` ein No-op (toter Eltern) → der
+  Output fliesst in den **freien Bestand** (kein vernichtetes WIP). Wer einen laufenden Nachschub
+  stoppen will, bricht ihn mit demselben Mechanismus ab. Kann ein Bedarf nicht gedeckt werden
+  (Artikel ohne Prozess), bleibt der Schritt sichtbar blockiert (manuelle Klärung).
 - **Bewusst (noch) NICHT:** Netting gegen frei werdenden Bestand, Konsolidierung mehrerer Eltern
   auf einen Nachschub, Termin-Hochrollen über die Nachschub-Kette. Hooks/Notizen sind gesetzt.
 - **Migration `044`:** `orders.reason` neu; `orders.subject_source` + `orders.fulfilled_by_order_id`

@@ -610,6 +610,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Followup
+         * @description «Abbruch zurücknehmen / Folgeauftrag verwerfen»: einen noch im **Entwurf** befindlichen
+         *     Folgeauftrag (Abbruch/Abweichung) zurücknehmen. Das Original läuft danach **unverändert**
+         *     weiter (kein Vollzug, Reservierungen blieben erhalten). ``object_id`` = der Folgeauftrag.
+         *     Liefert den wieder laufenden Eltern-Auftrag zurück.
+         */
+        post: operations["revoke_followup_api_v1_erp_orders__object_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/deviation": {
         parameters: {
             query?: never;
@@ -4826,6 +4849,37 @@ export interface operations {
         };
     };
     abort_order_api_v1_erp_orders__object_id__abort_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_followup_api_v1_erp_orders__object_id__revoke_post: {
         parameters: {
             query?: never;
             header?: never;

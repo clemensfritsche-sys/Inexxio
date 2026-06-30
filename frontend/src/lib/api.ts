@@ -260,6 +260,13 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/supply`, {});
   }
 
+  // «Abbruch zurücknehmen»: verwirft einen noch im Entwurf befindlichen Folgeauftrag
+  // (objectId = Folgeauftrag); das Original läuft danach unverändert weiter. Liefert das
+  // wieder laufende Original zurück.
+  revokeAbort(followupObjectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${followupObjectId}/revoke`, {});
+  }
+
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);

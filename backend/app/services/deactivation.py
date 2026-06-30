@@ -174,19 +174,11 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int,
             log_audit(db, "instances", "is_active", "false", actor_id,
                       object_id=inst.object_id, old_value="true")
             inst.is_active = False
-    # Offene **Nachschub**-Unteraufträge mit auflösen (ihre Reservierungen/Instanzen freigeben) –
-    # ein Nachschub ohne Bedarf wäre herrenlos. Rekursiv über die Stückliste. Abweichungen
-    # (reason='deviation') bleiben unberührt (eigener Lebenszyklus).
-    if order.object_id:
-        for child in db.query(Order).filter(
-            Order.parent_order_id == order.object_id, Order.reason == "supply",
-            Order.is_active == True, Order.status.in_(("draft", "released")),
-        ).all():
-            old = child.status
-            child.status = "inactive"
-            log_audit(db, "orders", "status", "inactive", actor_id,
-                      object_id=child.object_id, old_value=old)
-            cancel_order_effects(db, child, actor_id)
+    # **Nachschub-Kinder sind KEINE Ausnahme:** sie sind normale Produktionsaufträge. Fällt der
+    # Bedarf weg (Eltern inaktiv), löst sich nur ihr Peg auf – ``process._peg_supply_to_parent``
+    # ist bei totem Eltern ein No-op, ihr Output fliesst automatisch in den freien Bestand
+    # (kein Sondercode, keine vernichteten Teile). Wer einen laufenden Nachschub stoppen will,
+    # bricht ihn mit demselben Mechanismus ab.
     emit(db, "order.cancelled", object_type="order", object_id=order.object_id, actor_id=actor_id)
 
 

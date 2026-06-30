@@ -2069,6 +2069,54 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/revoke": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Revoke Followup",
+        "description": "«Abbruch zurücknehmen / Folgeauftrag verwerfen»: einen noch im **Entwurf** befindlichen\nFolgeauftrag (Abbruch/Abweichung) zurücknehmen. Das Original läuft danach **unverändert**\nweiter (kein Vollzug, Reservierungen blieben erhalten). ``object_id`` = der Folgeauftrag.\nLiefert den wieder laufenden Eltern-Auftrag zurück.",
+        "operationId": "revoke_followup_api_v1_erp_orders__object_id__revoke_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/deviation": {
       "post": {
         "tags": [

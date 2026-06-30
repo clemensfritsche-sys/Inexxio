@@ -273,11 +273,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Datenerfassung legt automatisch eine Abweichung auf die Durchfaller-Instanzen an (idempotent,
   `auto_deviation_from_inspection`). Der frühere eigenständige `Claim`-Typ ist **vollständig entfernt**
   (Migration 037 droppt `claims`).
-  - **Abbruch erzwingt einen Folgeauftrag**: «Abbrechen» (`POST /orders/{id}/abort`) setzt einen
-    freigegebenen Auftrag NICHT direkt inaktiv, sondern erzeugt einen Folgeauftrag (Abweichung), der die
-    im Prozess befindlichen Instanzen übernimmt (`abort_into_id`). Das Original wird erst inaktiv, wenn der
-    Folgeauftrag **freigegeben** ist (`apply_abort_on_release`, `keep_instances=True`) – keine herrenlosen
-    Teile. Ein Entwurf ohne Instanzen wird direkt inaktiv.
+  - **Abbruch ist ein Antrag, kein Vollzug (reversibel)**: «Abbrechen» (`POST /orders/{id}/abort`) setzt
+    einen freigegebenen Auftrag NICHT direkt inaktiv, sondern erzeugt einen Folgeauftrag (Entwurf,
+    `abort_into_id`) und **pausiert** das Original. Erst die **Freigabe** des Folgeauftrags vollzieht den
+    Abbruch (`apply_abort_on_release`, `keep_instances=True`) – keine herrenlosen Teile. Bis dahin zwei Wege
+    über DENSELBEN Mechanismus: Folgeauftrag **freigeben** (Schritt einlagern/verschrotten/nacharbeiten =
+    Auflösung) ODER **«Abbruch zurücknehmen»** (`deviation.revoke`, `POST /orders/{id}/revoke`) → Original
+    läuft **unverändert** weiter (ein Entwurf hat die Reservierungen nie gelöst). „Weitermachen" ist KEIN
+    eigener Schritttyp, sondern das Zurücknehmen des Abbruchs. Ein Entwurf ohne Instanzen wird direkt inaktiv.
   - **Verschrotten** (`scrap`, Schritttyp, Migration 038, `services/scrap.py`): die definierte Auflösung
     einer Abweichung – gewählte Instanzen → `disposition='scrapped'` (Bestandsabgang, DECREASE/INSTANCE in
     der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig

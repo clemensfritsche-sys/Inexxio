@@ -1298,6 +1298,25 @@ def test_claim_clauses_use_free_capacity():
     assert "reserved_quantity" in own_rendered and " OR " in own_rendered   # + eigene Reservierung
 
 
+def test_abort_is_reversible_and_supply_not_special_cased():
+    """Abbruch ist ein Antrag: solange der Folgeauftrag Entwurf ist, kann er zurückgenommen
+    werden (deviation.revoke) → Original läuft unverändert weiter. Nachschub-Kinder werden
+    beim Abbruch NICHT mehr gesondert deaktiviert (Orphan-Nachschub → freier Bestand)."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import deactivation, deviation
+
+    assert hasattr(deviation, "revoke") and hasattr(orders, "revoke_followup")
+    rv = _inspect.getsource(deviation.revoke)
+    assert 'status != "draft"' in rv                  # nur Entwurf rücknehmbar
+    assert "abort_into_id = None" in rv               # ausstehender Abbruch gelöscht
+    assert "subject_of_order_id = None" in rv         # Instanzen ans Original zurück
+    # Endpoint delegiert an revoke.
+    assert "deviation.revoke(" in _inspect.getsource(orders.revoke_followup)
+    # Keine Nachschub-Sonderbehandlung mehr beim Abbruch.
+    assert 'reason == "supply"' not in _inspect.getsource(deactivation.cancel_order_effects)
+
+
 def test_demand_supply_model_is_one_mechanism():
     """Bedarf-/Nachschub-Modell: ein nicht gedeckter Bedarf blockiert den Schritt (abgeleitet,
     kein Auto-Trigger); die Fehlmenge deckt ein Nachschub-Unter-Auftrag (reason='supply'), der

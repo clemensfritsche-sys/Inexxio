@@ -292,6 +292,13 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setDialog(null);
   }
 
+  // «Abbruch zurücknehmen»: verwirft den noch im Entwurf befindlichen Folgeauftrag – das
+  // Original läuft danach unverändert weiter (kein Vollzug, Reservierungen blieben erhalten).
+  async function revokeAbort() {
+    if (!record?.abort_into_id) return;
+    onSaved(await api.revokeAbort(record.abort_into_id));
+  }
+
   // «Abweichung melden»: eröffnet einen Unterauftrag (Abweichung) auf den Instanzen
   // dieses Auftrags und navigiert dorthin – der Nutzer definiert dort den Ablauf und gibt frei.
   async function reportDeviation() {
@@ -382,6 +389,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
+            {isStaff && (
+              <button onClick={revokeAbort} type="button"
+                style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 8, border: '1px solid #d97706', background: '#fff', color: '#92400e', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                Abbruch zurücknehmen
+              </button>
+            )}
           </div>
         )}
 

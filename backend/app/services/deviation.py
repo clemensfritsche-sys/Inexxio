@@ -141,6 +141,44 @@ def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | No
     return create_deviation(db, order, failed, actor_id or 0, title_prefix="Datenerfassung-Abweichung zu")
 
 
+def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
+    """**Abbruch/Abweichung zurücknehmen** – solange der Folgeauftrag erst **Entwurf** ist
+    (noch nicht vollzogen). Die vorgemerkten Instanzen gehen ans Original zurück, ein
+    ausstehender Abbruch (``abort_into_id``) wird gelöscht, der Folgeauftrag wird inaktiv.
+
+    Das Original ist danach **automatisch nicht mehr pausiert** und läuft **unverändert**
+    weiter: Ein Entwurf-Folgeauftrag hat die Reservierungen des Originals NIE gelöst (das
+    passiert erst bei der Freigabe), darum bleibt alles 1:1 erhalten. Committet NICHT.
+    Liefert den (wieder laufenden) Eltern-Auftrag."""
+    if followup.parent_order_id is None:
+        raise HTTPException(400, detail="Das ist kein Unter-Auftrag (Folgeauftrag).")
+    if followup.status != "draft":
+        raise HTTPException(
+            409, detail="Nur ein noch nicht freigegebener Folgeauftrag kann zurückgenommen werden.")
+    parent = db.query(Order).filter(Order.object_id == followup.parent_order_id).first()
+    # Vorgemerkte Instanzen ans Original zurückgeben (Bindung + Verarbeitungs-Link lösen).
+    for inst in db.query(Instance).filter(
+        Instance.subject_of_order_id == followup.id, Instance.is_active == True
+    ).all():
+        inst.subject_of_order_id = None
+    for link in db.query(InstanceOrderLink).filter(
+        InstanceOrderLink.order_id == followup.id, InstanceOrderLink.is_active == True
+    ).all():
+        link.is_active = False
+    if parent and parent.abort_into_id == followup.object_id:
+        log_audit(db, "orders", "abort_into_id", None, actor_id,
+                  object_id=parent.object_id, old_value=str(followup.object_id))
+        parent.abort_into_id = None
+    old = followup.status
+    followup.status = "inactive"
+    log_audit(db, "orders", "status", "inactive", actor_id,
+              object_id=followup.object_id, old_value=old)
+    emit(db, "order.abort_revoked", object_type="order",
+         object_id=(parent.object_id if parent else followup.object_id),
+         payload={"followup": followup.object_id}, actor_id=actor_id)
+    return parent
+
+
 def apply_abort_on_release(db: Session, followup: Order, actor_id: int) -> None:
     """Wird ein Abbruch-Folgeauftrag **freigegeben**, das Original endgültig **abbrechen**:
     Reservierungen lösen, ABER die übernommenen Instanzen NICHT deaktivieren (sie gehören
