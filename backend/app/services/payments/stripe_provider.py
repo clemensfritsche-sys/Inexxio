@@ -123,7 +123,6 @@ class StripeProvider(PaymentProvider):
         is_sub = any(l.get("kind") == "subscription" for l in lines)
 
         line_items = [self._line_item(line, tax_behavior) for line in lines]
-        base = settings.frontend_base_url.rstrip("/")
         meta = {"intent_id": str(intent.id)}
         params = {
             "ui_mode": "embedded",
@@ -136,8 +135,9 @@ class StripeProvider(PaymentProvider):
             # Rechnungsadresse kommen aus dem Customer (aus dem Profil gespiegelt, s. _ensure_customer).
             "billing_address_collection": "auto",
             "metadata": meta,
-            # Eingebettete Kasse nutzt return_url (kein success_url/cancel_url).
-            "return_url": f"{base}/shop/success?session_id={{CHECKOUT_SESSION_ID}}",
+            # Eingebettete Kasse: KEIN Redirect – der Abschluss wird inline (onComplete) in
+            # unserer Kasse angezeigt (kein separates Erfolgs-Fenster, kein Abbruch-Hänger).
+            "redirect_on_completion": "never",
             # KEINE currency → Adaptive Pricing wählt die Lokalwährung des Kunden.
         }
         if is_sub:

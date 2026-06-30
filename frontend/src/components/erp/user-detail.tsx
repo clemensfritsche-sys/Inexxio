@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle } from 'lucide-react';
+import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
-import type { UserProfile } from '@/types';
+import { OrdersList } from '@/components/orders-list';
+import type { UserProfile, CustomerOrder } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -219,6 +220,29 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
   );
 }
 
+// ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
+
+function OrdersSec({ objectId }: { objectId: number | null | undefined }) {
+  const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
+  useEffect(() => {
+    if (!objectId) return;
+    setOrders(null);
+    api.getRecordOrders(objectId).then(setOrders).catch(() => setOrders([]));
+  }, [objectId]);
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
+        <ShoppingBag size={13} style={{ color: '#94a3b8' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#64748b' }}>Bestellungen</span>
+      </div>
+      {orders === null
+        ? <div style={{ fontSize: 13, color: '#94a3b8' }}>Lädt…</div>
+        : <OrdersList orders={orders} />}
+    </div>
+  );
+}
+
 // ─── UserDetail ──────────────────────────────────────────────────────────────
 
 export function UserDetail({ record, onSave, isAdmin, onBack }: {
@@ -307,6 +331,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
+        <OrdersSec objectId={record.object_id} />
       </div>
 
       {/* Save bar */}

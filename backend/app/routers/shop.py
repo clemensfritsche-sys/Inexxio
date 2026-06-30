@@ -13,7 +13,7 @@ from ..core.auth import get_current_user, get_optional_user
 from ..core.database import get_db
 from ..models import Article, CheckoutIntent, CompanySettings, UserProfile
 from ..schemas.shop import (
-    PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct,
+    CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct,
 )
 from ..services import sales as sales_svc
 from ..services.payments import get_provider, provider_name
@@ -164,6 +164,13 @@ async def session_status(session_id: str, db: Session = Depends(get_db),
         "status": "paid" if intent.status == "completed" else "requested",
         "paid": intent.status == "completed",
     }
+
+
+@router.get("/orders", response_model=list[CustomerOrder])
+async def my_orders(db: Session = Depends(get_db),
+                    user: UserProfile = Depends(get_current_user)):
+    """Eigene Bestellungen + Abos (Kunden-Selbstbedienung)."""
+    return [CustomerOrder(**o) for o in sales_svc.list_customer_orders(db, user.id)]
 
 
 @router.post("/portal")

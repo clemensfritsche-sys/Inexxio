@@ -102,6 +102,7 @@ function ProductView() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
           {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
+          <p className="text-xs text-slate-400 mt-1">Art.-Nr. {product.object_id}</p>
 
           <div className="mt-5 flex items-baseline gap-3">
             <span className="text-3xl font-bold text-slate-900">{fmt(view?.gross, view?.currency ?? 'CHF')}</span>

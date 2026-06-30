@@ -20,14 +20,7 @@ export default function ShopPage() {
   }, []);
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-12">
-      <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Produkte</h1>
-        <p className="text-xs text-slate-400 max-w-xs text-right">
-          Preise in CHF. Deine Landeswährung &amp; die Steuer werden an der Kasse automatisch berechnet.
-        </p>
-      </div>
-
+    <div className="max-w-6xl mx-auto px-6 py-10">
       {loading ? (
         <div className="text-slate-400 text-sm">Lädt…</div>
       ) : products.length === 0 ? (
@@ -52,6 +45,7 @@ export default function ShopPage() {
               <div className="p-4">
                 <h2 className="font-semibold text-slate-900 truncate">{p.title}</h2>
                 {p.subtitle && <p className="text-sm text-slate-500 truncate">{p.subtitle}</p>}
+                <p className="text-[11px] text-slate-400 mt-0.5">Art.-Nr. {p.object_id}</p>
                 <div className="mt-3 flex items-baseline gap-2">
                   <span className="text-lg font-bold text-slate-900">{fmt(p.price?.gross, p.price?.currency ?? 'CHF')}</span>
                   {p.price?.compare_at != null && (

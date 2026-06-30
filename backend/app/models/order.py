@@ -84,3 +84,9 @@ class Order(Base, TimestampMixin):
     # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**
     # wird er erst, wenn der Folgeauftrag **freigegeben** ist (die Instanzen gehen über).
     abort_into_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+
+    # **Make-to-Order**: Ein Shop-Verkaufsauftrag erzeugt NIE selbst Instanzen. Bei «auf
+    # Bestellung» entsteht ein separater **Produktionsauftrag** (Artikel-Prozess → Instanzen);
+    # dessen Objektnummer steht hier. Der Verkaufsauftrag wird freigegeben/erfüllt (FIFO +
+    # Versand), sobald diese Produktion abgeschlossen ist (Hook in process.recompute_completion).
+    fulfilled_by_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

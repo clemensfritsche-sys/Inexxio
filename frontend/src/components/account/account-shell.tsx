@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { User, MapPin, FileText, Shield, Bell, Lock, Loader2 } from 'lucide-react';
+import { User, MapPin, FileText, Shield, Bell, Lock, ShoppingBag, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -12,8 +12,9 @@ import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
 import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
+import { OrdersSection } from './sections/orders-section';
 
-type SectionId = 'profile' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
+type SectionId = 'profile' | 'orders' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
 
 interface Props {
   profile: UserProfile | null;
@@ -52,6 +53,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   const sections = useMemo(() => {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
       { id: 'profile', label: 'Mein Profil', icon: User },
+      { id: 'orders', label: 'Bestellungen & Abos', icon: ShoppingBag },
       { id: 'contact', label: 'Adresse', icon: MapPin },
       { id: 'invoice', label: 'Rechnungsadresse', icon: FileText },
       { id: 'security', label: 'Sicherheit', icon: Shield },
@@ -73,6 +75,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     if (!profile) return null;
     switch (activeSection) {
       case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
+      case 'orders': return <OrdersSection />;
       case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
       case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={isSupplier} />;
       case 'security': return <SecuritySection profile={profile} />;
