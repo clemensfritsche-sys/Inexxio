@@ -10,11 +10,19 @@ export function OrdersSection() {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
 
-  useEffect(() => {
-    api.getMyOrders().then(setOrders).catch(() => setOrders([]));
-  }, []);
+  const reload = () => { api.getMyOrders().then(setOrders).catch(() => setOrders([])); };
+  useEffect(reload, []);
 
   const hasSubscription = (orders ?? []).some((o) => o.has_subscription_management);
+
+  async function cancelSub(orderObjectId: number) {
+    try {
+      await api.cancelSubscription(orderObjectId);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Kündigung fehlgeschlagen – bitte erneut versuchen.');
+    }
+    reload();
+  }
 
   async function openPortal() {
     setPortalBusy(true);
@@ -43,7 +51,7 @@ export function OrdersSection() {
         {orders === null ? (
           <div className="flex items-center justify-center py-10 text-slate-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <OrdersList orders={orders} />
+          <OrdersList orders={orders} onCancel={cancelSub} />
         )}
         {orders !== null && orders.length > 0 && !hasSubscription && (
           <p className="mt-4 text-xs text-slate-400">Zahlungsmittel &amp; Abos verwaltest du über das Stripe-Kundenportal, sobald ein Abo besteht.</p>

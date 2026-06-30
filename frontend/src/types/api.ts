@@ -1153,6 +1153,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shop/orders/{order_object_id}/cancel-subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Subscription
+         * @description Abo **on-site** kündigen. Kündigt zuerst beim Zahlungs-Provider (Stripe) und spiegelt
+         *     erst danach lokal – scheitert der Provider-Call, bleibt das Abo aktiv (sauberer Fehler).
+         */
+        post: operations["cancel_subscription_api_v1_shop_orders__order_object_id__cancel_subscription_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shop/portal": {
         parameters: {
             query?: never;
@@ -5862,6 +5883,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerOrder"][];
+                };
+            };
+        };
+    };
+    cancel_subscription_api_v1_shop_orders__order_object_id__cancel_subscription_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
