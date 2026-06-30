@@ -89,7 +89,8 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     devi = Order(
         object_id=next_object_id(db, "order"), status="draft",
         article_id=parent.article_id, quantity=len(insts),
-        parent_order_id=parent.object_id, title=f"{title_prefix} {parent.object_id}",
+        parent_order_id=parent.object_id, reason="deviation",
+        title=f"{title_prefix} {parent.object_id}",
     )
     db.add(devi)
     db.flush()

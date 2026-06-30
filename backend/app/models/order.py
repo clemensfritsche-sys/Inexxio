@@ -31,20 +31,13 @@ class Order(Base, TimestampMixin):
     # Bedarf: welcher Artikel in welcher Menge. Die **Subjektart wird abgeleitet**
     # (kein Modus-Flag, siehe ``services/subject.py``):
     #   produce – ``article_id`` + ``quantity``, KEINE eigenen Schritte → fährt den
-    #             **Prozess des Artikels** und ERZEUGT Instanzen.
+    #             **Prozess des Artikels** und ERZEUGT Instanzen (auch jeder Nachschub).
     #   stock   – eigene Schritte (``article_process_steps`` mit ``order_id``) ohne
     #             vorgewählte Instanzen → Subjekt FIFO ab Lager (Verkauf/Entnahme).
     #   chosen  – wirkt auf vorgewählte, vorhandene Instanzen (``instances.subject_of_order_id``).
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-
-    # Explizite Subjekt-Quelle (überschreibt die Ableitung aus ``has_custom_steps``):
-    #   None/''  → automatisch ableiten (Default: eigene Schritte = stock, sonst produce)
-    #   'produce'→ neue Instanzen erzeugen, AUCH wenn eigene Schritte vorliegen
-    #              (Shop-Made-to-Order: Verkaufsablauf + Artikel-Produktion in einem Auftrag)
-    #   'stock'  → FIFO ab Lager
-    subject_source: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
     # Stripe-Bezüge (Quelle der Wahrheit für Zahlung/Abo): die Checkout-Session, über die
     # bezahlt wurde, und – bei Abos – die Stripe-Subscription (Status wird gespiegelt).
@@ -73,20 +66,20 @@ class Order(Base, TimestampMixin):
     # Ersetzen statt Versionierung: Objektnummer des Nachfolge-Auftrags (alt → neu).
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
-    # **Abweichung** (vereinheitlicht Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag):
-    # Ein Auftrag mit ``parent_order_id`` ist ein **Unter-Auftrag**, der aus einem laufenden
-    # Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt. Der Eltern-Auftrag
-    # **pausiert** (schliesst nicht ab), solange eine Abweichung offen ist. Objektnummer des
-    # Eltern-Auftrags (eine Abweichung ist selbst ein vollwertiger Auftrag mit eigener Nummer).
+    # **Unter-Auftrag** (``parent_order_id`` = Objektnummer des Eltern-Auftrags). EIN
+    # Mechanismus, zwei Gründe (``reason``):
+    #   'deviation' – Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag: wirkt auf bereits
+    #                 vorhandene Instanzen des Eltern-Auftrags. Der Eltern **pausiert**, bis
+    #                 die Abweichung geklärt ist (``process._is_paused_by_deviation``).
+    #   'supply'    – Nachschub: deckt einen Bedarf (Verkauf/Verbrauch) des Eltern, der nicht
+    #                 aus dem Bestand gedeckt war. Produziert/beschafft die Fehlmenge und
+    #                 **pinnt** sie bei Abschluss an den Eltern (``process._peg_supply_to_parent``).
+    #                 Der Eltern pausiert NICHT – der betroffene Schritt ist «blockiert», bis der
+    #                 Nachschub liefert (abgeleiteter Zustand, kein Auto-Trigger).
     parent_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    reason: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)  # deviation | supply
 
     # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
     # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**
     # wird er erst, wenn der Folgeauftrag **freigegeben** ist (die Instanzen gehen über).
     abort_into_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-
-    # **Make-to-Order**: Ein Shop-Verkaufsauftrag erzeugt NIE selbst Instanzen. Bei «auf
-    # Bestellung» entsteht ein separater **Produktionsauftrag** (Artikel-Prozess → Instanzen);
-    # dessen Objektnummer steht hier. Der Verkaufsauftrag wird freigegeben/erfüllt (FIFO +
-    # Versand), sobald diese Produktion abgeschlossen ist (Hook in process.recompute_completion).
-    fulfilled_by_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)

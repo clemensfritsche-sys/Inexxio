@@ -89,23 +89,12 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
 
 
 def _release_on_payment(db: Session, order: Order, actor_id: int | None) -> None:
-    """Auftrag bei bestätigter Zahlung freigeben (Defer-Modell: erst zahlen, dann erfüllen).
-
-    make → erzeugt jetzt die Instanzen; stock → war bereits bei der Bestellung reserviert
-    (dann ist der Auftrag schon ``released`` und dies ist ein No-op). Idempotent."""
-    if order.status != "draft":
-        return
-    from .events import emit as _emit
-    from .resource import reserve_resources
-    from .subject import materialize_subject
-    order.status = "released"
-    if order.released_at is None:
-        order.released_at = utcnow()
-    materialize_subject(db, order, actor_id)
-    reserve_resources(db, order, actor_id)
-    _emit(db, "order.released", object_type="order", object_id=order.object_id,
-          payload={"article_id": order.article_id, "quantity": order.quantity, "via": "payment"},
-          actor_id=actor_id)
+    """Auftrag bei bestätigter Zahlung freigeben (Defer-Modell: erst zahlen, dann erfüllen)
+    über die **einheitliche** Freigabe (kein Sonderpfad). Idempotent (No-op, wenn schon
+    freigegeben). Die Fehlmenge eines Verkaufs «auf Bestellung» deckt anschliessend der
+    Nachschub (``services/supply.py``)."""
+    from .orders import release_order
+    release_order(db, order, actor_id)
 
 
 def _apply_stripe_snapshot(sale: Sale, snap: dict) -> None:

@@ -254,6 +254,12 @@ class ApiClient {
       instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
   }
 
+  // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag (reason='supply'), der die
+  // Fehlmenge eines blockierten Schritts beschafft/produziert; liefert den Auftrag zurück.
+  createSupply(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/supply`, {});
+  }
+
   // Beschaffungsschritt des Auftrags (läuft unter der Auftragsnummer)
   updateOrderPurchase(objectId: number, data: PurchaseOrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/purchase`, data);

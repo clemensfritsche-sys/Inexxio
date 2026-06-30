@@ -13,6 +13,13 @@ from .resource import ResourceEmbed
 from .sale import SaleEmbed
 
 
+class StepShortfall(BaseModel):
+    """Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge)."""
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
+    quantity: int
+
+
 class OrderStepInfo(BaseModel):
     """Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).
 
@@ -24,9 +31,13 @@ class OrderStepInfo(BaseModel):
     step_type: str
     position: int
     label: str
-    state: str   # done | active | locked | failed
+    state: str   # done | active | blocked | locked | failed
     completed_by: Optional[str] = None   # wer hat den Schritt abgeschlossen
     completed_at: Optional[datetime] = None  # wann
+    # Bei state='blocked': ungedeckte Bedarfe + laufende Nachschub-Unteraufträge (Objektnummern),
+    # die diese Fehlmenge gerade decken.
+    shortfall: list[StepShortfall] = []
+    supply_order_object_ids: list[int] = []
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt)
     purchase: Optional[PurchaseEmbed] = None
@@ -124,9 +135,11 @@ class OrderDeviationCreate(BaseModel):
 
 
 class OrderDeviationInfo(BaseModel):
-    """Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag."""
+    """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
+    Eltern-Auftrag."""
     object_id: int
     status: str
+    reason: Optional[str] = None   # deviation | supply
     instance_count: int = 0
     instance_object_ids: list[int] = []
     title: Optional[str] = None
@@ -157,7 +170,8 @@ class OrderSummary(BaseModel):
     recurrence_active: bool = False         # wiederkehrender Auftrag (Badge)
     recurrence_due: bool = False            # fällig (Termin − Vorlaufzeit erreicht)
     replaced_by_id: Optional[int] = None
-    parent_order_id: Optional[int] = None   # gesetzt → Abweichung (Badge)
+    parent_order_id: Optional[int] = None   # gesetzt → Unter-Auftrag (Badge)
+    reason: Optional[str] = None            # deviation | supply (Art des Unter-Auftrags)
     abort_into_id: Optional[int] = None     # gesetzt → «Abbruch ausstehend»
 
 
@@ -206,9 +220,11 @@ class OrderResponse(BaseModel):
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None
-    # Abweichung (Unter-Auftrag) + Abbruch-Folgeauftrag (Objektnummern)
+    # Unter-Auftrag (parent) + Grund + Abbruch-Folgeauftrag (Objektnummern)
     parent_order_id: Optional[int] = None
+    reason: Optional[str] = None   # deviation | supply (gesetzt → dieser Auftrag IST ein Unter-Auftrag)
     abort_into_id: Optional[int] = None
-    # Sichtbarkeit der Unteraufträge (Abweichungen) im Eltern-Auftrag + Pause-Zustand
-    deviations: list[OrderDeviationInfo] = []
+    # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
+    deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
+    supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
     paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist

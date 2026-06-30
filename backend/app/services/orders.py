@@ -16,8 +16,11 @@ from ..schemas.disposal import DisposalEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
-from ..schemas.order import OrderDeviationInfo, OrderResponse, OrderStepInfo, OrderSummary
+from ..schemas.order import (
+    OrderDeviationInfo, OrderResponse, OrderStepInfo, OrderSummary, StepShortfall,
+)
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
+from ..models.base import utcnow
 from ..schemas.sale import SaleEmbed
 from . import process
 from .article_fields import normalize_shared_fields
@@ -27,6 +30,38 @@ from .resource import build_resource_embed
 from .subject import order_instances, subject_kind
 
 _STAFF_ROLES = ("admin", "employee")
+
+
+def release_order(db: Session, order: Order, actor_id: int | None) -> None:
+    """**Einheitliche Auftrags-Freigabe** (draft → released) – EIN Pfad für ERP-Freigabe,
+    Shop-Zahlung und Nachschub (kein Sonderpfad):
+
+    Subjekt herstellen (``materialize_subject``: produce erzeugt Instanzen | stock reserviert
+    FIFO, **ggf. nur teilweise** | deviation bindet die gewählten Instanzen), Beschaffung +
+    Verkauf instanziieren, Komponenten reservieren, Freigabe-Event. Idempotent (No-op, wenn
+    nicht im Entwurf). Committet NICHT.
+
+    Eine **Fehlmenge** (Subjekt/Komponente) ist KEIN Fehler mehr – der betroffene Schritt ist
+    danach «blockiert» und wird über einen Nachschub-Unter-Auftrag gedeckt (``services/supply``)."""
+    from . import deviation, sale as sale_svc, subject
+    from .events import emit as _emit
+    from .purchase import instantiate_for_order as instantiate_purchase
+    from .resource import reserve_resources
+    if order.status != "draft":
+        return
+    order.status = "released"
+    if order.released_at is None:
+        order.released_at = utcnow()   # Start der Durchlaufzeit
+    subject.materialize_subject(db, order, actor_id)
+    instantiate_purchase(db, order, actor_id)        # Beschaffungs-Schritte → Bestellungen
+    sale_svc.instantiate_for_order(db, order, actor_id)  # Verkaufs-Schritte → Belege
+    reserve_resources(db, order, actor_id)           # Komponenten mengengenau reservieren
+    _emit(db, "order.released", object_type="order", object_id=order.object_id,
+          payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
+    # Abbruch-Folgeauftrag: mit seiner Freigabe das Original endgültig abbrechen (self-guard;
+    # No-op für normale Aufträge und Nachschub).
+    if order.parent_order_id is not None:
+        deviation.apply_abort_on_release(db, order, actor_id)
 
 
 def recurrence_due(order: Order) -> bool:
@@ -158,18 +193,19 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
-def _order_deviations(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], bool]:
-    """Die Abweichungs-Unteraufträge eines Auftrags (für die Sichtbarkeit im Eltern-Detail)
-    + ob der Auftrag deshalb pausiert. Leere Liste, wenn keine vorhanden."""
+def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], list[OrderDeviationInfo], bool]:
+    """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichungen** (pausieren den
+    Eltern) und **Nachschub** (deckt Bedarf, blockiert nur Schritte) + Pause-Zustand."""
     if not order.object_id:
-        return [], False
+        return [], [], False
     children = (
         db.query(Order)
         .filter(Order.parent_order_id == order.object_id, Order.is_active == True)
         .order_by(Order.object_id)
         .all()
     )
-    infos: list[OrderDeviationInfo] = []
+    deviations: list[OrderDeviationInfo] = []
+    supplies: list[OrderDeviationInfo] = []
     for c in children:
         ids = [
             row[0] for row in
@@ -177,17 +213,40 @@ def _order_deviations(db: Session, order: Order) -> tuple[list[OrderDeviationInf
             .filter(InstanceOrderLink.order_id == c.id, InstanceOrderLink.is_active == True)
             .all()
         ]
-        infos.append(OrderDeviationInfo(
-            object_id=c.object_id, status=c.status, instance_count=len(ids),
-            instance_object_ids=ids, title=c.title))
-    return infos, process._is_paused_by_deviation(db, order)
+        info = OrderDeviationInfo(
+            object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
+            instance_object_ids=ids, title=c.title)
+        (supplies if c.reason == "supply" else deviations).append(info)
+    return deviations, supplies, process._is_paused_by_deviation(db, order)
+
+
+def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
+    """Einen blockierten Schritt mit seinen Fehlmengen (Artikel + Menge) und den laufenden
+    Nachschub-Unteraufträgen anreichern (für «Nachschub anlegen» / Verlinkung im Frontend)."""
+    shortfalls = process.step_shortfalls(db, order, step)
+    if not shortfalls:
+        return
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(shortfalls.keys())).all()}
+    si.shortfall = [
+        StepShortfall(article_object_id=(arts[aid].object_id if aid in arts else None),
+                      article_name=(arts[aid].name if aid in arts else None), quantity=qty)
+        for aid, qty in shortfalls.items()
+    ]
+    si.supply_order_object_ids = [
+        r[0] for r in
+        db.query(Order.object_id).filter(
+            Order.parent_order_id == order.object_id, Order.reason == "supply",
+            Order.is_active == True, Order.status.in_(("draft", "released")),
+            Order.article_id.in_(shortfalls.keys()))
+        .all()
+    ]
 
 
 def to_order_response(db: Session, order: Order) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
     resp = OrderResponse.model_validate(order)
-    resp.deviations, resp.paused = _order_deviations(db, order)
+    resp.deviations, resp.supply_orders, resp.paused = _order_sub_orders(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
@@ -228,6 +287,8 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         fact = s["fact"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
+        if s["state"] == "blocked":
+            _fill_step_shortfall(db, order, step, si)
         done = s["state"] == "done"
         by_name: str | None = None
         at = None

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
 import { orderStatusConfig, deviationBadge } from '@/lib/order';
@@ -12,7 +12,7 @@ import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle } from '@/components/erp/fields';
+import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle, PrimaryButton } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -103,17 +103,21 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [selStep, setSelStep] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
+  const [supplyBusy, setSupplyBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
   }
 
-  // Abweichung (Unter-Auftrag): Subjekt-Instanzen + Bedarf stehen bereits fest (aus dem
-  // Eltern-Auftrag) – keine Ziel-Karten/Instanzauswahl, kein editierbarer Bedarf.
-  const isDeviation = record?.parent_order_id != null;
-  // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only); bei einer Abweichung fix.
-  const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isDeviation;
+  // Unter-Auftrag (Abweichung ODER Nachschub): Subjekt-Instanzen + Bedarf stehen bereits fest
+  // (aus dem Eltern-Auftrag) – keine Ziel-Karten/Instanzauswahl, kein editierbarer Bedarf.
+  const isSubOrder = record?.parent_order_id != null;
+  // Ein Nachschub (reason='supply') ist KEINE Abweichung: er deckt nur die Fehlmenge eines
+  // blockierten Schritts (pausiert den Eltern nicht). «Abweichung» = ausschliesslich deviation.
+  const isSupply = record?.reason === 'supply';
+  // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only); bei einem Unter-Auftrag fix.
+  const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isSubOrder;
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
   // «Abweichung melden» auf **Auftragsebene**: nur am LAUFENDEN Auftrag (ein abgeschlossener
@@ -129,6 +133,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const showProcess = isStaff && !!record && record.status !== 'draft' && steps.length > 0;
   const activeStepId = steps.find((s) => s.state === 'active')?.id
     ?? steps.find((s) => s.state === 'failed')?.id
+    ?? steps.find((s) => s.state === 'blocked')?.id   // wartet auf Material → surface
     ?? steps[steps.length - 1]?.id ?? null;
   const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
   const currentStepObj = steps.find((s) => String(s.id) === currentStepId) ?? null;
@@ -156,10 +161,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const reqQty = record?.quantity ?? 0;
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
-    // Bei einer Abweichung stehen die Instanzen fest – kein Lagerpool nötig.
-    if (!isDraftStaff || isDeviation || record?.article_id == null) { setPinPool([]); return; }
+    // Bei einem Unter-Auftrag (Abweichung/Nachschub) stehen die Instanzen fest – kein Lagerpool nötig.
+    if (!isDraftStaff || isSubOrder || record?.article_id == null) { setPinPool([]); return; }
     api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isDraftStaff, isDeviation, record?.article_id]);
+  }, [isDraftStaff, isSubOrder, record?.article_id]);
   const articleStock = pinPool.filter((i) =>
     i.object_id != null && i.article_id === record?.article_id &&
     i.quality === 'passed' && i.disposition === 'in_stock' &&
@@ -189,16 +194,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
   // «Instanz wählen» verlangt, dass die gewählten Instanzen die Auftragsmenge GENAU decken.
   const specificComplete = goal !== 'specific' || pinnedQty === reqQty;
-  // Abweichung: Instanzen sind schon gebunden – Freigabe braucht nur einen definierten Ablauf
-  // (mind. einen Schritt, der festlegt, was mit den Instanzen geschieht).
+  // Unter-Auftrag (Abweichung/Nachschub): Subjekt steht schon fest – Freigabe braucht nur einen
+  // definierten Ablauf (mind. einen Schritt, der festlegt, was geschieht / wie nachgeschoben wird).
   const stepCount = orderStepCount ?? (record?.steps?.length ?? 0);
-  const deviationReady = stepCount > 0;
-  // Freigabe: Bedarf gespeichert UND – je nach Auftragsart – Ablauf definiert (Abweichung)
+  const subOrderReady = stepCount > 0;
+  // Freigabe: Bedarf gespeichert UND – je nach Auftragsart – Ablauf definiert (Unter-Auftrag)
   // bzw. Instanzauswahl vollständig (reguläre Bestands-Operation «Instanz wählen»).
   const canRelease = !isCreate && !!record?.article_id && !!record?.quantity
-    && sig === savedSig && (isDeviation ? deviationReady : specificComplete);
-  const releaseHint = isDeviation
-    ? (deviationReady ? undefined : 'Erst einen Prozessschritt für die Abweichung hinzufügen')
+    && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
+  const releaseHint = isSubOrder
+    ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
     : (!specificComplete ? `Erst genau ${reqQty} Instanz(en) wählen` : 'Erst Artikel und Menge speichern');
 
   async function setPins(ids: number[]) {
@@ -302,6 +307,22 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     }
   }
 
+  // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag, der die Fehlmenge des
+  // blockierten Schritts deckt. Liefert den (aktualisierten) Auftrag zurück – der blockierte
+  // Schritt zeigt danach den laufenden Nachschub; sobald dieser liefert, wird er wieder aktiv.
+  async function requestSupply() {
+    if (!record) return;
+    setSupplyBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.createSupply(record.object_id as number));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Nachschub konnte nicht angelegt werden');
+    } finally {
+      setSupplyBusy(false);
+    }
+  }
+
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
@@ -348,9 +369,15 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {!isCreate && record.parent_order_id != null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-            <AlertTriangle size={16} /> Abweichung zu Auftrag <ObjId value={record.parent_order_id} /> – wirkt auf dessen Instanzen.
-          </div>
+          isSupply ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+              <PackagePlus size={16} /> Nachschub für Auftrag <ObjId value={record.parent_order_id} /> – produziert/beschafft die Fehlmenge.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+              <AlertTriangle size={16} /> Abweichung zu Auftrag <ObjId value={record.parent_order_id} /> – wirkt auf dessen Instanzen.
+            </div>
+          )
         )}
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
@@ -388,6 +415,31 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 Der Auftrag läuft automatisch weiter, sobald die offene Abweichung abgeschlossen ist.
               </div>
             )}
+          </div>
+        )}
+
+        {/* Nachschub-Unteraufträge sichtbar machen – decken die Fehlmenge blockierter Schritte.
+            Anders als eine Abweichung pausiert ein Nachschub den Auftrag NICHT; sobald er liefert,
+            wird der betroffene Schritt von selbst wieder aktiv. */}
+        {!isCreate && isStaff && (record.supply_orders?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              <PackagePlus size={16} style={{ color: '#d97706' }} />
+              Nachschub
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.supply_orders!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.supply_orders!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
+                  </span>
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {isCompleted && (
@@ -443,8 +495,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         </div>
 
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
-            ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). */}
-        {isStaff && record?.status === 'draft' && !isDeviation && <RecurrenceCard order={record} onSaved={onSaved} />}
+            ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
+            Unter-Auftrag (Abweichung/Nachschub) nicht sinnvoll. */}
+        {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} onSaved={onSaved} />}
 
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
@@ -487,12 +540,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </>
         )}
 
-        {/* Abweichung (Entwurf): Subjekt-Instanzen stehen fest (oben gelistet) – KEINE
-            Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren (was mit ihnen geschieht),
-            dann freigeben. */}
-        {isStaff && record?.status === 'draft' && isDeviation && (
+        {/* Unter-Auftrag (Entwurf): Subjekt/Bedarf stehen fest (oben gelistet) – KEINE
+            Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren, dann freigeben. Abweichung =
+            was mit den Instanzen geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
+        {isStaff && record?.status === 'draft' && isSubOrder && (
           <>
-            <SectionTitle icon={Workflow} info="Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.">Ablauf der Abweichung</SectionTitle>
+            <SectionTitle icon={Workflow} info={isSupply
+              ? 'Lege fest, wie die fehlende Menge entsteht oder beschafft wird (herstellen, beschaffen …). Mit der Freigabe läuft der Nachschub.'
+              : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
+              {isSupply ? 'Ablauf des Nachschubs' : 'Ablauf der Abweichung'}
+            </SectionTitle>
             <div style={cardStyle}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
@@ -502,7 +559,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
         {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
             Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung). */}
-        {isStaff && record?.status === 'draft' && !isDeviation && (
+        {isStaff && record?.status === 'draft' && !isSubOrder && (
           <>
             <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
@@ -603,7 +660,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 onSelect={setSelStep}
               />
             </div>
-            <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
+            {currentStepObj?.state === 'blocked' ? (
+              <BlockedStepNotice step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
+                busy={supplyBusy} error={error} onSupply={requestSupply} />
+            ) : (
+              <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
+            )}
           </>
         ) : !isStaff && hasPurchase ? (
           <>
@@ -662,6 +724,60 @@ function stepHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
   const who = s.completed_by ?? 'System';
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
+}
+
+// Blockierter Schritt: wartet auf Material (Subjekt/Komponente nicht am Lager). Zeigt die
+// Fehlmengen und – sofern Nachschub bereits läuft – die verlinkten Nachschub-Aufträge.
+// Läuft noch kein Nachschub, kann Staff am freigegebenen Auftrag einen anlegen. «Blockiert»
+// ist abgeleitet: sobald der Nachschub liefert, wird der Schritt von selbst wieder aktiv.
+function BlockedStepNotice({ step, isStaff, canSupply, busy, error, onSupply }: {
+  step: OrderStep;
+  isStaff: boolean;
+  canSupply: boolean;
+  busy: boolean;
+  error: string | null;
+  onSupply: () => void;
+}) {
+  const running = step.supply_order_object_ids ?? [];
+  const hasRunning = running.length > 0;
+  return (
+    <div style={{ border: '1px solid #fde68a', borderRadius: 10, background: '#fffbeb', overflow: 'hidden', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', fontSize: 14, fontWeight: 700, color: '#92400e', borderBottom: '1px solid #fde68a' }}>
+        <Clock size={17} /> Wartet auf Material
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px' }}>
+        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+          Dieser Schritt ist blockiert – das benötigte Material ist nicht am Lager. Sobald der
+          Nachschub geliefert hat, läuft der Schritt automatisch weiter.
+        </div>
+        {(step.shortfall?.length ?? 0) > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {step.shortfall!.map((sf, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a' }}>
+                <PackageMinus size={14} style={{ color: '#b45309', flexShrink: 0 }} />
+                <span>
+                  <strong>{sf.quantity}</strong> × {sf.article_name ?? 'Artikel'}
+                  {sf.article_object_id != null && <> (<ObjId value={sf.article_object_id} />)</>} fehlt
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {hasRunning ? (
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+            <PackagePlus size={15} style={{ color: '#b45309', flexShrink: 0 }} />
+            Nachschub läuft:
+            {running.map((oid) => <ObjId key={oid} value={oid} />)}
+          </div>
+        ) : isStaff && canSupply ? (
+          <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busy}>
+            {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
+          </PrimaryButton>
+        ) : null}
+        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+      </div>
+    </div>
+  );
 }
 
 // Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed

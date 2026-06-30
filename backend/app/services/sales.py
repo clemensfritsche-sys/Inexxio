@@ -431,7 +431,7 @@ def checkout(db: Session, items: list, customer: UserProfile) -> tuple["object",
     # aufgeschoben (eigene Produktion + Verkauf erst bei Zahlung).
     stock_lines = [l for l in lines if l["fulfillment"] == "stock"]
     if stock_lines:
-        order = _create_multiline_sale_order(db, stock_lines, customer, release=True)
+        order = _create_multiline_sale_order(db, stock_lines, customer, allow_backorder=False)
         for l in stock_lines:
             l["order_id"] = order.object_id
     _store_lines(intent, lines)
@@ -453,16 +453,19 @@ def _store_lines(intent, lines: list) -> None:
 
 
 def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile,
-                                 release: bool) -> Order:
-    """EIN **Verkaufsauftrag** über eine oder mehrere Positionen (Instanz X + Y zusammen
-    verkaufen & versenden). Er **erzeugt NIE Instanzen** – die Subjekt-Quelle ist ``stock``
-    (FIFO-Zuordnung vorhandener, freigegebener Instanzen je Position). Je Position ein
-    ``sale``-Schritt + ``Sale``-Beleg; EIN gemeinsamer ``movement``-Schritt (ein Versand).
+                                 *, allow_backorder: bool = False) -> Order:
+    """EIN **Verkaufsauftrag** über eine oder mehrere Positionen (Subjekt = stock/FIFO; er
+    **erzeugt NIE selbst Instanzen** – er selektiert vorhandene, freigegebene). Je Position
+    ein ``sale``-Schritt + ``Sale``-Beleg; EIN gemeinsamer ``movement``-Schritt (ein Versand).
+    Wird sofort freigegeben.
 
-    ``release=True`` (ab Lager) bindet sofort per FIFO (alle Positionen); ``release=False``
-    (make) bleibt Entwurf bis die verknüpfte Produktion fertig ist (dann FIFO + Versand)."""
+    ``allow_backorder=False`` (ab Lager / limitierte Auflage): bindet streng per FIFO und
+    schlägt bei Unterdeckung fehl (kein Überverkauf). ``allow_backorder=True`` («auf
+    Bestellung»): bindet, was am Lager ist (ggf. nichts) – die **Fehlmenge** deckt
+    anschliessend ein Nachschub-Unter-Auftrag (der Aufrufer ruft ``supply.ensure_supply``)."""
     from .events import emit
     from .objects import next_object_id
+    from .orders import release_order
 
     single = len(lines) == 1
     title = (f"Shop-Kauf: {lines[0]['article_name']}" if single
@@ -473,7 +476,6 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
         article_id=lines[0]["article_id"] if single else None,
         quantity=lines[0]["quantity"] if single else None,
         title=title,
-        subject_source="stock",   # ein Verkauf SELEKTIERT (FIFO), er produziert nie
     )
     # Abo nur bei genau einer Position (Abos werden einzeln gekauft).
     if single and lines[0]["kind"] == "subscription":
@@ -505,10 +507,15 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
     log_audit(db, "sales", None, f"Shop-Verkauf angefragt ({len(lines)} Position(en))",
               customer.id, object_id=order.object_id)
 
-    if release:
+    if allow_backorder:
+        # «auf Bestellung»: einheitliche Freigabe – reserviert, was am Lager ist (ggf. nichts).
+        # Der Versand-Schritt bleibt «blockiert», bis der Nachschub liefert.
+        release_order(db, order, customer.id)
+    else:
+        # ab Lager: streng FIFO binden (Überverkauf vermeiden – schlägt bei Unterdeckung fehl).
         order.status = "released"
         order.released_at = utcnow()
-        _materialize_multiline(db, order, lines, customer)   # FIFO je Position, alles reservieren
+        _materialize_multiline(db, order, lines, customer)
         emit(db, "order.released", object_type="order", object_id=order.object_id,
              payload={"positions": len(lines), "via": "shop"}, actor_id=customer.id)
     db.flush()
@@ -540,28 +547,6 @@ def _materialize_multiline(db: Session, order: Order, lines: list, customer: Use
               customer.id, object_id=order.object_id)
 
 
-def _create_production_order(db: Session, line: dict, customer: UserProfile) -> Order:
-    """**Make-to-Order**: einen separaten **Produktionsauftrag** anlegen, der den
-    **Artikel-Prozess** fährt und so die Instanzen erzeugt (die EINZIGE legitime Quelle für
-    neue Instanzen). KEINE eigenen Schritte → ``subject_kind`` leitet ``produce`` ab.
-    Wird sofort freigegeben (Instanzen entstehen); abgeschlossen wird er über den Artikel-
-    Prozess (bei prozesslosen Artikeln sofort, siehe ``fulfill_intent``)."""
-    from .objects import next_object_id
-    from .sale import _release_on_payment
-
-    qty = line["quantity"]
-    prod = Order(
-        object_id=next_object_id(db, "order"), status="draft",
-        article_id=line["article_id"], quantity=qty,
-        title=f"Produktion: {line['article_name']}",
-        # KEIN subject_source → ohne eigene Schritte = produce (Artikel-Prozess erzeugt Instanzen)
-    )
-    db.add(prod)
-    db.flush()
-    _release_on_payment(db, prod, customer.id)   # released → materialize produce → Instanzen (+ emit)
-    return prod
-
-
 def _split_snapshot(snap: dict | None, base: Decimal, total_base: Decimal) -> dict | None:
     """Den session-weiten Stripe-Snapshot **anteilig** auf eine Position herunterbrechen
     (proportional zur CHF-Basis). Bei Einzelposition = voller Snapshot."""
@@ -591,7 +576,6 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
     customer = db.query(UserProfile).filter(UserProfile.id == intent.customer_id).first()
     if not customer:
         return 0
-    from . import process
 
     lines = list(intent.lines or [])
     total_base = sum((Decimal(l.get("base_amount_chf") or 0) for l in lines), Decimal("0"))
@@ -620,17 +604,15 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
             if order:
                 done += _finalize_order_sales(order, release_order=False)  # bereits released
         else:
-            # make: Produktion (Artikel-Prozess erzeugt Instanzen) + eigener Verkaufsauftrag,
-            # der NICHT selbst produziert und erst bei fertiger Produktion erfüllt wird.
-            production = _create_production_order(db, line, customer)
-            order = _create_multiline_sale_order(db, [line], customer, release=False)
-            order.fulfilled_by_order_id = production.object_id
-            db.flush()
+            # make («auf Bestellung»): EIN Verkaufsauftrag (Subjekt stock/FIFO). Ist kein
+            # Bestand da, deckt ein **Nachschub-Unter-Auftrag** (Produktion) die Fehlmenge –
+            # derselbe Mechanismus wie der «Nachschub»-Knopf im ERP. Der Versand-Schritt bleibt
+            # blockiert, bis der Nachschub liefert (dann an den Verkauf gepinnt).
+            from . import supply
+            order = _create_multiline_sale_order(db, [line], customer, allow_backorder=True)
             line["order_id"] = order.object_id
-            done += _finalize_order_sales(order, release_order=False)
-            # Produktion jetzt bewerten: hat der Artikel keinen Prozess, ist sie sofort fertig →
-            # Hook in recompute_completion gibt den verknüpften Verkaufsauftrag frei.
-            process.recompute_completion(db, production)
+            done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
+            supply.ensure_supply(db, order, customer.id)
     intent.status = "completed"
     _store_lines(intent, lines)
     db.commit()

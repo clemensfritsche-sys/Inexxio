@@ -2127,6 +2127,54 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/supply": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Create Supply",
+        "description": "«Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags\neinen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft\n(rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt\nund der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück.",
+        "operationId": "create_supply_api_v1_erp_orders__object_id__supply_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [
@@ -7645,6 +7693,17 @@
             "type": "string",
             "title": "Status"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
@@ -7676,7 +7735,7 @@
           "status"
         ],
         "title": "OrderDeviationInfo",
-        "description": "Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag."
+        "description": "Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im\nEltern-Auftrag."
       },
       "OrderResponse": {
         "properties": {
@@ -8003,6 +8062,17 @@
             ],
             "title": "Parent Order Id"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "abort_into_id": {
             "anyOf": [
               {
@@ -8020,6 +8090,14 @@
             },
             "type": "array",
             "title": "Deviations",
+            "default": []
+          },
+          "supply_orders": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDeviationInfo"
+            },
+            "type": "array",
+            "title": "Supply Orders",
             "default": []
           },
           "paused": {
@@ -8088,6 +8166,22 @@
               }
             ],
             "title": "Completed At"
+          },
+          "shortfall": {
+            "items": {
+              "$ref": "#/components/schemas/StepShortfall"
+            },
+            "type": "array",
+            "title": "Shortfall",
+            "default": []
+          },
+          "supply_order_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Supply Order Object Ids",
+            "default": []
           },
           "purchase": {
             "anyOf": [
@@ -8304,6 +8398,17 @@
               }
             ],
             "title": "Parent Order Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
           },
           "abort_into_id": {
             "anyOf": [
@@ -9815,6 +9920,42 @@
         ],
         "title": "StepReorder",
         "description": "Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen\nwerden serverseitig automatisch neu eingefügt/positioniert."
+      },
+      "StepShortfall": {
+        "properties": {
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantity"
+        ],
+        "title": "StepShortfall",
+        "description": "Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge)."
       },
       "StorageLocationCreate": {
         "properties": {
