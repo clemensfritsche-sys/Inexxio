@@ -808,7 +808,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'purchase') {
     return stepOrder.purchase
       ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
-      : null;
+      : <StepFallback />;
   }
   if (step.step_type === 'sale') {
     return <SalePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
@@ -825,7 +825,18 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'scrap') {
     return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  return null;
+  return <StepFallback />;
+}
+
+// Fallback, wenn ein Schritt (noch) keine Detail-Daten hat – nie ein leeres Panel zeigen.
+function StepFallback() {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px',
+      fontSize: 13, color: '#64748b', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <Loader2 size={15} className="animate-spin" style={{ flexShrink: 0 }} />
+      Details werden vorbereitet – bitte die Seite neu laden, falls nichts erscheint.
+    </div>
+  );
 }
 
 // Mengen-Eingabe mit Einheit-Suffix des referenzierten Artikels
