@@ -59,8 +59,10 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
   const s = po.status;
   const isStaff = viewerRole === 'staff';
   const isWebshop = po.mode === 'webshop';
-  // Verantwortung für Offerte/Bestellsumme: Webshop → Mitarbeiter, sonst Lieferant
-  const isOfferEditor = (isWebshop && isStaff) || (!isWebshop && viewerRole === 'supplier');
+  // Offerte/Bestellsumme erfassen darf der **Besteller (Mitarbeiter) immer** (Selbst-
+  // Beschaffung – nie blockiert, auch ohne zugewiesenen Lieferanten) sowie – im Lieferanten-
+  // Modus – der Lieferant über sein Portal.
+  const isOfferEditor = isStaff || (!isWebshop && viewerRole === 'supplier');
   const isBuyer = isStaff;
   const canEditOffer = isOfferEditor && s === 'requested';     // nach Absenden gesperrt
   const canEditTracking = isOfferEditor && s === 'ordered';
@@ -78,7 +80,9 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
 
   const actions: Action[] = [];
   if (s === 'requested' && isOfferEditor) {
-    actions.push(isWebshop
+    // Mitarbeiter (Besteller) & Webshop → direkt bestellen (Summe selbst erfassen);
+    // nur der externe Lieferant offeriert (→ quoted), woraufhin der Besteller bestellt.
+    actions.push(isStaff || isWebshop
       ? { label: 'Bestellen', target: 'ordered', variant: 'primary', needsTotal: true }
       : { label: 'Offerte senden', target: 'quoted', variant: 'primary', needsTotal: true });
   }
@@ -178,7 +182,7 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
         {/* Bezugsquelle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
           {po.mode === 'supplier'
-            ? <><UserIcon size={12} /> Lieferant: {po.supplier_name ?? `#${po.supplier_id}`}</>
+            ? <><UserIcon size={12} /> Lieferant: {po.supplier_name ?? (po.supplier_id ? `#${po.supplier_id}` : 'nicht zugewiesen (Selbst-Beschaffung)')}</>
             : <><Link2 size={12} /> {po.webshop_url
                 ? <a href={po.webshop_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', wordBreak: 'break-all' }}>Webshop öffnen</a>
                 : 'Webshop'}</>}
