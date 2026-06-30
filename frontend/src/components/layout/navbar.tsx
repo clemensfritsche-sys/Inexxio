@@ -3,11 +3,40 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, LogIn, LogOut, ChevronDown, Settings } from 'lucide-react';
+import { Menu, X, LogIn, LogOut, ChevronDown, Settings, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { onAuthChange, logout } from '@/lib/firebase';
 import { api } from '@/lib/api';
+import { useCartOptional } from '@/lib/cart-context';
 import type { User } from 'firebase/auth';
+
+// Elegantes Warenkorb-Symbol für den Header: dezenter Icon-Button, Badge nur bei Inhalt.
+function CartButton({ count, size = 38 }: { count: number; size?: number }) {
+  return (
+    <Link
+      href="/shop/cart"
+      aria-label={`Warenkorb${count > 0 ? ` (${count})` : ''}`}
+      style={{
+        position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: size, height: size, borderRadius: '50%', color: 'var(--fg-1)',
+        transition: 'background 0.15s',
+      }}
+      className="hover:bg-slate-100"
+    >
+      <ShoppingCart style={{ width: 19, height: 19 }} strokeWidth={1.8} />
+      {count > 0 && (
+        <span style={{
+          position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, padding: '0 4px',
+          borderRadius: 999, background: 'var(--ix-red, #E51A14)', color: '#fff',
+          fontSize: 10, fontWeight: 700, lineHeight: '16px', textAlign: 'center',
+          boxShadow: '0 0 0 2px #fff',
+        }}>
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 const ROLE_KEY = 'inexxio_user_role';
 const NAME_KEY = 'inexxio_user_fullname';
@@ -30,6 +59,7 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const cart = useCartOptional();   // nur in Shop-/öffentlichem Kontext vorhanden
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -174,6 +204,8 @@ export function Navbar() {
                 <span style={{ color: 'var(--border-2)' }}>|</span>
                 <button style={{ color: 'var(--fg-3)' }}>EN</button>
               </div>
+
+              {cart && <CartButton count={cart.count} />}
 
               {authLoaded && (
                 user ? (
@@ -353,6 +385,22 @@ export function Navbar() {
               </Link>
             )}
 
+
+            {cart && (
+              <Link
+                href="/shop/cart"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  font: '600 19px/1 var(--font-display)', letterSpacing: '-0.02em',
+                  padding: '14px 0', borderBottom: '1px solid var(--border-1)',
+                  color: pathname.startsWith('/shop/cart') ? 'var(--ix-red)' : 'var(--fg-1)',
+                  textDecoration: 'none',
+                }}
+              >
+                <ShoppingCart style={{ width: 20, height: 20 }} strokeWidth={1.8} />
+                Warenkorb{cart.count > 0 ? ` (${cart.count})` : ''}
+              </Link>
+            )}
 
             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '500 14px var(--font-body)', color: 'var(--fg-3)' }}>

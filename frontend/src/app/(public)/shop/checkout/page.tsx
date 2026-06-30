@@ -13,7 +13,7 @@ import { useCart } from '@/lib/cart-context';
 function CheckoutView() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { items } = useCart();
+  const { items, hydrated } = useCart();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pubKey, setPubKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,9 +21,9 @@ function CheckoutView() {
   const started = useRef(false);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !hydrated) return;     // erst handeln, wenn Auth + Warenkorb geladen sind
     if (!user) { setBusy(false); return; }
-    if (items.length === 0) { router.replace('/shop'); return; }
+    if (items.length === 0) { router.replace('/shop/cart'); return; }
     if (started.current) return;
     started.current = true;
 
@@ -44,7 +44,7 @@ function CheckoutView() {
         setBusy(false);
       }
     })();
-  }, [authLoading, user, items, router]);
+  }, [authLoading, hydrated, user, items, router]);
 
   const stripePromise = useMemo<Promise<Stripe | null> | null>(
     () => (pubKey ? loadStripe(pubKey) : null), [pubKey]);

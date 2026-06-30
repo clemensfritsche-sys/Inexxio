@@ -60,13 +60,22 @@ def _user_name(u: UserProfile | None) -> str | None:
     return u.company_name or name or u.email
 
 
+def _price_rank(p: ArticlePrice) -> int:
+    """Sortier-Rang: Abos zuerst (Produktabo, dann Nutzungsabo), zuletzt Einmalkauf."""
+    if p.kind == "subscription":
+        return 0 if p.sub_type == "product" else 1
+    return 2
+
+
 def prices_for(db: Session, article_id: int) -> list[ArticlePrice]:
-    return (
+    prices = (
         db.query(ArticlePrice)
         .filter(ArticlePrice.article_id == article_id, ArticlePrice.is_active == True)
-        .order_by(ArticlePrice.is_primary.desc(), ArticlePrice.id)
         .all()
     )
+    # Reihenfolge: Produktabo → Nutzungsabo → Einmalkauf (dann Hauptpreis, dann id).
+    prices.sort(key=lambda p: (_price_rank(p), 0 if p.is_primary else 1, p.id))
+    return prices
 
 
 def audience_for(db: Session, article_id: int) -> list[dict]:

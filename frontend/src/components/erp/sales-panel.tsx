@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Tag, Plus, Trash2, Globe, Lock, Image as ImageIcon, Coins } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
-  ArticleSalesProfile, ArticlePrice, AudienceMember, PriceView,
+  ArticleSalesProfile, ArticlePrice, AudienceMember,
   SalesVisibility, SalesFulfillment, SalesContent, SalesContentBlock,
   PriceKind, PriceInterval, PriceSubType, UserProfile,
 } from '@/types';
 import {
-  Label, TextField, SelectField, Segmented, SearchSelect, SectionTitle, Placeholder,
+  Label, TextField, SelectField, Segmented, SectionTitle, Placeholder,
 } from '@/components/erp/fields';
 import { useAutosave } from '@/lib/use-autosave';
 
@@ -22,11 +22,6 @@ const SUB_TYPE_LABEL: Record<PriceSubType, string> = {
   usage: 'Nutzungsabo (Zugang/Miete)', product: 'Produktabo (wiederkehrende Lieferung)',
 };
 
-function fmtMoney(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 function emptyBlock(): SalesContentBlock {
   return { title: '', subtitle: '', description: '', images: [] };
 }
@@ -36,12 +31,15 @@ export function SalesPanel({ articleObjectId }: { articleObjectId: number | null
   const [customers, setCustomers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Live-Sichtbarkeit (sofort beim Umschalten) – damit die Zielgruppe-Karte ohne Autosave-Wartezeit erscheint.
+  const [liveVis, setLiveVis] = useState<SalesVisibility>('public');
 
   const reload = useCallback(async () => {
     if (articleObjectId == null) return;
     try {
       const p = await api.getArticleSales(articleObjectId);
       setProfile(p);
+      setLiveVis(p.sales_visibility);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Laden');
     } finally {
@@ -62,13 +60,12 @@ export function SalesPanel({ articleObjectId }: { articleObjectId: number | null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <ProfileCard profile={profile} onSaved={setProfile} articleObjectId={articleObjectId} />
+      <ProfileCard profile={profile} onSaved={setProfile} onVisibilityChange={setLiveVis} articleObjectId={articleObjectId} />
       <PricesCard articleObjectId={articleObjectId} prices={profile.prices} onChanged={reload} />
-      {profile.sales_visibility !== 'public' && (
+      {liveVis === 'private' && (
         <AudienceCard articleObjectId={articleObjectId} audience={profile.audience}
           customers={customers} onChanged={reload} />
       )}
-      <PreviewCard previews={profile.previews} />
     </div>
   );
 }
@@ -80,8 +77,9 @@ const card: React.CSSProperties = {
 
 // ─── Profil: Publiziert + Sichtbarkeit + Verfügbarkeit + Inhalt (einsprachig) ────
 
-function ProfileCard({ profile, onSaved, articleObjectId }: {
-  profile: ArticleSalesProfile; onSaved: (p: ArticleSalesProfile) => void; articleObjectId: number;
+function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: {
+  profile: ArticleSalesProfile; onSaved: (p: ArticleSalesProfile) => void;
+  onVisibilityChange: (v: SalesVisibility) => void; articleObjectId: number;
 }) {
   const [published, setPublished] = useState(profile.sales_published);
   const [visibility, setVisibility] = useState<SalesVisibility>(profile.sales_visibility);
@@ -130,7 +128,8 @@ function ProfileCard({ profile, onSaved, articleObjectId }: {
             const active = visibility === v.value;
             const Icon = v.icon;
             return (
-              <button key={v.value} type="button" title={v.hint} onClick={() => setVisibility(v.value)}
+              <button key={v.value} type="button" title={v.hint}
+                onClick={() => { setVisibility(v.value); onVisibilityChange(v.value); }}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                   padding: '7px 8px', fontSize: 12, fontWeight: 600, borderRadius: 8, cursor: 'pointer',
                   border: `1px solid ${active ? '#2563eb' : '#e2e8f0'}`, background: active ? '#eff6ff' : '#fff',
@@ -318,66 +317,60 @@ function PriceRow({ articleObjectId, price, onChanged }: {
   );
 }
 
-// ─── Zielgruppe (private) ────────────────────────────────────────────────────────
+// ─── Zielgruppe (private) – Mehrfachauswahl per Checkbox ─────────────────────────
 
 function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
   articleObjectId: number; audience: AudienceMember[]; customers: UserProfile[]; onChanged: () => void;
 }) {
-  const [pick, setPick] = useState('');
-  const assignedIds = new Set(audience.map((a) => a.user_id));
-  const options = customers.filter((c) => !assignedIds.has(c.id)).map((c) => ({
-    value: String(c.id),
-    label: [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company_name || c.email,
-  }));
+  const [q, setQ] = useState('');
+  const [busy, setBusy] = useState(false);
+  // user_id → Zeilen-id der Zuweisung (für gezieltes Entfernen).
+  const rowByUser = new Map(audience.map((a) => [a.user_id, a.id]));
 
-  async function add(userId: string) {
-    setPick('');
-    await api.addArticleAudience(articleObjectId, Number(userId));
-    onChanged();
+  function nameOf(c: UserProfile): string {
+    return [c.first_name, c.last_name].filter(Boolean).join(' ') || c.company_name || c.email;
   }
-  async function remove(rowId: number) {
-    await api.removeArticleAudience(articleObjectId, rowId);
-    onChanged();
+
+  const needle = q.trim().toLowerCase();
+  const list = customers
+    .filter((c) => !needle || nameOf(c).toLowerCase().includes(needle) || (c.email ?? '').toLowerCase().includes(needle))
+    .sort((a, b) => Number(rowByUser.has(b.id)) - Number(rowByUser.has(a.id)) || nameOf(a).localeCompare(nameOf(b)));
+
+  async function toggle(c: UserProfile) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const rowId = rowByUser.get(c.id);
+      if (rowId) await api.removeArticleAudience(articleObjectId, rowId);
+      else await api.addArticleAudience(articleObjectId, c.id);
+      onChanged();
+    } finally { setBusy(false); }
   }
 
   return (
     <div style={card}>
-      <SectionTitle icon={Lock} info="Nur diese Kunden sehen das Produkt (bei privater Sichtbarkeit).">Zielgruppe</SectionTitle>
-      {audience.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Noch keine Kunden zugewiesen.</div>}
-      {audience.map((a) => (
-        <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <span style={{ color: '#0f172a', fontWeight: 600 }}>{a.name ?? a.email ?? `#${a.user_id}`}</span>
-          {a.email && a.name && <span style={{ color: '#94a3b8', fontSize: 12 }}>{a.email}</span>}
-          <button onClick={() => remove(a.id)} title="Entfernen" style={{ marginLeft: 'auto', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 7, padding: '4px 7px', color: '#94a3b8', cursor: 'pointer' }}>
-            <Trash2 size={13} />
-          </button>
-        </div>
-      ))}
-      <SearchSelect label="Kunde hinzufügen" value={pick} onChange={add} options={options} placeholder="Kunde suchen…" />
-    </div>
-  );
-}
-
-// ─── Preis-Vorschau (CHF) ────────────────────────────────────────────────────────
-
-function PreviewCard({ previews }: { previews: PriceView[] }) {
-  if (!previews || previews.length === 0) return null;
-  return (
-    <div style={card}>
-      <SectionTitle icon={Coins} info="Berechneter Anzeige-Preis in CHF (inkl. CH-MWST). Lokalwährung/finale Steuer rechnet Stripe an der Kasse.">Vorschau</SectionTitle>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {previews.map((v) => (
-          <div key={v.currency} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13 }}>
-            <span style={{ width: 44, fontWeight: 700, color: '#475569' }}>{v.currency}</span>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#0f766e' }}>{fmtMoney(v.gross, v.currency)}</span>
-            {v.compare_at != null && (
-              <span style={{ color: '#94a3b8', textDecoration: 'line-through' }}>{fmtMoney(v.compare_at, v.currency)}</span>
-            )}
-            <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8' }}>
-              netto {fmtMoney(v.net, v.currency)} · MWST {Number(v.tax_rate)}%
-            </span>
-          </div>
-        ))}
+      <SectionTitle icon={Lock} info="Nur ausgewählte Kunden sehen das Produkt (bei privater Sichtbarkeit). Mehrfachauswahl per Klick.">
+        Zielgruppe{audience.length > 0 ? ` (${audience.length})` : ''}
+      </SectionTitle>
+      <TextField label="" value={q} onChange={setQ} placeholder="Kunde suchen (Name oder E-Mail)…" />
+      {customers.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine Kunden vorhanden.</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 260, overflowY: 'auto' }}>
+        {list.map((c) => {
+          const checked = rowByUser.has(c.id);
+          return (
+            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 8,
+              cursor: busy ? 'default' : 'pointer', background: checked ? '#eff6ff' : 'transparent' }}
+              className={busy ? '' : 'hover:bg-slate-50'}>
+              <input type="checkbox" checked={checked} disabled={busy} onChange={() => toggle(c)}
+                style={{ width: 16, height: 16, accentColor: '#2563eb', cursor: busy ? 'default' : 'pointer' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{nameOf(c)}</span>
+              {c.email && <span style={{ fontSize: 12, color: '#94a3b8' }}>{c.email}</span>}
+            </label>
+          );
+        })}
+        {list.length === 0 && customers.length > 0 && (
+          <div style={{ fontSize: 12, color: '#94a3b8', padding: '4px 8px' }}>Kein Treffer.</div>
+        )}
       </div>
     </div>
   );

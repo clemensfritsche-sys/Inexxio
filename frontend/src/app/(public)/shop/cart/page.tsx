@@ -19,8 +19,11 @@ function itemLabel(i: CartItem): string {
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, subtotal, currency, setQuantity, remove, keyOf } = useCart();
+  const { items, subtotal, currency, hydrated, setQuantity, remove, keyOf } = useCart();
 
+  if (!hydrated) {
+    return <div className="max-w-3xl mx-auto px-6 py-16 text-center text-slate-400 text-sm">Lädt…</div>;
+  }
   if (items.length === 0) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-16 text-center">

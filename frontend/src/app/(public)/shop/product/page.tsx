@@ -40,8 +40,8 @@ function ProductView() {
     api.getShopProduct(objectId)
       .then((p) => {
         setProduct(p);
-        const primary = (p.prices ?? []).find((o) => o.is_primary) ?? (p.prices ?? [])[0];
-        setSelectedId(primary?.price_id ?? null);
+        // Oberste Option vorselektieren (Backend liefert abo-first: Produktabo → Nutzungsabo → Einmalkauf).
+        setSelectedId((p.prices ?? [])[0]?.price_id ?? null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Produkt nicht gefunden'))
       .finally(() => setLoading(false));

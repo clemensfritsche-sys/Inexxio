@@ -48,43 +48,59 @@ def _full_name(u: UserProfile) -> str | None:
     return u.company_name or name or None
 
 
-def _profile_shipping(u: UserProfile) -> dict | None:
-    """Lieferadresse aus dem Profil als Stripe-``shipping``-Objekt (oder None, wenn
-    unvollständig). So füllt Stripe die Kasse vor – der Kunde tippt nichts erneut (#4)."""
-    line1 = u.ship_address_line1 or u.address_line1
-    city = u.ship_city or u.city
-    postal = u.ship_postal_code or u.postal_code
-    country = (u.ship_country or u.country or "CH")
+def _addr(line1, line2, city, postal, state, country) -> dict | None:
     if not (line1 and city and postal and country):
         return None
-    name = u.ship_name or _full_name(u) or u.email
-    address = {
+    return {
         "line1": line1,
-        "line2": u.ship_address_line2 or u.address_line2 or None,
+        "line2": line2 or None,
         "city": city,
         "postal_code": postal,
-        "state": u.ship_state_region or u.state_region or None,
+        "state": state or None,
         "country": (country or "CH")[:2].upper(),
     }
-    return {"name": name, "address": address}
+
+
+def _profile_shipping(u: UserProfile) -> dict | None:
+    """Lieferadresse aus dem Profil als Stripe-``shipping``-Objekt (oder None)."""
+    addr = _addr(u.ship_address_line1 or u.address_line1,
+                 u.ship_address_line2 or u.address_line2,
+                 u.ship_city or u.city, u.ship_postal_code or u.postal_code,
+                 u.ship_state_region or u.state_region, u.ship_country or u.country or "CH")
+    if not addr:
+        return None
+    return {"name": u.ship_name or _full_name(u) or u.email, "address": addr}
+
+
+def _profile_billing(u: UserProfile) -> dict | None:
+    """Rechnungsadresse aus dem Profil als Stripe-``address``-Objekt (Fallback: Kontaktadresse)."""
+    return _addr(u.invoice_address_line1 or u.address_line1,
+                 u.invoice_address_line2 or u.address_line2,
+                 u.invoice_city or u.city, u.invoice_postal_code or u.postal_code,
+                 u.state_region, u.invoice_country or u.country or "CH")
 
 
 def _ensure_customer(db: Session, stripe, user: UserProfile) -> str:
-    """Den Stripe-Customer zum UserProfile holen/anlegen (idempotent, gecached) und die
-    Lieferadresse aus dem Profil spiegeln (Vorbefüllung der Kasse)."""
+    """Den Stripe-Customer holen/anlegen (idempotent) und **Liefer- + Rechnungsadresse aus dem
+    Profil** spiegeln. Das Profil ist die **Single Source of Truth** – auf Stripe wird KEINE
+    Adresse erfasst (siehe ``create_checkout``); jeder Checkout aktualisiert den Customer."""
     shipping = _profile_shipping(user)
+    billing = _profile_billing(user)
+    fields = {}
+    if shipping:
+        fields["shipping"] = shipping
+    if billing:
+        fields["address"] = billing
     if user.stripe_customer_id:
-        if shipping:
+        if fields:
             try:
-                stripe.Customer.modify(user.stripe_customer_id, shipping=shipping)
+                stripe.Customer.modify(user.stripe_customer_id, **fields)
             except Exception:
                 pass
         return user.stripe_customer_id
     cust = stripe.Customer.create(
-        email=user.email,
-        name=_full_name(user),
-        shipping=shipping or None,
-        metadata={"user_id": user.id, "object_id": user.object_id or ""},
+        email=user.email, name=_full_name(user),
+        metadata={"user_id": user.id, "object_id": user.object_id or ""}, **fields,
     )
     user.stripe_customer_id = cust.id
     db.commit()
@@ -116,9 +132,9 @@ class StripeProvider(PaymentProvider):
             "line_items": line_items,
             # Stripe Tax nur, wenn im Dashboard eingerichtet (sonst schlägt die Session fehl).
             "automatic_tax": {"enabled": bool(settings.stripe_tax_enabled)},
+            # Single Source of Truth = Profil: KEINE Adress-Erfassung auf Stripe. Liefer- und
+            # Rechnungsadresse kommen aus dem Customer (aus dem Profil gespiegelt, s. _ensure_customer).
             "billing_address_collection": "auto",
-            "shipping_address_collection": {"allowed_countries": _ship_countries()},
-            "customer_update": {"address": "auto", "name": "auto", "shipping": "auto"},
             "metadata": meta,
             # Eingebettete Kasse nutzt return_url (kein success_url/cancel_url).
             "return_url": f"{base}/shop/success?session_id={{CHECKOUT_SESSION_ID}}",
