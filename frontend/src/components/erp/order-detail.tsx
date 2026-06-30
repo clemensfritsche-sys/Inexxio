@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
-import { orderStatusConfig, deviationBadge } from '@/lib/order';
+import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
@@ -61,8 +61,9 @@ function todayIso(): string {
 
 // Abgeleitete Subjektart des Auftrags (kein Modus-Flag) – für die Anzeige.
 function subjectRoleLabel(role: string | null | undefined): string {
-  if (role === 'deviation') return 'Abweichung – wirkt auf vorhandene Instanzen';
-  return role === 'stock' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
+  // Ein Unter-Auftrag, der auf vorhandene Instanzen wirkt, ist eine Bestands-Operation –
+  // KEINE eigene «Abweichung»-Art (Status/Art bleiben für alle Aufträge einheitlich).
+  return role === 'stock' || role === 'deviation' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
@@ -375,17 +376,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       {/* Content */}
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
-        {!isCreate && record.parent_order_id != null && (
-          isSupply ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-              <PackagePlus size={16} /> Nachschub für Auftrag <ObjId value={record.parent_order_id} /> – produziert/beschafft die Fehlmenge.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-              <AlertTriangle size={16} /> Abweichung zu Auftrag <ObjId value={record.parent_order_id} /> – wirkt auf dessen Instanzen.
-            </div>
-          )
-        )}
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
@@ -419,7 +409,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                       <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
                     )}
                   </span>
-                  <StatusBadge cfg={deviationBadge(d.status)} />
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
                 </button>
               ))}
             </div>

@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
-import { orderStatusConfig, deviationBadge } from '@/lib/order';
+import { orderStatusConfig } from '@/lib/order';
 import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { instanceStatusConfig } from '@/lib/process';
@@ -73,15 +73,13 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
-    // Abweichung (Unter-Auftrag) hat Vorrang; dann wiederkehrend & fällig; sonst Status.
-    // Die Abweichungs-Badge folgt dem Status (grün, sobald erledigt).
-    badge = row.data.parent_order_id != null
-      ? deviationBadge(row.data.status)
-      : row.data.recurrence_due
-        ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
-        : row.data.status === 'released' && row.data.purchase_status
-          ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
-          : orderStatusConfig(row.data.status);
+    // EINHEITLICHER Status für ALLE Aufträge – auch Unter-Aufträge (kein Sonder-«Abweichung»-
+    // Badge mehr): wiederkehrend & fällig zuerst, sonst Beschaffungs-/Auftragsstatus.
+    badge = row.data.recurrence_due
+      ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
+      : row.data.status === 'released' && row.data.purchase_status
+        ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
+        : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
   else if (row.type === 'organization') badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
