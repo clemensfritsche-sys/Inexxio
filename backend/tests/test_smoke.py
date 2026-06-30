@@ -1319,6 +1319,21 @@ def test_abort_is_reversible_and_supply_not_special_cased():
     assert 'reason == "supply"' not in _inspect.getsource(deactivation.cancel_order_effects)
 
 
+def test_get_order_self_heals_missing_step_facts():
+    """Beim Lesen eines FREIGEGEBENEN Auftrags werden fehlende Beschaffungs-/Verkaufsbelege
+    idempotent nachgezogen, damit die Prozessschritt-Details immer erscheinen (nie ein leeres
+    Panel). Nur Personal, nur purchase/sale."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    assert hasattr(orders, "_ensure_step_facts")
+    src = _inspect.getsource(orders._ensure_step_facts)
+    assert 'order.status != "released"' in src          # nur freigegebene Aufträge
+    assert "instantiate_purchase(" in src and "sale_svc.instantiate_for_order(" in src
+    # get_order ruft die Selbstheilung vor dem Response-Aufbau.
+    assert "_ensure_step_facts(" in _inspect.getsource(orders.get_order)
+
+
 def test_buyer_can_self_procure_in_supplier_mode():
     """Beschaffung «auf Lieferant» ist nie eine Sackgasse: der Besteller (Mitarbeiter) darf
     die Bestellsumme selbst erfassen UND direkt bestellen – auch ohne zugewiesenen Lieferanten.

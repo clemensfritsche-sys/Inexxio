@@ -21,7 +21,7 @@ from ..services.movement import record_movement
 from ..services.scrap import record_scrap
 from ..services.objects import next_object_id
 from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
-from ..services.purchase import apply_update as apply_purchase_update
+from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order as instantiate_purchase
 from ..services.reservation import free_qty, reserved_for
 from ..services.resource import record_resource
 
@@ -150,6 +150,20 @@ async def create_order(
     return to_order_response(db, order)
 
 
+def _ensure_step_facts(db: Session, order: Order, user: UserProfile) -> None:
+    """Selbstheilung beim Lesen: fehlende **Beschaffungs-/Verkaufsbelege** eines freigegebenen
+    Auftrags idempotent nachziehen, damit die Prozessschritt-Details IMMER erscheinen (kein
+    leeres Panel, falls ein Beleg aus irgendeinem Grund nicht bei der Freigabe entstand).
+    Nur Personal; nur purchase/sale (diese werden bei der Freigabe instanziiert – die übrigen
+    Fachzeilen entstehen erst bei der Ausführung und fehlen legitim)."""
+    if order.status != "released" or user.role not in ("admin", "employee"):
+        return
+    created = instantiate_purchase(db, order, user.id)
+    created += sale_svc.instantiate_for_order(db, order, user.id)
+    if created:
+        db.commit()
+
+
 @router.get("/{object_id}", response_model=OrderResponse)
 async def get_order(
     object_id: int,
@@ -159,6 +173,7 @@ async def get_order(
     order = visible_orders(db, user).filter(Order.object_id == object_id).first()
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
+    _ensure_step_facts(db, order, user)   # fehlende Beschaffungs-/Verkaufsbelege nachziehen
     return to_order_response(db, order)
 
 
