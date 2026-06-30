@@ -15,6 +15,7 @@ interface CartContextValue {
   count: number;
   subtotal: number;          // indikativ, CHF
   currency: string;
+  hydrated: boolean;         // localStorage geladen? (vor true NICHT auf leeren Korb reagieren)
   add: (item: CartItem) => { ok: boolean; reason?: string };
   setQuantity: (key: string, quantity: number) => void;
   remove: (key: string) => void;
@@ -83,8 +84,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     count: items.reduce((n, p) => n + p.quantity, 0),
     subtotal: items.reduce((s, p) => s + p.gross * p.quantity, 0),
     currency: items[0]?.currency ?? 'CHF',
+    hydrated,
     add, setQuantity, remove, clear, keyOf,
-  }), [items, add, setQuantity, remove, clear]);
+  }), [items, hydrated, add, setQuantity, remove, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
@@ -93,4 +95,10 @@ export function useCart(): CartContextValue {
   const ctx = useContext(CartContext);
   if (!ctx) throw new Error('useCart must be used within CartProvider');
   return ctx;
+}
+
+// Tolerante Variante: liefert null statt zu werfen, wenn kein Provider vorhanden ist
+// (z. B. die geteilte Navbar auf ERP-/Konto-Seiten ohne Warenkorb-Kontext).
+export function useCartOptional(): CartContextValue | null {
+  return useContext(CartContext);
 }
