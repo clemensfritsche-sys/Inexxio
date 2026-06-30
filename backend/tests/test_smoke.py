@@ -1298,20 +1298,91 @@ def test_claim_clauses_use_free_capacity():
     assert "reserved_quantity" in own_rendered and " OR " in own_rendered   # + eigene Reservierung
 
 
+def test_abort_is_reversible_and_supply_not_special_cased():
+    """Abbruch ist ein Antrag: solange der Folgeauftrag Entwurf ist, kann er zurückgenommen
+    werden (deviation.revoke) → Original läuft unverändert weiter. Nachschub-Kinder werden
+    beim Abbruch NICHT mehr gesondert deaktiviert (Orphan-Nachschub → freier Bestand)."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import deactivation, deviation
+
+    assert hasattr(deviation, "revoke") and hasattr(orders, "revoke_followup")
+    rv = _inspect.getsource(deviation.revoke)
+    assert 'status != "draft"' in rv                  # nur Entwurf rücknehmbar
+    assert "abort_into_id = None" in rv               # ausstehender Abbruch gelöscht
+    assert "subject_of_order_id = None" in rv         # Instanzen ans Original zurück
+    # Endpoint delegiert an revoke.
+    assert "deviation.revoke(" in _inspect.getsource(orders.revoke_followup)
+    # Keine Nachschub-Sonderbehandlung mehr beim Abbruch.
+    assert 'reason == "supply"' not in _inspect.getsource(deactivation.cancel_order_effects)
+
+
+def test_demand_supply_model_is_one_mechanism():
+    """Bedarf-/Nachschub-Modell: ein nicht gedeckter Bedarf blockiert den Schritt (abgeleitet,
+    kein Auto-Trigger); die Fehlmenge deckt ein Nachschub-Unter-Auftrag (reason='supply'), der
+    bei Abschluss an den Eltern gepinnt wird. EIN Mechanismus (ERP-Knopf == Shop)."""
+    import inspect as _inspect
+    from app.services import orders, process, supply
+
+    # Kern-API vorhanden.
+    for fn in ("order_shortfalls", "step_shortfalls", "_step_blocked", "_peg_supply_to_parent"):
+        assert hasattr(process, fn), fn
+    assert hasattr(supply, "ensure_supply") and hasattr(orders, "release_order")
+    assert not hasattr(process, "_release_dependent_sales")   # alte Make-Verkettung weg
+
+    # 'blocked' ist ein abgeleiteter Schritt-Zustand (aus dem Bestand).
+    bos = _inspect.getsource(process.build_order_steps)
+    assert '"blocked"' in bos and "_step_blocked(db, order, d)" in bos
+
+    # ensure_supply: rekursiv, idempotent, zyklensicher; legt reason='supply' an und gibt frei.
+    es = _inspect.getsource(supply.ensure_supply)
+    assert "ensure_supply(db, sup" in es                 # Rekursion (mehrstufige Stückliste)
+    assert "_existing_open_supply" in es                 # Idempotenz
+    assert "in chain" in es                              # Zyklus-Schutz über die Artikel-Kette
+    assert 'reason="supply"' in es and "release_order(db, sup" in es
+
+    # Pegging: Nachschub pinnt seine Stück bei Abschluss an den Eltern (reserve + Subjekt).
+    peg = _inspect.getsource(process._peg_supply_to_parent)
+    assert 'reason", None) != "supply"' in peg and "reserve(inst, parent.id" in peg
+
+    # recompute_completion ruft das Pegging; die alte Verkettung ist ersetzt.
+    rc = _inspect.getsource(process.recompute_completion)
+    assert "_peg_supply_to_parent(db, order)" in rc
+
+    # NUR Abweichungen pausieren den Eltern (Nachschub blockiert nur den Schritt).
+    assert 'Order.reason == "deviation"' in _inspect.getsource(process._is_paused_by_deviation)
+
+    # Freigabe ist EIN Pfad: Router, Shop-Zahlung und Nachschub nutzen release_order.
+    assert "release_order(" in _inspect.getsource(__import__("app.routers.orders", fromlist=["x"]).update_order)
+    assert "release_order(db, order" in _inspect.getsource(__import__("app.services.sale", fromlist=["x"])._release_on_payment)
+
+
+def test_release_allows_partial_stock_no_hard_fail():
+    """Freigabe scheitert NICHT mehr an Unterdeckung: das Subjekt wird teilweise reserviert,
+    die Fehlmenge ist ein blockierter Schritt + Nachschub (kein 409 in der FIFO-Auffüllung)."""
+    import inspect as _inspect
+    from app.services import subject
+
+    src = _inspect.getsource(subject._allocate_stock_subject)
+    # Der FIFO-Rest wirft keinen Bestands-Fehler mehr (Partielle Deckung erlaubt).
+    assert "Nicht genügend freigegebener Bestand: benötigt" not in src
+    assert "Partielle Deckung" in src
+
+
 def test_subject_kind_is_decided_by_custom_steps_only():
-    """#4b: Herstellung vs. Bestands-Operation hängt an eigenen Schritten (Ableitung) bzw.
-    an einer expliziten Subjekt-Quelle (Shop-Made-to-Order) – NICHT an einer Pin-Auswahl.
-    Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich als Bestands-Operation
+    """#4b: Herstellung vs. Bestands-Operation hängt **allein** an eigenen Schritten (Ableitung)
+    – NICHT an einer Pin-Auswahl und NICHT an einer Quellen-Übersteuerung (subject_source ist
+    entfernt). Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich als Bestands-Operation
     behandelt und an „kein Bestand" scheitern."""
     import inspect as _inspect
     from app.services import subject, process
 
     kind_src = _inspect.getsource(subject.subject_kind)
     mat_src = _inspect.getsource(subject.materialize_subject)
-    # Ableitung über has_custom_steps (mit subject_source-Vorrang) – keine Pin-Disjunktion.
+    # Reine Ableitung über has_custom_steps – keine Pin-Disjunktion, keine Quellen-Übersteuerung.
     assert "has_custom_steps(db, order):" in kind_src and "chosen_subjects" not in kind_src
-    assert "subject_source" in kind_src
-    # materialize delegiert an subject_kind (respektiert subject_source) – ohne Pin-Disjunktion.
+    assert "subject_source" not in kind_src
+    # materialize delegiert an subject_kind – ohne Pin-Disjunktion.
     assert "subject_kind(db, order)" in mat_src and "chosen_subjects" not in mat_src
     # order_step_defs ohne Schritte → Artikel-Prozess (Herstellung), unabhängig von Pins.
     defs_src = _inspect.getsource(process.order_step_defs)
@@ -1381,11 +1452,13 @@ def test_order_deviation_fields_and_kind():
     from app.models import Order
     from app.services import subject
 
-    for col in ("parent_order_id", "abort_into_id"):
+    for col in ("parent_order_id", "abort_into_id", "reason"):
         assert col in Order.__table__.columns.keys()
 
-    assert subject.is_deviation(SimpleNamespace(parent_order_id=100_000_010)) is True
-    assert subject.is_deviation(SimpleNamespace(parent_order_id=None)) is False
+    # Abweichung = Unter-Auftrag mit reason='deviation' (ein Nachschub, reason='supply', ist KEINE).
+    assert subject.is_deviation(SimpleNamespace(reason="deviation")) is True
+    assert subject.is_deviation(SimpleNamespace(reason="supply")) is False
+    assert subject.is_deviation(SimpleNamespace(reason=None)) is False
 
     import inspect as _inspect
     kind_src = _inspect.getsource(subject.subject_kind)
@@ -1405,9 +1478,11 @@ def test_abort_requires_followup_order():
     # Endpoint vorhanden + erzeugt einen Folgeauftrag (statt direkt inaktiv zu setzen).
     src = _inspect.getsource(orders.abort_order)
     assert "create_abort_followup" in src
-    # Direkter PATCH released→inactive ist gesperrt (Abbruch nur über Folgeauftrag).
-    upd = _inspect.getsource(orders.update_order)
-    assert "apply_abort_on_release" in upd
+    # Die Freigabe (einheitlich, services/orders.release_order) macht den Abbruch-Folgeauftrag
+    # wirksam; der Router delegiert an sie.
+    from app.services import orders as orders_svc
+    assert "apply_abort_on_release" in _inspect.getsource(orders_svc.release_order)
+    assert "release_order(" in _inspect.getsource(orders.update_order)
     # Folgeauftrag übernimmt die Instanzen, Original NICHT deaktivieren (keep_instances).
     rel = _inspect.getsource(deviation.apply_abort_on_release)
     assert "keep_instances=True" in rel

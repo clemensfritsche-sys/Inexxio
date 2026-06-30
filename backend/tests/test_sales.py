@@ -104,15 +104,22 @@ def test_fulfillment_validation():
         ArticleSalesUpdate(sales_fulfillment="airdrop")
 
 
-def test_subject_source_overrides_derivation():
-    """Ein expliziter subject_source='produce' erzwingt Herstellung trotz eigener Schritte
-    (Shop-Made-to-Order). subject_kind/materialize berücksichtigen ihn (Quellcode-Vertrag)."""
+def test_make_to_order_is_demand_supply_not_override():
+    """Make-to-Order ist KEIN Sonderfall mehr: kein subject_source-Override, kein verketteter
+    Produktionsauftrag. Ein Verkauf «auf Bestellung» ist ein normaler Verkaufsauftrag (Subjekt
+    stock/FIFO); die Fehlmenge deckt ein Nachschub-Unter-Auftrag (services/supply)."""
     import inspect as _inspect
-    from app.services import subject
+    from app.models import Order
+    from app.services import sales, subject, supply
 
-    assert "subject_source" in _inspect.getsource(subject.subject_kind)
-    # materialize verzweigt über subject_kind (das den Override kennt).
-    assert "subject_kind(db, order)" in _inspect.getsource(subject.materialize_subject)
+    # subject_kind leitet rein aus der Auftragsgestalt ab – keine Quellen-Übersteuerung mehr.
+    assert "subject_source" not in _inspect.getsource(subject.subject_kind)
+    assert "subject_source" not in Order.__table__.columns.keys()
+    assert "fulfilled_by_order_id" not in Order.__table__.columns.keys()
+    # Der Shop dockt über DENSELBEN Mechanismus an wie der ERP-Knopf: ensure_supply.
+    assert "ensure_supply" in _inspect.getsource(sales.fulfill_intent)
+    assert not hasattr(sales, "_create_production_order")
+    assert hasattr(supply, "ensure_supply")
 
 
 def test_article_reactivation_removed():

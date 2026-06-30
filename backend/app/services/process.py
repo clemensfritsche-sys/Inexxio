@@ -35,7 +35,8 @@ from ..models import (
 )
 from ..models.base import utcnow
 from .events import emit
-from .reservation import consume as consume_qty, release, reserved_for
+from .inventory import available
+from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
 
 # Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
 # (``domain.event_types``) – EINE Quelle der Wahrheit statt verstreuter Dicts.
@@ -63,12 +64,14 @@ def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
     ``subject.subject_kind``). Eine blosse Pin-Auswahl ohne Schritte kippt den Auftrag
     NICHT – er bleibt eine Herstellung über den Artikel-Prozess."""
     from .processes import article_steps, order_custom_steps
+    from .subject import is_deviation
     custom = order_custom_steps(db, order.id)
     if custom:
         return custom
-    # Abweichung (Unter-Auftrag): NUR eigene Schritte (die Auflösung) – nie der Artikel-
-    # Prozess. Ohne eigene Schritte hat sie (noch) keinen Ablauf.
-    if getattr(order, "parent_order_id", None) is not None:
+    # Abweichung (Unter-Auftrag, reason='deviation'): NUR eigene Schritte (die Auflösung) –
+    # nie der Artikel-Prozess. Ohne eigene Schritte hat sie (noch) keinen Ablauf. Ein
+    # **Nachschub** (reason='supply') ist dagegen ein normaler Produktionsauftrag → Artikel-Prozess.
+    if is_deviation(order):
         return []
     return article_steps(db, order.article_id)
 
@@ -151,7 +154,9 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
             state = "failed"
             active_assigned = True
         elif not active_assigned:
-            state = "active"
+            # An der Reihe – aber „blockiert", wenn der Schritt einen (noch) nicht gedeckten
+            # Bedarf hat (Subjekt/Komponente fehlt). Abgeleitet aus dem Bestand, kein Status.
+            state = "blocked" if _step_blocked(db, order, d) else "active"
             active_assigned = True
         else:
             state = "locked"
@@ -233,6 +238,98 @@ def all_steps_done(db: Session, order: Order) -> bool:
 
 def has_step(db: Session, order: Order, step_type: str) -> bool:
     return any(d.step_type == step_type for d in order_step_defs(db, order))
+
+
+# ─── Bedarf & Verfügbarkeit (Bedarf-/Nachschub-Modell) ───────────────────────────
+#
+# Ein Auftrag hat **Bedarfe**: ein stock-Auftrag braucht sein **Subjekt** (Fertigware ab
+# Lager), ein produce-Auftrag **Komponenten** (consume-Zeilen). Ist ein Bedarf nicht
+# gedeckt, ist der zugehörige Schritt **blockiert** – ABGELEITET aus dem Bestand, kein
+# gesetzter Status, kein Auto-Trigger. Die Fehlmenge deckt ein Nachschub-Unter-Auftrag
+# (``services/supply.py``); pinnt er bei Abschluss seine Stück an den Eltern, wird der
+# Schritt bei der nächsten Auswertung von selbst wieder ``active``.
+
+def _reserved_qty_for(db: Session, order: Order, article_id: int) -> int:
+    """Wie viele Stück eines Artikels für DIESEN Auftrag reserviert (gepinnt) sind."""
+    rows = (
+        db.query(Instance)
+        .filter(Instance.article_id == article_id, Instance.is_active == True,
+                Instance.reservations.has_key(str(order.id)))   # noqa: W601
+        .all()
+    )
+    return sum(reserved_for(i, order.id) for i in rows)
+
+
+def _subject_shortfall(db: Session, order: Order) -> int:
+    """Fehlmenge des **Subjekts** eines stock-Auftrags (Fertigware, noch nicht reserviert).
+    0 für produce/deviation (die erzeugen/halten ihr Subjekt selbst)."""
+    from .subject import subject_kind
+    if not order.article_id or not order.quantity:
+        return 0
+    if subject_kind(db, order) != "stock":
+        return 0
+    return max(0, order.quantity - _reserved_qty_for(db, order, order.article_id))
+
+
+def _component_needs(db: Session, order: Order) -> dict[int, int]:
+    """Offener Komponentenbedarf (consume) über alle Ressourcen-Schritte, je Artikel.
+    **Bereits verbrauchte** Schritte (Fachzeile vorhanden) zählen nicht mehr mit – sonst
+    entstünde nach dem Verbrauch ein Phantom-Bedarf (überflüssiger Nachschub)."""
+    needs: dict[int, int] = {}
+    resource_steps = [d for d in order_step_defs(db, order) if d.step_type in RESOURCE_STEP_TYPES]
+    rows = _facts(db, order, "resource")
+    sole = len(resource_steps) == 1
+    for d in resource_steps:
+        if _resolve_fact(d, rows, sole) is not None:
+            continue   # bereits gebucht (verbraucht) → kein offener Bedarf mehr
+        for line in (d.resource_lines or []):
+            if (line.get("mode") or "consume") != "consume":
+                continue
+            aid = line["article_id"]
+            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * (order.quantity or 0)
+    return needs
+
+
+def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, int]:
+    """Fehlmengen, die genau diesen Schritt **blockieren** ({article_id: qty}); leer = frei.
+
+    movement/inspection/scrap → brauchen das **Subjekt** (nur stock-Auftrag hat Fehlmenge);
+    resource(consume) → braucht seine **Komponenten** (need − verfügbar; verfügbar = frei am
+    Lager + für diesen Auftrag reserviert)."""
+    out: dict[int, int] = {}
+    if step.step_type in ("movement", "inspection", "scrap"):
+        short = _subject_shortfall(db, order)
+        if short > 0 and order.article_id:
+            out[order.article_id] = short
+    elif step.step_type in RESOURCE_STEP_TYPES:
+        for line in (step.resource_lines or []):
+            if (line.get("mode") or "consume") != "consume":
+                continue
+            aid = line["article_id"]
+            need = line.get("quantity", 1) * (order.quantity or 0)
+            have = available(db, aid, order.id)
+            if need > have:
+                out[aid] = out.get(aid, 0) + (need - have)
+    return out
+
+
+def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
+    """Blockiert, weil ein Bedarf dieses Schritts (noch) nicht gedeckt ist?"""
+    return bool(step_shortfalls(db, order, step))
+
+
+def order_shortfalls(db: Session, order: Order) -> dict[int, int]:
+    """Alle nicht gedeckten Bedarfe des Auftrags, je Artikel aggregiert ({article_id: qty}) –
+    Grundlage für den Nachschub (``services/supply.py``)."""
+    agg: dict[int, int] = {}
+    subj = _subject_shortfall(db, order)
+    if subj > 0 and order.article_id:
+        agg[order.article_id] = subj
+    for aid, need in _component_needs(db, order).items():
+        have = available(db, aid, order.id)
+        if need > have:
+            agg[aid] = agg.get(aid, 0) + (need - have)
+    return agg
 
 
 def release_instances(db: Session, order: Order) -> None:
@@ -345,9 +442,11 @@ def _is_paused_by_deviation(db: Session, order: Order) -> bool:
         return True
     if not order.object_id:
         return False
+    # NUR Abweichungen pausieren den Eltern; ein Nachschub (reason='supply') blockiert nur
+    # den betroffenen Schritt – der restliche Prozess darf weiterlaufen.
     return db.query(Order.id).filter(
         Order.parent_order_id == order.object_id, Order.is_active == True,
-        Order.status.in_(("draft", "released")),
+        Order.reason == "deviation", Order.status.in_(("draft", "released")),
     ).first() is not None
 
 
@@ -373,7 +472,7 @@ def recompute_completion(db: Session, order: Order) -> None:
             release(inst, order.id)
             inst.subject_of_order_id = None
         _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
-        _release_dependent_sales(db, order)  # Make-to-Order: wartende Verkäufe jetzt erfüllen
+        _peg_supply_to_parent(db, order)     # Nachschub: erzeugte Stück an den Eltern pinnen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
         # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: er ist jetzt nicht
         # mehr pausiert und schliesst automatisch ab, falls er nur noch auf diese Abweichung
@@ -384,23 +483,50 @@ def recompute_completion(db: Session, order: Order) -> None:
                 recompute_completion(db, parent)
 
 
-def _release_dependent_sales(db: Session, production: Order) -> None:
-    """Make-to-Order: Verkaufsaufträge, die auf die Fertigstellung dieser **Produktion**
-    warten (``fulfilled_by_order_id``), jetzt freigeben. Der Verkauf selbst erzeugt keine
-    Instanzen – er ordnet die soeben produzierten (nun freigegebenen) Instanzen per FIFO zu
-    und versendet. No-op für normale Aufträge (Spalte ist dort NULL)."""
-    if not production.object_id:
+def _peg_supply_to_parent(db: Session, order: Order) -> None:
+    """**Nachschub-Pegging**: Schliesst ein Nachschub-Unter-Auftrag (``reason='supply'``) ab,
+    werden seine soeben freigegebenen Stück dem **Eltern-Auftrag** zugeordnet (reserviert) –
+    bis zu dessen Restbedarf für diesen Artikel. So „klaut" kein fremder Auftrag den Nachschub
+    per FIFO, und der blockierte Schritt des Eltern wird bei der nächsten Auswertung ``active``.
+
+    Ist der Artikel das **Subjekt** des Eltern (stock-Verkauf: gleicher Artikel), werden die
+    Stück zusätzlich als Subjekt markiert (``subject_of_order_id`` + Verarbeitungs-Historie),
+    damit Bewegung/Abschluss sie sehen. Für **Komponenten** genügt die Reservierung (der
+    Verbrauch-Schritt findet sie FIFO unter der Auftragsnummer). No-op für normale Aufträge."""
+    if getattr(order, "reason", None) != "supply" or not order.parent_order_id:
         return
-    waiting = db.query(Order).filter(
-        Order.fulfilled_by_order_id == production.object_id,
-        Order.status == "draft", Order.is_active == True,
-    ).all()
-    if not waiting:
+    parent = (
+        db.query(Order)
+        .filter(Order.object_id == order.parent_order_id, Order.is_active == True)
+        .first()
+    )
+    if not parent or parent.status not in ("draft", "released"):
         return
-    from .sale import _release_on_payment
-    for s in waiting:
-        _release_on_payment(db, s, None)   # released → FIFO-Zuordnung der produzierten Instanzen
-        recompute_completion(db, s)
+    remaining = order_shortfalls(db, parent).get(order.article_id, 0)
+    if remaining <= 0:
+        return
+    from .subject import record_link, subject_kind
+    is_subject = order.article_id == parent.article_id and subject_kind(db, parent) == "stock"
+    produced = (
+        db.query(Instance)
+        .filter(Instance.order_id == order.id, Instance.is_active == True,
+                Instance.quality == "passed", Instance.disposition == "in_stock")
+        .order_by(Instance.object_id)
+        .all()
+    )
+    for inst in produced:
+        if remaining <= 0:
+            break
+        take = min(free_qty(inst), remaining)
+        if take <= 0:
+            continue
+        reserve(inst, parent.id, take)
+        if is_subject:
+            inst.subject_of_order_id = parent.id
+            record_link(db, inst.object_id, parent.id)
+        remaining -= take
+    emit(db, "supply.pegged", object_type="order", object_id=parent.object_id,
+         payload={"supply": order.object_id, "article_id": order.article_id})
 
 
 def required_sample(quantity: int | None, sample_percent: int | None) -> int:

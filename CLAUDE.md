@@ -273,11 +273,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Datenerfassung legt automatisch eine Abweichung auf die Durchfaller-Instanzen an (idempotent,
   `auto_deviation_from_inspection`). Der frühere eigenständige `Claim`-Typ ist **vollständig entfernt**
   (Migration 037 droppt `claims`).
-  - **Abbruch erzwingt einen Folgeauftrag**: «Abbrechen» (`POST /orders/{id}/abort`) setzt einen
-    freigegebenen Auftrag NICHT direkt inaktiv, sondern erzeugt einen Folgeauftrag (Abweichung), der die
-    im Prozess befindlichen Instanzen übernimmt (`abort_into_id`). Das Original wird erst inaktiv, wenn der
-    Folgeauftrag **freigegeben** ist (`apply_abort_on_release`, `keep_instances=True`) – keine herrenlosen
-    Teile. Ein Entwurf ohne Instanzen wird direkt inaktiv.
+  - **Abbruch ist ein Antrag, kein Vollzug (reversibel)**: «Abbrechen» (`POST /orders/{id}/abort`) setzt
+    einen freigegebenen Auftrag NICHT direkt inaktiv, sondern erzeugt einen Folgeauftrag (Entwurf,
+    `abort_into_id`) und **pausiert** das Original. Erst die **Freigabe** des Folgeauftrags vollzieht den
+    Abbruch (`apply_abort_on_release`, `keep_instances=True`) – keine herrenlosen Teile. Bis dahin zwei Wege
+    über DENSELBEN Mechanismus: Folgeauftrag **freigeben** (Schritt einlagern/verschrotten/nacharbeiten =
+    Auflösung) ODER **«Abbruch zurücknehmen»** (`deviation.revoke`, `POST /orders/{id}/revoke`) → Original
+    läuft **unverändert** weiter (ein Entwurf hat die Reservierungen nie gelöst). „Weitermachen" ist KEIN
+    eigener Schritttyp, sondern das Zurücknehmen des Abbruchs. Ein Entwurf ohne Instanzen wird direkt inaktiv.
   - **Verschrotten** (`scrap`, Schritttyp, Migration 038, `services/scrap.py`): die definierte Auflösung
     einer Abweichung – gewählte Instanzen → `disposition='scrapped'` (Bestandsabgang, DECREASE/INSTANCE in
     der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig
@@ -325,9 +328,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   in jedem Status editierbar (eigene Endpunkte `…/articles/{id}/sales[/prices|/audience]`, alles geloggt).
   **Du pflegst NUR den Basispreis in CHF** (genau eine Zahl je Preis); alles andere wird abgeleitet.
   **Zwei unabhängige Achsen:** *Preismodell* (`article_prices.kind` = Einmalkauf | Abo → `orders.recurrence_*`)
-  und *Verfügbarkeit* (`articles.sales_fulfillment`): **make** = Made-to-Order (Kauf ERZEUGT die Einheiten,
-  kein Lager nötig) | **stock** = ab Lager FIFO (limitierte Auflage, bis erschöpft). Im Auftrag steuert
-  `orders.subject_source` (produce|stock) die Subjekt-Quelle – beide fahren denselben Ablauf [Verkauf→Versand].
+  und *Verfügbarkeit* (`articles.sales_fulfillment`, jetzt **1-Bit-Backorder-Policy**): **make** = bei
+  Mangel **Nachschub** (Made-to-Order) | **stock** = nur ab Lager FIFO (limitierte Auflage, kein
+  Überverkauf). Der Verkauf ist IMMER ein stock/FIFO-Auftrag; was an Bestand fehlt, deckt ein
+  **Nachschub-Unter-Auftrag** (ADR 003, siehe unten) – KEIN `subject_source` mehr.
   **Preis-Pipeline** (`services/pricing.py`, gestaffelt, jede Stufe optional): Basis-CHF → ① Kunden-/
   Gruppenpreis (Hook) → ② Zonen-/Kaufkraft-Faktor (PPP, `company_settings.pricing_zone_factors`, Default aus)
   → ③ Rabatt (Vergleichspreis visuell; Coupons = Erweiterung) → **Netto-CHF** → ④ Währung: **gepinnter** Kurs
@@ -374,13 +378,20 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Erweiterung). Beide ohne Enddatum, aktiv kündbar (Customer Portal).
   - **Vereinfachung**: Steuerklasse (Stripe Tax übernimmt), Sichtbarkeit «Verborgen»/unlisted und
     DE/EN-Umschalter im Verkauf-Reiter **entfernt** (einsprachig, KI-Übersetzung später).
-  - **Verkauf erzeugt NIE Instanzen** (wichtig): der Shop-Verkaufsauftrag ist immer ein
-    **stock/FIFO**-Auftrag (`subject_source='stock'`) – er SELEKTIERT vorhandene, freigegebene
-    Instanzen (das Sales-Schrittmodul, automatisiert). Bei **«auf Bestellung» (make)** entsteht bei
-    der Zahlung ein **separater Produktionsauftrag** (fährt den **Artikel-Prozess** → erzeugt die
-    Instanzen, die einzige legitime Quelle). Der Verkaufsauftrag trägt `orders.fulfilled_by_order_id`
-    und wird **freigegeben/erfüllt (FIFO + Versand), sobald die Produktion abgeschlossen ist**
-    (Hook `process._release_dependent_sales`, Migration `043`).
+  - **Bedarf → Nachschub: EIN Unter-Auftrag-Mechanismus** (ADR 003, Migration `044`, ersetzt die
+    frühere Make-Verkettung). Der Shop-Verkaufsauftrag ist IMMER ein **stock/FIFO**-Auftrag – er
+    SELEKTIERT vorhandene, freigegebene Instanzen (erzeugt NIE selbst welche). Reicht der Bestand
+    nicht, ist der betroffene Schritt **`blocked`** (abgeleitet aus dem Bestand, kein Auto-Trigger,
+    `process.step_shortfalls`/`build_order_steps`); die Fehlmenge deckt ein **Nachschub-Unter-Auftrag**
+    (`orders.parent_order_id` + `orders.reason='supply'`, `services/supply.ensure_supply`), der den
+    **Artikel-Prozess** fährt (produziert/beschafft) und seine Stück bei Abschluss an den Eltern
+    **pinnt** (`process._peg_supply_to_parent`) → der Schritt wird von selbst wieder aktiv.
+    **Rekursiv** (mehrstufige Stückliste), **idempotent**, **zyklensicher**. Auslöser ist EINER:
+    ERP-Knopf «Nachschub anlegen» (`POST /orders/{id}/supply`) bzw. Shop-Zahlung bei «auf Bestellung»
+    rufen **dieselbe** `ensure_supply`. Freigabe = EIN Pfad (`services/orders.release_order`) für
+    ERP/Shop/Nachschub; Unterdeckung ist KEIN Freigabe-Fehler mehr (Teil-Reservierung).
+    `orders.subject_source` und `orders.fulfilled_by_order_id` sind **entfernt**;
+    `process._release_dependent_sales` und `sales._create_production_order` ebenfalls.
   - **Eingebettete Kasse: Inline-Abschluss** (`redirect_on_completion='never'` + `onComplete`) – kein
     separates Erfolgs-Fenster, kein Abbruch-Hänger. **Adressen = Single Source of Truth «Profil»**:
     Liefer-/Rechnungsadresse werden auf den Stripe-Customer gespiegelt, KEINE Adress-Erfassung an der
@@ -404,12 +415,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Instanzschritte verarbeiten nur Instanzen**; Artikel dienen v. a. als FIFO-Bezug. Schritttypen: purchase,
 > inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), **scrap** (Verschrotten),
 > sale. `quality`+`disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-
-> Polarität. **Abweichung** (Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit) ist KEIN eigener Typ
-> mehr, sondern ein **Unter-Auftrag** (`parent_order_id`); der frühere `Claim`-Typ ist entfernt.
+> Polarität. **Unter-Auftrag** (`parent_order_id` + `reason`) – EIN Mechanismus, zwei Gründe:
+> **Abweichung** (`reason='deviation'`: Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit,
+> pausiert den Eltern; `Claim`-Typ entfernt) und **Nachschub** (`reason='supply'`: deckt einen nicht
+> vorrätigen Bedarf, blockiert nur den Schritt). **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
+> macht den Schritt `blocked` (abgeleitet); `supply.ensure_supply` legt rekursiv/idempotent/zyklensicher
+> Nachschub-Unteraufträge an (Artikel-Prozess), die bei Abschluss an den Eltern **gepinnt** werden.
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
 > gepflegt, Rest abgeleitet (gestaffelte Pipeline, gepinnte Fremdwährung). Zwei Achsen: Preismodell
-> (Einmalkauf/Abo) + Verfügbarkeit (`sales_fulfillment` make=Made-to-Order | stock=FIFO). Kauf = Auftrag
-> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. **Warenkorb**
+> (Einmalkauf/Abo) + Verfügbarkeit (`sales_fulfillment` = 1-Bit-Backorder-Policy: make=Nachschub |
+> stock=nur ab Lager). Kauf = stock/FIFO-Auftrag mit `sale`+`movement`-Schritt + Preis-Snapshot;
+> Fehlmenge → Nachschub (kein `subject_source`/`fulfilled_by_order_id` mehr). **Warenkorb**
 > (mehrere Positionen ⇒ ein Checkout; Auftrag entsteht aufgeschoben erst bei Zahlung via `CheckoutIntent`).
 > **Zahlung = Stripe** (eingebettete Kasse `ui_mode='embedded'` + Adaptive Pricing + Stripe Tax,
 > Webhook-gespiegelt; `manual` als Fallback ohne Keys). Zwei Abo-Typen (`sub_type` usage/product).

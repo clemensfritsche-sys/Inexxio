@@ -610,6 +610,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Followup
+         * @description «Abbruch zurücknehmen / Folgeauftrag verwerfen»: einen noch im **Entwurf** befindlichen
+         *     Folgeauftrag (Abbruch/Abweichung) zurücknehmen. Das Original läuft danach **unverändert**
+         *     weiter (kein Vollzug, Reservierungen blieben erhalten). ``object_id`` = der Folgeauftrag.
+         *     Liefert den wieder laufenden Eltern-Auftrag zurück.
+         */
+        post: operations["revoke_followup_api_v1_erp_orders__object_id__revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/deviation": {
         parameters: {
             query?: never;
@@ -627,6 +650,29 @@ export interface paths {
          *     geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
          */
         post: operations["open_deviation_api_v1_erp_orders__object_id__deviation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/supply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Supply
+         * @description «Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags
+         *     einen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft
+         *     (rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt
+         *     und der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück.
+         */
+        post: operations["create_supply_api_v1_erp_orders__object_id__supply_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2331,13 +2377,16 @@ export interface components {
         };
         /**
          * OrderDeviationInfo
-         * @description Kurzinfo eines Abweichungs-Unterauftrags – für die Sichtbarkeit im Eltern-Auftrag.
+         * @description Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
+         *     Eltern-Auftrag.
          */
         OrderDeviationInfo: {
             /** Object Id */
             object_id: number;
             /** Status */
             status: string;
+            /** Reason */
+            reason?: string | null;
             /**
              * Instance Count
              * @default 0
@@ -2446,6 +2495,8 @@ export interface components {
             replaces_id?: number | null;
             /** Parent Order Id */
             parent_order_id?: number | null;
+            /** Reason */
+            reason?: string | null;
             /** Abort Into Id */
             abort_into_id?: number | null;
             /**
@@ -2453,6 +2504,11 @@ export interface components {
              * @default []
              */
             deviations: components["schemas"]["OrderDeviationInfo"][];
+            /**
+             * Supply Orders
+             * @default []
+             */
+            supply_orders: components["schemas"]["OrderDeviationInfo"][];
             /**
              * Paused
              * @default false
@@ -2485,6 +2541,16 @@ export interface components {
             completed_by?: string | null;
             /** Completed At */
             completed_at?: string | null;
+            /**
+             * Shortfall
+             * @default []
+             */
+            shortfall: components["schemas"]["StepShortfall"][];
+            /**
+             * Supply Order Object Ids
+             * @default []
+             */
+            supply_order_object_ids: number[];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             sale?: components["schemas"]["SaleEmbed"] | null;
             inspection?: components["schemas"]["InspectionEmbed"] | null;
@@ -2546,6 +2612,8 @@ export interface components {
             replaced_by_id?: number | null;
             /** Parent Order Id */
             parent_order_id?: number | null;
+            /** Reason */
+            reason?: string | null;
             /** Abort Into Id */
             abort_into_id?: number | null;
         };
@@ -3101,6 +3169,18 @@ export interface components {
         StepReorder: {
             /** Ordered Ids */
             ordered_ids: number[];
+        };
+        /**
+         * StepShortfall
+         * @description Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).
+         */
+        StepShortfall: {
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
+            /** Quantity */
+            quantity: number;
         };
         /**
          * StorageLocationCreate
@@ -4799,6 +4879,37 @@ export interface operations {
             };
         };
     };
+    revoke_followup_api_v1_erp_orders__object_id__revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     open_deviation_api_v1_erp_orders__object_id__deviation_post: {
         parameters: {
             query?: never;
@@ -4813,6 +4924,37 @@ export interface operations {
                 "application/json": components["schemas"]["OrderDeviationCreate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_supply_api_v1_erp_orders__object_id__supply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

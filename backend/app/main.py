@@ -136,9 +136,8 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "shop_country_currency", "JSONB"),
     ("company_settings", "shop_default_currency", "VARCHAR(3) DEFAULT 'CHF' NOT NULL"),
     ("company_settings", "payments_provider", "VARCHAR(16)"),
-    # Shop-Optimierung: Verfügbarkeits-Achse, Subjekt-Quelle, Pinning, Zonen-Faktoren
+    # Shop-Optimierung: Verfügbarkeits-Achse (Backorder-Policy), Pinning, Zonen-Faktoren
     ("articles", "sales_fulfillment", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
-    ("orders", "subject_source", "VARCHAR(10)"),
     ("article_prices", "pinned", "JSONB"),
     ("company_settings", "pricing_zone_factors", "JSONB"),
     # Stripe-Integration: Customer-/Session-/Subscription-/PaymentIntent-Bezüge + Snapshot
@@ -150,8 +149,8 @@ _COLUMN_SAFETY_NET = (
     # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
     ("article_prices", "sub_type", "VARCHAR(10)"),
     ("orders", "recurrence_kind", "VARCHAR(10)"),
-    # Make-to-Order: Verkaufsauftrag ← Produktionsauftrag (Sale erzeugt nie selbst Instanzen)
-    ("orders", "fulfilled_by_order_id", "BIGINT"),
+    # Unter-Auftrag-Grund: deviation (Abweichung) | supply (Nachschub) – EIN Mechanismus
+    ("orders", "reason", "VARCHAR(12)"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -167,6 +166,11 @@ _DROP_COLUMN_SAFETY_NET = (
     ("purchase_orders", "desired_delivery_date"),
     # Datenerfassung: Altformat `values` durch `samples` (je Stichprobe) ersetzt.
     ("inspections", "values"),
+    # Vereinheitlichtes Bedarf-/Nachschub-Modell: Make-to-Order ist kein Sonderfall mehr.
+    # WOHER die Stück kommen, leitet sich aus der Auftragsgestalt ab (kein Quellen-Override);
+    # Nachschub ist ein Unter-Auftrag (reason='supply'), kein verketteter Produktionsauftrag.
+    ("orders", "subject_source"),
+    ("orders", "fulfilled_by_order_id"),
 )
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes

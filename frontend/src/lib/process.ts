@@ -43,6 +43,7 @@ export function toStepperState(state: string): StepState {
   if (state === 'done') return 'done';
   if (state === 'active') return 'active';
   if (state === 'failed') return 'rejected';
+  if (state === 'blocked') return 'blocked';   // wartet auf Material (Nachschub)
   return 'pending'; // locked
 }
 

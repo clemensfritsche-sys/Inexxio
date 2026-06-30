@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
-from .inventory import allocate, available_qty, fifo_candidates
+from .inventory import allocate, fifo_candidates
 from .processes import has_custom_steps
 from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
@@ -52,20 +52,25 @@ def chosen_subjects(db: Session, order: Order) -> list[Instance]:
 
 
 def is_deviation(order: Order) -> bool:
-    """Abweichung = **Unter-Auftrag** (hat einen Eltern-Auftrag). Wirkt auf bereits «in der
-    Hand» befindliche Instanzen des Eltern-Auftrags – ohne Lager-FIFO/-Reservierung."""
-    return getattr(order, "parent_order_id", None) is not None
+    """Abweichung = Unter-Auftrag mit ``reason='deviation'`` (Reklamation/Fehler/Nacharbeit/
+    Abbruch-Folgeauftrag). Wirkt auf bereits «in der Hand» befindliche Instanzen des Eltern-
+    Auftrags – ohne Lager-FIFO/-Reservierung. Ein **Nachschub**-Unter-Auftrag (``reason=
+    'supply'``) ist KEINE Abweichung: er produziert/beschafft neuen Bestand und läuft wie ein
+    ganz normaler Produktionsauftrag (subject_kind ``produce``)."""
+    return getattr(order, "reason", None) == "deviation"
 
 
 def subject_kind(db: Session, order: Order) -> str:
-    """Abgeleitete Subjektart (Artikel ist immer der Anker):
+    """Abgeleitete Subjektart (Artikel ist immer der Anker) – KEIN Modus-Flag, KEINE
+    Quellen-Übersteuerung:
 
     ``produce`` – KEINE eigenen Schritte → der Auftrag fährt den Artikel-Prozess und
-      ERZEUGT neue Instanzen (auch jede **Beschaffung**: der Artikel-Prozess bringt den
-      Bestand herein – es wird NIE vorhandener Bestand vorausgesetzt).
+      ERZEUGT neue Instanzen (auch jede **Beschaffung** und jeder **Nachschub**: der
+      Artikel-Prozess bringt den Bestand herein – es wird NIE vorhandener Bestand vorausgesetzt).
     ``stock``   – eigene Schritte → der Auftrag wirkt auf **vorhandene** Instanzen des
       Artikels (Wartung/Verkauf/Bewegung): ``quantity`` Stück, FIFO ab Lager, optional
-      durch fixierte (gepinnte) Instanzen ergänzt/ersetzt.
+      durch fixierte (gepinnte) Instanzen ergänzt. Was an Bestand fehlt, deckt ein
+      **Nachschub-Unter-Auftrag** (``services/supply.py``) – der Schritt ist bis dahin blockiert.
 
     Massgeblich ist **allein** ``has_custom_steps`` – eigene Schritte = Operation am
     Bestand, keine = Herstellung. Eine reine (Entwurfs-)Pin-Auswahl ohne Schritte kippt
@@ -73,11 +78,6 @@ def subject_kind(db: Session, order: Order) -> str:
     „kein Bestand")."""
     if is_deviation(order):
         return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
-    # Expliziter subject_source (Shop-Made-to-Order: 'produce') hat Vorrang vor der
-    # Ableitung – so erzeugt ein Verkaufsablauf (eigene Schritte) trotzdem neue Instanzen.
-    forced = getattr(order, "subject_source", None)
-    if forced in ("produce", "stock"):
-        return forced
     if has_custom_steps(db, order):
         return "stock"
     return "produce"
@@ -143,7 +143,7 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
     if is_deviation(order):
         _bind_deviation_subjects(db, order, actor_id)
         return
-    kind = subject_kind(db, order)   # berücksichtigt subject_source (Made-to-Order)
+    kind = subject_kind(db, order)   # abgeleitet (produce | stock | deviation)
     if kind == "stock":
         _allocate_stock_subject(db, order, actor_id)
         return
@@ -187,15 +187,15 @@ def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
     cands = fifo_candidates(db, order.article_id, for_order_id=None)   # freie Restmengen
-    have = available_qty(cands)
-    if have < remaining:
-        raise HTTPException(
-            409, detail=f"Nicht genügend freigegebener Bestand: benötigt {remaining} weitere, verfügbar {have}")
-    # FIFO mengengenau reservieren – die Instanz wird NIE geteilt (Objektnummer bleibt).
+    # **Partielle Deckung ist erlaubt** (kein Fehler mehr bei Unterdeckung): es wird FIFO
+    # reserviert, was am Lager ist; die **Fehlmenge** deckt ein Nachschub-Unter-Auftrag
+    # (``services/supply.py``). Der erste auf das Subjekt zugreifende Schritt (Bewegung/…)
+    # bleibt so lange **blockiert** (abgeleitet aus dem Bestand), bis der Nachschub liefert.
     for cand, take in zip(cands, allocate(remaining, [free_qty(c) for c in cands])):
         if take <= 0:
             continue
         cand.subject_of_order_id = order.id               # Subjekt-Markierung (ganz/teilweise)
         reserve(cand, order.id, take)                     # mengengenaue Reservierung
         record_link(db, cand.object_id, order.id)
-    log_audit(db, "instances", None, "Bestand für Auftrag reserviert", actor_id, object_id=order.object_id)
+    log_audit(db, "instances", None, "Bestand für Auftrag reserviert (ggf. teilweise)",
+              actor_id, object_id=order.object_id)

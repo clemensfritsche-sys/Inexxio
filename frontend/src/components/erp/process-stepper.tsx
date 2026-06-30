@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, X, Clock } from 'lucide-react';
 
-export type StepState = 'done' | 'active' | 'pending' | 'rejected';
+export type StepState = 'done' | 'active' | 'pending' | 'rejected' | 'blocked';
 export interface StepNode { key: string; label: string; state: StepState; hint?: string; icon?: React.ElementType }
 
 const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
@@ -11,6 +11,8 @@ const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
   active:   { bg: '#2563eb', color: '#fff', ring: '#dbeafe' },
   pending:  { bg: '#f1f5f9', color: '#94a3b8', ring: 'transparent' },
   rejected: { bg: '#dc2626', color: '#fff', ring: 'transparent' },
+  // Wartet auf Material (Nachschub läuft) – Amber, kein Häkchen/X, sondern «wartend».
+  blocked:  { bg: '#fffbeb', color: '#b45309', ring: '#fde68a' },
 };
 
 const LINE_DONE = '#0f766e';
@@ -21,6 +23,7 @@ const LINE_PENDING = '#e2e8f0';
 function nodeContent(n: StepNode, i: number) {
   if (n.state === 'done') return <Check size={15} />;
   if (n.state === 'rejected') return <X size={15} />;
+  if (n.state === 'blocked') return <Clock size={15} />;
   if (n.icon) { const Icon = n.icon; return <Icon size={15} />; }
   return i + 1;
 }
@@ -61,7 +64,7 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
                 background: node.bg, color: node.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700,
-                boxShadow: selected ? '0 0 0 3px #0f172a' : n.state === 'active' ? `0 0 0 4px ${node.ring}` : 'none',
+                boxShadow: selected ? '0 0 0 3px #0f172a' : (n.state === 'active' || n.state === 'blocked') ? `0 0 0 4px ${node.ring}` : 'none',
                 transition: 'box-shadow 0.15s',
               }}>
                 {nodeContent(n, i)}
@@ -70,8 +73,8 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
             </div>
             <div style={{
               marginTop: 5, fontSize: 10, lineHeight: 1.2, textAlign: 'center',
-              fontWeight: selected || n.state === 'active' ? 700 : 500,
-              color: n.state === 'pending' ? '#94a3b8' : n.state === 'rejected' ? '#dc2626' : '#0F172A',
+              fontWeight: selected || n.state === 'active' || n.state === 'blocked' ? 700 : 500,
+              color: n.state === 'pending' ? '#94a3b8' : n.state === 'rejected' ? '#dc2626' : n.state === 'blocked' ? '#b45309' : '#0F172A',
             }}>
               {n.label}
             </div>

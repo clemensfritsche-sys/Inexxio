@@ -12,7 +12,7 @@ from ..schemas.order import OrderCreate, OrderDeviationCreate, OrderResponse, Or
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, process, sale as sale_svc, subject
+from ..services import deactivation, deviation, process, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -20,10 +20,10 @@ from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
 from ..services.scrap import record_scrap
 from ..services.objects import next_object_id
-from ..services.orders import to_order_response, to_order_summaries, visible_orders
-from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order
+from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
+from ..services.purchase import apply_update as apply_purchase_update
 from ..services.reservation import free_qty, reserved_for
-from ..services.resource import record_resource, reserve_resources
+from ..services.resource import record_resource
 
 router = APIRouter(prefix="/api/v1/erp/orders", tags=["orders"])
 
@@ -218,20 +218,10 @@ async def update_order(
                 )
         elif not process.order_step_infos(db, order):
             raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
-        if order.released_at is None:
-            order.released_at = utcnow()   # Start der Durchlaufzeit
-        subject.materialize_subject(db, order, current_user.id)
-        instantiate_for_order(db, order, current_user.id)        # Beschaffung
-        sale_svc.instantiate_for_order(db, order, current_user.id)  # Verkauf
-        # Zu verbrauchende Komponenten für diesen Auftrag reservieren (FIFO).
-        reserve_resources(db, order, current_user.id)
-        emit(db, "order.released", object_type="order", object_id=order.object_id,
-             payload={"article_id": order.article_id, "quantity": order.quantity},
-             actor_id=current_user.id)
-        # War das ein Abbruch-Folgeauftrag? → mit seiner Freigabe das Original abbrechen
-        # (die übernommenen Instanzen bleiben erhalten und gehören jetzt diesem Auftrag).
-        if order.parent_order_id is not None:
-            deviation.apply_abort_on_release(db, order, current_user.id)
+        # Einheitliche Freigabe: Subjekt herstellen (Fehlmenge ist KEIN Fehler – der Schritt wird
+        # «blockiert» und über «Nachschub anlegen» gedeckt), Beschaffung/Verkauf instanziieren,
+        # Komponenten reservieren, Abbruch-Folgeauftrag wirksam machen.
+        release_order(db, order, current_user.id)
 
     # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
     # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).
@@ -301,6 +291,24 @@ async def abort_order(
     return to_order_response(db, follow)
 
 
+@router.post("/{object_id}/revoke", response_model=OrderResponse)
+async def revoke_followup(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Abbruch zurücknehmen / Folgeauftrag verwerfen»: einen noch im **Entwurf** befindlichen
+    Folgeauftrag (Abbruch/Abweichung) zurücknehmen. Das Original läuft danach **unverändert**
+    weiter (kein Vollzug, Reservierungen blieben erhalten). ``object_id`` = der Folgeauftrag.
+    Liefert den wieder laufenden Eltern-Auftrag zurück."""
+    followup = _get_staff_order(db, object_id)
+    parent = deviation.revoke(db, followup, current_user.id)
+    db.commit()
+    target = parent or followup
+    db.refresh(target)
+    return to_order_response(db, target)
+
+
 @router.post("/{object_id}/deviation", response_model=OrderResponse)
 async def open_deviation(
     object_id: int,
@@ -325,6 +333,25 @@ async def open_deviation(
     db.commit()
     db.refresh(devi)
     return to_order_response(db, devi)
+
+
+@router.post("/{object_id}/supply", response_model=OrderResponse)
+async def create_supply(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags
+    einen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft
+    (rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt
+    und der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "released":
+        raise HTTPException(400, detail="Nachschub kann nur für einen freigegebenen Auftrag angelegt werden")
+    supply.ensure_supply(db, order, current_user.id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
 
 
 @router.patch("/{object_id}/purchase", response_model=OrderResponse)
