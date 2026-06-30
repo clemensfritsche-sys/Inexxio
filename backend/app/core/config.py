@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     stripe_default_tax_code: str = "txcd_99999999"   # General - Tangible Goods
     # Preisauszeichnung: Basispreise sind brutto (inkl. MWST). Bei False: netto (MWST oben drauf).
     prices_tax_inclusive: bool = True
+    # Stripe Tax (automatic_tax) am Checkout. NUR aktivieren, wenn im Stripe-Dashboard
+    # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
+    stripe_tax_enabled: bool = False
     # Länder, in die wir liefern (Stripe Checkout shipping_address_collection). Komma-Liste.
     shop_ship_countries: str = "CH,LI,DE,AT,FR,IT,NL,BE,LU,ES,PT,SE,DK,FI,IE,PL,US"
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},

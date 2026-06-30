@@ -13,6 +13,11 @@ Im Stripe-Dashboard oben das **Sandbox/Test**-Konto wählen (Account «Inexxio A
 folgenden Schritte im **Sandbox-Modus** ausführen. Den **Secret Key** holst du unter
 **Developers → API keys → Secret key** (`sk_test_…`).
 
+> **Stripe Tax ist aktuell DEAKTIVIERT** (`STRIPE_TAX_ENABLED=false`, Default). Der Checkout
+> läuft ohne automatische Steuer (Bruttopreis wird so verrechnet). Zum Aktivieren später:
+> Schritt 2 ausführen **und** im Deploy `STRIPE_TAX_ENABLED=true` setzen (env-var in
+> `deploy-dev.yml`). Vorher NICHT aktivieren – sonst schlägt die Checkout-Erstellung fehl.
+
 ## 2. Adaptive Pricing + Stripe Tax (Dashboard)
 1. **Adaptive Pricing** aktivieren: **Settings → Payments → Checkout and Payment Links →
    Adaptive Pricing → Enable** (Sandbox). Dadurch sieht der Kunde an der Kasse automatisch

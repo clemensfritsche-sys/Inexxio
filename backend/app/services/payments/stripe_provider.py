@@ -99,7 +99,8 @@ class StripeProvider(PaymentProvider):
             "mode": "subscription" if is_sub else "payment",
             "customer": customer_id,
             "line_items": [{"price_data": price_data, "quantity": order.quantity or 1}],
-            "automatic_tax": {"enabled": True},                  # Stripe Tax
+            # Stripe Tax nur, wenn im Dashboard eingerichtet (sonst schlägt die Session fehl).
+            "automatic_tax": {"enabled": bool(settings.stripe_tax_enabled)},
             "billing_address_collection": "auto",
             "shipping_address_collection": {"allowed_countries": _ship_countries()},
             "customer_update": {"address": "auto", "name": "auto", "shipping": "auto"},
