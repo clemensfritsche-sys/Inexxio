@@ -86,13 +86,11 @@ def audience_for(db: Session, article_id: int) -> list[dict]:
 
 
 def previews(db: Session, article: Article) -> list[dict]:
-    """Live-Vorschau des berechneten Preises je Shop-Währung (Inland-Steuer CH)."""
-    out: list[dict] = []
-    for cur in shop_currencies(db):
-        view = pricing.price_view(db, article, cur, country=None, customer=None)
-        if view:
-            out.append(view)
-    return out
+    """Live-Vorschau des Preises in CHF (Basis, inkl. Schweizer MWST). Fremdwährungen +
+    finale länderabhängige Steuer übernimmt Stripe (Adaptive Pricing + Stripe Tax) an der
+    Kasse – daher zeigt die ERP-Vorschau bewusst nur den CHF-Endpreis."""
+    view = pricing.price_view(db, article, "CHF", country=None, customer=None)
+    return [view] if view else []
 
 
 def update_profile(db: Session, article: Article, data, actor_id: int) -> Article:
@@ -337,17 +335,17 @@ def _interval_days(interval: str | None) -> int:
 
 def checkout(db: Session, article: Article, quantity: int, currency: str,
              customer: UserProfile) -> tuple[Order, Sale, str, str]:
-    """Kauf abwickeln: Auftrag mit ``sale``- und ``movement``-Schritt anlegen, freigeben,
-    Preis-Snapshot auf den Verkauf einfrieren und die Zahl-URL des Providers zurückgeben.
+    """Kauf abwickeln (Defer-Modell: **erst zahlen, dann erfüllen**): Auftrag + Verkaufs-Beleg
+    anlegen, Zahl-URL des Providers zurückgeben. Die Freigabe (Instanzen erzeugen / Lager
+    reservieren) erfolgt bei bestätigter Zahlung (Webhook/Simulation) – siehe ``sale.finalize_paid``.
 
-    Verfügbarkeit (Achse B) entscheidet die Subjekt-Quelle: **make** erzeugt die Einheiten
-    (Made-to-Order, kein Lager nötig), **stock** bedient sich FIFO ab Lager (limitiert).
+    Ausnahme: **stock** (limitierte Auflage) wird **schon bei der Bestellung reserviert**, damit
+    keine «bezahlt, aber kein Lager»-Lücke entsteht; **make** erzeugt erst nach Zahlung.
     Liefert (Auftrag, Verkauf, URL, Provider)."""
-    # Spät importiert (Vermeidung von Import-Zyklen über die Prozess-/Auftrags-Services).
-    from . import process, sale as sale_svc, subject
     from .events import emit
     from .objects import next_object_id
     from .payments import get_provider
+    from .subject import materialize_subject
 
     article = canonical(db, article)
     if not can_view(db, article, customer):
@@ -355,22 +353,16 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
     price = pricing.resolve_primary_price(db, article)
     if not price:
         raise HTTPException(400, detail="Für dieses Produkt ist kein Preis hinterlegt")
-
     # Kauf nur eines **freigegebenen** Artikels (Spezifikation + Prozess eingefroren).
     if article.status != "released":
         raise HTTPException(400, detail="Dieses Produkt ist noch nicht zum Kauf freigegeben")
 
-    from . import fx
-    country = getattr(customer, "ship_country", None) or getattr(customer, "country", None)
-    view = pricing.price_view(db, article, currency, country, customer)
-    fx_rate = fx.get_rate(db, currency)
+    # Indikativer CHF-Beleg (Anzeige/Fallback). Der real bezahlte Betrag/Währung/Steuer wird
+    # bei Zahlung gesetzt: Stripe (Adaptive Pricing + Stripe Tax) bzw. manual (CHF-Pipeline).
+    view = pricing.price_view(db, article, "CHF", country=None, customer=customer)
     today = utcnow().date()
 
     # ── Achse B – Verfügbarkeit (unabhängig vom Preismodell Einmalkauf/Abo) ──────────
-    #   make  → Made-to-Order: der Auftrag ERZEUGT die Einheiten (kein Lager nötig).
-    #   stock → ab Lager (FIFO), bis erschöpft (limitierte Auflage → sonst „ausverkauft").
-    # Beide fahren denselben Verkaufsablauf [Verkauf → Versand]; nur die Subjekt-Quelle
-    # unterscheidet sich (``subject_source``).
     fulfillment = article.sales_fulfillment or "make"
     order = Order(
         object_id=next_object_id(db, "order"), status="draft",
@@ -378,13 +370,9 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
         title=f"Shop-Kauf: {article.name}",
         subject_source="produce" if fulfillment == "make" else "stock",
     )
-    # TODO(Erweiterung – NICHT gebaut): Coupon-/Rabatt-Engine (über `compare_at` hinaus)
-    #   und Bundles (mehrere Artikel je Kauf) wären hier die nächsten Stufen.
     if price.kind == "subscription":
-        # Abo (Achse A) = wiederkehrender Verkaufsauftrag – nutzt die vorhandenen
-        # recurrence_*-Felder (Kette beim Abschluss). Unabhängig von make/stock.
-        # TODO(Erweiterung – NICHT gebaut): metered/limited-term Abos (verbrauchsbasiert);
-        #   die wiederkehrende Verrechnung übernimmt später Stripe Billing (Spiegelung).
+        # Abo (Achse A) = wiederkehrender Verkaufsauftrag. Stripe Billing verrechnet wiederkehrend;
+        # Inexxio spiegelt den Status (stripe_subscription_id). recurrence_* als interner Marker.
         order.recurrence_active = True
         order.recurrence_interval_days = _interval_days(price.interval)
         order.recurrence_anchor = today + timedelta(days=order.recurrence_interval_days)
@@ -392,38 +380,36 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
     db.flush()
 
     # Verkaufsablauf: kaufmännischer Verkauf (Zahlung) → Bewegung (Versand zum Kunden).
-    db.add(ArticleProcessStep(order_id=order.id, position=0, step_type="sale"))
+    sale_step = ArticleProcessStep(order_id=order.id, position=0, step_type="sale")
+    db.add(sale_step)
     db.add(ArticleProcessStep(order_id=order.id, position=2, step_type="movement",
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()
 
-    # Freigabe (wie routers/orders.py): Subjekt herstellen + Verkauf anlegen. make → neue
-    # Instanzen erzeugen (produce); stock → FIFO ab Lager reservieren (subject_source).
-    order.status = "released"
-    order.released_at = utcnow()
-    subject.materialize_subject(db, order, customer.id)
-    sale_svc.instantiate_for_order(db, order, customer.id)
-    emit(db, "order.released", object_type="order", object_id=order.object_id,
-         payload={"article_id": order.article_id, "quantity": order.quantity, "via": "shop"},
-         actor_id=customer.id)
-
-    sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-    if not sale:
-        raise HTTPException(500, detail="Verkauf konnte nicht angelegt werden")
-
-    # ── Snapshot: Preis/Währung/FX/Steuer einfrieren (Katalog mutabel, Beleg fix) ──
-    net_total = (view["net"] * quantity).quantize(Decimal("0.01"))
-    sale.customer_id = customer.id
-    sale.currency = currency
-    sale.order_total = net_total
-    sale.vat_rate = view["tax_rate"]
-    sale.tax_class = price.tax_class
-    sale.base_amount_chf = (Decimal(price.amount_chf) * quantity).quantize(Decimal("0.01"))
-    sale.fx_rate = fx_rate
-    sale.fx_date = today
-    log_audit(db, "sales", None, f"Shop-Verkauf {net_total} {currency} (Snapshot)",
+    # Verkaufs-Beleg **vor** der Zahlung anlegen (requested) – inkl. indikativem CHF-Snapshot.
+    sale = Sale(
+        order_id=order.id, article_id=article.id, quantity=quantity, step_id=sale_step.id,
+        status="requested", customer_id=customer.id, currency="CHF",
+        order_total=(view["net"] * quantity).quantize(Decimal("0.01")) if view else None,
+        vat_rate=view["tax_rate"] if view else None, tax_class=price.tax_class,
+        base_amount_chf=(Decimal(price.amount_chf) * quantity).quantize(Decimal("0.01")),
+        fx_date=today,
+    )
+    db.add(sale)
+    log_audit(db, "sales", None, f"Shop-Verkauf angefragt ({fulfillment})",
               customer.id, object_id=order.object_id)
+
+    # stock (limitiert) → schon jetzt reservieren (sonst Überverkauf bei paralleler Zahlung).
+    # make → keine Reservierung; die Einheiten entstehen erst bei Zahlung.
+    if fulfillment == "stock":
+        order.status = "released"
+        order.released_at = utcnow()
+        materialize_subject(db, order, customer.id)
+        emit(db, "order.released", object_type="order", object_id=order.object_id,
+             payload={"article_id": order.article_id, "quantity": order.quantity, "via": "shop"},
+             actor_id=customer.id)
+
     db.commit()
     db.refresh(order)
     db.refresh(sale)

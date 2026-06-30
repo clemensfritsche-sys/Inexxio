@@ -382,28 +382,32 @@ class ApiClient {
     return this.get('/api/v1/shop/config');
   }
 
-  getShopProducts(currency?: string, country?: string, lang?: string): Promise<ShopProduct[]> {
-    const p = new URLSearchParams();
-    if (currency) p.set('currency', currency);
-    if (country) p.set('country', country);
-    if (lang) p.set('lang', lang);
-    const qs = p.toString();
-    return this.get(`/api/v1/shop/products${qs ? `?${qs}` : ''}`);
+  // Preise immer in CHF (Basis); Stripe Adaptive Pricing zeigt die Lokalwährung an der Kasse.
+  getShopProducts(lang?: string): Promise<ShopProduct[]> {
+    const qs = lang ? `?lang=${lang}` : '';
+    return this.get(`/api/v1/shop/products${qs}`);
   }
 
-  getShopProduct(objectId: number, currency?: string, country?: string, lang?: string): Promise<ShopProduct> {
-    const p = new URLSearchParams();
-    if (currency) p.set('currency', currency);
-    if (country) p.set('country', country);
-    if (lang) p.set('lang', lang);
-    const qs = p.toString();
-    return this.get(`/api/v1/shop/products/${objectId}${qs ? `?${qs}` : ''}`);
+  getShopProduct(objectId: number, lang?: string): Promise<ShopProduct> {
+    const qs = lang ? `?lang=${lang}` : '';
+    return this.get(`/api/v1/shop/products/${objectId}${qs}`);
   }
 
-  shopCheckout(articleObjectId: number, quantity: number, currency: string): Promise<ShopCheckoutResult> {
-    return this.post('/api/v1/shop/checkout', { article_object_id: articleObjectId, quantity, currency });
+  shopCheckout(articleObjectId: number, quantity: number): Promise<ShopCheckoutResult> {
+    return this.post('/api/v1/shop/checkout', { article_object_id: articleObjectId, quantity, currency: 'CHF' });
   }
 
+  // Stripe-Checkout-Session-Status (Erfolgsseite nach Redirect)
+  getCheckoutSession(sessionId: string): Promise<{ order_object_id: number; status: SaleStatus; paid: boolean }> {
+    return this.get(`/api/v1/shop/session/${sessionId}`);
+  }
+
+  // Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten)
+  openCustomerPortal(): Promise<{ url: string }> {
+    return this.post('/api/v1/shop/portal', {});
+  }
+
+  // Manueller Provider (Fallback ohne Stripe-Keys)
   getPaymentStatus(token: string): Promise<PaymentStatus> {
     return this.get(`/api/v1/shop/payment/${token}`);
   }

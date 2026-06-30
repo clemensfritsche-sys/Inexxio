@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import BigInteger, Date, DateTime, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -53,6 +54,13 @@ class Sale(Base, TimestampMixin):
     fx_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 8))
     fx_date: Mapped[Optional[date]] = mapped_column(Date)
     tax_class: Mapped[Optional[str]] = mapped_column(String(16))
+
+    # Stripe-Beleg: PaymentIntent + voller Snapshot von Stripe (Settlement-Betrag in CHF,
+    # Steuer, sowie die dem Kunden präsentierte Lokalwährung via Adaptive Pricing).
+    # {"settlement":{"currency","total","tax"},"presentment":{"currency","total"},
+    #  "payment_intent","mode","tax_rate"} – Stripe ist die Quelle der Wahrheit.
+    stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)
+    stripe_snapshot: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     # Belege/Abwicklung (TODO Phase 2: PDF-Erzeugung, Stripe, Gmail).
     invoice_number: Mapped[Optional[str]] = mapped_column(String(60))

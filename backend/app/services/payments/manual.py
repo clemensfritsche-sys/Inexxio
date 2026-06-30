@@ -1,12 +1,8 @@
-"""Manueller Zahlungs-Provider (Default) – **kein externer Call**.
+"""Manueller Zahlungs-Provider – **kein externer Call** (Fallback für Tests ohne Stripe-Keys).
 
-``create_checkout`` liefert eine interne Seite ``/shop/pay/{token}``; dort simuliert der
-Kunde Erfolg/Abbruch. ``handle_event`` (ausgelöst von ``POST /shop/payments/simulate``)
-setzt den Verkauf auf ``paid`` bzw. ``cancelled``. So ist der gesamte Kauf-/Auftragsfluss
-ohne externe Abhängigkeit testbar.
-
-Der ``token`` ist die **Auftrags-Objektnummer** (der Verkauf läuft unter dem Auftrag,
-ohne eigene Nummer) – ausreichend als öffentliche, eindeutige Referenz.
+``create_checkout`` liefert eine interne Seite ``/shop/pay?token=…``; dort simuliert der Kunde
+Erfolg/Abbruch. ``handle_webhook`` (ausgelöst von ``POST /shop/payments/simulate``) setzt den
+Verkauf auf ``paid`` bzw. ``cancelled``. Der ``token`` ist die Auftrags-Objektnummer.
 """
 
 from fastapi import HTTPException
@@ -43,12 +39,14 @@ class ManualProvider(PaymentProvider):
         base = get_settings().frontend_base_url.rstrip("/")
         return f"{base}/shop/pay?token={sale_token(order)}"
 
-    def handle_event(self, db: Session, payload: dict) -> Sale | None:
+    def handle_webhook(self, db: Session, raw: bytes, sig: str | None,
+                       payload: dict | None) -> Sale | None:
+        payload = payload or {}
         token = payload.get("sale_token")
         result = (payload.get("result") or "").lower()
         _, sale = _resolve_sale(db, str(token))
         if result in ("paid", "success", "succeeded"):
-            return sale_svc.mark_paid(db, sale)
+            return sale_svc.finalize_paid(db, sale)        # netto/Steuer aus eigener Pipeline (CHF)
         if result in ("cancelled", "canceled", "failed"):
             return sale_svc.mark_cancelled(db, sale)
         raise HTTPException(400, detail="Unbekanntes Zahlungs-Ergebnis (paid|cancelled)")

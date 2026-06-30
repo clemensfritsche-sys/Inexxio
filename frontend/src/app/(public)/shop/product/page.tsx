@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Package, ArrowLeft, ShoppingCart, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import type { ShopProduct, ShopConfig } from '@/types';
+import type { ShopProduct } from '@/types';
 
 function fmt(amount: number | string | null | undefined, currency: string): string {
   if (amount == null) return '—';
@@ -18,8 +18,6 @@ function ProductView() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const objectId = Number(search.get('id'));
-  const [currency, setCurrency] = useState(search.get('currency') || 'CHF');
-  const [config, setConfig] = useState<ShopConfig | null>(null);
 
   const [product, setProduct] = useState<ShopProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,25 +26,21 @@ function ProductView() {
   const [buying, setBuying] = useState(false);
 
   useEffect(() => {
-    api.getShopConfig().then(setConfig).catch(() => setConfig({ currencies: ['CHF', 'EUR', 'USD'], default_currency: 'CHF' }));
-  }, []);
-
-  useEffect(() => {
     if (!objectId) { setLoading(false); return; }
     setLoading(true);
-    api.getShopProduct(objectId, currency)
+    api.getShopProduct(objectId)
       .then(setProduct)
       .catch((e) => setError(e instanceof Error ? e.message : 'Produkt nicht gefunden'))
       .finally(() => setLoading(false));
-  }, [objectId, currency]);
+  }, [objectId]);
 
   async function buy() {
     if (!user) { router.push('/login'); return; }
     setBuying(true);
     setError(null);
     try {
-      const result = await api.shopCheckout(objectId, qty, currency);
-      window.location.href = result.payment_url;
+      const result = await api.shopCheckout(objectId, qty);
+      window.location.href = result.payment_url;   // → Stripe Checkout (bzw. manuelle Test-Seite)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Kauf fehlgeschlagen');
       setBuying(false);
@@ -76,31 +70,20 @@ function ProductView() {
           )}
         </div>
         <div>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
-              {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
-            </div>
-            <div className="flex items-center gap-1 rounded-lg border border-slate-200 p-1 bg-white shrink-0">
-              {(config?.currencies ?? ['CHF', 'EUR', 'USD']).map((c) => (
-                <button key={c} onClick={() => setCurrency(c)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                    currency === c ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-slate-900">{product.title}</h1>
+          {product.subtitle && <p className="text-slate-500 mt-1">{product.subtitle}</p>}
 
           <div className="mt-5 flex items-baseline gap-3">
-            <span className="text-3xl font-bold text-slate-900">{fmt(price?.gross, price?.currency ?? currency)}</span>
+            <span className="text-3xl font-bold text-slate-900">{fmt(price?.gross, price?.currency ?? 'CHF')}</span>
             {price?.compare_at != null && (
               <span className="text-lg text-slate-400 line-through">{fmt(price.compare_at, price.currency)}</span>
             )}
+            {price?.interval && (
+              <span className="text-sm text-slate-500">/ {price.interval === 'year' ? 'Jahr' : 'Monat'}</span>
+            )}
           </div>
-          <div className="text-xs text-slate-400 mt-1">
-            inkl. {price ? Number(price.tax_rate) : 0}% MWST · netto {fmt(price?.net, price?.currency ?? currency)}
-            {price?.interval ? ` · pro ${price.interval === 'year' ? 'Jahr' : 'Monat'}` : ''}
+          <div className="mt-1 text-xs text-slate-400">
+            inkl. MWST · Landeswährung &amp; finale Steuer werden an der Kasse berechnet.
           </div>
           <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
             {product.fulfillment === 'stock' ? 'Ab Lager – solange Vorrat reicht' : 'Auf Bestellung gefertigt'}

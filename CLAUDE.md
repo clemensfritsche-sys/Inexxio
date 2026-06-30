@@ -333,20 +333,27 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   → ③ Rabatt (Vergleichspreis visuell; Coupons = Erweiterung) → **Netto-CHF** → ④ Währung: **gepinnter** Kurs
   (`article_prices.pinned`, `charm_round`, **stabil bis Basis-Änderung oder >3 % Kurs-Drift** – KEINE
   Live-Umrechnung) → ⑤ MWST (`services/tax.py`, CH 8.1/2.6/3.8, Ausland 0 %). Tageskurse unveränderlich in
-  `fx_rates` (Env `FX_SOURCE_URL`); CHF=Basis, EUR/USD abgeleitet. **Kauf = ganz normaler Auftrag** mit
-  `sale`-Schritt (requested→confirmed→invoiced→paid) + `movement` (Versand); Preis/Währung/FX/Steuer werden
-  auf den `sale`-Beleg **eingefroren** (Snapshot `sales.base_amount_chf/fx_rate/fx_date/tax_class`).
-  **Zahlungs-Bridge** (`services/payments/`): **manual** (Default, überbrückbar – `/shop/pay?token=…` +
-  `POST /shop/payments/simulate`) und **stripe** (Gerüst, ohne `STRIPE_SECRET_KEY` nie aktiv, kein Crash);
-  Auswahl via Env `PAYMENTS_PROVIDER` bzw. `company_settings.payments_provider`. **Shop** (öffentlich):
+  `fx_rates` (Env `FX_SOURCE_URL`). **Kauf = ganz normaler Auftrag** mit `sale`-Schritt + `movement`
+  (Versand); **Defer-Modell**: der Auftrag wird **erst bei bestätigter Zahlung freigegeben** (make erzeugt
+  dann die Instanzen; stock reserviert schon bei Bestellung). Preis/Währung/Steuer werden auf den
+  `sale`-Beleg **eingefroren** (Snapshot).
+  **Zahlung – Stripe (Vollintegration, `services/payments/`)**: hosted **Checkout Session** (Redirect) für
+  Einmalkauf (`mode=payment`) und Abo (`mode=subscription`). **Adaptive Pricing** (kein Währungsumschalter –
+  Stripe zeigt die Lokalwährung an der Kasse; Website zeigt CHF) + **Stripe Tax** (`automatic_tax`,
+  `tax_behavior=inclusive`). Stripe ist **Quelle der Wahrheit**: Webhook (signaturgeprüft) `checkout.session.
+  completed` → Verkauf `paid`, Auftrag freigegeben, **realer Betrag/Lokalwährung/Steuer** als Snapshot
+  (`sales.stripe_snapshot/stripe_payment_intent_id`, `orders.stripe_subscription_id`, `user_profiles.
+  stripe_customer_id`). **Customer Portal** (Abo/Zahlungsmittel selbst verwalten) via `POST /shop/portal`.
+  Provider-Auswahl automatisch `stripe`, sobald `STRIPE_SECRET_KEY` gesetzt ist; sonst `manual` (Fallback,
+  `/shop/pay?token=…` + `/shop/payments/simulate`). Setup: `docs/stripe-setup.md`. **Shop** (öffentlich):
   `GET /shop/products|products/{id}` (public für alle, private nur zugewiesene Kunden, unlisted nur per Link;
   **kanonisiert über `replaced_by_id`** – ein ersetzter Artikel zeigt nahtlos auf den Nachfolger, URL/Listing
   brechen nicht), `POST /shop/checkout` (Login-Pflicht, kein Gast-Checkout). Frontend: ERP-Reiter **Verkauf**
-  am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Verfügbarkeit/Live-Vorschau) + Admin-Shop-Konfig
-  (Währungen/Provider/Land→Währung/Zonen) + öffentlicher Shop (`/shop`, `/shop/product`, `/shop/pay`).
+  am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Verfügbarkeit/CHF-Vorschau) + Admin-Shop-Konfig
+  (Provider/Zonen) + öffentlicher Shop (`/shop`, `/shop/product`, `/shop/success`, `/shop/pay` für manual).
   **Ersetzen** kopiert das Verkaufs-Profil auf den Nachfolger. *Bewusst NICHT gebaut: Coupon-Engine,
-  OSS/IOSS/Stripe Tax, echte Stripe-Charge/Adaptive Pricing, Bundles, Gast-Checkout, metered-Abos,
-  kunden-/gruppenspezifische Preislisten (TODO-/Extension-Hooks an Ort).*
+  Bundles, Gast-Checkout, metered-Abos, kunden-/gruppenspezifische Preislisten, Auto-Fulfillment je
+  Abo-Zyklus (TODO-/Extension-Hooks an Ort).*
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -361,13 +368,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
 > gepflegt, Rest abgeleitet (gestaffelte Pipeline, gepinnte Fremdwährung). Zwei Achsen: Preismodell
 > (Einmalkauf/Abo) + Verfügbarkeit (`sales_fulfillment` make=Made-to-Order | stock=FIFO). Kauf = Auftrag
-> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. Zahlung via
-> überbrückbarem manual-Provider, Stripe als geschütztes Gerüst. **Inaktive Artikel sind endgültig** (kein
-> Reaktivieren). E-Mail (Gmail API) + echte Stripe-Charge sind **noch nicht** umgesetzt.
+> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. **Zahlung =
+> Stripe** (hosted Checkout + Adaptive Pricing + Stripe Tax, Webhook-gespiegelt; `manual` als Fallback ohne
+> Keys). **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
+> E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Custom-Auftrag-UX verfeinern (Instanz-Mehrfachauswahl/Filter); Instanz = vollständige
-Auftrags-/Ereignis-Historie ausbauen; Scan-Quittierung im Wareneingang & beim Verschrotten;
-Shop ausbauen (Kundenportal-Bestellsicht, Stripe live + Adaptive Pricing, Coupons); E-Mail (Gmail API).
+Nächste Aufgabe: Stripe-Sandbox-Keys im Secret Manager hinterlegen + testen (`docs/stripe-setup.md`);
+Auto-Fulfillment je Abo-Zyklus; Custom-Auftrag-UX verfeinern; Instanz = vollständige Ereignis-Historie;
+Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

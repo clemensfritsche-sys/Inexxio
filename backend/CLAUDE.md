@@ -80,10 +80,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET | /api/v1/shop/config | – | Shop-Währungen + Default (Frontend-Umschalter) |
 | GET | /api/v1/shop/products | optional | Publizierte Produkte (public + private des Kunden), Preis-View |
 | GET | /api/v1/shop/products/{object_id} | optional | Produktdetail (kanonisch über replaced_by_id) |
-| POST | /api/v1/shop/checkout | user | Kauf → Auftrag (sale+movement, FIFO) + Snapshot → payment_url |
-| GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manuelle Zahl-/Bestätigungsseite) |
-| POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung Erfolg/Abbruch |
-| POST | /api/v1/shop/payments/webhook | – | Provider-Webhook (Stripe, später) |
+| POST | /api/v1/shop/checkout | user | Kauf → Auftrag + Beleg → Stripe-Checkout-URL (Defer: Freigabe bei Zahlung) |
+| GET | /api/v1/shop/session/{session_id} | user | Stripe-Session-Status (Erfolgsseite nach Redirect) |
+| POST | /api/v1/shop/portal | user | Stripe Customer Portal (Abo/Zahlungsmittel verwalten) → URL |
+| POST | /api/v1/shop/payments/webhook | – | Stripe-Webhook (signaturgeprüft): Zahlung/Abo spiegeln |
+| GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manueller Fallback-Provider) |
+| POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung simulieren (nur ohne Stripe) |
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen (inkl. Shop-Währungen/Provider) |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
 | GET | /api/v1/admin/users | staff | Benutzerliste |

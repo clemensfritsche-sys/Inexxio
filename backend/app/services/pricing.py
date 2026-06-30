@@ -27,6 +27,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy.orm import Session
 
+from ..core.config import get_settings
 from ..models import Article, ArticlePrice, CompanySettings
 from . import fx, tax
 
@@ -166,7 +167,19 @@ def price_view(db: Session, article: Article, currency: str = "CHF",
     has_vat_id = bool(getattr(customer, "vat_number", None)) if customer else False
     is_b2b = bool(getattr(customer, "company_name", None)) if customer else False
     rate_pct = tax.vat_rate(price.tax_class, country, is_b2b, has_vat_id)   # ⑤ Steuer
-    gross = (net * (ONE + rate_pct / Decimal("100"))).quantize(CENT)
+    # Preisauszeichnung (tax_behavior): brutto/inklusive → der Basispreis IST der Brutto-
+    # Endpreis (schöne Zahl), die MWST wird herausgerechnet; netto/exklusive → MWST oben drauf.
+    # (Die finale, länderabhängige Steuer rechnet Stripe Tax an der Kasse; dies ist die Anzeige.)
+    inclusive = get_settings().prices_tax_inclusive
+    factor_pct = ONE + rate_pct / Decimal("100")
+    if inclusive:
+        gross = net
+        net = (gross / factor_pct).quantize(CENT) if factor_pct > 0 else gross
+        if compare_at is not None:
+            # compare bleibt brutto (Vergleichs-Endpreis) – rein visuell.
+            pass
+    else:
+        gross = (net * factor_pct).quantize(CENT)
     return {
         "currency": cur,
         "kind": price.kind,

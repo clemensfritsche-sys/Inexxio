@@ -1,16 +1,17 @@
-"""Zahlungs-Bridge – ein Interface, hinter dem **manual** (Default, überbrückbar für
-Tests) und **stripe** (Gerüst) liegen. So bleibt der Checkout provider-agnostisch.
+"""Zahlungs-Bridge – ein Interface, hinter dem **stripe** (Vollintegration) und
+**manual** (überbrückbarer Test-Provider) liegen. So bleibt der Checkout provider-agnostisch.
 
-``create_checkout`` liefert eine URL, auf die der Kunde zum Bezahlen umgeleitet wird;
-``handle_event`` verarbeitet die Rückmeldung des Providers (Zahlung erfolgreich/abgebrochen)
-und setzt den Verkaufs-Status.
+- ``create_checkout`` erzeugt die Zahl-URL (Stripe Checkout Session bzw. interne Test-Seite).
+- ``handle_webhook`` verarbeitet die Rückmeldung (Stripe-Webhook signaturgeprüft, manual via
+  Simulations-Payload) und setzt den Verkaufs-Status (mit Snapshot/Auftragsfreigabe).
+- ``create_portal_session`` (optional) liefert einen Self-Service-Link (Stripe Customer Portal).
 """
 
 from abc import ABC, abstractmethod
 
 from sqlalchemy.orm import Session
 
-from ...models import Order, Sale
+from ...models import Order, Sale, UserProfile
 
 
 class PaymentProvider(ABC):
@@ -18,9 +19,14 @@ class PaymentProvider(ABC):
 
     @abstractmethod
     def create_checkout(self, db: Session, order: Order, sale: Sale) -> str:
-        """Eine Zahl-URL für diesen Verkauf erzeugen (Redirect-Ziel des Kunden)."""
+        """Zahl-URL für diesen Verkauf erzeugen (Redirect-Ziel des Kunden)."""
 
     @abstractmethod
-    def handle_event(self, db: Session, payload: dict) -> Sale | None:
-        """Provider-Ereignis verarbeiten (Zahlung bestätigt/abgebrochen). Setzt den
-        Verkaufs-Status und stösst den Auftrag an. Liefert den betroffenen Verkauf."""
+    def handle_webhook(self, db: Session, raw: bytes, sig: str | None,
+                       payload: dict | None) -> Sale | None:
+        """Provider-Ereignis verarbeiten und den Verkaufs-Status setzen. Liefert den
+        betroffenen Verkauf (oder None, wenn das Ereignis nichts betrifft)."""
+
+    def create_portal_session(self, db: Session, user: UserProfile, return_url: str) -> str | None:
+        """Self-Service-Portal (Abo/Zahlungsmittel verwalten). Default: nicht unterstützt."""
+        return None

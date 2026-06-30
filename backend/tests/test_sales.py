@@ -101,6 +101,53 @@ def test_article_reactivation_removed():
     assert "nicht reaktiviert" in src.lower() or "können nicht reaktiviert" in src.lower()
 
 
+def test_stripe_provider_interface():
+    from app.services.payments.stripe_provider import StripeProvider
+
+    p = StripeProvider()
+    assert p.name == "stripe"
+    for m in ("create_checkout", "handle_webhook", "create_portal_session"):
+        assert callable(getattr(p, m))
+
+
+def test_provider_factory_without_key_is_manual():
+    from app.services.payments import get_provider, provider_name
+
+    # In der Testumgebung ist kein STRIPE_SECRET_KEY gesetzt → manual.
+    assert provider_name(None) == "manual"
+    assert get_provider(None).name == "manual"
+
+
+def test_apply_stripe_snapshot_inclusive():
+    from app.models import Sale
+    from app.services.sale import _apply_stripe_snapshot
+
+    sale = Sale(order_id=1, article_id=1, quantity=1, status="requested", currency="CHF")
+    _apply_stripe_snapshot(sale, {
+        "settlement": {"currency": "CHF", "total": "108.10", "tax": "8.10"},
+        "presentment": {"currency": "EUR", "total": "112.00"},
+        "payment_intent": "pi_test_123",
+    })
+    assert sale.currency == "CHF"
+    assert sale.order_total == Decimal("100.00")     # netto = brutto − Steuer
+    assert sale.vat_rate == Decimal("8.10")
+    assert sale.stripe_payment_intent_id == "pi_test_123"
+    assert sale.stripe_snapshot["presentment"]["currency"] == "EUR"
+
+
+def test_finalize_paid_and_release_helpers_exist():
+    from app.services import sale as sale_svc
+
+    for f in ("finalize_paid", "mark_paid", "mark_cancelled", "_release_on_payment"):
+        assert hasattr(sale_svc, f)
+
+
+def test_prices_tax_inclusive_default():
+    from app.core.config import get_settings
+
+    assert get_settings().prices_tax_inclusive is True
+
+
 def test_pricing_pipeline_has_optional_stages():
     """Die Preis-Pipeline ist gestaffelt: Zonen-Faktor (②) + Pinning (④) als Funktionen."""
     from app.services import pricing
