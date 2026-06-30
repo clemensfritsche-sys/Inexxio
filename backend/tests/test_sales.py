@@ -34,14 +34,15 @@ def test_vat_rate_rules():
 def test_price_schema_validation():
     from app.schemas.sales import ArticlePriceCreate
 
+    # Zwei Abo-Typen: Nutzungsabo (usage) | Produktabo (product). Steuerklasse entfällt.
     ok = ArticlePriceCreate(kind="subscription", interval="month",
-                            amount_chf=Decimal("49.00"), tax_class="standard")
-    assert ok.interval == "month"
+                            sub_type="product", amount_chf=Decimal("49.00"))
+    assert ok.interval == "month" and ok.sub_type == "product"
 
     with pytest.raises(ValueError):   # ungültige Art
         ArticlePriceCreate(kind="rental", amount_chf=Decimal("1"))
-    with pytest.raises(ValueError):   # ungültige Steuerklasse
-        ArticlePriceCreate(kind="one_time", amount_chf=Decimal("1"), tax_class="luxury")
+    with pytest.raises(ValueError):   # ungültiger Abo-Typ
+        ArticlePriceCreate(kind="subscription", sub_type="lifetime", amount_chf=Decimal("1"))
     with pytest.raises(ValueError):   # Betrag <= 0
         ArticlePriceCreate(kind="one_time", amount_chf=Decimal("0"))
 
@@ -50,8 +51,33 @@ def test_visibility_validation():
     from app.schemas.sales import ArticleSalesUpdate
 
     assert ArticleSalesUpdate(sales_visibility="private").sales_visibility == "private"
+    assert ArticleSalesUpdate(sales_visibility="public").sales_visibility == "public"
+    with pytest.raises(ValueError):   # 'unlisted' (Verborgen) ist entfernt
+        ArticleSalesUpdate(sales_visibility="unlisted")
     with pytest.raises(ValueError):
         ArticleSalesUpdate(sales_visibility="secret")
+
+
+def test_cart_checkout_schema():
+    from app.schemas.shop import ShopCheckout, ShopCheckoutItem
+
+    ok = ShopCheckout(items=[ShopCheckoutItem(article_object_id=100000001, price_id=5, quantity=2)])
+    assert ok.items[0].quantity == 2
+    with pytest.raises(ValueError):   # leerer Warenkorb
+        ShopCheckout(items=[])
+    with pytest.raises(ValueError):   # Menge <= 0
+        ShopCheckoutItem(article_object_id=1, quantity=0)
+
+
+def test_deferred_intent_helpers_exist():
+    """Defer-Modell: der Warenkorb wird als CheckoutIntent gehalten; die Aufträge entstehen
+    erst bei der Zahlung (fulfill_intent) bzw. werden bei Abbruch aufgelöst (cancel_intent)."""
+    from app.services import sales as sales_svc
+    from app.models import CheckoutIntent
+
+    for f in ("checkout", "fulfill_intent", "cancel_intent", "price_options"):
+        assert hasattr(sales_svc, f)
+    assert CheckoutIntent.__tablename__ == "checkout_intents"
 
 
 def test_payments_factory_defaults_to_manual():

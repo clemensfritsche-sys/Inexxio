@@ -26,6 +26,14 @@ class ArticlePrice(Base, TimestampMixin):
     # one_time → Einmalkauf | subscription → Abonnement (mit ``interval``).
     kind: Mapped[str] = mapped_column(String(12), default="one_time", nullable=False)
     interval: Mapped[Optional[str]] = mapped_column(String(8))  # month | year (nur bei subscription)
+    # Abo-Typ (nur bei kind='subscription'):
+    #   usage   → **Nutzungsabo**: Zugang/Nutzung (Software-Seat / Miete eines Geräts).
+    #             Erfüllung EINMAL bei Start (Zugang gewähren / Mietobjekt liefern); kein
+    #             wiederkehrender Versand. Endet/zurück bei Kündigung.
+    #   product → **Produktabo**: je Periode werden ``quantity`` neue Einheiten geliefert
+    #             (Verbrauchsmaterial / monatliche Teil-Lieferung). Folge-Fulfillment je
+    #             Zyklus (``invoice.paid``-Hook). Beide ohne Enddatum, aktiv kündbar.
+    sub_type: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
     # Netto-Basisbetrag in CHF + optionaler durchgestrichener Vergleichspreis (rein visuell).
     amount_chf: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

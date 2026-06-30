@@ -354,6 +354,26 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Ersetzen** kopiert das Verkaufs-Profil auf den Nachfolger. *Bewusst NICHT gebaut: Coupon-Engine,
   Bundles, Gast-Checkout, metered-Abos, kunden-/gruppenspezifische Preislisten, Auto-Fulfillment je
   Abo-Zyklus (TODO-/Extension-Hooks an Ort).*
+- **Shop-Phase 8 (Warenkorb · eingebettete Kasse · zwei Abo-Typen · Vereinfachung)**:
+  - **Warenkorb** (`lib/cart-context.tsx`, localStorage; `/shop/cart`): mehrere Artikel/Optionen ⇒
+    **EINE** Checkout-Session. **Abos werden einzeln** gekauft (Store erzwingt das). **Mehrere
+    Preis-Optionen je Produkt** (`ShopProduct.prices`) – der Kunde wählt am Produkt (Einmalkauf /
+    Nutzungsabo / Produktabo) und legt in den Warenkorb.
+  - **Aufgeschobene Auftragserzeugung** (`CheckoutIntent`, Migration `042`): der Auftrag entsteht
+    **erst bei bestätigter Zahlung** (`sales.fulfill_intent`) – Made-to-Order erzeugt dann je
+    Position einen Auftrag; **stock** wird schon bei der Bestellung als reservierter Auftrag angelegt
+    (kein Überverkauf). Abbruch/Ablauf → `sales.cancel_intent`. Token = Intent-id.
+  - **Eingebettete Stripe-Kasse** (`ui_mode='embedded'`, `/shop/checkout` mit
+    `@stripe/react-stripe-js`): kein Redirect mehr. Der **Publishable Key** ist öffentlich und kommt
+    aus `company_settings.stripe_publishable_key` über `GET /shop/config` (Admin → Systemkonfiguration).
+  - **Lieferadresse aus dem Profil** wird auf den Stripe-Customer gespiegelt (Vorbefüllung der Kasse,
+    keine Doppeleingabe) – `stripe_provider._profile_shipping`.
+  - **Zwei Abo-Typen** (`article_prices.sub_type`, gespiegelt nach `orders.recurrence_kind`):
+    **usage** = Nutzungsabo (Zugang/Miete, einmalige Erfüllung) | **product** = Produktabo
+    (wiederkehrende Lieferung; Folge-Fulfillment je Zyklus via `invoice.paid`-Hook = dokumentierte
+    Erweiterung). Beide ohne Enddatum, aktiv kündbar (Customer Portal).
+  - **Vereinfachung**: Steuerklasse (Stripe Tax übernimmt), Sichtbarkeit «Verborgen»/unlisted und
+    DE/EN-Umschalter im Verkauf-Reiter **entfernt** (einsprachig, KI-Übersetzung später).
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -368,14 +388,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
 > gepflegt, Rest abgeleitet (gestaffelte Pipeline, gepinnte Fremdwährung). Zwei Achsen: Preismodell
 > (Einmalkauf/Abo) + Verfügbarkeit (`sales_fulfillment` make=Made-to-Order | stock=FIFO). Kauf = Auftrag
-> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. **Zahlung =
-> Stripe** (hosted Checkout + Adaptive Pricing + Stripe Tax, Webhook-gespiegelt; `manual` als Fallback ohne
-> Keys). **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
+> mit `sale`+`movement`-Schritt + Preis-Snapshot; `subject_source` steuert produce/stock. **Warenkorb**
+> (mehrere Positionen ⇒ ein Checkout; Auftrag entsteht aufgeschoben erst bei Zahlung via `CheckoutIntent`).
+> **Zahlung = Stripe** (eingebettete Kasse `ui_mode='embedded'` + Adaptive Pricing + Stripe Tax,
+> Webhook-gespiegelt; `manual` als Fallback ohne Keys). Zwei Abo-Typen (`sub_type` usage/product).
+> **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
 > E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Stripe-Sandbox-Keys im Secret Manager hinterlegen + testen (`docs/stripe-setup.md`);
-Auto-Fulfillment je Abo-Zyklus; Custom-Auftrag-UX verfeinern; Instanz = vollständige Ereignis-Historie;
-Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API).
+Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
+eingebettete Kasse/Warenkorb in der Sandbox testen (`docs/stripe-setup.md`); Auto-Fulfillment je
+Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz = vollständige
+Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

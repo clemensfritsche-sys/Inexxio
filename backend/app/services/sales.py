@@ -118,11 +118,13 @@ def _clear_primary(db: Session, article_id: int, keep_id: int | None) -> None:
 
 
 def create_price(db: Session, article: Article, data, actor_id: int) -> ArticlePrice:
+    is_sub = data.kind == "subscription"
     price = ArticlePrice(
         article_id=article.id, kind=data.kind,
-        interval=data.interval if data.kind == "subscription" else None,
+        interval=data.interval if is_sub else None,
+        sub_type=(data.sub_type or "usage") if is_sub else None,
         amount_chf=data.amount_chf, compare_at_chf=data.compare_at_chf,
-        tax_class=data.tax_class, is_primary=bool(data.is_primary),
+        is_primary=bool(data.is_primary),
     )
     db.add(price)
     db.flush()
@@ -161,6 +163,9 @@ def update_price(db: Session, article: Article, price_id: int, data, actor_id: i
         setattr(price, key, value)
     if price.kind != "subscription":
         price.interval = None
+        price.sub_type = None
+    elif not price.sub_type:
+        price.sub_type = "usage"
     if payload.get("is_primary"):
         _clear_primary(db, article.id, price.id)
     log_audit(db, "article_prices", "update", str(payload), actor_id, object_id=article.object_id)
@@ -227,8 +232,8 @@ def copy_sales_profile(db: Session, src: Article, dst: Article) -> None:
     dst.sales_content = src.sales_content
     for p in prices_for(db, src.id):
         db.add(ArticlePrice(
-            article_id=dst.id, kind=p.kind, interval=p.interval, amount_chf=p.amount_chf,
-            compare_at_chf=p.compare_at_chf, tax_class=p.tax_class, is_primary=p.is_primary,
+            article_id=dst.id, kind=p.kind, interval=p.interval, sub_type=p.sub_type,
+            amount_chf=p.amount_chf, compare_at_chf=p.compare_at_chf, is_primary=p.is_primary,
         ))
     for r in db.query(ArticleSalesAudience).filter(
         ArticleSalesAudience.article_id == src.id, ArticleSalesAudience.is_active == True,
@@ -265,11 +270,11 @@ def _is_assigned(db: Session, article_id: int, user: UserProfile | None) -> bool
 def can_view(db: Session, article: Article, user: UserProfile | None) -> bool:
     """Darf dieser (ggf. anonyme) Nutzer das Produkt im Detail sehen/kaufen?
 
-    public/unlisted → ja (unlisted nur per direktem Link). private → nur zugewiesene
-    Kunden (oder Personal). Voraussetzung: publiziert, aktiv, nicht inaktiv."""
+    public → ja. private → nur zugewiesene Kunden (oder Personal).
+    Voraussetzung: publiziert, aktiv, nicht inaktiv."""
     if not article.sales_published or not article.is_active or article.status == "inactive":
         return False
-    if article.sales_visibility == "public" or article.sales_visibility == "unlisted":
+    if article.sales_visibility == "public":
         return True
     if user and user.role in ("admin", "employee"):
         return True
@@ -282,10 +287,25 @@ def _content(article: Article, lang: str) -> dict:
     return block if isinstance(block, dict) else {}
 
 
+def price_options(db: Session, article: Article, currency: str, country: str | None,
+                  user: UserProfile | None) -> list[dict]:
+    """Alle wählbaren Preis-Optionen eines Artikels (Einmalkauf/Nutzungsabo/Produktabo …),
+    Hauptpreis zuerst – jede mit berechneter Preis-Sicht in ``currency``."""
+    out: list[dict] = []
+    for p in prices_for(db, article.id):
+        out.append({
+            "price_id": p.id, "kind": p.kind, "interval": p.interval,
+            "sub_type": p.sub_type, "is_primary": p.is_primary,
+            "view": pricing.price_view_for(db, p, currency, country, user),
+        })
+    return out
+
+
 def to_product(db: Session, article: Article, currency: str, country: str | None,
                user: UserProfile | None, lang: str) -> dict:
     c = _content(article, lang)
     images = c.get("images") or []
+    options = price_options(db, article, currency, country, user)
     return {
         "object_id": article.object_id,
         "title": c.get("title") or article.name,
@@ -295,7 +315,8 @@ def to_product(db: Session, article: Article, currency: str, country: str | None
         "visibility": article.sales_visibility,
         "fulfillment": article.sales_fulfillment or "make",
         "unit": article.unit,
-        "price": pricing.price_view(db, article, currency, country, user),
+        "price": (options[0]["view"] if options else None),
+        "prices": options,
     }
 
 
@@ -327,59 +348,128 @@ def list_products(db: Session, user: UserProfile | None, currency: str,
     return out
 
 
-# ─── Shop: Checkout ──────────────────────────────────────────────────────────────
+# ─── Shop: Warenkorb-Checkout (Defer-Modell, mehrere Positionen) ─────────────────
+
+CENT = Decimal("0.01")
+
 
 def _interval_days(interval: str | None) -> int:
     return 365 if interval == "year" else 30
 
 
-def checkout(db: Session, article: Article, quantity: int, currency: str,
-             customer: UserProfile) -> tuple[Order, Sale, str, str]:
-    """Kauf abwickeln (Defer-Modell: **erst zahlen, dann erfüllen**): Auftrag + Verkaufs-Beleg
-    anlegen, Zahl-URL des Providers zurückgeben. Die Freigabe (Instanzen erzeugen / Lager
-    reservieren) erfolgt bei bestätigter Zahlung (Webhook/Simulation) – siehe ``sale.finalize_paid``.
-
-    Ausnahme: **stock** (limitierte Auflage) wird **schon bei der Bestellung reserviert**, damit
-    keine «bezahlt, aber kein Lager»-Lücke entsteht; **make** erzeugt erst nach Zahlung.
-    Liefert (Auftrag, Verkauf, URL, Provider)."""
-    from .events import emit
-    from .objects import next_object_id
-    from .payments import get_provider
-    from .subject import materialize_subject
-
+def _resolve_line(db: Session, item, customer: UserProfile) -> dict:
+    """Eine Warenkorb-Position validieren und zu einer aufgelösten ``line`` verdichten
+    (Artikel kanonisch, sichtbar, freigegeben; Preis-Option gehört zum Artikel)."""
+    article = db.query(Article).filter(
+        Article.object_id == item.article_object_id, Article.is_active == True).first()
+    if not article:
+        raise HTTPException(404, detail="Produkt nicht gefunden")
     article = canonical(db, article)
     if not can_view(db, article, customer):
         raise HTTPException(403, detail="Dieses Produkt ist nicht verfügbar")
-    price = pricing.resolve_primary_price(db, article)
-    if not price:
-        raise HTTPException(400, detail="Für dieses Produkt ist kein Preis hinterlegt")
-    # Kauf nur eines **freigegebenen** Artikels (Spezifikation + Prozess eingefroren).
     if article.status != "released":
         raise HTTPException(400, detail="Dieses Produkt ist noch nicht zum Kauf freigegeben")
+    if item.price_id:
+        price = db.query(ArticlePrice).filter(
+            ArticlePrice.id == item.price_id, ArticlePrice.article_id == article.id,
+            ArticlePrice.is_active == True).first()
+        if not price:
+            raise HTTPException(400, detail="Gewählte Preis-Option ist nicht verfügbar")
+    else:
+        price = pricing.resolve_primary_price(db, article)
+    if not price:
+        raise HTTPException(400, detail="Für dieses Produkt ist kein Preis hinterlegt")
 
-    # Indikativer CHF-Beleg (Anzeige/Fallback). Der real bezahlte Betrag/Währung/Steuer wird
-    # bei Zahlung gesetzt: Stripe (Adaptive Pricing + Stripe Tax) bzw. manual (CHF-Pipeline).
-    view = pricing.price_view(db, article, "CHF", country=None, customer=customer)
-    today = utcnow().date()
+    view = pricing.price_view_for(db, price, "CHF", country=None, customer=customer)
+    qty = item.quantity
+    return {
+        "article_id": article.id, "article_object_id": article.object_id,
+        "article_name": article.name, "price_id": price.id,
+        "quantity": qty, "fulfillment": article.sales_fulfillment or "make",
+        "kind": price.kind, "interval": price.interval, "sub_type": price.sub_type,
+        "base_amount_chf": str((Decimal(price.amount_chf) * qty).quantize(CENT)),
+        "net_chf": str((view["net"] * qty).quantize(CENT)) if view else None,
+        "vat_rate": str(view["tax_rate"]) if view else None,
+        "order_id": None,
+    }
 
-    # ── Achse B – Verfügbarkeit (unabhängig vom Preismodell Einmalkauf/Abo) ──────────
-    fulfillment = article.sales_fulfillment or "make"
+
+def checkout(db: Session, items: list, customer: UserProfile) -> tuple["object", dict]:
+    """Warenkorb-Checkout (**Defer-Modell: erst zahlen, dann erfüllen**). Mehrere Positionen
+    ⇒ EIN ``CheckoutIntent`` ⇒ EINE Zahlungs-Session. Der Auftrag je Position wird **erst
+    bei bestätigter Zahlung** erzeugt (Made-to-Order). Ausnahme **stock** (limitierte
+    Auflage): der Auftrag wird schon hier angelegt + reserviert (kein Überverkauf).
+
+    Liefert (Intent, Provider-Ergebnis) – das Ergebnis trägt ``client_secret``/``session_id``
+    (Stripe, eingebettete Kasse) bzw. ``payment_url`` (manueller Fallback)."""
+    from .payments import get_provider
+    from ..models import CheckoutIntent
+
+    lines = [_resolve_line(db, it, customer) for it in items]
+    # Abos werden separat abgeschlossen (Stripe: ein Subscription-Checkout je Vertrag).
+    if any(l["kind"] == "subscription" for l in lines) and len(lines) > 1:
+        raise HTTPException(
+            400, detail="Ein Abo muss separat gekauft werden – bitte einzeln zur Kasse gehen.")
+
+    total = sum((Decimal(l["base_amount_chf"]) for l in lines), Decimal("0"))
+    intent = CheckoutIntent(customer_id=customer.id, status="pending",
+                            lines=lines, amount_chf=total.quantize(CENT))
+    db.add(intent)
+    db.flush()
+
+    # stock-Positionen schon jetzt als reservierten Auftrag anlegen (Überverkauf vermeiden).
+    for line in lines:
+        if line["fulfillment"] == "stock":
+            order = _create_order_for_line(db, line, customer, release=True)
+            line["order_id"] = order.object_id
+    _store_lines(intent, lines)
+    db.commit()
+    db.refresh(intent)
+
+    provider = get_provider(db)
+    result = provider.create_checkout(db, intent, customer)
+    intent.provider = provider.name
+    db.commit()
+    return intent, result
+
+
+def _store_lines(intent, lines: list) -> None:
+    """``lines`` (JSONB) so zuweisen, dass SQLAlchemy die Änderung erkennt."""
+    from sqlalchemy.orm.attributes import flag_modified
+    intent.lines = list(lines)
+    flag_modified(intent, "lines")
+
+
+def _create_order_for_line(db: Session, line: dict, customer: UserProfile,
+                           release: bool) -> Order:
+    """Aus einer Warenkorb-Position einen Verkaufsauftrag bauen (Verkauf + Bewegung).
+
+    ``release=True`` (stock) gibt sofort frei + reserviert; ``release=False`` (make) lässt
+    den Auftrag als Entwurf – die Freigabe (Instanz-Erzeugung) erfolgt bei der Zahlung."""
+    from .events import emit
+    from .objects import next_object_id
+    from .subject import materialize_subject
+
+    is_sub = line["kind"] == "subscription"
+    fulfillment = line["fulfillment"]
+    qty = line["quantity"]
     order = Order(
         object_id=next_object_id(db, "order"), status="draft",
-        article_id=article.id, quantity=quantity,
-        title=f"Shop-Kauf: {article.name}",
+        article_id=line["article_id"], quantity=qty,
+        title=f"Shop-Kauf: {line['article_name']}",
         subject_source="produce" if fulfillment == "make" else "stock",
     )
-    if price.kind == "subscription":
-        # Abo (Achse A) = wiederkehrender Verkaufsauftrag. Stripe Billing verrechnet wiederkehrend;
-        # Inexxio spiegelt den Status (stripe_subscription_id). recurrence_* als interner Marker.
+    if is_sub:
+        # Abo = wiederkehrender Verkaufsauftrag. Stripe Billing verrechnet wiederkehrend;
+        # Inexxio spiegelt Status/Typ. recurrence_kind steuert die per-Zyklus-Erfüllung.
         order.recurrence_active = True
-        order.recurrence_interval_days = _interval_days(price.interval)
-        order.recurrence_anchor = today + timedelta(days=order.recurrence_interval_days)
+        order.recurrence_kind = line.get("sub_type") or "usage"
+        order.recurrence_interval_days = _interval_days(line.get("interval"))
+        order.recurrence_anchor = utcnow().date() + timedelta(days=order.recurrence_interval_days)
     db.add(order)
     db.flush()
 
-    # Verkaufsablauf: kaufmännischer Verkauf (Zahlung) → Bewegung (Versand zum Kunden).
+    # Auto-Ablauf (kein Pflicht-Verkaufsprozess): kaufmännischer Verkauf → Versand zum Kunden.
     sale_step = ArticleProcessStep(order_id=order.id, position=0, step_type="sale")
     db.add(sale_step)
     db.add(ArticleProcessStep(order_id=order.id, position=2, step_type="movement",
@@ -387,33 +477,97 @@ def checkout(db: Session, article: Article, quantity: int, currency: str,
                               target_location_id=customer.object_id))
     db.flush()
 
-    # Verkaufs-Beleg **vor** der Zahlung anlegen (requested) – inkl. indikativem CHF-Snapshot.
     sale = Sale(
-        order_id=order.id, article_id=article.id, quantity=quantity, step_id=sale_step.id,
+        order_id=order.id, article_id=line["article_id"], quantity=qty, step_id=sale_step.id,
         status="requested", customer_id=customer.id, currency="CHF",
-        order_total=(view["net"] * quantity).quantize(Decimal("0.01")) if view else None,
-        vat_rate=view["tax_rate"] if view else None, tax_class=price.tax_class,
-        base_amount_chf=(Decimal(price.amount_chf) * quantity).quantize(Decimal("0.01")),
-        fx_date=today,
+        order_total=Decimal(line["net_chf"]) if line.get("net_chf") else None,
+        vat_rate=Decimal(line["vat_rate"]) if line.get("vat_rate") else None,
+        base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
     )
     db.add(sale)
     log_audit(db, "sales", None, f"Shop-Verkauf angefragt ({fulfillment})",
               customer.id, object_id=order.object_id)
 
-    # stock (limitiert) → schon jetzt reservieren (sonst Überverkauf bei paralleler Zahlung).
-    # make → keine Reservierung; die Einheiten entstehen erst bei Zahlung.
-    if fulfillment == "stock":
+    if release:
         order.status = "released"
         order.released_at = utcnow()
         materialize_subject(db, order, customer.id)
         emit(db, "order.released", object_type="order", object_id=order.object_id,
-             payload={"article_id": order.article_id, "quantity": order.quantity, "via": "shop"},
+             payload={"article_id": order.article_id, "quantity": qty, "via": "shop"},
              actor_id=customer.id)
+    db.flush()
+    return order
 
+
+def _split_snapshot(snap: dict | None, base: Decimal, total_base: Decimal) -> dict | None:
+    """Den session-weiten Stripe-Snapshot **anteilig** auf eine Position herunterbrechen
+    (proportional zur CHF-Basis). Bei Einzelposition = voller Snapshot."""
+    if not snap:
+        return None
+    settlement = snap.get("settlement") or {}
+    total = Decimal(str(settlement.get("total") or 0))
+    tax = Decimal(str(settlement.get("tax") or 0))
+    frac = (base / total_base) if total_base > 0 else Decimal("1")
+    out = dict(snap)
+    out["settlement"] = {
+        "currency": settlement.get("currency") or "CHF",
+        "total": str((total * frac).quantize(CENT)),
+        "tax": str((tax * frac).quantize(CENT)),
+    }
+    return out
+
+
+def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
+    """Bestätigte Zahlung verarbeiten (idempotent): je Position den Auftrag erzeugen
+    (make) bzw. den schon reservierten (stock) finalisieren, Snapshot anteilig einfrieren
+    und den Verkauf auf ``paid`` setzen. Liefert die Anzahl finalisierter Positionen."""
+    from . import sale as sale_svc
+
+    if intent.status == "completed":
+        return 0
+    customer = db.query(UserProfile).filter(UserProfile.id == intent.customer_id).first()
+    if not customer:
+        return 0
+    lines = list(intent.lines or [])
+    total_base = sum((Decimal(l.get("base_amount_chf") or 0) for l in lines), Decimal("0"))
+    done = 0
+    for line in lines:
+        if line.get("order_id"):
+            order = db.query(Order).filter(Order.object_id == line["order_id"]).first()
+        else:
+            order = _create_order_for_line(db, line, customer, release=False)
+            line["order_id"] = order.object_id
+        if not order:
+            continue
+        sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
+        if not sale:
+            continue
+        per_line = _split_snapshot(snapshot, Decimal(line.get("base_amount_chf") or 0), total_base)
+        if snapshot and snapshot.get("subscription"):
+            order.stripe_subscription_id = snapshot["subscription"]
+        sale_svc.finalize_paid(db, sale, stripe=per_line)
+        done += 1
+    intent.status = "completed"
+    _store_lines(intent, lines)
     db.commit()
-    db.refresh(order)
-    db.refresh(sale)
+    return done
 
-    provider = get_provider(db)
-    url = provider.create_checkout(db, order, sale)
-    return order, sale, url, provider.name
+
+def cancel_intent(db: Session, intent) -> None:
+    """Checkout abgebrochen/abgelaufen: schon reservierte (stock-) Aufträge auflösen.
+    make-Positionen haben (noch) keinen Auftrag – nichts zu tun. Idempotent."""
+    from . import sale as sale_svc
+
+    if intent.status in ("completed", "cancelled"):
+        return
+    for line in list(intent.lines or []):
+        if not line.get("order_id"):
+            continue
+        order = db.query(Order).filter(Order.object_id == line["order_id"]).first()
+        if not order:
+            continue
+        sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
+        if sale:
+            sale_svc.mark_cancelled(db, sale)
+    intent.status = "cancelled"
+    db.commit()

@@ -1,25 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Tag, Plus, Trash2, Globe, Lock, EyeOff, Image as ImageIcon, Languages, Coins } from 'lucide-react';
+import { Tag, Plus, Trash2, Globe, Lock, Image as ImageIcon, Coins } from 'lucide-react';
 import { api } from '@/lib/api';
 import type {
   ArticleSalesProfile, ArticlePrice, AudienceMember, PriceView,
-  SalesVisibility, SalesFulfillment, SalesContent, SalesContentBlock, PriceKind, PriceInterval, TaxClass, UserProfile,
+  SalesVisibility, SalesFulfillment, SalesContent, SalesContentBlock,
+  PriceKind, PriceInterval, PriceSubType, UserProfile,
 } from '@/types';
 import {
-  Label, TextField, SelectField, Segmented, SearchSelect, SectionTitle, InfoHint, Placeholder,
+  Label, TextField, SelectField, Segmented, SearchSelect, SectionTitle, Placeholder,
 } from '@/components/erp/fields';
 import { useAutosave } from '@/lib/use-autosave';
 
 const VISIBILITY: { value: SalesVisibility; label: string; icon: React.ElementType; hint: string }[] = [
   { value: 'public', label: 'Öffentlich', icon: Globe, hint: 'Für alle im Shop sichtbar.' },
   { value: 'private', label: 'Privat', icon: Lock, hint: 'Nur zugewiesene Kunden sehen es.' },
-  { value: 'unlisted', label: 'Verborgen', icon: EyeOff, hint: 'Nur per direktem Link erreichbar (nicht gelistet).' },
 ];
 
-const TAX_LABEL: Record<TaxClass, string> = {
-  standard: 'Standard 8.1 %', reduced: 'Reduziert 2.6 %', lodging: 'Beherbergung 3.8 %', zero: 'Steuerfrei 0 %',
+const SUB_TYPE_LABEL: Record<PriceSubType, string> = {
+  usage: 'Nutzungsabo (Zugang/Miete)', product: 'Produktabo (wiederkehrende Lieferung)',
 };
 
 function fmtMoney(amount: number | string | null | undefined, currency: string): string {
@@ -78,20 +78,20 @@ const card: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 12,
 };
 
-// ─── Profil: Publiziert + Sichtbarkeit + Inhalt (de/en) ──────────────────────────
+// ─── Profil: Publiziert + Sichtbarkeit + Verfügbarkeit + Inhalt (einsprachig) ────
 
 function ProfileCard({ profile, onSaved, articleObjectId }: {
   profile: ArticleSalesProfile; onSaved: (p: ArticleSalesProfile) => void; articleObjectId: number;
 }) {
   const [published, setPublished] = useState(profile.sales_published);
   const [visibility, setVisibility] = useState<SalesVisibility>(profile.sales_visibility);
-  const [content, setContent] = useState<SalesContent>(profile.sales_content ?? { de: emptyBlock(), en: emptyBlock() });
-  const [lang, setLang] = useState<'de' | 'en'>('de');
+  const [content, setContent] = useState<SalesContent>(profile.sales_content ?? { de: emptyBlock() });
   const [flash, setFlash] = useState(false);
 
-  const block = content[lang] ?? emptyBlock();
+  // Einsprachig (KI-Übersetzung folgt später): Inhalt wird im Block 'de' gepflegt.
+  const block = content.de ?? emptyBlock();
   function setBlock(patch: Partial<SalesContentBlock>) {
-    setContent((c) => ({ ...c, [lang]: { ...(c[lang] ?? emptyBlock()), ...patch } }));
+    setContent((c) => ({ ...c, de: { ...(c.de ?? emptyBlock()), ...patch } }));
   }
 
   const [fulfillment, setFulfillment] = useState<SalesFulfillment>(profile.sales_fulfillment);
@@ -106,7 +106,7 @@ function ProfileCard({ profile, onSaved, articleObjectId }: {
         sales_fulfillment: fulfillment, sales_content: content,
       });
       onSaved(saved);
-      setSavedSig(JSON.stringify({ published: saved.sales_published, visibility: saved.sales_visibility, fulfillment: saved.sales_fulfillment, content: saved.sales_content ?? { de: emptyBlock(), en: emptyBlock() } }));
+      setSavedSig(JSON.stringify({ published: saved.sales_published, visibility: saved.sales_visibility, fulfillment: saved.sales_fulfillment, content: saved.sales_content ?? { de: emptyBlock() } }));
       setFlash(true); setTimeout(() => setFlash(false), 700);
     } catch { /* belassen */ }
   }, [articleObjectId, published, visibility, fulfillment, content, onSaved]);
@@ -154,10 +154,7 @@ function ProfileCard({ profile, onSaved, articleObjectId }: {
       </div>
 
       <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
-        <SectionTitle icon={Languages} right={
-          <Segmented label="" value={lang} onChange={(v) => setLang(v as 'de' | 'en')}
-            options={[{ value: 'de', label: 'DE' }, { value: 'en', label: 'EN' }]} />
-        }>Inhalt</SectionTitle>
+        <SectionTitle icon={Tag} info="Sprache folgt später (KI-Übersetzung). Aktuell einsprachig gepflegt.">Inhalt</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <TextField label="Titel" value={block.title ?? ''} onChange={(v) => setBlock({ title: v })} placeholder="Produkttitel" />
           <TextField label="Untertitel" value={block.subtitle ?? ''} onChange={(v) => setBlock({ subtitle: v })} placeholder="kurzer Zusatz" />
@@ -191,19 +188,21 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
 }) {
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState<{ kind: PriceKind; interval: PriceInterval; amount: string; compare: string; tax: TaxClass }>(
-    { kind: 'one_time', interval: 'month', amount: '', compare: '', tax: 'standard' });
+  const [form, setForm] = useState<{ kind: PriceKind; interval: PriceInterval; subType: PriceSubType; amount: string; compare: string }>(
+    { kind: 'one_time', interval: 'month', subType: 'usage', amount: '', compare: '' });
 
   async function add() {
     if (!form.amount.trim()) return;
     setBusy(true);
     try {
       await api.createArticlePrice(articleObjectId, {
-        kind: form.kind, interval: form.kind === 'subscription' ? form.interval : null,
+        kind: form.kind,
+        interval: form.kind === 'subscription' ? form.interval : null,
+        sub_type: form.kind === 'subscription' ? form.subType : null,
         amount_chf: form.amount, compare_at_chf: form.compare.trim() || null,
-        tax_class: form.tax, is_primary: prices.length === 0,
+        is_primary: prices.length === 0,
       });
-      setForm({ kind: 'one_time', interval: 'month', amount: '', compare: '', tax: 'standard' });
+      setForm({ kind: 'one_time', interval: 'month', subType: 'usage', amount: '', compare: '' });
       setAdding(false);
       onChanged();
     } finally { setBusy(false); }
@@ -211,7 +210,7 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
 
   return (
     <div style={card}>
-      <SectionTitle icon={Coins} info="Beträge sind die Netto-Basis in CHF. Der Shop rechnet pro Anzeige in die Zielwährung um (Tageskurs, schön gerundet) und schlägt die MWST auf.">Preise</SectionTitle>
+      <SectionTitle icon={Coins} info="Beträge sind die Netto-Basis in CHF. Stripe zeigt an der Kasse die Lokalwährung und berechnet die finale Steuer. Mehrere Optionen je Produkt sind möglich (Einmalkauf, Nutzungs-/Produktabo).">Preise</SectionTitle>
       {prices.length === 0 && !adding && (
         <div style={{ fontSize: 12, color: '#94a3b8' }}>Noch kein Preis – ohne Preis erscheint das Produkt nicht im Shop.</div>
       )}
@@ -229,12 +228,14 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
                 options={[{ value: 'month', label: 'monatlich' }, { value: 'year', label: 'jährlich' }]} />
             )}
           </div>
+          {form.kind === 'subscription' && (
+            <SelectField label="Abo-Typ" value={form.subType} onChange={(v) => setForm((f) => ({ ...f, subType: v as PriceSubType }))}
+              options={(Object.keys(SUB_TYPE_LABEL) as PriceSubType[]).map((k) => ({ value: k, label: SUB_TYPE_LABEL[k] }))} />
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <TextField label="Preis (CHF, netto)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="z. B. 199.00" />
+            <TextField label="Preis (CHF, brutto)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="z. B. 199.00" />
             <TextField label="Vergleichspreis (optional)" value={form.compare} onChange={(v) => setForm((f) => ({ ...f, compare: v }))} placeholder="durchgestrichen" />
           </div>
-          <SelectField label="Steuerklasse" value={form.tax} onChange={(v) => setForm((f) => ({ ...f, tax: v as TaxClass }))}
-            options={(Object.keys(TAX_LABEL) as TaxClass[]).map((k) => ({ value: k, label: TAX_LABEL[k] }))} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={add} disabled={busy || !form.amount.trim()}
               style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>Speichern</button>
@@ -255,23 +256,26 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
 function PriceRow({ articleObjectId, price, onChanged }: {
   articleObjectId: number; price: ArticlePrice; onChanged: () => void;
 }) {
+  const isSub = price.kind === 'subscription';
   const [amount, setAmount] = useState(String(price.amount_chf));
   const [compare, setCompare] = useState(price.compare_at_chf != null ? String(price.compare_at_chf) : '');
-  const [tax, setTax] = useState<TaxClass>(price.tax_class as TaxClass);
+  const [subType, setSubType] = useState<PriceSubType>((price.sub_type as PriceSubType) ?? 'usage');
+  const [interval, setInterval] = useState<PriceInterval>((price.interval as PriceInterval) ?? 'month');
   const [flash, setFlash] = useState(false);
 
-  const sig = JSON.stringify({ amount, compare, tax });
+  const sig = JSON.stringify({ amount, compare, subType, interval });
   const [savedSig, setSavedSig] = useState(sig);
   const save = useCallback(async () => {
     try {
       await api.updateArticlePrice(articleObjectId, price.id, {
-        amount_chf: amount, compare_at_chf: compare.trim() || null, tax_class: tax,
+        amount_chf: amount, compare_at_chf: compare.trim() || null,
+        ...(isSub ? { sub_type: subType, interval } : {}),
       });
-      setSavedSig(JSON.stringify({ amount, compare, tax }));
+      setSavedSig(JSON.stringify({ amount, compare, subType, interval }));
       setFlash(true); setTimeout(() => setFlash(false), 700);
       onChanged();
     } catch { /* belassen */ }
-  }, [articleObjectId, price.id, amount, compare, tax, onChanged]);
+  }, [articleObjectId, price.id, amount, compare, subType, interval, isSub, onChanged]);
   const flush = useAutosave(sig, sig !== savedSig && !!amount.trim(), save);
 
   async function makePrimary() {
@@ -289,7 +293,7 @@ function PriceRow({ articleObjectId, price, onChanged }: {
       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>
-          {price.kind === 'subscription' ? `Abo (${price.interval === 'year' ? 'jährlich' : 'monatlich'})` : 'Einmalkauf'}
+          {isSub ? (subType === 'product' ? 'Produktabo' : 'Nutzungsabo') : 'Einmalkauf'}
         </span>
         {price.is_primary
           ? <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 7px', borderRadius: 999 }}>Hauptpreis</span>
@@ -298,17 +302,23 @@ function PriceRow({ articleObjectId, price, onChanged }: {
           <Trash2 size={14} />
         </button>
       </div>
+      {isSub && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <SelectField label="Abo-Typ" value={subType} onChange={(v) => setSubType(v as PriceSubType)}
+            options={(Object.keys(SUB_TYPE_LABEL) as PriceSubType[]).map((k) => ({ value: k, label: SUB_TYPE_LABEL[k] }))} />
+          <SelectField label="Intervall" value={interval} onChange={(v) => setInterval(v as PriceInterval)}
+            options={[{ value: 'month', label: 'monatlich' }, { value: 'year', label: 'jährlich' }]} />
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <TextField label="Preis (CHF, netto)" value={amount} onChange={setAmount} placeholder="199.00" />
+        <TextField label="Preis (CHF, brutto)" value={amount} onChange={setAmount} placeholder="199.00" />
         <TextField label="Vergleichspreis" value={compare} onChange={setCompare} placeholder="optional" />
       </div>
-      <SelectField label="Steuerklasse" value={tax} onChange={(v) => setTax(v as TaxClass)}
-        options={(Object.keys(TAX_LABEL) as TaxClass[]).map((k) => ({ value: k, label: TAX_LABEL[k] }))} />
     </div>
   );
 }
 
-// ─── Zielgruppe (private/unlisted) ───────────────────────────────────────────────
+// ─── Zielgruppe (private) ────────────────────────────────────────────────────────
 
 function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
   articleObjectId: number; audience: AudienceMember[]; customers: UserProfile[]; onChanged: () => void;
@@ -332,7 +342,7 @@ function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
 
   return (
     <div style={card}>
-      <SectionTitle icon={Lock} info="Nur diese Kunden sehen das Produkt (bei privater/verborgener Sichtbarkeit).">Zielgruppe</SectionTitle>
+      <SectionTitle icon={Lock} info="Nur diese Kunden sehen das Produkt (bei privater Sichtbarkeit).">Zielgruppe</SectionTitle>
       {audience.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Noch keine Kunden zugewiesen.</div>}
       {audience.map((a) => (
         <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
@@ -348,13 +358,13 @@ function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
   );
 }
 
-// ─── Preis-Vorschau (CHF/EUR/USD …) ──────────────────────────────────────────────
+// ─── Preis-Vorschau (CHF) ────────────────────────────────────────────────────────
 
 function PreviewCard({ previews }: { previews: PriceView[] }) {
   if (!previews || previews.length === 0) return null;
   return (
     <div style={card}>
-      <SectionTitle icon={Coins} info="Berechneter Anzeige-Preis je Shop-Währung (Tageskurs, schön gerundet, inkl. CH-MWST).">Vorschau</SectionTitle>
+      <SectionTitle icon={Coins} info="Berechneter Anzeige-Preis in CHF (inkl. CH-MWST). Lokalwährung/finale Steuer rechnet Stripe an der Kasse.">Vorschau</SectionTitle>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {previews.map((v) => (
           <div key={v.currency} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 13 }}>

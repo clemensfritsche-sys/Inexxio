@@ -8,10 +8,20 @@ Diese Anleitung aktiviert die Stripe-Vollintegration (hosted Checkout + **Adapti
 > **dann** den PR nach `develop` mergen – sonst schlägt das Cloud-Run-Deploy fehl
 > (`--set-secrets` referenziert nicht existierende Secrets).
 
+> **Eingebettete Kasse (Embedded Checkout):** Die Zahlung läuft seit Phase 8 **on-site**
+> (kein Redirect) – Stripe Checkout wird direkt auf `/shop/checkout` eingebettet. Dafür wird
+> zusätzlich der **Publishable Key** (`pk_test_…`) benötigt. Er ist **öffentlich** (kein
+> Secret) und wird **nicht** im Secret Manager, sondern in **Admin → Systemkonfiguration →
+> Integrationen → «Stripe Publishable Key»** hinterlegt. Das Backend reicht ihn über
+> `GET /api/v1/shop/config` an das Frontend; ohne ihn zeigt die Kasse einen Hinweis.
+
 ## 1. Stripe Sandbox aktivieren
 Im Stripe-Dashboard oben das **Sandbox/Test**-Konto wählen (Account «Inexxio AG»). Alle
-folgenden Schritte im **Sandbox-Modus** ausführen. Den **Secret Key** holst du unter
-**Developers → API keys → Secret key** (`sk_test_…`).
+folgenden Schritte im **Sandbox-Modus** ausführen. Du brauchst zwei Keys unter
+**Developers → API keys**:
+- **Secret key** (`sk_test_…`) → Google Secret Manager (Schritt 4).
+- **Publishable key** (`pk_test_…`) → Admin → Systemkonfiguration → Integrationen
+  (öffentlich, für die eingebettete Kasse).
 
 > **Stripe Tax ist aktuell DEAKTIVIERT** (`STRIPE_TAX_ENABLED=false`, Default). Der Checkout
 > läuft ohne automatische Steuer (Bruttopreis wird so verrechnet). Zum Aktivieren später:
@@ -79,16 +89,21 @@ Nach Schritt 4 den PR nach `develop` mergen → Deploy injiziert die Secrets, de
 schaltet automatisch auf `stripe`.
 
 ## 6. Testen (Sandbox)
-1. Artikel im ERP **Verkauf**-Reiter publizieren (Preis in CHF brutto, make oder stock).
-2. Als Kunde einloggen → `/shop` → Produkt → **Kaufen** → Stripe Checkout.
-3. **Adaptive Pricing testen**: an der Kasse die Lokalwährung prüfen. (Optional simulieren:
-   eine Kunden-E-Mail mit Suffix `+location_DE@…` zeigt EUR-Preise.)
-4. **Testkarte**: `4242 4242 4242 4242`, beliebiges künftiges Datum, beliebige CVC/PLZ.
-5. Nach Zahlung: Redirect auf `/shop/success` → der Webhook setzt den Verkauf auf **paid**,
-   gibt den Auftrag frei (make: erzeugt Instanzen / stock: reserviert) und friert den
-   **real bezahlten Betrag/Währung/Steuer** als Snapshot ein.
-6. **Abo**: Artikel mit Preis-Art «Abo» → Checkout mode=subscription; «Zahlungen & Abos
-   verwalten» öffnet das **Stripe Customer Portal**.
+1. **Publishable Key** in Admin → Systemkonfiguration → Integrationen hinterlegen (`pk_test_…`).
+2. Artikel im ERP **Verkauf**-Reiter publizieren (Preis in CHF brutto, make oder stock; mehrere
+   Preis-Optionen möglich – Einmalkauf / Nutzungsabo / Produktabo).
+3. Als Kunde einloggen → `/shop` → Produkt → Option wählen → **In den Warenkorb** →
+   `/shop/cart` → **Zur Kasse** → die **eingebettete** Stripe-Kasse erscheint auf `/shop/checkout`.
+4. **Adaptive Pricing testen**: an der Kasse die Lokalwährung prüfen. (Optional simulieren:
+   eine Kunden-E-Mail mit Suffix `+location_DE@…` zeigt EUR-Preise.) Die **Lieferadresse** ist
+   aus dem Profil vorausgefüllt (sofern hinterlegt).
+5. **Testkarte**: `4242 4242 4242 4242`, beliebiges künftiges Datum, beliebige CVC/PLZ.
+6. Nach Zahlung: Rückkehr auf `/shop/success` → der Webhook **erzeugt** je Warenkorb-Position
+   den Auftrag (make) bzw. finalisiert den reservierten (stock), setzt den Verkauf auf **paid**
+   und friert den **real bezahlten Betrag/Währung/Steuer** je Position als Snapshot ein.
+7. **Abo**: Preis-Option «Nutzungsabo» oder «Produktabo» → Checkout `mode=subscription` (wird
+   **einzeln** gekauft). «Zahlungen & Abos verwalten» öffnet das **Stripe Customer Portal**
+   (kündbar, kein Enddatum).
 
 ## Architektur (Kurz)
 - **Provider-Auswahl** (`services/payments/__init__.py`): `company_settings.payments_provider`

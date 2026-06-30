@@ -393,12 +393,13 @@ class ApiClient {
     return this.get(`/api/v1/shop/products/${objectId}${qs}`);
   }
 
-  shopCheckout(articleObjectId: number, quantity: number): Promise<ShopCheckoutResult> {
-    return this.post('/api/v1/shop/checkout', { article_object_id: articleObjectId, quantity, currency: 'CHF' });
+  // Warenkorb-Checkout: mehrere Positionen ⇒ eine Zahlungs-Session (Defer-Modell).
+  shopCheckout(items: { article_object_id: number; price_id: number; quantity: number }[]): Promise<ShopCheckoutResult> {
+    return this.post('/api/v1/shop/checkout', { items });
   }
 
-  // Stripe-Checkout-Session-Status (Erfolgsseite nach Redirect)
-  getCheckoutSession(sessionId: string): Promise<{ order_object_id: number; status: SaleStatus; paid: boolean }> {
+  // Stripe-Checkout-Session-Status (Erfolgsseite nach eingebetteter Kasse)
+  getCheckoutSession(sessionId: string): Promise<{ order_object_id: number | null; order_object_ids: number[]; status: SaleStatus; paid: boolean }> {
     return this.get(`/api/v1/shop/session/${sessionId}`);
   }
 

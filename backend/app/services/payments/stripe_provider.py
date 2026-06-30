@@ -1,12 +1,14 @@
-"""Stripe-Provider – **Vollintegration** (hosted Checkout + Adaptive Pricing + Stripe Tax).
+"""Stripe-Provider – **Vollintegration** (eingebettete Kasse + Adaptive Pricing + Stripe Tax).
 
-- ``create_checkout``: erstellt eine Stripe **Checkout Session** (Redirect). KEINE Währung
-  gesetzt → **Adaptive Pricing** zeigt dem Kunden seine Lokalwährung; ``automatic_tax`` →
-  **Stripe Tax** berechnet die MWST länderabhängig. Modus ``payment`` (Einmalkauf) oder
-  ``subscription`` (Abo). Preise inline als ``price_data`` (CHF-Basis, ``tax_behavior``).
-- ``handle_webhook``: signaturgeprüft (``STRIPE_WEBHOOK_SECRET``); spiegelt Zahlung/Abo-Status
-  und friert den **real bezahlten** Betrag/Währung/Steuer als Snapshot ein (Stripe = Quelle
-  der Wahrheit). Defer-Modell: der Auftrag wird erst bei bestätigter Zahlung freigegeben.
+- ``create_checkout``: erstellt eine Stripe **Checkout Session** im Modus ``ui_mode='embedded'``
+  (kein Redirect – die Kasse wird auf unserer Seite eingebettet, ``client_secret``). KEINE
+  Währung gesetzt → **Adaptive Pricing** zeigt die Lokalwährung; ``automatic_tax`` →
+  **Stripe Tax**. Modus ``payment`` (Einmalkauf) oder ``subscription`` (Abo). Mehrere
+  Warenkorb-Positionen ⇒ mehrere ``line_items`` in EINER Session. Die Lieferadresse wird
+  aus dem **Profil** auf den Stripe-Customer gespiegelt (Vorbefüllung, keine Doppeleingabe).
+- ``handle_webhook``: signaturgeprüft; erzeugt/finalisiert bei bestätigter Zahlung die
+  Aufträge des Intents (Defer-Modell) und friert den real bezahlten Betrag/Währung/Steuer
+  je Position als Snapshot ein (Stripe = Quelle der Wahrheit).
 - ``create_portal_session``: Stripe **Customer Portal** (Abo/Zahlungsmittel selbst verwalten).
 
 Hart geschützt: ohne ``STRIPE_SECRET_KEY`` ist der Provider nie aktiv (sauberer 503, kein Crash).
@@ -19,8 +21,8 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
-from ...models import Article, Order, Sale, UserProfile
-from .. import pricing, sale as sale_svc
+from ...models import CheckoutIntent, Order, UserProfile
+from .. import sales as sales_svc
 from ..events import emit
 from .base import PaymentProvider
 
@@ -46,13 +48,42 @@ def _full_name(u: UserProfile) -> str | None:
     return u.company_name or name or None
 
 
+def _profile_shipping(u: UserProfile) -> dict | None:
+    """Lieferadresse aus dem Profil als Stripe-``shipping``-Objekt (oder None, wenn
+    unvollständig). So füllt Stripe die Kasse vor – der Kunde tippt nichts erneut (#4)."""
+    line1 = u.ship_address_line1 or u.address_line1
+    city = u.ship_city or u.city
+    postal = u.ship_postal_code or u.postal_code
+    country = (u.ship_country or u.country or "CH")
+    if not (line1 and city and postal and country):
+        return None
+    name = u.ship_name or _full_name(u) or u.email
+    address = {
+        "line1": line1,
+        "line2": u.ship_address_line2 or u.address_line2 or None,
+        "city": city,
+        "postal_code": postal,
+        "state": u.ship_state_region or u.state_region or None,
+        "country": (country or "CH")[:2].upper(),
+    }
+    return {"name": name, "address": address}
+
+
 def _ensure_customer(db: Session, stripe, user: UserProfile) -> str:
-    """Den Stripe-Customer zum UserProfile holen/anlegen (idempotent, gecached)."""
+    """Den Stripe-Customer zum UserProfile holen/anlegen (idempotent, gecached) und die
+    Lieferadresse aus dem Profil spiegeln (Vorbefüllung der Kasse)."""
+    shipping = _profile_shipping(user)
     if user.stripe_customer_id:
+        if shipping:
+            try:
+                stripe.Customer.modify(user.stripe_customer_id, shipping=shipping)
+            except Exception:
+                pass
         return user.stripe_customer_id
     cust = stripe.Customer.create(
         email=user.email,
         name=_full_name(user),
+        shipping=shipping or None,
         metadata={"user_id": user.id, "object_id": user.object_id or ""},
     )
     user.stripe_customer_id = cust.id
@@ -64,49 +95,33 @@ class StripeProvider(PaymentProvider):
     name = "stripe"
 
     # ─── Checkout ────────────────────────────────────────────────────────────────
-    def create_checkout(self, db: Session, order: Order, sale: Sale) -> str:
+    def create_checkout(self, db: Session, intent: CheckoutIntent,
+                        customer: UserProfile) -> dict:
         stripe = _stripe()
         settings = get_settings()
-        article = db.query(Article).filter(Article.id == sale.article_id).first()
-        user = db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first()
-        if not article or not user:
-            raise HTTPException(400, detail="Artikel/Kunde für den Checkout fehlt")
-        price = pricing.resolve_primary_price(db, article)
-        if not price:
-            raise HTTPException(400, detail="Kein Preis hinterlegt")
-
-        customer_id = _ensure_customer(db, stripe, user)
-        unit_amount = int((Decimal(price.amount_chf) * 100).quantize(Decimal("1")))
+        lines = list(intent.lines or [])
+        if not lines:
+            raise HTTPException(400, detail="Warenkorb ist leer")
+        customer_id = _ensure_customer(db, stripe, customer)
         tax_behavior = "inclusive" if settings.prices_tax_inclusive else "exclusive"
-        is_sub = bool(order.recurrence_active)
+        is_sub = any(l.get("kind") == "subscription" for l in lines)
 
-        price_data = {
-            "currency": "chf",                  # Basis – Adaptive Pricing rechnet lokal um
-            "unit_amount": unit_amount,
-            "tax_behavior": tax_behavior,
-            "product_data": {
-                "name": article.name,
-                "tax_code": settings.stripe_default_tax_code,
-                "metadata": {"article_object_id": article.object_id or ""},
-            },
-        }
-        if is_sub:
-            price_data["recurring"] = {"interval": "year" if price.interval == "year" else "month"}
-
+        line_items = [self._line_item(line, tax_behavior) for line in lines]
         base = settings.frontend_base_url.rstrip("/")
-        meta = {"order_object_id": str(order.object_id)}
+        meta = {"intent_id": str(intent.id)}
         params = {
+            "ui_mode": "embedded",
             "mode": "subscription" if is_sub else "payment",
             "customer": customer_id,
-            "line_items": [{"price_data": price_data, "quantity": order.quantity or 1}],
+            "line_items": line_items,
             # Stripe Tax nur, wenn im Dashboard eingerichtet (sonst schlägt die Session fehl).
             "automatic_tax": {"enabled": bool(settings.stripe_tax_enabled)},
             "billing_address_collection": "auto",
             "shipping_address_collection": {"allowed_countries": _ship_countries()},
             "customer_update": {"address": "auto", "name": "auto", "shipping": "auto"},
             "metadata": meta,
-            "success_url": f"{base}/shop/success?session_id={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"{base}/shop/product?id={article.object_id}",
+            # Eingebettete Kasse nutzt return_url (kein success_url/cancel_url).
+            "return_url": f"{base}/shop/success?session_id={{CHECKOUT_SESSION_ID}}",
             # KEINE currency → Adaptive Pricing wählt die Lokalwährung des Kunden.
         }
         if is_sub:
@@ -115,13 +130,33 @@ class StripeProvider(PaymentProvider):
             params["payment_intent_data"] = {"metadata": meta}
 
         session = stripe.checkout.Session.create(**params)
-        order.stripe_checkout_session_id = session.id
+        intent.stripe_session_id = session.id
         db.commit()
-        return session.url
+        return {"provider": self.name, "session_id": session.id,
+                "client_secret": session.client_secret, "payment_url": None}
+
+    def _line_item(self, line: dict, tax_behavior: str) -> dict:
+        qty = int(line.get("quantity") or 1)
+        base = Decimal(str(line.get("base_amount_chf") or 0))
+        unit = (base / qty) if qty else base
+        price_data = {
+            "currency": "chf",                  # Basis – Adaptive Pricing rechnet lokal um
+            "unit_amount": int((unit * 100).quantize(Decimal("1"))),
+            "tax_behavior": tax_behavior,
+            "product_data": {
+                "name": line.get("article_name") or "Produkt",
+                "tax_code": get_settings().stripe_default_tax_code,
+                "metadata": {"article_object_id": line.get("article_object_id") or ""},
+            },
+        }
+        if line.get("kind") == "subscription":
+            price_data["recurring"] = {
+                "interval": "year" if line.get("interval") == "year" else "month"}
+        return {"price_data": price_data, "quantity": qty}
 
     # ─── Webhook ─────────────────────────────────────────────────────────────────
     def handle_webhook(self, db: Session, raw: bytes, sig: str | None,
-                       payload: dict | None) -> Sale | None:
+                       payload: dict | None) -> CheckoutIntent | None:
         stripe = _stripe()
         secret = get_settings().stripe_webhook_secret
         if secret:
@@ -144,51 +179,60 @@ class StripeProvider(PaymentProvider):
         if etype == "customer.subscription.deleted":
             return self._on_subscription_ended(db, obj)
         if etype == "invoice.paid":
-            # Wiederkehrende Verrechnung läuft in Stripe (Quelle der Wahrheit) – wir spiegeln
-            # nur. Folge-Fulfillment je Zyklus ist eine dokumentierte Erweiterung.
-            emit(db, "stripe.invoice_paid", object_type="organization", object_id=None,
-                 payload={"subscription": _get(obj, "subscription")})
-            db.commit()
-            return None
+            return self._on_invoice_paid(db, obj)
         return None
 
     # ─── Event-Handler ───────────────────────────────────────────────────────────
-    def _resolve_sale(self, db: Session, session) -> tuple[Order, Sale] | tuple[None, None]:
-        oid = (_get(session, "metadata") or {}).get("order_object_id")
-        if not oid:
-            return None, None
-        order = db.query(Order).filter(Order.object_id == int(oid)).first()
-        if not order:
-            return None, None
-        sale = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).first()
-        return order, sale
+    def _resolve_intent(self, db: Session, session) -> CheckoutIntent | None:
+        iid = (_get(session, "metadata") or {}).get("intent_id")
+        if iid:
+            it = db.query(CheckoutIntent).filter(CheckoutIntent.id == int(iid)).first()
+            if it:
+                return it
+        sid = _get(session, "id")
+        return db.query(CheckoutIntent).filter(
+            CheckoutIntent.stripe_session_id == sid).first() if sid else None
 
-    def _on_completed(self, db: Session, stripe, session) -> Sale | None:
+    def _on_completed(self, db: Session, stripe, session) -> CheckoutIntent | None:
         status = _get(session, "payment_status")
         if status not in ("paid", "no_payment_required", None):
             return None   # asynchrone Methode noch offen → async_payment_succeeded abwarten
-        order, sale = self._resolve_sale(db, session)
-        if not order or not sale:
+        intent = self._resolve_intent(db, session)
+        if not intent:
             return None
         snap = self._snapshot(stripe, session)
-        sub = _get(session, "subscription")
-        if sub:
-            order.stripe_subscription_id = sub
-        return sale_svc.finalize_paid(db, sale, stripe=snap)
+        sales_svc.fulfill_intent(db, intent, snapshot=snap)
+        return intent
 
-    def _on_failed(self, db: Session, session) -> Sale | None:
-        order, sale = self._resolve_sale(db, session)
-        if sale:
-            return sale_svc.mark_cancelled(db, sale)
-        return None
+    def _on_failed(self, db: Session, session) -> CheckoutIntent | None:
+        intent = self._resolve_intent(db, session)
+        if intent:
+            sales_svc.cancel_intent(db, intent)
+        return intent
 
-    def _on_subscription_ended(self, db: Session, sub) -> Sale | None:
+    def _on_subscription_ended(self, db: Session, sub) -> CheckoutIntent | None:
         sub_id = _get(sub, "id")
         order = db.query(Order).filter(Order.stripe_subscription_id == sub_id).first()
         if order and order.recurrence_active:
             order.recurrence_active = False
             emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
             db.commit()
+        return None
+
+    def _on_invoice_paid(self, db: Session, invoice) -> CheckoutIntent | None:
+        """Wiederkehrende Verrechnung läuft in Stripe (Quelle der Wahrheit) – wir spiegeln.
+        Beim **Produktabo** wäre hier das Folge-Fulfillment je Zyklus zu erzeugen; beim
+        **Nutzungsabo** (Zugang/Miete) ist nichts zu liefern. Das eigentliche Erzeugen des
+        Folgeauftrags ist die dokumentierte nächste Erweiterung (TODO-Hook unten)."""
+        sub_id = _get(invoice, "subscription")
+        order = (db.query(Order).filter(Order.stripe_subscription_id == sub_id).first()
+                 if sub_id else None)
+        kind = order.recurrence_kind if order else None
+        emit(db, "stripe.invoice_paid", object_type="order",
+             object_id=order.object_id if order else None,
+             payload={"subscription": sub_id, "recurrence_kind": kind})
+        # TODO(Erweiterung): kind == 'product' → Folge-Fulfillment-Auftrag je Zyklus erzeugen.
+        db.commit()
         return None
 
     def _snapshot(self, stripe, session) -> dict:
