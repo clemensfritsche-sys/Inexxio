@@ -49,7 +49,18 @@ function CheckoutView() {
   const stripePromise = useMemo<Promise<Stripe | null> | null>(
     () => (pubKey ? loadStripe(pubKey) : null), [pubKey]);
 
-  if (authLoading || (busy && !clientSecret)) {
+  // Lädt Stripe.js nicht (z. B. CSP/Netz blockiert js.stripe.com), wird die eingebettete
+  // Kasse nie sichtbar → statt endlosem Spinner einen klaren Fehler zeigen.
+  useEffect(() => {
+    if (!stripePromise) return;
+    let alive = true;
+    stripePromise
+      .then((s) => { if (alive && !s) setError('Die Stripe-Kasse konnte nicht geladen werden.'); })
+      .catch(() => { if (alive) setError('Die Stripe-Kasse konnte nicht geladen werden.'); });
+    return () => { alive = false; };
+  }, [stripePromise]);
+
+  if (authLoading || (busy && !clientSecret && !error)) {
     return <div className="max-w-2xl mx-auto px-6 py-20 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /> <span className="text-sm">Kasse wird geladen…</span></div>;
   }
   if (!user) return (
