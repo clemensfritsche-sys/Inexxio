@@ -152,7 +152,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             <div style={{ fontSize: 13, color: '#94a3b8' }}>Noch kein Auftrag hat diese Instanz verarbeitet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[...orders].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0)).map((o) => (
+              {[...orders].sort((a, b) => (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0)).map((o) => (
                 <div key={o.object_id} style={orderRow}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <ObjId value={o.object_id} />

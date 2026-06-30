@@ -3,7 +3,8 @@
 * ``instance_orders`` – alle **Aufträge**, die eine Instanz angefasst haben. Eine
   Instanz ist die Summe aller Prozesse; Prozesse werden ausschliesslich durch
   Aufträge angestossen. Pro Auftrag werden die Rollen gesammelt (was er mit der
-  Instanz tat), chronologisch (Herkunft/ältester zuerst).
+  Instanz tat), sortiert nach der **tatsächlichen Aktionszeit** an der Instanz –
+  jüngste zuerst (NICHT nach Objektnummer/Anlage-Reihenfolge).
 * ``storage_location_references`` – lagernde Instanzen + Artikel, die einen
   Lagerplatz referenzieren.
 """
@@ -31,7 +32,10 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
         h = hits.setdefault(order_db_id, {"roles": [], "at": at})
         if role not in h["roles"]:
             h["roles"].append(role)
-        if at and (h["at"] is None or at < h["at"]):
+        # JÜNGSTE Aktion dieses Auftrags an der Instanz behalten (für „neueste zuerst"):
+        # ein Verkauf, der die Instanz später anfasst (verkauft), gehört über die Produktion,
+        # die sie früher erzeugt hat – auch wenn der Produktionsauftrag die höhere Nummer hat.
+        if at and (h["at"] is None or at > h["at"]):
             h["at"] = at
 
     # Herkunft (make: erzeugt) / aktuelle Bindung (Entwurf) / Reservierung
@@ -83,7 +87,9 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
             "object_id": o.object_id, "status": o.status,
             "roles": h["roles"], "at": h["at"] or o.created_at,
         })
-    out.sort(key=lambda r: r["object_id"])   # chronologisch: Herkunft zuerst
+    # Nach der **tatsächlichen Aktionszeit** an der Instanz – jüngste zuerst (nicht nach
+    # Objektnummer: die spiegelt die Anlage-Reihenfolge der Aufträge, nicht die Instanz-Zeitachse).
+    out.sort(key=lambda r: (r["at"], r["object_id"]), reverse=True)
     return out
 
 
