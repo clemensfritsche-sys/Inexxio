@@ -150,6 +150,8 @@ _COLUMN_SAFETY_NET = (
     # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
     ("article_prices", "sub_type", "VARCHAR(10)"),
     ("orders", "recurrence_kind", "VARCHAR(10)"),
+    # Make-to-Order: Verkaufsauftrag ← Produktionsauftrag (Sale erzeugt nie selbst Instanzen)
+    ("orders", "fulfilled_by_order_id", "BIGINT"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema

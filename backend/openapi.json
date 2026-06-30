@@ -746,6 +746,58 @@
         }
       }
     },
+    "/api/v1/erp/records/{object_id}/orders": {
+      "get": {
+        "tags": [
+          "erp"
+        ],
+        "summary": "Get Erp Record Orders",
+        "description": "Bestellungen/Abos eines Benutzers (ERP-Reiter «Bestellungen»).",
+        "operationId": "get_erp_record_orders_api_v1_erp_records__object_id__orders_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerOrder"
+                  },
+                  "title": "Response Get Erp Record Orders Api V1 Erp Records  Object Id  Orders Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles": {
       "get": {
         "tags": [
@@ -3805,6 +3857,37 @@
         }
       }
     },
+    "/api/v1/shop/orders": {
+      "get": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "My Orders",
+        "description": "Eigene Bestellungen + Abos (Kunden-Selbstbedienung).",
+        "operationId": "my_orders_api_v1_shop_orders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerOrder"
+                  },
+                  "type": "array",
+                  "title": "Response My Orders Api V1 Shop Orders Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/shop/portal": {
       "post": {
         "tags": [
@@ -6306,6 +6389,121 @@
           "count"
         ],
         "title": "CountResponse"
+      },
+      "CustomerOrder": {
+        "properties": {
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "gross_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Total"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "requested"
+          },
+          "is_subscription": {
+            "type": "boolean",
+            "title": "Is Subscription",
+            "default": false
+          },
+          "sub_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Type"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "subscription_active": {
+            "type": "boolean",
+            "title": "Subscription Active",
+            "default": false
+          },
+          "has_subscription_management": {
+            "type": "boolean",
+            "title": "Has Subscription Management",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "CustomerOrder",
+        "description": "Eine Bestellung aus Kundensicht (für «Meine Bestellungen» + ERP-User-Reiter)."
       },
       "DeactivateRequest": {
         "properties": {

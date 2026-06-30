@@ -374,6 +374,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Erweiterung). Beide ohne Enddatum, aktiv kündbar (Customer Portal).
   - **Vereinfachung**: Steuerklasse (Stripe Tax übernimmt), Sichtbarkeit «Verborgen»/unlisted und
     DE/EN-Umschalter im Verkauf-Reiter **entfernt** (einsprachig, KI-Übersetzung später).
+  - **Verkauf erzeugt NIE Instanzen** (wichtig): der Shop-Verkaufsauftrag ist immer ein
+    **stock/FIFO**-Auftrag (`subject_source='stock'`) – er SELEKTIERT vorhandene, freigegebene
+    Instanzen (das Sales-Schrittmodul, automatisiert). Bei **«auf Bestellung» (make)** entsteht bei
+    der Zahlung ein **separater Produktionsauftrag** (fährt den **Artikel-Prozess** → erzeugt die
+    Instanzen, die einzige legitime Quelle). Der Verkaufsauftrag trägt `orders.fulfilled_by_order_id`
+    und wird **freigegeben/erfüllt (FIFO + Versand), sobald die Produktion abgeschlossen ist**
+    (Hook `process._release_dependent_sales`, Migration `043`).
+  - **Eingebettete Kasse: Inline-Abschluss** (`redirect_on_completion='never'` + `onComplete`) – kein
+    separates Erfolgs-Fenster, kein Abbruch-Hänger. **Adressen = Single Source of Truth «Profil»**:
+    Liefer-/Rechnungsadresse werden auf den Stripe-Customer gespiegelt, KEINE Adress-Erfassung an der
+    Kasse. **Bestellungen + Abos**: Kunde unter **Konto → «Bestellungen & Abos»** (+ Stripe-Portal),
+    ERP am Benutzer-Datensatz als Karte **«Bestellungen»** (`GET /shop/orders`, `GET /erp/records/{id}/orders`).
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine

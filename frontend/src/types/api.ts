@@ -285,6 +285,26 @@ export interface paths {
         patch: operations["update_erp_record_api_v1_erp_records__object_id__patch"];
         trace?: never;
     };
+    "/api/v1/erp/records/{object_id}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Erp Record Orders
+         * @description Bestellungen/Abos eines Benutzers (ERP-Reiter «Bestellungen»).
+         */
+        get: operations["get_erp_record_orders_api_v1_erp_records__object_id__orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles": {
         parameters: {
             query?: never;
@@ -1113,6 +1133,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shop/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Orders
+         * @description Eigene Bestellungen + Abos (Kunden-Selbstbedienung).
+         */
+        get: operations["my_orders_api_v1_shop_orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shop/portal": {
         parameters: {
             query?: never;
@@ -1792,6 +1832,56 @@ export interface components {
         CountResponse: {
             /** Count */
             count: number;
+        };
+        /**
+         * CustomerOrder
+         * @description Eine Bestellung aus Kundensicht (für «Meine Bestellungen» + ERP-User-Reiter).
+         */
+        CustomerOrder: {
+            /** Order Object Id */
+            order_object_id?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Gross Total */
+            gross_total?: string | null;
+            /**
+             * Status
+             * @default requested
+             */
+            status: string;
+            /**
+             * Is Subscription
+             * @default false
+             */
+            is_subscription: boolean;
+            /** Sub Type */
+            sub_type?: string | null;
+            /** Interval */
+            interval?: string | null;
+            /**
+             * Subscription Active
+             * @default false
+             */
+            subscription_active: boolean;
+            /**
+             * Has Subscription Management
+             * @default false
+             */
+            has_subscription_management: boolean;
         };
         /**
          * DeactivateRequest
@@ -3874,6 +3964,37 @@ export interface operations {
             };
         };
     };
+    get_erp_record_orders_api_v1_erp_records__object_id__orders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerOrder"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_articles_api_v1_erp_articles_get: {
         parameters: {
             query?: never;
@@ -5721,6 +5842,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_orders_api_v1_shop_orders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerOrder"][];
                 };
             };
         };

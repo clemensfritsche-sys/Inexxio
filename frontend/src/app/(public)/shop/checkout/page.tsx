@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js';
 import { api } from '@/lib/api';
@@ -13,11 +13,12 @@ import { useCart } from '@/lib/cart-context';
 function CheckoutView() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { items, hydrated } = useCart();
+  const { items, hydrated, clear } = useCart();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pubKey, setPubKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
+  const [done, setDone] = useState(false);
   const started = useRef(false);
 
   useEffect(() => {
@@ -49,8 +50,8 @@ function CheckoutView() {
   const stripePromise = useMemo<Promise<Stripe | null> | null>(
     () => (pubKey ? loadStripe(pubKey) : null), [pubKey]);
 
-  // Lädt Stripe.js nicht (z. B. CSP/Netz blockiert js.stripe.com), wird die eingebettete
-  // Kasse nie sichtbar → statt endlosem Spinner einen klaren Fehler zeigen.
+  // Lädt Stripe.js nicht (z. B. CSP/Netz), wird die eingebettete Kasse nie sichtbar →
+  // statt endlosem Spinner einen klaren Fehler zeigen.
   useEffect(() => {
     if (!stripePromise) return;
     let alive = true;
@@ -60,6 +61,23 @@ function CheckoutView() {
     return () => { alive = false; };
   }, [stripePromise]);
 
+  // Abschluss wird inline angezeigt (redirect_on_completion='never') – kein Erfolgs-Fenster.
+  const onComplete = useCallback(() => { clear(); setDone(true); }, [clear]);
+  const options = useMemo(() => (clientSecret ? { clientSecret, onComplete } : null), [clientSecret, onComplete]);
+
+  if (done) {
+    return (
+      <div className="max-w-md mx-auto px-6 py-16 text-center">
+        <CheckCircle2 size={48} className="mx-auto text-green-600" />
+        <h1 className="mt-4 text-xl font-bold text-slate-900">Vielen Dank für deinen Kauf!</h1>
+        <p className="mt-2 text-sm text-slate-500">Deine Bestellung ist bestätigt und wird bearbeitet.</p>
+        <Link href="/konto" className="mt-6 inline-block rounded-lg bg-blue-600 text-white font-semibold py-2.5 px-5 hover:bg-blue-700">
+          Meine Bestellungen
+        </Link>
+        <Link href="/shop" className="mt-4 block text-blue-600 text-sm">Weiter einkaufen</Link>
+      </div>
+    );
+  }
   if (authLoading || (busy && !clientSecret && !error)) {
     return <div className="max-w-2xl mx-auto px-6 py-20 text-center text-slate-400"><Loader2 className="mx-auto animate-spin" /> <span className="text-sm">Kasse wird geladen…</span></div>;
   }
@@ -79,8 +97,8 @@ function CheckoutView() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
       <Link href="/shop/cart" className="text-blue-600 text-sm mb-4 inline-flex items-center gap-1"><ArrowLeft size={14} /> Warenkorb</Link>
-      {clientSecret && stripePromise && (
-        <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+      {options && stripePromise && (
+        <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
           <EmbeddedCheckout />
         </EmbeddedCheckoutProvider>
       )}

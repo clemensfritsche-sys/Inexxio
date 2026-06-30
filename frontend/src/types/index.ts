@@ -223,6 +223,7 @@ export type AudienceMember = components['schemas']['AudienceMember'];
 export type ShopProduct = components['schemas']['ShopProduct'];
 export type ShopPriceOption = components['schemas']['ShopPriceOption'];
 export type ShopCheckoutResult = components['schemas']['ShopCheckoutResult'];
+export type CustomerOrder = components['schemas']['CustomerOrder'];
 
 // Lokalisierter Verkaufs-Inhalt (de/en) – Titel/Untertitel/Beschreibung/Bilder.
 export interface SalesContentBlock {

@@ -7,6 +7,8 @@ from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
+from ..schemas.shop import CustomerOrder
+from ..services import sales as sales_svc
 from ..services.admin import log_audit
 from ..services.objects import next_object_ids, resolve_object_type
 
@@ -76,6 +78,21 @@ async def get_erp_record(
     if not user:
         raise HTTPException(404, detail="Record not found")
     return UserProfileResponse.model_validate(user)
+
+
+@router.get("/records/{object_id}/orders", response_model=list[CustomerOrder])
+async def get_erp_record_orders(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Bestellungen/Abos eines Benutzers (ERP-Reiter «Bestellungen»)."""
+    user = db.query(UserProfile).filter(
+        UserProfile.object_id == object_id, UserProfile.is_active == True
+    ).first()
+    if not user:
+        raise HTTPException(404, detail="Record not found")
+    return [CustomerOrder(**o) for o in sales_svc.list_customer_orders(db, user.id)]
 
 
 @router.patch("/records/{object_id}", response_model=UserProfileResponse)

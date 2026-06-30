@@ -371,6 +371,7 @@ def recompute_completion(db: Session, order: Order) -> None:
             release(inst, order.id)
             inst.subject_of_order_id = None
         _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
+        _release_dependent_sales(db, order)  # Make-to-Order: wartende Verkäufe jetzt erfüllen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
         # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: er ist jetzt nicht
         # mehr pausiert und schliesst automatisch ab, falls er nur noch auf diese Abweichung
@@ -379,6 +380,25 @@ def recompute_completion(db: Session, order: Order) -> None:
             parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
             if parent and parent.status == "released":
                 recompute_completion(db, parent)
+
+
+def _release_dependent_sales(db: Session, production: Order) -> None:
+    """Make-to-Order: Verkaufsaufträge, die auf die Fertigstellung dieser **Produktion**
+    warten (``fulfilled_by_order_id``), jetzt freigeben. Der Verkauf selbst erzeugt keine
+    Instanzen – er ordnet die soeben produzierten (nun freigegebenen) Instanzen per FIFO zu
+    und versendet. No-op für normale Aufträge (Spalte ist dort NULL)."""
+    if not production.object_id:
+        return
+    waiting = db.query(Order).filter(
+        Order.fulfilled_by_order_id == production.object_id,
+        Order.status == "draft", Order.is_active == True,
+    ).all()
+    if not waiting:
+        return
+    from .sale import _release_on_payment
+    for s in waiting:
+        _release_on_payment(db, s, None)   # released → FIFO-Zuordnung der produzierten Instanzen
+        recompute_completion(db, s)
 
 
 def required_sample(quantity: int | None, sample_percent: int | None) -> int:

@@ -1,6 +1,8 @@
 """Schemas für den öffentlichen Shop (Kunde): Produkt-Listing/-Detail, Warenkorb-Checkout,
 Zahlungs-Simulation."""
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, field_validator
@@ -74,3 +76,21 @@ class ShopCheckoutResult(BaseModel):
 class PaymentSimulate(BaseModel):
     sale_token: str
     result: str = "paid"   # paid | cancelled
+
+
+class CustomerOrder(BaseModel):
+    """Eine Bestellung aus Kundensicht (für «Meine Bestellungen» + ERP-User-Reiter)."""
+    order_object_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+    title: Optional[str] = None
+    article_object_id: Optional[int] = None
+    quantity: int = 1
+    currency: str = "CHF"
+    gross_total: Optional[Decimal] = None
+    # Friendly-Status: requested | processing | completed | cancelled
+    status: str = "requested"
+    is_subscription: bool = False
+    sub_type: Optional[str] = None          # usage | product
+    interval: Optional[str] = None          # month | year
+    subscription_active: bool = False
+    has_subscription_management: bool = False   # Stripe-Subscription vorhanden → Portal nutzbar

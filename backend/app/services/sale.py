@@ -123,18 +123,22 @@ def _apply_stripe_snapshot(sale: Sale, snap: dict) -> None:
     sale.stripe_snapshot = snap
 
 
-def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None) -> Sale:
+def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None,
+                  release_order: bool = True) -> Sale:
     """Zahlungseingang verarbeiten: Auftrag freigeben (falls noch Entwurf), Snapshot
     einfrieren und den Verkauf auf ``paid`` setzen. Idempotent (Webhooks treffen mehrfach).
 
     ``stripe`` (optional): real bezahlte Beträge von Stripe (sonst gilt die eigene CHF-Pipeline,
-    deren Snapshot bei der Bestellung gesetzt wurde)."""
+    deren Snapshot bei der Bestellung gesetzt wurde).
+    ``release_order=False``: Zahlung verbuchen, aber den Verkaufsauftrag NICHT freigeben
+    (Make-to-Order: die Freigabe erfolgt erst, wenn die verknüpfte Produktion fertig ist)."""
     if sale.status == "paid":
         return sale
     order = db.query(Order).filter(Order.id == sale.order_id).first()
     actor_id = sale.customer_id
     if order:
-        _release_on_payment(db, order, actor_id)
+        if release_order:
+            _release_on_payment(db, order, actor_id)
         if stripe and stripe.get("subscription") and not order.stripe_subscription_id:
             order.stripe_subscription_id = stripe["subscription"]
     if stripe:

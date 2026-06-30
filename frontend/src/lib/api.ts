@@ -7,6 +7,7 @@ import type {
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
+  CustomerOrder,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -406,6 +407,16 @@ class ApiClient {
   // Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten)
   openCustomerPortal(): Promise<{ url: string }> {
     return this.post('/api/v1/shop/portal', {});
+  }
+
+  // Eigene Bestellungen + Abos (Kunde)
+  getMyOrders(): Promise<CustomerOrder[]> {
+    return this.get('/api/v1/shop/orders');
+  }
+
+  // Bestellungen eines Benutzers (ERP-Reiter, staff)
+  getRecordOrders(objectId: number): Promise<CustomerOrder[]> {
+    return this.get(`/api/v1/erp/records/${objectId}/orders`);
   }
 
   // Manueller Provider (Fallback ohne Stripe-Keys)
