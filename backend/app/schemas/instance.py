@@ -64,6 +64,7 @@ class InstanceEmbed(BaseModel):
 
     id: int
     object_id: Optional[int]
+    article_id: int   # welcher Position (Mehrpositionen-Auftrag) die Instanz zugehört
     kind: str
     quantity: int
     quality: str          # QC-Verdikt: pending | passed | failed

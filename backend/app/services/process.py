@@ -129,6 +129,31 @@ def _resolve_fact(step: ArticleProcessStep, rows: list, sole_of_type: bool):
     return None
 
 
+def _resolve_facts_multi(step: ArticleProcessStep, rows: list, sole_of_type: bool) -> list:
+    """Wie ``_resolve_fact``, aber liefert ALLE passenden Fachzeilen statt nur der ersten –
+    für «Verkauf»: bei mehreren Artikeln (Mehrpositionen-Auftrag) teilen sich mehrere
+    ``Sale``-Belege denselben Schritt (``step_id``), einer je Artikel/Position."""
+    matched = [r for r in rows if getattr(r, "step_id", None) == step.id]
+    if matched:
+        return matched
+    if sole_of_type:
+        return [r for r in rows if getattr(r, "step_id", None) is None]
+    return []
+
+
+def _sale_status(facts: list) -> str:
+    """Aggregierter Rohstatus eines Verkaufs-Schritts über ALLE seine Belege (ein Beleg
+    je Artikel/Position): 'done' erst, wenn ALLE bezahlt sind; 'failed', wenn ALLE storniert
+    sind (eine Sendung wird gemeinsam abgeschlossen – siehe ``sale.apply_update_bulk``)."""
+    if not facts:
+        return "open"
+    if all(f.status == "paid" for f in facts):
+        return "done"
+    if all(f.status == "cancelled" for f in facts):
+        return "failed"
+    return "open"
+
+
 def build_order_steps(db: Session, order: Order) -> list[dict]:
     """Schritte des Auftrags mit Zustand UND aufgelöster Fachzeile.
 
@@ -146,8 +171,16 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
     out: list[dict] = []
     active_assigned = False
     for d in defs:
-        fact = _resolve_fact(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
-        raw = _fact_status(d.step_type, fact)
+        if d.step_type == "sale":
+            # Verkauf: EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je
+            # Beleg, Mehrpositionen-Auftrag) – Status ist das Aggregat über alle.
+            facts = _resolve_facts_multi(d, facts_by_type.get("sale", []), counts["sale"] == 1)
+            fact = facts[0] if facts else None
+            raw = _sale_status(facts)
+        else:
+            fact = _resolve_fact(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
+            raw = _fact_status(d.step_type, fact)
+            facts = [fact] if fact else []
         if raw == "done":
             state = "done"
         elif raw == "failed":
@@ -163,7 +196,7 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
         out.append({
             "id": d.id, "step_type": d.step_type, "position": d.position,
             "label": STEP_LABELS.get(d.step_type, d.step_type), "state": state,
-            "step": d, "fact": fact,
+            "step": d, "fact": fact, "facts": facts,
         })
     return out
 
@@ -185,6 +218,16 @@ def fact_for_step(db: Session, order: Order, step: ArticleProcessStep):
             return r
     same_type = [d for d in order_step_defs(db, order) if d.step_type == step.step_type]
     return _resolve_fact(step, rows, len(same_type) == 1)
+
+
+def facts_for_step(db: Session, order: Order, step: ArticleProcessStep) -> list:
+    """ALLE Fachzeilen zu diesem Schritt statt nur der ersten (``fact_for_step``) – für
+    «Verkauf»: bei einem Mehrpositionen-Auftrag teilen sich mehrere ``Sale``-Belege
+    (ein Artikel/Position je Beleg) denselben Schritt. Für jeden anderen Typ höchstens
+    ein Eintrag (identisch zu ``fact_for_step``, nur als Liste)."""
+    rows = _facts(db, order, step.step_type)
+    same_type = [d for d in order_step_defs(db, order) if d.step_type == step.step_type]
+    return _resolve_facts_multi(step, rows, len(same_type) == 1)
 
 
 def active_step_of_type(db: Session, order: Order, step_type: str) -> ArticleProcessStep | None:

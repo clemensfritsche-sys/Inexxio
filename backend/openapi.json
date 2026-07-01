@@ -1871,6 +1871,186 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/lines": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Add Order Line",
+        "description": "Eine weitere Position zu einem **Entwurf** hinzufügen – jederzeit möglich, auch\nnachdem der Auftrag schon gespeichert wurde (nicht nur bei der Anlage). Macht den\nAuftrag (falls noch nicht) zu einem **Mehrpositionen**-Auftrag: «Herstellen» scheidet\ndann aus (``subject.subject_kind`` erzwingt ``stock``); Ablauf/Ziel-Karten bleiben\nsonst unverändert (nur «Aus Lager»/«Instanz wählen», jetzt über mehrere Artikel).",
+        "operationId": "add_order_line_api_v1_erp_orders__object_id__lines_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderLineCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/lines/{line_id}": {
+      "delete": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Remove Order Line",
+        "description": "Eine Position eines Mehrpositionen-Auftrags entfernen (nur im Entwurf).",
+        "operationId": "remove_order_line_api_v1_erp_orders__object_id__lines__line_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "line_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Line Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Set Order Line Pins",
+        "description": "Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel\neines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag.",
+        "operationId": "set_order_line_pins_api_v1_erp_orders__object_id__lines__line_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "line_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Line Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderLinePins"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}": {
       "get": {
         "tags": [
@@ -2287,7 +2467,7 @@
           "orders"
         ],
         "summary": "Update Order Sale",
-        "description": "Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.\n\nBei einem Mehrpositionen-Auftrag trägt jede Position ihren EIGENEN Verkaufs-Schritt\n(Mehr-Operationen-Routing) – ``step_id`` wählt die richtige Position; ohne ``step_id``\ndie gerade aktive (identisch zu movement/resource/inspection).",
+        "description": "Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.\n\nEIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``\nliefert dann mehrere Belege (einen je Artikel), die Aktualisierung (Kunde/Status/\nZahlungsart) gilt für alle gemeinsam (eine Sendung, eine Zahlung) – siehe\n``sale.apply_update_bulk``.",
         "operationId": "update_order_sale_api_v1_erp_orders__object_id__sale_patch",
         "security": [
           {
@@ -4674,17 +4854,6 @@
               }
             ],
             "title": "Resource Lines"
-          },
-          "order_line_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Line Id"
           }
         },
         "type": "object",
@@ -4718,17 +4887,6 @@
               }
             ],
             "title": "Order Id"
-          },
-          "order_line_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Line Id"
           },
           "position": {
             "type": "integer",
@@ -7115,6 +7273,10 @@
             ],
             "title": "Object Id"
           },
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
           "kind": {
             "type": "string",
             "title": "Kind"
@@ -7196,6 +7358,7 @@
         "required": [
           "id",
           "object_id",
+          "article_id",
           "kind",
           "quantity",
           "quality",
@@ -7659,40 +7822,12 @@
       "OrderCreate": {
         "properties": {
           "article_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Article Id"
           },
           "quantity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Quantity"
-          },
-          "lines": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/OrderLineIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lines"
           },
           "desired_delivery_date": {
             "anyOf": [
@@ -7753,8 +7888,12 @@
           }
         },
         "type": "object",
+        "required": [
+          "article_id",
+          "quantity"
+        ],
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge** – entweder direkt (``article_id``/``quantity``,\nEinzel-Artikel-Auftrag) ODER als **Mehrpositionen** (``lines``, mehrere Artikel/Mengen\nauf einmal – z. B. ein Verkauf mehrerer Artikel als eine Sendung). Was damit geschieht,\nergibt sich aus dem Ablauf, der danach im Entwurf definiert wird: kein eigener Ablauf →\nErzeugung (Artikel-Prozess); eigener Ablauf → Operation auf Instanzen des Artikels\n(FIFO ab Lager, optional durch fixierte Instanzen ergänzt). Die Subjektart wird also\nabgeleitet. Genau eines von beidem ist anzugeben."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.\n\nWeitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-\npositionen-Auftrag – „Aus Lager\"/„Instanz wählen\" über mehrere Artikel; „Herstellen\"\nist dann nicht mehr möglich, siehe ``services/order_lines.py``)."
       },
       "OrderDeviationCreate": {
         "properties": {
@@ -7831,7 +7970,7 @@
         "title": "OrderDeviationInfo",
         "description": "Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im\nEltern-Auftrag."
       },
-      "OrderLineIn": {
+      "OrderLineCreate": {
         "properties": {
           "article_id": {
             "type": "integer",
@@ -7840,19 +7979,6 @@
           "quantity": {
             "type": "integer",
             "title": "Quantity"
-          },
-          "goal": {
-            "type": "string",
-            "title": "Goal",
-            "default": "stock"
-          },
-          "instance_object_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Instance Object Ids",
-            "default": []
           }
         },
         "type": "object",
@@ -7860,8 +7986,8 @@
           "article_id",
           "quantity"
         ],
-        "title": "OrderLineIn",
-        "description": "Eine Position bei der **Mehrpositionen**-Anlage (`OrderCreate.lines`) – dieselben\nzwei Optionen wie am Einzel-Artikel-Auftrag, nur je Zeile wählbar:\n\n``goal='produce'`` – Herstellen/Beschaffen: wird ein **eigener** Auftrag (eigene\n  Fertigungs-Timeline, analog zum Shop: „make-Positionen bleiben je ein eigener Auftrag\").\n``goal='stock'``   – Aus dem Lager (FIFO) bzw. **Instanz wählen** (``instance_object_ids``\n  fixiert statt FIFO): Position eines gemeinsamen Sammel-Auftrags (eine Sendung)."
+        "title": "OrderLineCreate",
+        "description": "Eine weitere Position zu einem **bestehenden** Auftrag hinzufügen (``POST\n.../lines``) – macht ihn (falls noch nicht) zu einem Mehrpositionen-Auftrag. Nur im\nEntwurf möglich; „Herstellen\" scheidet dann aus (siehe ``services/order_lines.py``)."
       },
       "OrderLineInfo": {
         "properties": {
@@ -7924,6 +8050,21 @@
         ],
         "title": "OrderLineInfo",
         "description": "Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL)."
+      },
+      "OrderLinePins": {
+        "properties": {
+          "instance_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Object Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "OrderLinePins",
+        "description": "Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``\nam Einzel-Artikel-Auftrag)."
       },
       "OrderResponse": {
         "properties": {
@@ -8300,14 +8441,6 @@
             "type": "boolean",
             "title": "Paused",
             "default": false
-          },
-          "also_created": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Also Created",
-            "default": []
           }
         },
         "type": "object",
@@ -8406,6 +8539,14 @@
                 "type": "null"
               }
             ]
+          },
+          "sales": {
+            "items": {
+              "$ref": "#/components/schemas/SaleEmbed"
+            },
+            "type": "array",
+            "title": "Sales",
+            "default": []
           },
           "inspection": {
             "anyOf": [

@@ -548,6 +548,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Order Line
+         * @description Eine weitere Position zu einem **Entwurf** hinzufügen – jederzeit möglich, auch
+         *     nachdem der Auftrag schon gespeichert wurde (nicht nur bei der Anlage). Macht den
+         *     Auftrag (falls noch nicht) zu einem **Mehrpositionen**-Auftrag: «Herstellen» scheidet
+         *     dann aus (``subject.subject_kind`` erzwingt ``stock``); Ablauf/Ziel-Karten bleiben
+         *     sonst unverändert (nur «Aus Lager»/«Instanz wählen», jetzt über mehrere Artikel).
+         */
+        post: operations["add_order_line_api_v1_erp_orders__object_id__lines_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/lines/{line_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Order Line
+         * @description Eine Position eines Mehrpositionen-Auftrags entfernen (nur im Entwurf).
+         */
+        delete: operations["remove_order_line_api_v1_erp_orders__object_id__lines__line_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Set Order Line Pins
+         * @description Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel
+         *     eines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag.
+         */
+        patch: operations["set_order_line_pins_api_v1_erp_orders__object_id__lines__line_id__patch"];
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}": {
         parameters: {
             query?: never;
@@ -717,9 +766,10 @@ export interface paths {
          * Update Order Sale
          * @description Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.
          *
-         *     Bei einem Mehrpositionen-Auftrag trägt jede Position ihren EIGENEN Verkaufs-Schritt
-         *     (Mehr-Operationen-Routing) – ``step_id`` wählt die richtige Position; ohne ``step_id``
-         *     die gerade aktive (identisch zu movement/resource/inspection).
+         *     EIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``
+         *     liefert dann mehrere Belege (einen je Artikel), die Aktualisierung (Kunde/Status/
+         *     Zahlungsart) gilt für alle gemeinsam (eine Sendung, eine Zahlung) – siehe
+         *     ``sale.apply_update_bulk``.
          */
         patch: operations["update_order_sale_api_v1_erp_orders__object_id__sale_patch"];
         trace?: never;
@@ -1428,8 +1478,6 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
-            /** Order Line Id */
-            order_line_id?: number | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -1439,8 +1487,6 @@ export interface components {
             article_id?: number | null;
             /** Order Id */
             order_id?: number | null;
-            /** Order Line Id */
-            order_line_id?: number | null;
             /** Position */
             position: number;
             /** Step Type */
@@ -2154,6 +2200,8 @@ export interface components {
             id: number;
             /** Object Id */
             object_id: number | null;
+            /** Article Id */
+            article_id: number;
             /** Kind */
             kind: string;
             /** Quantity */
@@ -2353,21 +2401,20 @@ export interface components {
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *
-         *     Anker ist IMMER **Artikel + Menge** – entweder direkt (``article_id``/``quantity``,
-         *     Einzel-Artikel-Auftrag) ODER als **Mehrpositionen** (``lines``, mehrere Artikel/Mengen
-         *     auf einmal – z. B. ein Verkauf mehrerer Artikel als eine Sendung). Was damit geschieht,
-         *     ergibt sich aus dem Ablauf, der danach im Entwurf definiert wird: kein eigener Ablauf →
-         *     Erzeugung (Artikel-Prozess); eigener Ablauf → Operation auf Instanzen des Artikels
-         *     (FIFO ab Lager, optional durch fixierte Instanzen ergänzt). Die Subjektart wird also
-         *     abgeleitet. Genau eines von beidem ist anzugeben.
+         *     Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
+         *     der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
+         *     eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
+         *     optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.
+         *
+         *     Weitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-
+         *     positionen-Auftrag – „Aus Lager"/„Instanz wählen" über mehrere Artikel; „Herstellen"
+         *     ist dann nicht mehr möglich, siehe ``services/order_lines.py``).
          */
         OrderCreate: {
             /** Article Id */
-            article_id?: number | null;
+            article_id: number;
             /** Quantity */
-            quantity?: number | null;
-            /** Lines */
-            lines?: components["schemas"]["OrderLineIn"][] | null;
+            quantity: number;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -2414,30 +2461,16 @@ export interface components {
             title?: string | null;
         };
         /**
-         * OrderLineIn
-         * @description Eine Position bei der **Mehrpositionen**-Anlage (`OrderCreate.lines`) – dieselben
-         *     zwei Optionen wie am Einzel-Artikel-Auftrag, nur je Zeile wählbar:
-         *
-         *     ``goal='produce'`` – Herstellen/Beschaffen: wird ein **eigener** Auftrag (eigene
-         *       Fertigungs-Timeline, analog zum Shop: „make-Positionen bleiben je ein eigener Auftrag").
-         *     ``goal='stock'``   – Aus dem Lager (FIFO) bzw. **Instanz wählen** (``instance_object_ids``
-         *       fixiert statt FIFO): Position eines gemeinsamen Sammel-Auftrags (eine Sendung).
+         * OrderLineCreate
+         * @description Eine weitere Position zu einem **bestehenden** Auftrag hinzufügen (``POST
+         *     .../lines``) – macht ihn (falls noch nicht) zu einem Mehrpositionen-Auftrag. Nur im
+         *     Entwurf möglich; „Herstellen" scheidet dann aus (siehe ``services/order_lines.py``).
          */
-        OrderLineIn: {
+        OrderLineCreate: {
             /** Article Id */
             article_id: number;
             /** Quantity */
             quantity: number;
-            /**
-             * Goal
-             * @default stock
-             */
-            goal: string;
-            /**
-             * Instance Object Ids
-             * @default []
-             */
-            instance_object_ids: number[];
         };
         /**
          * OrderLineInfo
@@ -2458,6 +2491,18 @@ export interface components {
             quantity: number;
             /** Position */
             position: number;
+        };
+        /**
+         * OrderLinePins
+         * @description Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``
+         *     am Einzel-Artikel-Auftrag).
+         */
+        OrderLinePins: {
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
         };
         /** OrderResponse */
         OrderResponse: {
@@ -2578,11 +2623,6 @@ export interface components {
              * @default false
              */
             paused: boolean;
-            /**
-             * Also Created
-             * @default []
-             */
-            also_created: number[];
         };
         /**
          * OrderStepInfo
@@ -2622,6 +2662,11 @@ export interface components {
             supply_order_object_ids: number[];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             sale?: components["schemas"]["SaleEmbed"] | null;
+            /**
+             * Sales
+             * @default []
+             */
+            sales: components["schemas"]["SaleEmbed"][];
             inspection?: components["schemas"]["InspectionEmbed"] | null;
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
@@ -4816,6 +4861,109 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_order_line_api_v1_erp_orders__object_id__lines_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderLineCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_order_line_api_v1_erp_orders__object_id__lines__line_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                line_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_order_line_pins_api_v1_erp_orders__object_id__lines__line_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                line_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderLinePins"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

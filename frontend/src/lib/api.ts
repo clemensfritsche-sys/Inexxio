@@ -1,7 +1,8 @@
 import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
-  Order, OrderSummary, OrderInput, OrderUpdateInput, PurchaseOrderUpdateInput, InspectionUpdateInput,
+  Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
+  PurchaseOrderUpdateInput, InspectionUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
@@ -234,6 +235,20 @@ class ApiClient {
 
   updateOrder(objectId: number, data: OrderUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}`, data);
+  }
+
+  // Mehrpositionen: weitere Artikel zu einem bestehenden Entwurf hinzufügen/entfernen/
+  // fixieren – jederzeit möglich, auch nach dem ersten Speichern.
+  addOrderLine(objectId: number, data: OrderLineCreateInput): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/lines`, data);
+  }
+
+  removeOrderLine(objectId: number, lineId: number): Promise<Order> {
+    return this.delete(`/api/v1/erp/orders/${objectId}/lines/${lineId}`);
+  }
+
+  setOrderLinePins(objectId: number, lineId: number, data: OrderLinePinsInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/lines/${lineId}`, data);
   }
 
   // Ersetzen: neuen Auftrag (Entwurf) anlegen, verknüpfen, Original abbrechen

@@ -34,12 +34,6 @@ class ArticleProcessStep(Base, TimestampMixin):
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
 
-    # Nur für einen ``sale``-Schritt an einem **Mehrpositionen**-Auftrag (``order_lines``):
-    # bindet diesen Schritt an EINE Position (Artikel + Menge), damit die Fachzeile
-    # (``Sale``) bei der Freigabe die richtige Menge/den richtigen Artikel bekommt statt
-    # den (bei Mehrpositionen NULL) ``order.article_id``/``order.quantity``.
-    order_line_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
-
     # Pflicht-Bewegung: vom System rund um eine Beschaffung erzeugt (Versand/Wareneingang).
     # Nicht löschbar/editierbar und automatisch positioniert (services/process_steps.py).
     locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)

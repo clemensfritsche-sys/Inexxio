@@ -9,7 +9,8 @@ from ..schemas.disposal import ScrapUpdate
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
-    OrderCreate, OrderDeviationCreate, OrderLineIn, OrderResponse, OrderSummary, OrderUpdate,
+    OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins, OrderResponse,
+    OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
@@ -127,7 +128,15 @@ def _pin_line_instances(db: Session, order: Order, article_id: int, quantity: in
     """Fixierte Instanzen EINER Position eines Mehrpositionen-Auftrags vormerken – wie
     ``_set_chosen_instances`` für den Einzel-Artikel-Auftrag, nur gegen die Menge/den
     Artikel DIESER Position statt des ganzen Auftrags geprüft (mehrere Artikel können
-    unter demselben Sammel-Auftrag je eigene Fixierungen tragen)."""
+    unter demselben Sammel-Auftrag je eigene Fixierungen tragen). Löst zuerst die
+    bisherige Fixierung dieser Position (idempotent, wie beim Einzel-Artikel-Auftrag)."""
+    for prev in db.query(Instance).filter(
+        Instance.subject_of_order_id == order.id, Instance.article_id == article_id,
+        Instance.is_active == True,
+    ).all():
+        prev.subject_of_order_id = None
+    if not object_ids:
+        return
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
@@ -148,8 +157,12 @@ def _pin_line_instances(db: Session, order: Order, article_id: int, quantity: in
         i.subject_of_order_id = order.id
 
 
-def _create_single_order(db: Session, data: OrderCreate, current_user: UserProfile) -> Order:
-    """Der gewöhnliche Einzel-Artikel-Auftrag (unverändert)."""
+@router.post("", response_model=OrderResponse, status_code=201)
+async def create_order(
+    data: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
     order = Order(
         object_id=next_object_id(db, "order"),
         status="draft",
@@ -161,7 +174,8 @@ def _create_single_order(db: Session, data: OrderCreate, current_user: UserProfi
     )
     # Anker ist IMMER der Artikel + Menge. Was damit geschieht (Erzeugung vs. Operation
     # am Bestand, FIFO/fixiert) ergibt sich aus dem Ablauf, der danach im Entwurf
-    # definiert wird – nicht aus der Anlage.
+    # definiert wird – nicht aus der Anlage. Weitere Artikel lassen sich jederzeit über
+    # POST .../lines ergänzen (Mehrpositionen – siehe unten).
     _validate_article(db, data.article_id)             # nur freigegebene Artikel
     order.article_id = data.article_id
     order.quantity = data.quantity
@@ -169,82 +183,114 @@ def _create_single_order(db: Session, data: OrderCreate, current_user: UserProfi
     db.flush()
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
-    return order
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
 
 
-def _create_multiline_order(
-    db: Session, lines: list[OrderLineIn], current_user: UserProfile
-) -> tuple[Order, list[int]]:
-    """**Mehrpositionen**-Anlage: «Herstellen/Beschaffen»-Zeilen werden je ein **eigener**
-    Auftrag (eigene Fertigungs-Timeline, analog zum Shop-Warenkorb – „make-Positionen
-    bleiben je ein eigener Auftrag"); «Aus dem Lager»/«Instanz wählen»-Zeilen bündeln sich
-    zu EINEM Sammel-Auftrag (``order_lines``, eine Sendung). Liefert (**primärer** Auftrag
-    – Sammel-Auftrag, sonst die erste Herstellung –, Objektnummern der übrigen)."""
-    for line in lines:
-        _validate_article(db, line.article_id)
-
-    siblings: list[Order] = []
-    for line in lines:
-        if line.goal != "produce":
-            continue
-        o = Order(object_id=next_object_id(db, "order"), status="draft",
-                  article_id=line.article_id, quantity=line.quantity)
-        db.add(o)
-        db.flush()
-        log_audit(db, "orders", None,
-                  "Auftrag angelegt (Mehrpositionen: Herstellen/Beschaffen)",
-                  current_user.id, object_id=o.object_id)
-        siblings.append(o)
-
-    pooled_lines = [l for l in lines if l.goal == "stock"]
-    pooled: Order | None = None
-    if pooled_lines:
-        pooled = Order(
-            object_id=next_object_id(db, "order"), status="draft", article_id=None, quantity=None,
-            title=f"Mehrpositionen ({len(pooled_lines)} Position(en))" if len(pooled_lines) > 1 else None,
-        )
-        db.add(pooled)
-        db.flush()
-        for i, line in enumerate(pooled_lines):
-            ol = OrderLine(order_id=pooled.id, article_id=line.article_id,
-                           quantity=line.quantity, position=i)
-            db.add(ol)
-            db.flush()
-            if line.instance_object_ids:
-                _pin_line_instances(db, pooled, line.article_id, line.quantity, line.instance_object_ids)
-            # «Verkaufen an Kunden»: je Position sofort ein Verkaufs-Schritt (Personal
-            # trägt Kunde/Preis später im Verkaufs-Panel ein – wie beim Einzel-Artikel-
-            # Auftrag). Direkt konstruiert (nicht über den generischen Step-Editor), damit
-            # KEIN Pflicht-Bewegungs-Sync ausgelöst wird (siehe ``_Owner.sync``).
-            db.add(ArticleProcessStep(order_id=pooled.id, position=i, step_type="sale",
-                                      order_line_id=ol.id))
-        # EIN gemeinsamer Bewegungs-Schritt für alle Positionen (eine Sendung) – Ziel frei
-        # wählbar beim Ausführen (Personal wählt den Kunden über den Verkauf, nicht hier fix).
-        db.add(ArticleProcessStep(order_id=pooled.id, position=len(pooled_lines),
-                                  step_type="movement"))
-        db.flush()
-        log_audit(db, "orders", None, f"Auftrag angelegt ({len(pooled_lines)} Position(en))",
-                  current_user.id, object_id=pooled.object_id)
-
-    primary = pooled or siblings[0]
-    also_created = [o.object_id for o in (siblings + ([pooled] if pooled else [])) if o is not primary]
-    return primary, also_created
-
-
-@router.post("", response_model=OrderResponse, status_code=201)
-async def create_order(
-    data: OrderCreate,
+@router.post("/{object_id}/lines", response_model=OrderResponse, status_code=201)
+async def add_order_line(
+    object_id: int,
+    data: OrderLineCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    if data.lines:
-        order, also_created = _create_multiline_order(db, data.lines, current_user)
-        db.commit()
-        db.refresh(order)
-        resp = to_order_response(db, order)
-        resp.also_created = also_created
-        return resp
-    order = _create_single_order(db, data, current_user)
+    """Eine weitere Position zu einem **Entwurf** hinzufügen – jederzeit möglich, auch
+    nachdem der Auftrag schon gespeichert wurde (nicht nur bei der Anlage). Macht den
+    Auftrag (falls noch nicht) zu einem **Mehrpositionen**-Auftrag: «Herstellen» scheidet
+    dann aus (``subject.subject_kind`` erzwingt ``stock``); Ablauf/Ziel-Karten bleiben
+    sonst unverändert (nur «Aus Lager»/«Instanz wählen», jetzt über mehrere Artikel)."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "draft":
+        raise HTTPException(400, detail="Weitere Positionen sind nur im Entwurf möglich")
+    _validate_article(db, data.article_id)
+
+    # Wie im Shop-Warenkorb: ein Abo lässt sich nicht mit anderen Positionen mischen
+    # («Ein Abo muss separat gekauft werden») – diese Position macht den Auftrag per
+    # Definition mehrzeilig (der bisherige Anker bzw. die vorhandenen Positionen kommen
+    # dazu), also gilt die Regel für JEDEN beteiligten Artikel (neu + bestehend).
+    from ..services import pricing
+    existing_lines = order_lines_svc.lines_for(db, order)
+    existing_article_ids = {l.article_id for l in existing_lines} | (
+        {order.article_id} if order.article_id else set())
+    for aid in existing_article_ids | {data.article_id}:
+        chk_art = db.query(Article).filter(Article.id == aid).first()
+        price = pricing.resolve_primary_price(db, chk_art) if chk_art else None
+        if price and price.kind == "subscription":
+            raise HTTPException(
+                400, detail="Ein Abo lässt sich nicht mit weiteren Positionen kombinieren – bitte separat erfassen")
+
+    if order.article_id is not None:
+        # Erste zusätzliche Position: den bisherigen Einzel-Artikel-Anker in eine
+        # gewöhnliche Position umwandeln (die Instanzen-/Reservierungs-Historie bleibt
+        # unangetastet – nur die Bedarfs-Darstellung wechselt).
+        db.add(OrderLine(order_id=order.id, article_id=order.article_id,
+                         quantity=order.quantity, position=0))
+        order.article_id = None
+        order.quantity = None
+        db.flush()
+        existing_lines = order_lines_svc.lines_for(db, order)
+    next_pos = (max((l.position for l in existing_lines), default=-1)) + 1
+    line = OrderLine(order_id=order.id, article_id=data.article_id, quantity=data.quantity, position=next_pos)
+    db.add(line)
+    db.flush()
+    new_art = db.query(Article).filter(Article.id == data.article_id).first()
+    log_audit(db, "orders", None,
+              f"Position hinzugefügt ({data.quantity}× Artikel {new_art.object_id if new_art else data.article_id})",
+              current_user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.delete("/{object_id}/lines/{line_id}", response_model=OrderResponse)
+async def remove_order_line(
+    object_id: int,
+    line_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Eine Position eines Mehrpositionen-Auftrags entfernen (nur im Entwurf)."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "draft":
+        raise HTTPException(400, detail="Positionen lassen sich nur im Entwurf entfernen")
+    line = db.query(OrderLine).filter(
+        OrderLine.id == line_id, OrderLine.order_id == order.id, OrderLine.is_active == True).first()
+    if not line:
+        raise HTTPException(404, detail="Position nicht gefunden")
+    remaining = order_lines_svc.lines_for(db, order)
+    if len(remaining) <= 1:
+        raise HTTPException(400, detail="Die letzte Position kann nicht entfernt werden – bitte den Auftrag abbrechen")
+    for inst in db.query(Instance).filter(
+        Instance.subject_of_order_id == order.id, Instance.article_id == line.article_id,
+        Instance.is_active == True,
+    ).all():
+        inst.subject_of_order_id = None
+    line.is_active = False
+    log_audit(db, "orders", None, "Position entfernt", current_user.id, object_id=order.object_id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/lines/{line_id}", response_model=OrderResponse)
+async def set_order_line_pins(
+    object_id: int,
+    line_id: int,
+    data: OrderLinePins,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Fixierte Instanzen EINER Position setzen (statt FIFO) – «Instanz wählen» je Artikel
+    eines Mehrpositionen-Auftrags, analog ``instance_object_ids`` am Einzel-Artikel-Auftrag."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "draft":
+        raise HTTPException(400, detail="Instanzen lassen sich nur im Entwurf fixieren")
+    line = db.query(OrderLine).filter(
+        OrderLine.id == line_id, OrderLine.order_id == order.id, OrderLine.is_active == True).first()
+    if not line:
+        raise HTTPException(404, detail="Position nicht gefunden")
+    _pin_line_instances(db, order, line.article_id, line.quantity, data.instance_object_ids)
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)
@@ -525,16 +571,15 @@ async def update_order_sale(
 ):
     """Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.
 
-    Bei einem Mehrpositionen-Auftrag trägt jede Position ihren EIGENEN Verkaufs-Schritt
-    (Mehr-Operationen-Routing) – ``step_id`` wählt die richtige Position; ohne ``step_id``
-    die gerade aktive (identisch zu movement/resource/inspection)."""
+    EIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``
+    liefert dann mehrere Belege (einen je Artikel), die Aktualisierung (Kunde/Status/
+    Zahlungsart) gilt für alle gemeinsam (eine Sendung, eine Zahlung) – siehe
+    ``sale.apply_update_bulk``."""
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "sale", data.step_id)
-    sale = process.fact_for_step(db, order, step)
-    if not sale:
-        raise HTTPException(404, detail="Für diesen Auftrag existiert kein Verkauf")
-    sale_svc.apply_update(db, sale, data, current_user)
+    sales = process.facts_for_step(db, order, step)
+    sale_svc.apply_update_bulk(db, sales, data, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 

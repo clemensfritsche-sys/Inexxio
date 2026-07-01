@@ -322,11 +322,18 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             if done:
                 by_name, at = _purchase_received(emb)
         elif step.step_type == "sale":
-            emb = _sale_embed(db, order, fact)
-            si.sale = emb
-            first.setdefault("sale", emb)
-            if done and fact:
-                by_name, at = emb.customer_name, fact.paid_at
+            # EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg,
+            # Mehrpositionen-Auftrag) – ``sales`` ist die vollständige Liste, ``sale``
+            # bleibt das erste Embed (Rückwärtskompatibilität; beim Einzel-Artikel-
+            # Auftrag identisch).
+            facts = s["facts"]
+            embs = [_sale_embed(db, order, f) for f in facts] or [_sale_embed(db, order, None)]
+            si.sales = embs
+            si.sale = embs[0]
+            first.setdefault("sale", embs[0])
+            if done and facts:
+                by_name = embs[0].customer_name
+                at = max((f.paid_at for f in facts if f.paid_at), default=None)
         elif step.step_type == "inspection":
             emb = _inspection_embed(db, order, step, fact)
             si.inspection = emb

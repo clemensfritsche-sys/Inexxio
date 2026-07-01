@@ -13,11 +13,12 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Article, Order, OrderLine, Sale, UserProfile
+from ..models import Article, Order, Sale, UserProfile
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
 from .events import emit
+from .order_lines import lines_for
 
 _STAFF_ROLES = ("admin", "employee")
 # Erlaubte Übergänge: Zielstatus → zulässige Ausgangsstatus
@@ -42,55 +43,62 @@ def unit_price(sale: Sale) -> Optional[Decimal]:
     return (sale.order_total / sale.quantity).quantize(Decimal("0.0001"))
 
 
-def _line_for_step(db: Session, order: Order, step) -> tuple[Optional[int], Optional[int]]:
-    """Artikel + Menge, die dieser ``sale``-Schritt abbildet: bei einem Mehrpositionen-
-    Auftrag die Position, die der Schritt trägt (``order_line_id``); sonst der Einzel-
-    Artikel-Anker des Auftrags (``order.article_id``/``quantity``)."""
-    if step.order_line_id is not None:
-        line = db.query(OrderLine).filter(
-            OrderLine.id == step.order_line_id, OrderLine.is_active == True).first()
-        return (line.article_id, line.quantity) if line else (None, None)
-    return order.article_id, order.quantity
-
-
-def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:
-    """Beim personal-erfassten Verkauf (``mode='direct'``) den Basispreis aus der
-    Shop-Preis-Pipeline **vorschlagen** (bleibt überschreibbar) – statt eines leeren
-    Felds, das Personal raten lässt. Hat der Artikel keinen Verkaufspreis (rein interner
-    Artikel), bleibt der Betrag wie bisher leer (Personal trägt ihn frei ein)."""
+def price_from_article(db: Session, article_id: int, quantity: int) -> Optional[dict]:
+    """Preis-Vorschau EINES Artikels aus der **Shop-Preis-Pipeline** – Single Source of
+    Truth: der ERP-Direktverkauf tippt keinen Betrag frei ein, sondern übernimmt densel-
+    ben Basispreis wie der Shop (``article_prices``). ``None`` ohne Einmalkauf-Preis
+    (Abo-Preise ergeben für einen freien ERP-Verkauf keinen sinnvollen Betrag; rein
+    interne Artikel ohne Preis bleiben manuell einzutragen – siehe ``_EDITABLE``)."""
     from . import pricing
     art = db.query(Article).filter(Article.id == article_id).first()
     if not art:
-        return
+        return None
     price = pricing.resolve_primary_price(db, art)
     if not price or price.kind != "one_time":
-        return   # Abo-Preise ergeben für einen freien ERP-Verkauf keinen sinnvollen Vorschlag
+        return None
     view = pricing.price_view_for(db, price, "CHF", country=None, customer=None)
     if not view or view.get("net") is None:
+        return None
+    return {
+        "order_total": (Decimal(view["net"]) * quantity).quantize(Decimal("0.01")),
+        "vat_rate": Decimal(str(view["tax_rate"])) if view.get("tax_rate") is not None else None,
+        "currency": "CHF",
+    }
+
+
+def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:
+    """Preis **aus dem Artikel** übernehmen (siehe ``price_from_article``) – die einzige
+    Quelle der Wahrheit. Ohne Artikel-Preis bleibt der Betrag leer (Personal trägt ihn
+    für diesen internen Artikel frei ein, wie bisher)."""
+    view = price_from_article(db, article_id, sale.quantity)
+    if not view:
         return
-    sale.order_total = (Decimal(view["net"]) * sale.quantity).quantize(Decimal("0.01"))
-    if view.get("tax_rate") is not None:
-        sale.vat_rate = Decimal(str(view["tax_rate"]))
-    sale.currency = "CHF"
+    sale.order_total = view["order_total"]
+    sale.vat_rate = view["vat_rate"]
+    sale.currency = view["currency"]
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale]:
-    """Bei Auftragsfreigabe je Verkaufs-Schritt des Prozesses einen Verkauf anlegen.
-    Ein **Mehrpositionen**-Auftrag hat je Position einen eigenen Schritt (``order_line_id``);
-    ein Einzel-Artikel-Auftrag nutzt ``order.article_id``/``quantity`` direkt."""
+    """Bei Auftragsfreigabe den Verkauf anlegen – **ein** Schritt, unabhängig davon, ob
+    der Auftrag einen (``order.article_id``) oder mehrere Artikel (Mehrpositionen,
+    ``order_lines``) trägt: je Artikel EIN Verkaufs-Beleg, alle unter demselben
+    Schritt (``step_id``) – Mehr-Operationen-Routing ist hier NICHT nötig (anders als bei
+    Beschaffung/Ressource gibt es nur einen ``sale``-Schritt am Auftrag)."""
     steps = [d for d in process.order_step_defs(db, order) if d.step_type == "sale"]
     if not steps:
         return []
+    step = steps[0]   # genau EIN Verkaufs-Schritt (wie jeder andere Schritttyp auch)
+    lines = lines_for(db, order)
+    targets = [(l.article_id, l.quantity) for l in lines] if lines else (
+        [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
+    if not targets:
+        return []
     existing = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).all()
-    has_step = {s.step_id for s in existing if s.step_id is not None}
-    legacy = any(s.step_id is None for s in existing)
+    have_articles = {s.article_id for s in existing if s.step_id == step.id or s.step_id is None}
     created: list[Sale] = []
-    for step in steps:
-        if step.id in has_step or (legacy and len(steps) == 1):
-            continue
-        art_id, qty = _line_for_step(db, order, step)
-        if not art_id or not qty:
-            continue
+    for art_id, qty in targets:
+        if art_id in have_articles:
+            continue   # idempotent – dieser Artikel hat schon seinen Beleg
         sale = Sale(order_id=order.id, article_id=art_id, quantity=qty,
                     step_id=step.id, status="requested", mode="direct")
         _prefill_price(db, sale, art_id)
@@ -240,3 +248,24 @@ def apply_update(db: Session, sale: Sale, data, user: UserProfile) -> Sale:
     db.commit()
     db.refresh(sale)
     return sale
+
+
+_MONEY_FIELDS = ("order_total", "vat_rate", "currency")
+
+
+def apply_update_bulk(db: Session, sales: list[Sale], data, user: UserProfile) -> list[Sale]:
+    """Eine Aktualisierung auf ALLE Verkaufsbelege EINES Verkaufs-Schritts anwenden – bei
+    mehreren Artikeln (Mehrpositionen-Auftrag) teilen sie sich Kunde/Status/Zahlungsart
+    (eine Sendung, eine Zahlung); der Betrag kommt **aus dem Artikel** (Single Source of
+    Truth, ``price_from_article``) und ist bei mehreren Belegen NICHT frei editierbar –
+    nur bei genau einem Beleg (Einzel-Artikel-Auftrag ODER ein Artikel ohne Preis) bleibt
+    die manuelle Eingabe wie bisher möglich."""
+    if not sales:
+        raise HTTPException(404, detail="Für diesen Auftrag existiert kein Verkauf")
+    if len(sales) == 1:
+        return [apply_update(db, sales[0], data, user)]
+    payload = data.model_dump(exclude_unset=True)
+    if any(f in payload for f in _MONEY_FIELDS):
+        raise HTTPException(
+            400, detail="Bei mehreren Positionen kommt der Betrag vom Artikel – nicht direkt editierbar")
+    return [apply_update(db, s, data, user) for s in sales]
