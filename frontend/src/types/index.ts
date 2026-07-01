@@ -176,6 +176,9 @@ export interface OrderRecurrenceInput {
 // Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL).
 export type OrderLineInfo = components['schemas']['OrderLineInfo'];
 
+// Kurzinfo eines Unter-Auftrags (Abweichung/Nachschub) am Eltern-Auftrag.
+export type OrderDeviationInfo = components['schemas']['OrderDeviationInfo'];
+
 // Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
 // jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den
 // Auftrag (falls noch nicht) zu einem Mehrpositionen-Auftrag (kein «Herstellen» mehr).

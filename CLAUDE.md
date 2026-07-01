@@ -313,10 +313,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     bilden genau die Fälle je Subjektwahl ab: ein **FIFO**-Auftrag nutzt anderen Lagerbestand; ein gezielt
     auf Instanzen fixierter Auftrag wählt eine **Ersatz-Instanz** oder reduziert; wo nichts am Lager liegt,
     **produziert** der Nachschub. `StepShortfall` trägt dafür die **Verfügbarkeit** (`available_quantity`/
-    `available_instances`) aus freiem Lagerbestand; `BlockedStepNotice` empfiehlt „Aus Lager decken", wenn
-    Bestand frei ist, sonst „Nachschub anlegen". Nur bei **Subjekt-Schritten** (movement/inspection/scrap/
-    sale) – ein reiner Komponenten-Bedarf (Ressource) wird weiterhin ausschliesslich über Nachschub
+    `available_instances`) aus freiem Lagerbestand. Nur bei **Subjekt-Schritten** (movement/inspection/
+    scrap/sale) – ein reiner Komponenten-Bedarf (Ressource) wird weiterhin ausschliesslich über Nachschub
     gedeckt.
+  - **EINE On-Hold-Sprache «Prozess angehalten»** (`order-detail.tsx: ProcessHoldNotice`, ersetzt
+    `BlockedStepNotice`): Beide Gründe, warum ein Auftrag nicht weiterläuft, teilen sich EIN Muster (gleiche
+    Optik wie die Pause-Leiste, `PauseCircle`/amber): (a) **Angehalten – Abweichung offen**
+    (`record.paused`): der GANZE Auftrag ruht, solange eine Abweichung offen ist; die Notiz verlinkt die zu
+    klärende Abweichung, KEIN interaktives Panel; (b) **Angehalten – Unterdeckung** (`step.state ===
+    'blocked'`): nur der betroffene Schritt ruht, mit den vier Deckungs-Wegen. **Pause blockiert die
+    Schritt-Ausführung jetzt auch im UI:** bei `record.paused` wird kein interaktives Panel gerendert (das
+    Backend lehnte die Ausführung schon immer via `_assert_not_paused` an ALLEN sechs Schritt-Endpunkten
+    mit 409 ab – die Lücke war rein visuell). Ganz-Auftrag-Pause ist fachlich korrekt: eine Sendung mit
+    offener Abweichung darf nicht teil-versendet werden, bevor klar ist, ob ein Stück ausgesteuert wird.
 - **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
   grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
   durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern

@@ -1990,3 +1990,18 @@ def test_step_shortfall_exposes_stock_availability_for_recovery():
     assert "available_quantity" in StepShortfall.model_fields
     assert set(ShortfallInstance.model_fields) >= {"object_id", "quantity"}
     assert "available_instances" in _inspect.getsource(orders._fill_step_shortfall)
+
+
+def test_all_step_endpoints_reject_execution_while_paused():
+    """Ein durch eine offene Abweichung pausierter Auftrag darf keinen Schritt ausführen –
+    jeder Ausführungs-Endpoint prüft ``_assert_not_paused`` (Bewegen/Datenerfassung/Ressource/
+    Verkauf/Beschaffung/Verschrotten). So ist eine Instanz mit offener Abweichung nicht bewegbar."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    guard = _inspect.getsource(orders._assert_not_paused)
+    assert "_is_paused_by_deviation" in guard
+
+    for fn in (orders.update_order_movement, orders.update_order_inspection, orders.update_order_resource,
+               orders.update_order_sale, orders.update_order_purchase, orders.update_order_scrap):
+        assert "_assert_not_paused" in _inspect.getsource(fn), f"{fn.__name__} prüft die Pause nicht"
