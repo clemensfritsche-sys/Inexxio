@@ -68,7 +68,9 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     gesperrt. Betriebsmittel-Schritte (``tool``) reservieren nichts. Deckt eine Charge
     mehr als den Bedarf, wird die **Menge mengengenau reserviert** (``reservations``) –
     die Charge wird **nicht geteilt**, die Objektnummer bleibt erhalten. Committet NICHT."""
-    if not order.article_id or not order.quantity:
+    from .order_lines import effective_quantity
+    qty = effective_quantity(db, order)
+    if not qty:
         return
     needs: dict[int, int] = {}
     for d in process.order_step_defs(db, order):
@@ -78,7 +80,7 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
             if _line_mode(line, d) != "consume":
                 continue
             aid = line["article_id"]
-            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * order.quantity
+            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * qty
     for art_id, need in needs.items():
         if art_id == order.article_id:
             continue
@@ -317,6 +319,8 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
         for t in (details.get("tools", []) if details else [])
     }
 
+    from .order_lines import effective_quantity
+    order_qty = effective_quantity(db, order)
     products = order_active_instances(db, order)
     art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
                  for raw in step.resource_lines}
@@ -336,7 +340,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
             ]
             exec_line.picked = tools_by_art.get(art_id, [])
         else:
-            need = view["quantity"] * (order.quantity or 0)
+            need = view["quantity"] * order_qty
             have = available(db, art_id, order.id)   # SQL-Aggregat (kein Laden aller Instanzen)
             exec_line.need = need
             exec_line.available = have

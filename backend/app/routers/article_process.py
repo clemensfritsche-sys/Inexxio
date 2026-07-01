@@ -41,15 +41,6 @@ class _Owner:
         # Zulässige Schritttypen je Kontext (Herstellung vs. Bestands-Operation) –
         # erzwingt die Kompatibilität der Prozessschritte (siehe domain.event_types).
         self.allowed_step_types = event_types.allowed_step_types(kind)
-        # Mehrpositionen-Auftrag (``order_lines`` statt Einzel-``article_id``): «Verkauf»
-        # ist EIN Schritt wie jeder andere (mehrere Belege je Artikel teilen sich ihn,
-        # siehe ``services/sale.py``) und «Bewegung» wirkt ohnehin artikel-unabhängig auf
-        # «alle Instanzen des Auftrags» – beide brauchen keine Sonderbehandlung. Beschaffung/
-        # Ressource/Datenerfassung/Verschrotten SKALIEREN dagegen (noch) mit
-        # ``order.quantity`` (bei Mehrpositionen NULL) bzw. brauchen einen einzelnen
-        # Artikel – für sie fehlt die Mehrpositionen-Auflösung, daher hier bewusst
-        # eingeschränkt statt einer falschen Zahl/Fehlermeldung.
-        self.pooled = kind == "order" and record.article_id is None
 
     def ensure_editable(self) -> None:
         if self.kind == "article" and self.record.status != "draft":
@@ -178,9 +169,18 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
                   "Im Auftrags-Ablauf (Bestand) sind nur Verkauf, Bewegung und "
                   "Datenerfassung zulässig – keine Beschaffung/Ressource.")
         raise HTTPException(400, detail=detail)
-    if owner.pooled and data.step_type not in ("sale", "movement"):
-        raise HTTPException(
-            400, detail="Ein Mehrpositionen-Auftrag unterstützt aktuell nur Verkauf und Bewegung")
+    # Jedes Prozessschrittmodul ist universell einsetzbar – auch bei einem Mehrpositionen-
+    # Auftrag (``order_lines`` statt Einzel-``article_id``): Beschaffung/Datenerfassung
+    # legen je Position eine eigene Fachzeile an (analog Verkauf, ``services/purchase.py``);
+    # Ressource/Verschrotten/Bewegung wirken ohnehin artikel-unabhängig auf die gesamte
+    # Instanzmenge des Auftrags. Einzige inhaltliche Einschränkung bleibt die Abo-Regel
+    # beim Verkauf (siehe unten) – KEINE Schritttyp-Whitelist mehr.
+    if data.step_type == "sale" and owner.kind == "order":
+        from ..services import order_lines as order_lines_svc, sale as sale_svc
+        lines = order_lines_svc.lines_for(db, owner.record)
+        article_ids = {l.article_id for l in lines} if lines else (
+            {owner.record.article_id} if owner.record.article_id else set())
+        sale_svc.assert_sale_compatible(db, article_ids)
     is_purchase = data.step_type == "purchase"
     if is_purchase:
         _validate_supplier(db, data.supplier_id)

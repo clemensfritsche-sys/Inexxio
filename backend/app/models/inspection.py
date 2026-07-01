@@ -24,7 +24,9 @@ class Inspection(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
+    # NULL bei einem Mehrpositionen-Auftrag (Stichprobe zieht dann artikelübergreifend
+    # aus ALLEN Subjekt-Instanzen des Auftrags, siehe ``services/inspection.py``).
+    article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     # Welcher Prozessschritt-Definition (Routing): erlaubt mehrere gleichartige
     # Schritte hintereinander. NULL = Altdaten (einziger Schritt seines Typs).
     step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)

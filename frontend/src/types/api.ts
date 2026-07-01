@@ -743,8 +743,12 @@ export interface paths {
         head?: never;
         /**
          * Update Order Purchase
-         * @description Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter
-         *     der Auftragsnummer – keine eigene Bestellnummer).
+         * @description Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter der
+         *     Auftragsnummer – keine eigene Bestellnummer).
+         *
+         *     EIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``
+         *     liefert dann mehrere Bestellungen (eine je Artikel), ein reiner Statuswechsel gilt für
+         *     alle gemeinsam (eine Sendung) – siehe ``purchase.apply_update_bulk``.
          */
         patch: operations["update_order_purchase_api_v1_erp_orders__object_id__purchase_patch"];
         trace?: never;
@@ -2003,6 +2007,8 @@ export interface components {
              * @default false
              */
             has_subscription_management: boolean;
+            /** Cancellable From */
+            cancellable_from?: string | null;
         };
         /**
          * DeactivateRequest
@@ -2661,6 +2667,11 @@ export interface components {
              */
             supply_order_object_ids: number[];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
+            /**
+             * Purchases
+             * @default []
+             */
+            purchases: components["schemas"]["PurchaseEmbed"][];
             sale?: components["schemas"]["SaleEmbed"] | null;
             /**
              * Sales
@@ -2808,6 +2819,10 @@ export interface components {
             supplier_id: number | null;
             /** Status */
             status: string;
+            /** Article Id */
+            article_id?: number | null;
+            /** Quantity */
+            quantity?: number | null;
             /** Order Total */
             order_total: string | null;
             /** Lead Time Days */
@@ -2838,6 +2853,10 @@ export interface components {
             supplier_name?: string | null;
             /** Receiving Location Label */
             receiving_location_label?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
             /**
              * Shared Fields
              * @default []
@@ -2886,6 +2905,10 @@ export interface components {
             tracking_number?: string | null;
             /** Receiving Location Id */
             receiving_location_id?: number | null;
+            /** Step Id */
+            step_id?: number | null;
+            /** Article Id */
+            article_id?: number | null;
         };
         /**
          * ResourceCandidate

@@ -2409,7 +2409,7 @@
           "orders"
         ],
         "summary": "Update Order Purchase",
-        "description": "Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter\nder Auftragsnummer – keine eigene Bestellnummer).",
+        "description": "Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter der\nAuftragsnummer – keine eigene Bestellnummer).\n\nEIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``\nliefert dann mehrere Bestellungen (eine je Artikel), ein reiner Statuswechsel gilt für\nalle gemeinsam (eine Sendung) – siehe ``purchase.apply_update_bulk``.",
         "operationId": "update_order_purchase_api_v1_erp_orders__object_id__purchase_patch",
         "security": [
           {
@@ -6821,6 +6821,18 @@
             "type": "boolean",
             "title": "Has Subscription Management",
             "default": false
+          },
+          "cancellable_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancellable From"
           }
         },
         "type": "object",
@@ -8530,6 +8542,14 @@
               }
             ]
           },
+          "purchases": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseEmbed"
+            },
+            "type": "array",
+            "title": "Purchases",
+            "default": []
+          },
           "sale": {
             "anyOf": [
               {
@@ -9025,6 +9045,28 @@
             "type": "string",
             "title": "Status"
           },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
           "order_total": {
             "anyOf": [
               {
@@ -9145,6 +9187,28 @@
               }
             ],
             "title": "Receiving Location Label"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
           },
           "shared_fields": {
             "items": {
@@ -9283,6 +9347,28 @@
               }
             ],
             "title": "Receiving Location Id"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
           }
         },
         "type": "object",

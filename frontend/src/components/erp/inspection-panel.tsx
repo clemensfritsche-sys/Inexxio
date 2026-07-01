@@ -39,7 +39,9 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const pct = insp?.sample_percent ?? 100;
   const result = insp?.result ?? 'pending';
   const done = result === 'passed' || result === 'failed';
-  const qty = order.quantity || 0;
+  // Bei einem Mehrpositionen-Auftrag ist ``order.quantity`` NULL – die Gesamtmenge ergibt
+  // sich dann aus der Summe der Positionsmengen (Spiegel von ``order_lines.effective_quantity``).
+  const qty = order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
   const isBatch = order.article_serialization === 'batch';
   const escalated = insp?.escalated ?? false;
 

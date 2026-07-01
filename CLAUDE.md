@@ -421,12 +421,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   eine Position (die letzte ist geschützt – ein Auftrag ohne jedes Subjekt wäre inkonsistent);
   `PATCH .../lines/{id}` fixiert Instanzen EINER Position statt FIFO (analog `instance_object_ids` am
   Einzel-Artikel-Auftrag). Ein Abo lässt sich – wie im Shop-Warenkorb – nicht mit weiteren Positionen
-  mischen. `subject.subject_kind` erzwingt für einen Mehrpositionen-Auftrag **immer** `stock` (auch OHNE
+  mischen; der Check sitzt aber bewusst **am Hinzufügen des `sale`-Prozessschritts**
+  (`sale.assert_sale_compatible`, aufgerufen aus `article_process.py: _create`), NICHT am Hinzufügen
+  einer Position – eine weitere Position anzulegen, ohne dass überhaupt ein Verkauf beabsichtigt ist
+  (z. B. nur Bewegen/Prüfen), darf nicht blockiert werden. `add_order_line` prüft nur die Rückrichtung
+  (existiert bereits ein `sale`-Schritt, verhindert es eine nachträglich inkompatible Position). Ob ein
+  Artikel „exklusiv" ein Abo ist, entscheidet `pricing.is_subscription_exclusive`/`resolve_one_time_price`
+  über ALLE aktiven Preise (nicht nur die „primäre" Option) – ein Artikel mit Abo- UND Einmalkauf-Preis
+  gilt nicht als exklusiv und lässt sich mischen (`sale.price_from_article` nutzt dann automatisch den
+  Einmalkauf-Preis). `subject.subject_kind` erzwingt für einen Mehrpositionen-Auftrag **immer** `stock` (auch OHNE
   jeden Schritt) – schliesst die stille „0 Instanzen, keine Fehlermeldung"-Lücke, die entstünde, würde er
   fälschlich als `produce` behandelt.
   **Der Ablauf bleibt der GENERISCHE Step-Editor, unverändert** (`ProcessSteps`/`article_process.py`) –
-  KEIN eigener Bypass, KEINE Sonderbehandlung: ein Mehrpositionen-Auftrag lässt nur `sale`+`movement` als
-  Schritt-Typ zu, aber **genau EIN** `sale`-Schritt bedient **alle** Positionen (`sale.instantiate_for_order`
+  KEIN eigener Bypass, KEINE Sonderbehandlung: **jedes Prozessschrittmodul ist universell einsetzbar**,
+  auch bei einem Mehrpositionen-Auftrag (keine Schritttyp-Whitelist mehr – Nutzer-Feedback: „Prozess-
+  schrittmodule sollten, wenn auch immer möglich, universell einsetzbar sein"). `purchase` legt dafür
+  wie `sale` je Position eine eigene Fachzeile an (`purchase.instantiate_for_order`, mehrere
+  `PurchaseOrder` teilen sich den `step_id`; anders als beim Verkauf ist jede Bestellung eine EIGENE,
+  unabhängig fortschreitende Beschaffung – `purchase.apply_update_bulk` verlangt bei >1 Position die
+  betroffene `article_id`, statt eine gemeinsame Aktion zu erzwingen). `resource`/`inspection` skalieren
+  jetzt über `order_lines.effective_quantity` (Summe der Positionsmengen) statt über das bei
+  Mehrpositionen NULL-wertige `order.quantity`; eine Datenerfassung bleibt EINE Fachzeile über alle
+  Instanzen des Auftrags hinweg (`inspections.article_id` jetzt nullable). `movement`/`scrap` waren
+  bereits artikel-unabhängig und brauchten keine Änderung. Aber **genau EIN** `sale`-Schritt bedient
+  **alle** Positionen (`sale.instantiate_for_order`
   legt bei Freigabe pro Position einen `Sale`-Beleg an, alle mit demselben `step_id`;
   `process.facts_for_step`/`_resolve_facts_multi` lösen die Liste auf) – **NIE mehrere sequentielle
   Sale-Schritte** («2-fache Prozessschrittmodule» war der zentrale Kritikpunkt der ersten, verworfenen
@@ -456,6 +474,44 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`.first()`) – bei mehreren Verkaufs-Belegen hätte jede Aktualisierung dieselbe (falsche) Position
   getroffen; jetzt wie movement/resource/inspection über `resolve_exec_step`/`facts_for_step` (`step_id`)
   aufgelöst.
+- **Nachbesserungen Mehrpositionen/Abo (Praxistest-Fixes)**:
+  - **Freigabe-Ausnahme für Abweichungen**: eine Abweichung (Unter-Auftrag, `reason='deviation'`) hat ihr
+    Subjekt bereits über fixierte Instanzen (`Instance.subject_of_order_id`), OHNE eigene `order_lines` –
+    erbt bei einem Mehrpositionen-Eltern aber dessen `article_id=NULL`. Die Freigabe-Prüfung verlangte
+    fälschlich trotzdem Artikel+Menge (`orders.py`: `wants_release`-Block prüft jetzt zusätzlich
+    `subject.is_deviation(order)` und lässt Abweichungen ohne `order_lines` durch); Frontend-Pendant
+    `order-detail.tsx: hasDemand` berücksichtigt `isSubOrder` ebenso.
+  - **Alle Prozessschritt-Module sind jetzt universell einsetzbar** (Task 3): die künstliche
+    «nur sale+movement»-Sperre in `article_process.py: _create` ist entfernt. `purchase` legt bei
+    Mehrpositionen **eine unabhängige Bestellung je Position** an, alle mit gemeinsamem `step_id`
+    (`purchase.instantiate_for_order`); jede Position schreitet **eigenständig** fort (eigener
+    Lieferant/Zeitplan) – `purchase.apply_update_bulk` verlangt ab der zweiten Position die
+    betroffene `article_id` zur Disambiguierung (auch für Status, keine erzwungene Sammelaktion wie
+    beim Verkauf). `resource`/`inspection` nutzen jetzt `order_lines.effective_quantity` (Summe der
+    Positionsmengen) statt des bei Mehrpositionen NULL-wertigen `order.quantity`
+    (`inspections.article_id` dafür nullable, Migration `047`); eine Datenerfassung bleibt EINE
+    Fachzeile über alle Instanzen. Frontend: `PurchaseStepPanel` rendert eine Zeile je `OrderPurchase`
+    (`OrderStepInfo.purchases`), mit Artikel-Header sobald >1 Position.
+  - **Abo-Mischungs-Prüfung verschoben + präzisiert** (Task 2): die Prüfung «Abo lässt sich nicht mit
+    weiteren Positionen kombinieren» blockierte bisher schon beim reinen Hinzufügen einer Position
+    (`add_order_line`), bevor überhaupt klar war, ob der Auftrag einen Verkauf durchläuft, UND erkannte
+    Artikel mit **zusätzlichem** Einmalpreis fälschlich als Abo-exklusiv. Neu: `pricing.
+    is_subscription_exclusive`/`resolve_one_time_price` prüfen korrekt über ALLE Preise eines Artikels
+    (exklusiv nur, wenn GAR kein Einmalpreis existiert); die Prüfung (`sale.assert_sale_compatible`)
+    greift jetzt am **`sale`-Schritt selbst** – sowohl beim Hinzufügen des `sale`-Moduls zu einem
+    Mehrpositionen-Auftrag (`article_process.py: _create`) als auch umgekehrt beim Hinzufügen einer
+    weiteren Position, wenn bereits ein `sale`-Schritt existiert (`orders.py: add_order_line`) – mit
+    konkreter Fehlermeldung, die den betroffenen Artikel nennt.
+  - **Abo-Mindestlaufzeit / Kündigungs-Cooldown** (Task 1, State-of-the-Art analog SaaS-Branche): ein
+    **Produktabo** (`sub_type='product'`, wiederkehrende Lieferung) ist erst nach **einem vollen
+    Abrechnungszyklus** ab Freigabe kündbar (`sales.earliest_cancellation_date`,
+    `PRODUCT_MINIMUM_TERM_CYCLES=1`); ein **Nutzungsabo** (`sub_type='usage'`) hat keine Mindestlaufzeit.
+    Personal/Admin kann jederzeit kündigen (Bypass). `routers/shop.py: cancel_subscription` weist eine
+    verfrühte Kündigung mit 403 + Datum ab; `CustomerOrder.cancellable_from` liefert das Datum an den
+    Kunden, `orders-list.tsx` deaktiviert den Kündigen-Knopf bis dahin mit Beschriftung «Kündbar ab …».
+  - **UX: Hover-Begründung bei gesperrten Aktionen**: der Auftrag-Freigabe-Knopf zeigt per `title`-
+    Tooltip den konkreten Grund, warum er (noch) ausgegraut ist, statt stillschweigend deaktiviert zu
+    bleiben.
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -482,11 +538,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
 > E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Mehrpositionen-ERP-Verkauf in der Praxis testen (mehrere Artikel, Fehlbestand +
-Nachschub, Zahlungsart); Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
-eingebettete Kasse/Warenkorb in der Sandbox testen (`docs/stripe-setup.md`); Auto-Fulfillment je
-Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz = vollständige
-Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API);
+Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
+eingebettete Kasse/Warenkorb inkl. Mehrpositionen-Verkauf (Fehlbestand + Nachschub, Zahlungsart) in der
+Sandbox testen (`docs/stripe-setup.md`); Abo-Mindestlaufzeit/Kündigungs-Cooldown in der Praxis prüfen;
+Auto-Fulfillment je Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz =
+vollständige Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API);
 Stripe Terminal für Vor-Ort-Zahlung (payment_method='terminal', Phase 2+, aktuell nur vorgemerkt).
 
 ## Deployment

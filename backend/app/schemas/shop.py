@@ -1,7 +1,7 @@
 """Schemas für den öffentlichen Shop (Kunde): Produkt-Listing/-Detail, Warenkorb-Checkout,
 Zahlungs-Simulation."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -94,3 +94,6 @@ class CustomerOrder(BaseModel):
     interval: Optional[str] = None          # month | year
     subscription_active: bool = False
     has_subscription_management: bool = False   # Stripe-Subscription vorhanden → Portal nutzbar
+    # Mindestbindung eines Produktabos: vor diesem Datum ist «Kündigen» gesperrt (None =
+    # sofort kündbar, z. B. Nutzungsabo oder Mindestlaufzeit bereits erreicht).
+    cancellable_from: Optional[date] = None

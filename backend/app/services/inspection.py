@@ -53,10 +53,11 @@ def escalate_decision(currently_escalated: bool, step_percent: int | None, all_o
 
 
 def required_count(db: Session, order: Order, step: ArticleProcessStep | None) -> int:
+    from .order_lines import effective_quantity
     insp = _current_inspection(db, order, step)
     # Nach Hochstufung wird zu 100 % geprüft, sonst gemäss Stichprobenumfang.
     pct = 100 if (insp and insp.escalated) else (step.sample_percent if step else None)
-    return process.required_sample(order.quantity, pct)
+    return process.required_sample(effective_quantity(db, order), pct)
 
 
 def eval_fields(step: ArticleProcessStep | None) -> list[dict]:

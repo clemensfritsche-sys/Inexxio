@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
-from ..models import ArticleProcessStep, Article, Instance, Order, OrderLine, PurchaseOrder, UserProfile
+from ..models import Article, Instance, Order, OrderLine, UserProfile
 from ..models.base import utcnow
 from ..schemas.disposal import ScrapUpdate
 from ..schemas.inspection import InspectionUpdate
@@ -24,7 +24,7 @@ from ..services.movement import record_movement
 from ..services.scrap import record_scrap
 from ..services.objects import next_object_id
 from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
-from ..services.purchase import apply_update as apply_purchase_update, instantiate_for_order as instantiate_purchase
+from ..services.purchase import apply_update_bulk as apply_purchase_update_bulk, instantiate_for_order as instantiate_purchase
 from ..services.reservation import free_qty, reserved_for
 from ..services.resource import record_resource
 
@@ -204,21 +204,19 @@ async def add_order_line(
     if order.status != "draft":
         raise HTTPException(400, detail="Weitere Positionen sind nur im Entwurf möglich")
     _validate_article(db, data.article_id)
-
-    # Wie im Shop-Warenkorb: ein Abo lässt sich nicht mit anderen Positionen mischen
-    # («Ein Abo muss separat gekauft werden») – diese Position macht den Auftrag per
-    # Definition mehrzeilig (der bisherige Anker bzw. die vorhandenen Positionen kommen
-    # dazu), also gilt die Regel für JEDEN beteiligten Artikel (neu + bestehend).
-    from ..services import pricing
     existing_lines = order_lines_svc.lines_for(db, order)
-    existing_article_ids = {l.article_id for l in existing_lines} | (
-        {order.article_id} if order.article_id else set())
-    for aid in existing_article_ids | {data.article_id}:
-        chk_art = db.query(Article).filter(Article.id == aid).first()
-        price = pricing.resolve_primary_price(db, chk_art) if chk_art else None
-        if price and price.kind == "subscription":
-            raise HTTPException(
-                400, detail="Ein Abo lässt sich nicht mit weiteren Positionen kombinieren – bitte separat erfassen")
+
+    # Die Abo-Mischungsregel betrifft nur den VERKAUF (Stripe: ein Checkout ist entweder
+    # Einmalkauf oder Abo) – sie gehört daher ans Hinzufügen des Sales-Prozessschritts
+    # (``article_process.py: _create``), NICHT hierher: eine weitere Position anzulegen,
+    # die z. B. nur bewegt oder geprüft werden soll, hat mit Verkaufspreisen nichts zu tun
+    # und darf nicht blockiert werden. Existiert für diesen Auftrag aber BEREITS ein
+    # Verkaufsschritt, würde die neue Position ihn sonst nachträglich unbemerkt kaputt
+    # machen – dagegen sichert dieser Check gezielt ab.
+    if process.has_step(db, order, "sale"):
+        existing_article_ids = {l.article_id for l in existing_lines} | (
+            {order.article_id} if order.article_id else set())
+        sale_svc.assert_sale_compatible(db, existing_article_ids | {data.article_id})
 
     if order.article_id is not None:
         # Erste zusätzliche Position: den bisherigen Einzel-Artikel-Anker in eine
@@ -384,7 +382,11 @@ async def update_order(
     #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
     if wants_release:
         is_multiline = order.article_id is None and bool(order_lines_svc.lines_for(db, order))
-        if not is_multiline and (not order.article_id or not order.quantity):
+        # Eine Abweichung (Unter-Auftrag) hat ihr Subjekt bereits über fixierte Instanzen
+        # (nicht über order_lines) – erbt bei einem Mehrpositionen-Eltern-Auftrag dessen
+        # article_id=NULL, OHNE selbst eine Mehrpositionen-Struktur zu sein. Sie braucht
+        # daher WEDER article_id/quantity NOCH order_lines zur Freigabe.
+        if not is_multiline and not subject.is_deviation(order) and (not order.article_id or not order.quantity):
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
         if subject.subject_kind(db, order) == "produce":
             # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
@@ -544,20 +546,19 @@ async def update_order_purchase(
     db: Session = Depends(get_db),
     user: UserProfile = Depends(get_current_user),
 ):
-    """Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter
-    der Auftragsnummer – keine eigene Bestellnummer)."""
+    """Beschaffungsschritt des Auftrags bearbeiten (rollenabhängig, läuft unter der
+    Auftragsnummer – keine eigene Bestellnummer).
+
+    EIN Schritt, auch bei mehreren Artikeln (Mehrpositionen-Auftrag): ``facts_for_step``
+    liefert dann mehrere Bestellungen (eine je Artikel), ein reiner Statuswechsel gilt für
+    alle gemeinsam (eine Sendung) – siehe ``purchase.apply_update_bulk``."""
     order = visible_orders(db, user).filter(Order.object_id == object_id).first()
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
     _assert_not_paused(db, order)
-    po = (
-        db.query(PurchaseOrder)
-        .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
-        .first()
-    )
-    if not po:
-        raise HTTPException(404, detail="Für diesen Auftrag existiert keine Bestellung")
-    apply_purchase_update(db, po, data, user)
+    step = process.resolve_exec_step(db, order, "purchase", data.step_id)
+    pos = process.facts_for_step(db, order, step)
+    apply_purchase_update_bulk(db, pos, data, user)
     db.refresh(order)
     return to_order_response(db, order)
 

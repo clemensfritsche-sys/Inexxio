@@ -24,6 +24,11 @@ class PurchaseOrderUpdate(BaseModel):
     tracking_number: Optional[str] = None
     # Aktueller Lagerort beim Wareneingang (Pflicht beim Übergang auf «received»)
     receiving_location_id: Optional[int] = None
+    # Mehr-Operationen-Routing: welcher Beschaffungs-Schritt (mehrere gleichartige möglich).
+    step_id: Optional[int] = None
+    # Mehrpositionen-Auftrag: bei >1 Bestellung unter demselben Schritt legt dies fest,
+    # WELCHE Position Betrag/Lieferzeit/Tracking betreffen (interne Artikel-Id).
+    article_id: Optional[int] = None
 
     @field_validator("status")
     @classmethod
@@ -82,6 +87,11 @@ class PurchaseEmbed(BaseModel):
     mode: str
     supplier_id: Optional[int]
     status: str
+    # Interne Artikel-Id + Menge DIESER Position – bei einem Mehrpositionen-Auftrag trägt
+    # jede Bestellung einen ANDEREN Artikel (``order.article_id`` ist dann NULL). Die id
+    # dient zugleich als Disambiguierung bei ``PATCH .../purchase`` (``article_id``).
+    article_id: Optional[int] = None
+    quantity: Optional[int] = None
 
     order_total: Optional[Decimal]
     lead_time_days: Optional[int]
@@ -98,6 +108,8 @@ class PurchaseEmbed(BaseModel):
     # Denormalisiert vom Router
     supplier_name: Optional[str] = None
     receiving_location_label: Optional[str] = None   # Lieferadresse/Wareneingang (Objektnr.)
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
     # Artikel-Stammdaten-Keys, die der Lieferant sehen darf
     shared_fields: list[str] = []
     # Audit-Verlauf der Statuswechsel (Wer/Wann)

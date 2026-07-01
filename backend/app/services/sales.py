@@ -7,7 +7,7 @@ einem ``movement``-Schritt (Bestands-Operation, FIFO ab Lager); Preis/Währung/F
 werden auf den ``sale``-Beleg **eingefroren** (Snapshot).
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -366,6 +366,27 @@ def _interval_days(interval: str | None) -> int:
     return 365 if interval == "year" else 30
 
 
+# Mindestbindung eines PRODUKTABOS (wiederkehrende physische Lieferung) – state of the
+# art: eine sofortige Kündigung direkt nach dem Abschluss (vor der ersten Lieferung)
+# würde dem Geschäft die Gelegenheit nehmen, überhaupt zu erfüllen. Ein NUTZUNGSABO
+# (``sub_type='usage'``, z. B. Software-/Geräte-Zugang) hat dagegen KEINE Mindestbindung –
+# dort schadet eine sofortige Kündigung niemandem, der Zugang endet einfach zum
+# Periodenende (Stripe ``cancel_at_period_end`` wäre der nächste Ausbauschritt).
+PRODUCT_MINIMUM_TERM_CYCLES = 1
+
+
+def earliest_cancellation_date(order: "Order") -> date | None:
+    """Frühester Kündigungstermin eines Produktabos – ``None`` = sofort kündbar (kein
+    aktives Produktabo, oder die Mindestlaufzeit (``PRODUCT_MINIMUM_TERM_CYCLES`` ×
+    Periodenlänge ab Freigabe/erster Abrechnung) ist bereits erreicht)."""
+    if (order.recurrence_kind != "product" or not order.recurrence_active
+            or not order.released_at or not order.recurrence_interval_days):
+        return None
+    total_days = order.recurrence_interval_days * PRODUCT_MINIMUM_TERM_CYCLES
+    earliest = (order.released_at + timedelta(days=total_days)).date()
+    return earliest if earliest > date.today() else None
+
+
 def _resolve_line(db: Session, item, customer: UserProfile) -> dict:
     """Eine Warenkorb-Position validieren und zu einer aufgelösten ``line`` verdichten
     (Artikel kanonisch, sichtbar, freigegeben; Preis-Option gehört zum Artikel)."""
@@ -668,6 +689,7 @@ def list_customer_orders(db: Session, customer_id: int) -> list[dict]:
             "interval": ("year" if (order.recurrence_interval_days or 0) >= 365 else "month") if order.recurrence_kind else None,
             "subscription_active": bool(order.recurrence_active),
             "has_subscription_management": bool(order.stripe_subscription_id),
+            "cancellable_from": earliest_cancellation_date(order),
         })
     return out
 

@@ -39,12 +39,14 @@ class OrderStepInfo(BaseModel):
     shortfall: list[StepShortfall] = []
     supply_order_object_ids: list[int] = []
 
-    # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt)
+    # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt).
+    # «Beschaffung» und «Verkauf» sind – wie jeder andere Schritttyp – GENAU EIN Schritt,
+    # auch bei mehreren Artikeln/Positionen: ``purchases``/``sales`` tragen dann mehrere
+    # Belege (einen je Artikel/Position, gleicher ``step_id``); ``purchase``/``sale``
+    # bleiben die ERSTEN (Bequemlichkeit/Rückwärtskompatibilität für den Einzel-Artikel-
+    # Fall, wo beide identisch sind).
     purchase: Optional[PurchaseEmbed] = None
-    # «Verkauf» ist – wie jeder andere Schritttyp – GENAU EIN Schritt, auch bei mehreren
-    # Artikeln/Positionen: ``sales`` trägt dann mehrere Belege (einen je Artikel/Position,
-    # gleicher ``step_id``); ``sale`` bleibt der ERSTE (Bequemlichkeit/Rückwärtskompatibilität
-    # für den Einzel-Artikel-Fall, wo beide identisch sind).
+    purchases: list[PurchaseEmbed] = []
     sale: Optional[SaleEmbed] = None
     sales: list[SaleEmbed] = []
     inspection: Optional[InspectionEmbed] = None

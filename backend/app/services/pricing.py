@@ -71,6 +71,38 @@ def resolve_primary_price(db: Session, article: Article) -> ArticlePrice | None:
     return prices[0] if prices else None
 
 
+def resolve_one_time_price(db: Session, article_id: int) -> ArticlePrice | None:
+    """Die (bevorzugt primäre) **Einmalkauf**-Preisoption eines Artikels – unabhängig
+    davon, ob daneben AUCH ein Abo-Preis existiert. ``resolve_primary_price`` sortiert
+    Abos zuerst (Shop-Reihenfolge); ein ERP-Direktverkauf mit mehreren Positionen
+    braucht dagegen IMMER den Einmalkauf (Abos lassen sich nicht mengenweise in einem
+    Beleg mischen) – deshalb hier gezielt danach gefragt statt über die primäre Option."""
+    prices = (
+        db.query(ArticlePrice)
+        .filter(ArticlePrice.article_id == article_id, ArticlePrice.kind == "one_time",
+                ArticlePrice.is_active == True)
+        .all()
+    )
+    prices.sort(key=lambda p: (0 if p.is_primary else 1, p.id))
+    return prices[0] if prices else None
+
+
+def is_subscription_exclusive(db: Session, article_id: int) -> bool:
+    """True, wenn der Artikel NUR über ein Abo verkauft werden kann (kein Einmalkauf-Preis
+    hinterlegt) – ein solcher Artikel lässt sich nicht mit weiteren Positionen in EINEM
+    Verkauf kombinieren (Stripe: ein Checkout ist entweder Einmalkauf oder Abo; im ERP hat
+    der Verkaufsschritt keine Möglichkeit, je Position ein anderes Preismodell zu wählen)."""
+    if resolve_one_time_price(db, article_id) is not None:
+        return False
+    return (
+        db.query(ArticlePrice.id)
+        .filter(ArticlePrice.article_id == article_id, ArticlePrice.kind == "subscription",
+                ArticlePrice.is_active == True)
+        .first()
+        is not None
+    )
+
+
 # ─── Stufe ① Geltungsbereich (Kunden-/Gruppenpreis) – Extension-Hook ──────────────
 
 def _customer_price_override(db: Session, price: ArticlePrice, customer) -> Decimal | None:

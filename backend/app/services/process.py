@@ -131,8 +131,8 @@ def _resolve_fact(step: ArticleProcessStep, rows: list, sole_of_type: bool):
 
 def _resolve_facts_multi(step: ArticleProcessStep, rows: list, sole_of_type: bool) -> list:
     """Wie ``_resolve_fact``, aber liefert ALLE passenden Fachzeilen statt nur der ersten –
-    für «Verkauf»: bei mehreren Artikeln (Mehrpositionen-Auftrag) teilen sich mehrere
-    ``Sale``-Belege denselben Schritt (``step_id``), einer je Artikel/Position."""
+    für «Verkauf»/«Beschaffung» bei einem Mehrpositionen-Auftrag: mehrere Belege (einer
+    je Artikel/Position) teilen sich denselben Schritt (``step_id``)."""
     matched = [r for r in rows if getattr(r, "step_id", None) == step.id]
     if matched:
         return matched
@@ -141,15 +141,25 @@ def _resolve_facts_multi(step: ArticleProcessStep, rows: list, sole_of_type: boo
     return []
 
 
-def _sale_status(facts: list) -> str:
-    """Aggregierter Rohstatus eines Verkaufs-Schritts über ALLE seine Belege (ein Beleg
-    je Artikel/Position): 'done' erst, wenn ALLE bezahlt sind; 'failed', wenn ALLE storniert
-    sind (eine Sendung wird gemeinsam abgeschlossen – siehe ``sale.apply_update_bulk``)."""
+# Schritttypen, die bei einem Mehrpositionen-Auftrag EINEN Schritt mit MEHREREN
+# Fachzeilen abbilden (eine je Artikel/Position, gemeinsame ``step_id``) – ihr
+# Fachmodell hat ein eigenes ``article_id`` (``Sale``/``PurchaseOrder``). Andere Typen
+# (movement/resource/inspection/scrap) wirken artikel-unabhängig auf die GESAMTE
+# Instanzmenge des Auftrags und bleiben bei genau EINER Fachzeile je Schritt.
+MULTI_FACT_STEP_TYPES = {"sale", "purchase"}
+
+
+def _aggregate_status(step_type: str, facts: list) -> str:
+    """Aggregierter Rohstatus eines Schritts mit MEHREREN Fachzeilen (eine je Artikel/
+    Position): 'done' erst, wenn JEDE einzeln 'done' ist; 'failed', wenn JEDE 'failed'
+    ist – eine gemeinsame Aktion schliesst alle zusammen ab bzw. storniert sie zusammen
+    (siehe ``sale.apply_update_bulk``/``purchase.apply_update_bulk``)."""
     if not facts:
         return "open"
-    if all(f.status == "paid" for f in facts):
+    statuses = [_fact_status(step_type, f) for f in facts]
+    if all(s == "done" for s in statuses):
         return "done"
-    if all(f.status == "cancelled" for f in facts):
+    if all(s == "failed" for s in statuses):
         return "failed"
     return "open"
 
@@ -171,12 +181,12 @@ def build_order_steps(db: Session, order: Order) -> list[dict]:
     out: list[dict] = []
     active_assigned = False
     for d in defs:
-        if d.step_type == "sale":
-            # Verkauf: EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je
-            # Beleg, Mehrpositionen-Auftrag) – Status ist das Aggregat über alle.
-            facts = _resolve_facts_multi(d, facts_by_type.get("sale", []), counts["sale"] == 1)
+        if d.step_type in MULTI_FACT_STEP_TYPES:
+            # EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg,
+            # Mehrpositionen-Auftrag) – Status ist das Aggregat über alle.
+            facts = _resolve_facts_multi(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
             fact = facts[0] if facts else None
-            raw = _sale_status(facts)
+            raw = _aggregate_status(d.step_type, facts)
         else:
             fact = _resolve_fact(d, facts_by_type.get(d.step_type, []), counts[d.step_type] == 1)
             raw = _fact_status(d.step_type, fact)
@@ -327,8 +337,12 @@ def _component_needs(db: Session, order: Order) -> dict[int, int]:
     """Offener Komponentenbedarf (consume) über alle Ressourcen-Schritte, je Artikel.
     **Bereits verbrauchte** Schritte (Fachzeile vorhanden) zählen nicht mehr mit – sonst
     entstünde nach dem Verbrauch ein Phantom-Bedarf (überflüssiger Nachschub)."""
+    from .order_lines import effective_quantity
     needs: dict[int, int] = {}
     resource_steps = [d for d in order_step_defs(db, order) if d.step_type in RESOURCE_STEP_TYPES]
+    if not resource_steps:
+        return needs
+    qty = effective_quantity(db, order)
     rows = _facts(db, order, "resource")
     sole = len(resource_steps) == 1
     for d in resource_steps:
@@ -338,7 +352,7 @@ def _component_needs(db: Session, order: Order) -> dict[int, int]:
             if (line.get("mode") or "consume") != "consume":
                 continue
             aid = line["article_id"]
-            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * (order.quantity or 0)
+            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * qty
     return needs
 
 
@@ -352,11 +366,13 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     if step.step_type in ("movement", "inspection", "scrap"):
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
+        from .order_lines import effective_quantity
+        qty = effective_quantity(db, order)
         for line in (step.resource_lines or []):
             if (line.get("mode") or "consume") != "consume":
                 continue
             aid = line["article_id"]
-            need = line.get("quantity", 1) * (order.quantity or 0)
+            need = line.get("quantity", 1) * qty
             have = available(db, aid, order.id)
             if need > have:
                 out[aid] = out.get(aid, 0) + (need - have)

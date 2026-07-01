@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderLineInfo, OrderStep, OrderUpdateInput } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
@@ -252,7 +252,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const subOrderReady = stepCount > 0;
   // Freigabe: Bedarf gespeichert UND – je nach Auftragsart – Ablauf definiert (Unter-Auftrag)
   // bzw. Instanzauswahl vollständig (reguläre Bestands-Operation «Instanz wählen»).
-  const hasDemand = isMultiPosition || (!!record?.article_id && !!record?.quantity);
+  // Ein Unter-Auftrag (Abweichung/Nachschub) hat sein Subjekt bereits fest (Instanzen/
+  // Artikel-Prozess) – braucht KEIN eigenes Artikel/Menge-Paar zur Freigabe (schliesst
+  // sonst eine Abweichung eines Mehrpositionen-Auftrags dauerhaft aus der Freigabe aus).
+  const hasDemand = isSubOrder || isMultiPosition || (!!record?.article_id && !!record?.quantity);
   const canRelease = !isCreate && hasDemand
     && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
   const releaseHint = isSubOrder
@@ -794,7 +797,8 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         ) : !isStaff && hasPurchase ? (
           <>
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
-            <PurchaseStepPanel order={record as Order} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
+            <PurchaseStepPanel order={record as Order} purchases={record?.purchase ? [record.purchase] : []}
+              viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
           </>
         ) : null}
       </div>
@@ -927,8 +931,9 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   const stepState = step.state;
   const stepId = step.id;
   if (step.step_type === 'purchase') {
-    return stepOrder.purchase
-      ? <PurchaseStepPanel order={stepOrder} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
+    const purchases = (step.purchases.length > 0 ? step.purchases : (order.purchase ? [order.purchase] : [])) as OrderPurchase[];
+    return purchases.length > 0
+      ? <PurchaseStepPanel order={stepOrder} purchases={purchases} stepId={stepId} viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
       : <StepFallback />;
   }
   if (step.step_type === 'sale') {

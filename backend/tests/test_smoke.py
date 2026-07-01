@@ -1671,16 +1671,12 @@ def test_add_order_line_endpoint_exists_and_converts_anchor():
 def test_pooled_orders_reuse_generic_step_editor():
     """Ein Mehrpositionen-Auftrag definiert seinen Ablauf über denselben generischen
     Step-Editor wie jeder andere Auftrag (``ProcessSteps``/``_create``) – KEIN Sonderpfad,
-    KEINE automatisch angelegten Schritte bei der Positions-Anlage. Nur Verkauf + Bewegung
-    sind zulässig (Beschaffung/Ressource/Datenerfassung/Verschrotten skalieren (noch) mit
-    ``order.quantity``, das bei Mehrpositionen NULL ist)."""
+    KEINE automatisch angelegten Schritte bei der Positions-Anlage."""
     import inspect as _inspect
-    from app.routers import article_process, orders as orders_router
+    from app.routers import orders as orders_router
 
     add_src = _inspect.getsource(orders_router.add_order_line)
     assert "ArticleProcessStep(" not in add_src   # legt KEINE Schritte automatisch an
-    create_src = _inspect.getsource(article_process._create)
-    assert 'owner.pooled and data.step_type not in ("sale", "movement")' in create_src
 
 
 def test_pooled_owner_sync_is_unchanged():
@@ -1695,16 +1691,31 @@ def test_pooled_owner_sync_is_unchanged():
     assert "sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)" in src
 
 
-def test_pooled_order_step_types_restricted():
-    """Ein Mehrpositionen-Auftrag erlaubt nur Verkauf + Bewegung – Beschaffung/Ressource/
-    Datenerfassung/Verschrotten skalieren (noch) mit ``order.quantity``/brauchen einen
-    einzelnen Artikel und würden bei Mehrpositionen falsche Zahlen statt eines klaren
-    Fehlers liefern."""
+def test_pooled_order_step_types_all_allowed():
+    """Nutzer-Feedback: Prozessschrittmodule sollen universell einsetzbar sein – KEINE
+    Mehrpositionen-spezifische Schritttyp-Whitelist mehr. Beschaffung/Ressource/
+    Datenerfassung skalieren jetzt über ``order_lines.effective_quantity`` bzw. legen
+    (Beschaffung) je Position eine eigene Fachzeile an, statt mit dem (bei Mehrpositionen
+    NULL) ``order.quantity`` zu rechnen."""
     import inspect as _inspect
     from app.routers import article_process
+    from app.services import inspection, order_lines, process, purchase, resource
 
     src = _inspect.getsource(article_process._create)
-    assert 'owner.pooled and data.step_type not in ("sale", "movement")' in src
+    assert 'owner.pooled' not in src
+    assert 'nur Verkauf und Bewegung' not in src
+
+    assert hasattr(order_lines, "effective_quantity")
+    assert "purchase" in process.MULTI_FACT_STEP_TYPES
+
+    purchase_src = _inspect.getsource(purchase.instantiate_for_order)
+    assert "lines_for(db, order)" in purchase_src
+
+    resource_src = _inspect.getsource(resource.reserve_resources)
+    assert "effective_quantity(db, order)" in resource_src
+
+    inspection_src = _inspect.getsource(inspection.required_count)
+    assert "effective_quantity(db, order)" in inspection_src
 
 
 def test_sale_step_resolves_via_step_not_first_match():
@@ -1737,15 +1748,16 @@ def test_sale_is_one_step_with_one_fact_per_article():
     assert "lines_for(db, order)" in inst_src
     assert 'mode="direct"' in inst_src
 
-    # Status-Aggregation: 'done' erst, wenn ALLE Belege eines Schritts bezahlt sind.
-    assert process._sale_status([]) == "open"
+    # Status-Aggregation: 'done' erst, wenn ALLE Belege eines Schritts bezahlt sind
+    # (generisch für jeden Mehrfach-Beleg-Schritttyp, nicht nur Verkauf).
+    assert process._aggregate_status("sale", []) == "open"
 
     class _S:
         def __init__(self, status):
             self.status = status
-    assert process._sale_status([_S("paid"), _S("paid")]) == "done"
-    assert process._sale_status([_S("paid"), _S("requested")]) == "open"
-    assert process._sale_status([_S("cancelled"), _S("cancelled")]) == "failed"
+    assert process._aggregate_status("sale", [_S("paid"), _S("paid")]) == "done"
+    assert process._aggregate_status("sale", [_S("paid"), _S("requested")]) == "open"
+    assert process._aggregate_status("sale", [_S("cancelled"), _S("cancelled")]) == "failed"
 
 
 def test_sale_price_is_single_source_of_truth_from_article():
@@ -1760,7 +1772,7 @@ def test_sale_price_is_single_source_of_truth_from_article():
     prefill_src = _inspect.getsource(sale_svc._prefill_price)
     assert "price_from_article(db, article_id, sale.quantity)" in prefill_src
     price_src = _inspect.getsource(sale_svc.price_from_article)
-    assert "pricing.resolve_primary_price(db, art)" in price_src
+    assert "pricing.resolve_one_time_price(db, article_id)" in price_src
     assert "pricing.price_view_for" in price_src
 
     bulk_src = _inspect.getsource(sale_svc.apply_update_bulk)
@@ -1829,3 +1841,93 @@ def test_article_deactivation_sees_pooled_orders():
     deactivate_src = _inspect.getsource(deactivation.deactivate_article)
     assert "_order_article_filter(db, ids)" in impact_src
     assert deactivate_src.count("_order_article_filter(db, ids)") == 2
+
+
+def test_deviation_release_does_not_require_article_and_quantity():
+    """Regression (Nutzer-Feedback): eine Abweichung, die von einem Mehrpositionen-Eltern-
+    Auftrag abstammt, erbt dessen ``article_id=NULL`` – hat aber KEINE ``order_lines`` (ihr
+    Subjekt sind fixierte Instanzen). Die Freigabe-Validierung verlangte fälschlich Artikel
+    + Menge und lehnte die Freigabe IMMER ab, sobald ein Ablauf (z. B. Bewegung) definiert
+    war."""
+    import inspect as _inspect
+    from app.routers import orders as orders_router
+
+    src = _inspect.getsource(orders_router.update_order)
+    assert 'not is_multiline and not subject.is_deviation(order) and (not order.article_id or not order.quantity)' in src.replace("\n", " ").replace("  ", " ")
+
+
+def test_subscription_mixing_check_moved_to_sale_step_creation():
+    """Regression (Nutzer-Feedback): "Ein Abo lässt sich nicht mit weiteren Positionen
+    kombinieren" kam bisher sofort beim Hinzufügen EINER Position (add_order_line) – auch
+    wenn gar kein Verkauf beabsichtigt war (z. B. nur Bewegen/Prüfen). Der Check gehört an
+    das Hinzufügen des SALES-Prozessschritts."""
+    import inspect as _inspect
+    from app.routers import article_process, orders as orders_router
+
+    add_src = _inspect.getsource(orders_router.add_order_line)
+    assert "assert_sale_compatible" in add_src
+    assert 'process.has_step(db, order, "sale")' in add_src   # nur relevant, wenn Sales existiert
+
+    create_src = _inspect.getsource(article_process._create)
+    assert 'data.step_type == "sale"' in create_src
+    assert "assert_sale_compatible" in create_src
+
+
+def test_subscription_mixing_recognizes_one_time_price_alongside_abo():
+    """Regression: ein Artikel mit Abo-Preis UND zusätzlichem Einmalkauf-Preis wurde bisher
+    (über ``resolve_primary_price``, das Abos zuerst sortiert) fälschlich als reiner
+    Abo-Artikel behandelt und blockierte jede Mischung – obwohl der ERP-Verkauf ohnehin
+    den Einmalkauf-Preis nutzt (``price_from_article``)."""
+    import inspect as _inspect
+    from app.services import pricing
+
+    src = _inspect.getsource(pricing.is_subscription_exclusive)
+    assert "resolve_one_time_price" in src
+
+
+def test_purchase_and_inspection_use_effective_quantity_not_order_quantity():
+    """Regression: Beschaffung/Ressource/Datenerfassung rechneten direkt mit
+    ``order.quantity`` – bei einem Mehrpositionen-Auftrag ist das NULL, was den
+    Ressourcen-Bedarf/die Stichprobenzahl auf 0 kollabieren liess (stiller Blindgänger,
+    keine Fehlermeldung)."""
+    import inspect as _inspect
+    from app.services import inspection, process, resource
+
+    assert "order.quantity or 0" not in _inspect.getsource(resource.reserve_resources)
+    assert "order.quantity or 0" not in _inspect.getsource(resource.build_resource_embed)
+    assert "(order.quantity or 0)" not in _inspect.getsource(process._component_needs)
+    assert "(order.quantity or 0)" not in _inspect.getsource(process.step_shortfalls)
+    assert "effective_quantity" in _inspect.getsource(inspection.required_count)
+
+
+def test_purchase_creates_one_order_per_position_sharing_step_id():
+    """Wie ``sale.instantiate_for_order``: bei einem Mehrpositionen-Auftrag legt der EINE
+    Beschaffungs-Schritt je Artikel/Position eine eigene ``PurchaseOrder`` an (eigene
+    Bestellsumme/Menge), alle unter demselben ``step_id``."""
+    import inspect as _inspect
+    from app.services import purchase
+
+    src = _inspect.getsource(purchase.instantiate_for_order)
+    assert "lines_for(db, order)" in src
+    assert "step.id" in src
+
+    bulk_src = _inspect.getsource(purchase.apply_update_bulk)
+    assert "len(pos) == 1" in bulk_src
+    assert "article_id" in bulk_src
+
+
+def test_subscription_cancellation_has_minimum_commitment():
+    """State-of-the-art Mindestbindung: ein Produktabo (wiederkehrende physische Lieferung)
+    lässt sich nicht sofort nach Abschluss wieder kündigen; ein Nutzungsabo hat keine
+    Mindestbindung. Personal darf trotzdem jederzeit kündigen (Kulanz)."""
+    import inspect as _inspect
+    from app.routers import shop
+    from app.services import sales
+
+    fn_src = _inspect.getsource(sales.earliest_cancellation_date)
+    assert 'order.recurrence_kind != "product"' in fn_src
+    assert "earliest > date.today()" in fn_src
+
+    cancel_src = _inspect.getsource(shop.cancel_subscription)
+    assert "earliest_cancellation_date(order)" in cancel_src
+    assert 'user.role not in ("admin", "employee")' in cancel_src
