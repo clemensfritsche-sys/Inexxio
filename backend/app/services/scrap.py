@@ -17,7 +17,7 @@ from ..models import Disposal, Order
 from . import process
 from .admin import log_audit
 from .events import emit
-from .reservation import release
+from .reservation import release_all
 from .subject import order_instances
 
 
@@ -43,7 +43,12 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             continue                                # idempotent: schon verschrottet
         old = inst.disposition
         inst.disposition = "scrapped"
-        release(inst, order.id)                     # etwaige Reservierung dieses Auftrags lösen
+        # ALLE Reservierungen lösen (nicht nur die dieses Auftrags): ein verschrottetes Teil
+        # verlässt den Bestand endgültig und kann KEINEN Auftrag mehr beliefern. Hing es an
+        # einem anderen Auftrag (z. B. eine Abweichung steuert eine für den Eltern-Verkauf
+        # reservierte Instanz aus), wird dessen Fehlmenge dadurch **ehrlich** wieder sichtbar
+        # → sein Subjekt-Schritt wird «blockiert» (abgeleitet), statt still unterzuliefern.
+        release_all(inst)
         log_audit(db, "instances", "disposition", "scrapped", actor_id,
                   object_id=inst.object_id, old_value=old)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,

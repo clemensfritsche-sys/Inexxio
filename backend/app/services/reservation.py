@@ -46,6 +46,16 @@ def release(inst: Instance, order_id: int) -> int:
     return qty
 
 
+def release_all(inst: Instance) -> None:
+    """**Alle** Reservierungen einer Instanz lösen. Für terminale Verbleibe (verschrottet):
+    ein Teil, das den Bestand verlässt, kann keinen Auftrag mehr beliefern – auch nicht einen
+    Eltern-/Fremd-Auftrag, der es reserviert hatte. So wird dessen Fehlmenge **ehrlich** wieder
+    sichtbar (statt still von einer toten Reservierung „gedeckt" zu bleiben)."""
+    inst.reservations = {}
+    inst.reserved_quantity = 0
+    inst.reserved_for_order_id = None
+
+
 def consume(inst: Instance, order_id: int, qty: int) -> None:
     """``qty`` aus der Instanz **verbrauchen**: Gesamtmenge mindern und die Reservierung
     des Auftrags entsprechend reduzieren (die entnommenen Stück sind über die Fachtabelle

@@ -9,13 +9,13 @@ from ..schemas.disposal import ScrapUpdate
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
-    OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins, OrderResponse,
-    OrderSummary, OrderUpdate,
+    OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
+    OrderResponse, OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, order_lines as order_lines_svc, process, sale as sale_svc, subject, supply
+from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -534,6 +534,45 @@ async def create_supply(
     if order.status != "released":
         raise HTTPException(400, detail="Nachschub kann nur für einen freigegebenen Auftrag angelegt werden")
     supply.ensure_supply(db, order, current_user.id)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/cover-stock", response_model=OrderResponse)
+async def cover_stock(
+    object_id: int,
+    data: OrderCoverStock,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
+    blockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder
+    gezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der
+    Bestand bereits am Lager liegt. Liefert den Auftrag zurück."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "released":
+        raise HTTPException(400, detail="Nur ein freigegebener Auftrag lässt sich aus Lager decken")
+    recovery.cover_from_stock(db, order, current_user.id, data.instance_object_ids)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/reduce", response_model=OrderResponse)
+async def reduce_demand(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene
+    senken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach
+    mit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).
+    Liefert den Auftrag zurück."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "released":
+        raise HTTPException(400, detail="Nur ein freigegebener Auftrag lässt sich reduzieren")
+    recovery.reduce_to_available(db, order, current_user.id)
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)

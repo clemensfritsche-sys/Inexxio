@@ -728,6 +728,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/cover-stock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cover Stock
+         * @description «Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
+         *     blockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder
+         *     gezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der
+         *     Bestand bereits am Lager liegt. Liefert den Auftrag zurück.
+         */
+        post: operations["cover_stock_api_v1_erp_orders__object_id__cover_stock_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/reduce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reduce Demand
+         * @description «Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene
+         *     senken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach
+         *     mit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).
+         *     Liefert den Auftrag zurück.
+         */
+        post: operations["reduce_demand_api_v1_erp_orders__object_id__reduce_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/purchase": {
         parameters: {
             query?: never;
@@ -2404,6 +2450,16 @@ export interface components {
             object_type: string;
         };
         /**
+         * OrderCoverStock
+         * @description «Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
+         *     blockierten Schritts aus vorhandenem Lagerbestand decken. Ohne ``instance_object_ids``
+         *     wird FIFO aus dem freien Bestand reserviert; mit Auswahl genau diese Instanzen.
+         */
+        OrderCoverStock: {
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
+        };
+        /**
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *
@@ -3313,6 +3369,20 @@ export interface components {
             prices: components["schemas"]["ShopPriceOption"][];
         };
         /**
+         * ShortfallInstance
+         * @description Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse
+         *     («Andere Instanz wählen»).
+         */
+        ShortfallInstance: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+        };
+        /**
          * StepReorder
          * @description Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
          *     werden serverseitig automatisch neu eingefügt/positioniert.
@@ -3324,6 +3394,9 @@ export interface components {
         /**
          * StepShortfall
          * @description Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).
+         *
+         *     ``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**
+         *     decken liesse (für «Aus Lager decken» / «Andere Instanz wählen»).
          */
         StepShortfall: {
             /** Article Object Id */
@@ -3332,6 +3405,16 @@ export interface components {
             article_name?: string | null;
             /** Quantity */
             quantity: number;
+            /**
+             * Available Quantity
+             * @default 0
+             */
+            available_quantity: number;
+            /**
+             * Available Instances
+             * @default []
+             */
+            available_instances: components["schemas"]["ShortfallInstance"][];
         };
         /**
          * StorageLocationCreate
@@ -5200,6 +5283,72 @@ export interface operations {
         };
     };
     create_supply_api_v1_erp_orders__object_id__supply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cover_stock_api_v1_erp_orders__object_id__cover_stock_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCoverStock"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reduce_demand_api_v1_erp_orders__object_id__reduce_post: {
         parameters: {
             query?: never;
             header?: never;

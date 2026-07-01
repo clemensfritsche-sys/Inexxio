@@ -275,6 +275,19 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/supply`, {});
   }
 
+  // «Aus Lager decken» / «Andere Instanz wählen»: deckt die Subjekt-Fehlmenge aus
+  // vorhandenem Lagerbestand – FIFO (ohne ids) oder gezielt gewählte Instanzen.
+  coverStock(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/cover-stock`,
+      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
+  }
+
+  // «Menge reduzieren»: senkt die Anforderung auf das tatsächlich Vorhandene (Fehlmenge
+  // abgezogen); der blockierte Schritt läuft danach mit weniger Stück weiter.
+  reduceDemand(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/reduce`, {});
+  }
+
   // «Abbruch zurücknehmen»: verwirft einen noch im Entwurf befindlichen Folgeauftrag
   // (objectId = Folgeauftrag); das Original läuft danach unverändert weiter. Liefert das
   // wieder laufende Original zurück.
