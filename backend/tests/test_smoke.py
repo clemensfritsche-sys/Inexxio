@@ -220,6 +220,31 @@ def test_instances_created_at_release_not_as_step():
     assert not hasattr(serialization, "serialize_for_order")
 
 
+def test_release_delegates_status_flip_to_release_order():
+    """Regression: die Freigabe (draft → released) muss den Statuswechsel **release_order**
+    überlassen. ``update_order`` darf den Status NICHT vorab über die generische Schleife
+    setzen – sonst ist der Auftrag beim Aufruf schon „released", ``release_order`` kehrt wegen
+    „nicht mehr draft" sofort zurück und stellt KEIN Subjekt her: keine Instanzen, keine
+    Objektnummern, keine Fehlermeldung (stiller Blindgänger, den der Nutzer meldete)."""
+    import inspect as _inspect
+    from app.routers import orders as orders_router
+    from app.services import orders as orders_svc
+
+    upd_src = _inspect.getsource(orders_router.update_order)
+    # Der Status der Freigabe wird aus dem Payload GENOMMEN, nicht vorab gesetzt.
+    assert 'payload.pop("status")' in upd_src
+    assert 'wants_release = payload.get("status") == "released"' in upd_src
+    assert "release_order(db, order" in upd_src
+    # Die generische Setz-Schleife läuft NACH dem Herausnehmen des Freigabe-Status.
+    assert upd_src.index("wants_release =") < upd_src.index("for key, value in payload.items()")
+
+    # release_order ist der EINZIGE Pfad, der den Statuswechsel vollzieht – und schützt sich
+    # gegen Nicht-Entwürfe (Idempotenz). Beides zusammen macht die Reihenfolge zwingend.
+    rel_src = _inspect.getsource(orders_svc.release_order)
+    assert 'order.status = "released"' in rel_src
+    assert 'if order.status != "draft":' in rel_src
+
+
 def test_movement_step_target_config():
     """Bewegung: Zieltyp wird validiert; ohne Typ kein festes Zielobjekt."""
     import pytest
