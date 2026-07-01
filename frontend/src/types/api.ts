@@ -716,6 +716,10 @@ export interface paths {
         /**
          * Update Order Sale
          * @description Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.
+         *
+         *     Bei einem Mehrpositionen-Auftrag trägt jede Position ihren EIGENEN Verkaufs-Schritt
+         *     (Mehr-Operationen-Routing) – ``step_id`` wählt die richtige Position; ohne ``step_id``
+         *     die gerade aktive (identisch zu movement/resource/inspection).
          */
         patch: operations["update_order_sale_api_v1_erp_orders__object_id__sale_patch"];
         trace?: never;
@@ -1424,6 +1428,8 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
+            /** Order Line Id */
+            order_line_id?: number | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -1433,6 +1439,8 @@ export interface components {
             article_id?: number | null;
             /** Order Id */
             order_id?: number | null;
+            /** Order Line Id */
+            order_line_id?: number | null;
             /** Position */
             position: number;
             /** Step Type */
@@ -2345,16 +2353,21 @@ export interface components {
          * OrderCreate
          * @description Anlage eines Auftrags über '+'. Status startet als 'draft'.
          *
-         *     Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
-         *     der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
-         *     eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
-         *     optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.
+         *     Anker ist IMMER **Artikel + Menge** – entweder direkt (``article_id``/``quantity``,
+         *     Einzel-Artikel-Auftrag) ODER als **Mehrpositionen** (``lines``, mehrere Artikel/Mengen
+         *     auf einmal – z. B. ein Verkauf mehrerer Artikel als eine Sendung). Was damit geschieht,
+         *     ergibt sich aus dem Ablauf, der danach im Entwurf definiert wird: kein eigener Ablauf →
+         *     Erzeugung (Artikel-Prozess); eigener Ablauf → Operation auf Instanzen des Artikels
+         *     (FIFO ab Lager, optional durch fixierte Instanzen ergänzt). Die Subjektart wird also
+         *     abgeleitet. Genau eines von beidem ist anzugeben.
          */
         OrderCreate: {
             /** Article Id */
-            article_id: number;
+            article_id?: number | null;
             /** Quantity */
-            quantity: number;
+            quantity?: number | null;
+            /** Lines */
+            lines?: components["schemas"]["OrderLineIn"][] | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -2399,6 +2412,52 @@ export interface components {
             instance_object_ids: number[];
             /** Title */
             title?: string | null;
+        };
+        /**
+         * OrderLineIn
+         * @description Eine Position bei der **Mehrpositionen**-Anlage (`OrderCreate.lines`) – dieselben
+         *     zwei Optionen wie am Einzel-Artikel-Auftrag, nur je Zeile wählbar:
+         *
+         *     ``goal='produce'`` – Herstellen/Beschaffen: wird ein **eigener** Auftrag (eigene
+         *       Fertigungs-Timeline, analog zum Shop: „make-Positionen bleiben je ein eigener Auftrag").
+         *     ``goal='stock'``   – Aus dem Lager (FIFO) bzw. **Instanz wählen** (``instance_object_ids``
+         *       fixiert statt FIFO): Position eines gemeinsamen Sammel-Auftrags (eine Sendung).
+         */
+        OrderLineIn: {
+            /** Article Id */
+            article_id: number;
+            /** Quantity */
+            quantity: number;
+            /**
+             * Goal
+             * @default stock
+             */
+            goal: string;
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
+        };
+        /**
+         * OrderLineInfo
+         * @description Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL).
+         */
+        OrderLineInfo: {
+            /** Id */
+            id: number;
+            /** Article Id */
+            article_id: number;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
+            /** Article Unit */
+            article_unit?: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Position */
+            position: number;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -2476,6 +2535,11 @@ export interface components {
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             sale?: components["schemas"]["SaleEmbed"] | null;
             /**
+             * Order Lines
+             * @default []
+             */
+            order_lines: components["schemas"]["OrderLineInfo"][];
+            /**
              * Instances
              * @default []
              */
@@ -2514,6 +2578,11 @@ export interface components {
              * @default false
              */
             paused: boolean;
+            /**
+             * Also Created
+             * @default []
+             */
+            also_created: number[];
         };
         /**
          * OrderStepInfo
@@ -3018,6 +3087,16 @@ export interface components {
             invoiced_at?: string | null;
             /** Paid At */
             paid_at?: string | null;
+            /** Mode */
+            mode?: string | null;
+            /** Payment Method */
+            payment_method?: string | null;
+            /** Payment Reference */
+            payment_reference?: string | null;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
             /** Customer Name */
             customer_name?: string | null;
         };
@@ -3040,6 +3119,10 @@ export interface components {
             customer_id?: number | null;
             /** Invoice Number */
             invoice_number?: string | null;
+            /** Payment Method */
+            payment_method?: string | null;
+            /** Payment Reference */
+            payment_reference?: string | null;
             /** Step Id */
             step_id?: number | null;
         };

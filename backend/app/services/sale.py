@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Order, Sale, UserProfile
+from ..models import Article, Order, OrderLine, Sale, UserProfile
 from ..models.base import utcnow
 from . import process
 from .admin import log_audit
@@ -27,7 +27,12 @@ _FROM = {
     "paid": {"invoiced"},
     "cancelled": {"requested", "confirmed", "invoiced"},
 }
-_EDITABLE = ("order_total", "vat_rate", "currency", "customer_id", "invoice_number")
+_EDITABLE = ("order_total", "vat_rate", "currency", "customer_id", "invoice_number",
+            "payment_method", "payment_reference")
+# Zahlungsart, die Personal manuell wählen kann (kein Kartenterminal nötig – der übliche
+# B2B-Weg ist die Rechnung/QR-Rechnung). 'stripe' setzt das System selbst (Shop-Zahlung);
+# 'terminal' (Stripe Terminal / Kartenleser vor Ort) ist vorgesehen, aber noch nicht wählbar.
+PAYMENT_METHODS_STAFF = ("invoice", "cash", "twint", "other")
 
 
 def unit_price(sale: Sale) -> Optional[Decimal]:
@@ -37,10 +42,42 @@ def unit_price(sale: Sale) -> Optional[Decimal]:
     return (sale.order_total / sale.quantity).quantize(Decimal("0.0001"))
 
 
+def _line_for_step(db: Session, order: Order, step) -> tuple[Optional[int], Optional[int]]:
+    """Artikel + Menge, die dieser ``sale``-Schritt abbildet: bei einem Mehrpositionen-
+    Auftrag die Position, die der Schritt trägt (``order_line_id``); sonst der Einzel-
+    Artikel-Anker des Auftrags (``order.article_id``/``quantity``)."""
+    if step.order_line_id is not None:
+        line = db.query(OrderLine).filter(
+            OrderLine.id == step.order_line_id, OrderLine.is_active == True).first()
+        return (line.article_id, line.quantity) if line else (None, None)
+    return order.article_id, order.quantity
+
+
+def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:
+    """Beim personal-erfassten Verkauf (``mode='direct'``) den Basispreis aus der
+    Shop-Preis-Pipeline **vorschlagen** (bleibt überschreibbar) – statt eines leeren
+    Felds, das Personal raten lässt. Hat der Artikel keinen Verkaufspreis (rein interner
+    Artikel), bleibt der Betrag wie bisher leer (Personal trägt ihn frei ein)."""
+    from . import pricing
+    art = db.query(Article).filter(Article.id == article_id).first()
+    if not art:
+        return
+    price = pricing.resolve_primary_price(db, art)
+    if not price or price.kind != "one_time":
+        return   # Abo-Preise ergeben für einen freien ERP-Verkauf keinen sinnvollen Vorschlag
+    view = pricing.price_view_for(db, price, "CHF", country=None, customer=None)
+    if not view or view.get("net") is None:
+        return
+    sale.order_total = (Decimal(view["net"]) * sale.quantity).quantize(Decimal("0.01"))
+    if view.get("tax_rate") is not None:
+        sale.vat_rate = Decimal(str(view["tax_rate"]))
+    sale.currency = "CHF"
+
+
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale]:
-    """Bei Auftragsfreigabe je Verkaufs-Schritt des Prozesses einen Verkauf anlegen."""
-    if not order.article_id or not order.quantity:
-        return []
+    """Bei Auftragsfreigabe je Verkaufs-Schritt des Prozesses einen Verkauf anlegen.
+    Ein **Mehrpositionen**-Auftrag hat je Position einen eigenen Schritt (``order_line_id``);
+    ein Einzel-Artikel-Auftrag nutzt ``order.article_id``/``quantity`` direkt."""
     steps = [d for d in process.order_step_defs(db, order) if d.step_type == "sale"]
     if not steps:
         return []
@@ -51,8 +88,12 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale
     for step in steps:
         if step.id in has_step or (legacy and len(steps) == 1):
             continue
-        sale = Sale(order_id=order.id, article_id=order.article_id,
-                    quantity=order.quantity, step_id=step.id, status="requested")
+        art_id, qty = _line_for_step(db, order, step)
+        if not art_id or not qty:
+            continue
+        sale = Sale(order_id=order.id, article_id=art_id, quantity=qty,
+                    step_id=step.id, status="requested", mode="direct")
+        _prefill_price(db, sale, art_id)
         db.add(sale)
         db.flush()
         log_audit(db, "sales", None, "Verkauf angefragt", actor_id, object_id=order.object_id)
@@ -80,6 +121,10 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
         sale.invoiced_at = now
     elif target == "paid":
         sale.paid_at = now
+        # Personal-erfasste Zahlung ohne gewählte Zahlungsart: Rechnung ist der übliche
+        # B2B-Weg (kein Kartenterminal nötig) – sinnvoller Default statt eines leeren Felds.
+        if sale.payment_method is None:
+            sale.payment_method = "invoice"
     old = sale.status
     sale.status = target
     log_audit(db, "sales", "status", target, user.id, object_id=order.object_id, old_value=old)
@@ -110,6 +155,7 @@ def _apply_stripe_snapshot(sale: Sale, snap: dict) -> None:
         sale.vat_rate = (tax / net * Decimal("100")).quantize(Decimal("0.01"))
     sale.stripe_payment_intent_id = snap.get("payment_intent")
     sale.stripe_snapshot = snap
+    sale.payment_method = "stripe"
 
 
 def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None,

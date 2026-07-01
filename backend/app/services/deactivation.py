@@ -27,13 +27,22 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Instance, Order, StorageLocation
+from ..models import Article, ArticleProcessStep, Instance, Order, OrderLine, StorageLocation
 from .admin import log_audit
 from .events import emit
 from .inventory import in_stock_clauses
 from .objects import next_object_id
 from .processes import has_custom_steps
 from .reservation import release
+
+
+def _order_article_filter(db: Session, ids: set[int]):
+    """Auftrag referenziert einen der Artikel – direkt (``article_id``, Einzel-Artikel-
+    Auftrag) ODER als Position eines Mehrpositionen-Auftrags (``order_lines``); sonst
+    würde eine Artikel-Deaktivierung einen laufenden Mehrpositionen-Verkauf übersehen."""
+    line_order_ids = db.query(OrderLine.order_id).filter(
+        OrderLine.article_id.in_(ids), OrderLine.is_active == True)
+    return or_(Order.article_id.in_(ids), Order.id.in_(line_order_ids))
 
 
 # ─── Artikel: Kaskade über consume-Ressourcen ────────────────────────────────
@@ -95,7 +104,7 @@ def article_impact(db: Session, article: Article) -> dict:
     )
     orders = (
         db.query(Order)
-        .filter(Order.is_active == True, Order.status == "released", Order.article_id.in_(ids))
+        .filter(Order.is_active == True, Order.status == "released", _order_article_filter(db, ids))
         .order_by(Order.object_id)
         .all()
     )
@@ -120,7 +129,7 @@ def deactivate_article(db: Session, article: Article, actor_id: int,
             a.status = "inactive"
     # Entwurf-Aufträge: harmlos mit-inaktivieren (kein Bestand/keine Reservierung)
     for o in db.query(Order).filter(
-        Order.is_active == True, Order.status == "draft", Order.article_id.in_(ids)
+        Order.is_active == True, Order.status == "draft", _order_article_filter(db, ids)
     ).all():
         o.status = "inactive"
     # Freigegebene Aufträge: abbrechen (sonst auslaufen lassen). Ein Abbruch erzwingt – wie
@@ -130,7 +139,7 @@ def deactivate_article(db: Session, article: Article, actor_id: int,
         from .deviation import create_abort_followup
         from .subject import order_active_instances
         for o in db.query(Order).filter(
-            Order.is_active == True, Order.status == "released", Order.article_id.in_(ids)
+            Order.is_active == True, Order.status == "released", _order_article_filter(db, ids)
         ).all():
             if o.abort_into_id:
                 continue                                  # bereits «Abbruch ausstehend»

@@ -8,6 +8,7 @@ from .checkout_intent import CheckoutIntent
 from .article_process_step import ArticleProcessStep
 from .fx_rate import FxRate
 from .order import Order
+from .order_line import OrderLine
 from .purchase_order import PurchaseOrder
 from .sale import Sale
 from .instance import Instance
@@ -25,7 +26,7 @@ from .object_ref import ObjectRef
 __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
-    "ArticleProcessStep", "Order", "PurchaseOrder", "Sale",
+    "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage", "StorageLocation",
     "AuditLog", "Event", "Notification", "ObjectRef",
 ]

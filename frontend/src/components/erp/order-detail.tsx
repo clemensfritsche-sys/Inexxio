@@ -23,6 +23,7 @@ import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import { MultiLineOrderForm } from '@/components/erp/multi-line-order-form';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -105,6 +106,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
+  // Mehrpositionen-Anlage: nur beim frischen Anlegen wählbar (record===null) – ein
+  // bereits bestehender Einzel-Artikel-Auftrag bleibt unverändert einzeln.
+  const [multiLine, setMultiLine] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -383,6 +387,15 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       {/* Content */}
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        {/* Mehrpositionen-Anlage: «Herstellen»-Zeilen wurden als EIGENE Aufträge angelegt
+            (eigene Fertigungs-Timeline) – hier verlinkt, nur direkt nach der Anlage sichtbar. */}
+        {!isCreate && (record.also_created?.length ?? 0) > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
+            <Factory size={16} style={{ flexShrink: 0 }} />
+            Zusätzlich angelegt (eigene Herstellung/Beschaffung):
+            {record.also_created!.map((oid) => <ObjId key={oid} value={oid} />)}
+          </div>
+        )}
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
@@ -460,6 +473,11 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
 
         {/* Bedarf */}
         <SectionTitle>Bedarf</SectionTitle>
+        {isCreate && multiLine ? (
+          <div style={cardStyle}>
+            <MultiLineOrderForm articles={releasedArticles} onCreated={onSaved} onCancel={() => setMultiLine(false)} />
+          </div>
+        ) : (
         <div style={cardStyle}>
           {demandEditable ? (
             <>
@@ -488,6 +506,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   )}
                 </div>
               </div>
+              {isCreate && (
+                <button type="button" onClick={() => setMultiLine(true)}
+                  style={{ ...linkBtn, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <Boxes size={13} /> Mehrere Positionen erfassen (z. B. mehrere Artikel verkaufen)
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -503,6 +527,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </>
           )}
         </div>
+        )}
 
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
@@ -847,7 +872,7 @@ function StepFallback() {
 }
 
 // Mengen-Eingabe mit Einheit-Suffix des referenzierten Artikels
-function TextFieldUnit({ label, value, onChange, unit, required, placeholder }: {
+export function TextFieldUnit({ label, value, onChange, unit, required, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; unit?: string; required?: boolean; placeholder?: string;
 }) {
   return (
@@ -864,19 +889,19 @@ function TextFieldUnit({ label, value, onChange, unit, required, placeholder }: 
   );
 }
 
-const cardStyle: React.CSSProperties = {
+export const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10,
   padding: '16px 18px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 14,
 };
 
-const linkBtn: React.CSSProperties = {
+export const linkBtn: React.CSSProperties = {
   alignSelf: 'flex-start', border: 'none', background: 'none', padding: 0,
   fontSize: 12, color: '#2563eb', cursor: 'pointer', fontWeight: 600,
 };
 
 // Ziel-Karte («Was möchten Sie tun?»): Symbol + Farbe + Klartext + Live-Fussnote.
 // Unmögliche Optionen sind deaktiviert und nennen den Grund (DAU-sicher).
-function GoalCard({ icon: Icon, tone, active, disabled, disabledHint, title, desc, footer, onClick }: {
+export function GoalCard({ icon: Icon, tone, active, disabled, disabledHint, title, desc, footer, onClick }: {
   icon: React.ElementType; tone: string; active: boolean; disabled?: boolean;
   disabledHint?: string; title: string; desc: string; footer: string; onClick: () => void;
 }) {

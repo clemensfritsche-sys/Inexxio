@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..domain import event_types
-from ..models import Article, ArticleProcessStep, Order, UserProfile
+from ..models import Article, ArticleProcessStep, Order, OrderLine, UserProfile
 from ..schemas.article_process_step import (
     ArticleProcessStepCreate,
     ArticleProcessStepResponse,
@@ -41,6 +41,14 @@ class _Owner:
         # Zulässige Schritttypen je Kontext (Herstellung vs. Bestands-Operation) –
         # erzwingt die Kompatibilität der Prozessschritte (siehe domain.event_types).
         self.allowed_step_types = event_types.allowed_step_types(kind)
+        # Mehrpositionen-Auftrag (``order_lines`` statt Einzel-``article_id``): «Verkauf»
+        # (je Position, ``order_line_id``) und «Bewegung» (wirkt artikel-unabhängig auf
+        # «alle Instanzen des Auftrags») sind bereits per-Position-fest. Beschaffung/
+        # Ressource/Datenerfassung/Verschrotten SKALIEREN heute mit ``order.quantity``
+        # (bei Mehrpositionen NULL) bzw. brauchen einen einzelnen Artikel – für sie fehlt
+        # (noch) die Mehrpositionen-Auflösung, daher hier bewusst eingeschränkt statt
+        # einer falschen Zahl/Fehlermeldung.
+        self.pooled = kind == "order" and record.article_id is None
 
     def ensure_editable(self) -> None:
         if self.kind == "article" and self.record.status != "draft":
@@ -57,6 +65,15 @@ class _Owner:
                     ArticleProcessStep.order_id.is_(None))
 
     def sync(self, db: Session) -> None:
+        if self.pooled:
+            # Ein Mehrpositionen-Auftrag verwaltet Verkauf (je Position) und die EINE
+            # gemeinsame Bewegung (eine Sendung) selbst, bei der Anlage – Beschaffung ist
+            # hier nicht möglich (kein Wareneingang nötig). Liesse man die generische
+            # Pflicht-Bewegungs-Synchronisation laufen, würde sie **pro** ``sale``-Schritt
+            # eine eigene «Versand zum Kunden»-Bewegung nachziehen (die Regel kennt keine
+            # Positionen) – aus einer Sendung würden N. Für Mehrpositionen-Aufträge daher
+            # bewusst kein Auto-Sync.
+            return
         sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)
 
     def new_step_kwargs(self) -> dict:
@@ -165,6 +182,17 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
                   "Im Auftrags-Ablauf (Bestand) sind nur Verkauf, Bewegung und "
                   "Datenerfassung zulässig – keine Beschaffung/Ressource.")
         raise HTTPException(400, detail=detail)
+    if owner.pooled and data.step_type not in ("sale", "movement"):
+        raise HTTPException(
+            400, detail="Ein Mehrpositionen-Auftrag unterstützt aktuell nur Verkauf und Bewegung")
+    order_line_id = None
+    if owner.kind == "order" and data.step_type == "sale" and data.order_line_id is not None:
+        line = db.query(OrderLine).filter(
+            OrderLine.id == data.order_line_id, OrderLine.order_id == owner.order_id,
+            OrderLine.is_active == True).first()
+        if not line:
+            raise HTTPException(400, detail="Position gehört nicht zu diesem Auftrag")
+        order_line_id = line.id
     is_purchase = data.step_type == "purchase"
     if is_purchase:
         _validate_supplier(db, data.supplier_id)
@@ -185,6 +213,7 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         **owner.new_step_kwargs(),
         position=position,
         step_type=data.step_type,
+        order_line_id=order_line_id,
         mode=data.mode,
         supplier_id=data.supplier_id if (is_purchase and data.mode == "supplier") else None,
         webshop_url=data.webshop_url if (is_purchase and data.mode == "webshop") else None,

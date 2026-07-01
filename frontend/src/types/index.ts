@@ -169,12 +169,26 @@ export interface OrderRecurrenceInput {
   recurrence_anchor?: string | null;
 }
 
+// Eine Position bei der Mehrpositionen-Anlage: 'produce' wird ein EIGENER Auftrag
+// (eigene Fertigungs-Timeline), 'stock' bündelt sich in einen Sammel-Auftrag (eine
+// Sendung) – optional mit fixierten Instanzen statt FIFO.
+export type OrderLineGoal = 'produce' | 'stock';
+export interface OrderLineIn {
+  article_id: number;
+  quantity: number;
+  goal: OrderLineGoal;
+  instance_object_ids?: number[];
+}
+export type OrderLineInfo = components['schemas']['OrderLineInfo'];
+
 export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
   // Vorgewählte Instanzen (Bestands-Auftrag) statt Artikel + Menge.
   instance_object_ids?: number[] | null;
   desired_delivery_date?: string | null;
+  // Mehrpositionen (mehrere Artikel/Mengen auf einmal) – exklusiv zu article_id/quantity.
+  lines?: OrderLineIn[] | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
@@ -196,6 +210,11 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
 
 export type OrderSale = NonNullable<OrderApi['sale']>;
 export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
+// Herkunft: 'shop' (Kunde über die Kasse/Stripe) | 'direct' (Personal im ERP erfasst).
+export type SaleMode = 'shop' | 'direct';
+// Zahlungsart des manuellen Zahlungseingangs – Rechnung ist der übliche B2B-Weg, KEIN
+// Kartenterminal nötig. 'stripe' setzt das System selbst (Shop-Zahlung).
+export type PaymentMethod = 'invoice' | 'cash' | 'twint' | 'other' | 'stripe';
 
 export interface SaleUpdateInput {
   status?: SaleStatus;
@@ -204,6 +223,8 @@ export interface SaleUpdateInput {
   currency?: string | null;
   customer_id?: number | null;
   invoice_number?: string | null;
+  payment_method?: PaymentMethod | null;
+  payment_reference?: string | null;
   step_id?: number | null;
 }
 

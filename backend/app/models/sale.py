@@ -40,6 +40,19 @@ class Sale(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
 
+    # Herkunft (rein informativ, wie ``PurchaseOrder.mode`` bei der Beschaffung): 'shop' –
+    # Kunde hat selbst über die Kasse bezahlt (Stripe) | 'direct' – Personal hat den Verkauf
+    # im ERP erfasst (Telefon/Messe/B2B-Rechnung). KEIN Modus-Flag am Prozessschritt (der ist
+    # für beide Wege identisch) – nur eine Herkunfts-Notiz je Beleg.
+    mode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
+    # Zahlungsart des manuellen Zahlungseingangs («Zahlung erfassen»): 'invoice' (Rechnung/
+    # QR-Rechnung, der übliche B2B-Weg ohne Kartenterminal) | 'cash' | 'twint' | 'other'.
+    # 'stripe' setzt das System selbst (Shop-Zahlung); 'terminal' (Stripe Terminal / Karten-
+    # leser vor Ort) ist als Wert bewusst vorgesehen, aber noch nicht auswählbar (Phase 2+).
+    payment_method: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    payment_reference: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+
     # Kaufmännisch: EIN Verkaufsbetrag (netto, exkl. MWST). Stückpreis = Summe ÷ Menge.
     order_total: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
     vat_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))   # z. B. 8.10 (CH Standard)

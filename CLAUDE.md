@@ -413,6 +413,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     spiegelt erst danach lokal (`provider.cancel_subscription`) – scheitert der Stripe-Call, bleibt das Abo
     aktiv (sauberer Fehler, kein stilles Weiterlaufen). Button im Konto-Reiter; Stripe-Portal bleibt für
     Zahlungsmittel.
+- **ERP-Direktverkauf (Mehrpositionen-Aufträge + Herkunft/Zahlungsart)**: das Mehrpositionen-Muster des
+  Shop-Warenkorbs (`_create_multiline_sale_order`) ist jetzt auch **manuell im ERP** auslösbar –
+  `POST /erp/orders` akzeptiert alternativ `lines[]` ({article_id, quantity, goal, instance_object_ids?})
+  statt Artikel+Menge. **Herstellen**-Zeilen werden je ein **eigener** Auftrag (unverändert der Einzel-
+  Artikel-Pfad); **Verkaufen**-Zeilen bündeln sich zu **einem** Sammel-Auftrag (neue Tabelle `order_lines`,
+  `order.article_id=NULL`) mit direkt konstruierten `sale`-Schritten je Position (`order_line_id`) + einer
+  gemeinsamen `movement` – der generische Step-Editor (`_Owner.sync`/Pflicht-Bewegungs-Sync) wird dabei
+  bewusst **umgangen** (sonst würde «je Verkauf ein Versand» aus einer Sendung mehrere machen, sobald
+  später am Ablauf etwas geändert wird); Sammel-Aufträge lassen deshalb nur `sale`+`movement` als Schritt-
+  Typ zu. Kernstellen generalisiert, Einzel-Artikel-Pfad unverändert: `subject._allocate_stock_for` (Kern
+  aus `_allocate_stock_subject`), `process._subject_shortfalls` (dict über alle Positionen),
+  `process._peg_supply_to_parent` (Nachschub-Pegging erkennt Sammel-Aufträge als Subjekt),
+  `sale.instantiate_for_order`/`_line_for_step`, `deactivation._order_article_filter` (Artikel-
+  Deaktivierung findet Aufträge auch über `order_lines`). Sale-Schritte eines Sammel-Auftrags laufen
+  **sequentiell** (Mehr-Operationen-Routing: nur der erste offene ist `active`) und werden **nie** durch
+  eine Bestands-Fehlmenge blockiert (bewusst – wie beim Shop-Backorder: Zahlung/Bestätigung ist unabhängig
+  vom physischen Bestand, nur der gemeinsame `movement`-Schritt wartet). Frontend: «Mehrere Positionen
+  erfassen» nur bei der Neuanlage (`MultiLineOrderForm`), sonst unverändert Einzel-Auftrag.
+  Zusätzlich `sales.mode` (shop/direct) + `payment_method`/`payment_reference` am Verkauf: ein
+  personal-erfasster Verkauf braucht **kein Kartenterminal** – Rechnung ist der übliche B2B-Weg
+  (wählbar: invoice/cash/twint/other; `payment_method='terminal'` für Stripe Terminal ist im Datenmodell
+  vorgemerkt, aber **noch nicht** wählbar). Preis-Vorschlag aus der Preis-Pipeline beim direkten Verkauf
+  (überschreibbar). **Regressions-Fix im gleichen Zug:** `PATCH /orders/{id}/sale` nahm bisher blind die
+  erste Sale-Zeile eines Auftrags (`.first()`) – bei mehreren Verkaufs-Schritten hätte jede Aktualisierung
+  dieselbe (falsche) Position getroffen; jetzt wie movement/resource/inspection über `resolve_exec_step`/
+  `fact_for_step` (`step_id`) aufgelöst.
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -439,10 +465,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
 > E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
+Nächste Aufgabe: Mehrpositionen-ERP-Verkauf in der Praxis testen (mehrere Artikel, Fehlbestand +
+Nachschub, Zahlungsart); Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
 eingebettete Kasse/Warenkorb in der Sandbox testen (`docs/stripe-setup.md`); Auto-Fulfillment je
 Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz = vollständige
-Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API).
+Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API);
+Stripe Terminal für Vor-Ort-Zahlung (payment_method='terminal', Phase 2+, aktuell nur vorgemerkt).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

@@ -1426,7 +1426,8 @@ def test_release_allows_partial_stock_no_hard_fail():
     import inspect as _inspect
     from app.services import subject
 
-    src = _inspect.getsource(subject._allocate_stock_subject)
+    # Kern-Allokation (wiederverwendet von Einzel-Artikel-Auftrag UND Mehrpositionen).
+    src = _inspect.getsource(subject._allocate_stock_for)
     # Der FIFO-Rest wirft keinen Bestands-Fehler mehr (Partielle Deckung erlaubt).
     assert "Nicht genügend freigegebener Bestand: benötigt" not in src
     assert "Partielle Deckung" in src
@@ -1481,7 +1482,7 @@ def test_reservation_becomes_firm_only_at_release():
     assert "subject_of_order_id = order.id" in pin_src
     assert "reserved_for_order_id" not in pin_src        # Entwurf reserviert NICHT
 
-    alloc_src = _inspect.getsource(subject._allocate_stock_subject)
+    alloc_src = _inspect.getsource(subject._allocate_stock_for)
     assert "reserve(cand, order.id, take)" in alloc_src  # erst hier scharf (mengengenau)
     assert "next_object_id" not in alloc_src             # KEINE Teilung / neue Nummer
     # Freigabe-Validierung: nur freigegebene (passed/in_stock) Instanzen sind freigebbar
@@ -1613,4 +1614,181 @@ def test_company_object_id_assigned_at_startup_and_exposed_public():
     assert "_ensure_company_object_id()" in fixups
     assert "get_or_create_settings" in _inspect.getsource(main._ensure_company_object_id)
     # Öffentlicher Endpoint (vom ERP-Feed genutzt) liefert die Objektnummer mit.
+
     assert '"object_id": s.object_id' in _inspect.getsource(admin_router.get_public_settings)
+
+
+# ─── Mehrpositionen-Aufträge (order_lines) + Verkaufs-Herkunft/Zahlungsart ─────────
+
+def test_order_create_requires_exactly_one_anchor():
+    """Ein Auftrag braucht ENTWEDER Artikel+Menge ODER Mehrpositionen (``lines``) – nicht
+    beides, nicht keins. Sonst könnte ein Auftrag widersprüchlich/ohne Bedarf entstehen."""
+    import pytest as _pytest
+    from pydantic import ValidationError
+    from app.schemas.order import OrderCreate, OrderLineIn
+
+    with _pytest.raises(ValidationError):
+        OrderCreate()   # weder Anker noch Positionen
+    with _pytest.raises(ValidationError):
+        OrderCreate(article_id=1, quantity=2, lines=[OrderLineIn(article_id=1, quantity=1)])
+    # Je einzeln gültig.
+    assert OrderCreate(article_id=1, quantity=2).quantity == 2
+    assert len(OrderCreate(lines=[OrderLineIn(article_id=1, quantity=1)]).lines) == 1
+
+
+def test_order_line_in_goal_and_pin_validation():
+    """Eine Position ist entweder ``produce`` (wird ein eigener Auftrag) oder ``stock``
+    (Position im Sammel-Auftrag, optional mit fixierten Instanzen statt FIFO). Fixierte
+    Instanzen ergeben bei ``produce`` keinen Sinn (es existiert noch nichts zu fixieren)."""
+    import pytest as _pytest
+    from pydantic import ValidationError
+    from app.schemas.order import OrderLineIn
+
+    with _pytest.raises(ValidationError):
+        OrderLineIn(article_id=1, quantity=1, goal="bogus")
+    with _pytest.raises(ValidationError):
+        OrderLineIn(article_id=1, quantity=1, goal="produce", instance_object_ids=[100000001])
+    # Gültig: stock mit UND ohne Pins, produce ohne Pins.
+    assert OrderLineIn(article_id=1, quantity=1, goal="stock", instance_object_ids=[100000001])
+    assert OrderLineIn(article_id=1, quantity=1, goal="produce")
+
+
+def test_multiline_orders_split_produce_and_pool_stock():
+    """Kernregel der Mehrpositionen-Anlage (``routers/orders.py``): ``goal='produce'``-Zeilen
+    werden je ein **eigener** Auftrag (eigene Fertigungs-Timeline, analog zum Shop: „make-
+    Positionen bleiben je ein eigener Auftrag"); ``goal='stock'``-Zeilen bündeln sich zu
+    EINEM Sammel-Auftrag (``order_lines``) mit automatisch angelegten Verkaufs-/Bewegungs-
+    Schritten – OHNE den generischen Step-Editor zu durchlaufen (kein Pflicht-Bewegungs-Sync,
+    sonst würde aus einer Sendung mehrere – siehe ``_Owner.sync``)."""
+    import inspect as _inspect
+    from app.routers import orders as orders_router
+
+    src = _inspect.getsource(orders_router._create_multiline_order)
+    assert 'line.goal != "produce"' in src
+    assert 'l.goal == "stock"' in src
+    assert "OrderLine(order_id=pooled.id" in src
+    assert 'step_type="sale"' in src and 'step_type="movement"' in src
+    # Direkt konstruiert (kein Aufruf des generischen Step-Editors `_create`/`owner.sync`).
+    assert "_create(" not in src and "owner.sync" not in src
+
+
+def test_pooled_owner_skips_locked_movement_sync():
+    """Regression: die generische Pflicht-Bewegungs-Synchronisation (`sync_locked_movements`)
+    würde PRO ``sale``-Schritt eine eigene «Versand zum Kunden»-Bewegung nachziehen (die Regel
+    kennt keine Positionen) – aus einer gemeinsamen Sendung würden bei jeder Ablauf-Änderung
+    (Schritt hinzufügen/löschen/umsortieren) N. Für einen Mehrpositionen-Auftrag (``pooled``)
+    ist ``_Owner.sync`` deshalb bewusst ein No-op."""
+    import inspect as _inspect
+    from app.routers import article_process
+
+    src = _inspect.getsource(article_process._Owner.sync)
+    assert "if self.pooled:" in src and "return" in src
+    assert "sync_locked_movements" in src   # weiterhin für den Normalfall vorhanden
+    pooled_src = _inspect.getsource(article_process._Owner.__init__)
+    assert "record.article_id is None" in pooled_src
+
+
+def test_pooled_order_step_types_restricted():
+    """Ein Mehrpositionen-Auftrag erlaubt nur Verkauf + Bewegung – Beschaffung/Ressource/
+    Datenerfassung/Verschrotten skalieren (noch) mit ``order.quantity``/brauchen einen
+    einzelnen Artikel und würden bei Mehrpositionen falsche Zahlen statt eines klaren
+    Fehlers liefern."""
+    import inspect as _inspect
+    from app.routers import article_process
+
+    src = _inspect.getsource(article_process._create)
+    assert 'owner.pooled and data.step_type not in ("sale", "movement")' in src
+
+
+def test_sale_step_resolves_via_step_not_first_match():
+    """Regression: `PATCH /orders/{id}/sale` nahm früher blind die ERSTE aktive Sale-Zeile
+    des Auftrags (``Sale.filter(order_id=...).first()``) – bei einem Mehrpositionen-Auftrag
+    mit mehreren Verkaufs-Schritten hätte JEDE Aktualisierung dieselbe (erste) Position
+    getroffen, unabhängig davon, welche der Nutzer bearbeiten wollte. Jetzt wie movement/
+    resource/inspection über ``resolve_exec_step``/``fact_for_step`` aufgelöst (``step_id``)."""
+    import inspect as _inspect
+    from app.routers import orders as orders_router
+
+    src = _inspect.getsource(orders_router.update_order_sale)
+    assert "Sale.filter" not in src.replace(" ", "")   # keine direkte Query mehr
+    assert 'resolve_exec_step(db, order, "sale", data.step_id)' in src
+    assert "fact_for_step(db, order, step)" in src
+
+
+def test_sale_instantiate_resolves_line_per_step():
+    """Bei einem Mehrpositionen-Auftrag trägt jeder ``sale``-Schritt seine EIGENE Position
+    (``order_line_id``) – die Fachzeile (``Sale``) bekommt deren Artikel/Menge statt des
+    (bei Mehrpositionen NULL) ``order.article_id``/``quantity``. Ein Einzel-Artikel-Auftrag
+    bleibt unverändert (kein ``order_line_id`` gesetzt)."""
+    import inspect as _inspect
+    from app.services import sale as sale_svc
+
+    src = _inspect.getsource(sale_svc._line_for_step)
+    assert "step.order_line_id is not None" in src
+    assert "order.article_id, order.quantity" in src
+    inst_src = _inspect.getsource(sale_svc.instantiate_for_order)
+    assert "_line_for_step(db, order, step)" in inst_src
+    assert 'mode="direct"' in inst_src
+
+
+def test_sale_mode_and_payment_method_fields():
+    """Herkunft (`mode`: shop/direct) + manuelle Zahlungsart (`payment_method`) sind an den
+    Verkauf angehängt – der Shop setzt `mode='shop'`/`payment_method='stripe'` selbst; ein
+    personal-erfasster Verkauf braucht KEIN Kartenterminal (Rechnung ist der übliche B2B-Weg,
+    `payment_method` bleibt frei wählbar: invoice/cash/twint/other)."""
+    import inspect as _inspect
+    from app.services import sale as sale_svc, sales as sales_svc
+    from app.schemas.sale import ALLOWED_PAYMENT_METHODS
+
+    assert set(ALLOWED_PAYMENT_METHODS) == {"invoice", "cash", "twint", "other"}
+    assert "payment_method" in sale_svc._EDITABLE and "payment_reference" in sale_svc._EDITABLE
+    assert 'mode="shop"' in _inspect.getsource(sales_svc._create_multiline_sale_order)
+    assert 'sale.payment_method = "stripe"' in _inspect.getsource(sale_svc._apply_stripe_snapshot)
+    # Manuelle Zahlung ohne gewählte Art -> sinnvoller Default (Rechnung), kein Terminal nötig.
+    assert '"invoice"' in _inspect.getsource(sale_svc._apply_transition)
+
+
+def test_subject_shortfalls_aggregate_across_lines():
+    """Mehrere Positionen eines Sammel-Auftrags können GLEICHZEITIG eine Fehlmenge haben
+    (verschiedene Artikel) – ``_subject_shortfalls`` liefert ein Dict über ALLE Positionen,
+    nicht nur den einen ``order.article_id`` des Einzel-Artikel-Falls. ``ensure_supply``
+    iteriert bereits über dieses Dict (kein Zusatz-Code für Mehrpositionen-Nachschub nötig)."""
+    import inspect as _inspect
+    from app.services import process, supply
+
+    src = _inspect.getsource(process._subject_shortfalls)
+    assert "lines_for(db, order)" in src
+    assert "order.article_id and order.quantity" in src
+    # ensure_supply iteriert bereits generisch über {article_id: qty} – funktioniert
+    # unverändert für Mehrpositionen, sobald die Shortfalls mehrere Artikel enthalten.
+    assert "order_shortfalls(db, order).items()" in _inspect.getsource(supply.ensure_supply)
+
+
+def test_supply_pegging_recognizes_pooled_subject():
+    """Regression: Nachschub-Pegging prüfte ob ``order.article_id == parent.article_id`` –
+    bei einem Sammel-Auftrag (``parent.article_id`` ist NULL) war das NIE wahr, gepegते
+    Stück wurden zwar reserviert, aber nicht als Subjekt markiert (fehlten in der
+    Instanzen-Liste des Auftrags). Jetzt zusätzlich über die Positionen (``order_lines``)
+    geprüft."""
+    import inspect as _inspect
+    from app.services import process
+
+    src = _inspect.getsource(process._peg_supply_to_parent)
+    assert "lines_for(db, parent)" in src
+    assert "any(l.article_id == order.article_id for l in lines_for(db, parent))" in src
+
+
+def test_article_deactivation_sees_pooled_orders():
+    """Regression: die Wirkungsanalyse/Kaskade einer Artikel-Deaktivierung filterte Aufträge
+    nur über ``Order.article_id.in_(ids)`` – ein Mehrpositionen-Auftrag referenziert seinen
+    Artikel aber nur über ``order_lines`` und wäre NIE gefunden worden (Artikel liesse sich
+    deaktivieren, während ein Mehrpositionen-Verkauf ihn noch aktiv reserviert)."""
+    import inspect as _inspect
+    from app.services import deactivation
+
+    src = _inspect.getsource(deactivation._order_article_filter)
+    assert "OrderLine.article_id.in_(ids)" in src
+    impact_src = _inspect.getsource(deactivation.article_impact)
+    deactivate_src = _inspect.getsource(deactivation.deactivate_article)
+    assert "_order_article_filter(db, ids)" in impact_src
+    assert deactivate_src.count("_order_article_filter(db, ids)") == 2

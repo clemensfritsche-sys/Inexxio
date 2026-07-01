@@ -260,15 +260,24 @@ def _reserved_qty_for(db: Session, order: Order, article_id: int) -> int:
     return sum(reserved_for(i, order.id) for i in rows)
 
 
-def _subject_shortfall(db: Session, order: Order) -> int:
-    """Fehlmenge des **Subjekts** eines stock-Auftrags (Fertigware, noch nicht reserviert).
-    0 für produce/deviation (die erzeugen/halten ihr Subjekt selbst)."""
+def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
+    """Fehlmenge(n) des **Subjekts** eines stock-Auftrags ({article_id: qty}, noch nicht
+    reserviert). Leer für produce/deviation (die erzeugen/halten ihr Subjekt selbst).
+    Ein **Mehrpositionen**-Auftrag (``order.article_id`` fehlt) hat je Position eine
+    eigene Fehlmenge – mehrere Artikel können gleichzeitig knapp sein."""
+    from .order_lines import lines_for
     from .subject import subject_kind
-    if not order.article_id or not order.quantity:
-        return 0
     if subject_kind(db, order) != "stock":
-        return 0
-    return max(0, order.quantity - _reserved_qty_for(db, order, order.article_id))
+        return {}
+    if order.article_id and order.quantity:
+        short = max(0, order.quantity - _reserved_qty_for(db, order, order.article_id))
+        return {order.article_id: short} if short > 0 else {}
+    out: dict[int, int] = {}
+    for line in lines_for(db, order):
+        short = max(0, line.quantity - _reserved_qty_for(db, order, line.article_id))
+        if short > 0:
+            out[line.article_id] = out.get(line.article_id, 0) + short
+    return out
 
 
 def _component_needs(db: Session, order: Order) -> dict[int, int]:
@@ -298,9 +307,7 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     Lager + für diesen Auftrag reserviert)."""
     out: dict[int, int] = {}
     if step.step_type in ("movement", "inspection", "scrap"):
-        short = _subject_shortfall(db, order)
-        if short > 0 and order.article_id:
-            out[order.article_id] = short
+        out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
         for line in (step.resource_lines or []):
             if (line.get("mode") or "consume") != "consume":
@@ -322,9 +329,8 @@ def order_shortfalls(db: Session, order: Order) -> dict[int, int]:
     """Alle nicht gedeckten Bedarfe des Auftrags, je Artikel aggregiert ({article_id: qty}) –
     Grundlage für den Nachschub (``services/supply.py``)."""
     agg: dict[int, int] = {}
-    subj = _subject_shortfall(db, order)
-    if subj > 0 and order.article_id:
-        agg[order.article_id] = subj
+    for aid, subj in _subject_shortfalls(db, order).items():
+        agg[aid] = agg.get(aid, 0) + subj
     for aid, need in _component_needs(db, order).items():
         have = available(db, aid, order.id)
         if need > have:
@@ -505,8 +511,15 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     remaining = order_shortfalls(db, parent).get(order.article_id, 0)
     if remaining <= 0:
         return
+    from .order_lines import lines_for
     from .subject import record_link, subject_kind
-    is_subject = order.article_id == parent.article_id and subject_kind(db, parent) == "stock"
+    # Subjekt des Eltern: bei einem Einzel-Artikel-Auftrag derselbe Artikel; bei einem
+    # Mehrpositionen-Auftrag eine seiner Positionen (``order_lines`` – ein Auftrag kann
+    # mehrere Artikel gleichzeitig als Subjekt haben).
+    is_subject = subject_kind(db, parent) == "stock" and (
+        order.article_id == parent.article_id
+        or any(l.article_id == order.article_id for l in lines_for(db, parent))
+    )
     produced = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
