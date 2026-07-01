@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
@@ -150,11 +150,18 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
   const sig = demandSig(form.article_id, form.quantity, effectiveDate);
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
-  // Bestands-Operation? – sobald der Auftrag eigene Schritte trägt. Live über ProcessSteps;
-  // initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
+  // Bestands-Operation? – NICHT die blosse Schrittzahl, sondern die **deklarierte Subjekt-Rolle**
+  // der Schritte (Beschaffung/Ressource bringen Bestand herein = Herstellung; Verkauf/Bewegung
+  // wirken auf vorhandenen Bestand). Live über ProcessSteps (`isStockOp`, Spiegel der Backend-
+  // Registry); initial aus der abgeleiteten Subjektart, bis ProcessSteps den echten Stand meldet.
   const [orderStepCount, setOrderStepCount] = useState<number | null>(null);
+  const [orderIsStockOp, setOrderIsStockOp] = useState<boolean | null>(null);
+  const onStepsCount = useCallback((n: number, stockOp: boolean) => {
+    setOrderStepCount(n);
+    setOrderIsStockOp(stockOp);
+  }, []);
   const isDraftStaff = isStaff && !isCreate && record?.status === 'draft';
-  const hasCustomSteps = orderStepCount != null ? orderStepCount > 0 : record?.subject_role === 'stock';
+  const hasCustomSteps = orderIsStockOp != null ? orderIsStockOp : record?.subject_role === 'stock';
 
   // Fixierte (gewählte) Instanzen + verfügbarer Lagerbestand des Artikels (für die Ziel-Karten).
   const pins = (record?.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null);
@@ -555,7 +562,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </SectionTitle>
             <div style={cardStyle}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
-                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
+                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
             </div>
           </>
         )}
@@ -645,7 +652,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
                   <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
-                    selfArticleObjectId={record.article_object_id ?? null} onStepsCount={setOrderStepCount} />
+                    selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
                 </div>
               </>
             )}

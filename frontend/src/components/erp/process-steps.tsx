@@ -7,7 +7,7 @@ import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType,
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { unitLabel } from '@/lib/article';
-import { STEP_META, locationTypeLabel, instanceLabel } from '@/lib/process';
+import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -38,7 +38,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
   ownerObjectId: number | null;          // Objektnummer des Trägers
   suppliers: UserProfile[];
   readOnly?: boolean;
-  onStepsCount?: (n: number) => void;
+  onStepsCount?: (n: number, isStockOp: boolean) => void;
   selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
@@ -71,8 +71,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
   }, [owner, ownerObjectId]);
 
-  // Schrittanzahl an das Elternfenster melden (für die Freigabe-Bedingung)
-  useEffect(() => { onStepsCount?.(steps.length); }, [steps, onStepsCount]);
+  // Schrittanzahl + abgeleitete Auftragsart (Bestands-Operation vs. Herstellung) an das
+  // Elternfenster melden – Letzteres über die deklarierte Subjekt-Rolle der Schritte
+  // (Spiegel der Backend-Registry), damit ein Beschaffungs-/Ressourcen-Schritt korrekt
+  // als «Herstellung» und nicht als «Bestands-Operation» erkannt wird.
+  useEffect(() => {
+    onStepsCount?.(steps.length, isStockOperation(steps.map((s) => s.step_type as StepType)));
+  }, [steps, onStepsCount]);
 
   // Herkunfts-Artikel laden, um beim Beschaffungsschritt nur die **tatsächlich
   // gepflegten** optionalen Stammdatenfelder zur Freigabe anzubieten.

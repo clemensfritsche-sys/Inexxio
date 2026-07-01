@@ -18,10 +18,11 @@ Enthält der Ablauf einen Verkauf, verlassen die Subjekte bei Abschluss den Best
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from ..domain import event_types
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .inventory import allocate, fifo_candidates
-from .processes import has_custom_steps
+from .processes import order_custom_steps
 from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
@@ -64,23 +65,33 @@ def subject_kind(db: Session, order: Order) -> str:
     """Abgeleitete Subjektart (Artikel ist immer der Anker) – KEIN Modus-Flag, KEINE
     Quellen-Übersteuerung:
 
-    ``produce`` – KEINE eigenen Schritte → der Auftrag fährt den Artikel-Prozess und
-      ERZEUGT neue Instanzen (auch jede **Beschaffung** und jeder **Nachschub**: der
-      Artikel-Prozess bringt den Bestand herein – es wird NIE vorhandener Bestand vorausgesetzt).
-    ``stock``   – eigene Schritte → der Auftrag wirkt auf **vorhandene** Instanzen des
-      Artikels (Wartung/Verkauf/Bewegung): ``quantity`` Stück, FIFO ab Lager, optional
-      durch fixierte (gepinnte) Instanzen ergänzt. Was an Bestand fehlt, deckt ein
-      **Nachschub-Unter-Auftrag** (``services/supply.py``) – der Schritt ist bis dahin blockiert.
+    ``produce`` – der Auftrag bringt Bestand **herein** und ERZEUGT neue Instanzen. Das
+      gilt für KEINE eigenen Schritte (der Auftrag fährt den Artikel-Prozess) **ebenso wie
+      für eigene Schritte, die Bestand hereinbringen** – Beschaffung/Ressource haben in der
+      Registry die Subjekt-Rolle ``PRODUCE``. Es wird NIE vorhandener Bestand vorausgesetzt.
+    ``stock``   – eigene Schritte, die auf **vorhandenen** Bestand zugreifen (Verkauf →
+      ``STOCK``) bzw. bestehende Instanzen bearbeiten (Bewegung/Prüfung/Verschrottung →
+      ``INSTANCE``): ``quantity`` Stück, FIFO ab Lager, optional durch fixierte Instanzen
+      ergänzt. Was fehlt, deckt ein **Nachschub-Unter-Auftrag** (``services/supply.py``) –
+      der zugreifende Schritt ist bis dahin blockiert.
 
-    Massgeblich ist **allein** ``has_custom_steps`` – eigene Schritte = Operation am
-    Bestand, keine = Herstellung. Eine reine (Entwurfs-)Pin-Auswahl ohne Schritte kippt
-    den Auftrag NICHT in eine Bestands-Operation (sonst scheitert die Herstellung an
-    „kein Bestand")."""
+    Massgeblich ist die **deklarierte** Subjekt-Rolle der Schritte (REA-Registry,
+    ``event_types.derive_subject_mode`` mit ``SUBJECT_PRECEDENCE``) – NICHT die blosse
+    Anwesenheit eines Schritts. So kippt ein Schritt, der Bestand HEREINBRINGT (Beschaffung),
+    den Auftrag nicht fälschlich in eine Bestands-Operation, die dann still an „kein Bestand"
+    scheitert (kein Subjekt, keine Instanz, keine Fehlermeldung). Eine reine (Entwurfs-)Pin-
+    Auswahl ohne Schritte kippt den Auftrag ebenfalls NICHT (sonst scheitert die Herstellung)."""
     if is_deviation(order):
         return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
-    if has_custom_steps(db, order):
-        return "stock"
-    return "produce"
+    steps = order_custom_steps(db, order.id)
+    if not steps:
+        return "produce"     # keine eigenen Schritte → Artikel-Prozess, erzeugt Instanzen
+    # Eigene Schritte: die Subjektart ist die DEKLARIERTE Rolle (Registry), nicht die
+    # Anwesenheit. Bringt der Ablauf Bestand herein (PRODUCE: Beschaffung/Ressource), ERZEUGT
+    # der Auftrag – nur ein Zugriff auf vorhandenen Bestand (STOCK/INSTANCE) ist eine
+    # Bestands-Operation.
+    mode = event_types.derive_subject_mode({s.step_type for s in steps})
+    return "produce" if mode == event_types.PRODUCE else "stock"
 
 
 def order_instances(db: Session, order: Order) -> list[Instance]:
@@ -135,8 +146,9 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
       Instanzen, den Rest **FIFO ab Lager** auffüllen – alle für diesen Auftrag reserviert.
     produce → neue Bestands-Instanzen erzeugen (Serialisierung aus dem Artikel).
 
-    Entscheidend ist **allein** ``has_custom_steps`` (siehe ``subject_kind``); eine
-    Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern).
+    Entscheidend ist die **deklarierte Subjekt-Rolle** der Schritte (siehe ``subject_kind``);
+    eine Pin-Auswahl ohne Schritte erzeugt trotzdem (statt an fehlendem Bestand zu scheitern),
+    und ein Schritt, der Bestand hereinbringt (Beschaffung), erzeugt ebenfalls.
 
     deviation → die (bereits vorhandenen) Subjekt-Instanzen werden nur übernommen, ohne
       Lager-Allokation/-Reservierung (sie sind schon in Arbeit/im Besitz)."""
