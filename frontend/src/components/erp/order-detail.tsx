@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock, Plus, Trash2, Minus } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -113,6 +113,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
+  const [recoverBusy, setRecoverBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -407,6 +408,35 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       setError(e instanceof Error ? e.message : 'Nachschub konnte nicht angelegt werden');
     } finally {
       setSupplyBusy(false);
+    }
+  }
+
+  // «Aus Lager decken» (FIFO, ohne ids) / «Andere Instanz wählen» (gezielt): deckt die
+  // Subjekt-Fehlmenge eines blockierten Schritts aus vorhandenem Lagerbestand.
+  async function coverFromStock(instanceObjectIds?: number[]) {
+    if (!record) return;
+    setRecoverBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.coverStock(record.object_id as number, instanceObjectIds));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Aus Lager decken fehlgeschlagen');
+    } finally {
+      setRecoverBusy(false);
+    }
+  }
+
+  // «Menge reduzieren»: senkt die Anforderung auf das Vorhandene – der Schritt läuft weiter.
+  async function reduceDemand() {
+    if (!record) return;
+    setRecoverBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.reduceDemand(record.object_id as number));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Menge reduzieren fehlgeschlagen');
+    } finally {
+      setRecoverBusy(false);
     }
   }
 
@@ -789,7 +819,8 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </div>
             {currentStepObj?.state === 'blocked' ? (
               <BlockedStepNotice step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
-                busy={supplyBusy} error={error} onSupply={requestSupply} />
+                busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
+                onCoverStock={coverFromStock} onReduce={reduceDemand} />
             ) : (
               <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
             )}
@@ -854,20 +885,42 @@ function stepHint(s: OrderStep): string | undefined {
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
+// Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
+// ihnen sind «Aus Lager decken» / «Andere Instanz wählen» / «Menge reduzieren» sinnvoll –
+// ein Komponenten-Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
+const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'sale'];
+
 // Blockierter Schritt: wartet auf Material (Subjekt/Komponente nicht am Lager). Zeigt die
 // Fehlmengen und – sofern Nachschub bereits läuft – die verlinkten Nachschub-Aufträge.
-// Läuft noch kein Nachschub, kann Staff am freigegebenen Auftrag einen anlegen. «Blockiert»
-// ist abgeleitet: sobald der Nachschub liefert, wird der Schritt von selbst wieder aktiv.
-function BlockedStepNotice({ step, isStaff, canSupply, busy, error, onSupply }: {
+// Läuft noch kein Nachschub, hat Staff am freigegebenen Auftrag mehrere Wege, den Bedarf zu
+// decken (abgeleitet aus dem Bestand): produzieren (Nachschub), aus Lager decken (freier
+// Bestand vorhanden), gezielt eine andere Instanz wählen, oder die Menge reduzieren.
+function BlockedStepNotice({ step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onReduce }: {
   step: OrderStep;
   isStaff: boolean;
   canSupply: boolean;
   busy: boolean;
+  recoverBusy: boolean;
   error: string | null;
   onSupply: () => void;
+  onCoverStock: (instanceObjectIds?: number[]) => void;
+  onReduce: () => void;
 }) {
   const running = step.supply_order_object_ids ?? [];
   const hasRunning = running.length > 0;
+  const shortfall = step.shortfall ?? [];
+  const isSubjectStep = SUBJECT_STEP_TYPES.includes(step.step_type);
+  const availableInstances = shortfall.flatMap((sf) => sf.available_instances ?? []);
+  const stockAvailable = shortfall.reduce((s, sf) => s + (sf.available_quantity ?? 0), 0);
+  const canRecover = isStaff && canSupply && !hasRunning;
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState<number[]>([]);
+  const busyAny = busy || recoverBusy;
+
+  function togglePick(oid: number) {
+    setPicked((p) => (p.includes(oid) ? p.filter((x) => x !== oid) : [...p, oid]));
+  }
+
   return (
     <div style={{ border: '1px solid #fde68a', borderRadius: 10, background: '#fffbeb', overflow: 'hidden', marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', fontSize: 14, fontWeight: 700, color: '#92400e', borderBottom: '1px solid #fde68a' }}>
@@ -875,36 +928,105 @@ function BlockedStepNotice({ step, isStaff, canSupply, busy, error, onSupply }: 
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px' }}>
         <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-          Dieser Schritt ist blockiert – das benötigte Material ist nicht am Lager. Sobald der
-          Nachschub geliefert hat, läuft der Schritt automatisch weiter.
+          Dieser Schritt ist blockiert – das benötigte Material ist nicht (mehr) am Lager
+          {isSubjectStep && <> (z. B. weil ein Stück per Abweichung ausgesteuert wurde)</>}.
+          {canRecover && isSubjectStep
+            ? ' Wählen Sie, wie es weitergeht: Nachschub produzieren, aus Lager decken oder die Menge reduzieren.'
+            : ' Sobald der Nachschub geliefert hat, läuft der Schritt automatisch weiter.'}
         </div>
-        {(step.shortfall?.length ?? 0) > 0 && (
+        {shortfall.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {step.shortfall!.map((sf, i) => (
+            {shortfall.map((sf, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a' }}>
                 <PackageMinus size={14} style={{ color: '#b45309', flexShrink: 0 }} />
                 <span>
                   <strong>{sf.quantity}</strong> × {sf.article_name ?? 'Artikel'}
                   {sf.article_object_id != null && <> (<ObjId value={sf.article_object_id} />)</>} fehlt
+                  {(sf.available_quantity ?? 0) > 0 && <span style={{ color: '#64748b' }}> · {sf.available_quantity} am Lager frei</span>}
                 </span>
               </div>
             ))}
           </div>
         )}
-        {hasRunning ? (
+        {hasRunning && (
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <PackagePlus size={15} style={{ color: '#b45309', flexShrink: 0 }} />
             Nachschub läuft:
             {running.map((oid) => <ObjId key={oid} value={oid} />)}
           </div>
-        ) : isStaff && canSupply ? (
-          <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busy}>
-            {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
-          </PrimaryButton>
-        ) : null}
+        )}
+        {canRecover && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Empfehlung: liegt der Artikel bereits am Lager, ist «Aus Lager decken» der
+                schnellste Weg – sonst «Nachschub anlegen» (produzieren/beschaffen). */}
+            {isSubjectStep && stockAvailable > 0 ? (
+              <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
+                {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busyAny}>
+                {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
+              </PrimaryButton>
+            )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {isSubjectStep && stockAvailable > 0 && (
+                <SecondaryAction icon={PackagePlus} label="Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
+              )}
+              {isSubjectStep && availableInstances.length > 0 && (
+                <SecondaryAction icon={Boxes} label="Andere Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
+              )}
+              {isSubjectStep && (
+                <SecondaryAction icon={Minus} label="Menge reduzieren" onClick={onReduce} disabled={busyAny} />
+              )}
+            </div>
+            {pickerOpen && availableInstances.length > 0 && (
+              <div style={{ border: '1px solid #fde68a', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 12, color: '#64748b' }}>Ersatz-Instanz(en) am Lager wählen:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {availableInstances.map((ai) => {
+                    const sel = picked.includes(ai.object_id);
+                    return (
+                      <button key={ai.object_id} type="button" onClick={() => togglePick(ai.object_id)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                          padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                          border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
+                          background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                        }}>
+                        {sel && <CheckCircle2 size={12} />}
+                        {fmtObjId(ai.object_id)}{ai.quantity > 1 ? ` ·${ai.quantity}` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+                <PrimaryButton icon={CheckCircle2} onClick={() => { onCoverStock(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
+                  {recoverBusy ? 'Wird übernommen…' : 'Gewählte Instanzen übernehmen'}
+                </PrimaryButton>
+              </div>
+            )}
+          </div>
+        )}
         {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
       </div>
     </div>
+  );
+}
+
+// Kleiner Sekundär-Knopf (nicht die grosse Hauptaktion) für die weiteren Deckungs-Wege.
+function SecondaryAction({ icon: Icon, label, onClick, disabled, active }: {
+  icon: React.ElementType; label: string; onClick: () => void; disabled?: boolean; active?: boolean;
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+        padding: '7px 12px', borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
+        border: `1px solid ${active ? '#7c3aed' : '#e2e8f0'}`,
+        background: active ? '#f5f3ff' : '#fff', color: active ? '#6d28d9' : '#475569',
+        opacity: disabled ? 0.5 : 1,
+      }}>
+      <Icon size={14} /> {label}
+    </button>
   );
 }
 

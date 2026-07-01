@@ -333,6 +333,13 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
     return out
 
 
+def subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
+    """Öffentliche Sicht auf die **Subjekt**-Fehlmengen eines Auftrags ({article_id: qty}) –
+    Grundlage der Wiederherstellung nach einer Aussteuerung (aus Lager decken / Menge
+    reduzieren, ``services/recovery.py``). Nur das Subjekt (Fertigware), NICHT die Komponenten."""
+    return _subject_shortfalls(db, order)
+
+
 def _component_needs(db: Session, order: Order) -> dict[int, int]:
     """Offener Komponentenbedarf (consume) über alle Ressourcen-Schritte, je Artikel.
     **Bereits verbrauchte** Schritte (Fachzeile vorhanden) zählen nicht mehr mit – sonst

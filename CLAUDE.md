@@ -293,6 +293,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig
     (nicht im Artikel-Prozess). Durchfaller sind im Panel vorausgewählt. **«Ersatz»** = Komposition aus
     `scrap` (defektes Teil raus) + Beschaffung/Bestand (neues herein) – kein monolithischer Schritt.
+  - **Aussteuerung eines reservierten Subjekts → Eltern reagiert + drei Deckungs-Wege** (`services/
+    recovery.py`): Steuert eine Abweichung eine Instanz aus, die ein **anderer** Auftrag bereits reserviert
+    hatte (z. B. ein für einen Verkauf reserviertes Teil), muss dessen Fehlmenge **ehrlich** wieder
+    sichtbar werden. **Core-Fix:** `scrap.record_scrap` löst beim Verschrotten **ALLE** Reservierungen der
+    Instanz (`reservation.release_all`), nicht nur die des eigenen (Abweichungs-)Auftrags – ein
+    verschrottetes Teil verlässt den Bestand endgültig und kann keinen Auftrag mehr beliefern. Dadurch
+    meldet `_subject_shortfalls` des Eltern-Auftrags nach Schliessung der Abweichung wieder eine Fehlmenge,
+    sein **Subjekt-Schritt (Bewegung/Versand/Kontrolle) wird «blockiert»** – abgeleitet aus dem Bestand,
+    kein stilles Unterliefern mehr (vorher blieb die tote Eltern-Reservierung stehen → Schritt lief
+    scheinbar weiter, es wurde 1 Stück zu wenig geliefert). Der blockierte Schritt bietet Personal (am
+    freigegebenen Auftrag) **vier Wege**, konsistent mit dem bestehenden Backorder-Verhalten und der
+    „Mensch entscheidet"-Philosophie: (1) **Nachschub anlegen** (produzieren/beschaffen, `POST /supply`,
+    bestehend); (2) **Aus Lager decken** – freien Bestand FIFO reservieren (`POST /cover-stock` ohne ids,
+    `recovery.cover_from_stock`); (3) **Andere Instanz wählen** – gezielt eine freie, freigegebene Instanz
+    reservieren (`POST /cover-stock` mit ids, inline-Picker); (4) **Menge reduzieren** – die Anforderung
+    auf das Vorhandene senken (`POST /reduce`, `recovery.reduce_to_available`; Einzel-Artikel: `order.
+    quantity`, Mehrpositionen: je Position, letzte darf nicht auf 0 fallen → dann «Abbrechen»). Diese Wege
+    bilden genau die Fälle je Subjektwahl ab: ein **FIFO**-Auftrag nutzt anderen Lagerbestand; ein gezielt
+    auf Instanzen fixierter Auftrag wählt eine **Ersatz-Instanz** oder reduziert; wo nichts am Lager liegt,
+    **produziert** der Nachschub. `StepShortfall` trägt dafür die **Verfügbarkeit** (`available_quantity`/
+    `available_instances`) aus freiem Lagerbestand; `BlockedStepNotice` empfiehlt „Aus Lager decken", wenn
+    Bestand frei ist, sonst „Nachschub anlegen". Nur bei **Subjekt-Schritten** (movement/inspection/scrap/
+    sale) – ein reiner Komponenten-Bedarf (Ressource) wird weiterhin ausschliesslich über Nachschub
+    gedeckt.
 - **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
   grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
   durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern

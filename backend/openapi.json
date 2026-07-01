@@ -2403,6 +2403,112 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/cover-stock": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Cover Stock",
+        "description": "«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines\nblockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder\ngezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der\nBestand bereits am Lager liegt. Liefert den Auftrag zurück.",
+        "operationId": "cover_stock_api_v1_erp_orders__object_id__cover_stock_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCoverStock"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/reduce": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Reduce Demand",
+        "description": "«Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene\nsenken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach\nmit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).\nLiefert den Auftrag zurück.",
+        "operationId": "reduce_demand_api_v1_erp_orders__object_id__reduce_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [
@@ -7831,6 +7937,27 @@
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
       },
+      "OrderCoverStock": {
+        "properties": {
+          "instance_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Ids"
+          }
+        },
+        "type": "object",
+        "title": "OrderCoverStock",
+        "description": "«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines\nblockierten Schritts aus vorhandenem Lagerbestand decken. Ohne ``instance_object_ids``\nwird FIFO aus dem freien Bestand reserviert; mit Auswahl genau diese Instanzen."
+      },
       "OrderCreate": {
         "properties": {
           "article_id": {
@@ -10412,6 +10539,25 @@
         "title": "ShopProduct",
         "description": "Ein publiziertes Produkt im Shop (lokalisierter Inhalt + Preis-Optionen)."
       },
+      "ShortfallInstance": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "ShortfallInstance",
+        "description": "Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse\n(«Andere Instanz wählen»)."
+      },
       "StepReorder": {
         "properties": {
           "ordered_ids": {
@@ -10456,6 +10602,19 @@
           "quantity": {
             "type": "integer",
             "title": "Quantity"
+          },
+          "available_quantity": {
+            "type": "integer",
+            "title": "Available Quantity",
+            "default": 0
+          },
+          "available_instances": {
+            "items": {
+              "$ref": "#/components/schemas/ShortfallInstance"
+            },
+            "type": "array",
+            "title": "Available Instances",
+            "default": []
           }
         },
         "type": "object",
@@ -10463,7 +10622,7 @@
           "quantity"
         ],
         "title": "StepShortfall",
-        "description": "Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge)."
+        "description": "Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).\n\n``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**\ndecken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."
       },
       "StorageLocationCreate": {
         "properties": {

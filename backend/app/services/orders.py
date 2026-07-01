@@ -17,7 +17,8 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary, StepShortfall,
+    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary,
+    ShortfallInstance, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -241,12 +242,24 @@ def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si
     shortfalls = process.step_shortfalls(db, order, step)
     if not shortfalls:
         return
+    from .inventory import fifo_candidates
+    from .reservation import free_qty
+
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(shortfalls.keys())).all()}
-    si.shortfall = [
-        StepShortfall(article_object_id=(arts[aid].object_id if aid in arts else None),
-                      article_name=(arts[aid].name if aid in arts else None), quantity=qty)
-        for aid, qty in shortfalls.items()
-    ]
+    si.shortfall = []
+    for aid, qty in shortfalls.items():
+        # Freie, freigegebene Instanzen dieses Artikels am Lager – womit sich der Bedarf ohne
+        # Nachschub decken liesse («Aus Lager decken» / «Andere Instanz wählen»).
+        free = [c for c in fifo_candidates(db, aid, for_order_id=None) if free_qty(c) > 0]
+        si.shortfall.append(StepShortfall(
+            article_object_id=(arts[aid].object_id if aid in arts else None),
+            article_name=(arts[aid].name if aid in arts else None), quantity=qty,
+            available_quantity=sum(free_qty(c) for c in free),
+            available_instances=[
+                ShortfallInstance(object_id=c.object_id, quantity=free_qty(c))
+                for c in free if c.object_id is not None
+            ],
+        ))
     si.supply_order_object_ids = [
         r[0] for r in
         db.query(Order.object_id).filter(

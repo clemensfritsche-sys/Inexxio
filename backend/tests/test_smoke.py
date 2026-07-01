@@ -1931,3 +1931,62 @@ def test_subscription_cancellation_has_minimum_commitment():
     cancel_src = _inspect.getsource(shop.cancel_subscription)
     assert "earliest_cancellation_date(order)" in cancel_src
     assert 'user.role not in ("admin", "employee")' in cancel_src
+
+
+def test_scrap_releases_all_reservations_of_the_instance():
+    """Core-Fix: Verschrotten löst NICHT nur die Reservierung des eigenen Auftrags, sondern
+    ALLE Reservierungen der Instanz. Ein verschrottetes Teil verlässt den Bestand endgültig –
+    hing es an einem Fremd-/Eltern-Auftrag (z. B. eine Abweichung steuert eine für den
+    Eltern-Verkauf reservierte Instanz aus), wird dessen Fehlmenge dadurch ehrlich sichtbar."""
+    import inspect as _inspect
+    from app.services import reservation, scrap
+
+    assert hasattr(reservation, "release_all")
+    src = _inspect.getsource(scrap.record_scrap)
+    assert "release_all(inst)" in src
+    assert "release(inst, order.id)" not in src   # alter, undichter Aufruf ist ersetzt
+
+
+def test_recovery_offers_three_ways_to_close_a_subject_shortfall():
+    """Nach einer Aussteuerung stehen drei vom Nutzer wählbare Wege bereit, den Subjekt-
+    Bedarf zu decken: aus Lager decken (FIFO oder gezielte Instanz), Menge reduzieren –
+    plus der bestehende Nachschub (produzieren)."""
+    import inspect as _inspect
+    from app.services import process, recovery
+
+    assert hasattr(process, "subject_shortfalls")
+
+    cover = _inspect.getsource(recovery.cover_from_stock)
+    assert "instance_object_ids" in cover           # gezielte Instanz-Auswahl
+    assert "fifo_candidates" in _inspect.getsource(recovery._fifo_cover)   # FIFO ab freiem Lager
+
+    reduce = _inspect.getsource(recovery.reduce_to_available)
+    assert "order.quantity" in reduce               # Einzel-Artikel: Menge senken
+    assert "lines_for" in reduce                     # Mehrpositionen: Positionsmenge senken
+
+
+def test_recovery_endpoints_are_wired_and_staff_gated():
+    """Die Wege sind über eigene, freigegeben-gescopte Endpunkte erreichbar."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    cover = _inspect.getsource(orders.cover_stock)
+    assert "recovery.cover_from_stock" in cover
+    assert 'order.status != "released"' in cover
+
+    reduce = _inspect.getsource(orders.reduce_demand)
+    assert "recovery.reduce_to_available" in reduce
+    assert 'order.status != "released"' in reduce
+
+
+def test_step_shortfall_exposes_stock_availability_for_recovery():
+    """Der blockierte Schritt trägt, womit sich der Bedarf aus vorhandenem Lagerbestand decken
+    liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."""
+    import inspect as _inspect
+    from app.schemas.order import ShortfallInstance, StepShortfall
+    from app.services import orders
+
+    assert "available_instances" in StepShortfall.model_fields
+    assert "available_quantity" in StepShortfall.model_fields
+    assert set(ShortfallInstance.model_fields) >= {"object_id", "quantity"}
+    assert "available_instances" in _inspect.getsource(orders._fill_step_shortfall)

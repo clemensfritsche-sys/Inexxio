@@ -13,11 +13,23 @@ from .resource import ResourceEmbed
 from .sale import SaleEmbed
 
 
+class ShortfallInstance(BaseModel):
+    """Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse
+    («Andere Instanz wählen»)."""
+    object_id: int
+    quantity: int = 1
+
+
 class StepShortfall(BaseModel):
-    """Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge)."""
+    """Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).
+
+    ``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**
+    decken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."""
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     quantity: int
+    available_quantity: int = 0
+    available_instances: list[ShortfallInstance] = []
 
 
 class OrderStepInfo(BaseModel):
@@ -165,6 +177,13 @@ class OrderUpdate(BaseModel):
 class OrderDeviationCreate(BaseModel):
     """«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
     Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."""
+    instance_object_ids: Optional[list[int]] = None
+
+
+class OrderCoverStock(BaseModel):
+    """«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
+    blockierten Schritts aus vorhandenem Lagerbestand decken. Ohne ``instance_object_ids``
+    wird FIFO aus dem freien Bestand reserviert; mit Auswahl genau diese Instanzen."""
     instance_object_ids: Optional[list[int]] = None
 
 
