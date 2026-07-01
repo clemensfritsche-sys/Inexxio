@@ -61,46 +61,57 @@ def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
     """Bei Auftragsfreigabe je Beschaffungs-Schritt **des gewählten Prozesses** eine
-    Bestellung anlegen (Mehr-Operationen-Routing über ``step_id``).
+    Bestellung anlegen (Mehr-Operationen-Routing über ``step_id``) – EIN Schritt, aber
+    bei einem Mehrpositionen-Auftrag (``order_lines``) je Position eine eigene Bestellung
+    (eigene Bestellsumme/Menge je Artikel; alle mit demselben ``step_id`` – analog
+    ``sale.instantiate_for_order``).
 
-    Idempotent: existiert für einen Schritt bereits eine Bestellung, wird sie
-    übersprungen. Hat der Prozess keinen purchase-Schritt, passiert nichts.
+    Idempotent: existiert für eine Position eines Schritts bereits eine Bestellung, wird
+    sie übersprungen. Hat der Prozess keinen purchase-Schritt, passiert nichts.
     """
-    if not order.article_id or not order.quantity:
-        return []
     steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
     if not steps:
+        return []
+    from .order_lines import lines_for
+    lines = lines_for(db, order)
+    targets = [(l.article_id, l.quantity) for l in lines] if lines else (
+        [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
+    if not targets:
         return []
     existing = (
         db.query(PurchaseOrder)
         .filter(PurchaseOrder.order_id == order.id, PurchaseOrder.is_active == True)
         .all()
     )
-    has_step = {po.step_id for po in existing if po.step_id is not None}
-    legacy_unrouted = any(po.step_id is None for po in existing)
+    have_by_step: dict[int | None, set[int]] = {}
+    for po in existing:
+        have_by_step.setdefault(po.step_id, set()).add(po.article_id)
     created: list[PurchaseOrder] = []
     for step in steps:
-        if step.id in has_step:
-            continue
-        if legacy_unrouted and len(steps) == 1:
-            continue  # Altbestellung ohne step_id gehört dem einzigen Schritt
-        po = PurchaseOrder(
-            order_id=order.id,
-            article_id=order.article_id,
-            quantity=order.quantity,
-            step_id=step.id,
-            mode=step.mode,
-            supplier_id=step.supplier_id,
-            webshop_url=step.webshop_url,
-            status="requested",
-            # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
-            receiving_location_id=None,
-        )
-        db.add(po)
-        db.flush()
-        log_audit(db, "purchase_orders", None, "Bestellung angefragt",
-                  actor_id, object_id=order.object_id)
-        created.append(po)
+        have = set(have_by_step.get(step.id, set()))
+        if len(steps) == 1:
+            have |= have_by_step.get(None, set())   # Altbestellung ohne step_id
+        for art_id, qty in targets:
+            if art_id in have:
+                continue   # idempotent – diese Position hat schon ihre Bestellung
+            po = PurchaseOrder(
+                order_id=order.id,
+                article_id=art_id,
+                quantity=qty,
+                step_id=step.id,
+                mode=step.mode,
+                supplier_id=step.supplier_id,
+                webshop_url=step.webshop_url,
+                status="requested",
+                # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
+                receiving_location_id=None,
+            )
+            db.add(po)
+            db.flush()
+            have.add(art_id)
+            log_audit(db, "purchase_orders", None, "Bestellung angefragt",
+                      actor_id, object_id=order.object_id)
+            created.append(po)
     # TODO(E-Mail): Lieferant über neue Bestellanfrage benachrichtigen (Gmail API, Phase 2)
     return created
 
@@ -180,8 +191,12 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
     payload = data.model_dump(exclude_unset=True)
     target = payload.pop("status", None)
     # Lagerort/Transport gehört nicht mehr zur Beschaffung (läuft über die Bewegung);
-    # ein evtl. mitgesendetes Feld wird ignoriert.
+    # ein evtl. mitgesendetes Feld wird ignoriert. step_id/article_id sind reine
+    # Routing-/Disambiguierungsfelder (Mehr-Operationen-Routing bzw. Mehrpositionen),
+    # keine Felder DIESER Bestellung.
     payload.pop("receiving_location_id", None)
+    payload.pop("step_id", None)
+    payload.pop("article_id", None)
 
     editable = _editable_fields(po, user)
     for key, value in payload.items():
@@ -195,3 +210,23 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
     db.commit()
     db.refresh(po)
     return po
+
+
+def apply_update_bulk(db: Session, pos: list[PurchaseOrder], data, user: UserProfile) -> list[PurchaseOrder]:
+    """Aktualisierung eines Beschaffungs-Schritts – bei einem Mehrpositionen-Auftrag kann
+    der Schritt MEHRERE Bestellungen tragen (eine je Artikel/Position). Anders als beim
+    Verkauf (eine Sendung, eine gemeinsame Zahlung) ist jede Bestellung hier eine EIGENE,
+    unabhängig fortschreitende Beschaffung (eigene Offerte/Lieferzeit, ggf. separat
+    geliefert) – jede Aktion (auch ein Statuswechsel) betrifft daher GENAU EINE Position;
+    bei mehreren muss ``article_id`` mitgegeben werden, um sie zu identifizieren."""
+    if not pos:
+        raise HTTPException(404, detail="Für diesen Auftrag existiert keine Bestellung")
+    if len(pos) == 1:
+        return [apply_update(db, pos[0], data, user)]
+    target_article_id = getattr(data, "article_id", None)
+    if target_article_id is None:
+        raise HTTPException(400, detail="Bei mehreren Positionen bitte die betroffene angeben")
+    po = next((p for p in pos if p.article_id == target_article_id), None)
+    if not po:
+        raise HTTPException(404, detail="Position nicht gefunden")
+    return [apply_update(db, po, data, user)]

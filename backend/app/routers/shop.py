@@ -4,6 +4,7 @@ Listing/Detail sind öffentlich (eingeloggte Kunden sehen zusätzlich ihre priva
 Produkte). Checkout/Zahlung erfordern Login (kein Gast-Checkout).
 """
 
+from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -189,6 +190,15 @@ async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db
         raise HTTPException(403, detail="Keine Berechtigung für dieses Abo")
     if not order.recurrence_active:
         return {"cancelled": True, "subscription_active": False}
+    # Mindestbindung eines Produktabos – verhindert eine sofortige Kündigung direkt nach
+    # Abschluss, vor der ersten Lieferung/Abrechnung (state of the art bei wiederkehrenden
+    # physischen Lieferungen). Personal darf trotzdem jederzeit kündigen (Kulanz/Support).
+    earliest = sales_svc.earliest_cancellation_date(order)
+    if earliest and user.role not in ("admin", "employee") and date.today() < earliest:
+        raise HTTPException(
+            403,
+            detail=f"Dieses Abo hat eine Mindestlaufzeit – kündbar frühestens ab {earliest.strftime('%d.%m.%Y')}",
+        )
     get_provider(db).cancel_subscription(db, order)
     return {"cancelled": True, "subscription_active": bool(order.recurrence_active)}
 

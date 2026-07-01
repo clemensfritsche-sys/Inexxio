@@ -27,6 +27,13 @@ function subLabel(o: CustomerOrder): string {
   return `${base} · ${iv}`;
 }
 
+// Mindestbindung eines Produktabos (Backend: ``sales.earliest_cancellation_date`` – nur
+// bei ``sub_type='product'``, ein Nutzungsabo hat keine). ``null`` = bereits kündbar.
+function lockedUntil(o: CustomerOrder): string | null {
+  if (!o.cancellable_from) return null;
+  return new Date(o.cancellable_from) > new Date() ? o.cancellable_from : null;
+}
+
 export function OrdersList({ orders, onCancel }: {
   orders: CustomerOrder[];
   onCancel?: (orderObjectId: number) => Promise<void>;
@@ -75,15 +82,19 @@ export function OrdersList({ orders, onCancel }: {
                   style={{ color: st.color, background: st.bg }}>{st.label}</span>
               </div>
             </div>
-            {o.is_subscription && o.subscription_active && onCancel && (
-              <div className="mt-2 flex justify-end">
-                <button onClick={() => cancel(o)} disabled={busyId === o.order_object_id}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold py-1.5 px-3 hover:bg-red-50 disabled:opacity-60">
-                  {busyId === o.order_object_id ? <Loader2 size={13} className="animate-spin" /> : null}
-                  Abo kündigen
-                </button>
-              </div>
-            )}
+            {o.is_subscription && o.subscription_active && onCancel && (() => {
+              const locked = lockedUntil(o);
+              return (
+                <div className="mt-2 flex justify-end">
+                  <button onClick={() => cancel(o)} disabled={busyId === o.order_object_id || !!locked}
+                    title={locked ? `Mindestlaufzeit – kündbar ab ${fmtDate(locked)}` : undefined}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold py-1.5 px-3 hover:bg-red-50 disabled:opacity-60 disabled:hover:bg-transparent disabled:cursor-not-allowed">
+                    {busyId === o.order_object_id ? <Loader2 size={13} className="animate-spin" /> : null}
+                    {locked ? `Kündbar ab ${fmtDate(locked)}` : 'Abo kündigen'}
+                  </button>
+                </div>
+              );
+            })()}
             {o.is_subscription && !o.subscription_active && (
               <div className="mt-2 text-[11px] text-slate-400">Abo gekündigt / nicht aktiv.</div>
             )}

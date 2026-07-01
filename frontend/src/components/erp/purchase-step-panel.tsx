@@ -9,6 +9,7 @@ import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
 import { TextField, StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
+import { ObjId } from '@/components/erp/obj-id';
 
 type ViewerRole = 'staff' | 'supplier';
 type Hist = NonNullable<OrderPurchase['history']>[number];
@@ -38,19 +39,44 @@ function historyByStatus(history: Hist[] | undefined): Record<string, Hist> {
 
 interface Action { label: string; target: PurchaseOrderStatus; variant: 'primary' | 'danger'; needsTotal?: boolean }
 
-export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }: {
+// Bei einem Mehrpositionen-Auftrag kann der Beschaffungs-Schritt MEHRERE Bestellungen
+// tragen (eine je Artikel/Position). Anders als beim Verkauf ist jede Bestellung eine
+// EIGENE, unabhängig fortschreitende Beschaffung (eigene Offerte/Lieferzeit, ggf.
+// separat geliefert) – deshalb EIN vollständiges Panel je Position statt einer
+// gemeinsamen Aktion; bei mehreren Positionen zeigt jedes zusätzlich seinen Artikel.
+export function PurchaseStepPanel({ order, purchases, stepId, viewerRole, company, onOrderUpdated }: {
   order: Order;
+  purchases: OrderPurchase[];
+  stepId?: number;
   viewerRole: ViewerRole;
   company?: Partial<CompanySettings> | null;
   onOrderUpdated: (o: Order) => void;
 }) {
-  const po = order.purchase;
-  const [form, setForm] = useState<Form>(() => (po ? seed(po) : seed({} as OrderPurchase)));
+  if (purchases.length === 0) return null;
+  const showArticle = purchases.length > 1;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {purchases.map((po) => (
+        <PurchaseLine key={po.id} order={order} po={po} stepId={stepId} viewerRole={viewerRole}
+          company={company} onOrderUpdated={onOrderUpdated} showArticle={showArticle} />
+      ))}
+    </div>
+  );
+}
+
+function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, showArticle }: {
+  order: Order;
+  po: OrderPurchase;
+  stepId?: number;
+  viewerRole: ViewerRole;
+  company?: Partial<CompanySettings> | null;
+  onOrderUpdated: (o: Order) => void;
+  showArticle: boolean;
+}) {
+  const [form, setForm] = useState<Form>(() => seed(po));
   const [saving, setSaving] = useState(false);
   const [trackingSaved, setTrackingSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!po) return null;
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((p) => ({ ...p, [key]: value }));
@@ -67,7 +93,8 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
   const canEditOffer = isOfferEditor && s === 'requested';     // nach Absenden gesperrt
   const canEditTracking = isOfferEditor && s === 'ordered';
 
-  const qty = order.quantity || 0;
+  // Menge DIESER Position (bei einem Mehrpositionen-Auftrag pro Artikel, sonst der Anker).
+  const qty = po.quantity ?? order.quantity ?? 0;
   const perUnit = (() => {
     if (canEditOffer) {
       const tot = Number(form.order_total.replace(',', '.'));
@@ -94,8 +121,14 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
     actions.push({ label: 'Lieferung bestätigen', target: 'received', variant: 'primary' });
   }
 
+  // Mehrpositionen: jede Aktion muss die betroffene Position (Artikel) benennen –
+  // beim Einzel-Artikel-Auftrag genügt die eindeutige Bestellung des Schritts.
+  const disambiguator: Partial<PurchaseOrderUpdateInput> = showArticle
+    ? { article_id: po.article_id ?? undefined }
+    : {};
+
   function buildEditable(): PurchaseOrderUpdateInput {
-    const p: PurchaseOrderUpdateInput = {};
+    const p: PurchaseOrderUpdateInput = { step_id: stepId, ...disambiguator };
     if (canEditOffer) {
       p.order_total = moneyOrNull(form.order_total);
       p.lead_time_days = intOrNull(form.lead_time_days);
@@ -123,10 +156,11 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
   async function saveTracking() {
     if (!canEditTracking) return;
     const next = form.tracking_number.trim() || null;
-    if (next === (po!.tracking_number ?? null)) return;
+    if (next === (po.tracking_number ?? null)) return;
     setSaving(true); setError(null);
     try {
-      onOrderUpdated(await api.updateOrderPurchase(order.object_id as number, { tracking_number: next }));
+      onOrderUpdated(await api.updateOrderPurchase(order.object_id as number,
+        { tracking_number: next, step_id: stepId, ...disambiguator }));
       setTrackingSaved(true);
       setTimeout(() => setTrackingSaved(false), 2000);
     } catch (e) {
@@ -167,12 +201,20 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
   const cfg = purchaseStatusConfig(s);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <>
       <Card>
         {/* Kopf */}
         <PanelHeader icon={ShoppingCart} title="Bestellung (Beschaffung)"
           info="Beschaffung beim Lieferanten unter dieser Auftragsnummer: Anfrage → Offerte → Bestellung → Wareneingang."
           right={<StatusBadge cfg={cfg} size={11} />} />
+
+        {/* Bei mehreren Positionen: welcher Artikel diese Bestellung betrifft */}
+        {showArticle && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
+            {po.article_object_id != null && <ObjId value={po.article_object_id} />}
+            {po.article_name ?? 'Artikel'}
+          </div>
+        )}
 
         {/* Fortschritt inkl. Lieferungs-Animation + Audit-Hover */}
         <div style={{ padding: '8px 2px 2px' }}>
@@ -284,7 +326,7 @@ export function PurchaseStepPanel({ order, viewerRole, company, onOrderUpdated }
           {sharedRows.map((r) => <Row key={r.key} k={r.label} v={r.value} />)}
         </Card>
       )}
-    </div>
+    </>
   );
 }
 

@@ -25,3 +25,13 @@ def is_multiline(order: Order) -> bool:
     """Mehrpositionen-Auftrag? – erkennbar allein daran, dass ``article_id`` fehlt
     (Anker für den Einzel-Artikel-Fall)."""
     return order.article_id is None
+
+
+def effective_quantity(db: Session, order: Order) -> int:
+    """Die deklarierte Gesamtmenge des Auftrags, artikelunabhängig – ``order.quantity``
+    beim Einzel-Artikel-Auftrag, sonst die Summe der Positionsmengen (Mehrpositionen).
+    Grundlage für Schritte, die artikelunabhängig auf «der ganzen Menge» arbeiten
+    (Ressourcen-Bedarf/-Reservierung, Stichprobenumfang der Datenerfassung)."""
+    if order.quantity is not None:
+        return order.quantity
+    return sum(l.quantity for l in lines_for(db, order))

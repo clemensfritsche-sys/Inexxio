@@ -130,6 +130,13 @@ def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
     emb.receiving_location_label = _receiving_label(db, po)
     emb.shared_fields = normalize_shared_fields(step.shared_fields if step else None)
     emb.history = _purchase_history(db, order)
+    # Artikel dieser Position denormalisieren – bei einem Mehrpositionen-Auftrag trägt
+    # jede Bestellung einen ANDEREN Artikel (``order.article_id`` ist dann NULL).
+    if po.article_id:
+        art = db.query(Article).filter(Article.id == po.article_id).first()
+        if art:
+            emb.article_object_id = art.object_id
+            emb.article_name = art.name
     return emb
 
 
@@ -315,12 +322,19 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
         done = s["state"] == "done"
         by_name: str | None = None
         at = None
-        if step.step_type == "purchase" and fact:
-            emb = _purchase_embed(db, order, step, fact)
-            si.purchase = emb
-            first.setdefault("purchase", emb)
-            if done:
-                by_name, at = _purchase_received(emb)
+        if step.step_type == "purchase":
+            # EIN Schritt kann mehrere Bestellungen tragen (ein Artikel/Position je
+            # Bestellung, Mehrpositionen-Auftrag) – ``purchases`` ist die vollständige
+            # Liste, ``purchase`` bleibt das erste Embed (Rückwärtskompatibilität; beim
+            # Einzel-Artikel-Auftrag identisch).
+            facts = s["facts"]
+            embs = [_purchase_embed(db, order, step, f) for f in facts]
+            if embs:
+                si.purchases = embs
+                si.purchase = embs[0]
+                first.setdefault("purchase", embs[0])
+                if done:
+                    by_name, at = _purchase_received(embs[0])
         elif step.step_type == "sale":
             # EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg,
             # Mehrpositionen-Auftrag) – ``sales`` ist die vollständige Liste, ``sale``

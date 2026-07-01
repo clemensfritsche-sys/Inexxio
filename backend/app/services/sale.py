@@ -46,15 +46,18 @@ def unit_price(sale: Sale) -> Optional[Decimal]:
 def price_from_article(db: Session, article_id: int, quantity: int) -> Optional[dict]:
     """Preis-Vorschau EINES Artikels aus der **Shop-Preis-Pipeline** – Single Source of
     Truth: der ERP-Direktverkauf tippt keinen Betrag frei ein, sondern übernimmt densel-
-    ben Basispreis wie der Shop (``article_prices``). ``None`` ohne Einmalkauf-Preis
-    (Abo-Preise ergeben für einen freien ERP-Verkauf keinen sinnvollen Betrag; rein
-    interne Artikel ohne Preis bleiben manuell einzutragen – siehe ``_EDITABLE``)."""
+    ben Basispreis wie der Shop (``article_prices``). Bewusst über ``resolve_one_time_price``
+    (nicht ``resolve_primary_price``): ein Artikel kann NEBEN einem Abo zusätzlich einen
+    Einmalkauf-Preis tragen – der ERP-Direktverkauf nutzt dann IMMER diesen, unabhängig
+    davon, welche Preisoption im Shop als „primär" (oberste Option) gilt. ``None`` nur,
+    wenn der Artikel ausschliesslich über ein Abo verkauft wird (rein interne Artikel ohne
+    jeden Preis bleiben ebenfalls manuell einzutragen – siehe ``_EDITABLE``)."""
     from . import pricing
     art = db.query(Article).filter(Article.id == article_id).first()
     if not art:
         return None
-    price = pricing.resolve_primary_price(db, art)
-    if not price or price.kind != "one_time":
+    price = pricing.resolve_one_time_price(db, article_id)
+    if not price:
         return None
     view = pricing.price_view_for(db, price, "CHF", country=None, customer=None)
     if not view or view.get("net") is None:
@@ -64,6 +67,28 @@ def price_from_article(db: Session, article_id: int, quantity: int) -> Optional[
         "vat_rate": Decimal(str(view["tax_rate"])) if view.get("tax_rate") is not None else None,
         "currency": "CHF",
     }
+
+
+def assert_sale_compatible(db: Session, article_ids: set[int]) -> None:
+    """Mehrere Artikel dürfen nur GEMEINSAM verkauft werden, wenn KEINER von ihnen
+    ausschliesslich über ein Abo verkauft wird (Stripe: ein Checkout ist entweder
+    Einmalkauf oder Abo; der Verkaufsschritt hat keine Möglichkeit, je Position ein
+    anderes Preismodell zu wählen). Bei genau EINEM Artikel keine Einschränkung – ein
+    einzelnes Abo lässt sich wie gewohnt verkaufen. Trägt ein Artikel NEBEN dem Abo auch
+    einen Einmalkauf-Preis, gilt er nicht als exklusiv und darf mitgemischt werden
+    (``pricing.is_subscription_exclusive``) – nur dann nutzt der Verkauf ohnehin den
+    Einmalkauf-Preis (``price_from_article``)."""
+    if len(article_ids) <= 1:
+        return
+    from . import pricing
+    for aid in article_ids:
+        if pricing.is_subscription_exclusive(db, aid):
+            art = db.query(Article).filter(Article.id == aid).first()
+            name = f"«{art.name}»" if art else f"Artikel #{aid}"
+            raise HTTPException(
+                400,
+                detail=f"{name} ist ein Abo-Artikel – Abos lassen sich nur einzeln verkaufen, "
+                       "nicht zusammen mit weiteren Positionen")
 
 
 def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:

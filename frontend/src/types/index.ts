@@ -67,6 +67,10 @@ export type OrderPurchase = Omit<NonNullable<OrderApi['purchase']>, 'status' | '
   mode: ProcessStepMode;
 };
 
+// EIN Beschaffungs-Schritt kann bei einem Mehrpositionen-Auftrag mehrere Bestellungen
+// tragen (eine je Artikel/Position, gleicher step_id) – Spiegel von ``OrderSale``/``sales``.
+export type OrderPurchases = OrderPurchase[];
+
 // Aus dem Backend-Schema abgeleitet; Status verengt, Prozess-Embed eingehängt.
 export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
   status: OrderStatus;
@@ -376,6 +380,8 @@ export interface PurchaseOrderUpdateInput {
   payment_terms_days?: number | null;
   tracking_number?: string | null;
   receiving_location_id?: number | null;   // Pflicht beim Wareneingang («received»)
+  step_id?: number | null;                 // Mehr-Operationen-Routing
+  article_id?: number | null;              // Mehrpositionen: welche Position (bei >1 Bestellung)
 }
 
 // ─── Storage Location (Lagerplatz) ────────────────────────────────────────────
