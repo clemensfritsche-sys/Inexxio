@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock, Plus, Trash2, Minus } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Minus } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
@@ -817,8 +817,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 onSelect={setSelStep}
               />
             </div>
-            {currentStepObj?.state === 'blocked' ? (
-              <BlockedStepNotice step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
+            {record.paused ? (
+              // Angehalten wegen offener Abweichung: der GANZE Auftrag ruht (das Backend lehnt
+              // jede Schritt-Ausführung ab). KEIN interaktives Panel – nur die On-Hold-Notiz,
+              // die auf die zu klärende Abweichung verweist (dieselbe Sprache wie die Unterdeckung).
+              <ProcessHoldNotice reason="deviation" step={currentStepObj} isStaff={isStaff}
+                canSupply={false} busy={false} recoverBusy={false} error={error}
+                onSupply={requestSupply} onCoverStock={coverFromStock} onReduce={reduceDemand}
+                deviations={record.deviations ?? []} onOpen={(oid) => nav?.(oid)} />
+            ) : currentStepObj?.state === 'blocked' ? (
+              <ProcessHoldNotice reason="shortfall" step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
                 busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
                 onCoverStock={coverFromStock} onReduce={reduceDemand} />
             ) : (
@@ -890,13 +898,16 @@ function stepHint(s: OrderStep): string | undefined {
 // ein Komponenten-Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
 const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'sale'];
 
-// Blockierter Schritt: wartet auf Material (Subjekt/Komponente nicht am Lager). Zeigt die
-// Fehlmengen und – sofern Nachschub bereits läuft – die verlinkten Nachschub-Aufträge.
-// Läuft noch kein Nachschub, hat Staff am freigegebenen Auftrag mehrere Wege, den Bedarf zu
-// decken (abgeleitet aus dem Bestand): produzieren (Nachschub), aus Lager decken (freier
-// Bestand vorhanden), gezielt eine andere Instanz wählen, oder die Menge reduzieren.
-function BlockedStepNotice({ step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onReduce }: {
-  step: OrderStep;
+// EIN einheitliches «Prozess angehalten» (on hold) für beide Gründe, warum ein Auftrag nicht
+// weiterläuft – konsistente Sprache/Optik statt zweier Metaphern:
+//   • reason='deviation' – eine offene Abweichung hält den GANZEN Auftrag an (Backend lehnt
+//     jede Schritt-Ausführung ab). Auflösung: die Abweichung abschliessen/zurücknehmen.
+//   • reason='shortfall' – ein Subjekt-/Komponentenbedarf ist unterdeckt; der betroffene
+//     Schritt ruht. Auflösung: produzieren (Nachschub) / aus Lager decken / andere Instanz /
+//     Menge reduzieren. Löst sich von selbst, sobald der Bedarf gedeckt ist.
+function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onReduce, deviations, onOpen }: {
+  reason: 'deviation' | 'shortfall';
+  step: OrderStep | null;
   isStaff: boolean;
   canSupply: boolean;
   busy: boolean;
@@ -905,16 +916,47 @@ function BlockedStepNotice({ step, isStaff, canSupply, busy, recoverBusy, error,
   onSupply: () => void;
   onCoverStock: (instanceObjectIds?: number[]) => void;
   onReduce: () => void;
+  deviations?: OrderDeviationInfo[];
+  onOpen?: (objectId: number) => void;
 }) {
-  const running = step.supply_order_object_ids ?? [];
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState<number[]>([]);
+
+  // ── Angehalten wegen offener Abweichung (ganzer Auftrag ruht) ──────────────────
+  if (reason === 'deviation') {
+    const open = (deviations ?? []).filter((d) => d.status === 'draft' || d.status === 'released');
+    return (
+      <HoldFrame title="Prozess angehalten – Abweichung offen">
+        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+          Solange eine Abweichung offen ist, ruht der gesamte Auftrag – es lässt sich kein Schritt
+          ausführen (auch die betroffene Instanz nicht). Bitte zuerst die Abweichung abschliessen
+          oder zurücknehmen; danach läuft der Prozess automatisch weiter.
+        </div>
+        {open.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {open.map((d) => (
+              <button key={d.object_id} type="button" onClick={() => onOpen?.(d.object_id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a', background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' }}>
+                <AlertTriangle size={14} style={{ color: '#b45309', flexShrink: 0 }} />
+                <span>Abweichung <ObjId value={d.object_id} /> {d.status === 'draft' ? 'bearbeiten' : 'abschliessen'}
+                  {d.instance_count > 0 && <span style={{ color: '#64748b' }}> · {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}</span>}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+      </HoldFrame>
+    );
+  }
+
+  // ── Angehalten wegen Unterdeckung (nur der betroffene Schritt) ─────────────────
+  const running = step?.supply_order_object_ids ?? [];
   const hasRunning = running.length > 0;
-  const shortfall = step.shortfall ?? [];
-  const isSubjectStep = SUBJECT_STEP_TYPES.includes(step.step_type);
+  const shortfall = step?.shortfall ?? [];
+  const isSubjectStep = step ? SUBJECT_STEP_TYPES.includes(step.step_type) : false;
   const availableInstances = shortfall.flatMap((sf) => sf.available_instances ?? []);
   const stockAvailable = shortfall.reduce((s, sf) => s + (sf.available_quantity ?? 0), 0);
   const canRecover = isStaff && canSupply && !hasRunning;
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [picked, setPicked] = useState<number[]>([]);
   const busyAny = busy || recoverBusy;
 
   function togglePick(oid: number) {
@@ -922,91 +964,100 @@ function BlockedStepNotice({ step, isStaff, canSupply, busy, recoverBusy, error,
   }
 
   return (
+    <HoldFrame title="Prozess angehalten – Unterdeckung">
+      <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+        Dieser Schritt ruht – das benötigte Material ist nicht (mehr) am Lager
+        {isSubjectStep && <> (z. B. weil ein Stück per Abweichung ausgesteuert wurde)</>}.
+        {canRecover && isSubjectStep
+          ? ' Wählen Sie, wie es weitergeht:'
+          : ' Sobald der Nachschub geliefert hat, läuft der Schritt automatisch weiter.'}
+      </div>
+      {shortfall.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {shortfall.map((sf, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a' }}>
+              <PackageMinus size={14} style={{ color: '#b45309', flexShrink: 0 }} />
+              <span>
+                <strong>{sf.quantity}</strong> × {sf.article_name ?? 'Artikel'}
+                {sf.article_object_id != null && <> (<ObjId value={sf.article_object_id} />)</>} fehlt
+                {(sf.available_quantity ?? 0) > 0 && <span style={{ color: '#64748b' }}> · {sf.available_quantity} am Lager frei</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {hasRunning && (
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
+          <PackagePlus size={15} style={{ color: '#b45309', flexShrink: 0 }} />
+          Nachschub läuft:
+          {running.map((oid) => <ObjId key={oid} value={oid} />)}
+        </div>
+      )}
+      {canRecover && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Empfehlung: liegt der Artikel bereits am Lager, ist «Aus Lager decken» der
+              schnellste Weg – sonst «Nachschub anlegen» (produzieren/beschaffen). */}
+          {isSubjectStep && stockAvailable > 0 ? (
+            <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
+              {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busyAny}>
+              {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
+            </PrimaryButton>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {isSubjectStep && stockAvailable > 0 && (
+              <SecondaryAction icon={PackagePlus} label="Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
+            )}
+            {isSubjectStep && availableInstances.length > 0 && (
+              <SecondaryAction icon={Boxes} label="Andere Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
+            )}
+            {isSubjectStep && (
+              <SecondaryAction icon={Minus} label="Menge reduzieren" onClick={onReduce} disabled={busyAny} />
+            )}
+          </div>
+          {pickerOpen && availableInstances.length > 0 && (
+            <div style={{ border: '1px solid #fde68a', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 12, color: '#64748b' }}>Ersatz-Instanz(en) am Lager wählen:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {availableInstances.map((ai) => {
+                  const sel = picked.includes(ai.object_id);
+                  return (
+                    <button key={ai.object_id} type="button" onClick={() => togglePick(ai.object_id)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                        padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                        border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
+                        background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                      }}>
+                      {sel && <CheckCircle2 size={12} />}
+                      {fmtObjId(ai.object_id)}{ai.quantity > 1 ? ` ·${ai.quantity}` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+              <PrimaryButton icon={CheckCircle2} onClick={() => { onCoverStock(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
+                {recoverBusy ? 'Wird übernommen…' : 'Gewählte Instanzen übernehmen'}
+              </PrimaryButton>
+            </div>
+          )}
+        </div>
+      )}
+      {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+    </HoldFrame>
+  );
+}
+
+// Einheitlicher Rahmen für «Prozess angehalten» – gleiche Optik/Ikonografie wie die Pause-Leiste.
+function HoldFrame({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
     <div style={{ border: '1px solid #fde68a', borderRadius: 10, background: '#fffbeb', overflow: 'hidden', marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', fontSize: 14, fontWeight: 700, color: '#92400e', borderBottom: '1px solid #fde68a' }}>
-        <Clock size={17} /> Wartet auf Material
+        <PauseCircle size={17} /> {title}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px' }}>
-        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-          Dieser Schritt ist blockiert – das benötigte Material ist nicht (mehr) am Lager
-          {isSubjectStep && <> (z. B. weil ein Stück per Abweichung ausgesteuert wurde)</>}.
-          {canRecover && isSubjectStep
-            ? ' Wählen Sie, wie es weitergeht: Nachschub produzieren, aus Lager decken oder die Menge reduzieren.'
-            : ' Sobald der Nachschub geliefert hat, läuft der Schritt automatisch weiter.'}
-        </div>
-        {shortfall.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {shortfall.map((sf, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a' }}>
-                <PackageMinus size={14} style={{ color: '#b45309', flexShrink: 0 }} />
-                <span>
-                  <strong>{sf.quantity}</strong> × {sf.article_name ?? 'Artikel'}
-                  {sf.article_object_id != null && <> (<ObjId value={sf.article_object_id} />)</>} fehlt
-                  {(sf.available_quantity ?? 0) > 0 && <span style={{ color: '#64748b' }}> · {sf.available_quantity} am Lager frei</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {hasRunning && (
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-            <PackagePlus size={15} style={{ color: '#b45309', flexShrink: 0 }} />
-            Nachschub läuft:
-            {running.map((oid) => <ObjId key={oid} value={oid} />)}
-          </div>
-        )}
-        {canRecover && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Empfehlung: liegt der Artikel bereits am Lager, ist «Aus Lager decken» der
-                schnellste Weg – sonst «Nachschub anlegen» (produzieren/beschaffen). */}
-            {isSubjectStep && stockAvailable > 0 ? (
-              <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
-                {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
-              </PrimaryButton>
-            ) : (
-              <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busyAny}>
-                {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
-              </PrimaryButton>
-            )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {isSubjectStep && stockAvailable > 0 && (
-                <SecondaryAction icon={PackagePlus} label="Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
-              )}
-              {isSubjectStep && availableInstances.length > 0 && (
-                <SecondaryAction icon={Boxes} label="Andere Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
-              )}
-              {isSubjectStep && (
-                <SecondaryAction icon={Minus} label="Menge reduzieren" onClick={onReduce} disabled={busyAny} />
-              )}
-            </div>
-            {pickerOpen && availableInstances.length > 0 && (
-              <div style={{ border: '1px solid #fde68a', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 12, color: '#64748b' }}>Ersatz-Instanz(en) am Lager wählen:</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {availableInstances.map((ai) => {
-                    const sel = picked.includes(ai.object_id);
-                    return (
-                      <button key={ai.object_id} type="button" onClick={() => togglePick(ai.object_id)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                          padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                          border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
-                          background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
-                        }}>
-                        {sel && <CheckCircle2 size={12} />}
-                        {fmtObjId(ai.object_id)}{ai.quantity > 1 ? ` ·${ai.quantity}` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-                <PrimaryButton icon={CheckCircle2} onClick={() => { onCoverStock(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
-                  {recoverBusy ? 'Wird übernommen…' : 'Gewählte Instanzen übernehmen'}
-                </PrimaryButton>
-              </div>
-            )}
-          </div>
-        )}
-        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+        {children}
       </div>
     </div>
   );
