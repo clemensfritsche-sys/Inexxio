@@ -206,6 +206,15 @@ async def update_order(
     if payload.get("status") == "released" and order.status == "inactive":
         raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
 
+    # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt
+    # den Status selbst. Den Status hier NICHT vorab über die generische Schleife setzen: sonst ist
+    # der Auftrag beim Aufruf bereits „released", ``release_order`` kehrt wegen „nicht mehr draft"
+    # sofort zurück und es entsteht KEIN Subjekt – keine Instanzen, keine Objektnummern (stiller
+    # Blindgänger). Der Statuswechsel wird nach erfolgreicher Freigabe protokolliert.
+    wants_release = payload.get("status") == "released" and not was_released
+    if wants_release:
+        payload.pop("status")
+
     for key, value in payload.items():
         old_val = getattr(order, key, None)
         old_str = str(old_val) if old_val is not None else None
@@ -220,7 +229,7 @@ async def update_order(
     #   produce – KEIN eigener Ablauf → der **Artikel-Prozess** läuft, neue Instanzen entstehen.
     #   stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
     #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
-    if order.status == "released" and not was_released:
+    if wants_release:
         if not order.article_id or not order.quantity:
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
         if subject.subject_kind(db, order) == "produce":
@@ -233,10 +242,13 @@ async def update_order(
                 )
         elif not process.order_step_infos(db, order):
             raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
-        # Einheitliche Freigabe: Subjekt herstellen (Fehlmenge ist KEIN Fehler – der Schritt wird
-        # «blockiert» und über «Nachschub anlegen» gedeckt), Beschaffung/Verkauf instanziieren,
-        # Komponenten reservieren, Abbruch-Folgeauftrag wirksam machen.
+        # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
+        # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
+        # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
+        # machen.
         release_order(db, order, current_user.id)
+        log_audit(db, "orders", "status", "released", current_user.id,
+                  object_id=order.object_id, old_value="draft")
 
     # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
     # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).
