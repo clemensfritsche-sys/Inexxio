@@ -1407,19 +1407,36 @@ def test_release_allows_partial_stock_no_hard_fail():
     assert "Partielle Deckung" in src
 
 
-def test_subject_kind_is_decided_by_custom_steps_only():
-    """#4b: Herstellung vs. Bestands-Operation hängt **allein** an eigenen Schritten (Ableitung)
-    – NICHT an einer Pin-Auswahl und NICHT an einer Quellen-Übersteuerung (subject_source ist
-    entfernt). Sonst würde ein Herstell-/Beschaffungs-Auftrag fälschlich als Bestands-Operation
-    behandelt und an „kein Bestand" scheitern."""
+def test_subject_kind_follows_declared_step_roles():
+    """#4b: Herstellung vs. Bestands-Operation wird aus der **deklarierten Subjekt-Rolle** der
+    Schritte abgeleitet (REA-Registry, ``derive_subject_mode``/``SUBJECT_PRECEDENCE``) – NICHT
+    aus der blossen Anwesenheit eines Schritts, NICHT aus einer Pin-Auswahl und NICHT aus einer
+    Quellen-Übersteuerung (subject_source ist entfernt).
+
+    Kern-Regel: ein Schritt, der Bestand **hereinbringt** (Beschaffung/Ressource → PRODUCE),
+    lässt den Auftrag ERZEUGEN (neue Instanzen); nur ein Zugriff auf **vorhandenen** Bestand
+    (Verkauf → STOCK, Bewegung/Prüfung/Verschrottung → INSTANCE) ist eine Bestands-Operation.
+    Sonst würde ein Beschaffungs-Auftrag fälschlich als Bestands-Operation behandelt und
+    scheiterte still an „kein Bestand" (keine Instanz, keine Objektnummer, keine Fehlermeldung)."""
     import inspect as _inspect
+    from app.domain import event_types
     from app.services import subject, process
+
+    # Verhalten der reinen Ableitung (ohne DB): PRODUCE-Schritte → produce, sonst stock.
+    assert event_types.derive_subject_mode({"purchase"}) == event_types.PRODUCE
+    assert event_types.derive_subject_mode({"resource"}) == event_types.PRODUCE
+    assert event_types.derive_subject_mode({"sale"}) == event_types.STOCK
+    assert event_types.derive_subject_mode({"movement"}) == event_types.INSTANCE
+    assert event_types.derive_subject_mode({"purchase", "movement"}) == event_types.PRODUCE
 
     kind_src = _inspect.getsource(subject.subject_kind)
     mat_src = _inspect.getsource(subject.materialize_subject)
-    # Reine Ableitung über has_custom_steps – keine Pin-Disjunktion, keine Quellen-Übersteuerung.
-    assert "has_custom_steps(db, order):" in kind_src and "chosen_subjects" not in kind_src
+    # Ableitung über die Registry – keine „jeder Schritt = stock"-Verkürzung, keine Pin-Disjunktion,
+    # keine Quellen-Übersteuerung.
+    assert "derive_subject_mode" in kind_src and "chosen_subjects" not in kind_src
     assert "subject_source" not in kind_src
+    # Keine eigenen Schritte → Herstellung (produce), ein PRODUCE-Schritt bleibt Herstellung.
+    assert 'return "produce"' in kind_src
     # materialize delegiert an subject_kind – ohne Pin-Disjunktion.
     assert "subject_kind(db, order)" in mat_src and "chosen_subjects" not in mat_src
     # order_step_defs ohne Schritte → Artikel-Prozess (Herstellung), unabhängig von Pins.

@@ -38,6 +38,31 @@ export function stepLabel(type: string): string {
   return STEP_META[type as StepType]?.label ?? type;
 }
 
+// Deklarierte Subjekt-Rolle je Schritttyp – **Spiegel** der Backend-Registry
+// (`app/domain/event_types.py`). Ein Schritt, der Bestand HEREINBRINGT (Beschaffung/
+// Ressource), ist «produce»; ein Zugriff auf vorhandenen Bestand (Verkauf) «stock»,
+// eine Bearbeitung bestehender Instanzen (Bewegung/Prüfung/Verschrottung) «instance».
+const STEP_SUBJECT_ROLE: Record<StepType, 'produce' | 'stock' | 'instance'> = {
+  purchase:   'produce',
+  resource:   'produce',
+  sale:       'stock',
+  movement:   'instance',
+  inspection: 'instance',
+  scrap:      'instance',
+};
+
+/** Ist der Ablauf eine **Bestands-Operation** (wirkt auf vorhandenen Bestand) statt einer
+ *  **Herstellung** (erzeugt neue Instanzen)? Ableitung über die deklarierte Subjekt-Rolle
+ *  der Schritte mit Vorrang STOCK ≻ PRODUCE ≻ INSTANCE – identisch zu
+ *  `event_types.derive_subject_mode` im Backend. Ohne Schritte = Herstellung (false). */
+export function isStockOperation(stepTypes: StepType[]): boolean {
+  if (stepTypes.length === 0) return false;               // keine Schritte → Herstellung
+  const roles = new Set(stepTypes.map((t) => STEP_SUBJECT_ROLE[t] ?? 'instance'));
+  if (roles.has('stock')) return true;                    // Verkauf ab Lager
+  if (roles.has('produce')) return false;                 // Beschaffung/Ressource → Herstellung
+  return true;                                            // nur Bewegung/Prüfung/Verschrotten
+}
+
 // Auftrag-Schrittstatus (Backend) → Stepper-Knotenstatus
 export function toStepperState(state: string): StepState {
   if (state === 'done') return 'done';
