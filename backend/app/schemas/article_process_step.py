@@ -140,6 +140,10 @@ class ArticleProcessStepCreate(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
+    # Nur für einen ``sale``-Schritt an einem Mehrpositionen-Auftrag: bindet den Schritt an
+    # EINE Position (``order_lines``), damit sein Verkaufsbeleg den richtigen Artikel/die
+    # richtige Menge bekommt (die DB-Zugehörigkeit prüft der Router, nicht dieses Schema).
+    order_line_id: Optional[int] = None
 
     @field_validator("shared_fields")
     @classmethod
@@ -254,6 +258,7 @@ class ArticleProcessStepResponse(BaseModel):
     id: int
     article_id: Optional[int] = None
     order_id: Optional[int] = None
+    order_line_id: Optional[int] = None
     position: int
     step_type: str
     locked: bool = False   # Pflicht-Bewegung (System, nicht löschbar/editierbar)

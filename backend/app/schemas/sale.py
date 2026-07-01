@@ -6,6 +6,11 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 # requested → confirmed → invoiced → paid  (+ cancelled) – Spiegel der Beschaffung.
 ALLOWED_STATUS = ("requested", "confirmed", "invoiced", "paid", "cancelled")
+# Zahlungsart, die Personal manuell wählen kann – kein Kartenterminal nötig, der übliche
+# B2B-Weg ist Rechnung/QR-Rechnung. 'stripe' setzt das System selbst (Shop-Zahlung);
+# 'terminal' (Stripe Terminal / Kartenleser vor Ort) ist als Wert vorgesehen (Phase 2+),
+# aber hier bewusst noch nicht wählbar.
+ALLOWED_PAYMENT_METHODS = ("invoice", "cash", "twint", "other")
 
 
 class SaleUpdate(BaseModel):
@@ -19,6 +24,8 @@ class SaleUpdate(BaseModel):
     currency: Optional[str] = None
     customer_id: Optional[int] = None
     invoice_number: Optional[str] = None
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
     step_id: Optional[int] = None
 
     @field_validator("status")
@@ -37,6 +44,15 @@ class SaleUpdate(BaseModel):
             return v
         if v < 0:
             raise ValueError("Betrag darf nicht negativ sein")
+        return v
+
+    @field_validator("payment_method")
+    @classmethod
+    def _payment_method_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if v not in ALLOWED_PAYMENT_METHODS:
+            raise ValueError(f"Zahlungsart muss eine von {', '.join(ALLOWED_PAYMENT_METHODS)} sein")
         return v
 
 
@@ -59,6 +75,14 @@ class SaleEmbed(BaseModel):
     confirmed_at: Optional[datetime] = None
     invoiced_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None
+    # Herkunft ('shop' = Kasse/Stripe, 'direct' = Personal im ERP) + Zahlungsart des
+    # manuellen Zahlungseingangs (Rechnung/Bar/Twint/Sonstiges; 'stripe' = Shop-Zahlung).
+    mode: Optional[str] = None
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
+    # Artikel dieser Position (bei einem Mehrpositionen-Auftrag je Schritt unterschiedlich).
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
 
     # Denormalisiert vom Service
     customer_name: Optional[str] = None

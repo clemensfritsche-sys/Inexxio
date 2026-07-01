@@ -22,6 +22,7 @@ from ..domain import event_types
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .inventory import allocate, fifo_candidates
+from .order_lines import lines_for
 from .processes import order_custom_steps
 from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
@@ -42,14 +43,14 @@ def record_link(db: Session, instance_object_id: int | None, order_id: int) -> N
         db.add(InstanceOrderLink(instance_object_id=instance_object_id, order_id=order_id))
 
 
-def chosen_subjects(db: Session, order: Order) -> list[Instance]:
-    """Die bei der Anlage ausgewählten Subjekt-Instanzen (Bestands-Auftrag)."""
-    return (
-        db.query(Instance)
-        .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
-    )
+def chosen_subjects(db: Session, order: Order, article_id: int | None = None) -> list[Instance]:
+    """Die bei der Anlage ausgewählten Subjekt-Instanzen (Bestands-Auftrag). Mit
+    ``article_id`` nur die einer Position eines **Mehrpositionen**-Auftrags (mehrere
+    Artikel können unter demselben Auftrag fixiert sein)."""
+    q = db.query(Instance).filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
+    if article_id is not None:
+        q = q.filter(Instance.article_id == article_id)
+    return q.order_by(Instance.object_id).all()
 
 
 def is_deviation(order: Order) -> bool:
@@ -157,7 +158,10 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
         return
     kind = subject_kind(db, order)   # abgeleitet (produce | stock | deviation)
     if kind == "stock":
-        _allocate_stock_subject(db, order, actor_id)
+        if order.article_id is not None:
+            _allocate_stock_subject(db, order, actor_id)
+        else:
+            _allocate_stock_subject_multiline(db, order, actor_id)
         return
     create_instances_for_order(db, order, actor_id)
 
@@ -174,17 +178,17 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     log_audit(db, "instances", None, "Abweichung übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
-def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
-    """Subjekt eines Bestands-Auftrags **bei der Freigabe** binden + reservieren:
+def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity: int) -> None:
+    """Kern der Bestands-Allokation für GENAU einen Artikel + Menge unter einem Auftrag:
 
-    1. die fixierten (gepinnten) Instanzen prüfen – sie müssen **freigegeben** (qc passed)
-       und am Lager sein, sonst ist die Freigabe nicht möglich – und reservieren;
-    2. den **Rest FIFO ab Lager** auffüllen (Charge bei Bedarf geteilt).
-    Jede gebundene Instanz wird dauerhaft als „von diesem Auftrag verarbeitet" vermerkt."""
-    if not order.article_id or not order.quantity:
-        raise HTTPException(400, detail="Artikel und Menge sind für diesen Auftrag erforderlich")
-
-    pinned = chosen_subjects(db, order)
+    1. die fixierten (gepinnten) Instanzen DIESES Artikels prüfen – sie müssen
+       **freigegeben** (qc passed) und am Lager sein, sonst ist die Freigabe nicht
+       möglich – und reservieren;
+    2. den **Rest FIFO ab Lager** auffüllen.
+    Jede gebundene Instanz wird dauerhaft als „von diesem Auftrag verarbeitet" vermerkt.
+    Wiederverwendet vom Einzel-Artikel-Auftrag (``order.article_id``) UND – je Position –
+    vom Mehrpositionen-Auftrag (``order_lines``)."""
+    pinned = chosen_subjects(db, order, article_id=article_id)
     for inst in pinned:                                    # fixierte: erst bei Freigabe „scharf"
         if not (inst.quality == "passed" and inst.disposition == "in_stock"):
             raise HTTPException(
@@ -195,10 +199,10 @@ def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
                 409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
         reserve(inst, order.id, need)                      # ganze Pin-Instanz, OHNE Teilung
         record_link(db, inst.object_id, order.id)
-    remaining = order.quantity - sum(i.quantity for i in pinned)
+    remaining = quantity - sum(i.quantity for i in pinned)
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
-    cands = fifo_candidates(db, order.article_id, for_order_id=None)   # freie Restmengen
+    cands = fifo_candidates(db, article_id, for_order_id=None)   # freie Restmengen
     # **Partielle Deckung ist erlaubt** (kein Fehler mehr bei Unterdeckung): es wird FIFO
     # reserviert, was am Lager ist; die **Fehlmenge** deckt ein Nachschub-Unter-Auftrag
     # (``services/supply.py``). Der erste auf das Subjekt zugreifende Schritt (Bewegung/…)
@@ -209,5 +213,27 @@ def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
         cand.subject_of_order_id = order.id               # Subjekt-Markierung (ganz/teilweise)
         reserve(cand, order.id, take)                     # mengengenaue Reservierung
         record_link(db, cand.object_id, order.id)
+
+
+def _allocate_stock_subject(db: Session, order: Order, actor_id: int) -> None:
+    """Subjekt eines Einzel-Artikel-Bestands-Auftrags **bei der Freigabe** binden +
+    reservieren (siehe ``_allocate_stock_for``)."""
+    if not order.article_id or not order.quantity:
+        raise HTTPException(400, detail="Artikel und Menge sind für diesen Auftrag erforderlich")
+    _allocate_stock_for(db, order, order.article_id, order.quantity)
     log_audit(db, "instances", None, "Bestand für Auftrag reserviert (ggf. teilweise)",
+              actor_id, object_id=order.object_id)
+
+
+def _allocate_stock_subject_multiline(db: Session, order: Order, actor_id: int) -> None:
+    """Subjekt eines **Mehrpositionen**-Auftrags (``order_lines``) binden + reservieren:
+    je Position dieselbe Logik wie beim Einzel-Artikel-Auftrag (fixiert zuerst, Rest FIFO),
+    nur je Artikel/Menge der Position statt ``order.article_id``/``order.quantity``."""
+    lines = lines_for(db, order)
+    if not lines:
+        raise HTTPException(400, detail="Mehrpositionen-Auftrag ohne Positionen")
+    for line in lines:
+        _allocate_stock_for(db, order, line.article_id, line.quantity)
+    log_audit(db, "instances", None,
+              f"Bestand für {len(lines)} Position(en) reserviert (ggf. teilweise)",
               actor_id, object_id=order.object_id)

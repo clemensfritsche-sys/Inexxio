@@ -17,7 +17,7 @@ from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
-    OrderDeviationInfo, OrderResponse, OrderStepInfo, OrderSummary, StepShortfall,
+    OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -140,6 +140,14 @@ def _sale_embed(db: Session, order: Order, sale: Sale | None) -> SaleEmbed:
     if sale and sale.customer_id:
         se.customer_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first())
+    # Artikel dieser Position denormalisieren – bei einem Mehrpositionen-Auftrag trägt
+    # jeder Sale-Beleg einen ANDEREN Artikel (``order.article_id`` ist dann NULL).
+    art_id = sale.article_id if sale else order.article_id
+    if art_id:
+        art = db.query(Article).filter(Article.id == art_id).first()
+        if art:
+            se.article_object_id = art.object_id
+            se.article_name = art.name
     return se
 
 
@@ -261,6 +269,21 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             resp.article_weight_kg = art.weight_kg
             resp.article_serialization = art.serialization
             resp.article_supplier_article_number = art.supplier_article_number
+    else:
+        # Mehrpositionen-Auftrag: kein einzelner Artikel – die Positionen stehen einzeln.
+        from .order_lines import lines_for
+        lines = lines_for(db, order)
+        arts = {a.id: a for a in db.query(Article).filter(
+            Article.id.in_({l.article_id for l in lines})).all()} if lines else {}
+        resp.order_lines = [
+            OrderLineInfo(
+                id=l.id, article_id=l.article_id, quantity=l.quantity, position=l.position,
+                article_object_id=arts[l.article_id].object_id if l.article_id in arts else None,
+                article_name=arts[l.article_id].name if l.article_id in arts else None,
+                article_unit=arts[l.article_id].unit if l.article_id in arts else None,
+            )
+            for l in lines
+        ]
 
     resp.recurrence_due = recurrence_due(order)
 

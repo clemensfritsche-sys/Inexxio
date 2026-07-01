@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .disposal import DisposalEmbed
 from .inspection import InspectionEmbed
@@ -60,22 +60,19 @@ def _validate_future_date(v: Optional[date]) -> Optional[date]:
     return v
 
 
-class OrderCreate(BaseModel):
-    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
+class OrderLineIn(BaseModel):
+    """Eine Position bei der **Mehrpositionen**-Anlage (`OrderCreate.lines`) – dieselben
+    zwei Optionen wie am Einzel-Artikel-Auftrag, nur je Zeile wählbar:
 
-    Anker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,
-    der danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);
-    eigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,
-    optional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet."""
+    ``goal='produce'`` – Herstellen/Beschaffen: wird ein **eigener** Auftrag (eigene
+      Fertigungs-Timeline, analog zum Shop: „make-Positionen bleiben je ein eigener Auftrag").
+    ``goal='stock'``   – Aus dem Lager (FIFO) bzw. **Instanz wählen** (``instance_object_ids``
+      fixiert statt FIFO): Position eines gemeinsamen Sammel-Auftrags (eine Sendung)."""
 
     article_id: int
     quantity: int
-    desired_delivery_date: Optional[date] = None
-    # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
-    recurrence_active: Optional[bool] = None
-    recurrence_interval_days: Optional[int] = None
-    recurrence_lead_time_days: Optional[int] = None
-    recurrence_anchor: Optional[date] = None
+    goal: str = "stock"
+    instance_object_ids: list[int] = []
 
     @field_validator("quantity")
     @classmethod
@@ -84,10 +81,62 @@ class OrderCreate(BaseModel):
             raise ValueError("Menge muss grösser als 0 sein")
         return v
 
+    @field_validator("goal")
+    @classmethod
+    def _goal_ok(cls, v: str) -> str:
+        if v not in ("produce", "stock"):
+            raise ValueError("Ziel muss 'produce' (Herstellen/Beschaffen) oder 'stock' (Lager) sein")
+        return v
+
+    @model_validator(mode="after")
+    def _pins_only_for_stock(self) -> "OrderLineIn":
+        if self.goal == "produce" and self.instance_object_ids:
+            raise ValueError("Fixierte Instanzen sind nur bei 'stock' (Lager) möglich")
+        return self
+
+
+class OrderCreate(BaseModel):
+    """Anlage eines Auftrags über '+'. Status startet als 'draft'.
+
+    Anker ist IMMER **Artikel + Menge** – entweder direkt (``article_id``/``quantity``,
+    Einzel-Artikel-Auftrag) ODER als **Mehrpositionen** (``lines``, mehrere Artikel/Mengen
+    auf einmal – z. B. ein Verkauf mehrerer Artikel als eine Sendung). Was damit geschieht,
+    ergibt sich aus dem Ablauf, der danach im Entwurf definiert wird: kein eigener Ablauf →
+    Erzeugung (Artikel-Prozess); eigener Ablauf → Operation auf Instanzen des Artikels
+    (FIFO ab Lager, optional durch fixierte Instanzen ergänzt). Die Subjektart wird also
+    abgeleitet. Genau eines von beidem ist anzugeben."""
+
+    article_id: Optional[int] = None
+    quantity: Optional[int] = None
+    lines: Optional[list[OrderLineIn]] = None
+    desired_delivery_date: Optional[date] = None
+    # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt) – nur beim Einzel-Artikel-Auftrag.
+    recurrence_active: Optional[bool] = None
+    recurrence_interval_days: Optional[int] = None
+    recurrence_lead_time_days: Optional[int] = None
+    recurrence_anchor: Optional[date] = None
+
+    @field_validator("quantity")
+    @classmethod
+    def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("Menge muss grösser als 0 sein")
+        return v
+
     @field_validator("desired_delivery_date")
     @classmethod
     def _date_future(cls, v: Optional[date]) -> Optional[date]:
         return _validate_future_date(v)
+
+    @model_validator(mode="after")
+    def _anchor_xor_lines(self) -> "OrderCreate":
+        has_single = self.article_id is not None and self.quantity is not None
+        has_lines = bool(self.lines)
+        if has_single and has_lines:
+            raise ValueError("Entweder Artikel + Menge ODER mehrere Positionen angeben – nicht beides")
+        if not has_single and not has_lines:
+            raise ValueError("Artikel + Menge oder mindestens eine Position ist erforderlich")
+        return self
 
 
 class OrderUpdate(BaseModel):
@@ -132,6 +181,17 @@ class OrderDeviationCreate(BaseModel):
     """«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
     Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."""
     instance_object_ids: Optional[list[int]] = None
+
+
+class OrderLineInfo(BaseModel):
+    """Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL)."""
+    id: int
+    article_id: int
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
+    article_unit: Optional[str] = None
+    quantity: int
+    position: int
 
 
 class OrderDeviationInfo(BaseModel):
@@ -211,6 +271,8 @@ class OrderResponse(BaseModel):
     article_supplier_article_number: Optional[str] = None
     purchase: Optional[PurchaseEmbed] = None
     sale: Optional[SaleEmbed] = None
+    # Positionen eines Mehrpositionen-Auftrags (leer beim gewöhnlichen Einzel-Artikel-Auftrag).
+    order_lines: list[OrderLineInfo] = []
     instances: list[InstanceEmbed] = []
     inspection: Optional[InspectionEmbed] = None
     movement: Optional[MovementEmbed] = None
@@ -228,3 +290,6 @@ class OrderResponse(BaseModel):
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
     paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist
+    # Bei einer Mehrpositionen-Anlage mit «Herstellen/Beschaffen»-Zeilen entstehen daneben
+    # eigene Aufträge (eigene Fertigungs-Timeline) – ihre Objektnummern, zur Anzeige/Verlinkung.
+    also_created: list[int] = []

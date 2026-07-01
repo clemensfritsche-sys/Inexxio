@@ -1,14 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon } from 'lucide-react';
+import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, UserProfile } from '@/types';
+import type { Order, PaymentMethod, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { saleStatusConfig, saleNodes } from '@/lib/sale';
-import { PrimaryButton, SearchSelect, TextField, ErrorText, StatusBadge, PanelHeader } from '@/components/erp/fields';
+import { PrimaryButton, SearchSelect, TextField, ErrorText, StatusBadge, PanelHeader, Segmented } from '@/components/erp/fields';
 import { PurchaseProgress } from '@/components/erp/purchase-progress';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { ObjId } from '@/components/erp/obj-id';
+
+// Zahlungsart des manuellen Zahlungseingangs – kein Kartenterminal nötig, der übliche
+// B2B-Weg ist die Rechnung (QR-Rechnung). 'stripe' setzt das System selbst (Shop-Zahlung).
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  invoice: 'Rechnung', cash: 'Bar', twint: 'Twint', other: 'Sonstige', stripe: 'Online (Stripe)',
+};
 
 /** Verkaufsschritt (kaufmännisch, Spiegel der Beschaffung): Kunde + Betrag erfassen,
  *  dann Bestätigung → Rechnung → Zahlung. Die Unter-Schritte werden – wie bei der
@@ -25,6 +32,8 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
   const [customerId, setCustomerId] = useState(sale?.customer_id ? String(sale.customer_id) : '');
   const [total, setTotal] = useState(sale?.order_total != null ? String(sale.order_total) : '');
   const [vat, setVat] = useState(sale?.vat_rate != null ? String(sale.vat_rate) : '8.1');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('invoice');
+  const [paymentRef, setPaymentRef] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -54,6 +63,10 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
         order_total: total ? Number(total) : null,
         vat_rate: vat ? Number(vat) : null,
         customer_id: customerId ? Number(customerId) : null,
+        ...(next === 'paid' ? {
+          payment_method: paymentMethod,
+          payment_reference: paymentRef.trim() || null,
+        } : {}),
         step_id: stepId,
       });
       onOrderUpdated(updated);
@@ -61,12 +74,36 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
     finally { setBusy(false); }
   }
 
+  // Herkunft: 'shop' (Kunde selbst über die Kasse) | 'direct' (Personal im ERP erfasst,
+  // z. B. Telefon/Messe/B2B-Rechnung) – rein informativ, keine unterschiedliche Logik.
+  const originBadge = sale.mode ? (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700,
+      padding: '2px 8px', borderRadius: 999, color: sale.mode === 'shop' ? '#2563eb' : '#64748b',
+      background: sale.mode === 'shop' ? '#eff6ff' : '#f1f5f9',
+    }}>
+      {sale.mode === 'shop' ? <Store size={11} /> : <Building2 size={11} />}
+      {sale.mode === 'shop' ? 'Via Shop' : 'Direkt erfasst'}
+    </span>
+  ) : null;
+
   return (
     <Card>
       {/* Kopf */}
       <PanelHeader icon={Receipt} title="Verkauf" tone="#0d9488"
         info="Kaufmännischer Ablauf: Bestätigung → Rechnung → Zahlung."
-        right={<StatusBadge cfg={cfg} size={11} />} />
+        right={<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{originBadge}<StatusBadge cfg={cfg} size={11} /></div>} />
+
+      {/* Bei einem Mehrpositionen-Auftrag trägt jede Position ihren eigenen Verkaufs-Schritt –
+          der Artikel dieser Position wird hier zur Klarheit immer angezeigt. */}
+      {sale.article_object_id != null && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+          <span style={{ color: '#94a3b8' }}>Artikel</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, color: '#0F172A' }}>
+            <ObjId value={sale.article_object_id} />{sale.article_name}
+          </span>
+        </div>
+      )}
 
       {/* Fortschritt der Unter-Schritte (analog Beschaffung) */}
       <div style={{ padding: '8px 2px 2px' }}>
@@ -98,6 +135,10 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
               <Row k="Betrag netto" v={`${Number(sale.order_total).toFixed(2)} ${sale.currency}${sale.vat_rate != null ? ` + ${sale.vat_rate}% MWST` : ''}`} />
             )}
             {sale.invoice_number && <Row k="Rechnungs-Nr." v={sale.invoice_number} />}
+            {sale.payment_method && (
+              <Row k="Zahlungsart" v={PAYMENT_METHOD_LABEL[sale.payment_method] ?? sale.payment_method} />
+            )}
+            {sale.payment_reference && <Row k="Zahlungsreferenz" v={sale.payment_reference} />}
           </div>
           {unit != null && <UnitBox unit={unit} qty={qty} />}
           {error && <ErrorText msg={error} />}
@@ -105,7 +146,20 @@ export function SalePanel({ order, stepState, stepId, onOrderUpdated }: {
             <PrimaryButton icon={FileText} onClick={() => send('invoiced')} disabled={busy}>Rechnung erstellen</PrimaryButton>
           )}
           {stepState === 'active' && status === 'invoiced' && (
-            <PrimaryButton icon={Banknote} onClick={() => send('paid')} disabled={busy}>Zahlung erfassen</PrimaryButton>
+            <>
+              {/* Kein Kartenterminal nötig – Rechnung (QR-Rechnung) ist der übliche B2B-Weg;
+                  bar/Twint für Vor-Ort-Verkäufe. */}
+              <Segmented label="Zahlungsart" value={paymentMethod} onChange={(v) => setPaymentMethod(v as PaymentMethod)}
+                options={[
+                  { value: 'invoice', label: 'Rechnung' },
+                  { value: 'cash', label: 'Bar' },
+                  { value: 'twint', label: 'Twint' },
+                  { value: 'other', label: 'Sonstige' },
+                ]} />
+              <TextField label="Zahlungsreferenz (optional)" value={paymentRef} onChange={setPaymentRef}
+                placeholder="z. B. QR-Referenz, Beleg-Nr." />
+              <PrimaryButton icon={Banknote} onClick={() => send('paid')} disabled={busy}>Zahlung erfassen</PrimaryButton>
+            </>
           )}
           {status === 'paid' && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#16a34a', fontWeight: 600, fontSize: 13 }}>

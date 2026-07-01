@@ -2287,7 +2287,7 @@
           "orders"
         ],
         "summary": "Update Order Sale",
-        "description": "Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.",
+        "description": "Schritt «Verkauf» (kaufmännisch): Bestätigung → Rechnung → Zahlung.\n\nBei einem Mehrpositionen-Auftrag trägt jede Position ihren EIGENEN Verkaufs-Schritt\n(Mehr-Operationen-Routing) – ``step_id`` wählt die richtige Position; ohne ``step_id``\ndie gerade aktive (identisch zu movement/resource/inspection).",
         "operationId": "update_order_sale_api_v1_erp_orders__object_id__sale_patch",
         "security": [
           {
@@ -4674,6 +4674,17 @@
               }
             ],
             "title": "Resource Lines"
+          },
+          "order_line_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Line Id"
           }
         },
         "type": "object",
@@ -4707,6 +4718,17 @@
               }
             ],
             "title": "Order Id"
+          },
+          "order_line_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Line Id"
           },
           "position": {
             "type": "integer",
@@ -7637,12 +7659,40 @@
       "OrderCreate": {
         "properties": {
           "article_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Quantity"
+          },
+          "lines": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OrderLineIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lines"
           },
           "desired_delivery_date": {
             "anyOf": [
@@ -7703,12 +7753,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "article_id",
-          "quantity"
-        ],
         "title": "OrderCreate",
-        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet."
+        "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge** – entweder direkt (``article_id``/``quantity``,\nEinzel-Artikel-Auftrag) ODER als **Mehrpositionen** (``lines``, mehrere Artikel/Mengen\nauf einmal – z. B. ein Verkauf mehrerer Artikel als eine Sendung). Was damit geschieht,\nergibt sich aus dem Ablauf, der danach im Entwurf definiert wird: kein eigener Ablauf →\nErzeugung (Artikel-Prozess); eigener Ablauf → Operation auf Instanzen des Artikels\n(FIFO ab Lager, optional durch fixierte Instanzen ergänzt). Die Subjektart wird also\nabgeleitet. Genau eines von beidem ist anzugeben."
       },
       "OrderDeviationCreate": {
         "properties": {
@@ -7784,6 +7830,100 @@
         ],
         "title": "OrderDeviationInfo",
         "description": "Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im\nEltern-Auftrag."
+      },
+      "OrderLineIn": {
+        "properties": {
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "goal": {
+            "type": "string",
+            "title": "Goal",
+            "default": "stock"
+          },
+          "instance_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Object Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "article_id",
+          "quantity"
+        ],
+        "title": "OrderLineIn",
+        "description": "Eine Position bei der **Mehrpositionen**-Anlage (`OrderCreate.lines`) – dieselben\nzwei Optionen wie am Einzel-Artikel-Auftrag, nur je Zeile wählbar:\n\n``goal='produce'`` – Herstellen/Beschaffen: wird ein **eigener** Auftrag (eigene\n  Fertigungs-Timeline, analog zum Shop: „make-Positionen bleiben je ein eigener Auftrag\").\n``goal='stock'``   – Aus dem Lager (FIFO) bzw. **Instanz wählen** (``instance_object_ids``\n  fixiert statt FIFO): Position eines gemeinsamen Sammel-Auftrags (eine Sendung)."
+      },
+      "OrderLineInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "article_id": {
+            "type": "integer",
+            "title": "Article Id"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "article_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Unit"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "article_id",
+          "quantity",
+          "position"
+        ],
+        "title": "OrderLineInfo",
+        "description": "Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL)."
       },
       "OrderResponse": {
         "properties": {
@@ -8021,6 +8161,14 @@
               }
             ]
           },
+          "order_lines": {
+            "items": {
+              "$ref": "#/components/schemas/OrderLineInfo"
+            },
+            "type": "array",
+            "title": "Order Lines",
+            "default": []
+          },
           "instances": {
             "items": {
               "$ref": "#/components/schemas/InstanceEmbed"
@@ -8152,6 +8300,14 @@
             "type": "boolean",
             "title": "Paused",
             "default": false
+          },
+          "also_created": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Also Created",
+            "default": []
           }
         },
         "type": "object",
@@ -9568,6 +9724,61 @@
             ],
             "title": "Paid At"
           },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "payment_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Reference"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
           "customer_name": {
             "anyOf": [
               {
@@ -9661,6 +9872,28 @@
               }
             ],
             "title": "Invoice Number"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "payment_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Reference"
           },
           "step_id": {
             "anyOf": [

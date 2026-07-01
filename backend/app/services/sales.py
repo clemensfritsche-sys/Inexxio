@@ -498,6 +498,7 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
             order_total=Decimal(line["net_chf"]) if line.get("net_chf") else None,
             vat_rate=Decimal(line["vat_rate"]) if line.get("vat_rate") else None,
             base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
+            mode="shop",
         ))
     # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden).
     db.add(ArticleProcessStep(order_id=order.id, position=100, step_type="movement",
