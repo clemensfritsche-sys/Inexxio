@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Clock, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderStep } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderLineInfo, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
@@ -23,7 +23,6 @@ import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
-import { MultiLineOrderForm } from '@/components/erp/multi-line-order-form';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -34,6 +33,14 @@ type OrderGoal = 'produce' | 'stock' | 'specific';
 // der danach im Entwurf definiert wird (Erzeugung vs. Operation am Bestand). Optional
 // lassen sich für eine Bestands-Operation bestimmte Instanzen fixieren (sonst FIFO).
 type Form = { article_id: string; quantity: string; desired_delivery_date: string };
+
+// Eine Position der Ziel-Karten («Instanz wählen»/FIFO): entweder der Auftrags-Anker
+// (lineId=null, Einzel-Artikel-Auftrag) oder eine Position eines Mehrpositionen-Auftrags.
+// Dieselbe Struktur bedient beide Fälle, damit die Ziel-Karten nicht zweimal gebaut werden.
+type PinLine = {
+  key: string; lineId: number | null; articleId: number; unit: string; reqQty: number;
+  pinnedIds: number[]; pinnedQty: number; pool: Instance[]; availableQty: number;
+};
 
 function seedFrom(record: Order | null): Form {
   if (!record) return { article_id: '', quantity: '', desired_delivery_date: '' };
@@ -106,9 +113,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
-  // Mehrpositionen-Anlage: nur beim frischen Anlegen wählbar (record===null) – ein
-  // bereits bestehender Einzel-Artikel-Auftrag bleibt unverändert einzeln.
-  const [multiLine, setMultiLine] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -147,10 +151,16 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const releasedArticles = articles.filter((a) => a.status === 'released');
   const selectedArticle = releasedArticles.find((a) => String(a.id) === form.article_id) ?? null;
   const qtyUnit = selectedArticle ? unitLabel(selectedArticle.unit) : (record?.article_unit ? unitLabel(record.article_unit) : '');
+  // Mehrpositionen-Auftrag: der Bedarf steht auf ``order_lines`` statt Artikel/Menge am
+  // Auftrag selbst (Anker wird bei der ersten zusätzlichen Position dorthin überführt).
+  const isMultiPosition = (record?.order_lines?.length ?? 0) > 0;
+  const orderLines = record?.order_lines ?? [];
 
   // Anker: Artikel + Menge. Bedarf (Artikel/Menge/Termin) wird per Auto-Save persistiert.
+  // Bei einem Mehrpositionen-Auftrag steht der Bedarf auf den Positionen – nur der Termin
+  // bleibt hier ein Auto-Save-Feld.
   const qtyNum = form.quantity.trim() ? Number(form.quantity) : null;
-  const demandValid = !!form.article_id && qtyNum != null && qtyNum > 0;
+  const demandValid = isMultiPosition || (!!form.article_id && qtyNum != null && qtyNum > 0);
   const effectiveDate = dateOpen ? (form.desired_delivery_date || null) : null;
   const sig = demandSig(form.article_id, form.quantity, effectiveDate);
   const canSave = demandEditable && demandValid && sig !== savedSig && !saving;
@@ -166,66 +176,116 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   }, []);
   const isDraftStaff = isStaff && !isCreate && record?.status === 'draft';
   const hasCustomSteps = orderIsStockOp != null ? orderIsStockOp : record?.subject_role === 'stock';
+  // «Herstellen» ist bei einem Mehrpositionen-Auftrag NIE möglich (mehrere Artikel – kein
+  // EINER Artikel-Prozess, den er fahren könnte; Backend erzwingt dort immer `stock`).
+  const canProduce = !isMultiPosition && !hasCustomSteps;
 
-  // Fixierte (gewählte) Instanzen + verfügbarer Lagerbestand des Artikels (für die Ziel-Karten).
-  const pins = (record?.instances ?? []).map((i) => i.object_id).filter((x): x is number => x != null);
-  const pinnedQty = (record?.instances ?? []).reduce((s, i) => s + (i.quantity ?? 0), 0);
-  const reqQty = record?.quantity ?? 0;
+  // Verfügbarer Lagerbestand je Position (für die Ziel-Karten + «Instanz wählen»). Bei
+  // einem Mehrpositionen-Auftrag EINE Zeile je Position, sonst eine synthetische Zeile
+  // für den Anker – dieselbe Ableitung bedient also Einzel- wie Mehrpositionen-Auftrag.
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
     // Bei einem Unter-Auftrag (Abweichung/Nachschub) stehen die Instanzen fest – kein Lagerpool nötig.
-    if (!isDraftStaff || isSubOrder || record?.article_id == null) { setPinPool([]); return; }
+    if (!isDraftStaff || isSubOrder) { setPinPool([]); return; }
     api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isDraftStaff, isSubOrder, record?.article_id]);
-  const articleStock = pinPool.filter((i) =>
-    i.object_id != null && i.article_id === record?.article_id &&
-    i.quality === 'passed' && i.disposition === 'in_stock' &&
-    (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
-  const availableQty = articleStock.reduce((s, i) => s + (i.quantity ?? 0), 0);
-  // Genug Bestand für eine reine Bestands-Operation? (Menge darf den Lagerbestand nicht übersteigen)
-  const enoughStock = reqQty > 0 && availableQty >= reqQty;
+  }, [isDraftStaff, isSubOrder]);
+
+  const pinnedByArticle = new Map<number, { ids: number[]; qty: number }>();
+  for (const i of record?.instances ?? []) {
+    if (i.object_id == null) continue;
+    const cur = pinnedByArticle.get(i.article_id) ?? { ids: [], qty: 0 };
+    cur.ids.push(i.object_id);
+    cur.qty += i.quantity ?? 0;
+    pinnedByArticle.set(i.article_id, cur);
+  }
+  function buildPinLine(lineId: number | null, articleId: number, unit: string, reqQty: number): PinLine {
+    const pool = pinPool.filter((i) =>
+      i.object_id != null && i.article_id === articleId &&
+      i.quality === 'passed' && i.disposition === 'in_stock' &&
+      (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
+    const pinned = pinnedByArticle.get(articleId) ?? { ids: [], qty: 0 };
+    return {
+      key: lineId != null ? `line-${lineId}` : 'anchor', lineId, articleId, unit, reqQty,
+      pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool,
+      availableQty: pool.reduce((s, i) => s + (i.quantity ?? 0), 0),
+    };
+  }
+  const pinLines: PinLine[] = isMultiPosition
+    ? orderLines.map((l) => buildPinLine(l.id, l.article_id, l.article_unit ? unitLabel(l.article_unit) : '', l.quantity))
+    : record?.article_id != null
+      ? [buildPinLine(null, record.article_id, qtyUnit, record.quantity ?? 0)]
+      : [];
+  const reqQty = record?.quantity ?? 0;
+  const availableQty = pinLines.reduce((s, l) => s + l.availableQty, 0);
+  // Genug Bestand für eine reine Bestands-Operation? (JEDE Position muss gedeckt sein)
+  const enoughStock = pinLines.length > 0 && pinLines.every((l) => l.reqQty > 0 && l.availableQty >= l.reqQty);
 
   // Ziel der Auftragsanlage (Ziel-Karten). Pins ⇒ «Instanz wählen»; eigene Schritte ⇒
   // «Aus Lager»; sonst «Herstellen». Über die Karten wechselbar (pickGoal räumt Pins beim
   // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
+  const pins = pinLines.flatMap((l) => l.pinnedIds);
   const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
   const goal: OrderGoal = pins.length > 0
     ? 'specific'
-    : hasCustomSteps
+    : !canProduce
       ? (goalSel === 'specific' ? 'specific' : 'stock')
       : (goalSel ?? 'produce');
 
-  function pickGoal(g: OrderGoal) {
+  async function pickGoal(g: OrderGoal) {
     setGoalSel(g);
-    if (g !== 'specific' && pins.length > 0) setPins([]);   // «Aus Lager»/«Herstellen» = ohne Pins
+    if (g !== 'specific') {   // «Aus Lager»/«Herstellen» = ohne Pins
+      for (const l of pinLines) {
+        if (l.pinnedIds.length > 0) await setLinePins(l, []);
+      }
+    }
   }
-  function togglePin(oid: number) {
-    if (pins.includes(oid)) { setPins(pins.filter((x) => x !== oid)); return; }
-    setPins([...pins, oid]);
+  function togglePin(line: PinLine, oid: number) {
+    const ids = line.pinnedIds.includes(oid) ? line.pinnedIds.filter((x) => x !== oid) : [...line.pinnedIds, oid];
+    setLinePins(line, ids);
   }
 
-  // «Instanz wählen» verlangt, dass die gewählten Instanzen die Auftragsmenge GENAU decken.
-  const specificComplete = goal !== 'specific' || pinnedQty === reqQty;
+  // «Instanz wählen» verlangt, dass JEDE Position die gewählten Instanzen die Menge GENAU deckt.
+  const specificComplete = goal !== 'specific' || (pinLines.length > 0 && pinLines.every((l) => l.pinnedQty === l.reqQty));
   // Unter-Auftrag (Abweichung/Nachschub): Subjekt steht schon fest – Freigabe braucht nur einen
   // definierten Ablauf (mind. einen Schritt, der festlegt, was geschieht / wie nachgeschoben wird).
   const stepCount = orderStepCount ?? (record?.steps?.length ?? 0);
   const subOrderReady = stepCount > 0;
   // Freigabe: Bedarf gespeichert UND – je nach Auftragsart – Ablauf definiert (Unter-Auftrag)
   // bzw. Instanzauswahl vollständig (reguläre Bestands-Operation «Instanz wählen»).
-  const canRelease = !isCreate && !!record?.article_id && !!record?.quantity
+  const hasDemand = isMultiPosition || (!!record?.article_id && !!record?.quantity);
+  const canRelease = !isCreate && hasDemand
     && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
   const releaseHint = isSubOrder
     ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
-    : (!specificComplete ? `Erst genau ${reqQty} Instanz(en) wählen` : 'Erst Artikel und Menge speichern');
+    : (!specificComplete
+      ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
+      : 'Erst Artikel und Menge speichern');
 
-  async function setPins(ids: number[]) {
+  async function setLinePins(line: PinLine, ids: number[]) {
     if (!record) return;
     try {
-      const saved = await api.updateOrder(record.object_id as number,
-        { instance_object_ids: ids, expected_updated_at: verRef.current });
+      const saved = line.lineId != null
+        ? await api.setOrderLinePins(record.object_id as number, line.lineId, { instance_object_ids: ids })
+        : await api.updateOrder(record.object_id as number, { instance_object_ids: ids, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
       onSaved(saved);
     } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen'); }
+  }
+
+  async function addPosition(articleId: number, quantity: number) {
+    if (!record) return;
+    const saved = await api.addOrderLine(record.object_id as number, { article_id: articleId, quantity });
+    verRef.current = saved.updated_at;
+    onSaved(saved);
+  }
+
+  async function removePosition(lineId: number) {
+    if (!record) return;
+    try {
+      const saved = await api.removeOrderLine(record.object_id as number, lineId);
+      verRef.current = saved.updated_at;
+      onSaved(saved);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Entfernen der Position'); }
   }
 
   async function save() {
@@ -237,10 +297,15 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       if (isCreate) {
         onSaved(await api.createOrder({ article_id: Number(form.article_id), quantity: qtyNum, desired_delivery_date: effectiveDate }));
       } else {
-        const saved = await api.updateOrder(record.object_id as number, {
-          article_id: form.article_id ? Number(form.article_id) : null,
-          quantity: qtyNum, desired_delivery_date: effectiveDate, expected_updated_at: verRef.current,
-        });
+        // Bei einem Mehrpositionen-Auftrag sind Artikel/Menge am Auftrag nicht mehr das
+        // Feld für den Bedarf (der steht auf den Positionen) – nur der Termin wird hier
+        // noch per Auto-Save persistiert (das Backend weist article_id/quantity sonst ab).
+        const payload: OrderUpdateInput = { desired_delivery_date: effectiveDate, expected_updated_at: verRef.current };
+        if (!isMultiPosition) {
+          payload.article_id = form.article_id ? Number(form.article_id) : null;
+          payload.quantity = qtyNum;
+        }
+        const saved = await api.updateOrder(record.object_id as number, payload);
         verRef.current = saved.updated_at;
         onSaved(saved);
         setSavedSig(current);
@@ -387,15 +452,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       {/* Content */}
       <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
-        {/* Mehrpositionen-Anlage: «Herstellen»-Zeilen wurden als EIGENE Aufträge angelegt
-            (eigene Fertigungs-Timeline) – hier verlinkt, nur direkt nach der Anlage sichtbar. */}
-        {!isCreate && (record.also_created?.length ?? 0) > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 10, fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
-            <Factory size={16} style={{ flexShrink: 0 }} />
-            Zusätzlich angelegt (eigene Herstellung/Beschaffung):
-            {record.also_created!.map((oid) => <ObjId key={oid} value={oid} />)}
-          </div>
-        )}
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
@@ -471,24 +527,29 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </div>
         )}
 
-        {/* Bedarf */}
+        {/* Bedarf – Einzel-Artikel (wie gewohnt: Artikel + Menge) ODER, sobald mindestens
+            eine weitere Position hinzugefügt wurde, die Liste der Positionen. Weitere
+            Positionen lassen sich JEDERZEIT ergänzen (auch nach dem ersten Speichern). */}
         <SectionTitle>Bedarf</SectionTitle>
-        {isCreate && multiLine ? (
-          <div style={cardStyle}>
-            <MultiLineOrderForm articles={releasedArticles} onCreated={onSaved} onCancel={() => setMultiLine(false)} />
-          </div>
-        ) : (
         <div style={cardStyle}>
           {demandEditable ? (
             <>
-              <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
-              {isCreate && releasedArticles.length === 0 && (
-                <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
-                  Kein freigegebener Artikel vorhanden. Nur freigegebene Artikel sind referenzierbar.
-                </div>
+              {isMultiPosition ? (
+                <PositionsList lines={orderLines} onRemove={removePosition} />
+              ) : (
+                <>
+                  <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
+                  {isCreate && releasedArticles.length === 0 && (
+                    <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
+                      Kein freigegebener Artikel vorhanden. Nur freigegebene Artikel sind referenzierbar.
+                    </div>
+                  )}
+                </>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
+              <div style={{ display: 'grid', gridTemplateColumns: isMultiPosition ? '1fr' : '1fr 1fr', gap: 14 }}>
+                {!isMultiPosition && (
+                  <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
+                )}
                 <div>
                   <Label>Wunsch-Liefertermin</Label>
                   {dateOpen ? (
@@ -506,28 +567,34 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   )}
                 </div>
               </div>
-              {isCreate && (
-                <button type="button" onClick={() => setMultiLine(true)}
-                  style={{ ...linkBtn, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <Boxes size={13} /> Mehrere Positionen erfassen (z. B. mehrere Artikel verkaufen)
-                </button>
+              {/* Weitere Position: erst möglich, sobald der Auftrag existiert (die erste
+                  Position entsteht wie gewohnt über Artikel/Menge oben + Auto-Save). */}
+              {!isCreate && record?.status === 'draft' && (
+                <AddPositionRow articles={releasedArticles}
+                  excludeArticleIds={isMultiPosition ? orderLines.map((l) => l.article_id) : (record?.article_id != null ? [record.article_id] : [])}
+                  onAdd={addPosition} />
               )}
             </>
           ) : (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-                <span style={{ color: '#94a3b8', flexShrink: 0 }}>Artikel</span>
-                <span style={{ textAlign: 'right' }}>
-                  {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
-                </span>
-              </div>
-              <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
+              {isMultiPosition ? (
+                <PositionsList lines={orderLines} />
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+                    <span style={{ color: '#94a3b8', flexShrink: 0 }}>Artikel</span>
+                    <span style={{ textAlign: 'right' }}>
+                      {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
+                    </span>
+                  </div>
+                  <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
+                </>
+              )}
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
               <Row k="Art" v={subjectRoleLabel(record?.subject_role)} />
             </>
           )}
         </div>
-        )}
 
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
@@ -593,31 +660,39 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         )}
 
         {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
-            Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung). */}
+            Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung).
+            Bei mehreren Positionen scheidet «Herstellen» aus (kein EINER Artikel-Prozess,
+            den ein Mehrpositionen-Auftrag fahren könnte) – nur FIFO oder Instanz wählen. */}
         {isStaff && record?.status === 'draft' && !isSubOrder && (
           <>
             <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
               <GoalCard icon={Factory} tone="#0f766e" active={goal === 'produce'}
-                disabled={hasCustomSteps}
-                disabledHint="Erst die Auftrags-Schritte entfernen"
+                disabled={!canProduce}
+                disabledHint={isMultiPosition ? 'Bei mehreren Positionen nicht möglich' : 'Erst die Auftrags-Schritte entfernen'}
                 title="Herstellen / Beschaffen"
-                desc={`Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
+                desc={isMultiPosition
+                  ? 'Nicht möglich bei mehreren Positionen – dafür je Position einen eigenen Auftrag anlegen.'
+                  : `Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
                 footer="Neuer Bestand"
                 onClick={() => pickGoal('produce')} />
               <GoalCard icon={Warehouse} tone="#2563eb" active={goal === 'stock'}
                 disabled={!enoughStock}
-                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
+                disabledHint={isMultiPosition ? 'Für mindestens eine Position reicht der Lagerbestand nicht' : (availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`)}
                 title="Aus dem Lager"
-                desc="Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO)."
-                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                desc={isMultiPosition
+                  ? 'Für jede Position werden automatisch die ältesten Stück verarbeitet (FIFO).'
+                  : 'Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO).'}
+                footer={isMultiPosition ? `${pinLines.length} Position${pinLines.length === 1 ? '' : 'en'}` : `Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('stock')} />
               <GoalCard icon={Target} tone="#7c3aed" active={goal === 'specific'}
                 disabled={!enoughStock}
-                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
+                disabledHint={isMultiPosition ? 'Für mindestens eine Position reicht der Lagerbestand nicht' : (availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`)}
                 title="Instanz wählen"
-                desc="Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung)."
-                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                desc={isMultiPosition
+                  ? 'Für jede Position genau festlegen, welche Instanzen verarbeitet werden.'
+                  : 'Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung).'}
+                footer={isMultiPosition ? `${pinLines.length} Position${pinLines.length === 1 ? '' : 'en'}` : `Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('specific')} />
             </div>
 
@@ -633,48 +708,62 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               </div>
             ) : (
               <>
-                {/* «Instanz wählen»: Instanzen direkt hier wählen – genau die Auftragsmenge. */}
+                {/* «Instanz wählen»: Instanzen direkt hier wählen – je Position (bei mehreren
+                    Artikeln) genau deren Menge. */}
                 {goal === 'specific' && (
                   <>
                     <SectionTitle icon={Boxes}>Instanzen wählen</SectionTitle>
-                    <div style={cardStyle}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>Genau {reqQty} {qtyUnit} wählen:</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: pinnedQty === reqQty ? '#16a34a' : '#d97706' }}>
-                          {pinnedQty} / {reqQty} gewählt
-                        </span>
-                      </div>
-                      {articleStock.length === 0 ? (
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verfügbaren Instanzen.</div>
-                      ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {articleStock.map((i) => {
-                            const sel = pins.includes(i.object_id!);
-                            const atLimit = !sel && pinnedQty + (i.quantity ?? 1) > reqQty;
-                            return (
-                              <button key={i.object_id} type="button" disabled={atLimit}
-                                onClick={() => togglePin(i.object_id!)}
-                                style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                                  padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
-                                  border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
-                                  background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
-                                  opacity: atLimit ? 0.4 : 1,
-                                }}>
-                                {sel && <CheckCircle2 size={12} />}
-                                {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
-                              </button>
-                            );
-                          })}
+                    {pinLines.map((line) => {
+                      const lineInfo = orderLines.find((l) => l.id === line.lineId);
+                      return (
+                        <div key={line.key} style={cardStyle}>
+                          {isMultiPosition && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
+                              {lineInfo?.article_object_id != null && <ObjId value={lineInfo.article_object_id} />}
+                              {lineInfo?.article_name ?? `Artikel #${line.articleId}`}
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>Genau {line.reqQty} {line.unit} wählen:</span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? '#16a34a' : '#d97706' }}>
+                              {line.pinnedQty} / {line.reqQty} gewählt
+                            </span>
+                          </div>
+                          {line.pool.length === 0 ? (
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verfügbaren Instanzen.</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {line.pool.map((i) => {
+                                const sel = line.pinnedIds.includes(i.object_id!);
+                                const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
+                                return (
+                                  <button key={i.object_id} type="button" disabled={atLimit}
+                                    onClick={() => togglePin(line, i.object_id!)}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                                      padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
+                                      border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
+                                      background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                                      opacity: atLimit ? 0.4 : 1,
+                                    }}>
+                                    {sel && <CheckCircle2 size={12} />}
+                                    {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
                   </>
                 )}
 
                 <SectionTitle icon={Workflow} info={goal === 'specific'
                   ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
-                  : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
+                  : isMultiPosition
+                    ? 'Schritte definieren, was mit den Positionen ab Lager geschieht – je Artikel die ältesten zuerst (FIFO).'
+                    : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
                   <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                     selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
@@ -843,7 +932,8 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
       : <StepFallback />;
   }
   if (step.step_type === 'sale') {
-    return <SalePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+    const sales = step.sales.length > 0 ? step.sales : (order.sale ? [order.sale] : []);
+    return <SalePanel order={stepOrder} sales={sales} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   if (step.step_type === 'inspection') {
     return <InspectionPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
@@ -936,6 +1026,88 @@ function Row({ k, v }: { k: string; v: string }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
       <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
       <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    </div>
+  );
+}
+
+// Positionen eines Mehrpositionen-Auftrags – der Bedarf steht dann hier statt in den
+// Artikel/Menge-Feldern. Ohne ``onRemove`` (read-only nach der Freigabe) kein Entfernen-Knopf.
+function PositionsList({ lines, onRemove }: { lines: OrderLineInfo[]; onRemove?: (lineId: number) => void }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {lines.map((l) => (
+        <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
+          {l.article_object_id != null && <ObjId value={l.article_object_id} />}
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {l.article_name ?? `Artikel #${l.article_id}`}
+          </span>
+          <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0 }}>
+            {l.quantity} {l.article_unit ? unitLabel(l.article_unit) : ''}
+          </span>
+          {onRemove && (
+            <button type="button" onClick={() => onRemove(l.id)} title="Position entfernen"
+              style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// «+ Position hinzufügen» – jederzeit im Entwurf nutzbar (auch nach dem ersten Speichern),
+// nicht nur bei der Anlage. Macht den Auftrag bei der ersten zusätzlichen Position zu
+// einem Mehrpositionen-Auftrag (Backend wandelt den bisherigen Anker in Position 0 um).
+function AddPositionRow({ articles, excludeArticleIds, onAdd }: {
+  articles: Article[]; excludeArticleIds: number[]; onAdd: (articleId: number, quantity: number) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [articleId, setArticleId] = useState('');
+  const [qty, setQty] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const options = articles.filter((a) => !excludeArticleIds.includes(a.id));
+  const selectedArticle = options.find((a) => String(a.id) === articleId);
+  const unit = selectedArticle ? unitLabel(selectedArticle.unit) : '';
+  const qtyNum = qty.trim() ? Number(qty) : null;
+  const valid = !!articleId && qtyNum != null && qtyNum > 0;
+
+  async function submit() {
+    if (!valid) return;
+    setBusy(true); setErr(null);
+    try {
+      await onAdd(Number(articleId), qtyNum!);
+      setArticleId(''); setQty(''); setOpen(false);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Hinzufügen'); }
+    finally { setBusy(false); }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={{ ...linkBtn, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <Plus size={13} /> Position hinzufügen
+      </button>
+    );
+  }
+  return (
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+        <SearchSelect label="Artikel" value={articleId} onChange={setArticleId}
+          options={[{ value: '', label: '— Artikel wählen —' }, ...options.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))]} />
+        <TextFieldUnit label="Menge" value={qty} onChange={setQty} unit={unit} placeholder="z. B. 5" />
+      </div>
+      {err && <span style={{ fontSize: 12, color: '#dc2626' }}>{err}</span>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={submit} disabled={!valid || busy}
+          style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: valid ? '#2563eb' : '#cbd5e1', color: '#fff', fontSize: 12, fontWeight: 700, cursor: valid ? 'pointer' : 'default' }}>
+          {busy ? 'Wird hinzugefügt…' : 'Hinzufügen'}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setErr(null); }}
+          style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', fontSize: 12, color: '#374151', cursor: 'pointer' }}>
+          Abbrechen
+        </button>
+      </div>
     </div>
   );
 }

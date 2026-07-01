@@ -81,9 +81,16 @@ def subject_kind(db: Session, order: Order) -> str:
     Anwesenheit eines Schritts. So kippt ein Schritt, der Bestand HEREINBRINGT (Beschaffung),
     den Auftrag nicht fälschlich in eine Bestands-Operation, die dann still an „kein Bestand"
     scheitert (kein Subjekt, keine Instanz, keine Fehlermeldung). Eine reine (Entwurfs-)Pin-
-    Auswahl ohne Schritte kippt den Auftrag ebenfalls NICHT (sonst scheitert die Herstellung)."""
+    Auswahl ohne Schritte kippt den Auftrag ebenfalls NICHT (sonst scheitert die Herstellung).
+
+    Ein **Mehrpositionen**-Auftrag (mehrere Artikel über ``order_lines``, ``article_id``
+    fehlt) ist IMMER ``stock`` – es gibt keinen EINEN Artikel-Prozess, den er sonst fahren
+    könnte. Fehlt ihm noch ein Ablauf, blockiert das (wie gehabt) die Freigabe mit einer
+    klaren Fehlermeldung, statt still am fehlenden Artikel zu scheitern."""
     if is_deviation(order):
         return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
+    if order.article_id is None and lines_for(db, order):
+        return "stock"
     steps = order_custom_steps(db, order.id)
     if not steps:
         return "produce"     # keine eigenen Schritte → Artikel-Prozess, erzeugt Instanzen

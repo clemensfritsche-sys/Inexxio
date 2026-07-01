@@ -1471,6 +1471,23 @@ def test_subject_kind_follows_declared_step_roles():
     assert "article_steps(db, order.article_id)" in defs_src
 
 
+def test_subject_kind_forces_stock_for_pooled_orders_without_steps():
+    """Regression: ein Mehrpositionen-Auftrag (``order_lines``, ``article_id`` fehlt) hat
+    KEINEN einzelnen Artikel-Prozess, den er sonst fahren könnte – ohne diesen Sonderfall
+    hätte ``subject_kind`` ihn (mangels eigener Schritte) fälschlich als ``produce``
+    eingestuft, und die Freigabe hätte still 0 Instanzen erzeugt (``order.article_id``/
+    ``quantity`` sind ja NULL). Jetzt: pooled → immer ``stock``, fehlt der Ablauf noch,
+    blockiert das (bestehende) „Bitte zuerst einen Prozessschritt definieren" die Freigabe
+    statt eines stillen No-ops."""
+    import inspect as _inspect
+    from app.services import subject
+
+    src = _inspect.getsource(subject.subject_kind)
+    assert 'order.article_id is None and lines_for(db, order)' in src
+    # Diese Prüfung steht VOR der has_custom_steps-Weiche (sonst zu spät).
+    assert src.index("lines_for(db, order)") < src.index("order_custom_steps")
+
+
 def test_reservation_becomes_firm_only_at_release():
     """#1: Der Pin im Entwurf merkt nur **vor** (subject_of_order_id); **scharf reserviert**
     (reserved_for_order_id) wird erst bei der Freigabe – mit Freigabe-Validierung."""
@@ -1620,72 +1637,62 @@ def test_company_object_id_assigned_at_startup_and_exposed_public():
 
 # ─── Mehrpositionen-Aufträge (order_lines) + Verkaufs-Herkunft/Zahlungsart ─────────
 
-def test_order_create_requires_exactly_one_anchor():
-    """Ein Auftrag braucht ENTWEDER Artikel+Menge ODER Mehrpositionen (``lines``) – nicht
-    beides, nicht keins. Sonst könnte ein Auftrag widersprüchlich/ohne Bedarf entstehen."""
+def test_order_create_is_single_article_unchanged():
+    """Die Auftragsanlage (``POST /erp/orders``) bleibt GENAU wie zuvor: Artikel + Menge,
+    beide Pflicht – keine Mehrpositionen-Sonderfelder. Weitere Artikel kommen ausschliesslich
+    über den EIGENEN Endpunkt ``POST .../lines`` dazu (auch nach dem ersten Speichern), damit
+    das normale Anlegen (inkl. Autosave) nicht verändert/blockiert wird."""
     import pytest as _pytest
     from pydantic import ValidationError
-    from app.schemas.order import OrderCreate, OrderLineIn
+    from app.schemas.order import OrderCreate
 
     with _pytest.raises(ValidationError):
-        OrderCreate()   # weder Anker noch Positionen
-    with _pytest.raises(ValidationError):
-        OrderCreate(article_id=1, quantity=2, lines=[OrderLineIn(article_id=1, quantity=1)])
-    # Je einzeln gültig.
+        OrderCreate()   # Artikel + Menge sind Pflicht wie eh und je
     assert OrderCreate(article_id=1, quantity=2).quantity == 2
-    assert len(OrderCreate(lines=[OrderLineIn(article_id=1, quantity=1)]).lines) == 1
+    assert not hasattr(OrderCreate(article_id=1, quantity=2), "lines")
 
 
-def test_order_line_in_goal_and_pin_validation():
-    """Eine Position ist entweder ``produce`` (wird ein eigener Auftrag) oder ``stock``
-    (Position im Sammel-Auftrag, optional mit fixierten Instanzen statt FIFO). Fixierte
-    Instanzen ergeben bei ``produce`` keinen Sinn (es existiert noch nichts zu fixieren)."""
-    import pytest as _pytest
-    from pydantic import ValidationError
-    from app.schemas.order import OrderLineIn
-
-    with _pytest.raises(ValidationError):
-        OrderLineIn(article_id=1, quantity=1, goal="bogus")
-    with _pytest.raises(ValidationError):
-        OrderLineIn(article_id=1, quantity=1, goal="produce", instance_object_ids=[100000001])
-    # Gültig: stock mit UND ohne Pins, produce ohne Pins.
-    assert OrderLineIn(article_id=1, quantity=1, goal="stock", instance_object_ids=[100000001])
-    assert OrderLineIn(article_id=1, quantity=1, goal="produce")
-
-
-def test_multiline_orders_split_produce_and_pool_stock():
-    """Kernregel der Mehrpositionen-Anlage (``routers/orders.py``): ``goal='produce'``-Zeilen
-    werden je ein **eigener** Auftrag (eigene Fertigungs-Timeline, analog zum Shop: „make-
-    Positionen bleiben je ein eigener Auftrag"); ``goal='stock'``-Zeilen bündeln sich zu
-    EINEM Sammel-Auftrag (``order_lines``) mit automatisch angelegten Verkaufs-/Bewegungs-
-    Schritten – OHNE den generischen Step-Editor zu durchlaufen (kein Pflicht-Bewegungs-Sync,
-    sonst würde aus einer Sendung mehrere – siehe ``_Owner.sync``)."""
+def test_add_order_line_endpoint_exists_and_converts_anchor():
+    """``POST /orders/{id}/lines`` macht einen bestehenden Einzel-Artikel-Auftrag (falls
+    nötig) zu einem Mehrpositionen-Auftrag: der bisherige Anker (``article_id``/``quantity``)
+    wandert in eine erste ``OrderLine`` (Position 0), bevor die neue Position dazukommt –
+    Reservierungen/Instanzen-Historie bleiben unberührt, nur die Bedarfs-Darstellung wechselt.
+    Funktioniert AUCH, nachdem der Auftrag schon gespeichert wurde (Entwurf genügt)."""
     import inspect as _inspect
     from app.routers import orders as orders_router
 
-    src = _inspect.getsource(orders_router._create_multiline_order)
-    assert 'line.goal != "produce"' in src
-    assert 'l.goal == "stock"' in src
-    assert "OrderLine(order_id=pooled.id" in src
-    assert 'step_type="sale"' in src and 'step_type="movement"' in src
-    # Direkt konstruiert (kein Aufruf des generischen Step-Editors `_create`/`owner.sync`).
-    assert "_create(" not in src and "owner.sync" not in src
+    src = _inspect.getsource(orders_router.add_order_line)
+    assert 'order.status != "draft"' in src   # nur im Entwurf, aber KEIN "nur beim Anlegen"
+    assert "OrderLine(order_id=order.id, article_id=order.article_id" in src   # Anker -> Position 0
+    assert "order.article_id = None" in src and "order.quantity = None" in src
+    assert "next_pos" in src   # neue Position wird angehängt, nicht überschrieben
 
 
-def test_pooled_owner_skips_locked_movement_sync():
-    """Regression: die generische Pflicht-Bewegungs-Synchronisation (`sync_locked_movements`)
-    würde PRO ``sale``-Schritt eine eigene «Versand zum Kunden»-Bewegung nachziehen (die Regel
-    kennt keine Positionen) – aus einer gemeinsamen Sendung würden bei jeder Ablauf-Änderung
-    (Schritt hinzufügen/löschen/umsortieren) N. Für einen Mehrpositionen-Auftrag (``pooled``)
-    ist ``_Owner.sync`` deshalb bewusst ein No-op."""
+def test_pooled_orders_reuse_generic_step_editor():
+    """Ein Mehrpositionen-Auftrag definiert seinen Ablauf über denselben generischen
+    Step-Editor wie jeder andere Auftrag (``ProcessSteps``/``_create``) – KEIN Sonderpfad,
+    KEINE automatisch angelegten Schritte bei der Positions-Anlage. Nur Verkauf + Bewegung
+    sind zulässig (Beschaffung/Ressource/Datenerfassung/Verschrotten skalieren (noch) mit
+    ``order.quantity``, das bei Mehrpositionen NULL ist)."""
+    import inspect as _inspect
+    from app.routers import article_process, orders as orders_router
+
+    add_src = _inspect.getsource(orders_router.add_order_line)
+    assert "ArticleProcessStep(" not in add_src   # legt KEINE Schritte automatisch an
+    create_src = _inspect.getsource(article_process._create)
+    assert 'owner.pooled and data.step_type not in ("sale", "movement")' in create_src
+
+
+def test_pooled_owner_sync_is_unchanged():
+    """Verkauf ist EIN Schritt (auch bei mehreren Artikeln – mehrere Belege teilen sich
+    ihn, ``services/sale.py``); die Pflicht-Bewegungs-Synchronisation läuft deshalb für
+    Mehrpositionen-Aufträge GENAU WIE für jeden anderen Auftrag, ohne Sonderfall."""
     import inspect as _inspect
     from app.routers import article_process
 
     src = _inspect.getsource(article_process._Owner.sync)
-    assert "if self.pooled:" in src and "return" in src
-    assert "sync_locked_movements" in src   # weiterhin für den Normalfall vorhanden
-    pooled_src = _inspect.getsource(article_process._Owner.__init__)
-    assert "record.article_id is None" in pooled_src
+    assert "if self.pooled" not in src   # kein Sonderfall/No-op mehr nötig
+    assert "sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)" in src
 
 
 def test_pooled_order_step_types_restricted():
@@ -1701,34 +1708,64 @@ def test_pooled_order_step_types_restricted():
 
 
 def test_sale_step_resolves_via_step_not_first_match():
-    """Regression: `PATCH /orders/{id}/sale` nahm früher blind die ERSTE aktive Sale-Zeile
-    des Auftrags (``Sale.filter(order_id=...).first()``) – bei einem Mehrpositionen-Auftrag
-    mit mehreren Verkaufs-Schritten hätte JEDE Aktualisierung dieselbe (erste) Position
-    getroffen, unabhängig davon, welche der Nutzer bearbeiten wollte. Jetzt wie movement/
-    resource/inspection über ``resolve_exec_step``/``fact_for_step`` aufgelöst (``step_id``)."""
+    """Regression: `PATCH /orders/{id}/sale` nahm früher blind die ERSTE Sale-Zeile des
+    Auftrags (``Sale.filter(order_id=...).first()``). Jetzt wie movement/resource/inspection
+    über ``resolve_exec_step`` aufgelöst (``step_id``) – und ALLE Belege des Schritts
+    (``facts_for_step``) gemeinsam aktualisiert (``apply_update_bulk``), da ein Verkaufs-
+    Schritt bei mehreren Artikeln mehrere Belege trägt."""
     import inspect as _inspect
     from app.routers import orders as orders_router
 
     src = _inspect.getsource(orders_router.update_order_sale)
     assert "Sale.filter" not in src.replace(" ", "")   # keine direkte Query mehr
     assert 'resolve_exec_step(db, order, "sale", data.step_id)' in src
-    assert "fact_for_step(db, order, step)" in src
+    assert "facts_for_step(db, order, step)" in src
+    assert "apply_update_bulk(db, sales, data, current_user)" in src
 
 
-def test_sale_instantiate_resolves_line_per_step():
-    """Bei einem Mehrpositionen-Auftrag trägt jeder ``sale``-Schritt seine EIGENE Position
-    (``order_line_id``) – die Fachzeile (``Sale``) bekommt deren Artikel/Menge statt des
-    (bei Mehrpositionen NULL) ``order.article_id``/``quantity``. Ein Einzel-Artikel-Auftrag
-    bleibt unverändert (kein ``order_line_id`` gesetzt)."""
+def test_sale_is_one_step_with_one_fact_per_article():
+    """Kernregel (Nutzer-Feedback): Verkauf ist – wie Bewegung – EIN Prozessschritt, auch
+    bei mehreren Artikeln (Mehrpositionen-Auftrag) – KEINE mehreren gleichartigen Schritte
+    hintereinander. ``instantiate_for_order`` legt dafür je Artikel/Position EINEN Beleg an,
+    alle unter demselben Schritt (``step_id``); ein Einzel-Artikel-Auftrag bleibt unverändert
+    (ein Schritt, ein Beleg)."""
+    import inspect as _inspect
+    from app.services import process, sale as sale_svc
+
+    inst_src = _inspect.getsource(sale_svc.instantiate_for_order)
+    assert "steps[0]" in inst_src   # GENAU ein Verkaufs-Schritt, keine Schleife über mehrere
+    assert "lines_for(db, order)" in inst_src
+    assert 'mode="direct"' in inst_src
+
+    # Status-Aggregation: 'done' erst, wenn ALLE Belege eines Schritts bezahlt sind.
+    assert process._sale_status([]) == "open"
+
+    class _S:
+        def __init__(self, status):
+            self.status = status
+    assert process._sale_status([_S("paid"), _S("paid")]) == "done"
+    assert process._sale_status([_S("paid"), _S("requested")]) == "open"
+    assert process._sale_status([_S("cancelled"), _S("cancelled")]) == "failed"
+
+
+def test_sale_price_is_single_source_of_truth_from_article():
+    """«Preise vom Artikel übernehmen – Single Source of Truth»: der Betrag kommt aus der
+    Shop-Preis-Pipeline (``article_prices``), NICHT aus einem frei getippten Feld. Bei
+    MEHREREN Belegen (Mehrpositionen) ist der Betrag über die Aktualisierung nicht mehr
+    direkt editierbar – nur bei genau einem Beleg (Einzel-Artikel-Fall bzw. Artikel ohne
+    hinterlegten Preis) bleibt die manuelle Eingabe als Fallback möglich."""
     import inspect as _inspect
     from app.services import sale as sale_svc
 
-    src = _inspect.getsource(sale_svc._line_for_step)
-    assert "step.order_line_id is not None" in src
-    assert "order.article_id, order.quantity" in src
-    inst_src = _inspect.getsource(sale_svc.instantiate_for_order)
-    assert "_line_for_step(db, order, step)" in inst_src
-    assert 'mode="direct"' in inst_src
+    prefill_src = _inspect.getsource(sale_svc._prefill_price)
+    assert "price_from_article(db, article_id, sale.quantity)" in prefill_src
+    price_src = _inspect.getsource(sale_svc.price_from_article)
+    assert "pricing.resolve_primary_price(db, art)" in price_src
+    assert "pricing.price_view_for" in price_src
+
+    bulk_src = _inspect.getsource(sale_svc.apply_update_bulk)
+    assert "_MONEY_FIELDS" in bulk_src
+    assert "len(sales) == 1" in bulk_src   # nur bei einem Beleg frei editierbar
 
 
 def test_sale_mode_and_payment_method_fields():

@@ -169,26 +169,25 @@ export interface OrderRecurrenceInput {
   recurrence_anchor?: string | null;
 }
 
-// Eine Position bei der Mehrpositionen-Anlage: 'produce' wird ein EIGENER Auftrag
-// (eigene Fertigungs-Timeline), 'stock' bündelt sich in einen Sammel-Auftrag (eine
-// Sendung) – optional mit fixierten Instanzen statt FIFO.
-export type OrderLineGoal = 'produce' | 'stock';
-export interface OrderLineIn {
+// Eine Position eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL).
+export type OrderLineInfo = components['schemas']['OrderLineInfo'];
+
+// Eine weitere Position zu einem bestehenden Auftrag hinzufügen (POST .../lines) –
+// jederzeit möglich, auch nachdem der Auftrag schon gespeichert wurde. Macht den
+// Auftrag (falls noch nicht) zu einem Mehrpositionen-Auftrag (kein «Herstellen» mehr).
+export interface OrderLineCreateInput {
   article_id: number;
   quantity: number;
-  goal: OrderLineGoal;
-  instance_object_ids?: number[];
 }
-export type OrderLineInfo = components['schemas']['OrderLineInfo'];
+// Fixierte Instanzen EINER Position statt FIFO (PATCH .../lines/{line_id}).
+export interface OrderLinePinsInput {
+  instance_object_ids: number[];
+}
 
 export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
-  // Vorgewählte Instanzen (Bestands-Auftrag) statt Artikel + Menge.
-  instance_object_ids?: number[] | null;
   desired_delivery_date?: string | null;
-  // Mehrpositionen (mehrere Artikel/Mengen auf einmal) – exklusiv zu article_id/quantity.
-  lines?: OrderLineIn[] | null;
 }
 
 export type OrderUpdateInput = OrderRecurrenceInput & {
