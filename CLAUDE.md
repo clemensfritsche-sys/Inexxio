@@ -562,45 +562,39 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   - **UX: Hover-Begründung bei gesperrten Aktionen**: der Auftrag-Freigabe-Knopf zeigt per `title`-
     Tooltip den konkreten Grund, warum er (noch) ausgegraut ist, statt stillschweigend deaktiviert zu
     bleiben.
-- **Retoure/Erstattung = ganz normaler Auftrag (Migrationen `048`+`049`) – KEIN Button, KEIN eigener
-  Datentyp**: Eine Retoure wird angelegt **wie jeder andere Auftrag** – Artikel wählen, dann die
-  **verkauften** Instanzen als Subjekt fixieren (`POST /orders/{id}/refund-subject`, `services/refund.py:
-  bind_refund_subject`). Das macht den Auftrag zur Retoure: `orders.reason='return'` (festes Subjekt via
-  `Instance.subject_of_order_id`, wie eine Abweichung – kein FIFO/keine Reservierung, **ohne** Eltern-Pause)
-  + `parent_order_id` = der **Original-Verkauf** (aus den gewählten Instanzen abgeleitet, Grundlage für
-  Betrag/MWST/Kunde/Stripe-PaymentIntent). Sie komponiert die vorhandenen Module – in aller Regel
-  **Bewegung** (Ware zurück ins Lager) + **`refund`** (Geld zurück), danach frei weiteres (Prüfung,
-  Verschrotten …). **Der frühere «Retoure erfassen»-Button, der `return`-Schritt + `return_receipts` und
-  der Gutschrift-Modus im Sale-Panel sind entfernt** (Migration `049` droppt `return_receipts`).
-  - **Zwei getrennte Achsen (Geld ⟂ Ware) – bewusst entkoppelt:**
-    - **`refund` = «Rückerstattung»** (neuer Schritttyp, Registry `event_types`: **NEUTRAL**/INSTANCE/
-      Fachtabelle **`Sale`** mit `kind='credit'` – dieselbe Maschinerie wie der Verkauf, andersherum; nur
-      im Auftrags-Ablauf). Betrag/Kunde aus dem Original-Verkauf **abgeleitet** (`sale._prefill_credit`,
-      `original_sale_id`), bei genau EINER Position aber **abweichend erfassbar** (Teil-Erstattung/
-      Restocking-Fee). Ablauf Bestätigen→Ausstellen→**Erstatten**: die «Zahlung» (`paid`) löst den
-      **Stripe-Refund** aus (`provider.refund`, voll/anteilig, idempotent, `stripe_refund_id`/`refunded_at`)
-      bzw. eine dokumentierte manuelle Gutschrift; unveränderliche Nummer `GS-{id}` (`credit_note_number`),
-      Event `sale.refunded`. Endpoint `PATCH /orders/{id}/refund` (reuse `sale.apply_update_bulk`, aufgelöst
-      über den `refund`-Schritt). Polarität **NEUTRAL**, weil der Schritt NUR Geld bewegt.
-    - **Physischer Rückfluss = die BEWEGUNG** (kein eigener Rücknahme-Schritt mehr): der Movement-Schritt
-      nimmt bei einer Retoure auch **verkaufte** Instanzen auf (`movement.record_movement`/`order_instances`
-      bei `is_return`). Der Verbleib entscheidet sich – **symmetrisch zum Verkauf** – bei **ABSCHLUSS**
-      (`process._finalize_subjects` für `is_return`): eine verkaufte Subjekt-Instanz, die per Bewegung an
-      einem **Lagerplatz** gelandet ist, kommt zurück in den Bestand (`sold`→`in_stock`, Menge auf ≥1
-      wiederhergestellt, `inventory.increased`). Wurde **nichts bewegt** (Kulanz: Kunde behält die Ware) →
-      sie bleibt `sold` (nur Geld zurück). Durchgefallene (`quality='failed'`, z. B. aus einer Prüfung)
-      bleiben gesperrt und werden separat **verschrottet** (Scrap nimmt bei einer Retoure ebenfalls sold
-      auf). So sind Geld (`refund`) und Ware (`movement`) frei kombinierbar – auch ganz ohne physische
-      Rücknahme. **Löst nebenbei das aufgeschobene «Menge reduzieren»-TODO**: eine Teil-Erstattung ist eine
-      saubere Gutschrift statt stiller Mengen-Kürzung.
-  - Subjekt-Integration: `subject.is_return`/`is_fixed_subject` (deviation ODER return – festes Subjekt),
-    `subject_kind`→`return`; `refund` teilt mit `sale` den Fact-Lebenszyklus (`_fact_status`: paid=erledigt),
-    ist ein `MULTI_FACT_STEP_TYPE` (ein Gutschrift-Beleg je Artikel). Original-Verkauf zeigt die Retoure als
-    Unter-Auftrag (`OrderResponse.returns`). Frontend: `refund-panel.tsx` (abgeleiteter Betrag, editierbar,
-    «Erstattung auslösen», GS-Nr/Refund), Ziel-Karte **«Erstattung / Retoure»** + Sold-Instanz-Picker in der
-    Auftragsanlage (`order-detail.tsx: RefundSubjectPicker`, `api.setRefundSubject`), Movement/Scrap-Panels
-    zeigen bei `reason='return'` die verkauften Instanzen, `refund` in `STEP_META`/`ORDER_STEP_ORDER`/
-    `lib/process.ts`. *Bewusst NICHT gebaut: Store-Credit/Guthaben.*
+- **Retoure/Erstattung = ganz normaler Auftrag über das VEREINHEITLICHTE `sale`-Modul** (Migrationen
+  `048`+`049`; der frühere separate `refund`-Schritt ist wieder entfernt): Eine Retoure wird angelegt **wie
+  jeder andere Auftrag** – Artikel wählen, dann bei **«Instanz wählen»** statt Lager-Instanzen die
+  **verkauften** Instanzen wählen (KEINE eigene Ziel-Karte mehr; `routers/orders._set_chosen_instances` +
+  `_validate_pins` akzeptieren `sold`). Das Backend erkennt verkaufte Instanzen und macht den Auftrag zur
+  Retoure: `orders.reason='return'` (festes Subjekt via `Instance.subject_of_order_id`, wie eine Abweichung –
+  kein FIFO/keine Reservierung, **ohne** Eltern-Pause) + `parent_order_id` = der **Original-Verkauf**
+  (`services/refund.original_sale_order`, Grundlage für Betrag/MWST/Kunde/Stripe-PaymentIntent). Lager- und
+  verkaufte Instanzen lassen sich nicht mischen (gegensätzliche Geldrichtungen).
+  - **EIN `sale`-Schritt, ZWEI Modi – aus dem Subjekt ABGELEITET** (kein eigener Schritttyp): normaler
+    Auftrag → **Verkauf** (`kind='sale'`, Geld rein, Bestands-Abgang) | Retoure (Subjekt verkauft) →
+    **Gutschrift/Erstattung** (`kind='credit'`, Geld raus, `sale.instantiate_for_order` über `is_return`).
+    Betrag/Kunde aus dem Original abgeleitet (`_prefill_credit`), bei EINER Position **abweichend erfassbar**
+    (Teil-Erstattung/**Kulanz**). Ablauf Bestätigen→Ausstellen→**Erstatten**: die «Zahlung» (`paid`) löst den
+    **Stripe-Refund** aus, wenn der Verkauf via Stripe lief (`_issue_refund`/`provider.refund`, voll/anteilig,
+    idempotent), sonst dokumentierte manuelle Gutschrift; Nummer `GS-{id}`, Event `sale.refunded`. Dasselbe
+    Panel (`sale-panel.tsx`) rendert Verkauf ODER Gutschrift (Dual-Mode über `first.kind`); EIN Endpoint
+    `PATCH /orders/{id}/sale`.
+  - **Label-Wechsel dann, WANN es wirklich passiert (step-basiert, idempotent):**
+    - **Verkauf bezahlt → «verkauft»**: `process.sell_order_subjects` (in_stock→sold, mengengenau) wird bei
+      **sale-`paid`** aufgerufen (`sale._apply_transition`/`finalize_paid`) – nicht erst am Auftragsende;
+      make-to-order zieht beim Abschluss nach. Die **gesperrten Pflicht-Bewegungen** (u. a. der Versand zum
+      Kunden) sind von der Subjekt-Fehlmengen-Prüfung **ausgenommen** (`step_shortfalls`, `not step.locked`),
+      sonst würde der Versand blockiert, sobald die Ware «verkauft» (aus dem freien Bestand «weg») ist.
+    - **Rückgabe-Bewegung durch → «freigegeben»**: `process.return_subjects_to_stock` (sold→in_stock, Menge
+      auf ≥1) wird bei der **Bewegung** an einen Lagerplatz aufgerufen (`movement.record_movement`), nicht
+      erst am Auftragsende. Movement/Scrap nehmen bei einer Retoure (bzw. Versand: Ziel=Person) auch
+      **verkaufte** Instanzen auf. **Kulanz** (Ware NICHT bewegt) → bleibt `sold`, nur Geld zurück.
+    - `_finalize_subjects` beim Abschluss ist nur noch das **Sicherheitsnetz** (ruft beide Helfer idempotent).
+  - Geld (`sale`/Gutschrift) und Ware (`movement`) sind **frei kombinierbar** – Retoure mit Rücknahme,
+    reine Kulanz-Gutschrift (Reklamation ohne Rückgabe), defekt→verschrotten+gutschreiben. **Löst nebenbei
+    das «Menge reduzieren»-TODO** (Teil-Erstattung statt stiller Mengen-Kürzung). Original-Verkauf zeigt die
+    Retoure als Unter-Auftrag (`OrderResponse.returns`). *Bewusst NICHT gebaut: Store-Credit/Guthaben.*
 - **Pflicht-Versand zum Kunden geht IMMER an den Kunden** (Fix): die auf einen `sale`-Schritt folgende
   Pflicht-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
   Serverseitig erzwungen (`movement.record_movement` überschreibt die Ziel-Eingaben) UND im Embed als festes
@@ -620,11 +614,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Abweichung** (`reason='deviation'`: Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit,
 > pausiert den Eltern; `Claim`-Typ entfernt), **Nachschub** (`reason='supply'`: deckt einen nicht
 > vorrätigen Bedarf, blockiert nur den Schritt) und **Retoure/Erstattung** (`reason='return'`, Migrationen
-> `048`+`049`: als **ganz normaler Auftrag** angelegt – verkaufte Instanzen als Subjekt, `parent`=Original-
-> Verkauf; Geld über den Schritt **`refund`** (`sale.kind='credit'` + Stripe-Refund), Ware über die
-> **Bewegung** (sold→in_stock bei Abschluss, wenn an einen Lagerplatz bewegt – sonst Kulanz: bleibt sold);
-> festes Subjekt wie eine Abweichung, aber OHNE Eltern-Pause. Der alte `return`-Schritt/`return_receipts`
-> sind entfernt). **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
+> `048`+`049`: als **ganz normaler Auftrag** angelegt – bei «Instanz wählen» **verkaufte** Instanzen wählen
+> → Backend leitet Retoure + `parent`=Original-Verkauf ab; Geld über das **vereinheitlichte `sale`-Modul im
+> Kredit-Modus** (`kind='credit'` aus dem Subjekt abgeleitet + Stripe-Refund), Ware über die **Bewegung**.
+> Festes Subjekt wie eine Abweichung, aber OHNE Eltern-Pause. Kein separater `refund`-Schritt mehr).
+> **Label-Wechsel step-basiert** (wann es wirklich passiert): Verkauf bezahlt → sold; Rückgabe-Bewegung an
+> einen Lagerplatz → in_stock; Kulanz (nicht bewegt) → bleibt sold. **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
 > macht den Schritt `blocked` (abgeleitet); `supply.ensure_supply` legt rekursiv/idempotent/zyklensicher
 > Nachschub-Unteraufträge an (Artikel-Prozess), die bei Abschluss an den Eltern **gepinnt** werden.
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
@@ -640,8 +635,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
 eingebettete Kasse/Warenkorb inkl. Mehrpositionen-Verkauf (Fehlbestand + Nachschub, Zahlungsart) in der
-Sandbox testen (`docs/stripe-setup.md`); Retoure/Erstattung als Normalauftrag (Bewegung zurück + `refund`
-inkl. Stripe-Refund; Kulanz ohne Rücknahme) in der Sandbox end-to-end prüfen; Abo-Mindestlaufzeit/
+Sandbox testen (`docs/stripe-setup.md`); Retoure/Erstattung als Normalauftrag (verkaufte Instanzen unter
+«Instanz wählen» → Bewegung zurück + Gutschrift im `sale`-Modul inkl. Stripe-Refund; Kulanz ohne Rücknahme)
+in der Sandbox end-to-end prüfen; Abo-Mindestlaufzeit/
 Kündigungs-Cooldown in der Praxis prüfen; Auto-Fulfillment je Produktabo-Zyklus (`invoice.paid`-Hook);
 Custom-Auftrag-UX verfeinern; Instanz = vollständige Ereignis-Historie; Scan-Quittierung im Wareneingang &
 beim Verschrotten; E-Mail (Gmail API); Stripe Terminal für Vor-Ort-Zahlung (payment_method='terminal',

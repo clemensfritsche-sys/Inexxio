@@ -269,17 +269,6 @@ class ApiClient {
       instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
   }
 
-  // Retoure/Erstattung als normaler Auftrag: die zu erstattenden verkauften Instanzen als
-  // Subjekt fixieren (macht den Entwurf zur Retoure, reason='return' + parent = Original-Verkauf).
-  setRefundSubject(objectId: number, instanceObjectIds: number[]): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/refund-subject`, { instance_object_ids: instanceObjectIds });
-  }
-
-  // Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
-  updateOrderRefund(objectId: number, data: SaleUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/refund`, data);
-  }
-
   // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag (reason='supply'), der die
   // Fehlmenge eines blockierten Schritts beschafft/produziert; liefert den Auftrag zurück.
   createSupply(objectId: number): Promise<Order> {

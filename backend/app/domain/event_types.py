@@ -59,14 +59,12 @@ REGISTRY: dict[str, EventType] = {
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection"),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement"),
     "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal"),
+    # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
+    # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
+    # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird
+    # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
+    # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
-    # Rückerstattung = die **Geld-Seite** einer Retoure (Spiegel des Verkaufs auf der Geld-Achse):
-    # der Verkaufsbetrag wird gutgeschrieben/erstattet (Stripe-Refund bzw. manuell). Fachtabelle
-    # ``Sale`` mit ``kind='credit'`` – dieselbe Maschinerie wie der Verkauf, nur andersherum. Der
-    # **physische** Rückfluss (verkauft → am Lager) läuft über die **Bewegung** + den Abschluss
-    # (``process._finalize_subjects``), NICHT über diesen Schritt → Bestands-Polarität NEUTRAL.
-    # Wirkt auf konkrete, bestehende (verkaufte) Instanzen (INSTANCE). Nur im Auftrags-Ablauf.
-    "refund":     EventType("refund",     "Rückerstattung", NEUTRAL,  INSTANCE, "Sale"),
 }
 
 # Erlaubte Schritttypen (Schema-Whitelist) und die Ressourcen-Gruppe (Verbrauch +
@@ -85,7 +83,7 @@ RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 # Auftrag (sonst würden die erzeugten Instanzen nicht korrekt markiert). Sonst alles erlaubt.
 # **Verschrotten** (scrap) ist die definierte Auflösung einer Abweichung (defektes Teil raus).
 ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
-ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale", "refund")
+ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale")
 
 
 def allowed_step_types(owner_kind: str) -> tuple[str, ...]:

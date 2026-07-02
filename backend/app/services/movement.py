@@ -21,11 +21,17 @@ from .subject import order_active_instances
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
-    # Bewegbare Instanzen: normal nur aktive (verschrottete/verbaute sind «raus»). Bei einer
-    # **Retoure** (reason='return') werden aber genau die **verkauften** (terminalen) Instanzen
-    # zurückbewegt – dort die volle Subjektliste inkl. sold.
+    # Bewegbare Instanzen: normal nur aktive (verschrottet/verbaut sind endgültig «raus»).
+    # **Verkaufte** Instanzen bleiben aber bewegbar, wenn die Bewegung sie physisch bewegt:
+    # der **Pflicht-Versand zum Kunden** (mode='customer', die eben verkaufte Ware geht raus)
+    # und die **Retoure** (reason='return', die verkaufte Ware kommt zurück). Sonst sind sold
+    # Teile «raus».
     from .subject import is_return, order_instances
-    instances = order_instances(db, order) if is_return(order) else order_active_instances(db, order)
+    if is_return(order) or step.mode == "customer":
+        instances = [i for i in order_instances(db, order)
+                     if (i.disposition or "") not in ("scrapped", "consumed")]
+    else:
+        instances = order_active_instances(db, order)
     if not instances:
         raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
@@ -70,6 +76,11 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
 
     log_audit(db, "movements", None, "Bewegung erfasst", actor_id, object_id=order.object_id)
     emit(db, "movement.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id)
+    # Label-Wechsel dann, wann es wirklich passiert: hat die Rückgabe-Bewegung die verkaufte Ware
+    # an einen Lagerplatz gebracht, ist sie sofort wieder «freigegeben» (sold → in_stock), nicht
+    # erst am Auftragsende. Idempotent; Kulanz (nicht bewegt) bleibt sold.
+    if is_return(order):
+        process.return_subjects_to_stock(db, order)
     process.recompute_completion(db, order)
     db.commit()
     db.refresh(mv)

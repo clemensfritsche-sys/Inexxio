@@ -83,7 +83,7 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
 // EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale' | 'refund';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -137,12 +137,6 @@ export interface ScrapUpdateInput {
 }
 
 export type OrderDisposal = NonNullable<OrderApi['disposal']>;
-
-// Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen als
-// Subjekt fixieren (macht den Auftrag zur Retoure, reason='return' + parent = Original-Verkauf).
-export interface OrderRefundSubjectInput {
-  instance_object_ids: number[];
-}
 
 export type CaptureField = components['schemas']['CaptureField'];
 export type CaptureFieldType = 'measure' | 'bool' | 'text';

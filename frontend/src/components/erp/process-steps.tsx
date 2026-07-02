@@ -21,7 +21,7 @@ type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 // Typen – auch purchase (auswärtige Vergabe, z. B. Wartung) und resource (Verbrauchs-/
 // Hilfsmaterial, Ersatzteile). So sind die Prozessschritte immer kompatibel.
 const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement'];
-const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'refund'];
+const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale'];
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
 function isValidWebshopUrl(v: string): boolean {
@@ -485,8 +485,7 @@ const STEP_HINT: Record<StepType, string> = {
   movement: 'Instanzen an ihren Standort bringen',
   resource: 'Material verbrauchen oder Betriebsmittel nutzen',
   scrap: 'Defekte/nicht benötigte Instanzen ausschleusen',
-  sale: 'Verkauf: Bestätigung → Rechnung → Zahlung',
-  refund: 'Rückerstattung: Verkaufsbetrag zurück (Retoure, Geld zurück)',
+  sale: 'Verkauf bzw. Gutschrift/Erstattung (bei verkaufter Ware) – Bestätigung → Rechnung → Zahlung',
 };
 
 // ─── Ressourcen-Zeilen (mini-BOM): Artikel + Menge + Modus-Toggle je Zeile ────
