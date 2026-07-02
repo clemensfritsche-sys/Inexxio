@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
 
 const isDev = process.env.NEXT_PUBLIC_ENVIRONMENT === 'development';
 
@@ -20,7 +21,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
-      <body>{children}</body>
+      <body>
+        <ChunkReloadGuard />
+        {children}
+      </body>
     </html>
   );
 }
