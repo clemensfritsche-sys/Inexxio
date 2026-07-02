@@ -302,35 +302,48 @@ def has_step(db: Session, order: Order, step_type: str) -> bool:
 # (``services/supply.py``); pinnt er bei Abschluss seine Stück an den Eltern, wird der
 # Schritt bei der nächsten Auswertung von selbst wieder ``active``.
 
-def _reserved_qty_for(db: Session, order: Order, article_id: int) -> int:
-    """Wie viele Stück eines Artikels für DIESEN Auftrag reserviert (gepinnt) sind."""
-    rows = (
-        db.query(Instance)
-        .filter(Instance.article_id == article_id, Instance.is_active == True,
-                Instance.reservations.has_key(str(order.id)))   # noqa: W601
-        .all()
-    )
-    return sum(reserved_for(i, order.id) for i in rows)
-
-
 def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
-    """Fehlmenge(n) des **Subjekts** eines stock-Auftrags ({article_id: qty}, noch nicht
-    reserviert). Leer für produce/deviation (die erzeugen/halten ihr Subjekt selbst).
-    Ein **Mehrpositionen**-Auftrag (``order.article_id`` fehlt) hat je Position eine
-    eigene Fehlmenge – mehrere Artikel können gleichzeitig knapp sein."""
+    """Fehlmenge(n) des **Subjekts** je Artikel ({article_id: qty}) – **EINE Formel für
+    ALLE Auftragsarten** (kein ``subject_kind``-Sonderpfad): ``Soll − Gesichert``.
+
+    - **Soll** = Bestellmenge (Einzel-Artikel ``order.quantity``; Mehrpositionen je Position).
+    - **Gesichert** = gute Einheiten, die der Auftrag bereits hat: (a) für ihn **reservierte**
+      Bestands-Instanzen (FIFO ab Lager / gepinnt / gepeggter Nachschub) PLUS (b) **selbst
+      erzeugte** gute Instanzen (Erzeugungsauftrag). Terminal verlorene (verschrottet/verkauft/
+      verbaut) oder durchgefallene zählen NICHT.
+
+    So reagiert ein **Erzeugungsauftrag auf Ausschuss** identisch wie ein **Bestands-Auftrag**
+    auf eine ausgesteuerte Reservierung – dieselbe Unterdeckung, dieselben Deckungs-Wege, kein
+    Sonderfall. Ausgenommen ist nur die **Abweichung**: ihr Subjekt sind fixierte Instanzen
+    (``subject_of_order_id``), kein aus Lager/Produktion zu erfüllendes Soll."""
     from .order_lines import lines_for
-    from .subject import subject_kind
-    if subject_kind(db, order) != "stock":
+    from .subject import TERMINAL_DISPOSITIONS, is_deviation
+    if is_deviation(order):
         return {}
+    # Soll je Artikel
+    targets: dict[int, int] = {}
     if order.article_id and order.quantity:
-        short = max(0, order.quantity - _reserved_qty_for(db, order, order.article_id))
-        return {order.article_id: short} if short > 0 else {}
-    out: dict[int, int] = {}
-    for line in lines_for(db, order):
-        short = max(0, line.quantity - _reserved_qty_for(db, order, line.article_id))
-        if short > 0:
-            out[line.article_id] = out.get(line.article_id, 0) + short
-    return out
+        targets[order.article_id] = order.quantity
+    else:
+        for line in lines_for(db, order):
+            targets[line.article_id] = targets.get(line.article_id, 0) + line.quantity
+    if not targets:
+        return {}
+    # Gesichert je Artikel
+    secured: dict[int, int] = {}
+    for inst in db.query(Instance).filter(
+        Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
+    ).all():
+        secured[inst.article_id] = secured.get(inst.article_id, 0) + reserved_for(inst, order.id)
+    for inst in db.query(Instance).filter(
+        Instance.order_id == order.id, Instance.is_active == True, Instance.quality != "failed"
+    ).all():
+        if (inst.disposition or "") in TERMINAL_DISPOSITIONS:
+            continue
+        if (inst.reservations or {}).get(str(order.id)):
+            continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
+        secured[inst.article_id] = secured.get(inst.article_id, 0) + (inst.quantity or 0)
+    return {a: t - secured.get(a, 0) for a, t in targets.items() if t - secured.get(a, 0) > 0}
 
 
 def subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
@@ -561,10 +574,11 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     bis zu dessen Restbedarf für diesen Artikel. So „klaut" kein fremder Auftrag den Nachschub
     per FIFO, und der blockierte Schritt des Eltern wird bei der nächsten Auswertung ``active``.
 
-    Ist der Artikel das **Subjekt** des Eltern (stock-Verkauf: gleicher Artikel), werden die
-    Stück zusätzlich als Subjekt markiert (``subject_of_order_id`` + Verarbeitungs-Historie),
-    damit Bewegung/Abschluss sie sehen. Für **Komponenten** genügt die Reservierung (der
-    Verbrauch-Schritt findet sie FIFO unter der Auftragsnummer). No-op für normale Aufträge."""
+    Ist der Artikel das **Subjekt** des Eltern (dessen Output-Artikel – gleich ob Bestands-
+    Verkauf oder Erzeugungsauftrag), werden die Stück zusätzlich als Subjekt markiert
+    (``subject_of_order_id`` + Verarbeitungs-Historie), damit Bewegung/Abschluss sie sehen.
+    Für **Komponenten** genügt die Reservierung (der Verbrauch-Schritt findet sie FIFO unter
+    der Auftragsnummer). No-op für normale Aufträge."""
     if getattr(order, "reason", None) != "supply" or not order.parent_order_id:
         return
     parent = (
@@ -578,11 +592,15 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     if remaining <= 0:
         return
     from .order_lines import lines_for
-    from .subject import record_link, subject_kind
-    # Subjekt des Eltern: bei einem Einzel-Artikel-Auftrag derselbe Artikel; bei einem
-    # Mehrpositionen-Auftrag eine seiner Positionen (``order_lines`` – ein Auftrag kann
-    # mehrere Artikel gleichzeitig als Subjekt haben).
-    is_subject = subject_kind(db, parent) == "stock" and (
+    from .subject import record_link
+    # Ist das Nachschub-Ergebnis das **Subjekt** des Eltern (dessen Output-Artikel – Einzel-
+    # Artikel ODER eine Position), wird es zusätzlich als Subjekt markiert (``subject_of_order_id``
+    # + Historie), damit Bewegung/Abschluss es sehen. Das gilt **unabhängig von der Auftragsart**:
+    # ein Bestands-Verkauf, der Nachschub desselben Artikels bekommt, EBENSO wie ein
+    # Erzeugungsauftrag, der nach Ausschuss ein Stück nachfertigen lässt. Nur ein reiner
+    # **Komponenten**-Nachschub (anderer Artikel) bleibt bloss reserviert (der Verbrauch-Schritt
+    # findet ihn FIFO unter der Auftragsnummer). No-op für normale Aufträge.
+    is_subject = (
         order.article_id == parent.article_id
         or any(l.article_id == order.article_id for l in lines_for(db, parent))
     )

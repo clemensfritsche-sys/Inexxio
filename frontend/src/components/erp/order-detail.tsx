@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Minus } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -426,19 +426,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     }
   }
 
-  // «Menge reduzieren»: senkt die Anforderung auf das Vorhandene – der Schritt läuft weiter.
-  async function reduceDemand() {
-    if (!record) return;
-    setRecoverBusy(true);
-    setError(null);
-    try {
-      onSaved(await api.reduceDemand(record.object_id as number));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Menge reduzieren fehlgeschlagen');
-    } finally {
-      setRecoverBusy(false);
-    }
-  }
 
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
@@ -823,12 +810,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               // die auf die zu klärende Abweichung verweist (dieselbe Sprache wie die Unterdeckung).
               <ProcessHoldNotice reason="deviation" step={currentStepObj} isStaff={isStaff}
                 canSupply={false} busy={false} recoverBusy={false} error={error}
-                onSupply={requestSupply} onCoverStock={coverFromStock} onReduce={reduceDemand}
+                onSupply={requestSupply} onCoverStock={coverFromStock}
                 deviations={record.deviations ?? []} onOpen={(oid) => nav?.(oid)} />
             ) : currentStepObj?.state === 'blocked' ? (
               <ProcessHoldNotice reason="shortfall" step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
                 busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
-                onCoverStock={coverFromStock} onReduce={reduceDemand} />
+                onCoverStock={coverFromStock} />
             ) : (
               <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
             )}
@@ -894,8 +881,8 @@ function stepHint(s: OrderStep): string | undefined {
 }
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
-// ihnen sind «Aus Lager decken» / «Andere Instanz wählen» / «Menge reduzieren» sinnvoll –
-// ein Komponenten-Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
+// ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
+// Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
 const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'sale'];
 
 // EIN einheitliches «Prozess angehalten» (on hold) für beide Gründe, warum ein Auftrag nicht
@@ -903,9 +890,10 @@ const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'sale'];
 //   • reason='deviation' – eine offene Abweichung hält den GANZEN Auftrag an (Backend lehnt
 //     jede Schritt-Ausführung ab). Auflösung: die Abweichung abschliessen/zurücknehmen.
 //   • reason='shortfall' – ein Subjekt-/Komponentenbedarf ist unterdeckt; der betroffene
-//     Schritt ruht. Auflösung: produzieren (Nachschub) / aus Lager decken / andere Instanz /
-//     Menge reduzieren. Löst sich von selbst, sobald der Bedarf gedeckt ist.
-function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onReduce, deviations, onOpen }: {
+//     Schritt ruht. Zwei Wege: Nachschub (produzieren/beschaffen) ODER aus Lager decken
+//     (FIFO, mit Unterkategorie «bestimmte Instanz wählen»). Löst sich von selbst, sobald
+//     der Bedarf gedeckt ist. GLEICH für alle Auftragsarten (Bestand wie Erzeugung).
+function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, deviations, onOpen }: {
   reason: 'deviation' | 'shortfall';
   step: OrderStep | null;
   isStaff: boolean;
@@ -915,7 +903,6 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
   error: string | null;
   onSupply: () => void;
   onCoverStock: (instanceObjectIds?: number[]) => void;
-  onReduce: () => void;
   deviations?: OrderDeviationInfo[];
   onOpen?: (objectId: number) => void;
 }) {
@@ -995,28 +982,26 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
       )}
       {canRecover && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Empfehlung: liegt der Artikel bereits am Lager, ist «Aus Lager decken» der
-              schnellste Weg – sonst «Nachschub anlegen» (produzieren/beschaffen). */}
+          {/* Zwei Wege, EINHEITLICH für alle Auftragsarten: liegt der Artikel bereits am Lager,
+              ist «Aus Lager decken» (FIFO) der schnellste Weg – mit Unterkategorie «bestimmte
+              Instanz wählen». Sonst «Nachschub anlegen» (produzieren/beschaffen). */}
           {isSubjectStep && stockAvailable > 0 ? (
-            <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
-              {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
-            </PrimaryButton>
+            <>
+              <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
+                {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
+              </PrimaryButton>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {availableInstances.length > 0 && (
+                  <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
+                )}
+                <SecondaryAction icon={PackagePlus} label="Stattdessen Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
+              </div>
+            </>
           ) : (
             <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busyAny}>
               {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
             </PrimaryButton>
           )}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {isSubjectStep && stockAvailable > 0 && (
-              <SecondaryAction icon={PackagePlus} label="Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
-            )}
-            {isSubjectStep && availableInstances.length > 0 && (
-              <SecondaryAction icon={Boxes} label="Andere Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
-            )}
-            {isSubjectStep && (
-              <SecondaryAction icon={Minus} label="Menge reduzieren" onClick={onReduce} disabled={busyAny} />
-            )}
-          </div>
           {pickerOpen && availableInstances.length > 0 && (
             <div style={{ border: '1px solid #fde68a', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12, color: '#64748b' }}>Ersatz-Instanz(en) am Lager wählen:</div>

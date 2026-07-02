@@ -2461,54 +2461,6 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/reduce": {
-      "post": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Reduce Demand",
-        "description": "«Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene\nsenken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach\nmit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).\nLiefert den Auftrag zurück.",
-        "operationId": "reduce_demand_api_v1_erp_orders__object_id__reduce_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/orders/{object_id}/purchase": {
       "patch": {
         "tags": [

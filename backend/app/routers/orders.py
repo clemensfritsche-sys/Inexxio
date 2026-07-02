@@ -559,25 +559,6 @@ async def cover_stock(
     return to_order_response(db, order)
 
 
-@router.post("/{object_id}/reduce", response_model=OrderResponse)
-async def reduce_demand(
-    object_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """«Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene
-    senken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach
-    mit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).
-    Liefert den Auftrag zurück."""
-    order = _get_staff_order(db, object_id)
-    if order.status != "released":
-        raise HTTPException(400, detail="Nur ein freigegebener Auftrag lässt sich reduzieren")
-    recovery.reduce_to_available(db, order, current_user.id)
-    db.commit()
-    db.refresh(order)
-    return to_order_response(db, order)
-
-
 @router.patch("/{object_id}/purchase", response_model=OrderResponse)
 async def update_order_purchase(
     object_id: int,

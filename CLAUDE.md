@@ -293,35 +293,35 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig
     (nicht im Artikel-Prozess). Durchfaller sind im Panel vorausgewählt. **«Ersatz»** = Komposition aus
     `scrap` (defektes Teil raus) + Beschaffung/Bestand (neues herein) – kein monolithischer Schritt.
-  - **Aussteuerung eines reservierten Subjekts → Eltern reagiert + drei Deckungs-Wege** (`services/
-    recovery.py`): Steuert eine Abweichung eine Instanz aus, die ein **anderer** Auftrag bereits reserviert
-    hatte (z. B. ein für einen Verkauf reserviertes Teil), muss dessen Fehlmenge **ehrlich** wieder
-    sichtbar werden. **Core-Fix:** `scrap.record_scrap` löst beim Verschrotten **ALLE** Reservierungen der
-    Instanz (`reservation.release_all`), nicht nur die des eigenen (Abweichungs-)Auftrags – ein
-    verschrottetes Teil verlässt den Bestand endgültig und kann keinen Auftrag mehr beliefern. Dadurch
-    meldet `_subject_shortfalls` des Eltern-Auftrags nach Schliessung der Abweichung wieder eine Fehlmenge,
-    sein **Subjekt-Schritt (Bewegung/Versand/Kontrolle) wird «blockiert»** – abgeleitet aus dem Bestand,
-    kein stilles Unterliefern mehr (vorher blieb die tote Eltern-Reservierung stehen → Schritt lief
-    scheinbar weiter, es wurde 1 Stück zu wenig geliefert). Der blockierte Schritt bietet Personal (am
-    freigegebenen Auftrag) **vier Wege**, konsistent mit dem bestehenden Backorder-Verhalten und der
-    „Mensch entscheidet"-Philosophie: (1) **Nachschub anlegen** (produzieren/beschaffen, `POST /supply`,
-    bestehend); (2) **Aus Lager decken** – freien Bestand FIFO reservieren (`POST /cover-stock` ohne ids,
-    `recovery.cover_from_stock`); (3) **Andere Instanz wählen** – gezielt eine freie, freigegebene Instanz
-    reservieren (`POST /cover-stock` mit ids, inline-Picker); (4) **Menge reduzieren** – die Anforderung
-    auf das Vorhandene senken (`POST /reduce`, `recovery.reduce_to_available`; Einzel-Artikel: `order.
-    quantity`, Mehrpositionen: je Position, letzte darf nicht auf 0 fallen → dann «Abbrechen»). Diese Wege
-    bilden genau die Fälle je Subjektwahl ab: ein **FIFO**-Auftrag nutzt anderen Lagerbestand; ein gezielt
-    auf Instanzen fixierter Auftrag wählt eine **Ersatz-Instanz** oder reduziert; wo nichts am Lager liegt,
-    **produziert** der Nachschub. `StepShortfall` trägt dafür die **Verfügbarkeit** (`available_quantity`/
-    `available_instances`) aus freiem Lagerbestand. Nur bei **Subjekt-Schritten** (movement/inspection/
-    scrap/sale) – ein reiner Komponenten-Bedarf (Ressource) wird weiterhin ausschliesslich über Nachschub
-    gedeckt.
+  - **Unterdeckung → EINE Formel & zwei Deckungs-Wege für ALLE Auftragsarten** (`services/recovery.py`,
+    `process._subject_shortfalls`): Kann ein Auftrag sein Soll nicht (mehr) erfüllen – weil eine reservierte
+    Instanz **ausgesteuert** wurde (Abweichung verschrottet ein verkauftes/reserviertes Teil) ODER weil ein
+    **Erzeugungsauftrag Ausschuss** hatte –, wird die Fehlmenge **ehrlich** sichtbar. **Kein `subject_kind`-
+    Sonderpfad mehr:** `_subject_shortfalls` = **Soll − Gesichert** über ALLE Arten. *Gesichert* = für den
+    Auftrag **reservierte** Bestands-Instanzen (FIFO/gepinnt/gepeggter Nachschub) **plus selbst erzeugte
+    gute** Instanzen; terminal verlorene (verschrottet/verkauft/verbaut) oder durchgefallene zählen nicht.
+    So reagiert ein **Erzeugungsauftrag auf Ausschuss identisch** wie ein Bestands-Auftrag auf eine
+    ausgesteuerte Reservierung (nur die **Abweichung** ist ausgenommen – ihr Subjekt sind fixierte
+    Instanzen). **Core-Fix dazu:** `scrap.record_scrap` löst beim Verschrotten **ALLE** Reservierungen der
+    Instanz (`reservation.release_all`) – ein verschrottetes Teil verlässt den Bestand endgültig und kann
+    keinen Auftrag mehr beliefern. Der betroffene **Subjekt-Schritt wird «blockiert»** (abgeleitet, kein
+    stilles Unterliefern). Personal hat am freigegebenen Auftrag **zwei Wege** (statt vier – „Mensch
+    entscheidet"): (1) **Nachschub anlegen** – produzieren/beschaffen (`POST /supply`, ein Unter-Auftrag);
+    (2) **Aus Lager decken** – freien Bestand **FIFO** reservieren (`POST /cover-stock` ohne ids), mit
+    **Unterkategorie «bestimmte Instanz wählen»** (`POST /cover-stock` mit ids, inline-Picker) –
+    `recovery.cover_from_stock`. `StepShortfall` trägt dafür die **Verfügbarkeit** (`available_quantity`/
+    `available_instances`) aus freiem Lagerbestand; `_peg_supply_to_parent` erkennt das Subjekt eines
+    Erzeugungsauftrags EBENSO wie eines Bestands-Verkaufs (kein Stock-Gate). Nur bei **Subjekt-Schritten**
+    (movement/inspection/scrap/sale) – ein reiner Komponenten-Bedarf (Ressource) wird weiterhin über
+    Nachschub gedeckt. **«Menge reduzieren» ist bewusst NICHT gebaut:** eine bezahlte Position wird erst
+    reduziert, wenn sie zugleich sauber (Stripe) **gutgeschrieben** wird – kommt gebündelt mit der
+    Gutschrift-Funktion (TODO), nicht als isolierte Mengen-Kürzung.
   - **EINE On-Hold-Sprache «Prozess angehalten»** (`order-detail.tsx: ProcessHoldNotice`, ersetzt
     `BlockedStepNotice`): Beide Gründe, warum ein Auftrag nicht weiterläuft, teilen sich EIN Muster (gleiche
     Optik wie die Pause-Leiste, `PauseCircle`/amber): (a) **Angehalten – Abweichung offen**
     (`record.paused`): der GANZE Auftrag ruht, solange eine Abweichung offen ist; die Notiz verlinkt die zu
     klärende Abweichung, KEIN interaktives Panel; (b) **Angehalten – Unterdeckung** (`step.state ===
-    'blocked'`): nur der betroffene Schritt ruht, mit den vier Deckungs-Wegen. **Pause blockiert die
+    'blocked'`): nur der betroffene Schritt ruht, mit den zwei Deckungs-Wegen. **Pause blockiert die
     Schritt-Ausführung jetzt auch im UI:** bei `record.paused` wird kein interaktives Panel gerendert (das
     Backend lehnte die Ausführung schon immer via `_assert_not_paused` an ALLEN sechs Schritt-Endpunkten
     mit 409 ab – die Lücke war rein visuell). Ganz-Auftrag-Pause ist fachlich korrekt: eine Sendung mit
