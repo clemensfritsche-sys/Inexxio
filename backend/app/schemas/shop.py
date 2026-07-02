@@ -78,6 +78,11 @@ class PaymentSimulate(BaseModel):
     result: str = "paid"   # paid | cancelled
 
 
+class ShopReturnRequest(BaseModel):
+    """Kunden-Retoure zu einer abgeschlossenen Bestellung (Online-Shop-Logik): optionaler Grund."""
+    reason: Optional[str] = None
+
+
 class CustomerOrder(BaseModel):
     """Eine Bestellung aus Kundensicht (für «Meine Bestellungen» + ERP-User-Reiter)."""
     order_object_id: Optional[int] = None
@@ -97,3 +102,8 @@ class CustomerOrder(BaseModel):
     # Mindestbindung eines Produktabos: vor diesem Datum ist «Kündigen» gesperrt (None =
     # sofort kündbar, z. B. Nutzungsabo oder Mindestlaufzeit bereits erreicht).
     cancellable_from: Optional[date] = None
+    # Retoure (Online-Shop-Logik): retournierbar (abgeschlossen, im Rückgabefenster, verkaufte
+    # Ware da), Frist, ob bereits eine Retoure angefragt wurde.
+    returnable: bool = False
+    return_requested: bool = False
+    return_deadline: Optional[date] = None

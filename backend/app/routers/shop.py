@@ -14,7 +14,7 @@ from ..core.auth import get_current_user, get_optional_user
 from ..core.database import get_db
 from ..models import Article, CheckoutIntent, CompanySettings, Order, Sale, UserProfile
 from ..schemas.shop import (
-    CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct,
+    CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct, ShopReturnRequest,
 )
 from ..services import sales as sales_svc
 from ..services.payments import get_provider, provider_name
@@ -201,6 +201,20 @@ async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db
         )
     get_provider(db).cancel_subscription(db, order)
     return {"cancelled": True, "subscription_active": bool(order.recurrence_active)}
+
+
+@router.post("/orders/{order_object_id}/return")
+async def request_return(order_object_id: int, data: ShopReturnRequest,
+                         db: Session = Depends(get_db),
+                         user: UserProfile = Depends(get_current_user)):
+    """**Retoure anfragen** zu einer abgeschlossenen Bestellung (Online-Shop-Logik): legt einen
+    Retoure-Unter-Auftrag an (verkaufte Instanzen als Subjekt) und gleich den üblichen Ablauf
+    (Wareneingang + Gutschrift). Das Personal verarbeitet ihn im ERP; der Kunde sieht den Status."""
+    from ..services import customer_returns
+    ret = customer_returns.request_return(db, order_object_id, user.id, data.reason)
+    db.commit()
+    db.refresh(ret)
+    return {"return_object_id": ret.object_id, "status": "requested"}
 
 
 @router.post("/portal")

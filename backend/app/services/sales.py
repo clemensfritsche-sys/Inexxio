@@ -690,8 +690,18 @@ def list_customer_orders(db: Session, customer_id: int) -> list[dict]:
             "subscription_active": bool(order.recurrence_active),
             "has_subscription_management": bool(order.stripe_subscription_id),
             "cancellable_from": earliest_cancellation_date(order),
+            **_customer_return_status(db, order, s),
         })
     return out
+
+
+def _customer_return_status(db: Session, order, sale) -> dict:
+    """Retoure-Status einer Bestellung (retournierbar/Frist/angefragt) – nur für einen normalen
+    Verkauf (kein Abo, kein Unter-Auftrag). Kapselt den Import (zyklenfrei)."""
+    if sale.kind != "sale" or order.recurrence_kind:
+        return {"returnable": False, "return_requested": False, "return_deadline": None}
+    from .customer_returns import return_status
+    return return_status(db, order, sale, sale.customer_id)
 
 
 def cancel_intent(db: Session, intent) -> None:

@@ -454,6 +454,12 @@ class ApiClient {
     return this.post(`/api/v1/shop/orders/${orderObjectId}/cancel-subscription`, {});
   }
 
+  // Retoure/Rückgabe einer abgeschlossenen Bestellung anfragen (Online-Shop-Logik) – legt einen
+  // Retoure-Auftrag an (Personal verarbeitet ihn im ERP: Wareneingang + Gutschrift/Stripe-Refund).
+  requestReturn(orderObjectId: number, reason: string | null): Promise<{ return_object_id: number; status: string }> {
+    return this.post(`/api/v1/shop/orders/${orderObjectId}/return`, { reason });
+  }
+
   // Bestellungen eines Benutzers (ERP-Reiter, staff)
   getRecordOrders(objectId: number): Promise<CustomerOrder[]> {
     return this.get(`/api/v1/erp/records/${objectId}/orders`);

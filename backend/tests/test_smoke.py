@@ -2170,3 +2170,20 @@ def test_customer_shipping_movement_targets_the_customer():
     assert 'step.mode == "customer"' in rec and "customer_for_order" in rec
     emb = _inspect.getsource(orders._movement_embed)
     assert 'step.mode == "customer"' in emb and "customer_for_order" in emb
+
+
+def test_customer_return_wired_shop_style():
+    """Kunden-Retoure aus «Meine Bestellungen» (Online-Shop): retournierbar-Status am
+    CustomerOrder + Endpoint, der einen Retoure-Unter-Auftrag inkl. Ablauf (Bewegung + Gutschrift)
+    anlegt und ein Rückgabefenster respektiert."""
+    import inspect as _inspect
+    from app.schemas.shop import CustomerOrder
+    from app.services import customer_returns
+    from app.routers import shop
+
+    for f in ("returnable", "return_requested", "return_deadline"):
+        assert f in CustomerOrder.model_fields
+    assert customer_returns.RETURN_WINDOW_DAYS > 0
+    req = _inspect.getsource(customer_returns.request_return)
+    assert 'reason="return"' in req and 'step_type="movement"' in req and 'step_type="sale"' in req
+    assert "request_return" in _inspect.getsource(shop.request_return)

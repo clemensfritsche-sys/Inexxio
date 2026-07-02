@@ -24,6 +24,15 @@ export function OrdersSection() {
     reload();
   }
 
+  async function requestReturn(orderObjectId: number, reason: string | null) {
+    try {
+      await api.requestReturn(orderObjectId, reason);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Retoure konnte nicht angefragt werden.');
+    }
+    reload();
+  }
+
   async function openPortal() {
     setPortalBusy(true);
     try {
@@ -51,7 +60,7 @@ export function OrdersSection() {
         {orders === null ? (
           <div className="flex items-center justify-center py-10 text-slate-400"><Loader2 className="animate-spin" /></div>
         ) : (
-          <OrdersList orders={orders} onCancel={cancelSub} />
+          <OrdersList orders={orders} onCancel={cancelSub} onReturn={requestReturn} />
         )}
         {orders !== null && orders.length > 0 && !hasSubscription && (
           <p className="mt-4 text-xs text-slate-400">Zahlungsmittel &amp; Abos verwaltest du über das Stripe-Kundenportal, sobald ein Abo besteht.</p>
