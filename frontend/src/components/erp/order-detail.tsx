@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -21,6 +21,7 @@ import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
+import { ReturnPanel } from '@/components/erp/return-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 
@@ -71,7 +72,7 @@ function todayIso(): string {
 function subjectRoleLabel(role: string | null | undefined): string {
   // Ein Unter-Auftrag, der auf vorhandene Instanzen wirkt, ist eine Bestands-Operation –
   // KEINE eigene «Abweichung»-Art (Status/Art bleiben für alle Aufträge einheitlich).
-  return role === 'stock' || role === 'deviation' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
+  return role === 'stock' || role === 'deviation' || role === 'return' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
@@ -112,6 +113,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [selStep, setSelStep] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
+  const [returnBusy, setReturnBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
@@ -126,6 +128,9 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   // Ein Nachschub (reason='supply') ist KEINE Abweichung: er deckt nur die Fehlmenge eines
   // blockierten Schritts (pausiert den Eltern nicht). «Abweichung» = ausschliesslich deviation.
   const isSupply = record?.reason === 'supply';
+  // Eine Retoure (reason='return') ist ein Unter-Auftrag eines abgeschlossenen Verkaufs auf
+  // dessen verkaufte Instanzen (Rücknahme + Gutschrift); pausiert den Eltern ebenfalls nicht.
+  const isReturn = record?.reason === 'return';
   // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only); bei einem Unter-Auftrag fix.
   const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isSubOrder;
   const isCompleted = record?.status === 'completed';
@@ -136,6 +141,12 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   // Instanz (Instanz-Detail), nicht über den abgeschlossenen Auftrag.
   const canReportDeviation = isStaff && !isCreate && record != null
     && record.status === 'released' && record.abort_into_id == null && !record.paused;
+  // «Retoure erfassen»: nur zu einem Verkaufs-Auftrag (hat einen sale-Schritt) mit tatsächlich
+  // verkauften Instanzen – typischerweise nach Abschluss. Eröffnet einen Unter-Auftrag auf die
+  // verkauften Instanzen (Rücknahme + Gutschrift), der den Eltern NICHT pausiert.
+  const soldInstances = (record?.instances ?? []).filter((i) => i.disposition === 'sold');
+  const canReportReturn = isStaff && !isCreate && record != null && record.abort_into_id == null
+    && soldInstances.length > 0 && (record.steps ?? []).some((s) => s.step_type === 'sale');
 
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
@@ -277,7 +288,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const canRelease = !isCreate && hasDemand
     && sig === savedSig && (isSubOrder ? subOrderReady : specificComplete);
   const releaseHint = isSubOrder
-    ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
+    ? (subOrderReady ? undefined : (isSupply ? 'Erst einen Prozessschritt für den Nachschub hinzufügen' : isReturn ? 'Erst einen Prozessschritt für die Retoure hinzufügen' : 'Erst einen Prozessschritt für die Abweichung hinzufügen'))
     : (!specificComplete
       ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
       : 'Erst Artikel und Menge speichern');
@@ -409,6 +420,22 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       setError(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
     } finally {
       setDeviationBusy(false);
+    }
+  }
+
+  // «Retoure erfassen»: eröffnet einen Unterauftrag (reason='return') auf die verkauften
+  // Instanzen dieses Verkaufs und navigiert dorthin – der Nutzer definiert die Auflösung
+  // (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt sie frei.
+  async function reportReturn() {
+    if (!record) return;
+    setReturnBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.createReturn(record.object_id as number, soldInstances.map((i) => i.object_id as number)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Retoure konnte nicht eröffnet werden');
+    } finally {
+      setReturnBusy(false);
     }
   }
 
@@ -558,6 +585,32 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             </div>
           </div>
         )}
+        {/* Retouren sichtbar machen – Unteraufträge auf die verkauften Instanzen dieses Verkaufs
+            (Rücknahme + Gutschrift). Wie ein Nachschub pausieren sie den Eltern NICHT. */}
+        {!isCreate && isStaff && (record.returns?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              <Undo2 size={16} style={{ color: '#0891b2' }} />
+              Retouren
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#0e7490' }}>{record.returns!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.returns!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
+                    {d.instance_object_ids && d.instance_object_ids.length > 0 && (
+                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
+                    )}
+                  </span>
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {isCompleted && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
             <CheckCircle2 size={16} /> Auftrag abgeschlossen – alle Prozessschritte erledigt.
@@ -679,6 +732,35 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </>
         )}
 
+        {/* Retoure erfassen – Unterauftrag (reason='return') auf die verkauften Instanzen dieses
+            Verkaufs: Rücknahme ins Lager + Gutschrift (mit Stripe-Rückerstattung), optional Prüfung/
+            Verschrottung. Erst nach Freigabe der Retoure scharf; pausiert den Verkauf NICHT. */}
+        {canReportReturn && (
+          <>
+            <SectionTitle icon={Undo2}>Retoure</SectionTitle>
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                Kommt verkaufte Ware zurück? Erfasse eine{' '}
+                <strong style={{ color: '#0f172a' }}>Retoure</strong> – einen Unterauftrag auf die
+                verkauften Instanzen. Du legst dort fest, was geschieht (zurück ins Lager, Gutschrift,
+                optional Prüfung/Verschrottung), und gibst sie frei.
+              </div>
+              {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+              <button type="button" onClick={reportReturn} disabled={returnBusy}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8,
+                  border: '1px solid #67e8f9', background: returnBusy ? '#ecfeff' : '#f0fdff',
+                  color: '#0e7490', fontSize: 13, fontWeight: 700,
+                  cursor: returnBusy ? 'default' : 'pointer',
+                }}>
+                {returnBusy ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />}
+                Retoure erfassen ({soldInstances.length})
+              </button>
+            </div>
+          </>
+        )}
+
         {/* Unter-Auftrag (Entwurf): Subjekt/Bedarf stehen fest (oben gelistet) – KEINE
             Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren, dann freigeben. Abweichung =
             was mit den Instanzen geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
@@ -686,8 +768,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           <>
             <SectionTitle icon={Workflow} info={isSupply
               ? 'Lege fest, wie die fehlende Menge entsteht oder beschafft wird (herstellen, beschaffen …). Mit der Freigabe läuft der Nachschub.'
-              : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
-              {isSupply ? 'Ablauf des Nachschubs' : 'Ablauf der Abweichung'}
+              : isReturn
+                ? 'Lege fest, was mit der zurückkommenden Ware geschieht (Rücknahme ins Lager, Gutschrift, optional Prüfung/Verschrottung). Mit der Freigabe wird die Retoure scharf.'
+                : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
+              {isSupply ? 'Ablauf des Nachschubs' : isReturn ? 'Ablauf der Retoure' : 'Ablauf der Abweichung'}
             </SectionTitle>
             <div style={cardStyle}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
@@ -1099,6 +1183,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     movement: step.movement ?? order.movement,
     resource: step.resource ?? order.resource,
     disposal: step.disposal ?? order.disposal,
+    return_receipt: step.return_receipt ?? order.return_receipt,
   };
   const stepState = step.state;
   const stepId = step.id;
@@ -1123,6 +1208,9 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   }
   if (step.step_type === 'scrap') {
     return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+  }
+  if (step.step_type === 'return') {
+    return <ReturnPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return <StepFallback />;
 }

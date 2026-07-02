@@ -83,7 +83,7 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
 // EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale' | 'return';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
@@ -137,6 +137,29 @@ export interface ScrapUpdateInput {
 }
 
 export type OrderDisposal = NonNullable<OrderApi['disposal']>;
+
+// Rücknahme (Retoure): zurückzunehmende **verkaufte** Instanzen + optionaler Zielstandort +
+// «zur Prüfung» (Qualität pending statt passed) + Notiz. Spiegel des Verschrottens (``ScrapUpdateInput``).
+// ``items`` erlaubt je Instanz eine Teilmenge (Charge teilretournieren); ``instance_ids`` = Kurzform (1 Stück).
+export interface ReturnItemInput {
+  instance_id: number;
+  quantity?: number | null;   // weglassen = 1 Stück / ganze Instanz
+}
+export interface ReturnUpdateInput {
+  instance_ids?: number[];
+  items?: ReturnItemInput[];
+  location_type?: LocationType | null;   // leer = automatischer Wareneingang («nie ohne Standort»)
+  location_id?: number | null;
+  to_inspection?: boolean;               // true = Qualität 'pending' (erst prüfen) statt sofort verkäuflich
+  note?: string | null;
+  step_id?: number | null;               // konkrete Schritt-Definition (Mehr-Operationen-Routing)
+}
+export type OrderReturn = NonNullable<OrderApi['return_receipt']>;
+
+// «Retoure erfassen»: eröffnet einen Unter-Auftrag (reason='return') auf gewählte verkaufte Instanzen.
+export interface OrderReturnCreateInput {
+  instance_object_ids: number[];
+}
 
 export type CaptureField = components['schemas']['CaptureField'];
 export type CaptureFieldType = 'measure' | 'bool' | 'text';

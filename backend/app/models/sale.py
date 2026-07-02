@@ -35,6 +35,18 @@ class Sale(Base, TimestampMixin):
     # Routing: an welche Prozessschritt-Definition gebunden (mehrere möglich).
     step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
+    # ── Verkauf vs. Gutschrift (Spiegelbild) ────────────────────────────────────────
+    # 'sale' = normaler Verkauf (Geld herein, Bestand raus). 'credit' = **Gutschrift**: das
+    # Spiegelbild in einer Retoure (Unter-Auftrag ``reason='return'``) – Umsatz-/MWST-Umkehr,
+    # Geld zurück (Stripe-Refund gegen den Original-PaymentIntent bzw. manuell). ``order_total``
+    # bleibt der **Betrag (Magnitude, netto)**; die Richtung sagt ``kind`` (kein Vorzeichen im
+    # Betrag → der ``_money_non_negative``-Validator bleibt gültig, Anzeige „Gutschrift: CHF X").
+    kind: Mapped[str] = mapped_column(String(8), default="sale", server_default="sale", nullable=False)
+    original_sale_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    credit_note_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)  # unveränderlich, 10-J-Archiv
+    stripe_refund_id: Mapped[Optional[str]] = mapped_column(String(80), index=True, nullable=True)
+    refunded_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Kunde (UserProfile mit Rolle «customer»). Objektnummer als Standort beim Versand.
     customer_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 

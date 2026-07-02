@@ -20,16 +20,18 @@ Rollen über das Ziel: Versand trägt ein **user**-Ziel (Lieferant), Wareneingan
 
 from sqlalchemy.orm import Session
 
-from ..models import ArticleProcessStep, UserProfile
+from ..models import ArticleProcessStep, Order, UserProfile
 
 
-def _plan(steps: list[tuple[str, str | None]]) -> list[str]:
+def _plan(steps: list[tuple[str, str | None]], skip_customer_shipping: bool = False) -> list[str]:
     """Reine Soll-Sequenz aus (Schritttyp, Modus). Markierungen ``"versand"`` /
     ``"wareneingang"`` / ``"versandkunde"`` = Pflicht-Bewegung, sonst Nutzer-Schritttyp.
 
     - Versand nur vor einer **nicht ersten Lieferanten-Beschaffung** (Lohnveredelung);
     - Wareneingang **nach** jeder Beschaffung;
-    - Versand zum Kunden **nach** jedem Verkauf (irgendwie muss es zum Kunden)."""
+    - Versand zum Kunden **nach** jedem Verkauf (irgendwie muss es zum Kunden) – ausser bei
+      einer **Retoure**: dort ist der Verkauf eine **Gutschrift** (kein Versand; die Ware kommt
+      über den ``return``-Schritt herein), ``skip_customer_shipping`` unterdrückt die Bewegung."""
     seq: list[str] = []
     moves = ("versand", "wareneingang", "versandkunde")
     for i, (t, mode) in enumerate(steps):
@@ -38,7 +40,7 @@ def _plan(steps: list[tuple[str, str | None]]) -> list[str]:
         seq.append(t)
         if t == "purchase":
             seq.append("wareneingang")
-        if t == "sale":
+        if t == "sale" and not skip_customer_shipping:
             seq.append("versandkunde")
     return seq
 
@@ -81,7 +83,12 @@ def sync_locked_movements(db: Session, *, article_id: int | None = None,
     versand_pool = [s for s in locked if s.mode != "customer" and s.target_location_type == "user"]
     wareneingang_pool = [s for s in locked if s.mode != "customer" and s.target_location_type != "user"]
 
-    plan = _plan([(s.step_type, s.mode) for s in user_steps])
+    # Retoure-Unter-Auftrag: der Verkauf ist eine Gutschrift → KEIN Pflicht-Versand zum Kunden.
+    credit_context = False
+    if order_id is not None:
+        row = db.query(Order.reason).filter(Order.id == order_id).first()
+        credit_context = bool(row and row[0] == "return")
+    plan = _plan([(s.step_type, s.mode) for s in user_steps], skip_customer_shipping=credit_context)
     final: list[list] = []   # [node_or_step, role]
     ui = vi = wi = ki = 0
     for entry in plan:

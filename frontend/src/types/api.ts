@@ -705,6 +705,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Return
+         * @description «Retoure erfassen» zu einem Verkaufs-Auftrag: legt einen **Unter-Auftrag**
+         *     (``reason='return'``) auf die gewählten **verkauften** Instanzen an. Man definiert dort die
+         *     Auflösung (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt frei. Liefert
+         *     die neue Retoure zurück. Pausiert den Eltern NICHT (der Verkauf ist abgeschlossen).
+         */
+        post: operations["open_return_api_v1_erp_orders__object_id__return_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/return-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Return
+         * @description Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Menge/Disposition
+         *     wiederhergestellt, Standort gesetzt). Spiegel des Verschrottens.
+         */
+        patch: operations["update_order_return_api_v1_erp_orders__object_id__return_receipt_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/supply": {
         parameters: {
             query?: never;
@@ -2632,6 +2676,7 @@ export interface components {
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
             disposal?: components["schemas"]["DisposalEmbed"] | null;
+            return_receipt?: components["schemas"]["ReturnEmbed"] | null;
             /**
              * Steps
              * @default []
@@ -2658,10 +2703,27 @@ export interface components {
              */
             supply_orders: components["schemas"]["OrderDeviationInfo"][];
             /**
+             * Returns
+             * @default []
+             */
+            returns: components["schemas"]["OrderDeviationInfo"][];
+            /**
              * Paused
              * @default false
              */
             paused: boolean;
+        };
+        /**
+         * OrderReturnCreate
+         * @description «Retoure erfassen» zu einem Verkaufs-Auftrag: die zurückkommenden **verkauften**
+         *     Instanzen (per Objektnummer). Legt einen Retoure-Unter-Auftrag (``reason='return'``) an.
+         */
+        OrderReturnCreate: {
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
         };
         /**
          * OrderStepInfo
@@ -2715,6 +2777,7 @@ export interface components {
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
             disposal?: components["schemas"]["DisposalEmbed"] | null;
+            return_receipt?: components["schemas"]["ReturnEmbed"] | null;
         };
         /**
          * OrderSummary
@@ -3157,6 +3220,83 @@ export interface components {
             step_id?: number | null;
         };
         /**
+         * ReturnEmbed
+         * @description Eingebetteter Stand der Rücknahme (im Auftrag) – Spiegel von ``DisposalEmbed``.
+         *     Welche Instanzen zurückkamen, steht in ``OrderResponse.instances`` (wieder ``in_stock``).
+         */
+        ReturnEmbed: {
+            /**
+             * Id
+             * @default 0
+             */
+            id: number;
+            /**
+             * Done
+             * @default false
+             */
+            done: boolean;
+            /** Note */
+            note?: string | null;
+            /** Received By Name */
+            received_by_name?: string | null;
+            /**
+             * Returned Count
+             * @default 0
+             */
+            returned_count: number;
+            /**
+             * To Inspection
+             * @default false
+             */
+            to_inspection: boolean;
+            /** Location Label */
+            location_label?: string | null;
+        };
+        /**
+         * ReturnItem
+         * @description Eine zurückzunehmende Instanz mit optionaler **Menge** (Charge): ``quantity`` weglassen
+         *     = 1 Stück (Einzelteil). Analog ``ScrapItem``.
+         */
+        ReturnItem: {
+            /** Instance Id */
+            instance_id: number;
+            /** Quantity */
+            quantity?: number | null;
+        };
+        /**
+         * ReturnUpdate
+         * @description Erfassung des Schritts «Rücknahme»: welche verkauften Instanzen zurückkommen (+ Menge),
+         *     an welchen Standort, ob zur Nachprüfung, optionale Notiz.
+         *
+         *     ``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (1 Stück) werden zusammengeführt.
+         *     Ohne Zielstandort geht die Ware an den automatischen Wareneingang («nie ohne Standort»).
+         */
+        ReturnUpdate: {
+            /**
+             * Instance Ids
+             * @default []
+             */
+            instance_ids: number[];
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["ReturnItem"][];
+            /** Location Type */
+            location_type?: string | null;
+            /** Location Id */
+            location_id?: number | null;
+            /**
+             * To Inspection
+             * @default false
+             */
+            to_inspection: boolean;
+            /** Note */
+            note?: string | null;
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
          * SaleEmbed
          * @description Ausführungsstand des Verkaufsschritts – eingebettet in den Auftrag.
          *
@@ -3182,6 +3322,19 @@ export interface components {
             currency: string;
             /** Invoice Number */
             invoice_number?: string | null;
+            /**
+             * Kind
+             * @default sale
+             */
+            kind: string;
+            /** Credit Note Number */
+            credit_note_number?: string | null;
+            /** Original Sale Id */
+            original_sale_id?: number | null;
+            /** Refunded At */
+            refunded_at?: string | null;
+            /** Stripe Refund Id */
+            stripe_refund_id?: string | null;
             /** Confirmed At */
             confirmed_at?: string | null;
             /** Invoiced At */
@@ -5256,6 +5409,76 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OrderDeviationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_return_api_v1_erp_orders__object_id__return_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderReturnCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_return_api_v1_erp_orders__object_id__return_receipt_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReturnUpdate"];
             };
         };
         responses: {

@@ -108,14 +108,23 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale
     der Auftrag einen (``order.article_id``) oder mehrere Artikel (Mehrpositionen,
     ``order_lines``) trägt: je Artikel EIN Verkaufs-Beleg, alle unter demselben
     Schritt (``step_id``) – Mehr-Operationen-Routing ist hier NICHT nötig (anders als bei
-    Beschaffung/Ressource gibt es nur einen ``sale``-Schritt am Auftrag)."""
+    Beschaffung/Ressource gibt es nur einen ``sale``-Schritt am Auftrag).
+
+    **Retoure (Unter-Auftrag ``reason='return'``):** der Verkaufs-Schritt ist eine
+    **Gutschrift** (``kind='credit'``) – je Artikel der zurückkommenden Instanzen EIN
+    Gutschrift-Beleg, Betrag/MWST aus dem Original-Verkauf abgeleitet (siehe ``_credit_targets``)."""
+    from .subject import is_return
     steps = [d for d in process.order_step_defs(db, order) if d.step_type == "sale"]
     if not steps:
         return []
     step = steps[0]   # genau EIN Verkaufs-Schritt (wie jeder andere Schritttyp auch)
-    lines = lines_for(db, order)
-    targets = [(l.article_id, l.quantity) for l in lines] if lines else (
-        [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
+    credit = is_return(order)
+    if credit:
+        targets = _credit_targets(db, order)
+    else:
+        lines = lines_for(db, order)
+        targets = [(l.article_id, l.quantity) for l in lines] if lines else (
+            [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
     if not targets:
         return []
     existing = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).all()
@@ -125,14 +134,66 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale
         if art_id in have_articles:
             continue   # idempotent – dieser Artikel hat schon seinen Beleg
         sale = Sale(order_id=order.id, article_id=art_id, quantity=qty,
-                    step_id=step.id, status="requested", mode="direct")
-        _prefill_price(db, sale, art_id)
+                    step_id=step.id, status="requested", mode="direct",
+                    kind="credit" if credit else "sale")
+        if credit:
+            _prefill_credit(db, sale, order, art_id)
+        else:
+            _prefill_price(db, sale, art_id)
         db.add(sale)
         db.flush()
-        log_audit(db, "sales", None, "Verkauf angefragt", actor_id, object_id=order.object_id)
+        log_audit(db, "sales", None, "Gutschrift angelegt" if credit else "Verkauf angefragt",
+                  actor_id, object_id=order.object_id)
         created.append(sale)
-    # TODO(E-Mail/Beleg): Auftragsbestätigung/Rechnung erzeugen (Gmail API/PDF, Phase 2)
+    # TODO(E-Mail/Beleg): Auftragsbestätigung/Rechnung/Gutschrift erzeugen (Gmail API/PDF, Phase 2)
     return created
+
+
+def _parent_order(db: Session, order: Order) -> Order | None:
+    if not order.parent_order_id:
+        return None
+    return db.query(Order).filter(Order.object_id == order.parent_order_id).first()
+
+
+def original_sale_for(db: Session, order: Order, article_id: int) -> Sale | None:
+    """Der Original-Verkaufs-Beleg (kind='sale') des Eltern-Auftrags für diesen Artikel –
+    Grundlage der Gutschrift (Betrag/MWST/Kunde/Stripe-PaymentIntent)."""
+    parent = _parent_order(db, order)
+    if not parent:
+        return None
+    return (
+        db.query(Sale)
+        .filter(Sale.order_id == parent.id, Sale.article_id == article_id,
+                Sale.kind == "sale", Sale.is_active == True)
+        .order_by(Sale.id)
+        .first()
+    )
+
+
+def _credit_targets(db: Session, order: Order) -> list[tuple[int, int]]:
+    """Je Artikel der zurückkommenden (verkauften) Subjekt-Instanzen: (article_id, Anzahl).
+    Bei Einzelteilen exakt; bei Chargen passt Personal den Betrag ggf. an (Restocking-Fee)."""
+    from .subject import order_instances
+    counts: dict[int, int] = {}
+    for inst in order_instances(db, order):
+        counts[inst.article_id] = counts.get(inst.article_id, 0) + 1
+    return list(counts.items())
+
+
+def _prefill_credit(db: Session, sale: Sale, order: Order, article_id: int) -> None:
+    """Gutschrift-Betrag/MWST/Kunde/Original-Verweis aus dem Original-Verkauf ableiten:
+    Stückpreis × zurückkommende Menge (Betrag = Magnitude; ``kind='credit'`` sagt die Richtung).
+    Ohne auffindbaren Original-Beleg bleibt der Betrag leer (Personal trägt ihn ein)."""
+    orig = original_sale_for(db, order, article_id)
+    if not orig:
+        return
+    sale.original_sale_id = orig.id
+    sale.customer_id = orig.customer_id
+    sale.currency = orig.currency
+    sale.vat_rate = orig.vat_rate
+    if orig.order_total is not None and orig.quantity:
+        unit = orig.order_total / orig.quantity
+        sale.order_total = (unit * sale.quantity).quantize(Decimal("0.01"))
 
 
 def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: UserProfile) -> None:
@@ -153,6 +214,10 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
         # sobald der Verkauf bestätigt/fortgeschrieben wird (spätestens zur Bestätigung).
         if sale.customer_id is None:
             raise HTTPException(400, detail="Kunde ist erforderlich")
+    is_credit = sale.kind == "credit"
+    # Gutschrift-Beleg (Retoure): unveränderliche, fortlaufende Nummer bei der Bestätigung.
+    if is_credit and target in ("confirmed", "invoiced") and not sale.credit_note_number:
+        sale.credit_note_number = f"GS-{sale.id}"
     now = utcnow()
     if target == "confirmed":
         sale.confirmed_at = now
@@ -160,16 +225,40 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
         sale.invoiced_at = now
     elif target == "paid":
         sale.paid_at = now
-        # Personal-erfasste Zahlung ohne gewählte Zahlungsart: Rechnung ist der übliche
-        # B2B-Weg (kein Kartenterminal nötig) – sinnvoller Default statt eines leeren Felds.
-        if sale.payment_method is None:
+        if is_credit:
+            # «Bezahlt» einer Gutschrift = **erstattet**: Stripe-Refund gegen den Original-
+            # PaymentIntent (bzw. manuell/Direktverkauf → nur lokal als erstattet markiert).
+            _issue_refund(db, sale)
+            sale.refunded_at = now
+        elif sale.payment_method is None:
+            # Personal-erfasste Zahlung ohne gewählte Zahlungsart: Rechnung ist der übliche
+            # B2B-Weg (kein Kartenterminal nötig) – sinnvoller Default statt eines leeren Felds.
             sale.payment_method = "invoice"
     old = sale.status
     sale.status = target
     log_audit(db, "sales", "status", target, user.id, object_id=order.object_id, old_value=old)
-    emit(db, f"sale.{target}", object_type="order", object_id=order.object_id, actor_id=user.id)
+    event = "sale.refunded" if (is_credit and target == "paid") else f"sale.{target}"
+    emit(db, event, object_type="order", object_id=order.object_id, actor_id=user.id)
     # Auftrag ggf. automatisch abschliessen (alle Schritte erledigt) – setzt Subjekte auf «sold».
     process.recompute_completion(db, order)
+
+
+def _issue_refund(db: Session, credit: Sale) -> None:
+    """Gutschrift erstatten: über den Zahlungs-Provider gegen den **Original-PaymentIntent**
+    (Stripe – voll oder anteilig). Der manuelle/Direkt-Verkauf hat keinen Online-Beleg → der
+    Provider liefert ``None``, die Gutschrift gilt lokal als erstattet (Abwicklung per
+    Rechnung/QR offline). Idempotent (kein zweiter Refund, wenn schon eine ``stripe_refund_id``)."""
+    if credit.stripe_refund_id:
+        return
+    orig = (db.query(Sale).filter(Sale.id == credit.original_sale_id).first()
+            if credit.original_sale_id else None)
+    from .payments import get_provider
+    result = get_provider(db).refund(db, orig, credit)
+    if result and result.get("refund_id"):
+        credit.stripe_refund_id = result["refund_id"]
+        credit.stripe_snapshot = result.get("snapshot")
+        if result.get("payment_method"):
+            credit.payment_method = result["payment_method"]
 
 
 def _release_on_payment(db: Session, order: Order, actor_id: int | None) -> None:

@@ -9,13 +9,14 @@ from sqlalchemy.orm import Query, Session
 from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
-    InstanceOrderLink, Movement, Order, PurchaseOrder, Sale, UserProfile,
+    InstanceOrderLink, Movement, Order, PurchaseOrder, ReturnReceipt, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
+from ..schemas.return_receipt import ReturnEmbed
 from ..schemas.order import (
     OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary,
     ShortfallInstance, StepShortfall,
@@ -211,6 +212,20 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
     return de
 
 
+def _return_embed(db: Session, order: Order, rec: ReturnReceipt | None,
+                  returned_count: int) -> ReturnEmbed:
+    re = ReturnEmbed(id=rec.id if rec else 0, done=rec is not None,
+                     note=rec.note if rec else None,
+                     returned_count=returned_count,
+                     to_inspection=rec.to_inspection if rec else False)
+    if rec and rec.received_by_id:
+        re.received_by_name = _supplier_name(
+            db.query(UserProfile).filter(UserProfile.id == rec.received_by_id).first())
+    if rec:
+        re.location_label = location_label(db, rec.location_type, rec.location_id)
+    return re
+
+
 def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     """Wer/Wann den Wareneingang bestätigt hat (aus dem Bestell-Verlauf)."""
     for h in po_embed.history:
@@ -219,11 +234,12 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
-def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], list[OrderDeviationInfo], bool]:
+def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], list[OrderDeviationInfo], list[OrderDeviationInfo], bool]:
     """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichungen** (pausieren den
-    Eltern) und **Nachschub** (deckt Bedarf, blockiert nur Schritte) + Pause-Zustand."""
+    Eltern), **Nachschub** (deckt Bedarf, blockiert nur Schritte), **Retouren** (Rücknahme +
+    Gutschrift eines abgeschlossenen Verkaufs, pausieren NICHT) + Pause-Zustand."""
     if not order.object_id:
-        return [], [], False
+        return [], [], [], False
     children = (
         db.query(Order)
         .filter(Order.parent_order_id == order.object_id, Order.is_active == True)
@@ -232,6 +248,7 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInf
     )
     deviations: list[OrderDeviationInfo] = []
     supplies: list[OrderDeviationInfo] = []
+    returns: list[OrderDeviationInfo] = []
     for c in children:
         ids = [
             row[0] for row in
@@ -242,8 +259,9 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInf
         info = OrderDeviationInfo(
             object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
             instance_object_ids=ids, title=c.title)
-        (supplies if c.reason == "supply" else deviations).append(info)
-    return deviations, supplies, process._is_paused_by_deviation(db, order)
+        bucket = supplies if c.reason == "supply" else returns if c.reason == "return" else deviations
+        bucket.append(info)
+    return deviations, supplies, returns, process._is_paused_by_deviation(db, order)
 
 
 def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
@@ -284,7 +302,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
     resp = OrderResponse.model_validate(order)
-    resp.deviations, resp.supply_orders, resp.paused = _order_sub_orders(db, order)
+    resp.deviations, resp.supply_orders, resp.returns, resp.paused = _order_sub_orders(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
@@ -390,6 +408,13 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             first.setdefault("disposal", emb)
             if done:
                 by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
+        elif step.step_type == "return":
+            returned_count = sum(1 for i in instances if i.disposition != "sold")
+            emb = _return_embed(db, order, fact, returned_count)
+            si.return_receipt = emb
+            first.setdefault("return_receipt", emb)
+            if done:
+                by_name, at = emb.received_by_name, (fact.updated_at if fact else None)
         elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
@@ -412,6 +437,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
     resp.disposal = first.get("disposal")
+    resp.return_receipt = first.get("return_receipt")
     return resp
 
 

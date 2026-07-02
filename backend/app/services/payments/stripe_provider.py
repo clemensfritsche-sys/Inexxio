@@ -295,6 +295,33 @@ class StripeProvider(PaymentProvider):
         db.commit()
         return True
 
+    # ─── Gutschrift erstatten (Refund) ───────────────────────────────────────────
+    def refund(self, db: Session, original_sale, credit_sale) -> dict | None:
+        """Refund gegen den **Original-PaymentIntent**. Voll, wenn die Gutschrift den ganzen
+        Original-Betrag umkehrt; sonst **anteilig** (Anteil netto CHF × PI-Betrag, in der
+        PI-Währung – korrekt auch bei Adaptive Pricing). Ohne Original-PaymentIntent (Direkt-/
+        Rechnungsverkauf) → ``None`` (offline abzuwickeln)."""
+        pi_id = getattr(original_sale, "stripe_payment_intent_id", None) if original_sale else None
+        if not pi_id:
+            return None
+        stripe = _stripe()
+        params: dict = {"payment_intent": pi_id}
+        o_net = getattr(original_sale, "order_total", None)
+        c_net = getattr(credit_sale, "order_total", None)
+        try:
+            if o_net and c_net and Decimal(str(c_net)) < Decimal(str(o_net)):
+                pi = stripe.PaymentIntent.retrieve(pi_id)
+                charged = int(_get(pi, "amount") or 0)
+                params["amount"] = int((Decimal(charged) * Decimal(str(c_net)) / Decimal(str(o_net))).to_integral_value())
+            r = stripe.Refund.create(**params)
+        except Exception as e:
+            raise HTTPException(502, detail=f"Rückerstattung bei Stripe fehlgeschlagen: {e}")
+        return {
+            "refund_id": _get(r, "id"),
+            "payment_method": "stripe",
+            "snapshot": {"amount": _get(r, "amount"), "currency": _get(r, "currency"), "status": _get(r, "status")},
+        }
+
     # ─── Customer Portal ─────────────────────────────────────────────────────────
     def create_portal_session(self, db: Session, user: UserProfile, return_url: str) -> str | None:
         stripe = _stripe()

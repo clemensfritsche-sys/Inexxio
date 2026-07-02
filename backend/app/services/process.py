@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from ..domain import event_types
 from ..models import (
     ArticleProcessStep, Disposal, Inspection, Instance, Movement, Order, PurchaseOrder,
-    ResourceUsage, Sale,
+    ResourceUsage, ReturnReceipt, Sale,
 )
 from ..models.base import utcnow
 from .events import emit
@@ -45,6 +45,7 @@ STEP_LABELS = {key: et.label for key, et in event_types.REGISTRY.items()}
 _MODEL_BY_NAME = {
     "PurchaseOrder": PurchaseOrder, "Inspection": Inspection, "Movement": Movement,
     "Disposal": Disposal, "ResourceUsage": ResourceUsage, "Sale": Sale,
+    "ReturnReceipt": ReturnReceipt,
 }
 # Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung).
 _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.items()}
@@ -64,14 +65,14 @@ def order_step_defs(db: Session, order: Order) -> list[ArticleProcessStep]:
     ``subject.subject_kind``). Eine blosse Pin-Auswahl ohne Schritte kippt den Auftrag
     NICHT – er bleibt eine Herstellung über den Artikel-Prozess."""
     from .processes import article_steps, order_custom_steps
-    from .subject import is_deviation
+    from .subject import is_fixed_subject
     custom = order_custom_steps(db, order.id)
     if custom:
         return custom
-    # Abweichung (Unter-Auftrag, reason='deviation'): NUR eigene Schritte (die Auflösung) –
-    # nie der Artikel-Prozess. Ohne eigene Schritte hat sie (noch) keinen Ablauf. Ein
-    # **Nachschub** (reason='supply') ist dagegen ein normaler Produktionsauftrag → Artikel-Prozess.
-    if is_deviation(order):
+    # Abweichung ODER Retoure (Unter-Auftrag, reason='deviation'|'return'): NUR eigene Schritte
+    # (die Auflösung/Rücknahme) – nie der Artikel-Prozess. Ohne eigene Schritte (noch) kein
+    # Ablauf. Ein **Nachschub** (reason='supply') ist dagegen ein normaler Produktionsauftrag.
+    if is_fixed_subject(order):
         return []
     return article_steps(db, order.article_id)
 
@@ -111,7 +112,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource", "scrap"):
+    if step_type in ("movement", "resource", "scrap", "return"):
         return "done" if fact else "open"
     return "open"
 
@@ -317,9 +318,9 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
     Sonderfall. Ausgenommen ist nur die **Abweichung**: ihr Subjekt sind fixierte Instanzen
     (``subject_of_order_id``), kein aus Lager/Produktion zu erfüllendes Soll."""
     from .order_lines import lines_for
-    from .subject import TERMINAL_DISPOSITIONS, is_deviation
-    if is_deviation(order):
-        return {}
+    from .subject import TERMINAL_DISPOSITIONS, is_fixed_subject
+    if is_fixed_subject(order):
+        return {}   # Abweichung/Retoure: Subjekt steht fest (gewählte/verkaufte Instanzen)
     # Soll je Artikel
     targets: dict[int, int] = {}
     if order.article_id and order.quantity:
@@ -462,6 +463,10 @@ def _finalize_subjects(db: Session, order: Order) -> None:
     Teilung!) – eine vollständig verkaufte Instanz wird ``sold``, eine teilweise verkaufte
     Charge bleibt mit der Restmenge am Lager. Sonst (Wartung/Bewegung/Kontrolle) bleibt der
     Verbleib unverändert. MAKE-Aufträge (neue Instanzen) laufen über ``release_instances``."""
+    from .subject import is_return
+    if is_return(order):
+        return   # Retoure: der Verkauf ist eine **Gutschrift** (kein Abgang) – die Rücknahme
+                 # (``return``-Schritt) hat die Instanzen bereits ins Lager zurückgebucht.
     if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
         return
     # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt

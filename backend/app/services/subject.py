@@ -62,6 +62,21 @@ def is_deviation(order: Order) -> bool:
     return getattr(order, "reason", None) == "deviation"
 
 
+def is_return(order: Order) -> bool:
+    """Retoure = Unter-Auftrag mit ``reason='return'`` einer abgeschlossenen Verkaufs-Auftrags.
+    Wirkt – wie eine Abweichung – auf **fixierte** (hier: verkaufte) Instanzen des Eltern; KEIN
+    Lager-FIFO/-Reservierung. Pausiert den Eltern NICHT (der Verkauf ist bereits abgeschlossen).
+    Komponiert bestehende Module: Rücknahme (``return``) + optional Prüfung/Verschrottung +
+    Verkauf im **Kredit-Modus** (Gutschrift)."""
+    return getattr(order, "reason", None) == "return"
+
+
+def is_fixed_subject(order: Order) -> bool:
+    """Unter-Auftrag, dessen Subjekt bereits FESTSTEHT (gewählte, vorhandene Instanzen) –
+    Abweichung ODER Retoure. Kein Lager-Zugriff, keine Fehlmengen-Ableitung."""
+    return is_deviation(order) or is_return(order)
+
+
 def subject_kind(db: Session, order: Order) -> str:
     """Abgeleitete Subjektart (Artikel ist immer der Anker) – KEIN Modus-Flag, KEINE
     Quellen-Übersteuerung:
@@ -89,6 +104,8 @@ def subject_kind(db: Session, order: Order) -> str:
     klaren Fehlermeldung, statt still am fehlenden Artikel zu scheitern."""
     if is_deviation(order):
         return "deviation"   # wirkt auf bereits vorhandene Instanzen (kein Lager-Zugriff)
+    if is_return(order):
+        return "return"      # wirkt auf verkaufte Instanzen des Eltern (kein Lager-Zugriff)
     if order.article_id is None and lines_for(db, order):
         return "stock"
     steps = order_custom_steps(db, order.id)
@@ -160,10 +177,12 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
 
     deviation → die (bereits vorhandenen) Subjekt-Instanzen werden nur übernommen, ohne
       Lager-Allokation/-Reservierung (sie sind schon in Arbeit/im Besitz)."""
-    if is_deviation(order):
+    if is_fixed_subject(order):
+        # Abweichung ODER Retoure: die gewählten (vorhandenen/verkauften) Instanzen nur
+        # dauerhaft als verarbeitet vermerken – KEINE Lager-Allokation/-Reservierung.
         _bind_deviation_subjects(db, order, actor_id)
         return
-    kind = subject_kind(db, order)   # abgeleitet (produce | stock | deviation)
+    kind = subject_kind(db, order)   # abgeleitet (produce | stock | deviation | return)
     if kind == "stock":
         if order.article_id is not None:
             _allocate_stock_subject(db, order, actor_id)
@@ -179,10 +198,10 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     (in Arbeit, am Lager, …); die Abweichung wirkt direkt auf sie."""
     bound = chosen_subjects(db, order)
     if not bound:
-        raise HTTPException(409, detail="Für die Abweichung sind keine Instanzen gewählt")
+        raise HTTPException(409, detail="Für diesen Unter-Auftrag sind keine Instanzen gewählt")
     for inst in bound:
         record_link(db, inst.object_id, order.id)
-    log_audit(db, "instances", None, "Abweichung übernimmt Instanzen", actor_id, object_id=order.object_id)
+    log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
 def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity: int) -> None:
