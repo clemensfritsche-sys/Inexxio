@@ -21,14 +21,15 @@ import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
-import { ReturnPanel } from '@/components/erp/return-panel';
+import { RefundPanel } from '@/components/erp/refund-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 
 type ViewerRole = 'staff' | 'supplier';
 
-// Ziel der Auftragsanlage (Ziel-Karten): herstellen | aus Lager (FIFO) | bestimmte Stücke.
-type OrderGoal = 'produce' | 'stock' | 'specific';
+// Ziel der Auftragsanlage (Ziel-Karten): herstellen | aus Lager (FIFO) | bestimmte Stücke |
+// Erstattung/Retoure (verkaufte Instanzen zurückerstatten).
+type OrderGoal = 'produce' | 'stock' | 'specific' | 'refund';
 
 // Anker ist IMMER der Artikel + Menge. Was damit geschieht, ergibt sich aus dem Ablauf,
 // der danach im Entwurf definiert wird (Erzeugung vs. Operation am Bestand). Optional
@@ -113,7 +114,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   const [selStep, setSelStep] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
-  const [returnBusy, setReturnBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
@@ -141,12 +141,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   // Instanz (Instanz-Detail), nicht über den abgeschlossenen Auftrag.
   const canReportDeviation = isStaff && !isCreate && record != null
     && record.status === 'released' && record.abort_into_id == null && !record.paused;
-  // «Retoure erfassen»: nur zu einem Verkaufs-Auftrag (hat einen sale-Schritt) mit tatsächlich
-  // verkauften Instanzen – typischerweise nach Abschluss. Eröffnet einen Unter-Auftrag auf die
-  // verkauften Instanzen (Rücknahme + Gutschrift), der den Eltern NICHT pausiert.
-  const soldInstances = (record?.instances ?? []).filter((i) => i.disposition === 'sold');
-  const canReportReturn = isStaff && !isCreate && record != null && record.abort_into_id == null
-    && soldInstances.length > 0 && (record.steps ?? []).some((s) => s.step_type === 'sale');
 
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
@@ -237,11 +231,18 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
   const pins = pinLines.flatMap((l) => l.pinnedIds);
   const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
-  const goal: OrderGoal = pins.length > 0
-    ? 'specific'
-    : !canProduce
-      ? (goalSel === 'specific' ? 'specific' : 'stock')
-      : (goalSel ?? 'produce');
+  // Verkaufte Instanzen des Artikels (für die «Erstattung/Retoure» – ganz normaler Auftrag, der
+  // auf verkaufte Instanzen wirkt). Aus demselben geladenen Pool wie die Lager-Instanzen.
+  const soldPool = pinPool.filter((i) =>
+    i.object_id != null && i.article_id === record?.article_id && i.disposition === 'sold');
+  const [refundIds, setRefundIds] = useState<number[]>([]);
+  const goal: OrderGoal = goalSel === 'refund'
+    ? 'refund'
+    : pins.length > 0
+      ? 'specific'
+      : !canProduce
+        ? (goalSel === 'specific' ? 'specific' : 'stock')
+        : (goalSel ?? 'produce');
 
   async function pickGoal(g: OrderGoal) {
     setGoalSel(g);
@@ -309,6 +310,18 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     const saved = await api.addOrderLine(record.object_id as number, { article_id: articleId, quantity });
     verRef.current = saved.updated_at;
     onSaved(saved);
+  }
+
+  // «Erstattung/Retoure»: die gewählten VERKAUFTEN Instanzen als Subjekt fixieren – das macht
+  // den Auftrag zur Retoure (reason='return' + parent = Original-Verkauf). Danach zeigt sich der
+  // Ablauf-Editor (Bewegung + Rückerstattung) wie bei jedem anderen Unter-Auftrag.
+  async function bindRefund(ids: number[]) {
+    if (!record) return;
+    try {
+      const saved = await api.setRefundSubject(record.object_id as number, ids);
+      verRef.current = saved.updated_at;
+      onSaved(saved);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Retoure konnte nicht angelegt werden'); }
   }
 
   async function removePosition(lineId: number) {
@@ -423,21 +436,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     }
   }
 
-  // «Retoure erfassen»: eröffnet einen Unterauftrag (reason='return') auf die verkauften
-  // Instanzen dieses Verkaufs und navigiert dorthin – der Nutzer definiert die Auflösung
-  // (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt sie frei.
-  async function reportReturn() {
-    if (!record) return;
-    setReturnBusy(true);
-    setError(null);
-    try {
-      onSaved(await api.createReturn(record.object_id as number, soldInstances.map((i) => i.object_id as number)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Retoure konnte nicht eröffnet werden');
-    } finally {
-      setReturnBusy(false);
-    }
-  }
 
   // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag, der die Fehlmenge des
   // blockierten Schritts deckt. Liefert den (aktualisierten) Auftrag zurück – der blockierte
@@ -732,35 +730,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
           </>
         )}
 
-        {/* Retoure erfassen – Unterauftrag (reason='return') auf die verkauften Instanzen dieses
-            Verkaufs: Rücknahme ins Lager + Gutschrift (mit Stripe-Rückerstattung), optional Prüfung/
-            Verschrottung. Erst nach Freigabe der Retoure scharf; pausiert den Verkauf NICHT. */}
-        {canReportReturn && (
-          <>
-            <SectionTitle icon={Undo2}>Retoure</SectionTitle>
-            <div style={cardStyle}>
-              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                Kommt verkaufte Ware zurück? Erfasse eine{' '}
-                <strong style={{ color: '#0f172a' }}>Retoure</strong> – einen Unterauftrag auf die
-                verkauften Instanzen. Du legst dort fest, was geschieht (zurück ins Lager, Gutschrift,
-                optional Prüfung/Verschrottung), und gibst sie frei.
-              </div>
-              {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
-              <button type="button" onClick={reportReturn} disabled={returnBusy}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8,
-                  border: '1px solid #67e8f9', background: returnBusy ? '#ecfeff' : '#f0fdff',
-                  color: '#0e7490', fontSize: 13, fontWeight: 700,
-                  cursor: returnBusy ? 'default' : 'pointer',
-                }}>
-                {returnBusy ? <Loader2 size={15} className="animate-spin" /> : <Undo2 size={15} />}
-                Retoure erfassen ({soldInstances.length})
-              </button>
-            </div>
-          </>
-        )}
-
         {/* Unter-Auftrag (Entwurf): Subjekt/Bedarf stehen fest (oben gelistet) – KEINE
             Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren, dann freigeben. Abweichung =
             was mit den Instanzen geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
@@ -809,10 +778,20 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 desc={'Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung).'}
                 footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('specific')} />
+              <GoalCard icon={Undo2} tone="#e11d48" active={goal === 'refund'}
+                disabled={soldPool.length === 0}
+                disabledHint={'Keine verkauften Instanzen dieses Artikels'}
+                title="Erstattung / Retoure"
+                desc={'Verkaufte Instanzen zurücknehmen & erstatten (Ware zurück ins Lager + Geld zurück).'}
+                footer={`${soldPool.length} verkauft`}
+                onClick={() => { setGoalSel('refund'); }} />
             </div>
 
             {/* Editor je nach Ziel */}
-            {goal === 'produce' ? (
+            {goal === 'refund' ? (
+              <RefundSubjectPicker sold={soldPool} value={refundIds} onChange={setRefundIds}
+                onConfirm={() => bindRefund(refundIds)} error={error} />
+            ) : goal === 'produce' ? (
               <div style={{ ...cardStyle, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Factory size={18} style={{ color: '#0f766e', flexShrink: 0 }} />
                 <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
@@ -1183,7 +1162,6 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     movement: step.movement ?? order.movement,
     resource: step.resource ?? order.resource,
     disposal: step.disposal ?? order.disposal,
-    return_receipt: step.return_receipt ?? order.return_receipt,
   };
   const stepState = step.state;
   const stepId = step.id;
@@ -1209,8 +1187,12 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'scrap') {
     return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (step.step_type === 'return') {
-    return <ReturnPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+  if (step.step_type === 'refund') {
+    // Rückerstattung = Kredit-Modus des Verkaufs: die Belege liegen (wie beim Verkauf) in step.sales.
+    const sales = step.sales.length > 0 ? step.sales : (order.sale ? [order.sale] : []);
+    return sales.length > 0
+      ? <RefundPanel order={stepOrder} sales={sales} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />
+      : <StepFallback />;
   }
   return <StepFallback />;
 }
@@ -1291,6 +1273,52 @@ function Row({ k, v }: { k: string; v: string }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
       <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
       <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    </div>
+  );
+}
+
+// Auswahl der zu erstattenden VERKAUFTEN Instanzen – macht den (normalen) Auftrag zur Retoure
+// (reason='return' + parent = Original-Verkauf). Danach folgt der gewohnte Ablauf-Editor.
+function RefundSubjectPicker({ sold, value, onChange, onConfirm, error }: {
+  sold: Instance[]; value: number[]; onChange: (ids: number[]) => void;
+  onConfirm: () => void; error: string | null;
+}) {
+  const [busy, setBusy] = useState(false);
+  function toggle(oid: number) {
+    onChange(value.includes(oid) ? value.filter((x) => x !== oid) : [...value, oid]);
+  }
+  async function confirm() { setBusy(true); try { await onConfirm(); } finally { setBusy(false); } }
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+        Wähle die <strong style={{ color: '#0f172a' }}>verkauften Instanzen</strong>, die erstattet
+        werden. Danach definierst du wie gewohnt den Ablauf – in aller Regel <strong>Bewegung</strong>{' '}
+        (Ware zurück ins Lager) + <strong>Rückerstattung</strong> (Geld zurück).
+      </div>
+      {sold.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verkauften Instanzen dieses Artikels.</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {sold.map((i) => {
+            const sel = value.includes(i.object_id!);
+            return (
+              <button key={i.object_id} type="button" onClick={() => toggle(i.object_id!)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                  border: `1px solid ${sel ? '#e11d48' : '#e2e8f0'}`,
+                  background: sel ? '#fff1f2' : '#fff', color: sel ? '#be123c' : '#475569',
+                }}>
+                {sel && <CheckCircle2 size={12} />}{fmtObjId(i.object_id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+      <PrimaryButton icon={Undo2} onClick={confirm} disabled={busy || value.length === 0}>
+        {busy ? 'Wird übernommen…' : `Als Retoure übernehmen (${value.length})`}
+      </PrimaryButton>
     </div>
   );
 }

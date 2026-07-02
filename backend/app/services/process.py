@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from ..domain import event_types
 from ..models import (
     ArticleProcessStep, Disposal, Inspection, Instance, Movement, Order, PurchaseOrder,
-    ResourceUsage, ReturnReceipt, Sale,
+    ResourceUsage, Sale,
 )
 from ..models.base import utcnow
 from .events import emit
@@ -45,7 +45,6 @@ STEP_LABELS = {key: et.label for key, et in event_types.REGISTRY.items()}
 _MODEL_BY_NAME = {
     "PurchaseOrder": PurchaseOrder, "Inspection": Inspection, "Movement": Movement,
     "Disposal": Disposal, "ResourceUsage": ResourceUsage, "Sale": Sale,
-    "ReturnReceipt": ReturnReceipt,
 }
 # Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung).
 _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.items()}
@@ -104,7 +103,9 @@ def _fact_status(step_type: str, fact) -> str:
         if fact and fact.result == "failed":
             return "failed"
         return "open"
-    if step_type == "sale":
+    if step_type in ("sale", "refund"):
+        # Verkauf UND Rückerstattung teilen den kaufmännischen Lebenszyklus (Sale-Fact):
+        # 'paid' = erledigt (beim refund = erstattet), 'cancelled' = fehlgeschlagen.
         if not fact:
             return "open"
         if fact.status == "paid":
@@ -112,7 +113,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource", "scrap", "return"):
+    if step_type in ("movement", "resource", "scrap"):
         return "done" if fact else "open"
     return "open"
 
@@ -147,7 +148,7 @@ def _resolve_facts_multi(step: ArticleProcessStep, rows: list, sole_of_type: boo
 # Fachmodell hat ein eigenes ``article_id`` (``Sale``/``PurchaseOrder``). Andere Typen
 # (movement/resource/inspection/scrap) wirken artikel-unabhängig auf die GESAMTE
 # Instanzmenge des Auftrags und bleiben bei genau EINER Fachzeile je Schritt.
-MULTI_FACT_STEP_TYPES = {"sale", "purchase"}
+MULTI_FACT_STEP_TYPES = {"sale", "purchase", "refund"}
 
 
 def _aggregate_status(step_type: str, facts: list) -> str:
@@ -463,10 +464,30 @@ def _finalize_subjects(db: Session, order: Order) -> None:
     Teilung!) – eine vollständig verkaufte Instanz wird ``sold``, eine teilweise verkaufte
     Charge bleibt mit der Restmenge am Lager. Sonst (Wartung/Bewegung/Kontrolle) bleibt der
     Verbleib unverändert. MAKE-Aufträge (neue Instanzen) laufen über ``release_instances``."""
-    from .subject import is_return
+    from .subject import is_return, order_instances
     if is_return(order):
-        return   # Retoure: der Verkauf ist eine **Gutschrift** (kein Abgang) – die Rücknahme
-                 # (``return``-Schritt) hat die Instanzen bereits ins Lager zurückgebucht.
+        # **Retoure/Erstattung** – der physische Rückfluss entscheidet sich bei ABSCHLUSS
+        # (symmetrisch zum Verkauf, dessen Abgang ebenfalls beim Abschluss gebucht wird):
+        # eine verkaufte Subjekt-Instanz, die per **Bewegung** zurück an einen **Lagerplatz**
+        # gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS bewegt
+        # (Kulanz: der Kunde behält die Ware) → sie bleibt beim Kunden 'sold' (nur Geld zurück).
+        # Durchgefallene (quality='failed', z. B. defekt aus einer Prüfung) bleiben gesperrt und
+        # werden separat verschrottet. So ist «Erstattung» reines Geld und «Bewegung» der Weg
+        # der Ware – die Kombination je Auftrag ist frei (auch ganz ohne physische Rücknahme).
+        for inst in order_instances(db, order):
+            if inst.disposition != "sold" or inst.quality == "failed":
+                continue
+            if inst.location_type != "lagerplatz":
+                continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
+            back = max(inst.quantity or 0, 1)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
+            inst.quantity = back
+            inst.disposition = "in_stock"
+            inst.quality = "passed"
+            inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+            emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
+                 payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
+                          "reason": "return", "order": order.object_id})
+        return
     if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
         return
     # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt

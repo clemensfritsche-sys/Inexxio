@@ -22,11 +22,15 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 }) {
   const mv = order.movement;
   const done = !!mv?.done;
-  // Nur noch aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus»
-  // und blockieren den Schritt nicht mehr (sie sind oben unter «Instanzen» weiter sichtbar).
+  // Nur noch aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus».
+  // AUSNAHME Retoure/Erstattung (reason='return'): dort sind genau die **verkauften** Instanzen
+  // das Subjekt – sie werden per Bewegung zurück ins Lager gebracht (sold→in_stock bei Abschluss),
+  // also bleiben sie hier bewegbar (nur verschrottet/verbaut sind endgültig raus).
   const instances = useMemo(
-    () => (order.instances ?? []).filter((i) => !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
-    [order.instances],
+    () => (order.instances ?? []).filter((i) => order.reason === 'return'
+      ? !['scrapped', 'consumed'].includes(i.disposition ?? '')
+      : !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
+    [order.instances, order.reason],
   );
   const scan = useScan();
 
@@ -38,9 +42,15 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auswahllisten erst laden, wenn die Bewegung aktiv ist (für freie Zielwahl)
+  const fixedType = mv?.target_location_type as LocationType | null | undefined;
+  const fixedId = mv?.target_location_id ?? null;
+  const hasFixedTarget = !!fixedType && !!fixedId;
+
+  // Auswahllisten NUR für die **freie** Zielwahl laden. Bei festem Ziel (z. B. Pflicht-Versand
+  // zum Kunden) werden sie nicht gebraucht – das spart das Laden aller Instanzen/Lagerplätze/
+  // Personen (spürbar schneller, gerade nach dem Verkauf mit fixem Kunden-Ziel).
   useEffect(() => {
-    if (stepState === 'locked' || done) return;
+    if (stepState === 'locked' || done || hasFixedTarget) return;
     Promise.allSettled([api.getStorageLocations(), api.getUsers(), api.getInstances()])
       .then(([sl, us, inst]) => {
         if (sl.status === 'fulfilled') setStorageLocs(sl.value);
@@ -48,10 +58,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
         if (inst.status === 'fulfilled') setAllInstances(inst.value);
         setListsReady(true);
       });
-  }, [stepState, done]);
-
-  const fixedType = mv?.target_location_type as LocationType | null | undefined;
-  const fixedId = mv?.target_location_id ?? null;
+  }, [stepState, done, hasFixedTarget]);
   // Ohne festen Zielort braucht der Zielort-Scan die Auswahllisten (Lagerplätze/Personen/
   // Instanzen). Sind sie noch nicht geladen, hätte der letzte Scan-Schritt KEINE Kandidaten
   // → er zeigte nichts an. Darum den Scan erst freigeben, wenn die Listen bereit sind

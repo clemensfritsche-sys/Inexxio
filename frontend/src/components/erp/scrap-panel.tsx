@@ -29,10 +29,14 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
   const instances = useMemo(() => order.instances ?? [], [order.instances]);
   const scan = useScan();
 
-  // Noch verschrottbar = nicht bereits verschrottet/verkauft/verbaut.
+  // Noch verschrottbar = nicht bereits verschrottet/verbaut. Normalerweise sind auch VERKAUFTE
+  // Teile «raus»; bei einer Retoure/Erstattung (reason='return') sind die verkauften Instanzen
+  // aber das Subjekt – ein defekt zurückgekommenes Teil kann direkt verschrottet werden.
   const scrappable = useMemo(
-    () => instances.filter((i) => i.object_id != null && !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
-    [instances],
+    () => instances.filter((i) => i.object_id != null && (order.reason === 'return'
+      ? !['scrapped', 'consumed'].includes(i.disposition ?? '')
+      : !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? ''))),
+    [instances, order.reason],
   );
 
   const [scanned, setScanned] = useState<Set<number>>(new Set());

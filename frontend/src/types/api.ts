@@ -705,7 +705,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/return": {
+    "/api/v1/erp/orders/{object_id}/refund-subject": {
         parameters: {
             query?: never;
             header?: never;
@@ -715,20 +715,20 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Open Return
-         * @description «Retoure erfassen» zu einem Verkaufs-Auftrag: legt einen **Unter-Auftrag**
-         *     (``reason='return'``) auf die gewählten **verkauften** Instanzen an. Man definiert dort die
-         *     Auflösung (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt frei. Liefert
-         *     die neue Retoure zurück. Pausiert den Eltern NICHT (der Verkauf ist abgeschlossen).
+         * Set Refund Subject
+         * @description Retoure/Erstattung als **normaler Auftrag**: die gewählten **verkauften** Instanzen als
+         *     Subjekt fixieren – das macht den Entwurf zur Retoure (``reason='return'`` + ``parent_order_id``
+         *     = Original-Verkauf). Danach wird der Ablauf wie gewohnt definiert (Bewegung + ``refund`` …).
+         *     Leere Auswahl hebt die Retoure wieder auf. Liefert den aktualisierten Auftrag zurück.
          */
-        post: operations["open_return_api_v1_erp_orders__object_id__return_post"];
+        post: operations["set_refund_subject_api_v1_erp_orders__object_id__refund_subject_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/return-receipt": {
+    "/api/v1/erp/orders/{object_id}/refund": {
         parameters: {
             query?: never;
             header?: never;
@@ -742,11 +742,13 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Update Order Return
-         * @description Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Menge/Disposition
-         *     wiederhergestellt, Standort gesetzt). Spiegel des Verschrottens.
+         * Update Order Refund
+         * @description Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
+         *     Der Betrag ist aus dem Original-Verkauf abgeleitet, kann aber abweichend erfasst werden; die
+         *     «Zahlung» (``paid``) löst die Stripe-Rückerstattung (bzw. manuelle Gutschrift) aus. Reuse der
+         *     Verkaufs-Fachlogik (``sale.apply_update_bulk``), aufgelöst über den ``refund``-Schritt.
          */
-        patch: operations["update_order_return_api_v1_erp_orders__object_id__return_receipt_patch"];
+        patch: operations["update_order_refund_api_v1_erp_orders__object_id__refund_patch"];
         trace?: never;
     };
     "/api/v1/erp/orders/{object_id}/supply": {
@@ -2587,6 +2589,19 @@ export interface components {
              */
             instance_object_ids: number[];
         };
+        /**
+         * OrderRefundSubject
+         * @description Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen
+         *     (per Objektnummer) als Subjekt des Entwurfs fixieren. Macht den Auftrag zur Retoure
+         *     (``reason='return'`` + ``parent_order_id`` = Original-Verkauf). Leere Liste hebt sie auf.
+         */
+        OrderRefundSubject: {
+            /**
+             * Instance Object Ids
+             * @default []
+             */
+            instance_object_ids: number[];
+        };
         /** OrderResponse */
         OrderResponse: {
             /** Id */
@@ -2676,7 +2691,6 @@ export interface components {
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
             disposal?: components["schemas"]["DisposalEmbed"] | null;
-            return_receipt?: components["schemas"]["ReturnEmbed"] | null;
             /**
              * Steps
              * @default []
@@ -2712,18 +2726,6 @@ export interface components {
              * @default false
              */
             paused: boolean;
-        };
-        /**
-         * OrderReturnCreate
-         * @description «Retoure erfassen» zu einem Verkaufs-Auftrag: die zurückkommenden **verkauften**
-         *     Instanzen (per Objektnummer). Legt einen Retoure-Unter-Auftrag (``reason='return'``) an.
-         */
-        OrderReturnCreate: {
-            /**
-             * Instance Object Ids
-             * @default []
-             */
-            instance_object_ids: number[];
         };
         /**
          * OrderStepInfo
@@ -2777,7 +2779,6 @@ export interface components {
             movement?: components["schemas"]["MovementEmbed"] | null;
             resource?: components["schemas"]["ResourceEmbed"] | null;
             disposal?: components["schemas"]["DisposalEmbed"] | null;
-            return_receipt?: components["schemas"]["ReturnEmbed"] | null;
         };
         /**
          * OrderSummary
@@ -3214,83 +3215,6 @@ export interface components {
              * @default []
              */
             tools: components["schemas"]["ResourceToolPick"][];
-            /** Note */
-            note?: string | null;
-            /** Step Id */
-            step_id?: number | null;
-        };
-        /**
-         * ReturnEmbed
-         * @description Eingebetteter Stand der Rücknahme (im Auftrag) – Spiegel von ``DisposalEmbed``.
-         *     Welche Instanzen zurückkamen, steht in ``OrderResponse.instances`` (wieder ``in_stock``).
-         */
-        ReturnEmbed: {
-            /**
-             * Id
-             * @default 0
-             */
-            id: number;
-            /**
-             * Done
-             * @default false
-             */
-            done: boolean;
-            /** Note */
-            note?: string | null;
-            /** Received By Name */
-            received_by_name?: string | null;
-            /**
-             * Returned Count
-             * @default 0
-             */
-            returned_count: number;
-            /**
-             * To Inspection
-             * @default false
-             */
-            to_inspection: boolean;
-            /** Location Label */
-            location_label?: string | null;
-        };
-        /**
-         * ReturnItem
-         * @description Eine zurückzunehmende Instanz mit optionaler **Menge** (Charge): ``quantity`` weglassen
-         *     = 1 Stück (Einzelteil). Analog ``ScrapItem``.
-         */
-        ReturnItem: {
-            /** Instance Id */
-            instance_id: number;
-            /** Quantity */
-            quantity?: number | null;
-        };
-        /**
-         * ReturnUpdate
-         * @description Erfassung des Schritts «Rücknahme»: welche verkauften Instanzen zurückkommen (+ Menge),
-         *     an welchen Standort, ob zur Nachprüfung, optionale Notiz.
-         *
-         *     ``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (1 Stück) werden zusammengeführt.
-         *     Ohne Zielstandort geht die Ware an den automatischen Wareneingang («nie ohne Standort»).
-         */
-        ReturnUpdate: {
-            /**
-             * Instance Ids
-             * @default []
-             */
-            instance_ids: number[];
-            /**
-             * Items
-             * @default []
-             */
-            items: components["schemas"]["ReturnItem"][];
-            /** Location Type */
-            location_type?: string | null;
-            /** Location Id */
-            location_id?: number | null;
-            /**
-             * To Inspection
-             * @default false
-             */
-            to_inspection: boolean;
             /** Note */
             note?: string | null;
             /** Step Id */
@@ -5432,7 +5356,7 @@ export interface operations {
             };
         };
     };
-    open_return_api_v1_erp_orders__object_id__return_post: {
+    set_refund_subject_api_v1_erp_orders__object_id__refund_subject_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5443,7 +5367,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OrderReturnCreate"];
+                "application/json": components["schemas"]["OrderRefundSubject"];
             };
         };
         responses: {
@@ -5467,7 +5391,7 @@ export interface operations {
             };
         };
     };
-    update_order_return_api_v1_erp_orders__object_id__return_receipt_patch: {
+    update_order_refund_api_v1_erp_orders__object_id__refund_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5478,7 +5402,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReturnUpdate"];
+                "application/json": components["schemas"]["SaleUpdate"];
             };
         };
         responses: {

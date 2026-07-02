@@ -63,11 +63,12 @@ def is_deviation(order: Order) -> bool:
 
 
 def is_return(order: Order) -> bool:
-    """Retoure = Unter-Auftrag mit ``reason='return'`` einer abgeschlossenen Verkaufs-Auftrags.
-    Wirkt – wie eine Abweichung – auf **fixierte** (hier: verkaufte) Instanzen des Eltern; KEIN
-    Lager-FIFO/-Reservierung. Pausiert den Eltern NICHT (der Verkauf ist bereits abgeschlossen).
-    Komponiert bestehende Module: Rücknahme (``return``) + optional Prüfung/Verschrottung +
-    Verkauf im **Kredit-Modus** (Gutschrift)."""
+    """Retoure/Erstattung = Auftrag mit ``reason='return'`` (Subjekt = **verkaufte** Instanzen
+    eines Original-Verkaufs, ``parent_order_id``). Festes Subjekt wie eine Abweichung: KEIN
+    Lager-FIFO/-Reservierung; pausiert den Eltern NICHT (der Verkauf ist abgeschlossen). Wird
+    wie ein normaler Auftrag angelegt (verkaufte Instanzen wählen) und komponiert bestehende
+    Module: **Bewegung** (Ware zurück ins Lager → sold→in_stock bei Abschluss) + **Rückerstattung**
+    (``refund`` = Verkauf im Kredit-Modus, Geld zurück) + optional Prüfung/Verschrottung."""
     return getattr(order, "reason", None) == "return"
 
 

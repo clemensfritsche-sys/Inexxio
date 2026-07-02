@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale", "return"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale", "refund"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -1064,7 +1064,7 @@ def test_step_type_whitelist_per_context():
     assert {"purchase", "resource", "inspection", "movement"} <= set(art)
     # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
     # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "refund"}
 
 
 def test_webshop_url_is_validated():
@@ -1207,7 +1207,7 @@ def test_event_type_registry_declares_polarity():
     Richtung)."""
     from app.domain import event_types as ev
 
-    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "refund"}
     assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
     # Polarität ist deklariert, nicht abgeleitet:
     assert ev.polarity("purchase") == ev.INCREASE
@@ -1217,6 +1217,9 @@ def test_event_type_registry_declares_polarity():
     assert ev.subject_role("scrap") == ev.INSTANCE  # wirkt auf bestehende Instanzen
     assert ev.polarity("movement") == ev.MOVE
     assert ev.polarity("inspection") == ev.NEUTRAL
+    # Rückerstattung = reine Geld-Seite (kein Bestandseffekt – der physische Rückfluss läuft
+    # über die Bewegung + den Abschluss); wirkt auf bestehende (verkaufte) Instanzen.
+    assert ev.polarity("refund") == ev.NEUTRAL and ev.subject_role("refund") == ev.INSTANCE
     # Vorzeichen fürs Ledger (Event-Payload-Anreicherung):
     assert ev.delta_sign("purchase") == 1
     assert ev.delta_sign("sale") == -1
@@ -1232,7 +1235,7 @@ def test_legacy_resource_aliases_removed():
         assert alias not in STEP_LABELS
         assert alias not in _FACT_MODEL
     assert RESOURCE_STEP_TYPES == ("resource",)
-    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "refund"}
     assert STEP_LABELS["resource"] == "Ressource"
 
 
@@ -1744,7 +1747,9 @@ def test_sale_is_one_step_with_one_fact_per_article():
     from app.services import process, sale as sale_svc
 
     inst_src = _inspect.getsource(sale_svc.instantiate_for_order)
-    assert "steps[0]" in inst_src   # GENAU ein Verkaufs-Schritt, keine Schleife über mehrere
+    # Verkauf UND Rückerstattung teilen das Fachmodell (Sale); je Artikel/Position EIN Beleg
+    # unter demselben Schritt (step_id). Kein separater sequentieller Sale-Schritt.
+    assert '("sale", "refund")' in inst_src
     assert "lines_for(db, order)" in inst_src
     assert 'mode="direct"' in inst_src
 
@@ -2068,18 +2073,24 @@ def test_removing_a_line_folds_back_to_single_article_order():
     assert "order.article_id = anchor.article_id" in src
 
 
-def test_return_is_a_registry_step_mirror_of_scrap():
-    """Retoure-Rücknahme ist ein deklarierter Schritttyp (REA), Spiegel von Verschrotten:
-    Bestands-ZUGANG (INCREASE) auf konkrete Instanzen (INSTANCE), nur im Auftrags-Ablauf."""
+def test_refund_is_a_registry_step_sharing_the_sale_fact():
+    """Rückerstattung ist ein deklarierter Schritttyp (REA): reine **Geld-Seite** (Polarität
+    NEUTRAL – der physische Rückfluss läuft über die Bewegung + den Abschluss), wirkt auf
+    bestehende (verkaufte) Instanzen (INSTANCE), teilt das Fachmodell ``Sale`` (Kredit-Modus).
+    Nur im Auftrags-Ablauf; der alte ``return``-Schritt + ``ReturnReceipt`` sind entfernt."""
     from app.domain import event_types as ev
+    from app.services.process import _FACT_MODEL
+    from app.models import Sale
 
-    rt = ev.REGISTRY["return"]
-    assert rt.polarity == ev.INCREASE and rt.subject_role == ev.INSTANCE and rt.fact == "ReturnReceipt"
-    assert "return" in ev.ORDER_STEP_TYPES and "return" not in ev.ARTICLE_STEP_TYPES
+    rf = ev.REGISTRY["refund"]
+    assert rf.polarity == ev.NEUTRAL and rf.subject_role == ev.INSTANCE and rf.fact == "Sale"
+    assert "refund" in ev.ORDER_STEP_TYPES and "refund" not in ev.ARTICLE_STEP_TYPES
+    assert "return" not in ev.REGISTRY   # alter Schritttyp entfernt
+    assert _FACT_MODEL["refund"] is Sale and _FACT_MODEL["sale"] is Sale
 
 
-def test_return_suborder_is_fixed_subject_and_does_not_pause():
-    """Eine Retoure (reason='return') ist ein Unter-Auftrag auf fixierte (verkaufte) Instanzen –
+def test_return_order_is_fixed_subject_and_does_not_pause():
+    """Eine Retoure/Erstattung (reason='return') wirkt auf fixierte (verkaufte) Instanzen –
     wie eine Abweichung fixiertes Subjekt (keine Fehlmenge), aber sie pausiert den Eltern NICHT
     (nur reason='deviation' pausiert)."""
     import inspect as _inspect
@@ -2093,53 +2104,64 @@ def test_return_suborder_is_fixed_subject_and_does_not_pause():
         or "Order.reason == \"deviation\"" in _inspect.getsource(process._is_paused_by_deviation)
 
 
-def test_credit_note_is_sale_in_credit_mode_with_refund():
-    """Gutschrift = Verkaufsmodul im Kredit-Modus: kind='credit', Betrag/MWST aus dem Original
-    abgeleitet, Gutschrift-Nummer bei Bestätigung, Stripe-Refund gegen den Original-PaymentIntent
-    bei «bezahlt» (bzw. manuell). ``_finalize_subjects`` verkauft eine Retoure NICHT."""
+def test_refund_is_sale_in_credit_mode_with_stripe_refund():
+    """Rückerstattung = Verkaufsmodul im Kredit-Modus: der ``refund``-Schritt legt einen
+    ``Sale kind='credit'`` an (Betrag/MWST aus dem Original abgeleitet, editierbar),
+    Gutschrift-Nummer bei Bestätigung, Stripe-Refund gegen den Original-PaymentIntent bei
+    «bezahlt» (bzw. manuell)."""
     import inspect as _inspect
     from app.models import Sale
-    from app.services import sale as sale_svc, process
+    from app.services import sale as sale_svc
     from app.services.payments.base import PaymentProvider
 
     for f in ("kind", "original_sale_id", "credit_note_number", "stripe_refund_id", "refunded_at"):
         assert f in Sale.__table__.columns
     inst = _inspect.getsource(sale_svc.instantiate_for_order)
-    assert "is_return(order)" in inst and 'kind="credit"' in inst
+    assert '("sale", "refund")' in inst and 'step.step_type == "refund"' in inst and 'kind="credit"' in inst
     trans = _inspect.getsource(sale_svc._apply_transition)
     assert "credit_note_number" in trans and "_issue_refund" in trans
     assert "refund" in [m for m in dir(PaymentProvider)]  # Provider-Schnittstelle
-    assert "is_return(order)" in _inspect.getsource(process._finalize_subjects)
 
 
-def test_return_receipt_restores_quantity_and_disposition():
-    """Der Rücknahme-Schritt stellt Menge wieder her + setzt disposition sold→in_stock
-    (quality pending bei to_inspection) + Bestands-Zugang – Spiegel von record_scrap."""
+def test_finalize_flips_sold_back_to_stock_via_movement_on_completion():
+    """Der physische Rückfluss einer Retoure passiert bei ABSCHLUSS (symmetrisch zum Verkauf):
+    eine verkaufte Subjekt-Instanz, die per Bewegung zurück an einen **Lagerplatz** kam, wird
+    ``in_stock`` – wurde NICHTS bewegt (Kulanz), bleibt sie beim Kunden 'sold'. ``refund`` selbst
+    verkauft/erstattet nur Geld, ändert die Disposition NICHT."""
     import inspect as _inspect
-    from app.services import returns
+    from app.services import process
 
-    src = _inspect.getsource(returns.record_return)
+    src = _inspect.getsource(process._finalize_subjects)
+    assert "is_return(order)" in src
     assert 'inst.disposition = "in_stock"' in src
+    assert 'inst.location_type != "lagerplatz"' in src   # kein Rücktransport → bleibt sold
     assert "inventory.increased" in src
-    assert "to_inspection" in src
 
 
-def test_returns_endpoints_wired():
-    """Retoure anlegen + Rücknahme ausführen sind erreichbar; Freigabe-Ausnahme greift für
+def test_refund_endpoints_wired():
+    """Retoure als Normalauftrag: verkaufte Instanzen als Subjekt fixieren (refund-subject) +
+    Rückerstattung ausführen (refund, reuse der Sale-Fachlogik). Freigabe-Ausnahme greift für
     fixierte Subjekte (Abweichung UND Retoure)."""
     import inspect as _inspect
     from app.routers import orders
+    from app.services import refund as refund_svc
 
-    assert "returns_svc.create_return" in _inspect.getsource(orders.open_return)
-    assert "returns_svc.record_return" in _inspect.getsource(orders.update_order_return)
+    assert "refund_svc.bind_refund_subject" in _inspect.getsource(orders.set_refund_subject)
+    assert 'resolve_exec_step(db, order, "refund"' in _inspect.getsource(orders.update_order_refund)
+    # bind_refund_subject setzt reason='return' + parent = Original-Verkauf:
+    bind = _inspect.getsource(refund_svc.bind_refund_subject)
+    assert 'order.reason = "return"' in bind and "parent_order_id" in bind
 
 
-def test_credit_sale_has_no_mandatory_customer_shipping():
-    """Eine Gutschrift (Retoure) zieht KEINEN Pflicht-Versand zum Kunden nach – die Ware kommt
-    über den return-Schritt herein (sonst bliebe die Retoure ewig „released")."""
+def test_customer_shipping_movement_targets_the_customer():
+    """Der Pflicht-Versand nach einem Verkauf (mode='customer') geht IMMER an den Kunden des
+    Verkaufs – das Ziel wird serverseitig erzwungen (nicht frei wählbar) und im Embed als festes
+    Ziel gezeigt (kein Laden von Lagerplatz-/Personen-Listen → schnell)."""
     import inspect as _inspect
-    from app.services import process_steps
+    from app.services import movement, orders, sale as sale_svc
 
-    assert "skip_customer_shipping" in _inspect.getsource(process_steps._plan)
-    assert 'row[0] == "return"' in _inspect.getsource(process_steps.sync_locked_movements) \
-        or 'reason == "return"' in _inspect.getsource(process_steps.sync_locked_movements)
+    assert callable(sale_svc.customer_for_order)
+    rec = _inspect.getsource(movement.record_movement)
+    assert 'step.mode == "customer"' in rec and "customer_for_order" in rec
+    emb = _inspect.getsource(orders._movement_embed)
+    assert 'step.mode == "customer"' in emb and "customer_for_order" in emb

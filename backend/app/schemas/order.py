@@ -5,7 +5,6 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .disposal import DisposalEmbed
-from .return_receipt import ReturnEmbed
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
 from .movement import MovementEmbed
@@ -66,7 +65,6 @@ class OrderStepInfo(BaseModel):
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
     disposal: Optional[DisposalEmbed] = None
-    return_receipt: Optional[ReturnEmbed] = None
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
@@ -182,9 +180,10 @@ class OrderDeviationCreate(BaseModel):
     instance_object_ids: Optional[list[int]] = None
 
 
-class OrderReturnCreate(BaseModel):
-    """«Retoure erfassen» zu einem Verkaufs-Auftrag: die zurückkommenden **verkauften**
-    Instanzen (per Objektnummer). Legt einen Retoure-Unter-Auftrag (``reason='return'``) an."""
+class OrderRefundSubject(BaseModel):
+    """Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen
+    (per Objektnummer) als Subjekt des Entwurfs fixieren. Macht den Auftrag zur Retoure
+    (``reason='return'`` + ``parent_order_id`` = Original-Verkauf). Leere Liste hebt sie auf."""
     instance_object_ids: list[int] = []
 
 
@@ -290,17 +289,16 @@ class OrderResponse(BaseModel):
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
     disposal: Optional[DisposalEmbed] = None
-    return_receipt: Optional[ReturnEmbed] = None
     steps: list[OrderStepInfo] = []
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None
     # Unter-Auftrag (parent) + Grund + Abbruch-Folgeauftrag (Objektnummern)
     parent_order_id: Optional[int] = None
-    reason: Optional[str] = None   # deviation | supply (gesetzt → dieser Auftrag IST ein Unter-Auftrag)
+    reason: Optional[str] = None   # deviation | supply | return (gesetzt → dieser Auftrag IST ein Unter-Auftrag)
     abort_into_id: Optional[int] = None
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
-    returns: list[OrderDeviationInfo] = []           # Retouren (Rücknahme + Gutschrift; pausieren NICHT)
+    returns: list[OrderDeviationInfo] = []           # Retouren/Erstattungen (pausieren NICHT)
     paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist

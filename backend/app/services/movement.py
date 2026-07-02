@@ -21,13 +21,29 @@ from .subject import order_active_instances
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
-    # Nur aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus».
-    instances = order_active_instances(db, order)
+    # Bewegbare Instanzen: normal nur aktive (verschrottete/verbaute sind «raus»). Bei einer
+    # **Retoure** (reason='return') werden aber genau die **verkauften** (terminalen) Instanzen
+    # zurückbewegt – dort die volle Subjektliste inkl. sold.
+    from .subject import is_return, order_instances
+    instances = order_instances(db, order) if is_return(order) else order_active_instances(db, order)
     if not instances:
         raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
+    # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei – es geht IMMER
+    # an den Kunden des Verkaufs. Die Ziel-Eingaben des Clients werden dafür überschrieben
+    # (serverseitige Erzwingung; das Panel zeigt den Kunden ohnehin als festes Ziel).
+    targets = data.targets or []
+    if step.mode == "customer":
+        from .sale import customer_for_order
+        cust = customer_for_order(db, order)
+        if not cust:
+            raise HTTPException(
+                400, detail="Der Kunde dieses Verkaufs ist noch nicht gesetzt – bitte zuerst den Verkauf bestätigen")
+        targets = [type("T", (), {"instance_id": i.object_id, "location_type": "user",
+                                  "location_id": cust.object_id})() for i in instances]
+
     by_obj = {i.object_id: i for i in instances}
-    for t in (data.targets or []):
+    for t in targets:
         inst = by_obj.get(t.instance_id)
         if not inst:
             raise HTTPException(400, detail=f"Instanz {t.instance_id} gehört nicht zu diesem Auftrag")

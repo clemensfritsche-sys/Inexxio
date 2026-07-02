@@ -2355,14 +2355,14 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/return": {
+    "/api/v1/erp/orders/{object_id}/refund-subject": {
       "post": {
         "tags": [
           "orders"
         ],
-        "summary": "Open Return",
-        "description": "«Retoure erfassen» zu einem Verkaufs-Auftrag: legt einen **Unter-Auftrag**\n(``reason='return'``) auf die gewählten **verkauften** Instanzen an. Man definiert dort die\nAuflösung (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt frei. Liefert\ndie neue Retoure zurück. Pausiert den Eltern NICHT (der Verkauf ist abgeschlossen).",
-        "operationId": "open_return_api_v1_erp_orders__object_id__return_post",
+        "summary": "Set Refund Subject",
+        "description": "Retoure/Erstattung als **normaler Auftrag**: die gewählten **verkauften** Instanzen als\nSubjekt fixieren – das macht den Entwurf zur Retoure (``reason='return'`` + ``parent_order_id``\n= Original-Verkauf). Danach wird der Ablauf wie gewohnt definiert (Bewegung + ``refund`` …).\nLeere Auswahl hebt die Retoure wieder auf. Liefert den aktualisierten Auftrag zurück.",
+        "operationId": "set_refund_subject_api_v1_erp_orders__object_id__refund_subject_post",
         "security": [
           {
             "HTTPBearer": []
@@ -2384,7 +2384,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OrderReturnCreate"
+                "$ref": "#/components/schemas/OrderRefundSubject"
               }
             }
           }
@@ -2413,14 +2413,14 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/return-receipt": {
+    "/api/v1/erp/orders/{object_id}/refund": {
       "patch": {
         "tags": [
           "orders"
         ],
-        "summary": "Update Order Return",
-        "description": "Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Menge/Disposition\nwiederhergestellt, Standort gesetzt). Spiegel des Verschrottens.",
-        "operationId": "update_order_return_api_v1_erp_orders__object_id__return_receipt_patch",
+        "summary": "Update Order Refund",
+        "description": "Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.\nDer Betrag ist aus dem Original-Verkauf abgeleitet, kann aber abweichend erfasst werden; die\n«Zahlung» (``paid``) löst die Stripe-Rückerstattung (bzw. manuelle Gutschrift) aus. Reuse der\nVerkaufs-Fachlogik (``sale.apply_update_bulk``), aufgelöst über den ``refund``-Schritt.",
+        "operationId": "update_order_refund_api_v1_erp_orders__object_id__refund_patch",
         "security": [
           {
             "HTTPBearer": []
@@ -2442,7 +2442,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReturnUpdate"
+                "$ref": "#/components/schemas/SaleUpdate"
               }
             }
           }
@@ -8273,6 +8273,21 @@
         "title": "OrderLinePins",
         "description": "Fixierte Instanzen EINER Position statt FIFO (analog ``OrderUpdate.instance_object_ids``\nam Einzel-Artikel-Auftrag)."
       },
+      "OrderRefundSubject": {
+        "properties": {
+          "instance_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Instance Object Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "OrderRefundSubject",
+        "description": "Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen\n(per Objektnummer) als Subjekt des Entwurfs fixieren. Macht den Auftrag zur Retoure\n(``reason='return'`` + ``parent_order_id`` = Original-Verkauf). Leere Liste hebt sie auf."
+      },
       "OrderResponse": {
         "properties": {
           "id": {
@@ -8565,16 +8580,6 @@
               }
             ]
           },
-          "return_receipt": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ReturnEmbed"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/OrderStepInfo"
@@ -8682,21 +8687,6 @@
           "updated_at"
         ],
         "title": "OrderResponse"
-      },
-      "OrderReturnCreate": {
-        "properties": {
-          "instance_object_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Instance Object Ids",
-            "default": []
-          }
-        },
-        "type": "object",
-        "title": "OrderReturnCreate",
-        "description": "«Retoure erfassen» zu einem Verkaufs-Auftrag: die zurückkommenden **verkauften**\nInstanzen (per Objektnummer). Legt einen Retoure-Unter-Auftrag (``reason='return'``) an."
       },
       "OrderStepInfo": {
         "properties": {
@@ -8830,16 +8820,6 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DisposalEmbed"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "return_receipt": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ReturnEmbed"
               },
               {
                 "type": "null"
@@ -10082,163 +10062,6 @@
         "type": "object",
         "title": "ResourceUpdate",
         "description": "Ausführung des Ressource-Schritts: Verbrauch läuft automatisch (FIFO),\nnur die Betriebsmittel werden aktiv gewählt."
-      },
-      "ReturnEmbed": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id",
-            "default": 0
-          },
-          "done": {
-            "type": "boolean",
-            "title": "Done",
-            "default": false
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "received_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Received By Name"
-          },
-          "returned_count": {
-            "type": "integer",
-            "title": "Returned Count",
-            "default": 0
-          },
-          "to_inspection": {
-            "type": "boolean",
-            "title": "To Inspection",
-            "default": false
-          },
-          "location_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Label"
-          }
-        },
-        "type": "object",
-        "title": "ReturnEmbed",
-        "description": "Eingebetteter Stand der Rücknahme (im Auftrag) – Spiegel von ``DisposalEmbed``.\nWelche Instanzen zurückkamen, steht in ``OrderResponse.instances`` (wieder ``in_stock``)."
-      },
-      "ReturnItem": {
-        "properties": {
-          "instance_id": {
-            "type": "integer",
-            "title": "Instance Id"
-          },
-          "quantity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quantity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "instance_id"
-        ],
-        "title": "ReturnItem",
-        "description": "Eine zurückzunehmende Instanz mit optionaler **Menge** (Charge): ``quantity`` weglassen\n= 1 Stück (Einzelteil). Analog ``ScrapItem``."
-      },
-      "ReturnUpdate": {
-        "properties": {
-          "instance_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Instance Ids",
-            "default": []
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ReturnItem"
-            },
-            "type": "array",
-            "title": "Items",
-            "default": []
-          },
-          "location_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Type"
-          },
-          "location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Id"
-          },
-          "to_inspection": {
-            "type": "boolean",
-            "title": "To Inspection",
-            "default": false
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "step_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Step Id"
-          }
-        },
-        "type": "object",
-        "title": "ReturnUpdate",
-        "description": "Erfassung des Schritts «Rücknahme»: welche verkauften Instanzen zurückkommen (+ Menge),\nan welchen Standort, ob zur Nachprüfung, optionale Notiz.\n\n``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (1 Stück) werden zusammengeführt.\nOhne Zielstandort geht die Ware an den automatischen Wareneingang («nie ohne Standort»)."
       },
       "SaleEmbed": {
         "properties": {
