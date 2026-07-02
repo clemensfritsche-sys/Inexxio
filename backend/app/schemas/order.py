@@ -180,13 +180,6 @@ class OrderDeviationCreate(BaseModel):
     instance_object_ids: Optional[list[int]] = None
 
 
-class OrderRefundSubject(BaseModel):
-    """Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen
-    (per Objektnummer) als Subjekt des Entwurfs fixieren. Macht den Auftrag zur Retoure
-    (``reason='return'`` + ``parent_order_id`` = Original-Verkauf). Leere Liste hebt sie auf."""
-    instance_object_ids: list[int] = []
-
-
 class OrderCoverStock(BaseModel):
     """«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
     blockierten Schritts aus vorhandenem Lagerbestand decken. Ohne ``instance_object_ids``

@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, RotateCcw } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -9,8 +9,7 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   movement:   { label: 'Bewegung',       icon: ArrowLeftRight },
   resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   scrap:      { label: 'Verschrotten',   icon: Trash2 },
-  sale:       { label: 'Verkauf',        icon: Receipt },
-  refund:     { label: 'Rückerstattung', icon: RotateCcw },  // Retoure: Geld zurück (Kredit-Modus)
+  sale:       { label: 'Verkauf',        icon: Receipt },   // bedient auch die Gutschrift/Erstattung (Kredit-Modus)
 };
 
 // Standort-Typen (Bewegung): Label + Icon
@@ -50,7 +49,6 @@ const STEP_SUBJECT_ROLE: Record<StepType, 'produce' | 'stock' | 'instance'> = {
   movement:   'instance',
   inspection: 'instance',
   scrap:      'instance',
-  refund:     'instance',   // wirkt auf bestehende (verkaufte) Instanzen – Geld zurück
 };
 
 /** Ist der Ablauf eine **Bestands-Operation** (wirkt auf vorhandenen Bestand) statt einer

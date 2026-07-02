@@ -10,7 +10,7 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
     OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
-    OrderRefundSubject, OrderResponse, OrderSummary, OrderUpdate,
+    OrderResponse, OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
@@ -69,8 +69,10 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
     Entwurf ist nur eine **Vormerkung** – sie sperrt die Instanz NICHT; **scharf
     reserviert** wird erst bei der Freigabe. Mehrere Entwürfe dürfen dieselbe Instanz
     vormerken; wer zuerst freigibt, reserviert, der zweite scheitert dann an der Prüfung."""
-    # Abweichung (Unter-Auftrag) wirkt auf bereits «in der Hand» befindliche Instanzen –
-    # diese dürfen jeden Verbleib haben (in Arbeit, am Lager, …) und sind nicht zu reservieren.
+    # Fixiertes Subjekt (keine Stock-Checks, jeder Verbleib): eine **Abweichung** (Unter-Auftrag)
+    # ODER eine **verkaufte** Instanz – letztere macht den Auftrag zur **Retoure/Erstattung**
+    # (siehe ``_set_chosen_instances``). Beide sind bereits «in der Hand»/verkauft und werden
+    # nicht reserviert.
     devi = subject.is_deviation(order)
     insts: list[Instance] = []
     for oid in object_ids:
@@ -79,18 +81,33 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
         if order.article_id and i.article_id != order.article_id:
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
-        if not devi and not (i.quality == "passed" and i.disposition == "in_stock"):
+        if devi or i.disposition == "sold":
+            insts.append(i)           # fixiertes Subjekt (Abweichung/Retoure) – ohne Stock-Checks
+            continue
+        if not (i.quality == "passed" and i.disposition == "in_stock"):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if not devi and free_qty(i) + reserved_for(i, order.id) < i.quantity:
+        if free_qty(i) + reserved_for(i, order.id) < i.quantity:
             raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
         insts.append(i)
     return insts
 
 
+def _clear_return_marker(order: Order) -> None:
+    """Retoure-Markierung wieder aufheben (wenn die Auswahl auf Lager-Instanzen zurückgeht)."""
+    if order.reason == "return":
+        order.reason = None
+        order.parent_order_id = None
+
+
 def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> None:
     """Die **fixierten** (gepinnten) Subjekt-Instanzen eines Entwurfs neu setzen: bisherige
     lösen, neue prüfen und **vormerken** (``subject_of_order_id``). KEINE feste Reservierung –
-    die wird erst bei der Freigabe scharf. Artikel + Menge bleiben unverändert (Anker)."""
+    die wird erst bei der Freigabe scharf.
+
+    **Verkaufte Instanzen** in der Auswahl machen den Auftrag zur **Retoure/Erstattung**
+    (`reason='return'` + `parent_order_id`=Original-Verkauf, abgeleitet) – ganz normal über
+    dieselbe «Instanz wählen»-Auswahl, ohne eigene Sonder-Karte. Lager- und verkaufte Instanzen
+    lassen sich nicht mischen (Verkauf vs. Erstattung sind gegensätzliche Geldrichtungen)."""
     for prev in (
         db.query(Instance)
         .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
@@ -98,12 +115,29 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> N
     ):
         prev.subject_of_order_id = None
     if not object_ids:
+        _clear_return_marker(order)
         return
     insts = _validate_pins(db, order, object_ids)
-    pinned_qty = sum(i.quantity for i in insts)
-    if order.quantity and pinned_qty > order.quantity:
+    sold = [i for i in insts if i.disposition == "sold"]
+    if sold and len(sold) != len(insts):
         raise HTTPException(
-            400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
+            400, detail="Bitte entweder verkaufte Instanzen (Retoure/Erstattung) ODER Lager-Instanzen "
+                        "wählen – nicht gemischt")
+    if sold:
+        # Retoure: Original-Verkauf ableiten (Grundlage der Gutschrift) + Auftrag markieren.
+        parent = refund_svc.original_sale_order(db, sold)
+        order.reason = "return"
+        order.parent_order_id = parent.object_id
+        art_ids = {i.article_id for i in sold}
+        if len(art_ids) == 1:
+            order.article_id = next(iter(art_ids))
+            order.quantity = len(sold)
+    else:
+        _clear_return_marker(order)
+        pinned_qty = sum(i.quantity for i in insts)
+        if order.quantity and pinned_qty > order.quantity:
+            raise HTTPException(
+                400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
     for i in insts:
         i.subject_of_order_id = order.id              # nur vormerken (Reservierung bei Freigabe)
 
@@ -529,44 +563,6 @@ async def open_deviation(
     db.commit()
     db.refresh(devi)
     return to_order_response(db, devi)
-
-
-@router.post("/{object_id}/refund-subject", response_model=OrderResponse)
-async def set_refund_subject(
-    object_id: int,
-    data: OrderRefundSubject,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Retoure/Erstattung als **normaler Auftrag**: die gewählten **verkauften** Instanzen als
-    Subjekt fixieren – das macht den Entwurf zur Retoure (``reason='return'`` + ``parent_order_id``
-    = Original-Verkauf). Danach wird der Ablauf wie gewohnt definiert (Bewegung + ``refund`` …).
-    Leere Auswahl hebt die Retoure wieder auf. Liefert den aktualisierten Auftrag zurück."""
-    order = _get_staff_order(db, object_id)
-    refund_svc.bind_refund_subject(db, order, data.instance_object_ids, current_user.id)
-    db.commit()
-    db.refresh(order)
-    return to_order_response(db, order)
-
-
-@router.patch("/{object_id}/refund", response_model=OrderResponse)
-async def update_order_refund(
-    object_id: int,
-    data: SaleUpdate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
-    Der Betrag ist aus dem Original-Verkauf abgeleitet, kann aber abweichend erfasst werden; die
-    «Zahlung» (``paid``) löst die Stripe-Rückerstattung (bzw. manuelle Gutschrift) aus. Reuse der
-    Verkaufs-Fachlogik (``sale.apply_update_bulk``), aufgelöst über den ``refund``-Schritt."""
-    order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
-    step = process.resolve_exec_step(db, order, "refund", data.step_id)
-    sales = process.facts_for_step(db, order, step)
-    sale_svc.apply_update_bulk(db, sales, data, current_user)
-    db.refresh(order)
-    return to_order_response(db, order)
 
 
 @router.post("/{object_id}/supply", response_model=OrderResponse)

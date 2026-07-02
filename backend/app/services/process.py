@@ -103,9 +103,9 @@ def _fact_status(step_type: str, fact) -> str:
         if fact and fact.result == "failed":
             return "failed"
         return "open"
-    if step_type in ("sale", "refund"):
-        # Verkauf UND Rückerstattung teilen den kaufmännischen Lebenszyklus (Sale-Fact):
-        # 'paid' = erledigt (beim refund = erstattet), 'cancelled' = fehlgeschlagen.
+    if step_type == "sale":
+        # Verkauf UND Gutschrift (Kredit-Modus) teilen den kaufmännischen Lebenszyklus
+        # (Sale-Fact): 'paid' = erledigt (bei der Gutschrift = erstattet), 'cancelled' = fehl.
         if not fact:
             return "open"
         if fact.status == "paid":
@@ -148,7 +148,7 @@ def _resolve_facts_multi(step: ArticleProcessStep, rows: list, sole_of_type: boo
 # Fachmodell hat ein eigenes ``article_id`` (``Sale``/``PurchaseOrder``). Andere Typen
 # (movement/resource/inspection/scrap) wirken artikel-unabhängig auf die GESAMTE
 # Instanzmenge des Auftrags und bleiben bei genau EINER Fachzeile je Schritt.
-MULTI_FACT_STEP_TYPES = {"sale", "purchase", "refund"}
+MULTI_FACT_STEP_TYPES = {"sale", "purchase"}
 
 
 def _aggregate_status(step_type: str, facts: list) -> str:
@@ -390,9 +390,15 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     kann nicht verkaufen, was nicht (mehr) gesichert ist; sonst reagierte ein Verkaufsauftrag
     nicht, wenn sein Bestand ausgesteuert wird.
     resource(consume) → braucht seine **Komponenten** (need − verfügbar; verfügbar = frei am
-    Lager + für diesen Auftrag reserviert)."""
+    Lager + für diesen Auftrag reserviert).
+
+    **Ausnahme – gesperrte (locked) Pflicht-Bewegungen** (Wareneingang/Versand, u. a. der
+    Pflicht-Versand zum Kunden): sie sind **Begleiter** eines Verkaufs/einer Beschaffung, kein
+    eigenständiger Subjekt-Bedarf. Sie werden NICHT auf Fehlmengen geprüft – sonst würde der
+    Versand blockiert, sobald der Verkauf bezahlt ist (die Ware ist dann bereits «verkauft», also
+    aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus)."""
     out: dict[int, int] = {}
-    if step.step_type in SUBJECT_STEP_TYPES:
+    if step.step_type in SUBJECT_STEP_TYPES and not step.locked:
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
         from .order_lines import effective_quantity
@@ -456,44 +462,24 @@ def release_instances(db: Session, order: Order) -> None:
                       "delta": total, "polarity": event_types.INCREASE})
 
 
-def _finalize_subjects(db: Session, order: Order) -> None:
-    """Verbleib der vom Auftrag bearbeiteten Bestands-Instanzen bei Abschluss.
+def sell_order_subjects(db: Session, order: Order) -> None:
+    """Bestands-Abgang eines Verkaufs buchen – **idempotent**, damit der Label-Wechsel dann
+    passiert, **wann er wirklich geschieht**: aufgerufen (a) sobald der **Verkauf bezahlt** ist
+    (der `sale`-Schritt ist durch → «verkauft») UND (b) beim Auftrags-Abschluss (deckt make-to-
+    order, dessen Instanzen erst während des Prozesses entstehen).
 
-    Enthält der individuelle Ablauf einen **Verkauf**, verlässt die **für diesen Auftrag
-    reservierte Menge** den Bestand: die Instanz wird **mengengenau gemindert** (keine
-    Teilung!) – eine vollständig verkaufte Instanz wird ``sold``, eine teilweise verkaufte
-    Charge bleibt mit der Restmenge am Lager. Sonst (Wartung/Bewegung/Kontrolle) bleibt der
-    Verbleib unverändert. MAKE-Aufträge (neue Instanzen) laufen über ``release_instances``."""
-    from .subject import is_return, order_instances
+    Enthält der Ablauf einen **Verkauf** (kind='sale'), verlässt die **für diesen Auftrag
+    reservierte Menge** den Bestand – mengengenau (keine Teilung): eine vollständig verkaufte
+    Instanz wird ``sold``, eine teilverkaufte Charge bleibt mit Restmenge am Lager. Eine
+    **Retoure** (kind='credit') verkauft NICHT (reine Gutschrift). Durchgefallene bleiben."""
+    from .subject import is_return
     if is_return(order):
-        # **Retoure/Erstattung** – der physische Rückfluss entscheidet sich bei ABSCHLUSS
-        # (symmetrisch zum Verkauf, dessen Abgang ebenfalls beim Abschluss gebucht wird):
-        # eine verkaufte Subjekt-Instanz, die per **Bewegung** zurück an einen **Lagerplatz**
-        # gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS bewegt
-        # (Kulanz: der Kunde behält die Ware) → sie bleibt beim Kunden 'sold' (nur Geld zurück).
-        # Durchgefallene (quality='failed', z. B. defekt aus einer Prüfung) bleiben gesperrt und
-        # werden separat verschrottet. So ist «Erstattung» reines Geld und «Bewegung» der Weg
-        # der Ware – die Kombination je Auftrag ist frei (auch ganz ohne physische Rücknahme).
-        for inst in order_instances(db, order):
-            if inst.disposition != "sold" or inst.quality == "failed":
-                continue
-            if inst.location_type != "lagerplatz":
-                continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-            back = max(inst.quantity or 0, 1)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
-            inst.quantity = back
-            inst.disposition = "in_stock"
-            inst.quality = "passed"
-            inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
-            emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
-                 payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
-                          "reason": "return", "order": order.object_id})
-        return
+        return   # Retoure/Erstattung ist eine Gutschrift – kein Verkaufs-Abgang
     if not any(d.step_type == "sale" for d in order_step_defs(db, order)):
         return
-    # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt
-    #     den Bestand (mengengenau, keine Teilung). KEIN Artikel-Filter – ein Auftrag kann
-    #     mehrere Artikel/Instanzen verkaufen (Mehrpositionen-Verkaufsauftrag); alle für
-    #     diesen Auftrag reservierten Instanzen werden verkauft.
+    # (a) Bestands-Verkauf (FIFO): die für diesen Auftrag **reservierte** Menge verlässt den
+    #     Bestand (mengengenau). KEIN Artikel-Filter (Mehrpositionen-Verkauf). Idempotent –
+    #     ist die Reservierung schon abgebucht, findet die Query nichts mehr.
     subjects = (
         db.query(Instance)
         .filter(Instance.reservations.has_key(str(order.id)),  # noqa: W601
@@ -510,9 +496,8 @@ def _finalize_subjects(db: Session, order: Order) -> None:
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
                       "order": order.object_id})
-    # (b) Made-to-Order-Verkauf: die **unter diesem Auftrag erzeugten** Instanzen werden
-    #     direkt verkauft (sie wurden gerade via ``release_instances`` freigegeben). Kein
-    #     FIFO/keine Reservierung – sie gehören dem Kunden dieses Auftrags.
+    # (b) Made-to-Order: die **unter diesem Auftrag erzeugten**, freigegebenen Instanzen werden
+    #     direkt verkauft (idempotent – schon verkaufte sind nicht mehr in_stock).
     produced = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
@@ -524,6 +509,39 @@ def _finalize_subjects(db: Session, order: Order) -> None:
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": inst.quantity or 0, "delta": -(inst.quantity or 0),
                       "polarity": event_types.DECREASE, "order": order.object_id})
+
+
+def return_subjects_to_stock(db: Session, order: Order) -> None:
+    """Physischer Rückfluss einer **Retoure** – **idempotent**, aufgerufen (a) sobald die
+    **Rückgabe-Bewegung** durch ist (die Ware ist wieder da → «freigegeben») UND (b) beim
+    Abschluss. Eine verkaufte Subjekt-Instanz, die per **Bewegung** zurück an einen
+    **Lagerplatz** gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS
+    bewegt (Kulanz: der Kunde behält die Ware) → sie bleibt 'sold' (nur Geld zurück).
+    Durchgefallene (quality='failed', z. B. defekt) bleiben gesperrt und werden verschrottet."""
+    from .subject import is_return, order_instances
+    if not is_return(order):
+        return
+    for inst in order_instances(db, order):
+        if inst.disposition != "sold" or inst.quality == "failed":
+            continue
+        if inst.location_type != "lagerplatz":
+            continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
+        back = max(inst.quantity or 0, 1)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
+        inst.quantity = back
+        inst.disposition = "in_stock"
+        inst.quality = "passed"
+        inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+        emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
+             payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
+                      "reason": "return", "order": order.object_id})
+
+
+def _finalize_subjects(db: Session, order: Order) -> None:
+    """Verbleib der Subjekt-Instanzen beim Abschluss – Sicherheitsnetz für beide Richtungen
+    (Verkauf → sold, Retoure → in_stock). Beide Helfer sind idempotent; der Wechsel passiert
+    i. d. R. schon früher (bei Zahlung bzw. Rückgabe-Bewegung), hier wird nur nachgezogen."""
+    sell_order_subjects(db, order)
+    return_subjects_to_stock(db, order)
 
 
 def _spawn_recurrence(db: Session, order: Order) -> None:

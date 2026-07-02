@@ -371,17 +371,15 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
                 first.setdefault("purchase", embs[0])
                 if done:
                     by_name, at = _purchase_received(embs[0])
-        elif step.step_type in ("sale", "refund"):
-            # Verkauf UND Rückerstattung teilen das Fachmodell ``Sale`` (Kredit-Modus beim
-            # refund). EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg) –
-            # ``sales`` ist die vollständige Liste. Für den refund-Schritt wird NICHT die
-            # Top-Level-Kurzform ``resp.sale`` gesetzt (die bleibt dem echten Verkauf vorbehalten).
+        elif step.step_type == "sale":
+            # EIN `sale`-Schritt, ZWEI Modi (aus dem Subjekt abgeleitet): Verkauf (kind='sale')
+            # oder Gutschrift/Erstattung (kind='credit', Retoure). Mehrere Belege je Artikel/
+            # Position teilen sich den Schritt – ``sales`` ist die vollständige Liste.
             facts = s["facts"]
             embs = [_sale_embed(db, order, f) for f in facts] or [_sale_embed(db, order, None)]
             si.sales = embs
             si.sale = embs[0]
-            if step.step_type == "sale":
-                first.setdefault("sale", embs[0])
+            first.setdefault("sale", embs[0])
             if done and facts:
                 by_name = embs[0].customer_name
                 at = max((f.paid_at for f in facts if f.paid_at), default=None)

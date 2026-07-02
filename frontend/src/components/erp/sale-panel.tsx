@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2, AlertTriangle } from 'lucide-react';
+import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderSale, PaymentMethod, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -52,6 +52,10 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
 
   if (!first || order.object_id == null) return null;
   const status = first.status;
+  // Kredit-Modus (Gutschrift/Erstattung): DERSELBE Schritt, wenn der Auftrag auf verkaufte Ware
+  // wirkt (Retoure). Betrag/Kunde aus dem Original abgeleitet; die «Zahlung» löst den Stripe-Refund
+  // (bzw. die manuelle Gutschrift) aus. Wurde der Verkauf via Stripe abgewickelt → automatisch zurück.
+  const isCredit = first.kind === 'credit';
   const editable = stepState === 'active' && status === 'requested';
   const allPriced = sales.every((s) => s.order_total != null);
   const grandTotal = allPriced ? sales.reduce((sum, s) => sum + Number(s.order_total), 0) : null;
@@ -66,20 +70,24 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
   const canConfirm = !!customerId && (isSingle ? !!total : allPriced);
 
   async function send(next: string) {
-    if (next === 'confirmed' && !customerId) { setError('Bitte einen Kunden auswählen'); return; }
+    if (next === 'confirmed' && !isCredit && !customerId) { setError('Bitte einen Kunden auswählen'); return; }
     setBusy(true); setError(null);
     try {
       const updated = await api.updateOrderSale(order.object_id!, {
         status: next as 'confirmed' | 'invoiced' | 'paid' | 'cancelled',
+        // Betrag bei genau EINER Position frei erfassbar (Gutschrift: Teilbetrag/Kulanz).
         ...(isSingle ? {
           order_total: total ? Number(total) : null,
-          vat_rate: vat ? Number(vat) : null,
+          ...(isCredit ? {} : { vat_rate: vat ? Number(vat) : null }),
         } : {}),
-        customer_id: customerId ? Number(customerId) : null,
-        ...(next === 'paid' ? {
-          payment_method: paymentMethod,
-          payment_reference: paymentRef.trim() || null,
-        } : {}),
+        // Gutschrift: Kunde + Zahlungsart sind abgeleitet – nicht senden.
+        ...(isCredit ? {} : {
+          customer_id: customerId ? Number(customerId) : null,
+          ...(next === 'paid' ? {
+            payment_method: paymentMethod,
+            payment_reference: paymentRef.trim() || null,
+          } : {}),
+        }),
         step_id: stepId,
       });
       onOrderUpdated(updated);
@@ -99,6 +107,64 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
       {first.mode === 'shop' ? 'Via Shop' : 'Direkt erfasst'}
     </span>
   ) : null;
+
+  // ── Gutschrift / Erstattung (Kredit-Modus) – eigener, klarer Ablauf ─────────────────────
+  if (isCredit) {
+    const amount = isSingle && total ? Number(total) : (allPriced ? sales.reduce((s, x) => s + Number(x.order_total), 0) : null);
+    return (
+      <Card>
+        <PanelHeader icon={RotateCcw} title="Gutschrift / Erstattung" tone="#e11d48"
+          info="Geld zurück zum Original-Verkauf. Betrag abgeleitet, bei einer Position abweichend erfassbar (Teilbetrag/Kulanz). «Erstattung auslösen» erstattet real (Stripe, falls der Verkauf via Stripe lief) bzw. dokumentiert die Gutschrift. Die Ware kommt getrennt über die Bewegung zurück."
+          right={<StatusBadge cfg={cfg} size={11} />} />
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {sales.map((s) => <SaleLineRow key={s.id} sale={s} credit />)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Row k="Kunde" v={customerName ?? '—'} icon={UserIcon} />
+          {first.original_sale_id != null && <Row k="Original-Beleg" v={`#${first.original_sale_id}`} />}
+          {first.credit_note_number && <Row k="Gutschrift-Nr." v={first.credit_note_number} />}
+        </div>
+        {editable && isSingle ? (
+          <>
+            <TextField label="Erstattungsbetrag netto (CHF)" value={total} onChange={setTotal}
+              placeholder="aus Original abgeleitet – abweichend möglich" />
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: -6 }}>Für Teil-Erstattung / Kulanz anpassen.</div>
+          </>
+        ) : amount != null && (
+          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#be123c' }}>Erstattungsbetrag netto</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#be123c' }}>− {amount.toFixed(2)} {first.currency}</div>
+          </div>
+        )}
+        {error && <ErrorText msg={error} />}
+        {stepState === 'active' && status === 'requested' && (
+          <>
+            <PrimaryButton icon={CheckCircle2} onClick={() => send('confirmed')} disabled={busy}>Gutschrift bestätigen</PrimaryButton>
+            <button onClick={() => send('cancelled')} disabled={busy} style={ghost}><Ban size={13} /> Erstattung verwerfen</button>
+          </>
+        )}
+        {stepState === 'active' && status === 'confirmed' && (
+          <PrimaryButton icon={FileText} onClick={() => send('invoiced')} disabled={busy}>Gutschrift ausstellen</PrimaryButton>
+        )}
+        {stepState === 'active' && status === 'invoiced' && (
+          <PrimaryButton icon={RotateCcw} onClick={() => send('paid')} disabled={busy}>Erstattung auslösen</PrimaryButton>
+        )}
+        {status === 'paid' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#e11d48', fontWeight: 700, fontSize: 13 }}>
+              <RotateCcw size={15} /> Erstattet{first.credit_note_number ? ` · ${first.credit_note_number}` : ''}
+            </div>
+            {first.stripe_refund_id && <div style={{ fontSize: 11, color: '#94a3b8' }}>Stripe-Refund: {first.stripe_refund_id}</div>}
+          </div>
+        )}
+        {status === 'cancelled' && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>
+            <Ban size={15} /> Erstattung verworfen
+          </div>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -194,7 +260,7 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
 
 // Eine Position (ein Beleg): Artikel + Menge links, der vom Artikel abgeleitete Betrag
 // rechts – fehlt ein Preis, ein klarer Hinweis statt einer leeren/falschen Zahl.
-function SaleLineRow({ sale }: { sale: OrderSale }) {
+function SaleLineRow({ sale, credit }: { sale: OrderSale; credit?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
       {sale.article_object_id != null && <ObjId value={sale.article_object_id} />}
@@ -202,11 +268,11 @@ function SaleLineRow({ sale }: { sale: OrderSale }) {
         {sale.quantity ?? 1}× {sale.article_name ?? 'Artikel'}
       </span>
       {sale.order_total != null ? (
-        <span style={{ color: '#0f766e', fontWeight: 700, flexShrink: 0 }}>
-          {Number(sale.order_total).toFixed(2)} {sale.currency}
+        <span style={{ color: credit ? '#be123c' : '#0f766e', fontWeight: 700, flexShrink: 0 }}>
+          {credit ? '− ' : ''}{Number(sale.order_total).toFixed(2)} {sale.currency}
         </span>
       ) : (
-        <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Kein Preis</span>
+        <span style={{ color: '#dc2626', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>Kein {credit ? 'Betrag' : 'Preis'}</span>
       )}
     </div>
   );

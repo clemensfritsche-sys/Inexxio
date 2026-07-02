@@ -705,52 +705,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/refund-subject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Set Refund Subject
-         * @description Retoure/Erstattung als **normaler Auftrag**: die gewählten **verkauften** Instanzen als
-         *     Subjekt fixieren – das macht den Entwurf zur Retoure (``reason='return'`` + ``parent_order_id``
-         *     = Original-Verkauf). Danach wird der Ablauf wie gewohnt definiert (Bewegung + ``refund`` …).
-         *     Leere Auswahl hebt die Retoure wieder auf. Liefert den aktualisierten Auftrag zurück.
-         */
-        post: operations["set_refund_subject_api_v1_erp_orders__object_id__refund_subject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/orders/{object_id}/refund": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Order Refund
-         * @description Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
-         *     Der Betrag ist aus dem Original-Verkauf abgeleitet, kann aber abweichend erfasst werden; die
-         *     «Zahlung» (``paid``) löst die Stripe-Rückerstattung (bzw. manuelle Gutschrift) aus. Reuse der
-         *     Verkaufs-Fachlogik (``sale.apply_update_bulk``), aufgelöst über den ``refund``-Schritt.
-         */
-        patch: operations["update_order_refund_api_v1_erp_orders__object_id__refund_patch"];
-        trace?: never;
-    };
     "/api/v1/erp/orders/{object_id}/supply": {
         parameters: {
             query?: never;
@@ -2583,19 +2537,6 @@ export interface components {
          *     am Einzel-Artikel-Auftrag).
          */
         OrderLinePins: {
-            /**
-             * Instance Object Ids
-             * @default []
-             */
-            instance_object_ids: number[];
-        };
-        /**
-         * OrderRefundSubject
-         * @description Retoure/Erstattung als normaler Auftrag: die zu erstattenden **verkauften** Instanzen
-         *     (per Objektnummer) als Subjekt des Entwurfs fixieren. Macht den Auftrag zur Retoure
-         *     (``reason='return'`` + ``parent_order_id`` = Original-Verkauf). Leere Liste hebt sie auf.
-         */
-        OrderRefundSubject: {
             /**
              * Instance Object Ids
              * @default []
@@ -5333,76 +5274,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OrderDeviationCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    set_refund_subject_api_v1_erp_orders__object_id__refund_subject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrderRefundSubject"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_order_refund_api_v1_erp_orders__object_id__refund_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SaleUpdate"];
             };
         };
         responses: {

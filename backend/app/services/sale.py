@@ -121,23 +121,24 @@ def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale]:
-    """Bei Auftragsfreigabe die Verkaufs-/Rückerstattungs-Belege anlegen. **Zwei** Schritttypen
-    teilen sich das Fachmodell ``Sale`` (kaufmännischer Lebenszyklus requested→…→paid):
+    """Bei Auftragsfreigabe die Belege des `sale`-Schritts anlegen. **EIN** Schritttyp (`sale`),
+    aber **zwei Modi – aus dem Subjekt ABGELEITET** (kein eigener Schritttyp, kein Button):
 
-    - **``sale``** (Verkauf, ``kind='sale'``): je Artikel EIN Beleg (Einzel-Artikel oder je
-      Position eines Mehrpositionen-Auftrags), Betrag aus dem Artikel-Preis (``_prefill_price``).
-    - **``refund``** (Rückerstattung, ``kind='credit'``): je Artikel der **verkauften** Subjekt-
-      Instanzen EIN Gutschrift-Beleg, Betrag/MWST/Kunde aus dem **Original-Verkauf** abgeleitet
-      (``_credit_targets``/``_prefill_credit``, editierbar). Der Original-Verkauf ist der
-      ``parent_order_id`` der Retoure (bei der Instanz-Auswahl abgeleitet).
+    - **Verkauf** (`kind='sale'`, Normalfall): je Artikel EIN Beleg (Einzel-Artikel oder je
+      Position eines Mehrpositionen-Auftrags), Betrag aus dem Artikel-Preis (`_prefill_price`).
+    - **Gutschrift/Rückerstattung** (`kind='credit'`): sobald der Auftrag auf **verkaufte**
+      Instanzen wirkt (`is_return(order)`, Subjekt sold + `parent_order_id`=Original-Verkauf) – je
+      Artikel der verkauften Instanzen EIN Gutschrift-Beleg, Betrag/MWST/Kunde aus dem Original
+      abgeleitet (`_credit_targets`/`_prefill_credit`, editierbar für Kulanz/Teilbetrag).
 
-    Jeder Beleg trägt die ``step_id`` seines Schritts (Mehr-Operationen-Routing). Idempotent."""
-    steps = [d for d in process.order_step_defs(db, order) if d.step_type in ("sale", "refund")]
+    Jeder Beleg trägt die `step_id` seines Schritts (Mehr-Operationen-Routing). Idempotent."""
+    from .subject import is_return
+    steps = [d for d in process.order_step_defs(db, order) if d.step_type == "sale"]
     if not steps:
         return []
+    credit = is_return(order)
     created: list[Sale] = []
     for step in steps:
-        credit = step.step_type == "refund"
         if credit:
             targets = _credit_targets(db, order)
         else:
@@ -262,7 +263,12 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
     log_audit(db, "sales", "status", target, user.id, object_id=order.object_id, old_value=old)
     event = "sale.refunded" if (is_credit and target == "paid") else f"sale.{target}"
     emit(db, event, object_type="order", object_id=order.object_id, actor_id=user.id)
-    # Auftrag ggf. automatisch abschliessen (alle Schritte erledigt) – setzt Subjekte auf «sold».
+    # **Label-Wechsel dann, wann es wirklich passiert:** ist der Verkauf bezahlt, verlässt die
+    # Ware den Bestand → «verkauft» (nicht erst am Auftragsende). Idempotent; make-to-order zieht
+    # beim Abschluss nach. Eine Gutschrift (kind='credit') bucht KEINEN Verkaufs-Abgang.
+    if target == "paid" and not is_credit:
+        process.sell_order_subjects(db, order)
+    # Auftrag ggf. automatisch abschliessen (alle Schritte erledigt).
     process.recompute_completion(db, order)
 
 
@@ -340,6 +346,10 @@ def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None,
     log_audit(db, "sales", "status", "paid", None, object_id=oid)
     emit(db, "sale.paid", object_type="order", object_id=oid)
     if order:
+        # Bezahlt = «verkauft», sobald es wirklich passiert (Label-Wechsel bei Zahlung, nicht
+        # erst am Auftragsende). Idempotent; make-to-order zieht beim Abschluss nach.
+        if sale.kind != "credit":
+            process.sell_order_subjects(db, order)
         process.recompute_completion(db, order)   # ggf. Auftrag abschliessen (Versand erfolgt)
     db.commit()
     db.refresh(sale)

@@ -22,15 +22,16 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
 }) {
   const mv = order.movement;
   const done = !!mv?.done;
-  // Nur noch aktive Instanzen bewegen – verschrottete/verkaufte/verbaute Teile sind «raus».
-  // AUSNAHME Retoure/Erstattung (reason='return'): dort sind genau die **verkauften** Instanzen
-  // das Subjekt – sie werden per Bewegung zurück ins Lager gebracht (sold→in_stock bei Abschluss),
-  // also bleiben sie hier bewegbar (nur verschrottet/verbaut sind endgültig raus).
+  // Normal nur aktive Instanzen bewegen (verschrottet/verbaut sind endgültig «raus»). **Verkaufte**
+  // Instanzen bleiben aber bewegbar, wenn die Bewegung sie physisch bewegt: der **Pflicht-Versand
+  // zum Kunden** (Ziel = Person/Kunde – die eben verkaufte Ware geht raus) und die **Retoure**
+  // (reason='return' – die verkaufte Ware kommt zurück ins Lager).
+  const shipsSold = order.reason === 'return' || mv?.target_location_type === 'user';
   const instances = useMemo(
-    () => (order.instances ?? []).filter((i) => order.reason === 'return'
+    () => (order.instances ?? []).filter((i) => shipsSold
       ? !['scrapped', 'consumed'].includes(i.disposition ?? '')
       : !['scrapped', 'sold', 'consumed'].includes(i.disposition ?? '')),
-    [order.instances, order.reason],
+    [order.instances, shipsSold],
   );
   const scan = useScan();
 
