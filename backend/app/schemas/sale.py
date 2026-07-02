@@ -72,6 +72,14 @@ class SaleEmbed(BaseModel):
     vat_rate: Optional[Decimal] = None
     currency: str = "CHF"
     invoice_number: Optional[str] = None
+    # Verkauf vs. Gutschrift (Retoure): 'sale' | 'credit'. Bei 'credit' ist der Betrag eine
+    # Gutschrift/Erstattung (Umsatz-/MWST-Umkehr); ``credit_note_number`` = unveränderlicher
+    # Gutschrift-Beleg, ``refunded_at``/``stripe_refund_id`` = erfolgte Rückerstattung.
+    kind: str = "sale"
+    credit_note_number: Optional[str] = None
+    original_sale_id: Optional[int] = None
+    refunded_at: Optional[datetime] = None
+    stripe_refund_id: Optional[str] = None
     confirmed_at: Optional[datetime] = None
     invoiced_at: Optional[datetime] = None
     paid_at: Optional[datetime] = None

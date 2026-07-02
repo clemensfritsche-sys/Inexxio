@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2, AlertTriangle } from 'lucide-react';
+import { Receipt, CheckCircle2, FileText, Banknote, Ban, Calculator, User as UserIcon, Store, Building2, AlertTriangle, Undo2, RotateCcw } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderSale, PaymentMethod, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -51,6 +51,10 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
   }, []);
 
   if (!first || order.object_id == null) return null;
+  // Gutschrift-Modus: derselbe Verkaufsschritt, aber im Kredit-Modus (kind='credit') – Betrag
+  // und Kunde sind aus dem Original-Verkauf abgeleitet (nicht editierbar); die Zahlung LÖST die
+  // Erstattung aus (Stripe-Refund bzw. manuelle Gutschrift). Eigener, klarer Look.
+  const isCredit = first.kind === 'credit';
   const status = first.status;
   const editable = stepState === 'active' && status === 'requested';
   const allPriced = sales.every((s) => s.order_total != null);
@@ -71,12 +75,14 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
     try {
       const updated = await api.updateOrderSale(order.object_id!, {
         status: next as 'confirmed' | 'invoiced' | 'paid' | 'cancelled',
-        ...(isSingle ? {
+        // Gutschrift: Betrag/Kunde sind abgeleitet – NICHT senden (das Backend lehnt manuelle
+        // Beträge im Kredit-Modus ohnehin ab); die Zahlung löst die Erstattung aus.
+        ...(isSingle && !isCredit ? {
           order_total: total ? Number(total) : null,
           vat_rate: vat ? Number(vat) : null,
         } : {}),
-        customer_id: customerId ? Number(customerId) : null,
-        ...(next === 'paid' ? {
+        ...(isCredit ? {} : { customer_id: customerId ? Number(customerId) : null }),
+        ...(next === 'paid' && !isCredit ? {
           payment_method: paymentMethod,
           payment_reference: paymentRef.trim() || null,
         } : {}),
@@ -99,6 +105,59 @@ export function SalePanel({ order, sales, stepState, stepId, onOrderUpdated }: {
       {first.mode === 'shop' ? 'Via Shop' : 'Direkt erfasst'}
     </span>
   ) : null;
+
+  // ── Gutschrift (Kredit-Modus) – eigener, klarer Ablauf: Bestätigen → Ausstellen → Erstatten.
+  // Betrag/Kunde stammen aus dem Original-Verkauf (nicht editierbar); «Erstattung auslösen»
+  // löst den Stripe-Refund (bzw. die manuelle Gutschrift) aus und vergibt die GS-Nummer.
+  if (isCredit) {
+    const amount = first.order_total != null ? Number(first.order_total) : null;
+    return (
+      <Card>
+        <PanelHeader icon={Undo2} title="Gutschrift" tone="#e11d48"
+          info="Rückerstattung zum Original-Verkauf. Betrag und Kunde sind abgeleitet; «Erstattung auslösen» erstattet real (Stripe) bzw. dokumentiert die Gutschrift."
+          right={<StatusBadge cfg={cfg} size={11} />} />
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Row k="Kunde" v={customerName ?? '—'} icon={UserIcon} />
+          {first.original_sale_id != null && <Row k="Original-Beleg" v={`#${first.original_sale_id}`} />}
+          {first.credit_note_number && <Row k="Gutschrift-Nr." v={first.credit_note_number} />}
+        </div>
+
+        {amount != null && (
+          <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#be123c' }}>Gutschrift-Betrag netto</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#be123c' }}>− {amount.toFixed(2)} {first.currency}</div>
+            {first.vat_rate != null && <div style={{ fontSize: 11, color: '#fb7185' }}>inkl. MWST-Korrektur {Number(first.vat_rate)}%</div>}
+          </div>
+        )}
+
+        {error && <ErrorText msg={error} />}
+
+        {stepState === 'active' && status === 'requested' && (
+          <PrimaryButton icon={CheckCircle2} onClick={() => send('confirmed')} disabled={busy}>Gutschrift bestätigen</PrimaryButton>
+        )}
+        {stepState === 'active' && status === 'confirmed' && (
+          <PrimaryButton icon={FileText} onClick={() => send('invoiced')} disabled={busy}>Gutschrift ausstellen</PrimaryButton>
+        )}
+        {stepState === 'active' && status === 'invoiced' && (
+          <PrimaryButton icon={RotateCcw} onClick={() => send('paid')} disabled={busy}>Erstattung auslösen</PrimaryButton>
+        )}
+        {status === 'paid' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#e11d48', fontWeight: 700, fontSize: 13 }}>
+              <RotateCcw size={15} /> Erstattet
+            </div>
+            {first.stripe_refund_id && <div style={{ fontSize: 11, color: '#94a3b8' }}>Stripe-Refund: {first.stripe_refund_id}</div>}
+          </div>
+        )}
+        {status === 'cancelled' && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#94a3b8', fontWeight: 600, fontSize: 13 }}>
+            <Ban size={15} /> Gutschrift storniert
+          </div>
+        )}
+      </Card>
+    );
+  }
 
   return (
     <Card>

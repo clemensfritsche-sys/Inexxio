@@ -562,6 +562,42 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   - **UX: Hover-Begründung bei gesperrten Aktionen**: der Auftrag-Freigabe-Knopf zeigt per `title`-
     Tooltip den konkreten Grund, warum er (noch) ausgegraut ist, statt stillschweigend deaktiviert zu
     bleiben.
+- **Retouren + Gutschriften (Migration `048`) – KEIN eigener Datentyp, reine Komposition**: Eine
+  **Retoure** ist ein **Unter-Auftrag** (`orders.reason='return'`, dritter Grund neben deviation/supply)
+  eines abgeschlossenen Verkaufs, dessen Subjekt die **verkauften** Instanzen des Eltern sind
+  (`Instance.subject_of_order_id`, wie eine Abweichung – aber **ohne** Eltern-Pause: der Verkauf ist
+  durch). Sie komponiert bestehende Module: `return` (Rücknahme) → optional `inspection`/`scrap` →
+  `sale` **im Kredit-Modus** (Gutschrift). `services/returns.py`; Endpunkte `POST /orders/{id}/return`
+  («Retoure erfassen», am abgeschlossenen Verkaufs-Auftrag mit verkauften Instanzen) +
+  `PATCH /orders/{id}/return-receipt`.
+  - **Schritttyp `return` = «Rücknahme»** (Registry `event_types`: INCREASE/INSTANCE/`ReturnReceipt`,
+    nur im **Auftrags-Ablauf**, nicht im Artikel-Prozess): das **Spiegelbild des Verschrottens** –
+    gewählte verkaufte Instanzen kommen zurück ins Lager (`disposition` `sold`→`in_stock`, Menge
+    wiederhergestellt, Charge **teilretournierbar**), Zielstandort gewählt **oder** automatischer
+    Wareneingang («nie ohne Standort»), Bestands-**Zugang** als Event (`inventory.increased`). Mit
+    **«zur Prüfung»** (`to_inspection`) landet die Ware als `quality='pending'` (gesperrt, bis
+    kontrolliert) statt sofort wieder verkäuflich (`quality='passed'`). Abschluss-Marker `return_receipts`
+    (keine eigene Nummer). Scan-Quittierung je Instanz (`services/returns.py: record_return`).
+  - **Gutschrift = `sales.kind='credit'`** (statt eigenem Objekt): derselbe Verkaufs-Schritt im
+    Kredit-Modus. Betrag/Kunde/Währung/MWST-Satz werden **aus dem Original-Verkauf abgeleitet**
+    (`sale._prefill_credit`, `original_sale_id`), NICHT frei eingetippt; unveränderliche
+    Gutschrift-Nummer `GS-{id}` (`credit_note_number`) bei Bestätigung/Ausstellung. Der Ablauf
+    Bestätigen→Ausstellen→**Erstatten**: die «Zahlung» (`paid`) **löst die Rückerstattung** aus –
+    Stripe-Refund via `provider.refund` (voll oder anteilig proportional `c_net/o_net`, idempotent,
+    `stripe_refund_id`/`refunded_at`), sonst dokumentierte manuelle Gutschrift; Event `sale.refunded`.
+    Der Kredit-`sale` zieht **KEINEN** Pflicht-Versand zum Kunden nach (`process_steps.sync_locked_
+    movements` unterdrückt `versandkunde` bei `reason='return'`) und **verkauft nichts erneut**
+    (`process._finalize_subjects` early-return für return). **Löst nebenbei das aufgeschobene «Menge
+    reduzieren»-TODO**: eine Teil-Retoure ist eine Teil-Gutschrift (sauber gutgeschrieben statt stiller
+    Mengen-Kürzung). Provider-Interface `services/payments/base.py: refund` (Stripe + manual).
+  - Subjekt-Integration: `subject.is_return`/`is_fixed_subject` (deviation ODER return – festes Subjekt,
+    keine `order_lines`, keine FIFO/Reservierung), `subject_kind`→`return`; `process` behandelt `return`
+    als erledigt-wenn-Fact, `order_step_defs`/`_subject_shortfalls` respektieren das feste Subjekt.
+    Frontend: `return-panel.tsx` (Spiegel `scrap-panel`: verkaufte Instanzen scannen + Teilmenge +
+    Zielort + «zur Prüfung» + Notiz), Gutschrift-Modus in `sale-panel.tsx` (abgeleiteter Betrag,
+    «Erstattung auslösen», GS-Nr/Refund-Anzeige), «Retoure erfassen»-Aktion + Retouren-Liste am
+    Verkaufs-Auftrag (`order-detail.tsx`), `return` in `STEP_META`/`ORDER_STEP_ORDER`/`lib/process.ts`.
+    *Bewusst NICHT gebaut: Store-Credit/Guthaben.*
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -571,10 +607,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Instanzschritte verarbeiten nur Instanzen**; Artikel dienen v. a. als FIFO-Bezug. Schritttypen: purchase,
 > inspection, movement, **resource** (Verbrauch + Betriebsmittel, Modus je Zeile), **scrap** (Verschrotten),
 > sale. `quality`+`disposition` als zwei Instanz-Achsen; `event_types`-Registry deklariert die Bestands-
-> Polarität. **Unter-Auftrag** (`parent_order_id` + `reason`) – EIN Mechanismus, zwei Gründe:
+> Polarität. **Unter-Auftrag** (`parent_order_id` + `reason`) – EIN Mechanismus, DREI Gründe:
 > **Abweichung** (`reason='deviation'`: Abbruch-Folgeauftrag / Fehler / Reklamation / Nacharbeit,
-> pausiert den Eltern; `Claim`-Typ entfernt) und **Nachschub** (`reason='supply'`: deckt einen nicht
-> vorrätigen Bedarf, blockiert nur den Schritt). **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
+> pausiert den Eltern; `Claim`-Typ entfernt), **Nachschub** (`reason='supply'`: deckt einen nicht
+> vorrätigen Bedarf, blockiert nur den Schritt) und **Retoure** (`reason='return'`, Migration `048`:
+> verkaufte Instanzen kommen zurück → `return`-Schritt + Gutschrift `sale.kind='credit'` mit Stripe-
+> Refund; festes Subjekt wie eine Abweichung, aber OHNE Eltern-Pause). **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
 > macht den Schritt `blocked` (abgeleitet); `supply.ensure_supply` legt rekursiv/idempotent/zyklensicher
 > Nachschub-Unteraufträge an (Artikel-Prozess), die bei Abschluss an den Eltern **gepinnt** werden.
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
@@ -590,10 +628,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
 eingebettete Kasse/Warenkorb inkl. Mehrpositionen-Verkauf (Fehlbestand + Nachschub, Zahlungsart) in der
-Sandbox testen (`docs/stripe-setup.md`); Abo-Mindestlaufzeit/Kündigungs-Cooldown in der Praxis prüfen;
-Auto-Fulfillment je Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz =
-vollständige Ereignis-Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API);
-Stripe Terminal für Vor-Ort-Zahlung (payment_method='terminal', Phase 2+, aktuell nur vorgemerkt).
+Sandbox testen (`docs/stripe-setup.md`); Retouren + Gutschriften (inkl. Stripe-Refund) in der Sandbox
+end-to-end prüfen; Abo-Mindestlaufzeit/Kündigungs-Cooldown in der Praxis prüfen; Auto-Fulfillment je
+Produktabo-Zyklus (`invoice.paid`-Hook); Custom-Auftrag-UX verfeinern; Instanz = vollständige Ereignis-
+Historie; Scan-Quittierung im Wareneingang & beim Verschrotten; E-Mail (Gmail API); Stripe Terminal für
+Vor-Ort-Zahlung (payment_method='terminal', Phase 2+, aktuell nur vorgemerkt).
 
 ## Deployment
 - Trigger: Push auf Branch `develop`

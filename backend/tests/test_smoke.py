@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale", "return"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -1064,7 +1064,7 @@ def test_step_type_whitelist_per_context():
     assert {"purchase", "resource", "inspection", "movement"} <= set(art)
     # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
     # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
 
 
 def test_webshop_url_is_validated():
@@ -1207,7 +1207,7 @@ def test_event_type_registry_declares_polarity():
     Richtung)."""
     from app.domain import event_types as ev
 
-    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
     assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
     # Polarität ist deklariert, nicht abgeleitet:
     assert ev.polarity("purchase") == ev.INCREASE
@@ -1232,7 +1232,7 @@ def test_legacy_resource_aliases_removed():
         assert alias not in STEP_LABELS
         assert alias not in _FACT_MODEL
     assert RESOURCE_STEP_TYPES == ("resource",)
-    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "return"}
     assert STEP_LABELS["resource"] == "Ressource"
 
 
@@ -1853,7 +1853,7 @@ def test_deviation_release_does_not_require_article_and_quantity():
     from app.routers import orders as orders_router
 
     src = _inspect.getsource(orders_router.update_order)
-    assert 'not is_multiline and not subject.is_deviation(order) and (not order.article_id or not order.quantity)' in src.replace("\n", " ").replace("  ", " ")
+    assert 'not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity)' in src.replace("\n", " ").replace("  ", " ")
 
 
 def test_subscription_mixing_check_moved_to_sale_step_creation():
@@ -1984,7 +1984,7 @@ def test_subject_shortfall_is_one_formula_for_all_order_kinds():
 
     src = _inspect.getsource(process._subject_shortfalls)
     assert 'subject_kind(db, order) != "stock"' not in src   # kein Stock-only-Sonderpfad mehr
-    assert "is_deviation(order)" in src                        # nur die Abweichung ausgenommen
+    assert "is_fixed_subject(order)" in src                    # Abweichung UND Retoure ausgenommen
     assert "Instance.order_id == order.id" in src             # zählt selbst erzeugte gute Instanzen
     assert "reservations.has_key" in src                       # + reservierte Bestands-Subjekte
     # Nachschub-Pegging kennt das Subjekt eines Erzeugungsauftrags (nicht nur stock):
@@ -2066,3 +2066,80 @@ def test_removing_a_line_folds_back_to_single_article_order():
 
     src = _inspect.getsource(orders.remove_order_line)
     assert "order.article_id = anchor.article_id" in src
+
+
+def test_return_is_a_registry_step_mirror_of_scrap():
+    """Retoure-Rücknahme ist ein deklarierter Schritttyp (REA), Spiegel von Verschrotten:
+    Bestands-ZUGANG (INCREASE) auf konkrete Instanzen (INSTANCE), nur im Auftrags-Ablauf."""
+    from app.domain import event_types as ev
+
+    rt = ev.REGISTRY["return"]
+    assert rt.polarity == ev.INCREASE and rt.subject_role == ev.INSTANCE and rt.fact == "ReturnReceipt"
+    assert "return" in ev.ORDER_STEP_TYPES and "return" not in ev.ARTICLE_STEP_TYPES
+
+
+def test_return_suborder_is_fixed_subject_and_does_not_pause():
+    """Eine Retoure (reason='return') ist ein Unter-Auftrag auf fixierte (verkaufte) Instanzen –
+    wie eine Abweichung fixiertes Subjekt (keine Fehlmenge), aber sie pausiert den Eltern NICHT
+    (nur reason='deviation' pausiert)."""
+    import inspect as _inspect
+    from app.services import subject, process
+
+    assert "return" in _inspect.getsource(subject.is_return)
+    assert "is_deviation(order) or is_return(order)" in _inspect.getsource(subject.is_fixed_subject)
+    # Pause nur bei Abweichung:
+    assert 'reason="deviation"' in _inspect.getsource(process._is_paused_by_deviation) \
+        or "reason == \"deviation\"" in _inspect.getsource(process._is_paused_by_deviation) \
+        or "Order.reason == \"deviation\"" in _inspect.getsource(process._is_paused_by_deviation)
+
+
+def test_credit_note_is_sale_in_credit_mode_with_refund():
+    """Gutschrift = Verkaufsmodul im Kredit-Modus: kind='credit', Betrag/MWST aus dem Original
+    abgeleitet, Gutschrift-Nummer bei Bestätigung, Stripe-Refund gegen den Original-PaymentIntent
+    bei «bezahlt» (bzw. manuell). ``_finalize_subjects`` verkauft eine Retoure NICHT."""
+    import inspect as _inspect
+    from app.models import Sale
+    from app.services import sale as sale_svc, process
+    from app.services.payments.base import PaymentProvider
+
+    for f in ("kind", "original_sale_id", "credit_note_number", "stripe_refund_id", "refunded_at"):
+        assert f in Sale.__table__.columns
+    inst = _inspect.getsource(sale_svc.instantiate_for_order)
+    assert "is_return(order)" in inst and 'kind="credit"' in inst
+    trans = _inspect.getsource(sale_svc._apply_transition)
+    assert "credit_note_number" in trans and "_issue_refund" in trans
+    assert "refund" in [m for m in dir(PaymentProvider)]  # Provider-Schnittstelle
+    assert "is_return(order)" in _inspect.getsource(process._finalize_subjects)
+
+
+def test_return_receipt_restores_quantity_and_disposition():
+    """Der Rücknahme-Schritt stellt Menge wieder her + setzt disposition sold→in_stock
+    (quality pending bei to_inspection) + Bestands-Zugang – Spiegel von record_scrap."""
+    import inspect as _inspect
+    from app.services import returns
+
+    src = _inspect.getsource(returns.record_return)
+    assert 'inst.disposition = "in_stock"' in src
+    assert "inventory.increased" in src
+    assert "to_inspection" in src
+
+
+def test_returns_endpoints_wired():
+    """Retoure anlegen + Rücknahme ausführen sind erreichbar; Freigabe-Ausnahme greift für
+    fixierte Subjekte (Abweichung UND Retoure)."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    assert "returns_svc.create_return" in _inspect.getsource(orders.open_return)
+    assert "returns_svc.record_return" in _inspect.getsource(orders.update_order_return)
+
+
+def test_credit_sale_has_no_mandatory_customer_shipping():
+    """Eine Gutschrift (Retoure) zieht KEINEN Pflicht-Versand zum Kunden nach – die Ware kommt
+    über den return-Schritt herein (sonst bliebe die Retoure ewig „released")."""
+    import inspect as _inspect
+    from app.services import process_steps
+
+    assert "skip_customer_shipping" in _inspect.getsource(process_steps._plan)
+    assert 'row[0] == "return"' in _inspect.getsource(process_steps.sync_locked_movements) \
+        or 'reason == "return"' in _inspect.getsource(process_steps.sync_locked_movements)

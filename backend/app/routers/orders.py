@@ -10,12 +10,13 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
     OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
-    OrderResponse, OrderSummary, OrderUpdate,
+    OrderResponse, OrderReturnCreate, OrderSummary, OrderUpdate,
 )
+from ..schemas.return_receipt import ReturnUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, sale as sale_svc, subject, supply
+from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, returns as returns_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -393,11 +394,11 @@ async def update_order(
     #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
     if wants_release:
         is_multiline = order.article_id is None and bool(order_lines_svc.lines_for(db, order))
-        # Eine Abweichung (Unter-Auftrag) hat ihr Subjekt bereits über fixierte Instanzen
-        # (nicht über order_lines) – erbt bei einem Mehrpositionen-Eltern-Auftrag dessen
-        # article_id=NULL, OHNE selbst eine Mehrpositionen-Struktur zu sein. Sie braucht
+        # Eine Abweichung ODER Retoure (Unter-Auftrag) hat ihr Subjekt bereits über fixierte
+        # Instanzen (nicht über order_lines) – erbt bei einem Mehrpositionen-Eltern-Auftrag
+        # dessen article_id=NULL, OHNE selbst eine Mehrpositionen-Struktur zu sein. Sie braucht
         # daher WEDER article_id/quantity NOCH order_lines zur Freigabe.
-        if not is_multiline and not subject.is_deviation(order) and (not order.article_id or not order.quantity):
+        if not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity):
             raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
         if subject.subject_kind(db, order) == "produce":
             # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
@@ -529,6 +530,40 @@ async def open_deviation(
     db.commit()
     db.refresh(devi)
     return to_order_response(db, devi)
+
+
+@router.post("/{object_id}/return", response_model=OrderResponse)
+async def open_return(
+    object_id: int,
+    data: OrderReturnCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """«Retoure erfassen» zu einem Verkaufs-Auftrag: legt einen **Unter-Auftrag**
+    (``reason='return'``) auf die gewählten **verkauften** Instanzen an. Man definiert dort die
+    Auflösung (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt frei. Liefert
+    die neue Retoure zurück. Pausiert den Eltern NICHT (der Verkauf ist abgeschlossen)."""
+    parent = _get_staff_order(db, object_id)
+    ret = returns_svc.create_return(db, parent, data.instance_object_ids, current_user.id)
+    db.commit()
+    db.refresh(ret)
+    return to_order_response(db, ret)
+
+
+@router.patch("/{object_id}/return-receipt", response_model=OrderResponse)
+async def update_order_return(
+    object_id: int,
+    data: ReturnUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Menge/Disposition
+    wiederhergestellt, Standort gesetzt). Spiegel des Verschrottens."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    returns_svc.record_return(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
 
 
 @router.post("/{object_id}/supply", response_model=OrderResponse)

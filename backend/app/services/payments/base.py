@@ -34,6 +34,13 @@ class PaymentProvider(ABC):
         """Self-Service-Portal (Abo/Zahlungsmittel verwalten). Default: nicht unterstützt."""
         return None
 
+    def refund(self, db: Session, original_sale, credit_sale) -> dict | None:
+        """Eine **Gutschrift** erstatten – Refund gegen den Original-PaymentIntent (voll oder
+        anteilig). Default (manual/Direktverkauf): kein Online-Beleg → ``None``; die Gutschrift
+        gilt lokal als erstattet (Abwicklung per Rechnung/QR offline). Stripe überschreibt das.
+        Liefert bei Erfolg ``{"refund_id","snapshot","payment_method"}``."""
+        return None
+
     def cancel_subscription(self, db: Session, order) -> bool:
         """Ein Abo (Auftrag) **on-site** kündigen. Default (manual): nur lokal beenden.
         Stripe-Provider kündigt zuerst beim Provider und spiegelt erst danach – so bleibt der

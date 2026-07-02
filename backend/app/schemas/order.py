@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .disposal import DisposalEmbed
+from .return_receipt import ReturnEmbed
 from .inspection import InspectionEmbed
 from .instance import InstanceEmbed
 from .movement import MovementEmbed
@@ -65,6 +66,7 @@ class OrderStepInfo(BaseModel):
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
     disposal: Optional[DisposalEmbed] = None
+    return_receipt: Optional[ReturnEmbed] = None
 
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
@@ -180,6 +182,12 @@ class OrderDeviationCreate(BaseModel):
     instance_object_ids: Optional[list[int]] = None
 
 
+class OrderReturnCreate(BaseModel):
+    """«Retoure erfassen» zu einem Verkaufs-Auftrag: die zurückkommenden **verkauften**
+    Instanzen (per Objektnummer). Legt einen Retoure-Unter-Auftrag (``reason='return'``) an."""
+    instance_object_ids: list[int] = []
+
+
 class OrderCoverStock(BaseModel):
     """«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
     blockierten Schritts aus vorhandenem Lagerbestand decken. Ohne ``instance_object_ids``
@@ -282,6 +290,7 @@ class OrderResponse(BaseModel):
     movement: Optional[MovementEmbed] = None
     resource: Optional[ResourceEmbed] = None
     disposal: Optional[DisposalEmbed] = None
+    return_receipt: Optional[ReturnEmbed] = None
     steps: list[OrderStepInfo] = []
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
@@ -293,4 +302,5 @@ class OrderResponse(BaseModel):
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
+    returns: list[OrderDeviationInfo] = []           # Retouren (Rücknahme + Gutschrift; pausieren NICHT)
     paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist
