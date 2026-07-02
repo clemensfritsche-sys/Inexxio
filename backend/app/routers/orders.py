@@ -10,13 +10,12 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
     OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
-    OrderResponse, OrderReturnCreate, OrderSummary, OrderUpdate,
+    OrderRefundSubject, OrderResponse, OrderSummary, OrderUpdate,
 )
-from ..schemas.return_receipt import ReturnUpdate
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, returns as returns_svc, sale as sale_svc, subject, supply
+from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.events import emit
 from ..services.inspection import record_inspection
@@ -532,36 +531,40 @@ async def open_deviation(
     return to_order_response(db, devi)
 
 
-@router.post("/{object_id}/return", response_model=OrderResponse)
-async def open_return(
+@router.post("/{object_id}/refund-subject", response_model=OrderResponse)
+async def set_refund_subject(
     object_id: int,
-    data: OrderReturnCreate,
+    data: OrderRefundSubject,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """«Retoure erfassen» zu einem Verkaufs-Auftrag: legt einen **Unter-Auftrag**
-    (``reason='return'``) auf die gewählten **verkauften** Instanzen an. Man definiert dort die
-    Auflösung (Rücknahme + Gutschrift, optional Prüfung/Verschrottung) und gibt frei. Liefert
-    die neue Retoure zurück. Pausiert den Eltern NICHT (der Verkauf ist abgeschlossen)."""
-    parent = _get_staff_order(db, object_id)
-    ret = returns_svc.create_return(db, parent, data.instance_object_ids, current_user.id)
+    """Retoure/Erstattung als **normaler Auftrag**: die gewählten **verkauften** Instanzen als
+    Subjekt fixieren – das macht den Entwurf zur Retoure (``reason='return'`` + ``parent_order_id``
+    = Original-Verkauf). Danach wird der Ablauf wie gewohnt definiert (Bewegung + ``refund`` …).
+    Leere Auswahl hebt die Retoure wieder auf. Liefert den aktualisierten Auftrag zurück."""
+    order = _get_staff_order(db, object_id)
+    refund_svc.bind_refund_subject(db, order, data.instance_object_ids, current_user.id)
     db.commit()
-    db.refresh(ret)
-    return to_order_response(db, ret)
+    db.refresh(order)
+    return to_order_response(db, order)
 
 
-@router.patch("/{object_id}/return-receipt", response_model=OrderResponse)
-async def update_order_return(
+@router.patch("/{object_id}/refund", response_model=OrderResponse)
+async def update_order_refund(
     object_id: int,
-    data: ReturnUpdate,
+    data: SaleUpdate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Menge/Disposition
-    wiederhergestellt, Standort gesetzt). Spiegel des Verschrottens."""
+    """Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
+    Der Betrag ist aus dem Original-Verkauf abgeleitet, kann aber abweichend erfasst werden; die
+    «Zahlung» (``paid``) löst die Stripe-Rückerstattung (bzw. manuelle Gutschrift) aus. Reuse der
+    Verkaufs-Fachlogik (``sale.apply_update_bulk``), aufgelöst über den ``refund``-Schritt."""
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
-    returns_svc.record_return(db, order, data, current_user.id)
+    step = process.resolve_exec_step(db, order, "refund", data.step_id)
+    sales = process.facts_for_step(db, order, step)
+    sale_svc.apply_update_bulk(db, sales, data, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 

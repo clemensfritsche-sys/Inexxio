@@ -3,7 +3,7 @@ import type {
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput,
-  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, ReturnUpdateInput,
+  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -269,16 +269,15 @@ class ApiClient {
       instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
   }
 
-  // «Retoure erfassen»: eröffnet einen Unterauftrag (reason='return') auf die gewählten
-  // verkauften Instanzen dieses Verkaufs-Auftrags; liefert den Entwurf der Retoure zurück.
-  createReturn(objectId: number, instanceObjectIds: number[]): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/return`, { instance_object_ids: instanceObjectIds });
+  // Retoure/Erstattung als normaler Auftrag: die zu erstattenden verkauften Instanzen als
+  // Subjekt fixieren (macht den Entwurf zur Retoure, reason='return' + parent = Original-Verkauf).
+  setRefundSubject(objectId: number, instanceObjectIds: number[]): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/refund-subject`, { instance_object_ids: instanceObjectIds });
   }
 
-  // Schritt «Rücknahme»: gewählte verkaufte Instanzen zurück ins Lager (Standort/Qualität
-  // wiederhergestellt) – Spiegel des Verschrottens.
-  updateOrderReturn(objectId: number, data: ReturnUpdateInput): Promise<Order> {
-    return this.patch(`/api/v1/erp/orders/${objectId}/return-receipt`, data);
+  // Schritt «Rückerstattung» (Kredit-Modus des Verkaufs): Bestätigen → Ausstellen → Erstatten.
+  updateOrderRefund(objectId: number, data: SaleUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/refund`, data);
   }
 
   // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag (reason='supply'), der die

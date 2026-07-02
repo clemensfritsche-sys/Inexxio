@@ -60,10 +60,13 @@ REGISTRY: dict[str, EventType] = {
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement"),
     "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal"),
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
-    # Rücknahme = **Spiegel von Verschrotten** auf der Bestands-Achse: eine verkaufte Instanz
-    # kommt zurück ins Lager (Bestands-ZUGANG). Wirkt auf konkrete, bestehende Instanzen
-    # (INSTANCE). Nur im Auftrags-Ablauf einer **Retoure** sinnvoll (siehe ORDER_STEP_TYPES).
-    "return":     EventType("return",     "Rücknahme",      INCREASE, INSTANCE, "ReturnReceipt"),
+    # Rückerstattung = die **Geld-Seite** einer Retoure (Spiegel des Verkaufs auf der Geld-Achse):
+    # der Verkaufsbetrag wird gutgeschrieben/erstattet (Stripe-Refund bzw. manuell). Fachtabelle
+    # ``Sale`` mit ``kind='credit'`` – dieselbe Maschinerie wie der Verkauf, nur andersherum. Der
+    # **physische** Rückfluss (verkauft → am Lager) läuft über die **Bewegung** + den Abschluss
+    # (``process._finalize_subjects``), NICHT über diesen Schritt → Bestands-Polarität NEUTRAL.
+    # Wirkt auf konkrete, bestehende (verkaufte) Instanzen (INSTANCE). Nur im Auftrags-Ablauf.
+    "refund":     EventType("refund",     "Rückerstattung", NEUTRAL,  INSTANCE, "Sale"),
 }
 
 # Erlaubte Schritttypen (Schema-Whitelist) und die Ressourcen-Gruppe (Verbrauch +
@@ -82,7 +85,7 @@ RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 # Auftrag (sonst würden die erzeugten Instanzen nicht korrekt markiert). Sonst alles erlaubt.
 # **Verschrotten** (scrap) ist die definierte Auflösung einer Abweichung (defektes Teil raus).
 ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
-ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale", "return")
+ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale", "refund")
 
 
 def allowed_step_types(owner_kind: str) -> tuple[str, ...]:

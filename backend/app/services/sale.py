@@ -43,6 +43,23 @@ def unit_price(sale: Sale) -> Optional[Decimal]:
     return (sale.order_total / sale.quantity).quantize(Decimal("0.0001"))
 
 
+def customer_for_order(db: Session, order: Order) -> Optional[UserProfile]:
+    """Der Kunde dieses Auftrags = Kunde seines Verkaufs-Belegs (``kind='sale'``). Grundlage
+    für den **Pflicht-Versand zum Kunden**: die auf einen Verkauf folgende Bewegung geht
+    IMMER an diesen Kunden (kein frei wählbares Ziel). Ein Mehrpositionen-Auftrag hat EINEN
+    Kunden (alle Belege teilen ihn) → der erste Beleg mit gesetztem Kunden genügt."""
+    sale = (
+        db.query(Sale)
+        .filter(Sale.order_id == order.id, Sale.kind == "sale",
+                Sale.is_active == True, Sale.customer_id.isnot(None))
+        .order_by(Sale.id)
+        .first()
+    )
+    if not sale or not sale.customer_id:
+        return None
+    return db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first()
+
+
 def price_from_article(db: Session, article_id: int, quantity: int) -> Optional[dict]:
     """Preis-Vorschau EINES Artikels aus der **Shop-Preis-Pipeline** – Single Source of
     Truth: der ERP-Direktverkauf tippt keinen Betrag frei ein, sondern übernimmt densel-
@@ -104,47 +121,51 @@ def _prefill_price(db: Session, sale: Sale, article_id: int) -> None:
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Sale]:
-    """Bei Auftragsfreigabe den Verkauf anlegen – **ein** Schritt, unabhängig davon, ob
-    der Auftrag einen (``order.article_id``) oder mehrere Artikel (Mehrpositionen,
-    ``order_lines``) trägt: je Artikel EIN Verkaufs-Beleg, alle unter demselben
-    Schritt (``step_id``) – Mehr-Operationen-Routing ist hier NICHT nötig (anders als bei
-    Beschaffung/Ressource gibt es nur einen ``sale``-Schritt am Auftrag).
+    """Bei Auftragsfreigabe die Verkaufs-/Rückerstattungs-Belege anlegen. **Zwei** Schritttypen
+    teilen sich das Fachmodell ``Sale`` (kaufmännischer Lebenszyklus requested→…→paid):
 
-    **Retoure (Unter-Auftrag ``reason='return'``):** der Verkaufs-Schritt ist eine
-    **Gutschrift** (``kind='credit'``) – je Artikel der zurückkommenden Instanzen EIN
-    Gutschrift-Beleg, Betrag/MWST aus dem Original-Verkauf abgeleitet (siehe ``_credit_targets``)."""
-    from .subject import is_return
-    steps = [d for d in process.order_step_defs(db, order) if d.step_type == "sale"]
+    - **``sale``** (Verkauf, ``kind='sale'``): je Artikel EIN Beleg (Einzel-Artikel oder je
+      Position eines Mehrpositionen-Auftrags), Betrag aus dem Artikel-Preis (``_prefill_price``).
+    - **``refund``** (Rückerstattung, ``kind='credit'``): je Artikel der **verkauften** Subjekt-
+      Instanzen EIN Gutschrift-Beleg, Betrag/MWST/Kunde aus dem **Original-Verkauf** abgeleitet
+      (``_credit_targets``/``_prefill_credit``, editierbar). Der Original-Verkauf ist der
+      ``parent_order_id`` der Retoure (bei der Instanz-Auswahl abgeleitet).
+
+    Jeder Beleg trägt die ``step_id`` seines Schritts (Mehr-Operationen-Routing). Idempotent."""
+    steps = [d for d in process.order_step_defs(db, order) if d.step_type in ("sale", "refund")]
     if not steps:
         return []
-    step = steps[0]   # genau EIN Verkaufs-Schritt (wie jeder andere Schritttyp auch)
-    credit = is_return(order)
-    if credit:
-        targets = _credit_targets(db, order)
-    else:
-        lines = lines_for(db, order)
-        targets = [(l.article_id, l.quantity) for l in lines] if lines else (
-            [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
-    if not targets:
-        return []
-    existing = db.query(Sale).filter(Sale.order_id == order.id, Sale.is_active == True).all()
-    have_articles = {s.article_id for s in existing if s.step_id == step.id or s.step_id is None}
     created: list[Sale] = []
-    for art_id, qty in targets:
-        if art_id in have_articles:
-            continue   # idempotent – dieser Artikel hat schon seinen Beleg
-        sale = Sale(order_id=order.id, article_id=art_id, quantity=qty,
-                    step_id=step.id, status="requested", mode="direct",
-                    kind="credit" if credit else "sale")
+    for step in steps:
+        credit = step.step_type == "refund"
         if credit:
-            _prefill_credit(db, sale, order, art_id)
+            targets = _credit_targets(db, order)
         else:
-            _prefill_price(db, sale, art_id)
-        db.add(sale)
-        db.flush()
-        log_audit(db, "sales", None, "Gutschrift angelegt" if credit else "Verkauf angefragt",
-                  actor_id, object_id=order.object_id)
-        created.append(sale)
+            lines = lines_for(db, order)
+            targets = [(l.article_id, l.quantity) for l in lines] if lines else (
+                [(order.article_id, order.quantity)] if order.article_id and order.quantity else [])
+        if not targets:
+            continue
+        have_articles = {
+            s.article_id for s in
+            db.query(Sale).filter(Sale.order_id == order.id, Sale.step_id == step.id,
+                                  Sale.is_active == True).all()
+        }
+        for art_id, qty in targets:
+            if art_id in have_articles:
+                continue   # idempotent – dieser Artikel hat schon seinen Beleg
+            sale = Sale(order_id=order.id, article_id=art_id, quantity=qty,
+                        step_id=step.id, status="requested", mode="direct",
+                        kind="credit" if credit else "sale")
+            if credit:
+                _prefill_credit(db, sale, order, art_id)
+            else:
+                _prefill_price(db, sale, art_id)
+            db.add(sale)
+            db.flush()
+            log_audit(db, "sales", None, "Gutschrift angelegt" if credit else "Verkauf angefragt",
+                      actor_id, object_id=order.object_id)
+            created.append(sale)
     # TODO(E-Mail/Beleg): Auftragsbestätigung/Rechnung/Gutschrift erzeugen (Gmail API/PDF, Phase 2)
     return created
 
@@ -202,14 +223,16 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
     if sale.status not in _FROM[target]:
         raise HTTPException(400, detail=f"Übergang {sale.status} → {target} ist nicht erlaubt")
     if target in ("confirmed", "invoiced"):
-        # Preis ist Single Source of Truth vom Artikel: fehlte er bei der Freigabe (Artikel
-        # hatte noch keinen Preis) und wurde er NACHTRÄGLICH hinterlegt, wird er hier
-        # frisch nachgezogen – sonst bliebe ein Mehrpositionen-Verkauf ewig stecken (der
-        # Betrag ist bei >1 Position nicht manuell editierbar).
+        # Betrag als Single Source of Truth: fehlt er noch, frisch nachziehen – beim **Verkauf**
+        # aus dem Artikel-Preis, bei der **Gutschrift** aus dem Original-Verkauf. Sonst bliebe ein
+        # Mehrpositionen-Beleg stecken (Betrag dort nicht manuell editierbar).
         if sale.order_total is None and sale.article_id:
-            _prefill_price(db, sale, sale.article_id)
+            if sale.kind == "credit":
+                _prefill_credit(db, sale, order, sale.article_id)
+            else:
+                _prefill_price(db, sale, sale.article_id)
         if sale.order_total is None:
-            raise HTTPException(400, detail="Verkaufsbetrag ist erforderlich")
+            raise HTTPException(400, detail="Betrag ist erforderlich")
         # Ein Verkauf ohne Kunde ist fachlich nicht zulässig – der Kunde ist NIE optional,
         # sobald der Verkauf bestätigt/fortgeschrieben wird (spätestens zur Bestätigung).
         if sale.customer_id is None:

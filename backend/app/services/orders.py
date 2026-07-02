@@ -9,14 +9,13 @@ from sqlalchemy.orm import Query, Session
 from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
-    InstanceOrderLink, Movement, Order, PurchaseOrder, ReturnReceipt, Sale, UserProfile,
+    InstanceOrderLink, Movement, Order, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
-from ..schemas.return_receipt import ReturnEmbed
 from ..schemas.order import (
     OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary,
     ShortfallInstance, StepShortfall,
@@ -195,7 +194,17 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None, note=mv.note if mv else None)
     me.target_location_type = step.target_location_type
     me.target_location_id = step.target_location_id
-    me.target_location_label = location_label(db, step.target_location_type, step.target_location_id)
+    # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei wählbar, sondern
+    # FIX der Kunde des Verkaufs. So erzwingt das Panel (fester Zielort) die richtige Person UND
+    # muss keine Lagerplatz-/Personen-Listen laden (schnell). Fällt der Kunde noch (Verkauf nicht
+    # bestätigt), bleibt das Ziel offen – die Bewegung ist ohnehin erst nach dem Verkauf aktiv.
+    if step.mode == "customer":
+        from .sale import customer_for_order
+        cust = customer_for_order(db, order)
+        if cust:
+            me.target_location_type = "user"
+            me.target_location_id = cust.object_id
+    me.target_location_label = location_label(db, me.target_location_type, me.target_location_id)
     if mv and mv.moved_by_id:
         me.moved_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
@@ -210,20 +219,6 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
         de.scrapped_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == disp.scrapped_by_id).first())
     return de
-
-
-def _return_embed(db: Session, order: Order, rec: ReturnReceipt | None,
-                  returned_count: int) -> ReturnEmbed:
-    re = ReturnEmbed(id=rec.id if rec else 0, done=rec is not None,
-                     note=rec.note if rec else None,
-                     returned_count=returned_count,
-                     to_inspection=rec.to_inspection if rec else False)
-    if rec and rec.received_by_id:
-        re.received_by_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == rec.received_by_id).first())
-    if rec:
-        re.location_label = location_label(db, rec.location_type, rec.location_id)
-    return re
 
 
 def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
@@ -376,16 +371,17 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
                 first.setdefault("purchase", embs[0])
                 if done:
                     by_name, at = _purchase_received(embs[0])
-        elif step.step_type == "sale":
-            # EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg,
-            # Mehrpositionen-Auftrag) – ``sales`` ist die vollständige Liste, ``sale``
-            # bleibt das erste Embed (Rückwärtskompatibilität; beim Einzel-Artikel-
-            # Auftrag identisch).
+        elif step.step_type in ("sale", "refund"):
+            # Verkauf UND Rückerstattung teilen das Fachmodell ``Sale`` (Kredit-Modus beim
+            # refund). EIN Schritt kann mehrere Belege tragen (ein Artikel/Position je Beleg) –
+            # ``sales`` ist die vollständige Liste. Für den refund-Schritt wird NICHT die
+            # Top-Level-Kurzform ``resp.sale`` gesetzt (die bleibt dem echten Verkauf vorbehalten).
             facts = s["facts"]
             embs = [_sale_embed(db, order, f) for f in facts] or [_sale_embed(db, order, None)]
             si.sales = embs
             si.sale = embs[0]
-            first.setdefault("sale", embs[0])
+            if step.step_type == "sale":
+                first.setdefault("sale", embs[0])
             if done and facts:
                 by_name = embs[0].customer_name
                 at = max((f.paid_at for f in facts if f.paid_at), default=None)
@@ -408,13 +404,6 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             first.setdefault("disposal", emb)
             if done:
                 by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
-        elif step.step_type == "return":
-            returned_count = sum(1 for i in instances if i.disposition != "sold")
-            emb = _return_embed(db, order, fact, returned_count)
-            si.return_receipt = emb
-            first.setdefault("return_receipt", emb)
-            if done:
-                by_name, at = emb.received_by_name, (fact.updated_at if fact else None)
         elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
@@ -437,7 +426,6 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
     resp.disposal = first.get("disposal")
-    resp.return_receipt = first.get("return_receipt")
     return resp
 
 
