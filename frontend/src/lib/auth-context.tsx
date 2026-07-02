@@ -49,8 +49,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-
-export function useRequireAuth() {
-  const { user, loading } = useAuth();
-  return { user, loading, isAuthenticated: !loading && !!user };
-}

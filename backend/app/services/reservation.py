@@ -24,6 +24,14 @@ def free_qty(inst: Instance) -> int:
     return (inst.quantity or 0) - (inst.reserved_quantity or 0)
 
 
+def _write(inst: Instance, m: dict) -> None:
+    """Reservierungs-Map zurückschreiben + Denormalisierungen (Summe, Einzel-Zeiger)
+    konsistent nachziehen – die EINE Stelle, an der die drei Felder gesetzt werden."""
+    inst.reservations = m
+    inst.reserved_quantity = sum(int(v) for v in m.values())
+    inst.reserved_for_order_id = next((int(k) for k in m), None) if len(m) == 1 else None
+
+
 def reserve(inst: Instance, order_id: int, qty: int) -> None:
     """``qty`` der Instanz für ``order_id`` reservieren (additiv). Aktualisiert die Summe
     und den Einzel-Zeiger; die Instanz wird NICHT geteilt (Objektnummer bleibt)."""
@@ -31,18 +39,14 @@ def reserve(inst: Instance, order_id: int, qty: int) -> None:
         return
     m = dict(inst.reservations or {})
     m[str(order_id)] = m.get(str(order_id), 0) + qty
-    inst.reservations = m
-    inst.reserved_quantity = sum(int(v) for v in m.values())
-    inst.reserved_for_order_id = order_id if len(m) == 1 else None
+    _write(inst, m)
 
 
 def release(inst: Instance, order_id: int) -> int:
     """Die Reservierung eines Auftrags vollständig lösen. Liefert die gelöste Menge."""
     m = dict(inst.reservations or {})
     qty = int(m.pop(str(order_id), 0))
-    inst.reservations = m
-    inst.reserved_quantity = sum(int(v) for v in m.values())
-    inst.reserved_for_order_id = next((int(k) for k in m), None) if len(m) == 1 else None
+    _write(inst, m)
     return qty
 
 
@@ -51,9 +55,7 @@ def release_all(inst: Instance) -> None:
     ein Teil, das den Bestand verlässt, kann keinen Auftrag mehr beliefern – auch nicht einen
     Eltern-/Fremd-Auftrag, der es reserviert hatte. So wird dessen Fehlmenge **ehrlich** wieder
     sichtbar (statt still von einer toten Reservierung „gedeckt" zu bleiben)."""
-    inst.reservations = {}
-    inst.reserved_quantity = 0
-    inst.reserved_for_order_id = None
+    _write(inst, {})
 
 
 def reduce_quantity(inst: Instance, cut: int) -> int:
@@ -72,9 +74,7 @@ def reduce_quantity(inst: Instance, cut: int) -> int:
         m[k] = int(m[k]) - over
         if m[k] <= 0:
             del m[k]
-    inst.reservations = m
-    inst.reserved_quantity = sum(int(v) for v in m.values())
-    inst.reserved_for_order_id = next((int(k) for k in m), None) if len(m) == 1 else None
+    _write(inst, m)
     return cut
 
 
@@ -89,6 +89,4 @@ def consume(inst: Instance, order_id: int, qty: int) -> None:
         m[str(order_id)] = left
     else:
         m.pop(str(order_id), None)
-    inst.reservations = m
-    inst.reserved_quantity = sum(int(v) for v in m.values())
-    inst.reserved_for_order_id = next((int(k) for k in m), None) if len(m) == 1 else None
+    _write(inst, m)

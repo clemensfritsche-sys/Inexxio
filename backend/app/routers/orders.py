@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, OrderLine, UserProfile
-from ..models.base import utcnow
 from ..schemas.disposal import ScrapUpdate
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
@@ -17,7 +16,6 @@ from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
 from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
-from ..services.events import emit
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement

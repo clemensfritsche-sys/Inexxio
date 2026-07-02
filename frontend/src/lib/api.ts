@@ -115,10 +115,6 @@ class ApiClient {
     return this.patch('/api/v1/auth/me', data);
   }
 
-  acceptTerms(): Promise<UserProfile> {
-    return this.post('/api/v1/auth/terms-accept', {});
-  }
-
   // ─── Admin: Users ──────────────────────────────────────────────────────────
 
   getUsers(): Promise<UserProfile[]> {
@@ -151,10 +147,6 @@ class ApiClient {
 
   getErpRecords(): Promise<UserProfile[]> {
     return this.get('/api/v1/erp/records');
-  }
-
-  getErpRecord(objectId: number): Promise<UserProfile> {
-    return this.get(`/api/v1/erp/records/${objectId}`);
   }
 
   updateErpRecord(objectId: number, data: Partial<UserProfile>): Promise<UserProfile> {
@@ -249,11 +241,6 @@ class ApiClient {
 
   setOrderLinePins(objectId: number, lineId: number, data: OrderLinePinsInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/lines/${lineId}`, data);
-  }
-
-  // Ersetzen: neuen Auftrag (Entwurf) anlegen, verknüpfen, Original abbrechen
-  replaceOrder(objectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/replace`, {});
   }
 
   // Abbrechen: erzwingt einen Folgeauftrag (Abweichung); liefert diesen zurück (bzw. bei

@@ -23,7 +23,6 @@ Ersetzen: alter Datensatz inaktiv + **Duplikat als Entwurf** + Verknüpfung
     ``replaced_by_id`` (Nachvollziehbarkeit „was hat was ersetzt").
 """
 
-from fastapi import HTTPException
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 

@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
