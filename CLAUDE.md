@@ -595,6 +595,15 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     reine Kulanz-Gutschrift (Reklamation ohne Rückgabe), defekt→verschrotten+gutschreiben. **Löst nebenbei
     das «Menge reduzieren»-TODO** (Teil-Erstattung statt stiller Mengen-Kürzung). Original-Verkauf zeigt die
     Retoure als Unter-Auftrag (`OrderResponse.returns`). *Bewusst NICHT gebaut: Store-Credit/Guthaben.*
+  - **Kunden-Retoure aus «Meine Bestellungen» (Online-Shop-Logik, `services/customer_returns.py`)**: der
+    Kunde stösst zu einer **abgeschlossenen** Bestellung im **Rückgabefenster** (`RETURN_WINDOW_DAYS=30`)
+    eine Rückgabe an (`POST /shop/orders/{id}/return`, optionaler Grund). Das legt – wie eine ERP-Retoure –
+    einen Retoure-Unter-Auftrag an (verkaufte Instanzen als Subjekt, `parent`=Original-Verkauf) und gleich
+    den üblichen **Ablauf** (Bewegung = Wareneingang + `sale` im Kredit-Modus = Gutschrift); das Personal
+    verarbeitet ihn im ERP (Wareneingang buchen → Gutschrift bestätigen → Stripe-Refund). `CustomerOrder`
+    trägt `returnable`/`return_requested`/`return_deadline`; `orders-list.tsx` zeigt «Retoure anfragen»
+    (mit Frist) bzw. «Retoure angefragt». *Bewusst NICHT gebaut: Rücksende-Label/RMA-Tracking, Teil-
+    Mengen-Auswahl durch den Kunden (Personal passt die Menge im ERP an).*
 - **Pflicht-Versand zum Kunden geht IMMER an den Kunden** (Fix): die auf einen `sale`-Schritt folgende
   Pflicht-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
   Serverseitig erzwungen (`movement.record_movement` überschreibt die Ziel-Eingaben) UND im Embed als festes

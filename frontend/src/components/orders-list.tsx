@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Package, RefreshCw, Loader2 } from 'lucide-react';
+import { Package, RefreshCw, Loader2, Undo2, CheckCircle2 } from 'lucide-react';
 import type { CustomerOrder } from '@/types';
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -34,9 +34,10 @@ function lockedUntil(o: CustomerOrder): string | null {
   return new Date(o.cancellable_from) > new Date() ? o.cancellable_from : null;
 }
 
-export function OrdersList({ orders, onCancel }: {
+export function OrdersList({ orders, onCancel, onReturn }: {
   orders: CustomerOrder[];
   onCancel?: (orderObjectId: number) => Promise<void>;
+  onReturn?: (orderObjectId: number, reason: string | null) => Promise<void>;
 }) {
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -45,6 +46,14 @@ export function OrdersList({ orders, onCancel }: {
     if (!window.confirm('Abo wirklich kündigen? Es wird sofort beendet.')) return;
     setBusyId(o.order_object_id);
     try { await onCancel(o.order_object_id); } finally { setBusyId(null); }
+  }
+
+  async function requestReturn(o: CustomerOrder) {
+    if (!onReturn || !o.order_object_id) return;
+    const reason = window.prompt('Retoure anfragen – Grund (optional):', '');
+    if (reason === null) return;   // abgebrochen
+    setBusyId(o.order_object_id);
+    try { await onReturn(o.order_object_id, reason.trim() || null); } finally { setBusyId(null); }
   }
 
   if (orders.length === 0) {
@@ -97,6 +106,25 @@ export function OrdersList({ orders, onCancel }: {
             })()}
             {o.is_subscription && !o.subscription_active && (
               <div className="mt-2 text-[11px] text-slate-400">Abo gekündigt / nicht aktiv.</div>
+            )}
+            {/* Retoure/Rückgabe (Online-Shop-Logik) – nur für abgeschlossene, retournierbare
+                Bestellungen im Rückgabefenster. Nach der Anfrage: Bestätigung + Frist-Hinweis. */}
+            {!o.is_subscription && o.return_requested && (
+              <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-cyan-700">
+                <CheckCircle2 size={12} /> Retoure angefragt – wird bearbeitet.
+              </div>
+            )}
+            {!o.is_subscription && o.returnable && onReturn && (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                {o.return_deadline && (
+                  <span className="text-[11px] text-slate-400">Rückgabe bis {fmtDate(o.return_deadline)}</span>
+                )}
+                <button onClick={() => requestReturn(o)} disabled={busyId === o.order_object_id}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-cyan-200 text-cyan-700 text-xs font-semibold py-1.5 px-3 hover:bg-cyan-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {busyId === o.order_object_id ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
+                  Retoure anfragen
+                </button>
+              </div>
             )}
           </div>
         );

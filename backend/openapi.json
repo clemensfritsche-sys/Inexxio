@@ -4268,6 +4268,62 @@
         }
       }
     },
+    "/api/v1/shop/orders/{order_object_id}/return": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Request Return",
+        "description": "**Retoure anfragen** zu einer abgeschlossenen Bestellung (Online-Shop-Logik): legt einen\nRetoure-Unter-Auftrag an (verkaufte Instanzen als Subjekt) und gleich den üblichen Ablauf\n(Wareneingang + Gutschrift). Das Personal verarbeitet ihn im ERP; der Kunde sieht den Status.",
+        "operationId": "request_return_api_v1_shop_orders__order_object_id__return_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Order Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopReturnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/shop/portal": {
       "post": {
         "tags": [
@@ -6891,6 +6947,28 @@
               }
             ],
             "title": "Cancellable From"
+          },
+          "returnable": {
+            "type": "boolean",
+            "title": "Returnable",
+            "default": false
+          },
+          "return_requested": {
+            "type": "boolean",
+            "title": "Return Requested",
+            "default": false
+          },
+          "return_deadline": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return Deadline"
           }
         },
         "type": "object",
@@ -10581,6 +10659,24 @@
         ],
         "title": "ShopProduct",
         "description": "Ein publiziertes Produkt im Shop (lokalisierter Inhalt + Preis-Optionen)."
+      },
+      "ShopReturnRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "ShopReturnRequest",
+        "description": "Kunden-Retoure zu einer abgeschlossenen Bestellung (Online-Shop-Logik): optionaler Grund."
       },
       "ShortfallInstance": {
         "properties": {

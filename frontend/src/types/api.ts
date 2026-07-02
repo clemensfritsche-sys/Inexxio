@@ -1301,6 +1301,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shop/orders/{order_object_id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Return
+         * @description **Retoure anfragen** zu einer abgeschlossenen Bestellung (Online-Shop-Logik): legt einen
+         *     Retoure-Unter-Auftrag an (verkaufte Instanzen als Subjekt) und gleich den üblichen Ablauf
+         *     (Wareneingang + Gutschrift). Das Personal verarbeitet ihn im ERP; der Kunde sieht den Status.
+         */
+        post: operations["request_return_api_v1_shop_orders__order_object_id__return_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shop/portal": {
         parameters: {
             query?: never;
@@ -2032,6 +2054,18 @@ export interface components {
             has_subscription_management: boolean;
             /** Cancellable From */
             cancellable_from?: string | null;
+            /**
+             * Returnable
+             * @default false
+             */
+            returnable: boolean;
+            /**
+             * Return Requested
+             * @default false
+             */
+            return_requested: boolean;
+            /** Return Deadline */
+            return_deadline?: string | null;
         };
         /**
          * DeactivateRequest
@@ -3382,6 +3416,14 @@ export interface components {
              * @default []
              */
             prices: components["schemas"]["ShopPriceOption"][];
+        };
+        /**
+         * ShopReturnRequest
+         * @description Kunden-Retoure zu einer abgeschlossenen Bestellung (Online-Shop-Logik): optionaler Grund.
+         */
+        ShopReturnRequest: {
+            /** Reason */
+            reason?: string | null;
         };
         /**
          * ShortfallInstance
@@ -6426,6 +6468,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_return_api_v1_shop_orders__order_object_id__return_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShopReturnRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
