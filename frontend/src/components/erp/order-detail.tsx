@@ -245,8 +245,25 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
     setLinePins(line, ids);
   }
 
-  // «Instanz wählen» verlangt, dass JEDE Position die gewählten Instanzen die Menge GENAU deckt.
-  const specificComplete = goal !== 'specific' || (pinLines.length > 0 && pinLines.every((l) => l.pinnedQty === l.reqQty));
+  // Mehrpositionen-Auftrag: JEDE Position entscheidet SELBST «Aus Lager (FIFO)» oder «Instanz
+  // wählen» – nicht mehr global für alle. Der Modus ist abgeleitet (hat die Position Pins →
+  // specific) mit einem UI-Override, solange noch keine Instanz gewählt ist.
+  const [lineModes, setLineModes] = useState<Record<string, 'fifo' | 'specific'>>({});
+  function lineMode(l: PinLine): 'fifo' | 'specific' {
+    if (l.pinnedIds.length > 0) return 'specific';
+    return lineModes[l.key] ?? 'fifo';
+  }
+  async function setLineMode(l: PinLine, m: 'fifo' | 'specific') {
+    setLineModes((prev) => ({ ...prev, [l.key]: m }));
+    if (m === 'fifo' && l.pinnedIds.length > 0) await setLinePins(l, []);
+  }
+
+  // «Instanz wählen» verlangt, dass die gewählten Instanzen die Menge GENAU decken. Bei einem
+  // Mehrpositionen-Auftrag gilt das je Position, die auf «Instanz» steht (FIFO-Positionen sind
+  // immer ok – eine Fehlmenge deckt später der Nachschub).
+  const specificComplete = isMultiPosition
+    ? pinLines.every((l) => lineMode(l) === 'fifo' || l.pinnedQty === l.reqQty)
+    : (goal !== 'specific' || (pinLines.length > 0 && pinLines.every((l) => l.pinnedQty === l.reqQty)));
   // Unter-Auftrag (Abweichung/Nachschub): Subjekt steht schon fest – Freigabe braucht nur einen
   // definierten Ablauf (mind. einen Schritt, der festlegt, was geschieht / wie nachgeschoben wird).
   const stepCount = orderStepCount ?? (record?.steps?.length ?? 0);
@@ -683,36 +700,30 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung).
             Bei mehreren Positionen scheidet «Herstellen» aus (kein EINER Artikel-Prozess,
             den ein Mehrpositionen-Auftrag fahren könnte) – nur FIFO oder Instanz wählen. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && (
+        {isStaff && record?.status === 'draft' && !isSubOrder && !isMultiPosition && (
           <>
             <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
               <GoalCard icon={Factory} tone="#0f766e" active={goal === 'produce'}
                 disabled={!canProduce}
-                disabledHint={isMultiPosition ? 'Bei mehreren Positionen nicht möglich' : 'Erst die Auftrags-Schritte entfernen'}
+                disabledHint={'Erst die Auftrags-Schritte entfernen'}
                 title="Herstellen / Beschaffen"
-                desc={isMultiPosition
-                  ? 'Nicht möglich bei mehreren Positionen – dafür je Position einen eigenen Auftrag anlegen.'
-                  : `Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
+                desc={`Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
                 footer="Neuer Bestand"
                 onClick={() => pickGoal('produce')} />
               <GoalCard icon={Warehouse} tone="#2563eb" active={goal === 'stock'}
                 disabled={!enoughStock}
-                disabledHint={isMultiPosition ? 'Für mindestens eine Position reicht der Lagerbestand nicht' : (availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`)}
+                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
                 title="Aus dem Lager"
-                desc={isMultiPosition
-                  ? 'Für jede Position werden automatisch die ältesten Stück verarbeitet (FIFO).'
-                  : 'Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO).'}
-                footer={isMultiPosition ? `${pinLines.length} Position${pinLines.length === 1 ? '' : 'en'}` : `Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                desc={'Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO).'}
+                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('stock')} />
               <GoalCard icon={Target} tone="#7c3aed" active={goal === 'specific'}
                 disabled={!enoughStock}
-                disabledHint={isMultiPosition ? 'Für mindestens eine Position reicht der Lagerbestand nicht' : (availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`)}
+                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
                 title="Instanz wählen"
-                desc={isMultiPosition
-                  ? 'Für jede Position genau festlegen, welche Instanzen verarbeitet werden.'
-                  : 'Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung).'}
-                footer={isMultiPosition ? `${pinLines.length} Position${pinLines.length === 1 ? '' : 'en'}` : `Lager: ${availableQty} ${qtyUnit} verfügbar`}
+                desc={'Genau wählen, welche Instanzen verarbeitet werden (z. B. Reparatur, Abweichung).'}
+                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
                 onClick={() => pickGoal('specific')} />
             </div>
 
@@ -728,68 +739,71 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               </div>
             ) : (
               <>
-                {/* «Instanz wählen»: Instanzen direkt hier wählen – je Position (bei mehreren
-                    Artikeln) genau deren Menge. */}
                 {goal === 'specific' && (
                   <>
                     <SectionTitle icon={Boxes}>Instanzen wählen</SectionTitle>
-                    {pinLines.map((line) => {
-                      const lineInfo = orderLines.find((l) => l.id === line.lineId);
-                      return (
-                        <div key={line.key} style={cardStyle}>
-                          {isMultiPosition && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
-                              {lineInfo?.article_object_id != null && <ObjId value={lineInfo.article_object_id} />}
-                              {lineInfo?.article_name ?? `Artikel #${line.articleId}`}
-                            </div>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                            <span style={{ fontSize: 12, color: '#64748b' }}>Genau {line.reqQty} {line.unit} wählen:</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? '#16a34a' : '#d97706' }}>
-                              {line.pinnedQty} / {line.reqQty} gewählt
-                            </span>
-                          </div>
-                          {line.pool.length === 0 ? (
-                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verfügbaren Instanzen.</div>
-                          ) : (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {line.pool.map((i) => {
-                                const sel = line.pinnedIds.includes(i.object_id!);
-                                const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
-                                return (
-                                  <button key={i.object_id} type="button" disabled={atLimit}
-                                    onClick={() => togglePin(line, i.object_id!)}
-                                    style={{
-                                      display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                                      padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
-                                      border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
-                                      background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
-                                      opacity: atLimit ? 0.4 : 1,
-                                    }}>
-                                    {sel && <CheckCircle2 size={12} />}
-                                    {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    {pinLines.map((line) => <PinPicker key={line.key} line={line} showArticle={false} onToggle={togglePin} />)}
                   </>
                 )}
-
                 <SectionTitle icon={Workflow} info={goal === 'specific'
                   ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
-                  : isMultiPosition
-                    ? 'Schritte definieren, was mit den Positionen ab Lager geschieht – je Artikel die ältesten zuerst (FIFO).'
-                    : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
+                  : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
                   <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
                     selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
                 </div>
               </>
             )}
+          </>
+        )}
+
+        {/* Mehrpositionen-Auftrag: JE POSITION entscheiden – aus dem Lager (FIFO) oder
+            bestimmte Instanzen wählen. «Herstellen» scheidet aus (kein EINER Artikel-Prozess).
+            Flexibler als der frühere globale Modus, gleiche Optik wie die Einzel-Auswahl. */}
+        {isStaff && record?.status === 'draft' && !isSubOrder && isMultiPosition && (
+          <>
+            <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5, marginBottom: 8 }}>
+              Mehrere Positionen – <strong style={{ color: '#0f172a' }}>je Position</strong> wählen:
+              aus dem Lager (FIFO) oder bestimmte Instanzen. «Herstellen» ist hier nicht möglich
+              (dafür je Artikel einen eigenen Auftrag anlegen).
+            </div>
+            {pinLines.map((line) => {
+              const lineInfo = orderLines.find((l) => l.id === line.lineId);
+              const mode = lineMode(line);
+              return (
+                <div key={line.key} style={{ ...cardStyle, gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
+                    {lineInfo?.article_object_id != null && <ObjId value={lineInfo.article_object_id} />}
+                    <span style={{ flex: 1 }}>{lineInfo?.article_name ?? `Artikel #${line.articleId}`}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>{line.reqQty} {line.unit}</span>
+                  </div>
+                  {/* Segmentierter Umschalter FIFO / Instanz wählen */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <SegBtn active={mode === 'fifo'} icon={Warehouse} tone="#2563eb"
+                      label="Aus dem Lager (FIFO)" onClick={() => setLineMode(line, 'fifo')} />
+                    <SegBtn active={mode === 'specific'} icon={Target} tone="#7c3aed"
+                      label="Instanz wählen" onClick={() => setLineMode(line, 'specific')} />
+                  </div>
+                  {mode === 'fifo' ? (
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      Die ältesten {line.reqQty} {line.unit} werden automatisch verarbeitet (FIFO).
+                      {line.availableQty < line.reqQty && (
+                        <span style={{ color: '#d97706' }}> · nur {line.availableQty} am Lager – Fehlmenge deckt der Nachschub.</span>
+                      )}
+                    </div>
+                  ) : (
+                    <PinPicker line={line} showArticle={false} onToggle={togglePin} bare />
+                  )}
+                </div>
+              );
+            })}
+            <SectionTitle icon={Workflow}
+              info="Schritte definieren, was mit den Positionen geschieht (bewegen, verkaufen, prüfen …).">Ablauf</SectionTitle>
+            <div style={cardStyle}>
+              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+                selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
+            </div>
           </>
         )}
 
@@ -1191,6 +1205,67 @@ function Row({ k, v }: { k: string; v: string }) {
       <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
   );
+}
+
+// Segmentierter Umschalter (eine Option je Position: FIFO / Instanz wählen).
+function SegBtn({ active, icon: Icon, tone, label, onClick }: {
+  active: boolean; icon: React.ElementType; tone: string; label: string; onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{
+        flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+        fontSize: 12, fontWeight: 600, padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+        border: `1.5px solid ${active ? tone : '#E2E8F0'}`,
+        background: active ? `${tone}14` : '#fff', color: active ? tone : '#475569',
+      }}>
+      <Icon size={14} /> {label}
+    </button>
+  );
+}
+
+// Instanz-Auswahl (Chips) für EINE Position – geteilt von Einzel-Artikel- und
+// Mehrpositionen-Auftrag (dieselbe Optik). ``bare`` lässt den äusseren Karten-Rahmen weg
+// (die Position bringt ihn schon mit).
+function PinPicker({ line, showArticle, onToggle, bare }: {
+  line: PinLine; showArticle: boolean; onToggle: (line: PinLine, oid: number) => void; bare?: boolean;
+}) {
+  const body = (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 12, color: '#64748b' }}>Genau {line.reqQty} {line.unit} wählen:</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? '#16a34a' : '#d97706' }}>
+          {line.pinnedQty} / {line.reqQty} gewählt
+        </span>
+      </div>
+      {line.pool.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine verfügbaren Instanzen.</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {line.pool.map((i) => {
+            const sel = line.pinnedIds.includes(i.object_id!);
+            const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
+            return (
+              <button key={i.object_id} type="button" disabled={atLimit}
+                onClick={() => onToggle(line, i.object_id!)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
+                  padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
+                  border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
+                  background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                  opacity: atLimit ? 0.4 : 1,
+                }}>
+                {sel && <CheckCircle2 size={12} />}
+                {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+  if (bare) return <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{body}</div>;
+  return <div style={cardStyle}>{body}</div>;
 }
 
 // Positionen eines Mehrpositionen-Auftrags – der Bedarf steht dann hier statt in den

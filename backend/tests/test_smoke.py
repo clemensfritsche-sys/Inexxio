@@ -2018,3 +2018,51 @@ def test_all_step_endpoints_reject_execution_while_paused():
     for fn in (orders.update_order_movement, orders.update_order_inspection, orders.update_order_resource,
                orders.update_order_sale, orders.update_order_purchase, orders.update_order_scrap):
         assert "_assert_not_paused" in _inspect.getsource(fn), f"{fn.__name__} prüft die Pause nicht"
+
+
+def test_sale_is_a_subject_step_that_blocks_on_shortfall():
+    """Regression: ein Verkaufsauftrag muss auf eine ausgesteuerte/fehlende Fertigware
+    REAGIEREN – «sale» ist ein Subjekt-Schritt und blockiert bei Unterdeckung (vorher fiel
+    er durch, weil er weder Subjekt- noch Komponenten-Zweig traf → keine Reaktion)."""
+    import inspect as _inspect
+    from app.services import process
+
+    assert "sale" in process.SUBJECT_STEP_TYPES
+    src = _inspect.getsource(process.step_shortfalls)
+    assert "SUBJECT_STEP_TYPES" in src
+
+
+def test_sale_price_refreshes_from_article_when_added_after_release():
+    """Regression: ein nachträglich hinterlegter Einmalpreis zieht am Verkauf nach – die
+    Bestätigung holt ihn frisch (``_prefill_price``), sonst bliebe ein Mehrpositionen-Verkauf
+    ohne editierbaren Betrag ewig stecken."""
+    import inspect as _inspect
+    from app.services import sale
+
+    src = _inspect.getsource(sale._apply_transition)
+    assert "_prefill_price" in src
+
+
+def test_scrap_supports_partial_batch_quantity():
+    """Verschrotten erlaubt eine Teilmenge einer Charge (analog Ressourcen-Teilentnahme):
+    nur die Menge sinkt, die Instanz bleibt (keine Teilung); volle Menge → scrapped."""
+    import inspect as _inspect
+    from app.schemas.disposal import ScrapItem, ScrapUpdate
+    from app.services import reservation, scrap
+
+    assert "quantity" in ScrapItem.model_fields
+    assert "items" in ScrapUpdate.model_fields
+    assert hasattr(reservation, "reduce_quantity")
+    src = _inspect.getsource(scrap.record_scrap)
+    assert "reduce_quantity" in src and "release_all" in src
+
+
+def test_removing_a_line_folds_back_to_single_article_order():
+    """Sinkt ein Mehrpositionen-Auftrag beim Löschen auf EINE Position, wird er wieder ein
+    gewöhnlicher Einzel-Artikel-Auftrag (article_id/quantity zurück) – so aktualisieren sich
+    die Ziel-Karten (Herstellen wieder möglich, kein stock-Zwang)."""
+    import inspect as _inspect
+    from app.routers import orders
+
+    src = _inspect.getsource(orders.remove_order_line)
+    assert "order.article_id = anchor.article_id" in src

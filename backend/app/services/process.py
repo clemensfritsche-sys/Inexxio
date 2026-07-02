@@ -376,14 +376,21 @@ def _component_needs(db: Session, order: Order) -> dict[int, int]:
     return needs
 
 
+SUBJECT_STEP_TYPES = ("movement", "inspection", "scrap", "sale")
+
+
 def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, int]:
     """Fehlmengen, die genau diesen Schritt **blockieren** ({article_id: qty}); leer = frei.
 
-    movement/inspection/scrap → brauchen das **Subjekt** (nur stock-Auftrag hat Fehlmenge);
+    sale/movement/inspection/scrap → brauchen das **Subjekt** (Fertigware): fehlt es (z. B.
+    weil eine reservierte Instanz per Abweichung ausgesteuert wurde ODER ein Erzeugungsauftrag
+    Ausschuss hatte), blockiert der Schritt. **Auch «Verkauf»** ist ein Subjekt-Schritt – man
+    kann nicht verkaufen, was nicht (mehr) gesichert ist; sonst reagierte ein Verkaufsauftrag
+    nicht, wenn sein Bestand ausgesteuert wird.
     resource(consume) → braucht seine **Komponenten** (need − verfügbar; verfügbar = frei am
     Lager + für diesen Auftrag reserviert)."""
     out: dict[int, int] = {}
-    if step.step_type in ("movement", "inspection", "scrap"):
+    if step.step_type in SUBJECT_STEP_TYPES:
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
         from .order_lines import effective_quantity

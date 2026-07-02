@@ -123,9 +123,15 @@ export interface MovementUpdateInput {
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
-// Verschrotten: die zu verschrottenden Instanzen (per Objektnummer) + optionale Notiz.
+// Verschrotten: zu verschrottende Instanzen + optionale Notiz. ``items`` erlaubt je Instanz
+// eine Teilmenge (Charge teilverschrotten); ``instance_ids`` bleibt die Kurzform (ganze Instanz).
+export interface ScrapItemInput {
+  instance_id: number;
+  quantity?: number | null;   // weglassen = ganze (Rest-)Menge
+}
 export interface ScrapUpdateInput {
-  instance_ids: number[];
+  instance_ids?: number[];
+  items?: ScrapItemInput[];
   note?: string | null;
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }

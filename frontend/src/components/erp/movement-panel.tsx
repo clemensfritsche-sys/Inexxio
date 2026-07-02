@@ -34,6 +34,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [targets, setTargets] = useState<Record<number, string>>({});   // instanceObjId → "type:id"
+  const [listsReady, setListsReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,11 +46,17 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
         if (sl.status === 'fulfilled') setStorageLocs(sl.value);
         if (us.status === 'fulfilled') setUsers(us.value);
         if (inst.status === 'fulfilled') setAllInstances(inst.value);
+        setListsReady(true);
       });
   }, [stepState, done]);
 
   const fixedType = mv?.target_location_type as LocationType | null | undefined;
   const fixedId = mv?.target_location_id ?? null;
+  // Ohne festen Zielort braucht der Zielort-Scan die Auswahllisten (Lagerplätze/Personen/
+  // Instanzen). Sind sie noch nicht geladen, hätte der letzte Scan-Schritt KEINE Kandidaten
+  // → er zeigte nichts an. Darum den Scan erst freigeben, wenn die Listen bereit sind
+  // (bei festem Zielort sofort – der kommt aus dem Schritt selbst).
+  const scanReady = (!!fixedType && !!fixedId) || listsReady;
   const ownObjIds = useMemo(() => new Set(instances.map((i) => i.object_id)), [instances]);
 
   // Gültige Zielorte (für freie Zielwahl): Lagerplätze, Personen, andere Instanzen.
@@ -210,8 +217,9 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
               ) : (
                 <CurrentLocation instance={i} />
               )}
-              <button onClick={() => startScan(i)} title="Diese Instanz scannen"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#2563eb', cursor: 'pointer', flexShrink: 0 }}>
+              <button onClick={() => startScan(i)} disabled={!scanReady}
+                title={scanReady ? 'Diese Instanz scannen' : 'Zielorte werden geladen…'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: scanReady ? '#2563eb' : '#cbd5e1', cursor: scanReady ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
                 <ScanLine size={15} />
               </button>
             </div>
@@ -226,8 +234,8 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
           {saving ? 'Speichert…' : 'Bewegung buchen'}
         </PrimaryButton>
       ) : (
-        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving}>
-          Scannen &amp; bewegen
+        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving || !scanReady}>
+          {scanReady ? 'Scannen & bewegen' : 'Lädt Zielorte…'}
         </PrimaryButton>
       )}
     </div>

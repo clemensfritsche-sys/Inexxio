@@ -56,6 +56,28 @@ def release_all(inst: Instance) -> None:
     inst.reserved_for_order_id = None
 
 
+def reduce_quantity(inst: Instance, cut: int) -> int:
+    """Die Gesamtmenge einer (Chargen-)Instanz um ``cut`` senken (Teil-Verschrottung) – die
+    Objektnummer bleibt, es entsteht KEINE neue Instanz. Übersteigen die Reservierungen danach
+    die Restmenge, werden sie (grösste zuerst) heruntergetrimmt – die betroffenen Aufträge
+    sehen dadurch **ehrlich** eine Fehlmenge (Recovery). Liefert die tatsächlich entfernte Menge."""
+    cut = max(0, min(cut, inst.quantity or 0))
+    if cut <= 0:
+        return 0
+    inst.quantity = (inst.quantity or 0) - cut
+    m = dict(inst.reservations or {})
+    while m and sum(int(v) for v in m.values()) > inst.quantity:
+        k = max(m, key=lambda x: int(m[x]))
+        over = sum(int(v) for v in m.values()) - inst.quantity
+        m[k] = int(m[k]) - over
+        if m[k] <= 0:
+            del m[k]
+    inst.reservations = m
+    inst.reserved_quantity = sum(int(v) for v in m.values())
+    inst.reserved_for_order_id = next((int(k) for k in m), None) if len(m) == 1 else None
+    return cut
+
+
 def consume(inst: Instance, order_id: int, qty: int) -> None:
     """``qty`` aus der Instanz **verbrauchen**: Gesamtmenge mindern und die Reservierung
     des Auftrags entsprechend reduzieren (die entnommenen Stück sind über die Fachtabelle

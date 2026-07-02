@@ -326,6 +326,23 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Backend lehnte die Ausführung schon immer via `_assert_not_paused` an ALLEN sechs Schritt-Endpunkten
     mit 409 ab – die Lücke war rein visuell). Ganz-Auftrag-Pause ist fachlich korrekt: eine Sendung mit
     offener Abweichung darf nicht teil-versendet werden, bevor klar ist, ob ein Stück ausgesteuert wird.
+  - **Praxistest-Nachbesserungen (Runde 2)**: (1) **«Verkauf» ist ein Subjekt-Schritt**
+    (`process.SUBJECT_STEP_TYPES`) – ein Verkaufsauftrag blockiert jetzt bei Unterdeckung (vorher traf
+    `sale` weder Subjekt- noch Komponenten-Zweig → reagierte NICHT, wenn sein Bestand per Abweichung
+    ausgesteuert wurde). (2) **Verkaufspreis zieht nachträglich nach**: wird der (Einmalkauf-)Preis erst
+    NACH der Freigabe am Artikel hinterlegt, zeigt das Sale-Embed den ableitbaren Betrag (Panel nicht mehr
+    blockiert) und die Bestätigung holt ihn frisch (`sale._apply_transition` → `_prefill_price`) – sonst
+    blieb ein Mehrpositionen-Verkauf ohne editierbaren Betrag stecken. (3) **Charge teilverschrotten**
+    (`ScrapUpdate.items` mit `quantity`, `reservation.reduce_quantity`): analog zur Ressourcen-Teilentnahme
+    sinkt nur die Menge (keine Teilung/neue Nummer); überschüssige Reservierungen werden getrimmt (Recovery).
+    (4) **Mehrpositionen-Auftrag: je Position FIFO ODER Instanz wählen** (nicht mehr global) – segmentierter
+    Umschalter je Position (`order-detail.tsx: lineMode`/`PinPicker`/`SegBtn`); ein Auftrag mischt Positionen
+    frei. (5) **Position löschen faltet auf Einzel-Artikel zurück**: sinkt ein Mehrpositionen-Auftrag auf
+    EINE Position, wird `article_id`/`quantity` zurückgesetzt (`orders.remove_order_line`) – die Ziel-Karten
+    aktualisieren sich (Herstellen wieder möglich). (6) **Bewegen-Scan wartet auf die Zielort-Listen**: der
+    freie Zielort-Scan wird erst freigegeben, wenn Lagerplätze/Personen/Instanzen geladen sind
+    (`movement-panel.tsx: scanReady`) – vorher konnte der letzte Scan-Schritt ohne Kandidaten „nichts
+    anzeigen", bis man ihn per Einzel-Scan erneut auslöste.
 - **ERP-UX-Konventionen**: Detailfenster speichern per **Auto-Save** (debounced, Enter löst sofort aus,
   grüner Rahmen-Flash; kein Speichern-Knopf – `lib/use-autosave.ts`). Referenz-Auswahlfelder sind
   durchsuchbar (`SearchSelect`, Suche auch per Objektnummer-Teilstring). Referenzierte **Objektnummern

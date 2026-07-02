@@ -156,6 +156,16 @@ def _sale_embed(db: Session, order: Order, sale: Sale | None) -> SaleEmbed:
         if art:
             se.article_object_id = art.object_id
             se.article_name = art.name
+    # Fehlte der Preis bei der Freigabe (Artikel noch ohne Preis) und wurde er NACHTRÄGLICH
+    # hinterlegt, zeigt das Embed den ableitbaren Betrag als Vorschau – so ist der Verkauf im
+    # Panel nicht mehr blockiert (die Bestätigung zieht ihn dann fest, siehe sale._apply_transition).
+    if sale and sale.order_total is None and art_id and sale.status not in ("paid", "cancelled"):
+        from .sale import price_from_article
+        view = price_from_article(db, art_id, sale.quantity)
+        if view:
+            se.order_total = view["order_total"]
+            se.vat_rate = view["vat_rate"]
+            se.currency = view["currency"]
     return se
 
 
