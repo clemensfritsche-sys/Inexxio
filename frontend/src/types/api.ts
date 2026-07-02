@@ -751,29 +751,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/reduce": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reduce Demand
-         * @description «Menge reduzieren»: die Anforderung eines Auftrags auf das tatsächlich Vorhandene
-         *     senken (offene Subjekt-Fehlmenge wird abgezogen). Der blockierte Schritt läuft danach
-         *     mit weniger Stück weiter. Bleibt nichts zu liefern, wird abgelehnt (dann «Abbrechen»).
-         *     Liefert den Auftrag zurück.
-         */
-        post: operations["reduce_demand_api_v1_erp_orders__object_id__reduce_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders/{object_id}/purchase": {
         parameters: {
             query?: never;
@@ -5327,37 +5304,6 @@ export interface operations {
                 "application/json": components["schemas"]["OrderCoverStock"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reduce_demand_api_v1_erp_orders__object_id__reduce_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

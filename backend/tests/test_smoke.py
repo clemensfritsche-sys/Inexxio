@@ -1947,36 +1947,49 @@ def test_scrap_releases_all_reservations_of_the_instance():
     assert "release(inst, order.id)" not in src   # alter, undichter Aufruf ist ersetzt
 
 
-def test_recovery_offers_three_ways_to_close_a_subject_shortfall():
-    """Nach einer Aussteuerung stehen drei vom Nutzer wählbare Wege bereit, den Subjekt-
-    Bedarf zu decken: aus Lager decken (FIFO oder gezielte Instanz), Menge reduzieren –
-    plus der bestehende Nachschub (produzieren)."""
+def test_recovery_offers_two_ways_to_close_a_subject_shortfall():
+    """Nach einer Aussteuerung/Unterdeckung stehen ZWEI vom Nutzer wählbare Wege bereit:
+    (1) aus Lager decken (FIFO ODER – als Unterkategorie – gezielte Instanz) und
+    (2) der bestehende Nachschub (produzieren/beschaffen). «Menge reduzieren» ist BEWUSST
+    NICHT gebaut (erst gebündelt mit einer Stripe-Gutschrift)."""
     import inspect as _inspect
     from app.services import process, recovery
 
     assert hasattr(process, "subject_shortfalls")
-
     cover = _inspect.getsource(recovery.cover_from_stock)
-    assert "instance_object_ids" in cover           # gezielte Instanz-Auswahl
+    assert "instance_object_ids" in cover           # gezielte Instanz-Auswahl (Unterkategorie)
     assert "fifo_candidates" in _inspect.getsource(recovery._fifo_cover)   # FIFO ab freiem Lager
-
-    reduce = _inspect.getsource(recovery.reduce_to_available)
-    assert "order.quantity" in reduce               # Einzel-Artikel: Menge senken
-    assert "lines_for" in reduce                     # Mehrpositionen: Positionsmenge senken
+    # «Menge reduzieren» ist entfernt (kommt erst mit Stripe-Gutschrift)
+    assert not hasattr(recovery, "reduce_to_available")
 
 
-def test_recovery_endpoints_are_wired_and_staff_gated():
-    """Die Wege sind über eigene, freigegeben-gescopte Endpunkte erreichbar."""
+def test_recovery_endpoint_is_wired_and_staff_gated():
+    """Der Deckungs-Weg ist über einen freigegeben-gescopten Endpunkt erreichbar; der
+    entfernte «reduce»-Endpunkt existiert NICHT mehr."""
     import inspect as _inspect
     from app.routers import orders
 
     cover = _inspect.getsource(orders.cover_stock)
     assert "recovery.cover_from_stock" in cover
     assert 'order.status != "released"' in cover
+    assert not hasattr(orders, "reduce_demand")
 
-    reduce = _inspect.getsource(orders.reduce_demand)
-    assert "recovery.reduce_to_available" in reduce
-    assert 'order.status != "released"' in reduce
+
+def test_subject_shortfall_is_one_formula_for_all_order_kinds():
+    """EINE Fehlmengen-Formel für ALLE Auftragsarten (kein subject_kind-Sonderpfad): ein
+    Erzeugungsauftrag meldet Ausschuss (Soll − erzeugte gute Instanzen) GENAU wie ein
+    Bestands-Auftrag eine ausgesteuerte Reservierung. Nur die Abweichung ist ausgenommen."""
+    import inspect as _inspect
+    from app.services import process
+
+    src = _inspect.getsource(process._subject_shortfalls)
+    assert 'subject_kind(db, order) != "stock"' not in src   # kein Stock-only-Sonderpfad mehr
+    assert "is_deviation(order)" in src                        # nur die Abweichung ausgenommen
+    assert "Instance.order_id == order.id" in src             # zählt selbst erzeugte gute Instanzen
+    assert "reservations.has_key" in src                       # + reservierte Bestands-Subjekte
+    # Nachschub-Pegging kennt das Subjekt eines Erzeugungsauftrags (nicht nur stock):
+    peg = _inspect.getsource(process._peg_supply_to_parent)
+    assert 'subject_kind(db, parent) == "stock"' not in peg
 
 
 def test_step_shortfall_exposes_stock_availability_for_recovery():
