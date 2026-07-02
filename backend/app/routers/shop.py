@@ -179,7 +179,6 @@ async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db
                               user: UserProfile = Depends(get_current_user)):
     """Abo **on-site** kündigen. Kündigt zuerst beim Zahlungs-Provider (Stripe) und spiegelt
     erst danach lokal – scheitert der Provider-Call, bleibt das Abo aktiv (sauberer Fehler)."""
-    from ..models import Order
     order = db.query(Order).filter(Order.object_id == order_object_id, Order.is_active == True).first()
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")

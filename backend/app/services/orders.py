@@ -26,7 +26,7 @@ from ..schemas.sale import SaleEmbed
 from . import process
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
-from .locations import location_label, physical_location_label
+from .locations import location_label, location_labels, physical_location_labels
 from .resource import build_resource_embed
 from .subject import order_instances, subject_kind
 
@@ -331,13 +331,17 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.recurrence_due = recurrence_due(order)
 
     # Subjekt-Instanzen: worauf der Auftrag wirkt (MAKE: erzeugt | CUSTOM: ausgewählt).
+    # Standort-Labels **batch** auflösen (statt einem Query je Instanz, N+1).
     instances = order_instances(db, order)
+    loc_keys = [(i.location_type, i.location_id) for i in instances]
+    loc_labels = location_labels(db, loc_keys)
+    phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
     instance_embeds: list[InstanceEmbed] = []
     for i in instances:
         emb = InstanceEmbed.model_validate(i)
-        emb.location_label = location_label(db, i.location_type, i.location_id)
+        emb.location_label = loc_labels.get((i.location_type, i.location_id))
         if i.location_type == "instance":
-            emb.physical_location_label = physical_location_label(db, i.location_type, i.location_id)
+            emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
         instance_embeds.append(emb)
     resp.instances = instance_embeds
 

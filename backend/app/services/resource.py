@@ -19,7 +19,6 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import Article, ArticleProcessStep, Instance, Order, ResourceUsage, UserProfile
-from ..models.base import utcnow
 from ..schemas.resource import (
     ResourceCandidate, ResourceComponentPick, ResourceEmbed, ResourceLineExec,
     ResourcePlanItem, ResourceProductPlan,
@@ -28,8 +27,8 @@ from . import process
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
-from .locations import _obj_nr, location_label, resolve_physical_location
-from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
+from .locations import _obj_nr, resolve_physical_location
+from .reservation import consume as consume_qty, free_qty, release, reserve
 from .subject import order_active_instances
 
 

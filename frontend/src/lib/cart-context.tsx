@@ -46,16 +46,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); } catch { /* ignore */ }
   }, [items, hydrated]);
 
+  // FIX: Das Ergebnis wurde bisher INNERHALB des setItems-Updaters gesetzt und danach
+  // zurückgegeben – React garantiert aber nicht, dass der Updater synchron läuft (nur eine
+  // Eager-Evaluation-Optimierung liess es meist funktionieren). Bei ausstehenden Updates wäre
+  // die Abo-Ablehnung («Abos werden einzeln gekauft») verloren gegangen. Die Prüfung läuft
+  // jetzt VOR setItems gegen den aktuellen State (useCallback-Dep auf items).
   const add = useCallback((item: CartItem): { ok: boolean; reason?: string } => {
     const isSub = item.kind === 'subscription';
-    let result: { ok: boolean; reason?: string } = { ok: true };
+    const hasSub = items.some((p) => p.kind === 'subscription');
+    // Abos werden einzeln gekauft: weder Abo zu vollem Korb, noch etwas zu einem Abo.
+    if ((isSub && items.length > 0) || (!isSub && hasSub)) {
+      return { ok: false, reason: 'Abos werden einzeln gekauft – bitte separat zur Kasse gehen.' };
+    }
     setItems((prev) => {
-      const hasSub = prev.some((p) => p.kind === 'subscription');
-      // Abos werden einzeln gekauft: weder Abo zu vollem Korb, noch etwas zu einem Abo.
-      if ((isSub && prev.length > 0) || (!isSub && hasSub)) {
-        result = { ok: false, reason: 'Abos werden einzeln gekauft – bitte separat zur Kasse gehen.' };
-        return prev;
-      }
       const k = keyOf(item);
       const existing = prev.find((p) => keyOf(p) === k);
       if (existing) {
@@ -65,8 +68,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return [...prev, { ...item, quantity: isSub ? 1 : item.quantity }];
     });
-    return result;
-  }, []);
+    return { ok: true };
+  }, [items]);
 
   const setQuantity = useCallback((key: string, quantity: number) => {
     setItems((prev) => prev.map((p) => keyOf(p) === key

@@ -10,8 +10,6 @@ export const ARTICLE_STATUS: Record<ArticleStatus, StatusCfg> = {
   inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9', icon: Ban },
 };
 
-export const ARTICLE_STATUS_ORDER: ArticleStatus[] = ['draft', 'released', 'inactive'];
-
 export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'Stk', label: 'Stk.' },
   { value: 'mm',  label: 'mm' },

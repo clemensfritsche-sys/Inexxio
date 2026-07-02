@@ -10,10 +10,6 @@ export const PURCHASE_STATUS: Record<PurchaseOrderStatus, StatusCfg> = {
   received:  { label: 'Geliefert',    color: '#0f766e', bg: '#f0fdfa', icon: PackageCheck },
 };
 
-export const PURCHASE_STATUS_ORDER: PurchaseOrderStatus[] = [
-  'requested', 'quoted', 'ordered', 'received', 'rejected',
-];
-
 export function purchaseStatusConfig(status: string): StatusCfg {
   return PURCHASE_STATUS[status as PurchaseOrderStatus] ?? PURCHASE_STATUS.requested;
 }

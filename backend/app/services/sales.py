@@ -662,12 +662,22 @@ def list_customer_orders(db: Session, customer_id: int) -> list[dict]:
         .order_by(Sale.id.desc())
         .all()
     )
+    # Auftrag + Artikel **batch** laden (statt zwei Queries je Beleg, N+1) – der ERP-Reiter
+    # «Bestellungen» und «Meine Bestellungen» rufen dies für die ganze Historie eines Kunden.
+    orders_by_id = {
+        o.id: o for o in db.query(Order).filter(
+            Order.id.in_({s.order_id for s in sales})).all()
+    } if sales else {}
+    art_ids = {s.article_id for s in sales if s.article_id}
+    arts_by_id = {
+        a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()
+    } if art_ids else {}
     out: list[dict] = []
     for s in sales:
-        order = db.query(Order).filter(Order.id == s.order_id).first()
+        order = orders_by_id.get(s.order_id)
         if not order or not order.is_active:
             continue
-        article = db.query(Article).filter(Article.id == s.article_id).first()
+        article = arts_by_id.get(s.article_id)
         # Bruttobetrag: real bezahlter Snapshot (order_total netto + MWST) sonst CHF-Basis.
         gross = None
         currency = s.currency or "CHF"

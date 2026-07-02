@@ -34,10 +34,6 @@ export function instanceLabel(
   return 'Instanz';
 }
 
-export function stepLabel(type: string): string {
-  return STEP_META[type as StepType]?.label ?? type;
-}
-
 // Deklarierte Subjekt-Rolle je Schritttyp – **Spiegel** der Backend-Registry
 // (`app/domain/event_types.py`). Ein Schritt, der Bestand HEREINBRINGT (Beschaffung/
 // Ressource), ist «produce»; ein Zugriff auf vorhandenen Bestand (Verkauf) «stock»,

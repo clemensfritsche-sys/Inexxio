@@ -8,8 +8,6 @@ export const STORAGE_STATUS: Record<StorageLocationStatus, StatusCfg> = {
   inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9', icon: Ban },
 };
 
-export const STORAGE_STATUS_ORDER: StorageLocationStatus[] = ['draft', 'released', 'inactive'];
-
 export function storageStatusConfig(status: string): StatusCfg {
   return STORAGE_STATUS[status as StorageLocationStatus] ?? STORAGE_STATUS.draft;
 }
@@ -22,8 +20,3 @@ export const STORAGE_TYPES: { value: StorageLocationType; label: string }[] = [
   { value: 'picking',  label: 'Kommissionierzone' },
   { value: 'external', label: 'Aussenlager' },
 ];
-
-export function storageTypeLabel(value: string | null | undefined): string {
-  if (!value) return '—';
-  return STORAGE_TYPES.find((t) => t.value === value)?.label ?? value;
-}
