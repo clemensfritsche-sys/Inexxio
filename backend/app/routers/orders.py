@@ -265,6 +265,17 @@ async def remove_order_line(
     ).all():
         inst.subject_of_order_id = None
     line.is_active = False
+    db.flush()
+    # Bleibt nur noch EINE Position, wird der Auftrag wieder ein gewöhnlicher Einzel-Artikel-
+    # Auftrag (symmetrisch zur ersten Zusatz-Position, die den Anker in eine Position umwandelt):
+    # ``article_id``/``quantity`` zurück an den Auftrag, die verbleibende Position auflösen. So
+    # aktualisieren sich die Ziel-Karten korrekt (Herstellen wieder möglich, kein `stock`-Zwang).
+    left = order_lines_svc.lines_for(db, order)
+    if len(left) == 1:
+        anchor = left[0]
+        order.article_id = anchor.article_id
+        order.quantity = anchor.quantity
+        anchor.is_active = False   # gepinnte Instanzen bleiben (subject_of_order_id = order.id)
     log_audit(db, "orders", None, "Position entfernt", current_user.id, object_id=order.object_id)
     db.commit()
     db.refresh(order)

@@ -3228,9 +3228,24 @@ export interface components {
             step_id?: number | null;
         };
         /**
+         * ScrapItem
+         * @description Eine zu verschrottende Instanz mit optionaler **Teilmenge** (Charge): ``quantity``
+         *     weglassen = die ganze (Rest-)Menge der Instanz. Analog zum Ressourcenmodell, das eine
+         *     Charge teilentnimmt (keine Teilung/keine neue Objektnummer – nur die Menge sinkt).
+         */
+        ScrapItem: {
+            /** Instance Id */
+            instance_id: number;
+            /** Quantity */
+            quantity?: number | null;
+        };
+        /**
          * ScrapUpdate
-         * @description Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen (per
-         *     Objektnummer) + optionale Notiz/Grund. Mindestens eine Instanz.
+         * @description Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen + optionale
+         *     Notiz/Grund. Mindestens eine Instanz.
+         *
+         *     ``items`` erlaubt je Instanz eine **Teilmenge** (Charge teilverschrotten); ``instance_ids``
+         *     bleibt die Kurzform «ganze Instanz(en)» (beide Wege werden gemischt zusammengeführt).
          */
         ScrapUpdate: {
             /**
@@ -3238,6 +3253,11 @@ export interface components {
              * @default []
              */
             instance_ids: number[];
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["ScrapItem"][];
             /** Note */
             note?: string | null;
             /** Step Id */

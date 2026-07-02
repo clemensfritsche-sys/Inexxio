@@ -10217,6 +10217,31 @@
         "title": "SaleUpdate",
         "description": "Statusübergänge & Feldeingaben des Verkaufsschritts (kaufmännisch).\n\nEIN Verkaufsbetrag (netto); der Stückpreis wird berechnet (read-only)."
       },
+      "ScrapItem": {
+        "properties": {
+          "instance_id": {
+            "type": "integer",
+            "title": "Instance Id"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instance_id"
+        ],
+        "title": "ScrapItem",
+        "description": "Eine zu verschrottende Instanz mit optionaler **Teilmenge** (Charge): ``quantity``\nweglassen = die ganze (Rest-)Menge der Instanz. Analog zum Ressourcenmodell, das eine\nCharge teilentnimmt (keine Teilung/keine neue Objektnummer – nur die Menge sinkt)."
+      },
       "ScrapUpdate": {
         "properties": {
           "instance_ids": {
@@ -10225,6 +10250,14 @@
             },
             "type": "array",
             "title": "Instance Ids",
+            "default": []
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScrapItem"
+            },
+            "type": "array",
+            "title": "Items",
             "default": []
           },
           "note": {
@@ -10252,7 +10285,7 @@
         },
         "type": "object",
         "title": "ScrapUpdate",
-        "description": "Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen (per\nObjektnummer) + optionale Notiz/Grund. Mindestens eine Instanz."
+        "description": "Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen + optionale\nNotiz/Grund. Mindestens eine Instanz.\n\n``items`` erlaubt je Instanz eine **Teilmenge** (Charge teilverschrotten); ``instance_ids``\nbleibt die Kurzform «ganze Instanz(en)» (beide Wege werden gemischt zusammengeführt)."
       },
       "ShopCheckout": {
         "properties": {

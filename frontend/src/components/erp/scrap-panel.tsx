@@ -36,6 +36,9 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
   );
 
   const [scanned, setScanned] = useState<Set<number>>(new Set());
+  // Je gescannter Instanz die zu verschrottende Menge (Default = ganze Instanz). Für Chargen
+  // (Menge > 1) editierbar – analog Ressourcen-Teilentnahme: nur die Menge sinkt.
+  const [qtys, setQtys] = useState<Record<number, number>>({});
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
       }],
       onComplete: () => {
         const next = new Set(acc); next.add(oid); setScanned(next);
+        setQtys((q) => (q[oid] != null ? q : { ...q, [oid]: inst.quantity ?? 1 }));   // Default = ganze Menge
         runSequence(queue.slice(1), next);
       },
     });
@@ -68,10 +72,12 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
   async function submit() {
     const ids = [...scanned];
     if (ids.length === 0) { setError('Bitte zuerst die zu verschrottenden Instanzen scannen'); return; }
+    // Je Instanz die (ggf. reduzierte) Teilmenge mitgeben – Charge wird teilverschrottet.
+    const items = ids.map((oid) => ({ instance_id: oid, quantity: qtys[oid] ?? null }));
     setSaving(true); setError(null);
     try {
       onOrderUpdated(await api.updateOrderScrap(order.object_id as number,
-        { instance_ids: ids, note: note.trim() || null, step_id: stepId ?? null }));
+        { items, note: note.trim() || null, step_id: stepId ?? null }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Verschrotten');
     } finally { setSaving(false); }
@@ -137,6 +143,19 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
             }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind, i.quantity, order.article_unit ?? undefined)}</span>
+              {sel && (i.quantity ?? 1) > 1 && (
+                // Charge: Teilmenge zum Verschrotten wählen (1 … volle Menge).
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b' }}>
+                  <input type="number" min={1} max={i.quantity ?? 1}
+                    value={qtys[oid] ?? i.quantity ?? 1}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.min(i.quantity ?? 1, Number(e.target.value) || 1));
+                      setQtys((q) => ({ ...q, [oid]: v }));
+                    }}
+                    style={{ width: 52, padding: '3px 6px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right' }} />
+                  <span>/ {i.quantity}</span>
+                </span>
+              )}
               {sel ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#dc2626' }}>
                   <CheckCircle2 size={13} /> gescannt

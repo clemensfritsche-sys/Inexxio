@@ -141,6 +141,12 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
     if sale.status not in _FROM[target]:
         raise HTTPException(400, detail=f"Übergang {sale.status} → {target} ist nicht erlaubt")
     if target in ("confirmed", "invoiced"):
+        # Preis ist Single Source of Truth vom Artikel: fehlte er bei der Freigabe (Artikel
+        # hatte noch keinen Preis) und wurde er NACHTRÄGLICH hinterlegt, wird er hier
+        # frisch nachgezogen – sonst bliebe ein Mehrpositionen-Verkauf ewig stecken (der
+        # Betrag ist bei >1 Position nicht manuell editierbar).
+        if sale.order_total is None and sale.article_id:
+            _prefill_price(db, sale, sale.article_id)
         if sale.order_total is None:
             raise HTTPException(400, detail="Verkaufsbetrag ist erforderlich")
         # Ein Verkauf ohne Kunde ist fachlich nicht zulässig – der Kunde ist NIE optional,
