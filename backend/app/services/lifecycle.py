@@ -37,12 +37,3 @@ def ensure_mutable(current_status: str, payload: dict, entity: str = "Datensatz"
                 409,
                 detail=f"{entity} ist freigegeben und gesperrt – Inhalte können nicht mehr geändert werden",
             )
-
-
-def ensure_article_draft(article, action: str = "Prozessschritte") -> None:
-    """Prozessschritte dürfen nur an einem Artikel im Entwurf geändert werden."""
-    if article.status != "draft":
-        raise HTTPException(
-            409,
-            detail=f"Artikel ist freigegeben – {action} können nicht mehr geändert werden",
-        )

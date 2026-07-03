@@ -421,10 +421,6 @@ class ApiClient {
     return this.post('/api/v1/shop/checkout', { items });
   }
 
-  // Stripe-Checkout-Session-Status (Erfolgsseite nach eingebetteter Kasse)
-  getCheckoutSession(sessionId: string): Promise<{ order_object_id: number | null; order_object_ids: number[]; status: SaleStatus; paid: boolean }> {
-    return this.get(`/api/v1/shop/session/${sessionId}`);
-  }
 
   // Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten)
   openCustomerPortal(): Promise<{ url: string }> {

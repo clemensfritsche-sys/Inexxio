@@ -110,6 +110,13 @@ class PurchaseEmbed(BaseModel):
     receiving_location_label: Optional[str] = None   # Lieferadresse/Wareneingang (Objektnr.)
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
+    # Stammdaten DIESER Position für die «Für Lieferant sichtbar»-Karte – bei einem
+    # Mehrpositionen-Auftrag ist ``order.article_*`` NULL, die Werte müssen je Bestellung kommen.
+    article_unit: Optional[str] = None
+    article_size: Optional[str] = None
+    article_weight_kg: Optional[Decimal] = None
+    article_serialization: Optional[str] = None
+    article_supplier_article_number: Optional[str] = None
     # Artikel-Stammdaten-Keys, die der Lieferant sehen darf
     shared_fields: list[str] = []
     # Audit-Verlauf der Statuswechsel (Wer/Wann)

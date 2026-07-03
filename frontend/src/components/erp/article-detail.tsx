@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Loader2, CheckCircle2, Trash2, Clock, Tag } from 'lucide-react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
@@ -13,11 +13,12 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
+import { formatAmount as fmtChf, localDate } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -73,9 +74,6 @@ function seedFrom(record: Article | null): Form {
   };
 }
 
-function localDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
-}
 
 // Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
 // fachlicher Fehler. Der API-Client wiederholt solche Anfragen bereits mehrfach;
@@ -305,7 +303,10 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       </div>
 
       {/* Content */}
-      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+      {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
+          Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
+          Zeilenumbruch. Textareas ausnehmen. */}
+      <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'stammdaten' && (
           <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -409,11 +410,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   );
 }
 
-function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
-  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
-  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
-  return null;
-}
 
 const lockedNotice: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
@@ -421,9 +417,6 @@ const lockedNotice: React.CSSProperties = {
   fontSize: 12, color: '#475569',
 };
 
-function fmtChf(v: string | number): string {
-  return Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });

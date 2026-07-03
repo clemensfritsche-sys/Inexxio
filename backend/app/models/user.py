@@ -92,3 +92,10 @@ class UserProfile(Base, TimestampMixin):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     terms_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     terms_version: Mapped[Optional[str]] = mapped_column(String(20))
+
+    @property
+    def display_name(self) -> str:
+        """Anzeigename – EINE Regel für alle Anzeigen (Lieferant/Kunde/Prüfer/Standort):
+        Firma → «Vorname Nachname» → E-Mail."""
+        name = " ".join(p for p in [self.first_name, self.last_name] if p).strip()
+        return self.company_name or name or self.email

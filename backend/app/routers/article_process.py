@@ -87,16 +87,18 @@ def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
     if not supplier_id:
         return None
     u = db.query(UserProfile).filter(UserProfile.id == supplier_id).first()
-    if not u:
-        return None
-    name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
-    return u.company_name or name or u.email
+    return u.display_name if u else None
 
 
 def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLineView]:
+    if not raw_lines:
+        return []
+    # Artikel BATCH laden (vorher ein Query je Zeile – bei jeder Schrittliste, N+1)
+    art_ids = {line["article_id"] for line in raw_lines}
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()}
     out: list[ResourceLineView] = []
-    for line in raw_lines or []:
-        art = db.query(Article).filter(Article.id == line["article_id"]).first()
+    for line in raw_lines:
+        art = arts.get(line["article_id"])
         m = line.get("mode")
         out.append(ResourceLineView(
             article_id=line["article_id"], quantity=line.get("quantity", 1),
@@ -160,15 +162,12 @@ def _get_step(db: Session, owner: _Owner, step_id: int) -> ArticleProcessStep:
 
 def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
     owner.ensure_editable()
-    # Kompatibilität erzwingen: nur kontext-zulässige Schritttypen (kein „gemischter"
-    # Prozess). Herstellung (Artikel) ≠ Bestands-Operation (Auftrag).
+    # Kompatibilität erzwingen: nur kontext-zulässige Schritttypen. Am Auftrag sind ALLE
+    # Typen erlaubt (Schema-Whitelist = ORDER_STEP_TYPES) – greifen kann das nur am Artikel.
     if data.step_type not in owner.allowed_step_types:
-        detail = ("Im Artikel-Prozess (Herstellung) sind nur Beschaffung, Ressource, "
-                  "Datenerfassung und Bewegung zulässig – kein Verkauf."
-                  if owner.kind == "article" else
-                  "Im Auftrags-Ablauf (Bestand) sind nur Verkauf, Bewegung und "
-                  "Datenerfassung zulässig – keine Beschaffung/Ressource.")
-        raise HTTPException(400, detail=detail)
+        raise HTTPException(400, detail=(
+            "Im Artikel-Prozess (Herstellung) sind nur Beschaffung, Ressource, "
+            "Datenerfassung und Bewegung zulässig – kein Verkauf/Verschrotten."))
     # Jedes Prozessschrittmodul ist universell einsetzbar – auch bei einem Mehrpositionen-
     # Auftrag (``order_lines`` statt Einzel-``article_id``): Beschaffung/Datenerfassung
     # legen je Position eine eigene Fachzeile an (analog Verkauf, ``services/purchase.py``);
@@ -270,6 +269,11 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
         step.webshop_url = None
     elif step.mode == "webshop":
         step.supplier_id = None
+    # FIX: Anders als _create/_reorder/_delete zog _update die Pflicht-Bewegungen NICHT nach –
+    # ein Lieferanten-/Modus-Wechsel am Beschaffungs-Schritt liess den gesperrten «Versand zum
+    # Lieferanten» aufs ALTE Ziel zeigen (und webshop→supplier legte ihn gar nicht erst an).
+    db.flush()
+    owner.sync(db)
     log_audit(db, "article_process_steps", "update", str(payload), user.id, object_id=owner.object_id)
     db.commit()
     db.refresh(step)

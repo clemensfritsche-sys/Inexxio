@@ -69,7 +69,6 @@ export type OrderPurchase = Omit<NonNullable<OrderApi['purchase']>, 'status' | '
 
 // EIN Beschaffungs-Schritt kann bei einem Mehrpositionen-Auftrag mehrere Bestellungen
 // tragen (eine je Artikel/Position, gleicher step_id) – Spiegel von ``OrderSale``/``sales``.
-export type OrderPurchases = OrderPurchase[];
 
 // Aus dem Backend-Schema abgeleitet; Status verengt, Prozess-Embed eingehängt.
 export type Order = Omit<OrderApi, 'status' | 'purchase'> & {
@@ -85,11 +84,8 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 // EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
 export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale';
 export type ResourceMode = 'consume' | 'tool';
-export type OrderStepState = 'done' | 'active' | 'locked' | 'failed';
 export type OrderStep = OrderApi['steps'][number];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
-export type OrderInspection = NonNullable<OrderApi['inspection']>;
-export type OrderMovement = NonNullable<OrderApi['movement']>;
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];
 
@@ -106,7 +102,6 @@ export interface ResourceUpdateInput {
 
 // Verbrauch je Produkt-Instanz (welche Komponenten-Instanz wird wohin verbaut)
 export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
-export type OrderResourceComponent = NonNullable<OrderResourceProduct['components']>[number];
 
 // Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
 export type LocationType = 'lagerplatz' | 'user' | 'instance';
@@ -136,13 +131,10 @@ export interface ScrapUpdateInput {
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
 }
 
-export type OrderDisposal = NonNullable<OrderApi['disposal']>;
 
 export type CaptureField = components['schemas']['CaptureField'];
-export type CaptureFieldType = 'measure' | 'bool' | 'text';
 
 // Konkrete Stichprobe der Datenerfassung (Instanz + erfasste Werte)
-export type InspectionSample = NonNullable<OrderApi['inspection']>['samples'][number];
 
 export interface InspectionSampleInput {
   instance_id: number;
@@ -160,8 +152,6 @@ export interface InspectionUpdateInput {
 type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
-export type InstanceQuality = 'pending' | 'passed' | 'failed';                       // «ist es gut?»
-export type InstanceDisposition = 'in_process' | 'in_stock' | 'consumed' | 'sold' | 'scrapped'; // «wo ist es?»
 // Generischer Objekt-Verweis (Lagerplatz-Verwendung)
 export type ObjectReference = components['schemas']['ObjectReference'];
 // Auftrag, der eine Instanz angefasst hat (Instanz = Summe aller Prozesse)
@@ -223,7 +213,6 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
 export type OrderSale = NonNullable<OrderApi['sale']>;
 export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
 // Herkunft: 'shop' (Kunde über die Kasse/Stripe) | 'direct' (Personal im ERP erfasst).
-export type SaleMode = 'shop' | 'direct';
 // Zahlungsart des manuellen Zahlungseingangs – Rechnung ist der übliche B2B-Weg, KEIN
 // Kartenterminal nötig. 'stripe' setzt das System selbst (Shop-Zahlung).
 export type PaymentMethod = 'invoice' | 'cash' | 'twint' | 'other' | 'stripe';
@@ -250,7 +239,6 @@ export type PriceKind = 'one_time' | 'subscription';
 export type PriceInterval = 'month' | 'year';
 export type PriceSubType = 'usage' | 'product';   // Nutzungsabo | Produktabo
 
-export type PriceView = components['schemas']['PriceView'];
 export type ArticlePrice = components['schemas']['ArticlePriceResponse'];
 export type AudienceMember = components['schemas']['AudienceMember'];
 export type ShopProduct = components['schemas']['ShopProduct'];
@@ -341,7 +329,6 @@ export type ArticleProcessStep = Omit<ArticleProcessStepApi, 'mode'> & {
 };
 
 // Ressourcen-Zeile (mini-BOM/Betriebsmittel) am Schritt
-export type ResourceLineView = NonNullable<ArticleProcessStepApi['resource_lines']>[number];
 
 export interface ResourceLineInput {
   article_id: number;
@@ -506,12 +493,3 @@ export interface CompanySettings {
   pricing_zone_factors: Record<string, number> | null;
 }
 
-// ─── API response wrappers ────────────────────────────────────────────────────
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-  pages?: number;
-}

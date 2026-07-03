@@ -10,6 +10,7 @@ import { fieldLabel } from '@/lib/article-fields';
 import { TextField, StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 import { ObjId } from '@/components/erp/obj-id';
+import { formatAmount as fmtMoney } from '@/lib/utils';
 
 type ViewerRole = 'staff' | 'supplier';
 type Hist = NonNullable<OrderPurchase['history']>[number];
@@ -26,8 +27,6 @@ function seed(p: OrderPurchase): Form {
 
 const moneyOrNull = (v: string): string | null => (v.trim().replace(',', '.') === '' ? null : v.trim().replace(',', '.'));
 const intOrNull = (v: string): number | null => (v.trim() === '' ? null : Math.trunc(Number(v)));
-const fmtMoney = (v: string | number | null | undefined): string =>
-  v == null || v === '' ? '—' : Number(v).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDateTime = (iso: string): string => new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' });
 
 // Letzten Audit-Eintrag je Status (für Hover-Tooltip)
@@ -187,14 +186,23 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     return { pct, label, overdue, oi };
   })();
 
+  // FIX: Die Spezifikation kam vom AUFTRAG – bei einem Mehrpositionen-Auftrag ist
+  // order.article_* NULL und der Lieferant sah nur «—». Massgeblich ist die POSITION
+  // (jede Bestellung trägt ihren eigenen Artikel); Auftrag bleibt Fallback (Einzel-Artikel).
+  const name = po.article_name ?? order.article_name;
+  const unit = po.article_unit ?? order.article_unit;
+  const serialization = po.article_serialization ?? order.article_serialization;
+  const size = po.article_size ?? order.article_size;
+  const weightKg = po.article_weight_kg ?? order.article_weight_kg;
+  const supplierArtNr = po.article_supplier_article_number ?? order.article_supplier_article_number;
   const sharedRows = (po.shared_fields ?? []).map((key) => {
     let value = '—';
-    if (key === 'name') value = order.article_name ?? '—';
-    else if (key === 'unit') value = order.article_unit ? unitLabel(order.article_unit) : '—';
-    else if (key === 'serialization') value = order.article_serialization ? serializationLabel(order.article_serialization) : '—';
-    else if (key === 'size') value = order.article_size ?? '—';
-    else if (key === 'weight_kg') value = order.article_weight_kg != null ? `${order.article_weight_kg} kg` : '—';
-    else if (key === 'supplier_article_number') value = order.article_supplier_article_number ?? '—';
+    if (key === 'name') value = name ?? '—';
+    else if (key === 'unit') value = unit ? unitLabel(unit) : '—';
+    else if (key === 'serialization') value = serialization ? serializationLabel(serialization) : '—';
+    else if (key === 'size') value = size ?? '—';
+    else if (key === 'weight_kg') value = weightKg != null ? `${weightKg} kg` : '—';
+    else if (key === 'supplier_article_number') value = supplierArtNr ?? '—';
     return { key, label: fieldLabel(key), value };
   });
 

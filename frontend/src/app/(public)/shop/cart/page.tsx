@@ -5,11 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Package, Trash2, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { useCart } from '@/lib/cart-context';
 import type { CartItem } from '@/types';
+import { formatMoney as fmt } from '@/lib/utils';
 
-function fmt(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function itemLabel(i: CartItem): string {
   if (i.kind !== 'subscription') return 'Einmalkauf';

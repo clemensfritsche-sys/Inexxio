@@ -12,7 +12,7 @@ import {
   signInWithEmailLink,
   signInWithPopup,
   signOut,
-  onAuthStateChanged,
+  onIdTokenChanged,
   verifyBeforeUpdateEmail,
   type Auth,
   type User,
@@ -101,7 +101,12 @@ export async function getIdToken(): Promise<string | null> {
 
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};
-  return onAuthStateChanged(auth, callback);
+  // FIX: onAuthStateChanged feuert nur bei Login/Logout – NICHT bei der stündlichen
+  // Token-Rotation. Der Bearer-Token wurde deshalb nie erneuert und nach ~1h scheiterte
+  // jeder API-Call mit 401, bis die Seite hart neu geladen wurde. onIdTokenChanged hat
+  // dieselbe Signatur, feuert zusätzlich bei jeder Token-Erneuerung – alle Abonnenten
+  // (AuthProvider, ERP-/Konto-Layout, Navbar) setzen den API-Token damit automatisch neu.
+  return onIdTokenChanged(auth, callback);
 }
 
 export async function updateEmailAddress(newEmail: string): Promise<void> {

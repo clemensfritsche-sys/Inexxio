@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from ..models import AuditLog, CompanySettings, Notification, UserProfile
+from ..models import AuditLog, CompanySettings
 
 
 def get_or_create_settings(db: Session) -> CompanySettings:
@@ -23,27 +23,6 @@ def get_or_create_settings(db: Session) -> CompanySettings:
         db.commit()
         db.refresh(settings_obj)
     return settings_obj
-
-
-def create_notification(
-    db: Session,
-    user_id: int,
-    notification_type: str,
-    title: str,
-    message: str,
-    link: str | None = None,
-) -> Notification:
-    """Create an in-app notification for a user."""
-    notification = Notification(
-        user_id=user_id,
-        type=notification_type,
-        title=title,
-        message=message,
-        link=link,
-    )
-    db.add(notification)
-    db.flush()
-    return notification
 
 
 def log_audit(
@@ -67,12 +46,3 @@ def log_audit(
     db.add(entry)
     db.flush()
     return entry
-
-
-def get_user_by_firebase_uid(db: Session, uid: str) -> UserProfile | None:
-    """Fetch a user profile by Firebase UID."""
-    return (
-        db.query(UserProfile)
-        .filter(UserProfile.firebase_uid == uid, UserProfile.is_active == True)
-        .first()
-    )

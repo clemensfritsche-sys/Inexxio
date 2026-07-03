@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..core.auth import get_current_user, require_admin, require_employee
+from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
-from ..models import AuditLog, Notification, UserProfile
+from ..models import AuditLog, UserProfile
 from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,
@@ -13,8 +13,6 @@ from ..schemas.admin import (
 from ..services.admin import get_or_create_settings, log_audit
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
-
-VALID_ROLES = {"admin", "employee", "supplier", "customer"}
 
 
 def _mask_iban(value: str | None) -> str | None:
@@ -101,8 +99,7 @@ async def update_user_role(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
 ):
-    if data.role not in VALID_ROLES:
-        raise HTTPException(400, detail=f"Invalid role. Must be one of: {VALID_ROLES}")
+    # Rollen-Whitelist erzwingt das Schema (Literal ``Role``) – ungültige Werte enden als 422.
     user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
     if not user:
         raise HTTPException(404, detail="User not found")
@@ -156,39 +153,3 @@ async def get_audit_log(
             for l in logs
         ],
     }
-
-
-# ─── Notifications ────────────────────────────────────────────────────────────
-
-@router.get("/notifications")
-async def get_notifications(
-    unread_only: bool = Query(False),
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user),
-):
-    q = db.query(Notification).filter(Notification.user_id == current_user.id)
-    if unread_only:
-        q = q.filter(Notification.is_read == False)
-    notifications = q.order_by(Notification.created_at_utc.desc()).limit(50).all()
-    return [
-        {"id": n.id, "type": n.type, "title": n.title, "message": n.message,
-         "link": n.link, "is_read": n.is_read, "created_at_utc": n.created_at_utc}
-        for n in notifications
-    ]
-
-
-@router.post("/notifications/{notification_id}/read")
-async def mark_notification_read(
-    notification_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(get_current_user),
-):
-    n = db.query(Notification).filter(
-        Notification.id == notification_id,
-        Notification.user_id == current_user.id,
-    ).first()
-    if not n:
-        raise HTTPException(404, detail="Notification not found")
-    n.is_read = True
-    db.commit()
-    return {"marked_read": True}

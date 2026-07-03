@@ -9,7 +9,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 
-const fmtObjId = (id: number | null | undefined) => (id == null ? '—' : String(id).padStart(9, '0'));
 
 type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'articles' | 'shop';
 

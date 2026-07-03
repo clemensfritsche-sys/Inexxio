@@ -21,23 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/debug": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Debug */
-        get: operations["debug_api_v1_debug_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -190,40 +173,6 @@ export interface paths {
         get: operations["get_audit_log_api_v1_admin_audit_log_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/notifications": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Notifications */
-        get: operations["get_notifications_api_v1_admin_notifications_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/notifications/{notification_id}/read": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Mark Notification Read */
-        post: operations["mark_notification_read_api_v1_admin_notifications__notification_id__read_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2133,7 +2082,7 @@ export interface components {
          */
         ErpAdminUpdate: {
             /** Role */
-            role?: string | null;
+            role?: ("admin" | "employee" | "supplier" | "customer") | null;
             /** Department */
             department?: string | null;
             /** Job Title */
@@ -2834,8 +2783,6 @@ export interface components {
             recurrence_lead_time_days?: number | null;
             /** Recurrence Anchor */
             recurrence_anchor?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
         };
@@ -2929,6 +2876,16 @@ export interface components {
             article_object_id?: number | null;
             /** Article Name */
             article_name?: string | null;
+            /** Article Unit */
+            article_unit?: string | null;
+            /** Article Size */
+            article_size?: string | null;
+            /** Article Weight Kg */
+            article_weight_kg?: string | null;
+            /** Article Serialization */
+            article_serialization?: string | null;
+            /** Article Supplier Article Number */
+            article_supplier_article_number?: string | null;
             /**
              * Shared Fields
              * @default []
@@ -3818,8 +3775,11 @@ export interface components {
         };
         /** UserRoleUpdate */
         UserRoleUpdate: {
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "employee" | "supplier" | "customer";
         };
         /** ValidationError */
         ValidationError: {
@@ -3840,26 +3800,6 @@ export interface components {
 export type $defs = Record<string, never>;
 export interface operations {
     health_check_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    debug_api_v1_debug_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4153,68 +4093,6 @@ export interface operations {
             };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_notifications_api_v1_admin_notifications_get: {
-        parameters: {
-            query?: {
-                unread_only?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    mark_notification_read_api_v1_admin_notifications__notification_id__read_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                notification_id: number;
-            };
             cookie?: never;
         };
         requestBody?: never;

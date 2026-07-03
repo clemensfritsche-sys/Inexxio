@@ -52,10 +52,7 @@ def _line_mode(line: dict, step: ArticleProcessStep | None = None) -> str:
 
 
 def _user_name(u: UserProfile | None) -> str | None:
-    if not u:
-        return None
-    name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
-    return u.company_name or name or u.email
+    return u.display_name if u else None
 
 
 def reserve_resources(db: Session, order: Order, actor_id: int) -> None:

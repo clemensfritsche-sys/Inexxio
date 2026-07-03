@@ -24,25 +24,6 @@
         }
       }
     },
-    "/api/v1/debug": {
-      "get": {
-        "tags": [
-          "health"
-        ],
-        "summary": "Debug",
-        "operationId": "debug_api_v1_debug_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/auth/me": {
       "get": {
         "tags": [
@@ -450,97 +431,6 @@
                 }
               ],
               "title": "Table Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/notifications": {
-      "get": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Get Notifications",
-        "operationId": "get_notifications_api_v1_admin_notifications_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "unread_only",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Unread Only"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/notifications/{notification_id}/read": {
-      "post": {
-        "tags": [
-          "admin"
-        ],
-        "summary": "Mark Notification Read",
-        "operationId": "mark_notification_read_api_v1_admin_notifications__notification_id__read_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "notification_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Notification Id"
             }
           }
         ],
@@ -6777,6 +6667,8 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
             "title": "Name"
           },
           "email": {
@@ -6787,7 +6679,8 @@
           "phone": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 50
               },
               {
                 "type": "null"
@@ -6797,10 +6690,14 @@
           },
           "subject": {
             "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
             "title": "Subject"
           },
           "message": {
             "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
             "title": "Message"
           }
         },
@@ -7064,7 +6961,13 @@
           "role": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "admin",
+                  "employee",
+                  "supplier",
+                  "customer"
+                ]
               },
               {
                 "type": "null"
@@ -9073,17 +8976,6 @@
             ],
             "title": "Recurrence Anchor"
           },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
           "expected_updated_at": {
             "anyOf": [
               {
@@ -9374,6 +9266,61 @@
               }
             ],
             "title": "Article Name"
+          },
+          "article_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Unit"
+          },
+          "article_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Size"
+          },
+          "article_weight_kg": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Weight Kg"
+          },
+          "article_serialization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Serialization"
+          },
+          "article_supplier_article_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Supplier Article Number"
           },
           "shared_fields": {
             "items": {
@@ -12441,6 +12388,12 @@
         "properties": {
           "role": {
             "type": "string",
+            "enum": [
+              "admin",
+              "employee",
+              "supplier",
+              "customer"
+            ],
             "title": "Role"
           }
         },

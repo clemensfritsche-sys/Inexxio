@@ -7,12 +7,11 @@ Datensatzobjekt mit 9-stelliger Nummer:
     user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
     instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
 
-Bei der Auftragsfreigabe erhält jede neue Instanz einen Startstandort (Lieferant
-bzw. Wareneingang); spätestens mit dem Wareneingang («received») liegt sie im
-Wareneingang. Welcher Lagerplatz das ist, steht in den Systemkonfigurationen
-(``company_settings.default_receiving_location_id``); fehlt der Eintrag, wird
-automatisch ein Lagerplatz «Wareneingang» angelegt – so ist die Regel
-„nie ohne Standort" garantiert, ohne dass vorab etwas konfiguriert sein muss.
+Bei der Auftragsfreigabe erhält jede neue Instanz einen Startstandort: beginnt der
+Prozess mit einer Lieferanten-Beschaffung, startet sie **beim Lieferanten**, sonst
+ohne Standort (``NULL`` = «noch nicht festgelegt», siehe ``services/serialization.py``).
+Den realen Ort setzt der erste Bewegungs-Schritt; die Vorgabe-Lieferadresse steht in
+``company_settings.default_receiving_location_id`` (Anzeige im Beschaffungs-Embed).
 """
 
 from fastapi import HTTPException
@@ -20,15 +19,10 @@ from sqlalchemy.orm import Session
 
 from ..models import Instance, StorageLocation, UserProfile
 from ..schemas.movement import LOCATION_TYPES
-from .admin import get_or_create_settings
-from .objects import next_object_id
-
-RECEIVING_NAME = "Wareneingang"
 
 
 def _user_label(u: UserProfile) -> str:
-    name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
-    return u.company_name or name or u.email
+    return u.display_name
 
 
 def _obj_nr(lid: int) -> str:
@@ -156,49 +150,3 @@ def resolve_physical_location(
     if not host:
         return ltype, lid
     return resolve_physical_location(db, host.location_type, host.location_id, _depth + 1)
-
-
-def physical_location_label(db: Session, ltype: str | None, lid: int | None) -> str | None:
-    """Label des aufgelösten physischen Standorts (nur sinnvoll, wenn ``ltype``
-    ``instance`` ist – dann zeigt es, wo die Host-Instanz tatsächlich liegt)."""
-    pt, pid = resolve_physical_location(db, ltype, lid)
-    return location_label(db, pt, pid)
-
-
-def ensure_receiving_location(db: Session) -> int:
-    """Objektnummer des Wareneingangs; legt ihn bei Bedarf automatisch an."""
-    settings = get_or_create_settings(db)
-    lid = settings.default_receiving_location_id
-    if lid:
-        loc = (
-            db.query(StorageLocation)
-            .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
-            .first()
-        )
-        if loc:
-            return lid
-    loc = StorageLocation(
-        object_id=next_object_id(db, "storage_location"),
-        status="released",
-        name=RECEIVING_NAME,
-    )
-    db.add(loc)
-    db.flush()
-    settings.default_receiving_location_id = loc.object_id
-    return loc.object_id
-
-
-def resolve_receiving_location(db: Session, po) -> int:
-    """Wareneingang/Lieferadresse einer Bestellung: bevorzugt der im Beschaffungs-
-    schritt definierte Lagerplatz (``po.receiving_location_id``); sonst der
-    automatische Wareneingang. So ist „nie ohne Standort" garantiert."""
-    lid = getattr(po, "receiving_location_id", None) if po else None
-    if lid:
-        loc = (
-            db.query(StorageLocation)
-            .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
-            .first()
-        )
-        if loc:
-            return lid
-    return ensure_receiving_location(db)

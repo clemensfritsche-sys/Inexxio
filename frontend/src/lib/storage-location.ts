@@ -1,5 +1,5 @@
 import { FilePen, CheckCircle2, Ban } from 'lucide-react';
-import type { StorageLocationStatus, StorageLocationType } from '@/types';
+import type { StorageLocationStatus } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 
 export const STORAGE_STATUS: Record<StorageLocationStatus, StatusCfg> = {
@@ -12,11 +12,3 @@ export function storageStatusConfig(status: string): StatusCfg {
   return STORAGE_STATUS[status as StorageLocationStatus] ?? STORAGE_STATUS.draft;
 }
 
-export const STORAGE_TYPES: { value: StorageLocationType; label: string }[] = [
-  { value: 'rack',     label: 'Regal' },
-  { value: 'pallet',   label: 'Palettenplatz' },
-  { value: 'floor',    label: 'Bodenlager' },
-  { value: 'drawer',   label: 'Schublade' },
-  { value: 'picking',  label: 'Kommissionierzone' },
-  { value: 'external', label: 'Aussenlager' },
-];

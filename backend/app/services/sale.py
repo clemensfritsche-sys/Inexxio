@@ -36,13 +36,6 @@ _EDITABLE = ("order_total", "vat_rate", "currency", "customer_id", "invoice_numb
 PAYMENT_METHODS_STAFF = ("invoice", "cash", "twint", "other")
 
 
-def unit_price(sale: Sale) -> Optional[Decimal]:
-    """Verkaufs-Stückpreis netto = Verkaufsbetrag ÷ Menge."""
-    if sale.order_total is None or not sale.quantity:
-        return None
-    return (sale.order_total / sale.quantity).quantize(Decimal("0.0001"))
-
-
 def customer_for_order(db: Session, order: Order) -> Optional[UserProfile]:
     """Der Kunde dieses Auftrags = Kunde seines Verkaufs-Belegs (``kind='sale'``). Grundlage
     für den **Pflicht-Versand zum Kunden**: die auf einen Verkauf folgende Bewegung geht
@@ -356,11 +349,6 @@ def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None,
     return sale
 
 
-def mark_paid(db: Session, sale: Sale) -> Sale:
-    """Kompatibilität: Zahlungseingang ohne externen Snapshot (eigene CHF-Pipeline)."""
-    return finalize_paid(db, sale, stripe=None)
-
-
 def mark_cancelled(db: Session, sale: Sale) -> Sale:
     """Zahlung abgebrochen/storniert: Verkauf ``cancelled`` und den (unbezahlten)
     Auftrag auflösen – Reservierungen freigeben, Auftrag inaktiv (kein herrenloser
@@ -382,7 +370,7 @@ def mark_cancelled(db: Session, sale: Sale) -> Sale:
     return sale
 
 
-def apply_update(db: Session, sale: Sale, data, user: UserProfile) -> Sale:
+def apply_update(db: Session, sale: Sale, data, user: UserProfile, *, commit: bool = True) -> Sale:
     if user.role not in _STAFF_ROLES:
         raise HTTPException(403, detail="Keine Berechtigung für diesen Verkauf")
     order = db.query(Order).filter(Order.id == sale.order_id).first()
@@ -398,8 +386,9 @@ def apply_update(db: Session, sale: Sale, data, user: UserProfile) -> Sale:
             setattr(sale, key, payload[key])
     if target and target != sale.status:
         _apply_transition(db, sale, order, target, user)
-    db.commit()
-    db.refresh(sale)
+    if commit:
+        db.commit()
+        db.refresh(sale)
     return sale
 
 
@@ -421,4 +410,21 @@ def apply_update_bulk(db: Session, sales: list[Sale], data, user: UserProfile) -
     if any(f in payload for f in _MONEY_FIELDS):
         raise HTTPException(
             400, detail="Bei mehreren Positionen kommt der Betrag vom Artikel – nicht direkt editierbar")
-    return [apply_update(db, s, data, user) for s in sales]
+    # Ausnahme: das «Erstatten» von Gutschriften löst je Beleg einen EXTERNEN Stripe-Refund
+    # aus – der muss sofort committet werden (ein zurückgerollter ``stripe_refund_id`` hätte
+    # beim Wiederholen doppelt erstattet). Dort bleibt der Commit je Beleg.
+    if payload.get("status") == "paid" and any(s.kind == "credit" for s in sales):
+        return [apply_update(db, s, data, user) for s in sales]
+    # FIX: Die «eine gemeinsame Aktion» war nicht atomar – apply_update committete je Beleg;
+    # scheiterte Beleg 2 (z. B. «Betrag/Kunde ist erforderlich»), war Beleg 1 bereits
+    # dauerhaft bestätigt/bezahlt und der Schritt hing schief zwischen den Positionen.
+    # Jetzt: alle Belege in EINER Transaktion, Commit erst am Ende.
+    try:
+        out = [apply_update(db, s, data, user, commit=False) for s in sales]
+    except Exception:
+        db.rollback()
+        raise
+    db.commit()
+    for s in out:
+        db.refresh(s)
+    return out

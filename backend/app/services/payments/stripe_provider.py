@@ -14,7 +14,6 @@
 Hart geschützt: ohne ``STRIPE_SECRET_KEY`` ist der Provider nie aktiv (sauberer 503, kein Crash).
 """
 
-import json
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -36,11 +35,6 @@ def _stripe():
     import stripe
     stripe.api_key = key
     return stripe
-
-
-def _ship_countries() -> list[str]:
-    raw = get_settings().shop_ship_countries or "CH"
-    return [c.strip().upper() for c in raw.split(",") if c.strip()]
 
 
 def _full_name(u: UserProfile) -> str | None:
@@ -175,15 +169,16 @@ class StripeProvider(PaymentProvider):
                        payload: dict | None) -> CheckoutIntent | None:
         stripe = _stripe()
         secret = get_settings().stripe_webhook_secret
-        if secret:
-            try:
-                event = stripe.Webhook.construct_event(raw, sig, secret)
-            except Exception as e:  # ungültige Signatur → 400 (Stripe wiederholt nicht endlos)
-                raise HTTPException(400, detail=f"Ungültige Webhook-Signatur: {e}")
-        else:
-            # Ohne Secret (noch nicht konfiguriert): unverifiziert parsen + warnen.
-            print("WARNING: STRIPE_WEBHOOK_SECRET fehlt – Webhook unverifiziert verarbeitet.", flush=True)
-            event = payload or json.loads(raw or b"{}")
+        # FIX: Ohne Webhook-Secret wurden Events unverifiziert verarbeitet (nur eine
+        # Log-Warnung) – ein gefälschtes checkout.session.completed hätte Erfüllung ohne
+        # Zahlung ausgelöst. Fehlkonfiguration muss hart scheitern statt still durchwinken.
+        if not secret:
+            raise HTTPException(
+                503, detail="Stripe-Webhook ist nicht konfiguriert (STRIPE_WEBHOOK_SECRET fehlt).")
+        try:
+            event = stripe.Webhook.construct_event(raw, sig, secret)
+        except Exception as e:  # ungültige Signatur → 400 (Stripe wiederholt nicht endlos)
+            raise HTTPException(400, detail=f"Ungültige Webhook-Signatur: {e}")
 
         etype = event["type"] if isinstance(event, dict) else event.type
         obj = (event["data"]["object"] if isinstance(event, dict) else event.data.object)
@@ -229,8 +224,10 @@ class StripeProvider(PaymentProvider):
     def _on_subscription_ended(self, db: Session, sub) -> CheckoutIntent | None:
         sub_id = _get(sub, "id")
         order = db.query(Order).filter(Order.stripe_subscription_id == sub_id).first()
-        if order and order.recurrence_active:
-            order.recurrence_active = False
+        # FIX: Nach dem Abschluss des Abo-Auftrags trägt ein Folge-Entwurf die Wiederkehr
+        # (recurrence_active am Original = False) – der alte Guard tat dann NICHTS und die
+        # lokale Kette spawnte weiter, obwohl Stripe das Abo beendet hatte.
+        if order and sales_svc.deactivate_recurrence_chain(db, order):
             emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
             db.commit()
         return None
@@ -263,8 +260,8 @@ class StripeProvider(PaymentProvider):
         presentment = {}
         if pres:
             presentment = {
-                "currency": (_dig(pres, "presentment_currency") or "").upper() or None,
-                "total": _money(_dig(pres, "presentment_amount")),
+                "currency": (_get(pres, "presentment_currency") or "").upper() or None,
+                "total": _money(_get(pres, "presentment_amount")),
             }
         return {
             "settlement": {"currency": cur, "total": _q(total), "tax": _q(tax)},
@@ -290,17 +287,22 @@ class StripeProvider(PaymentProvider):
                 msg = str(e).lower()
                 if "no such subscription" not in msg and "canceled" not in msg:
                     raise HTTPException(502, detail=f"Kündigung bei Stripe fehlgeschlagen: {e}")
-        order.recurrence_active = False
-        emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
+        # FIX: Nach Auftrags-Abschluss trägt ein Folge-Entwurf die Wiederkehr
+        # (_spawn_recurrence) – die ganze Kette beenden, nicht nur das Original.
+        if sales_svc.deactivate_recurrence_chain(db, order):
+            emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
         db.commit()
         return True
 
     # ─── Gutschrift erstatten (Refund) ───────────────────────────────────────────
     def refund(self, db: Session, original_sale, credit_sale) -> dict | None:
-        """Refund gegen den **Original-PaymentIntent**. Voll, wenn die Gutschrift den ganzen
-        Original-Betrag umkehrt; sonst **anteilig** (Anteil netto CHF × PI-Betrag, in der
-        PI-Währung – korrekt auch bei Adaptive Pricing). Ohne Original-PaymentIntent (Direkt-/
-        Rechnungsverkauf) → ``None`` (offline abzuwickeln)."""
+        """Refund gegen den **Original-PaymentIntent** – anteilig auf Basis der **Position**.
+
+        Grundlage ist der beim Kauf eingefrorene **Positions-Brutto** (Snapshot
+        ``settlement.total`` – bei einem Mehrpositionen-Warenkorb der anteilige Betrag
+        DIESER Position, ``sales._split_snapshot``), skaliert mit dem Gutschrift-Anteil
+        (netto Gutschrift ÷ netto Original, Teil-Erstattung/Kulanz). Ohne Original-
+        PaymentIntent (Direkt-/Rechnungsverkauf) → ``None`` (offline abzuwickeln)."""
         pi_id = getattr(original_sale, "stripe_payment_intent_id", None) if original_sale else None
         if not pi_id:
             return None
@@ -308,11 +310,26 @@ class StripeProvider(PaymentProvider):
         params: dict = {"payment_intent": pi_id}
         o_net = getattr(original_sale, "order_total", None)
         c_net = getattr(credit_sale, "order_total", None)
+        frac = Decimal("1")
+        if o_net and c_net and Decimal(str(c_net)) < Decimal(str(o_net)):
+            frac = Decimal(str(c_net)) / Decimal(str(o_net))
+        snap = getattr(original_sale, "stripe_snapshot", None) or {}
+        line_gross = Decimal(str((snap.get("settlement") or {}).get("total") or 0))
         try:
-            if o_net and c_net and Decimal(str(c_net)) < Decimal(str(o_net)):
-                pi = stripe.PaymentIntent.retrieve(pi_id)
-                charged = int(_get(pi, "amount") or 0)
-                params["amount"] = int((Decimal(charged) * Decimal(str(c_net)) / Decimal(str(o_net))).to_integral_value())
+            # FIX: Vorher wurde bei voller Positions-Gutschrift der GANZE PaymentIntent
+            # erstattet (kein amount) bzw. anteilig auf den GANZEN Warenkorb gerechnet –
+            # die Rückgabe EINER Position eines Mehrpositionen-Kaufs erstattete so den
+            # gesamten Kaufbetrag. Jetzt: Positions-Brutto × Anteil, in Rappen der
+            # PI-Währung; ohne amount (= voller Refund) nur, wenn die Position die ganze
+            # Zahlung deckt.
+            pi = stripe.PaymentIntent.retrieve(pi_id)
+            charged = int(_get(pi, "amount") or 0)
+            if line_gross > 0:
+                amount = int((line_gross * 100 * frac).to_integral_value())
+            else:   # Alt-Beleg ohne Snapshot: bisheriges Verhalten (Anteil am ganzen PI)
+                amount = int((Decimal(charged) * frac).to_integral_value())
+            if 0 < amount < charged:
+                params["amount"] = amount
             r = stripe.Refund.create(**params)
         except Exception as e:
             raise HTTPException(502, detail=f"Rückerstattung bei Stripe fehlgeschlagen: {e}")
@@ -340,10 +357,6 @@ def _get(obj, key):
     if isinstance(obj, dict):
         return obj.get(key)
     return getattr(obj, key, None)
-
-
-def _dig(obj, key):
-    return _get(obj, key)
 
 
 def _money(v) -> str | None:

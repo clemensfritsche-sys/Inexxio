@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import type { UserProfile, CustomerOrder } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
+import { localDate } from '@/lib/utils';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -36,10 +37,6 @@ function countryName(code: string | null | undefined): string {
   return COUNTRY_NAMES[code.toUpperCase()] ?? code;
 }
 
-function localDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('de-CH');
-}
 
 export function userInitials(name: string, email: string): string {
   if (name && name !== email) {

@@ -16,6 +16,7 @@ Enthält der Ablauf einen Verkauf, verlassen die Subjekte bei Abschluss den Best
 """
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..domain import event_types
@@ -136,10 +137,16 @@ def order_instances(db: Session, order: Order) -> list[Instance]:
         .all()
     }
     oids |= {i.object_id for i in chosen_subjects(db, order)}
+    # FIX: Links/Bindung UND selbst erzeugte Instanzen VEREINIGEN statt entweder/oder:
+    # ein Erzeugungsauftrag schreibt für seine eigenen Instanzen keine Links – sobald ein
+    # Nachschub-/Deckungs-Link dazukam (peg/cover), kollabierte die Menge auf NUR die
+    # gepinnten Instanzen und die selbst produzierten verschwanden aus Bewegung/Prüfung/
+    # Abschluss (sie wären still «am Lager» freigegeben worden, ohne je bewegt zu sein).
     if oids:
         return (
             db.query(Instance)
-            .filter(Instance.object_id.in_(oids), Instance.is_active == True)
+            .filter(or_(Instance.object_id.in_(oids), Instance.order_id == order.id),
+                    Instance.is_active == True)
             .order_by(Instance.object_id)
             .all()
         )

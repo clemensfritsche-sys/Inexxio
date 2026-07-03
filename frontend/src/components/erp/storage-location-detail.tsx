@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Loader2, CheckCircle2, Link2 } from 'lucide-react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Link2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput, ObjectReference } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -9,11 +9,12 @@ import { lifecycleActions } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, StatusBadge, StatusFlow, ErrorText } from '@/components/erp/fields';
+import { TextField, StatusBadge, StatusFlow, ErrorText, SaveIndicator } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ObjectLabel } from '@/components/scan/object-label';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
+import { localDate } from '@/lib/utils';
 
 type TabKey = 'stammdaten' | 'verwendung';
 
@@ -89,9 +90,6 @@ function buildInput(form: Form): StorageLocationInput {
   };
 }
 
-function localDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
-}
 
 export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, onBack }: {
   record: StorageLocation | null;
@@ -278,7 +276,10 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
       </div>
 
       {/* Content */}
-      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+      {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
+          Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
+          Zeilenumbruch. Textareas ausnehmen. */}
+      <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'verwendung' ? (
           <UsageList refs={refs} />
@@ -371,11 +372,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
   );
 }
 
-function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
-  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
-  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
-  return null;
-}
 
 function Card({ children }: { children: React.ReactNode }) {
   return (

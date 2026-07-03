@@ -69,6 +69,21 @@ class OrderStepInfo(BaseModel):
 # completed wird automatisch gesetzt (alle Prozessschritte erledigt)
 ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
 
+# FIX: Obergrenze für Bestellmengen – ``quantity`` war nur nach unten begrenzt; eine
+# absurde Menge (z. B. 2e9) hätte bei der Freigabe versucht, ebenso viele Einzel-
+# Instanzen zu erzeugen (Worker-/DB-Flut). Grosszügig über jedem realen Bedarf (~10 MA).
+MAX_ORDER_QUANTITY = 100_000
+
+
+def _validate_qty(v: Optional[int]) -> Optional[int]:
+    if v is None:
+        return v
+    if v <= 0:
+        raise ValueError("Menge muss grösser als 0 sein")
+    if v > MAX_ORDER_QUANTITY:
+        raise ValueError(f"Menge darf höchstens {MAX_ORDER_QUANTITY} betragen")
+    return v
+
 
 def _validate_future_date(v: Optional[date]) -> Optional[date]:
     """Wunsch-Liefertermin darf nicht in der Vergangenheit liegen."""
@@ -103,9 +118,7 @@ class OrderCreate(BaseModel):
     @field_validator("quantity")
     @classmethod
     def _qty_positive(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("Menge muss grösser als 0 sein")
-        return v
+        return _validate_qty(v)
 
     @field_validator("desired_delivery_date")
     @classmethod
@@ -124,9 +137,7 @@ class OrderLineCreate(BaseModel):
     @field_validator("quantity")
     @classmethod
     def _qty_positive(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("Menge muss grösser als 0 sein")
-        return v
+        return _validate_qty(v)
 
 
 class OrderLinePins(BaseModel):
@@ -147,7 +158,10 @@ class OrderUpdate(BaseModel):
     recurrence_interval_days: Optional[int] = None
     recurrence_lead_time_days: Optional[int] = None
     recurrence_anchor: Optional[date] = None
-    is_active: Optional[bool] = None
+    # FIX: ``is_active`` ist kein Client-Feld mehr: ein PATCH {"is_active": false} auf einen
+    # FREIGEGEBENEN Auftrag hätte ihn aus allen Sichten entfernt, OHNE seine Reservierungen
+    # zu lösen (dauerhaft blockierter Bestand). Deaktivieren läuft über den Status-Fluss
+    # (Entwurf → inaktiv) bzw. «Abbrechen» (Folgeauftrag) – nie über ein rohes Flag.
     expected_updated_at: Optional[datetime] = None   # Optimistic Locking (optional)
 
     @field_validator("status")
@@ -162,11 +176,7 @@ class OrderUpdate(BaseModel):
     @field_validator("quantity")
     @classmethod
     def _qty_positive(cls, v: Optional[int]) -> Optional[int]:
-        if v is None:
-            return v
-        if v <= 0:
-            raise ValueError("Menge muss grösser als 0 sein")
-        return v
+        return _validate_qty(v)
 
     @field_validator("desired_delivery_date")
     @classmethod

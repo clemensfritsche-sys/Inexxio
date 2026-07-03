@@ -5,11 +5,8 @@ import Link from 'next/link';
 import { Package } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ShopProduct } from '@/types';
+import { formatMoney as fmt } from '@/lib/utils';
 
-function fmt(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export default function ShopPage() {
   const [products, setProducts] = useState<ShopProduct[]>([]);

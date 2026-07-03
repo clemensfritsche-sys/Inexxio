@@ -8,11 +8,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import type { PaymentStatus } from '@/types';
+import { formatMoney as fmt } from '@/lib/utils';
 
-function fmt(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function PayView() {
   const search = useSearchParams();

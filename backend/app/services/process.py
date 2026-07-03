@@ -242,14 +242,6 @@ def facts_for_step(db: Session, order: Order, step: ArticleProcessStep) -> list:
     return _resolve_facts_multi(step, rows, len(same_type) == 1)
 
 
-def active_step_of_type(db: Session, order: Order, step_type: str) -> ArticleProcessStep | None:
-    """Die aktive Schritt-Definition des Typs (für die Ausführung ohne explizite id)."""
-    for s in build_order_steps(db, order):
-        if s["step_type"] == step_type and s["state"] == "active":
-            return s["step"]
-    return None
-
-
 def resolve_exec_step(db: Session, order: Order, step_type: str, step_id: int | None) -> ArticleProcessStep:
     """Auszuführenden Schritt bestimmen: explizite ``step_id`` (muss aktiv sein)
     oder die aktive Schritt-Definition des Typs. Wirft, wenn nicht ausführbar."""
@@ -336,6 +328,12 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
     for inst in db.query(Instance).filter(
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
+        # FIX: Durchgefallene zählen laut Kontrakt (Docstring) NICHT als «gesichert» – der
+        # Filter fehlte aber: eine reservierte Instanz mit quality='failed' deckte das Soll
+        # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
+        # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
+        if inst.quality == "failed":
+            continue
         secured[inst.article_id] = secured.get(inst.article_id, 0) + reserved_for(inst, order.id)
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, Instance.quality != "failed"
@@ -662,6 +660,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
         .order_by(Instance.object_id)
         .all()
     )
+    pegged = 0
     for inst in produced:
         if remaining <= 0:
             break
@@ -673,8 +672,13 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
             inst.subject_of_order_id = parent.id
             record_link(db, inst.object_id, parent.id)
         remaining -= take
-    emit(db, "supply.pegged", object_type="order", object_id=parent.object_id,
-         payload={"supply": order.object_id, "article_id": order.article_id})
+        pegged += take
+    # FIX: Das Event nur ausgeben, wenn tatsächlich etwas gepinnt wurde – sonst meldete der
+    # Event-Strom «supply.pegged» auch bei 0 verfügbaren Stück (irreführende Wahrheit).
+    if pegged:
+        emit(db, "supply.pegged", object_type="order", object_id=parent.object_id,
+             payload={"supply": order.object_id, "article_id": order.article_id,
+                      "quantity": pegged})
 
 
 def required_sample(quantity: int | None, sample_percent: int | None) -> int:
