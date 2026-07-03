@@ -46,6 +46,28 @@ class SaleUpdate(BaseModel):
             raise ValueError("Betrag darf nicht negativ sein")
         return v
 
+    # FIX: ``currency`` war ein freier String – "EURO" wäre erst an der DB-Spalte
+    # (VARCHAR(3)) mit einem 500er gescheitert; ``vat_rate`` hatte keine Grenzen
+    # (negativ/1000 % → falscher Brutto in «Meine Bestellungen»). Früh validieren.
+    @field_validator("currency")
+    @classmethod
+    def _currency_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip().upper()
+        if len(v) != 3 or not v.isalpha():
+            raise ValueError("Währung muss ein 3-Buchstaben-Code sein (z. B. CHF)")
+        return v
+
+    @field_validator("vat_rate")
+    @classmethod
+    def _vat_rate_ok(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        if v is None:
+            return v
+        if v < 0 or v > 100:
+            raise ValueError("MWST-Satz muss zwischen 0 und 100 liegen")
+        return v
+
     @field_validator("payment_method")
     @classmethod
     def _payment_method_ok(cls, v: Optional[str]) -> Optional[str]:

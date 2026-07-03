@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Package, RefreshCw, Loader2, Undo2, CheckCircle2 } from 'lucide-react';
 import type { CustomerOrder } from '@/types';
+import { formatMoney as fmtMoney } from '@/lib/utils';
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   requested:  { label: 'Offen',          color: '#b45309', bg: '#fffbeb' },
@@ -11,10 +12,6 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   cancelled:  { label: 'Storniert',      color: '#64748b', bg: '#f1f5f9' },
 };
 
-function fmtMoney(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '';

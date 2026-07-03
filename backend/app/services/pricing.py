@@ -52,11 +52,16 @@ def charm_round(amount: Decimal, currency: str) -> Decimal:
     return (whole - Decimal("0.10")).quantize(CENT)
 
 
-def _price_rank(p: ArticlePrice) -> int:
-    """Abos zuerst (Produktabo, dann Nutzungsabo), zuletzt Einmalkauf."""
+def price_rank(p: ArticlePrice) -> int:
+    """Abos zuerst (Produktabo, dann Nutzungsabo), zuletzt Einmalkauf – EINE Sortier-
+    Wahrheit für Shop-Listing (``sales.sort_prices``) und Hauptpreis-Auflösung."""
     if p.kind == "subscription":
         return 0 if p.sub_type == "product" else 1
     return 2
+
+
+def sort_key(p: ArticlePrice) -> tuple:
+    return (price_rank(p), 0 if p.is_primary else 1, p.id)
 
 
 def resolve_primary_price(db: Session, article: Article) -> ArticlePrice | None:
@@ -67,7 +72,7 @@ def resolve_primary_price(db: Session, article: Article) -> ArticlePrice | None:
         .filter(ArticlePrice.article_id == article.id, ArticlePrice.is_active == True)
         .all()
     )
-    prices.sort(key=lambda p: (_price_rank(p), 0 if p.is_primary else 1, p.id))
+    prices.sort(key=sort_key)
     return prices[0] if prices else None
 
 

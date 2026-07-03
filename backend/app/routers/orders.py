@@ -237,6 +237,16 @@ async def add_order_line(
         raise HTTPException(400, detail="Weitere Positionen sind nur im Entwurf möglich")
     _validate_article(db, data.article_id)
     existing_lines = order_lines_svc.lines_for(db, order)
+    # FIX: Doppelte Positionen desselben Artikels zerlegen die gesamte Mehrpositionen-Logik,
+    # die je Auftrag nach ``article_id`` schlüsselt: die FIFO-Allokation zählte die Instanzen
+    # der ersten Position bei der zweiten als «gepinnt» mit (Unter-Reservierung), und
+    # Beschaffung/Verkauf legen je Artikel nur EINE Fachzeile an – die zweite Position wäre
+    # still weder bestellt noch verrechnet worden. Menge stattdessen an der Position anpassen.
+    existing_article_ids = {l.article_id for l in existing_lines} | (
+        {order.article_id} if order.article_id else set())
+    if data.article_id in existing_article_ids:
+        raise HTTPException(
+            400, detail="Dieser Artikel ist bereits eine Position – bitte dort die Menge anpassen")
 
     # Die Abo-Mischungsregel betrifft nur den VERKAUF (Stripe: ein Checkout ist entweder
     # Einmalkauf oder Abo) – sie gehört daher ans Hinzufügen des Sales-Prozessschritts
@@ -246,8 +256,6 @@ async def add_order_line(
     # Verkaufsschritt, würde die neue Position ihn sonst nachträglich unbemerkt kaputt
     # machen – dagegen sichert dieser Check gezielt ab.
     if process.has_step(db, order, "sale"):
-        existing_article_ids = {l.article_id for l in existing_lines} | (
-            {order.article_id} if order.article_id else set())
         sale_svc.assert_sale_compatible(db, existing_article_ids | {data.article_id})
 
     if order.article_id is not None:
@@ -399,6 +407,20 @@ async def update_order(
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.
     if payload.get("status") == "released" and order.status == "inactive":
         raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
+    # FIX: Status-Zustandsmaschine – vorher fiel jeder nicht explizit geprüfte Wechsel in die
+    # generische setattr-Schleife: ein Entwurf liess sich direkt auf «completed» setzen (ohne
+    # Schritte/completed_at) und ein abgeschlossener/inaktiver Auftrag auf «draft» zurückholen
+    # (und danach erneut freigeben – Umgehung von «kein Reaktivieren»). Erlaubte manuelle
+    # Wechsel sind NUR draft→released (Freigabe) und draft/released→inactive (unten geregelt);
+    # «completed» leitet ausschliesslich das System ab (recompute_completion).
+    new_status = payload.get("status")
+    if new_status and new_status != order.status:
+        if new_status == "completed":
+            raise HTTPException(400, detail="«Abgeschlossen» wird vom System abgeleitet, wenn alle Schritte erledigt sind")
+        if order.status in ("completed", "inactive"):
+            raise HTTPException(409, detail="Ein abgeschlossener/inaktiver Auftrag ist endgültig – bitte neuen Auftrag anlegen")
+        if order.status == "released" and new_status == "draft":
+            raise HTTPException(409, detail="Ein freigegebener Auftrag kann nicht in den Entwurf zurück – bitte «Abbrechen» verwenden")
 
     # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt
     # den Status selbst. Den Status hier NICHT vorab über die generische Schleife setzen: sonst ist

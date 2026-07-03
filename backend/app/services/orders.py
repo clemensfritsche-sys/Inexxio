@@ -76,10 +76,7 @@ def recurrence_due(order: Order) -> bool:
 
 
 def _supplier_name(u: UserProfile | None) -> str | None:
-    if not u:
-        return None
-    name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
-    return u.company_name or name or u.email
+    return u.display_name if u else None
 
 
 def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
@@ -123,14 +120,16 @@ def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
 
 
 def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
-                    po: PurchaseOrder) -> PurchaseEmbed:
+                    po: PurchaseOrder, history: list[PurchaseHistoryEntry] | None = None) -> PurchaseEmbed:
     emb = PurchaseEmbed.model_validate(po)
     if po.supplier_id:
         emb.supplier_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first())
     emb.receiving_location_label = _receiving_label(db, po)
     emb.shared_fields = normalize_shared_fields(step.shared_fields if step else None)
-    emb.history = _purchase_history(db, order)
+    # Der Verlauf ist je AUFTRAG identisch (Audit nach Auftragsnummer) – bei mehreren
+    # Bestellungen einmal berechnen und hereinreichen statt je Position neu zu scannen.
+    emb.history = history if history is not None else _purchase_history(db, order)
     # Artikel dieser Position denormalisieren – bei einem Mehrpositionen-Auftrag trägt
     # jede Bestellung einen ANDEREN Artikel (``order.article_id`` ist dann NULL).
     if po.article_id:
@@ -138,6 +137,14 @@ def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
         if art:
             emb.article_object_id = art.object_id
             emb.article_name = art.name
+            # FIX: Die «Für Lieferant sichtbar»-Karte las die Stammdaten vom AUFTRAG – bei
+            # einem Mehrpositionen-Auftrag (order.article_* = NULL) war jede Spezifikation
+            # leer («—»). Die Werte gehören zur POSITION (jede Bestellung ein anderer Artikel).
+            emb.article_unit = art.unit
+            emb.article_size = art.size
+            emb.article_weight_kg = art.weight_kg
+            emb.article_serialization = art.serialization
+            emb.article_supplier_article_number = art.supplier_article_number
     return emb
 
 
@@ -368,7 +375,8 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             # Liste, ``purchase`` bleibt das erste Embed (Rückwärtskompatibilität; beim
             # Einzel-Artikel-Auftrag identisch).
             facts = s["facts"]
-            embs = [_purchase_embed(db, order, step, f) for f in facts]
+            hist = _purchase_history(db, order) if facts else None
+            embs = [_purchase_embed(db, order, step, f, history=hist) for f in facts]
             if embs:
                 si.purchases = embs
                 si.purchase = embs[0]
@@ -440,9 +448,12 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
     order_ids = [o.id for o in orders]
     po_status: dict[int, str] = {}
+    # FIX: deterministisch (nach id) statt unsortiert – bei einem Mehrpositionen-Auftrag
+    # zeigte das Feed-Badge sonst je nach Query-Plan mal die eine, mal die andere Bestellung.
     for po in (
         db.query(PurchaseOrder)
         .filter(PurchaseOrder.order_id.in_(order_ids), PurchaseOrder.is_active == True)
+        .order_by(PurchaseOrder.id)
         .all()
     ):
         po_status[po.order_id] = po.status

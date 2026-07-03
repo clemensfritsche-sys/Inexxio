@@ -69,7 +69,7 @@ def _resolve_subjects(db: Session, parent: Order, instance_object_ids: list[int]
 
 
 def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] | None,
-                     actor_id: int, title_prefix: str = "Abweichung zu") -> Order:
+                     actor_id: int | None, title_prefix: str = "Abweichung zu") -> Order:
     """Eine **Abweichung** (Unter-Auftrag) zu ``parent`` anlegen, die auf die betroffenen
     Instanzen wirkt (Instanz- oder Prozess-Ebene). Entwurf; der Nutzer definiert die
     Auflösung (Schritte) und gibt frei. Committet NICHT (der Aufrufer schliesst ab)."""
@@ -129,16 +129,19 @@ def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | No
     solange eine Abweichung dieses Auftrags offen ist, wird keine weitere erzeugt."""
     if open_deviations(db, order):
         return None
-    insts = (
-        db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True)
-        .order_by(Instance.object_id)
-        .all()
-    )
-    failed = [i.object_id for i in insts if i.quality == "failed" and i.object_id]
+    # FIX: Vorher wurden die Durchfaller über ``Instance.order_id`` gesucht – das trifft nur
+    # SELBST ERZEUGTE Instanzen (Erzeugungsauftrag). Bei einem Bestands-/Pin-/Retoure-Auftrag
+    # zeigen die geprüften (reservierten) Instanzen auf ihren PRODUKTIONS-Auftrag → die Liste
+    # war leer und die dokumentierte Auto-Abweichung wurde still übersprungen. Massgeblich
+    # ist das SUBJEKT des Auftrags (dieselbe Menge, welche die Datenerfassung geprüft hat).
+    failed = [i.object_id for i in order_active_instances(db, order)
+              if i.quality == "failed" and i.object_id]
+    # Regel «höchstens EINE aktive Abweichung je Instanz» respektieren, statt beim
+    # automatischen Anlegen mit 409 die Erfassung selbst scheitern zu lassen.
+    failed = [oid for oid in failed if not instance_open_deviation(db, oid)]
     if not failed:
         return None
-    return create_deviation(db, order, failed, actor_id or 0, title_prefix="Datenerfassung-Abweichung zu")
+    return create_deviation(db, order, failed, actor_id, title_prefix="Datenerfassung-Abweichung zu")
 
 
 def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:

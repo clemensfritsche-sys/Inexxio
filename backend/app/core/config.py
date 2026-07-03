@@ -40,8 +40,6 @@ class Settings(BaseSettings):
     # Stripe Tax (automatic_tax) am Checkout. NUR aktivieren, wenn im Stripe-Dashboard
     # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
     stripe_tax_enabled: bool = False
-    # Länder, in die wir liefern (Stripe Checkout shipping_address_collection). Komma-Liste.
-    shop_ship_countries: str = "CH,LI,DE,AT,FR,IT,NL,BE,LU,ES,PT,SE,DK,FI,IE,PL,US"
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
     fx_source_url: str = "https://api.exchangerate.host/latest"

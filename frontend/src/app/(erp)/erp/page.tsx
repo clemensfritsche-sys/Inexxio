@@ -192,11 +192,15 @@ export default function ErpPage() {
   // bei jeder (entprellten) Suchänderung neu; weitere Seiten via Infinite-Scroll.
   useEffect(() => {
     const q = search.trim();
+    // FIX: Antworten einer ÄLTEREN Suche konnten eine neuere überholen (Suche tippen und
+    // sofort löschen → 0ms- vor 300ms-Antwort) und Liste/Zähler inkonsistent überschreiben.
+    // Der Cleanup markiert den vorherigen Effekt als veraltet – späte Antworten verfallen.
+    let stale = false;
     const t = setTimeout(() => {
-      api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
-      api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then((rows) => { if (!stale) setInstances(rows); }).catch(() => {});
+      api.getInstanceCount(q).then((r) => { if (!stale) setInstanceTotal(r.count); }).catch(() => {});
     }, q ? 300 : 0);
-    return () => clearTimeout(t);
+    return () => { stale = true; clearTimeout(t); };
   }, [search]);
 
   useEffect(() => {
@@ -523,7 +527,7 @@ export default function ErpPage() {
             <ArticleDetail key="new-article" record={null} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
-            <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'storage_location' && (
             <StorageLocationDetail key="new-storage" record={null} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={cancelCreate} onBack={cancelCreate} />
@@ -536,7 +540,7 @@ export default function ErpPage() {
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
-              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+              <OrderDetail key={`order-${sel.objectId}`} record={orderDetail} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
             ) : (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8' }}>
                 Auftrag wird geladen…

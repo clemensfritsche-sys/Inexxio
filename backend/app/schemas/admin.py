@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -241,13 +241,21 @@ class UserProfileUpdate(BaseModel):
     newsletter_opt_in: Optional[bool] = None
 
 
+# Gültige Rollen – EINE Quelle der Wahrheit für beide Rollen-Endpunkte
+# (PATCH /admin/users/{id}/role und PATCH /erp/records/{id}).
+Role = Literal["admin", "employee", "supplier", "customer"]
+
+
 class UserRoleUpdate(BaseModel):
-    role: str
+    role: Role
 
 
 class ErpAdminUpdate(BaseModel):
     """Fields an admin may change from the ERP panel."""
-    role: Optional[str] = None
+    # FIX: ``role`` war hier ein freier String (anders als beim Rollen-Endpoint) – ein
+    # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
+    # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.
+    role: Optional[Role] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None

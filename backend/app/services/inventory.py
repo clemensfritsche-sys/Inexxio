@@ -9,7 +9,7 @@ Frei verfügbar = ``quantity − reserved_quantity``; ``reserved_quantity`` ist 
 denormalisierte Summe der Reservierungen (für die SQL-Verfügbarkeitsfilter).
 """
 
-from sqlalchemy import func, or_
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import Instance
@@ -89,15 +89,3 @@ def available(db: Session, article_db_id: int, for_order_id: int | None = None) 
     """Verfügbare (allozierbare) Menge eines Artikels: freie Restmenge plus – mit
     ``for_order_id`` – die für diesen Auftrag bereits reservierte Menge."""
     return available_qty(fifo_candidates(db, article_db_id, for_order_id), for_order_id)
-
-
-def on_hand(db: Session, article_db_id: int) -> int:
-    """Gesamter freigegebener Lagerbestand eines Artikels (Stück, SQL-Aggregat) –
-    physische Menge inkl. reservierter Teile."""
-    return int(
-        db.query(func.coalesce(func.sum(Instance.quantity), 0)).filter(
-            Instance.article_id == article_db_id,
-            Instance.is_active == True,
-            *in_stock_clauses(),
-        ).scalar() or 0
-    )

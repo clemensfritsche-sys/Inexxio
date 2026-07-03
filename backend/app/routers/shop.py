@@ -187,7 +187,13 @@ async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db
         Sale.order_id == order.id, Sale.customer_id == user.id, Sale.is_active == True).first()
     if user.role not in ("admin", "employee") and not owns:
         raise HTTPException(403, detail="Keine Berechtigung für dieses Abo")
-    if not order.recurrence_active:
+    # FIX: Nach dem Auftrags-Abschluss wandert die Wiederkehr auf einen Folge-Entwurf
+    # (recurrence_active am Original = False) – der alte Early-Return auf
+    # `not order.recurrence_active` meldete dann «gekündigt», OHNE Stripe je zu kündigen:
+    # der Kunde wäre unbegrenzt weiter belastet worden. Nur noch überspringen, wenn weder
+    # ein Stripe-Abo noch irgendein aktives Glied der Wiederkehr-Kette existiert.
+    chain_active = any(o.recurrence_active for o in sales_svc.recurrence_chain(db, order))
+    if not chain_active and not order.stripe_subscription_id:
         return {"cancelled": True, "subscription_active": False}
     # Mindestbindung eines Produktabos – verhindert eine sofortige Kündigung direkt nach
     # Abschluss, vor der ersten Lieferung/Abrechnung (state of the art bei wiederkehrenden
@@ -233,13 +239,13 @@ async def customer_portal(request: Request, db: Session = Depends(get_db),
 async def payment_webhook(request: Request, db: Session = Depends(get_db)):
     """Provider-Webhook (Stripe: signaturgeprüft). Verarbeitet Zahlung/Abo-Ereignisse."""
     provider = get_provider(db)
+    # FIX: Im manuellen Modus war der unauthentifizierte Webhook ein offenes Tor – jeder
+    # konnte mit {"sale_token", "result":"paid"} fremde Checkouts als bezahlt markieren
+    # (Erfüllung ohne Zahlung) oder stornieren. Der manuelle Provider läuft AUSSCHLIESSLICH
+    # über den eingeloggten, ownership-geprüften Pfad POST /shop/payments/simulate.
+    if provider.name == "manual":
+        raise HTTPException(404, detail="Kein Webhook im manuellen Zahlungsmodus")
     raw = await request.body()
     sig = request.headers.get("stripe-signature")
-    payload = None
-    if provider_name(db) == "manual":
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = None
-    intent = provider.handle_webhook(db, raw, sig, payload)
+    intent = provider.handle_webhook(db, raw, sig, None)
     return {"status": intent.status if intent else "ok"}

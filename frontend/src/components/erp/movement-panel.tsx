@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, LocationType, Order, StorageLocation, UserProfile } from '@/types';
+import type { Instance, LocationType, Order, StorageLocation, UserProfile, OrderInstance } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
 import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
@@ -12,7 +12,6 @@ import { ObjId } from '@/components/erp/obj-id';
 import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
-type OrderInstance = NonNullable<Order['instances']>[number];
 
 export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;

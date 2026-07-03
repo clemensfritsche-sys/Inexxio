@@ -53,7 +53,6 @@ export function Navbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [roleFetched, setRoleFetched] = useState(false);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [profileName, setProfileName] = useState('');
   const pathname = usePathname();
@@ -94,12 +93,9 @@ export function Navbar() {
           }
         } catch {
           // keep cached values
-        } finally {
-          setRoleFetched(true);
         }
       } else {
         setUserRole(null);
-        setRoleFetched(true);
         setProfileName('');
         localStorage.removeItem(ROLE_KEY);
         localStorage.removeItem(NAME_KEY);

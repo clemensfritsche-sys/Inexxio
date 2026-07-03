@@ -92,7 +92,6 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
 | DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |
 | GET | /api/v1/admin/audit-log | admin | Audit Log |
-| GET | /api/v1/admin/notifications | user | Eigene Benachrichtigungen |
 | POST | /api/v1/contact | – | Kontaktformular |
 
 > Artikel: **Stammdaten** + **Prozess** (Purchase-Schritt) implementiert; Reiter **Bestand** ist

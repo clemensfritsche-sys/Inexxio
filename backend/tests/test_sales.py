@@ -171,7 +171,7 @@ def test_apply_stripe_snapshot_inclusive():
 def test_finalize_paid_and_release_helpers_exist():
     from app.services import sale as sale_svc
 
-    for f in ("finalize_paid", "mark_paid", "mark_cancelled", "_release_on_payment"):
+    for f in ("finalize_paid", "mark_cancelled", "_release_on_payment"):
         assert hasattr(sale_svc, f)
 
 

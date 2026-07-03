@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { toStepperState, STEP_META } from '@/lib/process';
@@ -12,7 +12,7 @@ import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle, PrimaryButton } from '@/components/erp/fields';
+import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -23,6 +23,7 @@ import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import { localDate } from '@/lib/utils';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -61,9 +62,6 @@ function demandSig(articleId: string, quantity: string, date: string | null): st
   return JSON.stringify({ article_id: articleId, quantity: quantity.trim(), date: date || null });
 }
 
-function localDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
-}
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -88,11 +86,12 @@ function orderActions(status: string, canRelease: boolean, releaseHint?: string)
   return [];   // inactive/completed → kein manueller Wechsel
 }
 
-export function OrderDetail({ record, articles, viewerRole, company, onSaved, onCancel, onBack }: {
+export function OrderDetail({ record, articles, viewerRole, company, suppliers = [], onSaved, onCancel, onBack }: {
   record: Order | null;            // null ⇒ Anlage-Modus (nur Mitarbeiter)
   articles: Article[];
   viewerRole: ViewerRole;
   company: Partial<CompanySettings> | null;
+  suppliers?: UserProfile[];
   onSaved: (o: Order) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -511,7 +510,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
       </div>
 
       {/* Content */}
-      <div onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}
+      {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
+          Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
+          Zeilenumbruch. Textareas ausnehmen. */}
+      <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
@@ -686,7 +688,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
             Unter-Auftrag (Abweichung/Nachschub) nicht sinnvoll. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} onSaved={onSaved} />}
+        {isStaff && record?.status === 'draft' && !isSubOrder && <RecurrenceCard order={record} onSaved={onSaved} version={verRef} />}
 
         {/* Lieferung an (für Lieferant) */}
         {!isStaff && (
@@ -742,7 +744,10 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
               {isSupply ? 'Ablauf des Nachschubs' : isReturn ? 'Ablauf der Retoure' : 'Ablauf der Abweichung'}
             </SectionTitle>
             <div style={cardStyle}>
-              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+              {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
+                  ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
+                  («Keine Lieferanten vorhanden»), obwohl welche existieren. */}
+              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
             </div>
           </>
@@ -794,7 +799,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                 {goal === 'specific' && (
                   <>
                     <SectionTitle icon={Boxes}>Instanzen wählen</SectionTitle>
-                    {availableQty > 0 && pinLines.map((line) => <PinPicker key={line.key} line={line} showArticle={false} onToggle={togglePin} />)}
+                    {availableQty > 0 && pinLines.map((line) => <PinPicker key={line.key} line={line} onToggle={togglePin} />)}
                     {/* Verkaufte Ware ebenfalls hier wählbar – die Auswahl macht den Auftrag zur
                         Retoure/Erstattung (reason='return', danach Ablauf-Editor). */}
                     {soldPool.length > 0 && (
@@ -807,7 +812,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                   ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
                   : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
                 <div style={cardStyle}>
-                  <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+                  <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                     selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
                 </div>
               </>
@@ -851,7 +856,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
                       )}
                     </div>
                   ) : (
-                    <PinPicker line={line} showArticle={false} onToggle={togglePin} bare />
+                    <PinPicker line={line} onToggle={togglePin} bare />
                   )}
                 </div>
               );
@@ -859,7 +864,7 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
             <SectionTitle icon={Workflow}
               info="Schritte definieren, was mit den Positionen geschieht (bewegen, verkaufen, prüfen …).">Ablauf</SectionTitle>
             <div style={cardStyle}>
-              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={[]}
+              <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
             </div>
           </>
@@ -940,11 +945,6 @@ export function OrderDetail({ record, articles, viewerRole, company, onSaved, on
   );
 }
 
-function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
-  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
-  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
-  return null;
-}
 
 function stepHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -1176,7 +1176,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'movement') {
     return <MovementPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (step.step_type === 'resource' || step.step_type === 'consume' || step.step_type === 'tool') {
+  if (step.step_type === 'resource') {
     return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   if (step.step_type === 'scrap') {
@@ -1331,8 +1331,8 @@ function SegBtn({ active, icon: Icon, tone, label, onClick }: {
 // Instanz-Auswahl (Chips) für EINE Position – geteilt von Einzel-Artikel- und
 // Mehrpositionen-Auftrag (dieselbe Optik). ``bare`` lässt den äusseren Karten-Rahmen weg
 // (die Position bringt ihn schon mit).
-function PinPicker({ line, showArticle, onToggle, bare }: {
-  line: PinLine; showArticle: boolean; onToggle: (line: PinLine, oid: number) => void; bare?: boolean;
+function PinPicker({ line, onToggle, bare }: {
+  line: PinLine; onToggle: (line: PinLine, oid: number) => void; bare?: boolean;
 }) {
   const body = (
     <>
@@ -1458,7 +1458,9 @@ const recInput = "w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outlin
 
 /** «Wiederkehrend» direkt am Auftrag: bei Abschluss entsteht automatisch der nächste
  *  (Entwurf), Termin = Termin + Periode. Nur im Entwurf einstellbar. */
-function RecurrenceCard({ order, onSaved }: { order: Order; onSaved: (o: Order) => void }) {
+function RecurrenceCard({ order, onSaved, version }: {
+  order: Order; onSaved: (o: Order) => void; version: MutableRefObject<string | null>;
+}) {
   const [active, setActive] = useState(!!order.recurrence_active);
   const [interval, setIntervalDays] = useState(order.recurrence_interval_days ? String(order.recurrence_interval_days) : '365');
   const [anchor, setAnchor] = useState(order.recurrence_anchor ?? '');
@@ -1470,12 +1472,17 @@ function RecurrenceCard({ order, onSaved }: { order: Order; onSaved: (o: Order) 
   async function save() {
     setBusy(true); setErr(null);
     try {
+      // FIX: Der Wiederkehr-Save lief am Optimistic Locking vorbei (kein expected_updated_at)
+      // und liess verRef veralten – der NÄCHSTE Autosave (z. B. Liefertermin) scheiterte dann
+      // mit einem unerklärlichen 409, obwohl niemand sonst den Auftrag angefasst hatte.
       const o = await api.updateOrder(order.object_id as number, {
         recurrence_active: active,
         recurrence_interval_days: active ? Math.max(1, Math.trunc(Number(interval) || 0)) : null,
         recurrence_lead_time_days: active ? Math.max(0, Math.trunc(Number(lead) || 0)) : 0,
         recurrence_anchor: active && anchor ? anchor : null,
+        expected_updated_at: version.current,
       });
+      version.current = o.updated_at;
       onSaved(o); setSaved(true); setTimeout(() => setSaved(false), 1500);
     } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
     finally { setBusy(false); }

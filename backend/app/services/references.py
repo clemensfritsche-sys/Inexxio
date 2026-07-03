@@ -11,6 +11,7 @@
 
 from datetime import datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import (
@@ -62,8 +63,17 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
     ):
         add(ins.order_id, "Datenerfassung", ins.updated_at)
 
-    # Ressource: verbraucht (eingebaut) bzw. als Betriebsmittel genutzt
-    for u in db.query(ResourceUsage).filter(ResourceUsage.is_active == True).all():
+    # Ressource: verbraucht (eingebaut) bzw. als Betriebsmittel genutzt.
+    # JSONB-Containment filtert in SQL vor (vorher wurden ALLE resource_usages der
+    # Datenbank geladen und in Python gescannt – unbegrenzt wachsend); die Python-Prüfung
+    # unten klassifiziert nur noch die wenigen Treffer (verbaut vs. Betriebsmittel).
+    usage_filter = or_(
+        ResourceUsage.details.op("@>")({"consume": [{"picks": [{"instance_id": oid}]}]}),
+        ResourceUsage.details.op("@>")({"tools": [{"instance_ids": [oid]}]}),
+    )
+    for u in db.query(ResourceUsage).filter(
+        ResourceUsage.is_active == True, usage_filter
+    ).all():
         details = u.details or {}
         consumed = any(
             p.get("instance_id") == oid
@@ -106,13 +116,6 @@ def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]
                 Instance.location_id == lid)
         .all()
     )
-    for i in insts:
-        art = db.query(Article).filter(Article.id == i.article_id).first()
-        name = art.name if art else "Instanz"
-        refs.append({"kind": f"{name} · lagernd", "ref_type": "instance",
-                     "object_id": i.object_id, "label": _obj_nr(i.object_id or 0),
-                     "at": i.updated_at})
-
     # Artikel-Prozessschritte, die diesen Lagerplatz als Ziel referenzieren
     steps = (
         db.query(ArticleProcessStep)
@@ -121,9 +124,19 @@ def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]
                 ArticleProcessStep.target_location_id == lid)
         .all()
     )
+    # Artikel BATCH laden (vorher ein Query je Instanz UND je Schritt, N+1)
+    art_ids = {i.article_id for i in insts} | {s.article_id for s in steps if s.article_id}
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
+    for i in insts:
+        art = arts.get(i.article_id)
+        name = art.name if art else "Instanz"
+        refs.append({"kind": f"{name} · lagernd", "ref_type": "instance",
+                     "object_id": i.object_id, "label": _obj_nr(i.object_id or 0),
+                     "at": i.updated_at})
+
     role = {"purchase": "Lieferadresse", "movement": "Bewegungsziel"}
     for st in steps:
-        art = db.query(Article).filter(Article.id == st.article_id).first()
+        art = arts.get(st.article_id)
         if not art:
             continue
         refs.append({"kind": f"{art.name} · {role.get(st.step_type, 'Prozessschritt')}",

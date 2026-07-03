@@ -54,17 +54,7 @@ def resolve_currency(db: Session, requested: str | None, country: str | None) ->
 # ─── Profil / Preise / Zielgruppe (ERP) ──────────────────────────────────────────
 
 def _user_name(u: UserProfile | None) -> str | None:
-    if not u:
-        return None
-    name = " ".join(p for p in [u.first_name, u.last_name] if p).strip()
-    return u.company_name or name or u.email
-
-
-def _price_rank(p: ArticlePrice) -> int:
-    """Sortier-Rang: Abos zuerst (Produktabo, dann Nutzungsabo), zuletzt Einmalkauf."""
-    if p.kind == "subscription":
-        return 0 if p.sub_type == "product" else 1
-    return 2
+    return u.display_name if u else None
 
 
 def prices_for(db: Session, article_id: int) -> list[ArticlePrice]:
@@ -73,8 +63,13 @@ def prices_for(db: Session, article_id: int) -> list[ArticlePrice]:
         .filter(ArticlePrice.article_id == article_id, ArticlePrice.is_active == True)
         .all()
     )
-    # Reihenfolge: Produktabo → Nutzungsabo → Einmalkauf (dann Hauptpreis, dann id).
-    prices.sort(key=lambda p: (_price_rank(p), 0 if p.is_primary else 1, p.id))
+    return sort_prices(prices)
+
+
+def sort_prices(prices: list[ArticlePrice]) -> list[ArticlePrice]:
+    """Shop-Reihenfolge: Produktabo → Nutzungsabo → Einmalkauf (dann Hauptpreis, dann id).
+    EINE Sortier-Wahrheit für Listing UND Hauptpreis-Auflösung (``pricing.sort_key``)."""
+    prices.sort(key=pricing.sort_key)
     return prices
 
 
@@ -297,11 +292,12 @@ def _content(article: Article, lang: str) -> dict:
 
 
 def price_options(db: Session, article: Article, currency: str, country: str | None,
-                  user: UserProfile | None) -> list[dict]:
+                  user: UserProfile | None, prices: list[ArticlePrice] | None = None) -> list[dict]:
     """Alle wählbaren Preis-Optionen eines Artikels (Einmalkauf/Nutzungsabo/Produktabo …),
-    Hauptpreis zuerst – jede mit berechneter Preis-Sicht in ``currency``."""
+    Hauptpreis zuerst – jede mit berechneter Preis-Sicht in ``currency``. ``prices``:
+    vorab (batch) geladene Preise – erspart dem Listing einen Query je Artikel."""
     out: list[dict] = []
-    for p in prices_for(db, article.id):
+    for p in (prices if prices is not None else prices_for(db, article.id)):
         out.append({
             "price_id": p.id, "kind": p.kind, "interval": p.interval,
             "sub_type": p.sub_type, "is_primary": p.is_primary,
@@ -311,10 +307,11 @@ def price_options(db: Session, article: Article, currency: str, country: str | N
 
 
 def to_product(db: Session, article: Article, currency: str, country: str | None,
-               user: UserProfile | None, lang: str) -> dict:
+               user: UserProfile | None, lang: str,
+               prices: list[ArticlePrice] | None = None) -> dict:
     c = _content(article, lang)
     images = c.get("images") or []
-    options = price_options(db, article, currency, country, user)
+    options = price_options(db, article, currency, country, user, prices=prices)
     return {
         "object_id": article.object_id,
         "title": c.get("title") or article.name,
@@ -341,19 +338,42 @@ def list_products(db: Session, user: UserProfile | None, currency: str,
         .order_by(Article.object_id.desc())
         .all()
     )
+    if not rows:
+        return []
+    # Preise + Zuweisungen für ALLE gelisteten Artikel **batch** laden (vorher 2–3 Queries
+    # je Artikel – auf einem öffentlichen, unauthentifizierten Endpoint, N+1).
+    prices_by_article: dict[int, list[ArticlePrice]] = {}
+    for p in db.query(ArticlePrice).filter(
+        ArticlePrice.article_id.in_({a.id for a in rows}), ArticlePrice.is_active == True,
+    ).all():
+        prices_by_article.setdefault(p.article_id, []).append(p)
+    for plist in prices_by_article.values():
+        sort_prices(plist)
+    assigned: set[int] = set()
+    if user:
+        private_ids = {a.id for a in rows if a.sales_visibility == "private"}
+        if private_ids:
+            assigned = {
+                r.article_id for r in db.query(ArticleSalesAudience).filter(
+                    ArticleSalesAudience.article_id.in_(private_ids),
+                    ArticleSalesAudience.user_id == user.id,
+                    ArticleSalesAudience.is_active == True,
+                ).all()
+            }
+    is_staff = bool(user and user.role in ("admin", "employee"))
     out: list[dict] = []
     for a in rows:
         if a.sales_visibility == "public":
             pass
         elif a.sales_visibility == "private":
-            if not (_is_assigned(db, a.id, user) or (user and user.role in ("admin", "employee"))):
+            if not (a.id in assigned or is_staff):
                 continue
         else:   # unlisted → nicht listen
             continue
-        # Nur Produkte mit gepflegtem Preis listen.
-        if not pricing.resolve_primary_price(db, a):
+        prices = prices_by_article.get(a.id) or []
+        if not prices:   # nur Produkte mit gepflegtem Preis listen
             continue
-        out.append(to_product(db, a, currency, country, user, lang))
+        out.append(to_product(db, a, currency, country, user, lang, prices=prices))
     return out
 
 
@@ -373,6 +393,33 @@ def _interval_days(interval: str | None) -> int:
 # dort schadet eine sofortige Kündigung niemandem, der Zugang endet einfach zum
 # Periodenende (Stripe ``cancel_at_period_end`` wäre der nächste Ausbauschritt).
 PRODUCT_MINIMUM_TERM_CYCLES = 1
+
+
+def recurrence_chain(db: Session, order: Order) -> list[Order]:
+    """Der Auftrag + alle Folge-Aufträge seiner Wiederkehr-Kette: ``_spawn_recurrence``
+    reicht die Wiederkehr bei Abschluss an einen Folge-Entwurf weiter
+    (``recurring_parent_id``) – der jeweils AKTUELLE Träger steht am Ende der Kette."""
+    chain: list[Order] = []
+    seen: set[int] = set()
+    cur: Order | None = order
+    while cur and cur.id not in seen:
+        seen.add(cur.id)
+        chain.append(cur)
+        cur = (db.query(Order).filter(
+            Order.recurring_parent_id == cur.object_id, Order.is_active == True).first()
+            if cur.object_id else None)
+    return chain
+
+
+def deactivate_recurrence_chain(db: Session, order: Order) -> bool:
+    """Die lokale Wiederkehr über die GANZE Kette beenden (Kündigung). Liefert True,
+    wenn irgendein Kettenglied noch aktiv war. Committet NICHT."""
+    changed = False
+    for o in recurrence_chain(db, order):
+        if o.recurrence_active:
+            o.recurrence_active = False
+            changed = True
+    return changed
 
 
 def earliest_cancellation_date(order: "Order") -> date | None:
@@ -412,12 +459,22 @@ def _resolve_line(db: Session, item, customer: UserProfile) -> dict:
 
     view = pricing.price_view_for(db, price, "CHF", country=None, customer=customer)
     qty = item.quantity
+    # FIX: Verrechnet wurde bisher der ROHE Basispreis, angezeigt aber das Pipeline-Ergebnis
+    # (charm_round auf 0.05 CHF): Anzeige «100.00», Belastung 99.99. Der Kunde zahlt jetzt
+    # exakt den angezeigten CHF-Preis (brutto bei inklusiver Auszeichnung, sonst netto –
+    # ``tax_behavior`` an der Stripe-Kasse ist derselbe Schalter). Nebeneffekt: der
+    # Stückbetrag ist glatt (0.05er-Schritte) → keine Rappen-Drift mehr bei base÷qty
+    # in ``stripe_provider._line_item``.
+    from ..core.config import get_settings
+    unit_chf = Decimal(price.amount_chf)
+    if view:
+        unit_chf = Decimal(view["gross"] if get_settings().prices_tax_inclusive else view["net"])
     return {
         "article_id": article.id, "article_object_id": article.object_id,
         "article_name": article.name, "price_id": price.id,
         "quantity": qty, "fulfillment": article.sales_fulfillment or "make",
         "kind": price.kind, "interval": price.interval, "sub_type": price.sub_type,
-        "base_amount_chf": str((Decimal(price.amount_chf) * qty).quantize(CENT)),
+        "base_amount_chf": str((unit_chf * qty).quantize(CENT)),
         "net_chf": str((view["net"] * qty).quantize(CENT)) if view else None,
         "vat_rate": str(view["tax_rate"]) if view else None,
         "order_id": None,
@@ -460,7 +517,15 @@ def checkout(db: Session, items: list, customer: UserProfile) -> tuple["object",
     db.refresh(intent)
 
     provider = get_provider(db)
-    result = provider.create_checkout(db, intent, customer)
+    try:
+        result = provider.create_checkout(db, intent, customer)
+    except Exception:
+        # FIX: Schlug die Zahlungs-Session fehl (Stripe-Fehler/Netz), blieben die soeben
+        # committeten stock-Reservierungen dauerhaft bestehen – ohne Session feuert nie ein
+        # checkout.session.expired, und einen Intent-Aufräumer gibt es nicht. Den Intent
+        # (inkl. reservierter Aufträge) sauber auflösen, dann den Fehler durchreichen.
+        cancel_intent(db, intent)
+        raise
     intent.provider = provider.name
     db.commit()
     return intent, result
@@ -595,6 +660,13 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
 
     if intent.status == "completed":
         return 0
+    # FIX: Ein stornierter/abgelaufener Intent darf durch eine (verspätete) Zahlung nicht
+    # wiederbelebt werden: sein stock-Auftrag ist bereits inaktiv und die Reservierungen
+    # sind gelöst – ein «paid» darauf ergäbe bezahlte Belege ohne gebundene Ware. Die
+    # Zahlung bleibt beim Provider sichtbar und wird manuell erstattet/geklärt.
+    if intent.status == "cancelled":
+        print(f"WARNING: Zahlung für stornierten CheckoutIntent {intent.id} ignoriert.", flush=True)
+        return 0
     customer = db.query(UserProfile).filter(UserProfile.id == intent.customer_id).first()
     if not customer:
         return 0
@@ -633,6 +705,11 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
             from . import supply
             order = _create_multiline_sale_order(db, [line], customer, allow_backorder=True)
             line["order_id"] = order.object_id
+            # FIX: Die Zuordnung Position→Auftrag sofort persistieren (nicht erst am Ende):
+            # ``finalize_paid`` committet gleich – bricht eine SPÄTERE Position ab, wäre der
+            # Auftrag committet, aber ``lines[].order_id`` noch NULL, und der Stripe-Retry
+            # hätte eine Dublette (zweiter Auftrag + bezahlter Beleg) erzeugt.
+            _store_lines(intent, lines)
             done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
             supply.ensure_supply(db, order, customer.id)
     intent.status = "completed"
@@ -672,6 +749,10 @@ def list_customer_orders(db: Session, customer_id: int) -> list[dict]:
     arts_by_id = {
         a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()
     } if art_ids else {}
+    # Retoure-Anfragen für ALLE Bestellungen batch ermitteln (vorher ein Query je Zeile).
+    from .customer_returns import requested_return_parents
+    requested_parents = requested_return_parents(
+        db, {o.object_id for o in orders_by_id.values() if o.object_id})
     out: list[dict] = []
     for s in sales:
         order = orders_by_id.get(s.order_id)
@@ -700,18 +781,19 @@ def list_customer_orders(db: Session, customer_id: int) -> list[dict]:
             "subscription_active": bool(order.recurrence_active),
             "has_subscription_management": bool(order.stripe_subscription_id),
             "cancellable_from": earliest_cancellation_date(order),
-            **_customer_return_status(db, order, s),
+            **_customer_return_status(db, order, s,
+                                      requested=(order.object_id in requested_parents)),
         })
     return out
 
 
-def _customer_return_status(db: Session, order, sale) -> dict:
+def _customer_return_status(db: Session, order, sale, requested: bool | None = None) -> dict:
     """Retoure-Status einer Bestellung (retournierbar/Frist/angefragt) – nur für einen normalen
     Verkauf (kein Abo, kein Unter-Auftrag). Kapselt den Import (zyklenfrei)."""
     if sale.kind != "sale" or order.recurrence_kind:
         return {"returnable": False, "return_requested": False, "return_deadline": None}
     from .customer_returns import return_status
-    return return_status(db, order, sale, sale.customer_id)
+    return return_status(db, order, sale, requested=requested)
 
 
 def cancel_intent(db: Session, intent) -> None:

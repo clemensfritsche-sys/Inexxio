@@ -21,6 +21,12 @@ from ..models.base import utcnow
 
 ONE = Decimal("1")
 
+# In-Prozess-Memo je (Währung, Tag): ein gespeicherter Tageskurs ist unveränderlich
+# (``_persist`` überspringt Vorhandenes) – erspart dem Shop-Listing einen Query je
+# Preis×Währung. Der Last-known-Fallback wird bewusst NICHT gecacht (er kann sich
+# im Tagesverlauf noch durch einen erfolgreichen Abruf verbessern).
+_rate_memo: dict[tuple[str, date], Decimal] = {}
+
 
 def _today() -> date:
     return utcnow().date()
@@ -94,13 +100,18 @@ def get_rate(db: Session, currency: str, day: date | None = None) -> Decimal:
     if cur == "CHF":
         return ONE
     day = day or _today()
+    memo = _rate_memo.get((cur, day))
+    if memo is not None:
+        return memo
     existing = _stored(db, cur, day)
     if existing is not None:
+        _rate_memo[(cur, day)] = existing
         return existing
     fetched = _fetch_rates_to_chf()
     if fetched:
         _persist(db, day, fetched)
         if cur in fetched:
+            _rate_memo[(cur, day)] = fetched[cur]
             return fetched[cur]
     last = _last_known(db, cur)
     return last if last is not None else ONE

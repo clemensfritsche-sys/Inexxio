@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ChevronDown, Search, Info } from 'lucide-react';
+import { AlertCircle, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
 
 // ─── Hover-Hilfen: Erklärungen/Infotexte gehören in den Hover, nicht in die Fläche ──
@@ -291,4 +291,12 @@ export function Placeholder({ icon: Icon, title, text }: { icon: React.ElementTy
       <p style={{ marginTop: 4, fontSize: 13, color: '#94a3b8', maxWidth: 280 }}>{text}</p>
     </div>
   );
+}
+
+// Autosave-Statusanzeige («Speichert… / Gespeichert») – geteilt von allen Detailfenstern
+// (vorher 3 identische Kopien in Artikel-/Auftrag-/Lagerplatz-Detail).
+export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boolean }) {
+  if (saving) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#94a3b8' }}><Loader2 size={12} className="animate-spin" /> Speichert…</span>;
+  if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
+  return null;
 }

@@ -3,14 +3,13 @@
 import { useMemo, useState } from 'react';
 import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order } from '@/types';
+import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
 import { StatusBadge, PanelHeader } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useScan } from '@/components/scan/scan-provider';
 
-type OrderInstance = NonNullable<Order['instances']>[number];
 
 /**
  * Prozessschritt «Verschrotten» – die definierte Auflösung einer Abweichung: ein

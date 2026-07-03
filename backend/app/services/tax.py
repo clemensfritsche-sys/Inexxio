@@ -19,7 +19,6 @@ CH_RATES = {
     "lodging": Decimal("3.8"),
     "zero": Decimal("0"),
 }
-TAX_CLASSES = tuple(CH_RATES.keys())
 
 # Länder im CH-MWST-Raum (CH + Liechtenstein), tolerant gegenüber Schreibweisen.
 _CH_AREA = {"schweiz", "switzerland", "ch", "suisse", "svizzera",

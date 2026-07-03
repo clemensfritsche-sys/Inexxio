@@ -17,32 +17,44 @@ from ..models import InstanceOrderLink, Order, Sale
 
 
 def original_sale_order(db: Session, instances: list) -> Order:
-    """Den **Original-Verkaufs-Auftrag** der gewählten (verkauften) Instanzen ableiten: der
-    Auftrag mit einem **bezahlten Verkauf** (``Sale kind='sale' status='paid'``), der diese
-    Instanzen als Subjekt verarbeitet hat (``instance_order_links``). Alle gewählten Instanzen
-    müssen aus **demselben** Verkauf stammen (sonst ist der Erstattungsbetrag nicht eindeutig)."""
+    """Den **Original-Verkaufs-Auftrag** der gewählten (verkauften) Instanzen ableiten: je
+    Instanz ihr **jüngster** Auftrag mit bezahltem Verkauf (``Sale kind='sale' status='paid'``,
+    via ``instance_order_links``). Alle gewählten Instanzen müssen aus **demselben** Verkauf
+    stammen (sonst ist der Erstattungsbetrag nicht eindeutig)."""
     obj_ids = [i.object_id for i in instances]
-    link_orders = {
-        row.order_id
-        for row in db.query(InstanceOrderLink.order_id)
+    links = (
+        db.query(InstanceOrderLink.instance_object_id, InstanceOrderLink.order_id)
         .filter(InstanceOrderLink.instance_object_id.in_(obj_ids),
                 InstanceOrderLink.is_active == True)
         .all()
-    }
-    if not link_orders:
+    )
+    if not links:
         raise HTTPException(409, detail="Zu diesen Instanzen ist kein Verkauf auffindbar")
-    sale_orders = (
-        db.query(Order)
+    link_orders = {row.order_id for row in links}
+    paid_sale_ids = {
+        o.id for o in
+        db.query(Order.id)
         .join(Sale, Sale.order_id == Order.id)
         .filter(Order.id.in_(link_orders), Sale.kind == "sale",
                 Sale.status == "paid", Sale.is_active == True)
-        .order_by(Order.id.desc())
         .all()
-    )
-    if not sale_orders:
+    }
+    if not paid_sale_ids:
         raise HTTPException(409, detail="Zu diesen Instanzen ist kein bezahlter Verkauf auffindbar")
-    if len({o.id for o in sale_orders}) > 1:
+    # FIX: Vorher genügte EIN weiterer historischer Verkauf in der Instanz-Historie für den
+    # 400er – eine Instanz, die verkauft, retourniert, wieder eingelagert und ERNEUT verkauft
+    # wurde, war damit nie mehr retournierbar. Massgeblich ist je Instanz der JÜNGSTE bezahlte
+    # Verkauf; nur wenn DIESE auseinanderfallen, ist der Betrag nicht eindeutig.
+    latest_per_instance: dict[int, int] = {}
+    for row in links:
+        if row.order_id in paid_sale_ids:
+            cur = latest_per_instance.get(row.instance_object_id)
+            if cur is None or row.order_id > cur:
+                latest_per_instance[row.instance_object_id] = row.order_id
+    latest_ids = set(latest_per_instance.values())
+    if len(latest_ids) > 1:
         raise HTTPException(
             400, detail="Bitte nur Instanzen desselben Verkaufs erstatten – die gewählten stammen "
                         "aus verschiedenen Verkäufen")
-    return sale_orders[0]
+    order_id = latest_ids.pop()
+    return db.query(Order).filter(Order.id == order_id).first()

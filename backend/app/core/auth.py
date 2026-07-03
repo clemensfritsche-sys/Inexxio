@@ -143,7 +143,10 @@ def get_current_user(
     try:
         decoded = _verify_firebase_token(credentials_.credentials)
     except Exception as e:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
+        # FIX: Die rohe Exception (Firebase-Interna/Projekt-Details) gehört ins Log,
+        # nicht in die unauthentifizierte 401-Antwort.
+        print(f"WARNING: token verification failed: {e}", flush=True)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     uid = decoded["uid"]
     email = decoded.get("email", "")

@@ -7,11 +7,8 @@ import { Package, ArrowLeft, ShoppingCart, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useCart } from '@/lib/cart-context';
 import type { ShopProduct, ShopPriceOption, CartItem } from '@/types';
+import { formatMoney as fmt } from '@/lib/utils';
 
-function fmt(amount: number | string | null | undefined, currency: string): string {
-  if (amount == null) return '—';
-  return `${currency} ${Number(amount).toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function optionLabel(o: ShopPriceOption): string {
   if (o.kind !== 'subscription') return 'Einmalkauf';

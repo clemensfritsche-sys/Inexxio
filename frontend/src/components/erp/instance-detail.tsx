@@ -10,10 +10,8 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 import { ObjectLabel } from '@/components/scan/object-label';
+import { localDate } from '@/lib/utils';
 
-function localDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
-}
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die

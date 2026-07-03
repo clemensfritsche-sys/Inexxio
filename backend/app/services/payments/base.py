@@ -45,8 +45,11 @@ class PaymentProvider(ABC):
         """Ein Abo (Auftrag) **on-site** kündigen. Default (manual): nur lokal beenden.
         Stripe-Provider kündigt zuerst beim Provider und spiegelt erst danach – so bleibt der
         lokale Status NIE fälschlich «aktiv», wenn die Kündigung beim Provider scheitert."""
+        from .. import sales as sales_svc
         from ..events import emit
-        order.recurrence_active = False
-        emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
+        # FIX: Nach Auftrags-Abschluss wandert die Wiederkehr auf einen Folge-Entwurf
+        # (_spawn_recurrence) – nur das Original zu deaktivieren liess die Kette weiterlaufen.
+        if sales_svc.deactivate_recurrence_chain(db, order):
+            emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
         db.commit()
         return True

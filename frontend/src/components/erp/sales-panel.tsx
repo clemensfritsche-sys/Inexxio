@@ -190,9 +190,11 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
   const [form, setForm] = useState<{ kind: PriceKind; interval: PriceInterval; subType: PriceSubType; amount: string; compare: string }>(
     { kind: 'one_time', interval: 'month', subType: 'usage', amount: '', compare: '' });
 
+  const [err, setErr] = useState<string | null>(null);
+
   async function add() {
     if (!form.amount.trim()) return;
-    setBusy(true);
+    setBusy(true); setErr(null);
     try {
       await api.createArticlePrice(articleObjectId, {
         kind: form.kind,
@@ -204,12 +206,16 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
       setForm({ kind: 'one_time', interval: 'month', subType: 'usage', amount: '', compare: '' });
       setAdding(false);
       onChanged();
-    } finally { setBusy(false); }
+    // FIX: try/finally OHNE catch – ein 4xx (z. B. ungültiger Betrag «19,x») verschwand als
+    // unhandled rejection, das Formular blieb kommentarlos offen. Fehler jetzt anzeigen.
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Preis konnte nicht angelegt werden'); }
+    finally { setBusy(false); }
   }
 
   return (
     <div style={card}>
       <SectionTitle icon={Coins} info="Beträge sind die Netto-Basis in CHF. Stripe zeigt an der Kasse die Lokalwährung und berechnet die finale Steuer. Mehrere Optionen je Produkt sind möglich (Einmalkauf, Nutzungs-/Produktabo).">Preise</SectionTitle>
+      {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
       {prices.length === 0 && !adding && (
         <div style={{ fontSize: 12, color: '#94a3b8' }}>Noch kein Preis – ohne Preis erscheint das Produkt nicht im Shop.</div>
       )}
@@ -277,13 +283,16 @@ function PriceRow({ articleObjectId, price, onChanged }: {
   }, [articleObjectId, price.id, amount, compare, subType, interval, isSub, onChanged]);
   const flush = useAutosave(sig, sig !== savedSig && !!amount.trim(), save);
 
+  const [rowErr, setRowErr] = useState<string | null>(null);
+  // FIX: schwebende Promises ohne catch – ein Backend-Fehler (z. B. Preis nicht löschbar)
+  // verpuffte still als unhandled rejection. Fehler jetzt am Preis anzeigen.
   async function makePrimary() {
-    await api.updateArticlePrice(articleObjectId, price.id, { is_primary: true });
-    onChanged();
+    try { await api.updateArticlePrice(articleObjectId, price.id, { is_primary: true }); setRowErr(null); onChanged(); }
+    catch (e) { setRowErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
   }
   async function remove() {
-    await api.deleteArticlePrice(articleObjectId, price.id);
-    onChanged();
+    try { await api.deleteArticlePrice(articleObjectId, price.id); setRowErr(null); onChanged(); }
+    catch (e) { setRowErr(e instanceof Error ? e.message : 'Fehler beim Entfernen'); }
   }
 
   return (
@@ -297,6 +306,7 @@ function PriceRow({ articleObjectId, price, onChanged }: {
         {price.is_primary
           ? <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 7px', borderRadius: 999 }}>Hauptpreis</span>
           : <button onClick={makePrimary} style={{ fontSize: 11, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>Als Hauptpreis</button>}
+        {rowErr && <span style={{ fontSize: 11, color: '#dc2626' }}>{rowErr}</span>}
         <button onClick={remove} title="Preis entfernen" style={{ marginLeft: 'auto', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 7, padding: '5px 7px', color: '#94a3b8', cursor: 'pointer' }}>
           <Trash2 size={14} />
         </button>
@@ -336,15 +346,18 @@ function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
     .filter((c) => !needle || nameOf(c).toLowerCase().includes(needle) || (c.email ?? '').toLowerCase().includes(needle))
     .sort((a, b) => Number(rowByUser.has(b.id)) - Number(rowByUser.has(a.id)) || nameOf(a).localeCompare(nameOf(b)));
 
+  const [err, setErr] = useState<string | null>(null);
   async function toggle(c: UserProfile) {
     if (busy) return;
-    setBusy(true);
+    setBusy(true); setErr(null);
     try {
       const rowId = rowByUser.get(c.id);
       if (rowId) await api.removeArticleAudience(articleObjectId, rowId);
       else await api.addArticleAudience(articleObjectId, c.id);
       onChanged();
-    } finally { setBusy(false); }
+    // FIX: try/finally ohne catch – Zuweisungs-Fehler verschwanden still.
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Zuweisung fehlgeschlagen'); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -352,6 +365,7 @@ function AudienceCard({ articleObjectId, audience, customers, onChanged }: {
       <SectionTitle icon={Lock} info="Nur ausgewählte Kunden sehen das Produkt (bei privater Sichtbarkeit). Mehrfachauswahl per Klick.">
         Zielgruppe{audience.length > 0 ? ` (${audience.length})` : ''}
       </SectionTitle>
+      {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
       <TextField label="" value={q} onChange={setQ} placeholder="Kunde suchen (Name oder E-Mail)…" />
       {customers.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine Kunden vorhanden.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 260, overflowY: 'auto' }}>

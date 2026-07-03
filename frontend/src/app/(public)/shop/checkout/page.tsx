@@ -24,7 +24,13 @@ function CheckoutView() {
   useEffect(() => {
     if (authLoading || !hydrated) return;     // erst handeln, wenn Auth + Warenkorb geladen sind
     if (!user) { setBusy(false); return; }
-    if (items.length === 0) { router.replace('/shop/cart'); return; }
+    // FIX: Nach dem Bezahlen leert onComplete den Warenkorb → dieser Effekt lief erneut und
+    // der Leerer-Warenkorb-Redirect ersetzte die soeben angezeigte Danke-Ansicht sofort durch
+    // «Dein Warenkorb ist leer». Nur umleiten, wenn die Kasse noch gar nicht gestartet wurde.
+    if (items.length === 0) {
+      if (!done && !started.current) router.replace('/shop/cart');
+      return;
+    }
     if (started.current) return;
     started.current = true;
 
@@ -45,7 +51,7 @@ function CheckoutView() {
         setBusy(false);
       }
     })();
-  }, [authLoading, hydrated, user, items, router]);
+  }, [authLoading, hydrated, user, items, router, done]);
 
   const stripePromise = useMemo<Promise<Stripe | null> | null>(
     () => (pubKey ? loadStripe(pubKey) : null), [pubKey]);
