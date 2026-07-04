@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Users, Package, ClipboardList, Warehouse, Boxes, ChevronDown, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, Warehouse, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
+import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
+import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -21,19 +23,8 @@ import { InstanceDetail } from '@/components/erp/instance-detail';
 import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
-// ─── Type metadata ───────────────────────────────────────────────────────────
-
-const TYPE_META: Record<ErpRecordType, { label: string; icon: React.ElementType }> = {
-  user:             { label: 'Benutzer',     icon: Users },
-  article:          { label: 'Artikel',      icon: Package },
-  order:            { label: 'Auftrag',      icon: ClipboardList },
-  instance:         { label: 'Instanzen',    icon: Boxes },
-  storage_location: { label: 'Lagerplatz',   icon: Warehouse },
-  organization:     { label: 'Unternehmen',  icon: Building2 },
-};
-
-// 'organization' erscheint nur für Admins als Chip (displayCount blendet 0-Zähler aus).
-const FILTER_TYPES: ErpRecordType[] = ['user', 'article', 'order', 'instance', 'storage_location', 'organization'];
+// Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
+// geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
 
 type Row =
@@ -85,45 +76,39 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   else if (row.type === 'organization') badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
   else badge = storageStatusConfig(row.data.status);
 
-  const TypeIcon = TYPE_META[row.type].icon;
+  const meta = TYPE_META[row.type];
+  const TypeIcon = meta.icon;
 
   return (
     <button
       onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 14px', width: '100%', textAlign: 'left',
-        background: sel ? '#EFF6FF' : 'transparent',
-        borderLeft: `3px solid ${sel ? '#2563eb' : 'transparent'}`,
-        borderBottom: '1px solid #F1F5F9', cursor: 'pointer',
-      }}
+      className={cn(
+        'w-full flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-ds-md text-left transition-colors',
+        sel ? 'bg-accent-soft' : 'hover:bg-bg-2',
+      )}
     >
-      {row.type === 'user' ? (
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          background: row.data.photo_url ? 'transparent' : badge.bg, color: badge.color,
-          overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700,
-        }}>
-          {row.data.photo_url
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={row.data.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : userInitials(title, row.data.email)}
+      {row.type === 'user' && row.data.photo_url ? (
+        <div className="w-9 h-9 rounded-full flex-none overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={row.data.photo_url} alt="" className="w-full h-full object-cover" />
         </div>
       ) : (
-        <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: '#F1F5F9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <TypeIcon size={17} />
+        <div
+          className={cn('w-9 h-9 flex-none flex items-center justify-center', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
+          style={{ background: meta.bg, color: meta.fg }}
+        >
+          {row.type === 'user'
+            ? <span className="text-xs font-bold">{userInitials(title, row.data.email)}</span>
+            : <TypeIcon size={17} />}
         </div>
       )}
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: hasTitle ? '#0F172A' : '#94a3b8', fontStyle: hasTitle ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div className="min-w-0 flex-1">
+        <div className={cn('text-sm font-bold truncate', sel ? 'text-accent-ink' : hasTitle ? 'text-fg-1' : 'text-fg-4 italic')}>
           {hasTitle ? title : (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-          <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: '#475569' }}>{fmtObjId(row.objectId)}</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: badge.bg, color: badge.color }}>
-            {badge.icon && <badge.icon size={11} strokeWidth={2.5} />}{badge.label}
-          </span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-fg-3 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{fmtObjId(row.objectId)}</span>
+          <StatusBadge cfg={badge} size={11} />
         </div>
       </div>
     </button>
@@ -395,102 +380,73 @@ export default function ErpPage() {
 
         {/* ── List panel ───────────────────────────────────────────────────── */}
         <div className={cn(
-          'flex-shrink-0 border-r border-slate-200 flex flex-col bg-white',
-          'w-full md:w-[300px] lg:w-[340px]',
+          'flex-shrink-0 border-r border-border-1 flex flex-col bg-bg-1 relative',
+          'w-full md:w-[300px] lg:w-[336px]',
           showList ? 'flex' : 'hidden md:flex',
         )}>
-          <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid #F1F5F9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Datensätze</span>
-              {viewerRole === 'staff' && (
-              <div ref={plusRef} style={{ position: 'relative' }}>
+          {/* Suche + Scan */}
+          <div className="flex items-center gap-2.5 px-5 pt-4 pb-3.5">
+            <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-ds-md border border-border-2 px-2.5 py-2">
+              <Search size={17} className="flex-none text-fg-4" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Suchen…"
+                className="flex-1 min-w-0 border-none outline-none bg-transparent text-sm text-fg-1 placeholder:text-fg-4"
+              />
+              {search && (
                 <button
-                  onClick={() => setPlusOpen((o) => !o)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                  onClick={() => setSearch('')}
+                  title="Eingabe löschen"
+                  aria-label="Eingabe löschen"
+                  className="flex-none w-6 h-6 rounded-ds-sm flex items-center justify-center bg-bg-3 text-fg-3 hover:text-fg-1 transition-colors"
                 >
-                  <Plus size={14} /> Neu <ChevronDown size={12} />
+                  <X size={13} />
                 </button>
-                {plusOpen && (
-                  <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', padding: 4, zIndex: 30, minWidth: 160 }}>
-                    <button onClick={() => startCreate('article')} style={menuItemStyle}>
-                      <Package size={15} style={{ color: '#64748b' }} /> Artikel
-                    </button>
-                    <button onClick={() => startCreate('order')} style={menuItemStyle}>
-                      <ClipboardList size={15} style={{ color: '#64748b' }} /> Auftrag
-                    </button>
-                    <button onClick={() => startCreate('storage_location')} style={menuItemStyle}>
-                      <Warehouse size={15} style={{ color: '#64748b' }} /> Lagerplatz
-                    </button>
-                  </div>
-                )}
-              </div>
               )}
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Name, Bezeichnung, Nummer…"
-                  style={{
-                    width: '100%', paddingLeft: 30, paddingRight: search ? 30 : 12, paddingTop: 7, paddingBottom: 7,
-                    fontSize: 13, border: '1px solid #E2E8F0', borderRadius: 8, background: '#F8FAFC',
-                    outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch('')}
-                    title="Eingabe löschen"
-                    aria-label="Eingabe löschen"
-                    style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, border: 'none', background: '#e2e8f0', color: '#64748b', cursor: 'pointer' }}
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
               <button
                 onClick={scanToOpen}
-                title="Code scannen"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  width: 36, borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff',
-                  color: '#2563eb', cursor: 'pointer',
-                }}
+                title="Barcode / QR scannen"
+                aria-label="Barcode / QR scannen"
+                className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 transition-colors"
               >
-                <ScanLine size={17} />
+                <ScanLine size={18} />
               </button>
             </div>
-            {/* Type tag filters */}
-            <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
-              {FILTER_TYPES.filter((t) => displayCount(t)).map((t) => {
-                const active = typeFilter === t;
-                const Icon = TYPE_META[t].icon;
-                return (
-                  <button
-                    key={t}
-                    onClick={() => setTypeFilter(active ? null : t)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      padding: '3px 9px', borderRadius: 12,
-                      border: `1px solid ${active ? '#2563eb' : '#E2E8F0'}`,
-                      background: active ? '#eff6ff' : '#fff',
-                      color: active ? '#2563eb' : '#64748b',
-                      fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >
-                    <Icon size={12} /> {TYPE_META[t].label} {displayCount(t)}
-                  </button>
-                );
-              })}
-            </div>
+          </div>
+          {/* Typ-Filter — Symbol-first, aktiv expandiert zu Label + Anzahl (Farbe = Typ) */}
+          <div className="flex flex-wrap gap-1.5 px-5 pb-4 border-b border-border-1">
+            {FILTER_TYPES.filter((t) => displayCount(t)).map((t) => {
+              const active = typeFilter === t;
+              const meta = TYPE_META[t];
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(active ? null : t)}
+                  title={`${meta.label} · ${displayCount(t)}`}
+                  className={cn(
+                    'h-[42px] rounded-ds-md flex items-center justify-center gap-1.5 border transition-colors',
+                    active ? 'border-transparent px-3.5' : 'min-w-[42px] border-border-1 bg-bg-1 hover:bg-bg-2',
+                  )}
+                  style={active ? { background: meta.bg, color: meta.fg } : { color: meta.fg }}
+                >
+                  <Icon size={18} />
+                  {active && (
+                    <>
+                      <span className="text-[13px] font-bold">{meta.label}</span>
+                      <span className="text-[12.5px] font-bold tabular-nums opacity-60">{displayCount(t)}</span>
+                    </>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading && <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>Laden…</div>}
+          <div className="flex-1 overflow-y-auto min-h-0 p-2 pb-24">
+            {loading && <div className="p-6 text-center text-sm text-fg-4">Laden…</div>}
             {!loading && filtered.length === 0 && (
-              <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>
+              <div className="p-6 text-center text-sm text-fg-4">
                 {search || typeFilter ? 'Keine Treffer' : 'Keine Datensätze'}
               </div>
             )}
@@ -503,12 +459,40 @@ export default function ErpPage() {
               />
             ))}
             {(visibleCount < filtered.length || hasMoreInstances) && (
-              <div ref={sentinelCb} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px', color: '#94a3b8', fontSize: 12 }}>
+              <div ref={sentinelCb} className="flex items-center justify-center gap-2 p-3.5 text-fg-4 text-xs">
                 <Loader2 size={15} className="animate-spin" />
                 <span>Weitere werden geladen…</span>
               </div>
             )}
           </div>
+
+          {/* FAB — neuen Datensatz anlegen (Menü öffnet nach oben) */}
+          {viewerRole === 'staff' && (
+            <div ref={plusRef} className="absolute left-5 bottom-5 z-20">
+              {plusOpen && (
+                <div className="absolute left-0 bottom-[calc(100%+10px)] bg-bg-1 border border-border-1 rounded-ds-md shadow-ds-lg p-1 min-w-[170px]">
+                  <button onClick={() => startCreate('article')} style={menuItemStyle}>
+                    <Package size={15} style={{ color: 'var(--fg-3)' }} /> Artikel
+                  </button>
+                  <button onClick={() => startCreate('order')} style={menuItemStyle}>
+                    <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
+                  </button>
+                  <button onClick={() => startCreate('storage_location')} style={menuItemStyle}>
+                    <Warehouse size={15} style={{ color: 'var(--fg-3)' }} /> Lagerplatz
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setPlusOpen((o) => !o)}
+                title="Neuen Datensatz anlegen"
+                aria-label="Neuen Datensatz anlegen"
+                className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-white flex items-center justify-center transition-all hover:-translate-y-0.5"
+                style={{ boxShadow: '0 10px 22px rgba(179,18,15,.28)' }}
+              >
+                <Plus size={24} className={cn('transition-transform', plusOpen && 'rotate-45')} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Detail panel ─────────────────────────────────────────────────── */}
@@ -559,9 +543,9 @@ export default function ErpPage() {
               onSaved={(s) => setSettings(s)} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <Package size={48} strokeWidth={1} style={{ color: '#CBD5E1' }} />
-              <p style={{ marginTop: 12, fontSize: 14, color: '#94a3b8' }}>Datensatz auswählen oder neu anlegen</p>
+            <div className="flex-1 flex flex-col items-center justify-center bg-bg-2">
+              <Package size={48} strokeWidth={1} className="text-fg-4" />
+              <p className="mt-3 text-sm text-fg-3">Datensatz auswählen oder neu anlegen</p>
             </div>
           )}
           </ErrorBoundary>
@@ -574,6 +558,6 @@ export default function ErpPage() {
 
 const menuItemStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-  padding: '8px 10px', borderRadius: 7, border: 'none', background: 'none',
-  fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer', textAlign: 'left',
+  padding: '9px 11px', borderRadius: 8, border: 'none', background: 'none',
+  fontSize: 13, fontWeight: 600, color: 'var(--fg-2)', cursor: 'pointer', textAlign: 'left',
 };

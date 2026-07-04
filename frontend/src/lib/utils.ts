@@ -23,6 +23,25 @@ export function localDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleDateString('de-CH') : '—';
 }
 
+// Relative Zeitangabe («gerade eben», «vor 2 Std», «vor 1 Tag») – für Detail-Kacheln.
+export function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const s = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (s < 60) return 'gerade eben';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `vor ${m} Min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `vor ${h} Std`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return d === 1 ? 'vor 1 Tag' : `vor ${d} Tagen`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return mo === 1 ? 'vor 1 Monat' : `vor ${mo} Monaten`;
+  const y = Math.floor(d / 365);
+  return y === 1 ? 'vor 1 Jahr' : `vor ${y} Jahren`;
+}
+
 export function userDisplayName(user: { first_name?: string | null; last_name?: string | null; email: string }): string {
   const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
   return full || user.email.split('@')[0];
