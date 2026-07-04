@@ -53,12 +53,30 @@ inexxio/
     └── adr/               ← Architecture Decision Records
 ```
 
-## Design System
-Tailwind CSS, minimalistisch, dark-mode-fähig.
-- Farben: Neutrale Grautöne (slate), Akzentblau (blue-600 #2563eb)
-- Komponenten: Karten mit shadow-sm, runde Ecken (rounded-xl/rounded-lg)
-- Density: Kompakt aber luftig – 8px Grid-System
-- Font: Inter
+## Design System (VERBINDLICH)
+
+> **Inexxio Design System** ist die EINE, verbindliche Grundlage für ALLE
+> Oberflächen (Website, Shop, ERP). Jede neue oder geänderte UI **MUSS** darauf
+> aufbauen. Es ist der in den Code übernommene Export aus **Claude Design**.
+> Vollständige Regeln & Nutzung: **`docs/design-system/README.md`** (vor UI-Arbeit
+> lesen), Marken-/Visual-Doku: `docs/design-system/brand-foundations.md`.
+
+- **Quelle der Wahrheit für Tokens:** `frontend/src/styles/design-system/colors_and_type.css`
+  (geladen als erstes CSS-Modul in `app/layout.tsx`). Token-Werte werden NUR dort
+  definiert – niemals in `globals.css`, `tailwind.config.js` oder Komponenten hart
+  kodieren.
+- **Nutzung:** Tailwind-Utilities aus den Tokens (`bg-bg-2`, `text-fg-3`,
+  `text-accent`, `border-border-1`, `rounded-ds-lg`, `shadow-ds-md`, `font-display`),
+  CSS-Vars (`var(--fg-2)`) oder `.ix-*`-Typo-Helper.
+- **Farbe = Bedeutung:** warme Neutraltöne tragen die Fläche; **Rot (`inexxio`) ist
+  der EINE laute Akzent** (CTA / ein Headline-Wort / aktiv / Fehler, nie dekorativ);
+  **Slate (`accent`) ist die leise Stimme** für Info/aktiv/Links im dichten ERP.
+- **ERP:** Struktur vor Fläche (Haarlinien + Weissraum statt Schatten), Status als
+  Punkt+Wort, Symbole (Lucide) statt Text, tabellarische Zahlen, Infotexte im Hover.
+- **Alt = deprecated:** `slate-*` / `blue-600` / `brand-*` (blaue Alt-Marke) sind
+  Altlast; beim Anfassen einer Komponente auf die Tokens migrieren (Tabelle in
+  `docs/design-system/README.md §4`). Kein Big-Bang – inkrementell mitziehen.
+- Density: kompakt aber luftig – 8px-Grid. Font: Inter (Body) / Inter Tight (Display).
 
 ## Konventionen
 - Alle DB-Felder: snake_case, Englisch

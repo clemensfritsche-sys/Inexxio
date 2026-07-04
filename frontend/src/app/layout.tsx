@@ -1,4 +1,9 @@
 import type { Metadata } from 'next';
+// Inexxio Design System — single source of truth for all design tokens (color,
+// type, spacing, radii, shadows). Loaded BEFORE globals.css so every token and
+// utility resolves against the canonical values. Do not fork these tokens; the
+// file is the vendored export from Claude Design (see docs/design-system/).
+import '@/styles/design-system/colors_and_type.css';
 import './globals.css';
 import { ChunkReloadGuard } from '@/components/chunk-reload-guard';
 

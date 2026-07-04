@@ -31,13 +31,20 @@ src/app/
         └── benutzer/       ← Benutzerverwaltung
 ```
 
-## Design System
-- Tailwind CSS, 8px Grid
-- Colors: slate-* (neutral), blue-600 (primary), green-600 (success), red-600 (error)
-- Font: Inter (Google Fonts)
-- Cards: rounded-xl border border-slate-200 shadow-sm
-- Buttons: btn-primary (blue), btn-secondary (white/border)
-- Max-Width: max-w-7xl mx-auto
+## Design System (VERBINDLICH — Inexxio Design System)
+> Alle UI baut auf dem **Inexxio Design System** auf. Regeln & Nutzung:
+> **`../docs/design-system/README.md`**. Vor UI-Arbeit lesen.
+- **Tokens (Single Source of Truth):** `src/styles/design-system/colors_and_type.css`
+  (erstes CSS-Modul in `src/app/layout.tsx`). Werte nur dort definieren.
+- **Tailwind-Utilities daraus:** `bg-bg-1/2/3`, `text-fg-1/2/3/4`, `text-accent`,
+  `text-inexxio`, `border-border-1/2`, `rounded-ds-lg`, `shadow-ds-sm/md`,
+  `font-display` (Inter Tight) / `font-body` (Inter). Zahlen `.ix-tnum`.
+- **Farb-Semantik:** warme Neutraltöne = Fläche · **Rot (`inexxio`) = der eine laute
+  Akzent** (CTA/aktiv/Fehler) · **Slate (`accent`) = Info/aktiv/Links** im ERP.
+- **ERP:** Haarlinien + Weissraum statt Schatten; Status = Punkt+Wort; Lucide-Icons
+  funktional/sparsam; Karten `rounded-ds-lg`, 8px-Grid, `max-w-7xl mx-auto`.
+- **Deprecated (Altlast, nicht neu verwenden):** `slate-*`, `blue-600`, `brand-*`
+  (blau). Beim Editieren einer Datei auf Tokens migrieren (`docs/design-system/README.md §4`).
 
 ## i18n
 next-intl, Locales: de (primary), en

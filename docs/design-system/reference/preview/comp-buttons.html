@@ -1,0 +1,31 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body{margin:0;background:#fff;padding:20px;font-family:var(--font-body);}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .row+.row{margin-top:14px;}
+  .btn{font:var(--label);border:0;cursor:pointer;border-radius:var(--r-pill);padding:13px 26px;transition:box-shadow .2s ease,transform .16s ease,background .2s ease;}
+  .primary{background:var(--inexxio-red);color:#fff;box-shadow:var(--shadow-sm);}
+  .primary:hover{background:var(--inexxio-red-deep);box-shadow:var(--shadow-red);transform:translateY(-1px);}
+  .dark{background:var(--inexxio-black);color:#fff;box-shadow:var(--shadow-sm);}
+  .dark:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
+  .ghost{background:transparent;color:var(--fg-1);border:1.5px solid var(--border-strong);}
+  .ghost:hover{background:var(--inexxio-black);color:#fff;border-color:var(--inexxio-black);}
+  .soft{background:var(--bg-3);color:var(--fg-1);}
+  .soft:hover{background:var(--border-2);}
+  .lg{padding:16px 32px;font-size:17px;}
+  .link{background:none;border:0;color:var(--inexxio-red);font:var(--label);cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+</style></head>
+<body>
+  <div class="row">
+    <button class="btn primary lg">Projekt starten</button>
+    <button class="btn dark">Jetzt Scannen</button>
+    <button class="btn ghost">Inspirieren lassen</button>
+  </div>
+  <div class="row">
+    <button class="btn soft">Mehr erfahren</button>
+    <button class="btn primary" style="opacity:.5">Disabled</button>
+    <button class="link">Konzept anfordern →</button>
+  </div>
+</body></html>
