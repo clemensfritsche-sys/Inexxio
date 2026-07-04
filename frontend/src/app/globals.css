@@ -548,3 +548,94 @@
     box-shadow: var(--shadow-sm);
   }
 }
+
+/* ============================================================
+   ERP UI — geteilte Interaktions-Bausteine (Design System)
+   Hover-Zustände & Hover-Tooltips für ERP-Detail/Feed. Inline-
+   Styles blocken :hover (höhere Spezifität) – interaktive
+   Elemente daher als Klassen, nicht als style-Objekt.
+   ============================================================ */
+
+/* ── Hover-Tooltip: [data-tip="…"] – dunkel, erscheint oben ── */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  background: var(--inexxio-black);
+  color: #fff;
+  font: 500 12px/1.35 var(--font-body);
+  width: max-content;
+  max-width: 240px;
+  white-space: normal;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s, transform .15s;
+  z-index: 60;
+  box-shadow: var(--shadow-md);
+}
+[data-tip]:hover::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* nach unten öffnen (für Elemente ganz oben) */
+[data-tip][data-tip-pos="bottom"]::after { bottom: auto; top: calc(100% + 9px); transform: translateX(-50%) translateY(-3px); }
+[data-tip][data-tip-pos="bottom"]:hover::after { transform: translateX(-50%) translateY(0); }
+[data-tip][data-tip-hidden]::after { display: none; }
+
+/* ── Detail-Kopf: Icon-Knöpfe (QR, Abweichung, Werkzeuge) ── */
+.erp-idbtn {
+  width: 28px; height: 28px; border-radius: var(--r-sm); border: none; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-4);
+  cursor: pointer; padding: 0; transition: background .15s, color .15s;
+}
+.erp-idbtn:hover { background: var(--bg-2); color: var(--fg-1); }
+.erp-idbtn-flag:hover { background: var(--warning-bg); color: var(--warning); }
+.erp-idbtn:disabled { opacity: .4; cursor: not-allowed; }
+.erp-idbtn:disabled:hover { background: transparent; color: var(--fg-4); }
+
+.erp-tool {
+  width: 40px; height: 40px; border: 1px solid var(--border-1); background: #fff; border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-2);
+  cursor: pointer; transition: all .15s;
+}
+.erp-tool:hover { background: var(--bg-2); color: var(--inexxio-red); border-color: var(--border-2); }
+.erp-tool-danger:hover { color: var(--danger); background: var(--danger-bg); border-color: #f3c9c6; }
+
+/* ── «Auf einen Blick»-Kachel ── */
+.erp-tile { transition: background .15s; }
+.erp-tile-link { cursor: pointer; }
+.erp-tile-link:hover { background: var(--bg-2) !important; }
+
+/* ── Listenzeile (Aufträge/Referenzen) ── */
+.erp-orow { transition: background .12s; }
+.erp-orow:hover { background: var(--bg-2) !important; }
+
+/* ── Sortier-/Filter-Chip ── */
+.erp-chip { cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.erp-chip:hover { background: var(--bg-3); border-color: var(--border-2); color: var(--fg-1); }
+
+/* ── Reiter (Tabs) ── */
+.erp-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
+  font: 600 13.5px var(--font-body); color: var(--fg-3); background: none; border: none;
+  border-bottom: 2px solid transparent; cursor: pointer; transition: color .15s, border-color .15s; white-space: nowrap;
+}
+.erp-tab:hover { color: var(--fg-1); }
+.erp-tab-active { color: var(--inexxio-red); border-bottom-color: var(--inexxio-red); }
+
+/* ── Detail-Kopf: Status-Aktionsknöpfe (Freigeben/Deaktivieren …) ── */
+.erp-actbtn {
+  display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px;
+  border-radius: var(--r-md); font: 700 13.5px var(--font-body); cursor: pointer; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s; border: 1px solid transparent;
+}
+.erp-actbtn:disabled { opacity: .5; cursor: not-allowed; }
+.erp-actbtn-primary { background: var(--inexxio-black); color: #fff; box-shadow: var(--shadow-sm); }
+.erp-actbtn-primary:not(:disabled):hover { background: #26262A; }
+.erp-actbtn-danger { background: #fff; border-color: #f3c9c6; color: var(--danger); }
+.erp-actbtn-danger:not(:disabled):hover { background: var(--danger-bg); }
+.erp-actbtn-neutral { background: #fff; border-color: var(--border-2); color: var(--fg-2); }
+.erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }

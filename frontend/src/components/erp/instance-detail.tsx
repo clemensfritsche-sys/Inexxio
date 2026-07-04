@@ -13,8 +13,8 @@ import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useErpNav } from '@/components/erp/obj-id';
-import { ObjectLabel } from '@/components/scan/object-label';
-import { localDate, timeAgo } from '@/lib/utils';
+import { printObjectLabel } from '@/components/scan/object-label';
+import { cn, localDate, timeAgo } from '@/lib/utils';
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
@@ -35,7 +35,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
-  const [showLabel, setShowLabel] = useState(false);
   const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
 
@@ -112,11 +111,14 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             <div style={S.dsub}>
               <span style={S.dsubN}>{fmtObjId(inst.object_id ?? null)}</span>
               <span style={S.idsep} />
-              <button style={S.idbtn} title="Etikett drucken (QR)" aria-label="Etikett drucken"
-                onClick={() => setShowLabel((v) => !v)}><QrCode size={15} /></button>
+              <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+                onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
+                <QrCode size={15} />
+              </button>
               <button
-                style={{ ...S.idbtn, ...(deviationParent ? S.idbtnFlag : S.idbtnDisabled) }}
-                title={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
+                className="erp-idbtn erp-idbtn-flag"
+                data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
+                data-tip-pos="bottom"
                 aria-label="Abweichung melden"
                 disabled={!deviationParent || devBusy}
                 onClick={reportDeviation}
@@ -168,22 +170,21 @@ export function InstanceDetail({ record, onBack, onChanged }: {
 
           {/* Aufträge */}
           <div>
-            <div style={S.osecHead}>
+            <div style={{ ...S.osecHead, marginBottom: 14 }}>
               <div style={{ ...S.osecIc, background: '#E7F0F4', color: '#1C6487' }}><ClipboardList size={18} /></div>
               <h3 style={S.osecH3}>Aufträge</h3>
-              {orders && orders.length > 0 && <span style={S.ocount}>{orders.length}</span>}
               {orders && orders.length > 1 && (
                 <button
+                  className="erp-chip"
                   style={S.sortchip}
                   onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
-                  title="Sortierreihenfolge umschalten"
+                  data-tip="Sortierreihenfolge umschalten"
                 >
                   {sortDir === 'desc' ? <ArrowDownWideNarrow size={14} /> : <ArrowUpWideNarrow size={14} />}
                   {sortDir === 'desc' ? 'Neueste zuerst' : 'Älteste zuerst'}
                 </button>
               )}
             </div>
-            <p style={S.osecSub}>Alle Aufträge, die diese Instanz angefasst haben.</p>
 
             {orders === null ? (
               <div style={S.emptyLine}>Laden…</div>
@@ -196,7 +197,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                   const OIcon = cfg.icon;
                   const isLast = i === sortedOrders.length - 1;
                   return (
-                    <button key={o.object_id} style={{ ...S.orow, ...(isLast ? { borderBottom: 'none' } : null) }} onClick={() => nav?.(o.object_id)} title="Auftrag öffnen">
+                    <button key={o.object_id} className="erp-orow" style={{ ...S.orow, ...(isLast ? { borderBottom: 'none' } : null) }} onClick={() => nav?.(o.object_id)}>
                       <div style={S.oico}><ClipboardList size={17} /></div>
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                         <div style={S.oT}>Auftrag</div>
@@ -213,12 +214,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             )}
           </div>
 
-          {/* Etikett / QR (scannbar) – aufklappbar über den QR-Knopf im Kopf */}
-          {showLabel && inst.object_id != null && (
-            <div style={S.labelCard}>
-              <ObjectLabel objectId={inst.object_id} title={inst.article_name ?? undefined} subtitle="Instanz" />
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -235,7 +230,7 @@ function Tile({ icon: Icon, label, hint, value, sub, subMono, wide, onClick }: {
   return (
     <Comp
       onClick={onClick}
-      title={clickable ? 'Öffnen' : undefined}
+      className={cn('erp-tile', clickable && 'erp-tile-link')}
       style={{ ...S.tile, ...(wide ? S.tileWide : null), ...(clickable ? S.tileLink : null) }}
     >
       <div style={S.tileIco}><Icon size={19} /></div>
@@ -243,7 +238,7 @@ function Tile({ icon: Icon, label, hint, value, sub, subMono, wide, onClick }: {
         <div style={S.tileK}>
           {label}
           {hint && (
-            <span style={S.hint} title={hint}><Info size={13} /></span>
+            <span style={S.hint} data-tip={hint}><Info size={13} /></span>
           )}
         </div>
         <div style={S.tileV}>{value}</div>

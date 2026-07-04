@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag } from 'lucide-react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag, QrCode } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
 import {
@@ -13,12 +13,13 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, StatusBadge, StatusFlow, Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { formatAmount as fmtChf, localDate } from '@/lib/utils';
+import { printObjectLabel } from '@/components/scan/object-label';
+import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -241,35 +242,58 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
   const flush = useAutosave(sig, canSave, save);
 
+  const statusCfg = statusConfig(isCreate || !record ? 'draft' : record.status);
+  const StatusCfgIcon = statusCfg.icon;
+  const actions = isCreate || !record ? [] : articleActions(record.status, (stepsCount ?? 0) > 0);
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-bg-1">
       {/* Header */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #E2E8F0', background: '#fff', flexShrink: 0 }}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
-          <ArrowLeft size={14} /> Zurück
+      <div style={H.dhead}>
+        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
+          <ArrowLeft size={15} /> Zurück
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: '#F1F5F9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Package size={20} />
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: form.name ? '#0F172A' : '#94a3b8', fontStyle: form.name ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {form.name || 'Neuer Artikel'}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              {isCreate ? (
-                <StatusBadge cfg={statusConfig('draft')} />
-              ) : (
-                <StatusFlow cfg={statusConfig(record.status)} actions={articleActions(record.status, (stepsCount ?? 0) > 0)} busy={statusBusy} onAction={onStatusAction} />
+        <div style={H.top}>
+          <div style={H.ico}><Package size={26} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={H.eyebrow}>Artikel</div>
+            <h1 style={{ ...H.title, ...(form.name ? null : H.titleEmpty) }}>{form.name || 'Neuer Artikel'}</h1>
+            <div style={H.sub}>
+              <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}</span>
+              {!isCreate && record.object_id != null && (
+                <>
+                  <span style={H.idsep} />
+                  <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+                    onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
+                    <QrCode size={15} />
+                  </button>
+                </>
               )}
-              <SaveIndicator saving={saving} flash={flash} />
             </div>
           </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>
-              {isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}
+          <div style={H.right}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <SaveIndicator saving={saving} flash={flash} />
+              <span style={{ ...H.statusbig, background: statusCfg.bg, color: statusCfg.color }}>
+                {StatusCfgIcon && <StatusCfgIcon size={15} strokeWidth={2.5} />}{statusCfg.label}
+              </span>
             </div>
+            {actions.length > 0 && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {actions.map((a) => (
+                  <button
+                    key={a.target}
+                    onClick={() => onStatusAction(a.target)}
+                    disabled={statusBusy || a.disabled}
+                    data-tip={a.hint}
+                    data-tip-pos="bottom"
+                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : a.tone === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-neutral')}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -278,24 +302,13 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
         )}
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 2, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 2, marginTop: 16 }}>
           {TABS.map((t) => {
             const active = tab === t.key;
             const Icon = t.icon;
             return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  color: active ? '#2563eb' : '#64748b',
-                  background: 'none', border: 'none',
-                  borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`,
-                  marginBottom: -13,
-                }}
-              >
-                <Icon size={14} /> {t.label}
+              <button key={t.key} onClick={() => setTab(t.key)} className={cn('erp-tab', active && 'erp-tab-active')}>
+                <Icon size={15} /> {t.label}
               </button>
             );
           })}
@@ -307,9 +320,9 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'stammdaten' && (
-          <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={H.card}>
             {locked ? (
               <>
                 <div style={lockedNotice}>
@@ -335,7 +348,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                       ...articleNames.map((n) => ({ value: n, label: n })),
                     ]} />
                   {articleNames.length === 0 && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#92400e' }}>
+                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--warning)' }}>
                       Keine Artikelnamen hinterlegt – bitte in Admin → Einstellungen → «Artikelnamen» anlegen.
                     </div>
                   )}
@@ -373,7 +386,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
       {/* Meta footer (edit only) */}
       {!isCreate && (
-        <div style={{ padding: '8px 20px', borderTop: '1px solid #E2E8F0', background: '#fff', flexShrink: 0, fontSize: 11, color: '#94a3b8', display: 'flex', gap: 16 }}>
+        <div style={{ padding: '9px 28px', borderTop: '1px solid var(--border-1)', background: '#fff', flexShrink: 0, fontSize: 11.5, color: 'var(--fg-4)', display: 'flex', gap: 18 }}>
           <span>Einheit: {unitLabel(record.unit)}</span>
           <span>Erfassung: {serializationLabel(record.serialization)}</span>
           <span>Erstellt: {localDate(record.created_at)}</span>
@@ -382,13 +395,12 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
       {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
       {!locked && tab === 'stammdaten' && (
-        <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ padding: '11px 28px', background: '#fff', borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ flex: 1, fontSize: 12.5, color: error ? 'var(--danger)' : 'var(--fg-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? blockReason ?? (isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
           </span>
           {isCreate && (
-            <button onClick={onCancel}
-              style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
+            <button onClick={onCancel} className="erp-actbtn erp-actbtn-neutral" style={{ flexShrink: 0 }}>
               Abbrechen
             </button>
           )}
@@ -411,10 +423,26 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 }
 
 
+// Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
+const H: Record<string, React.CSSProperties> = {
+  dhead: { padding: '18px 28px', borderBottom: '1px solid var(--border-1)', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0 },
+  top: { display: 'flex', alignItems: 'flex-start', gap: 16 },
+  ico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
+  eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
+  title: { font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },
+  sub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 },
+  subN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
+  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
+  right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
+  statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
+  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 },
+};
+
 const lockedNotice: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
-  background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8,
-  fontSize: 12, color: '#475569',
+  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '11px 13px',
+  background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
+  fontSize: 12.5, color: 'var(--fg-2)',
 };
 
 
@@ -427,8 +455,8 @@ function ComputedWeight({ value }: { value: string }) {
   return (
     <div>
       <Label>Gewicht (kg)</Label>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>{fmtWeight(value)} kg</div>
-      <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-ink)' }}>{fmtWeight(value)} kg</div>
+      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-3)' }}>
         Automatisch aus den verbauten Ressourcen (Stückliste) berechnet – über alle Ebenen.
       </div>
     </div>
@@ -443,10 +471,10 @@ function PriceRange({ record }: { record: Article }) {
   return (
     <div>
       <Label>Stückpreis netto / Stück</Label>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#0f766e' }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-ink)' }}>
         {same ? `CHF ${fmtChf((low ?? high) as string | number)}` : `CHF ${fmtChf(low as string | number)} – ${fmtChf(high as string | number)}`}
       </div>
-      <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-3)' }}>
         {same
           ? 'Aus akzeptierten Bestellungen – ohne MWST.'
           : 'Spanne über akzeptierte Bestellungen: kleinste bis grösste Bestellmenge – ohne MWST.'}
@@ -458,8 +486,8 @@ function PriceRange({ record }: { record: Article }) {
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
-      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+      <span style={{ color: 'var(--fg-3)', flexShrink: 0 }}>{k}</span>
+      <span style={{ color: 'var(--fg-1)', fontWeight: 600, textAlign: 'right' }}>{v}</span>
     </div>
   );
 }
@@ -478,21 +506,21 @@ function OptionalFieldsEditor({ added, form, onSet, onAdd, onRemove }: {
           <div style={{ flex: 1 }}>
             <TextField label={f.label} value={form[f.key]} onChange={(v) => onSet(f.key, v)} placeholder={f.placeholder} hint={f.hint} />
           </div>
-          <button type="button" onClick={() => onRemove(f.key)} title="Feld entfernen"
-            style={{ border: '1px solid #e2e8f0', background: '#fff', borderRadius: 7, padding: '8px 9px', color: '#94a3b8', cursor: 'pointer', marginTop: 22 }}>
+          <button type="button" onClick={() => onRemove(f.key)} data-tip="Feld entfernen"
+            className="erp-tool" style={{ marginTop: 21 }}>
             <Trash2 size={15} />
           </button>
         </div>
       ))}
       {available.length > 0 ? (
         <select value="" onChange={(e) => { if (e.target.value) onAdd(e.target.value as OptKey); }}
-          className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500"
-          style={{ borderColor: '#e2e8f0', alignSelf: 'flex-start', color: '#2563eb', fontWeight: 600 }}>
+          className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent"
+          style={{ borderColor: 'var(--border-2)', alignSelf: 'flex-start', color: 'var(--accent)', fontWeight: 600 }}>
           <option value="">+ Feld hinzufügen…</option>
           {available.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>
       ) : (
-        added.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>Keine optionalen Felder.</div>
+        added.length === 0 && <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>Keine optionalen Felder.</div>
       )}
     </div>
   );
@@ -513,11 +541,11 @@ function LeadTimeRange({ record }: { record: Article }) {
   return (
     <div>
       <Label>Durchlaufzeit (Freigabe → Abschluss)</Label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: '#0f766e' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: 'var(--accent-ink)' }}>
         <Clock size={14} />
         {same ? formatDuration((low ?? high) as number) : `${formatDuration(low as number)} – ${formatDuration(high as number)}`}
       </div>
-      <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+      <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-3)' }}>
         {same ? 'Aus erledigten Aufträgen.' : 'Spanne über erledigte Aufträge: kürzeste bis längste.'}
       </div>
     </div>

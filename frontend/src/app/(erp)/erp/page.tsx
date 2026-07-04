@@ -406,9 +406,10 @@ export default function ErpPage() {
               )}
               <button
                 onClick={scanToOpen}
-                title="Barcode / QR scannen"
+                data-tip="Barcode / QR scannen"
+                data-tip-pos="bottom"
                 aria-label="Barcode / QR scannen"
-                className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 transition-colors"
+                className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors"
               >
                 <ScanLine size={18} />
               </button>
@@ -424,7 +425,9 @@ export default function ErpPage() {
                 <button
                   key={t}
                   onClick={() => setTypeFilter(active ? null : t)}
-                  title={`${meta.label} · ${displayCount(t)}`}
+                  data-tip={`${meta.label} · ${displayCount(t)}`}
+                  data-tip-pos="bottom"
+                  {...(active ? { 'data-tip-hidden': '' } : {})}
                   className={cn(
                     'h-[42px] rounded-ds-md flex items-center justify-center gap-1.5 border transition-colors',
                     active ? 'border-transparent px-3.5' : 'min-w-[42px] border-border-1 bg-bg-1 hover:bg-bg-2',
@@ -484,7 +487,7 @@ export default function ErpPage() {
               )}
               <button
                 onClick={() => setPlusOpen((o) => !o)}
-                title="Neuen Datensatz anlegen"
+                data-tip={plusOpen ? undefined : 'Neuen Datensatz anlegen'}
                 aria-label="Neuen Datensatz anlegen"
                 className="w-[54px] h-[54px] rounded-full bg-inexxio hover:bg-inexxio-deep text-white flex items-center justify-center transition-all hover:-translate-y-0.5"
                 style={{ boxShadow: '0 10px 22px rgba(179,18,15,.28)' }}

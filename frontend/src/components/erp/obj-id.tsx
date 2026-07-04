@@ -32,7 +32,7 @@ export function ObjId({ value, mono = true }: { value: number | null | undefined
       title="Datensatz öffnen"
       style={{
         ...baseStyle, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
-        color: '#2563eb', textDecoration: 'underline', textUnderlineOffset: 2,
+        color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2,
       }}
     >
       {text}

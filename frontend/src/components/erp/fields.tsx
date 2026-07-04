@@ -71,7 +71,7 @@ export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }
   );
 }
 
-export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
+export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
 
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
@@ -171,7 +171,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
           ) : filtered.map((o) => (
             <button key={o.value} type="button" onClick={() => pick(o.value)}
               style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: 13, border: 'none',
-                background: o.value === value ? '#eff6ff' : '#fff', color: o.value === value ? '#2563eb' : '#0f172a', cursor: 'pointer' }}>
+                background: o.value === value ? 'var(--accent-soft)' : '#fff', color: o.value === value ? 'var(--accent-ink)' : 'var(--fg-1)', cursor: 'pointer' }}>
               {o.label}
             </button>
           ))}
@@ -199,9 +199,9 @@ export function Segmented({ label, value, onChange, options, required }: {
               style={{
                 flex: 1, padding: '7px 10px', fontSize: 13, fontWeight: 600,
                 borderRadius: 8, cursor: 'pointer',
-                border: `1px solid ${active ? '#2563eb' : '#e2e8f0'}`,
-                background: active ? '#eff6ff' : '#fff',
-                color: active ? '#2563eb' : '#64748b',
+                border: `1px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
+                background: active ? 'var(--accent-soft)' : '#fff',
+                color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
               }}
             >
               {o.label}
