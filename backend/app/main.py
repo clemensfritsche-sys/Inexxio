@@ -371,6 +371,32 @@ def _ensure_company_object_id() -> None:
         db.close()
 
 
+def _ensure_documents_shape() -> None:
+    """Die ``documents``-Tabelle exakt an das aktuelle Modell angleichen – UNABHÄNGIG von
+    Alembic. ``create_all()`` legt nur fehlende TABELLEN an, nicht fehlende Spalten; ein
+    inkonsistenter Alt-Stand (z. B. ohne ``order_id``) liesse die Tabelle sonst kaputt.
+    Fehlt eine erwartete Spalte, wird die Tabelle idempotent neu aufgebaut (Inhalt =
+    Wegwerf-Testdaten des frisch eingeführten Moduls). Greift auch, wenn eine Migration
+    nicht durchlief (start.sh startet uvicorn dann trotzdem)."""
+    from sqlalchemy import inspect
+    from .models import Document
+    try:
+        insp = inspect(engine)
+        if "documents" not in insp.get_table_names():
+            Document.__table__.create(bind=engine, checkfirst=True)
+            return
+        have = {c["name"] for c in insp.get_columns("documents")}
+        expected = set(Document.__table__.columns.keys())
+        if expected.issubset(have):
+            return  # Schema passt – nichts zu tun
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS documents CASCADE"))
+        Document.__table__.create(bind=engine, checkfirst=True)
+        print("INFO: documents-Tabelle neu aufgebaut (Schema an das Modell angeglichen).", flush=True)
+    except Exception as e:
+        print(f"WARNING: _ensure_documents_shape() failed: {e}", flush=True)
+
+
 
 
 # Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
@@ -391,6 +417,7 @@ def _run_startup_fixups_once() -> None:
         if not acquired:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
+        _ensure_documents_shape()     # documents-Tabelle exakt ans Modell angleichen (Reparatur)
         _ensure_columns()
         _ensure_object_id_sequence()
         _backfill_object_registry()
