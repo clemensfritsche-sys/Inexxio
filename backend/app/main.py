@@ -11,7 +11,7 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
-    admin, article_process, articles, auth, contact, erp, events, health,
+    admin, article_process, articles, auth, contact, documents, erp, events, health,
     instances, orders, sales, shop, storage_locations,
 )
 
@@ -151,6 +151,9 @@ _COLUMN_SAFETY_NET = (
     ("orders", "recurrence_kind", "VARCHAR(10)"),
     # Unter-Auftrag-Grund: deviation (Abweichung) | supply (Nachschub) – EIN Mechanismus
     ("orders", "reason", "VARCHAR(12)"),
+    # Dokument-Modul: nicht-physische Artikel + editierbare Dokument-Vorlage am Schritt.
+    ("articles", "physical", "BOOLEAN DEFAULT TRUE NOT NULL"),
+    ("article_process_steps", "document_content", "JSONB"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -469,6 +472,7 @@ app.include_router(storage_locations.router)
 app.include_router(sales.router)
 app.include_router(shop.router)
 app.include_router(events.router)
+app.include_router(documents.router)
 
 
 @app.get("/")

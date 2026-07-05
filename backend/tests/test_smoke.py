@@ -198,7 +198,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale", "document"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -890,7 +890,7 @@ def test_object_registry_wired():
     # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
     # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "organization"}
+        "user", "article", "order", "instance", "document", "storage_location", "organization"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -1064,7 +1064,7 @@ def test_step_type_whitelist_per_context():
     assert {"purchase", "resource", "inspection", "movement"} <= set(art)
     # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
     # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
 
 
 def test_webshop_url_is_validated():
@@ -1207,7 +1207,7 @@ def test_event_type_registry_declares_polarity():
     Richtung)."""
     from app.domain import event_types as ev
 
-    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
     assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
     # Polarität ist deklariert, nicht abgeleitet:
     assert ev.polarity("purchase") == ev.INCREASE
@@ -1235,7 +1235,7 @@ def test_legacy_resource_aliases_removed():
         assert alias not in STEP_LABELS
         assert alias not in _FACT_MODEL
     assert RESOURCE_STEP_TYPES == ("resource",)
-    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale"}
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
     assert STEP_LABELS["resource"] == "Ressource"
 
 
@@ -2187,3 +2187,112 @@ def test_customer_return_wired_shop_style():
     req = _inspect.getsource(customer_returns.request_return)
     assert 'reason="return"' in req and 'step_type="movement"' in req and 'step_type="sale"' in req
     assert "request_return" in _inspect.getsource(shop.request_return)
+
+
+def test_document_step_is_wired_end_to_end():
+    """«Dokument» ist ein vollwertiger Schritttyp: NEUTRAL/PRODUCE in der Registry, eigene
+    Fachtabelle ``Document`` MIT eigener Objektnummer (der Liefergegenstand), bei der
+    Freigabe eingefroren, sofort «done», nicht-physischer Artikel erzeugt keine Instanzen."""
+    import inspect as _inspect
+
+    from app.domain import event_types as ev
+    from app.models import Document
+    from app.schemas.order import OrderResponse, OrderStepInfo
+    from app.services import document, process, serialization
+
+    # Registry: keine Bestandswirkung, erzeugt einen (nicht-physischen) Liefergegenstand.
+    assert ev.REGISTRY["document"].polarity == ev.NEUTRAL
+    assert ev.REGISTRY["document"].subject_role == ev.PRODUCE
+    assert ev.REGISTRY["document"].fact == "Document"
+    assert process._FACT_MODEL["document"] is Document
+    # Fachtabelle MIT eigener Objektnummer (anders als Sale/Disposal – das Dokument IST der
+    # nummerierte Liefergegenstand, wie eine Instanz).
+    assert Document.__tablename__ == "documents"
+    assert "object_id" in Document.__table__.columns.keys()
+    # Schritt gilt als erledigt, sobald ein Dokument existiert (Marker, bei Freigabe eingefroren)
+    assert process._fact_status("document", None) == "open"
+    assert process._fact_status("document", object()) == "done"
+    # In beiden Kontexten wählbar; Embed im Auftrag/Schritt vorhanden
+    assert "document" in ev.ARTICLE_STEP_TYPES and "document" in ev.ORDER_STEP_TYPES
+    assert "document" in OrderStepInfo.model_fields
+    assert "document" in OrderResponse.model_fields
+    # Freigabe friert je Dokument-Schritt einen nummerierten Snapshot ein
+    src = _inspect.getsource(document.instantiate_for_order)
+    assert 'next_object_id(db, "document")' in src
+    # Nicht-physischer Artikel erzeugt KEINE Bestands-Instanzen (Early-Return vor Nummernvergabe)
+    assert "physical" in _inspect.getsource(serialization.create_instances_for_order)
+    # Objekt-Registry kennt den Typ (klickbar/scanbar/auflösbar)
+    from app.services import objects
+    assert objects._TYPE_MODELS["document"] is Document
+    # Inhalts-Normalisierung ist tolerant (leerer Rohinhalt → wohlgeformte Struktur)
+    norm = document.normalize_content(None)
+    assert norm["title"] == "" and norm["sections"] == []
+
+
+def test_non_physical_article_defaults_physical_fields():
+    """Ein nicht-physischer Artikel (Dokument) darf ohne Einheit/Grösse/Gewicht angelegt
+    werden – die Pflichtfelder werden mit inerten Platzhaltern gefüllt; ein physischer
+    bleibt streng."""
+    import pytest
+
+    from app.schemas.article import ArticleCreate
+
+    doc = ArticleCreate(name="Vertrag", physical=False)
+    assert doc.physical is False
+    assert doc.unit and doc.serialization and doc.size and doc.weight_kg is not None
+    # Physischer Artikel ohne Pflichtfelder → Fehler
+    with pytest.raises(Exception):
+        ArticleCreate(name="Schraube", physical=True)
+
+
+def test_document_pdf_renders_with_bundled_fonts():
+    """Der PDF-Renderer erzeugt ein nicht-leeres PDF im Inexxio-Design – die Marken-Fonts
+    (Inter/Inter Tight) sind gebündelt und werden eingebettet (kein Netzwerk nötig)."""
+    from pathlib import Path
+
+    from app.services import document_render
+
+    # Marken-Fonts liegen im Repo (deterministisches, offline PDF-Rendering)
+    font_dir = document_render._FONT_DIR
+    for f in ("Inter-400.ttf", "Inter-700.ttf", "InterTight-700.ttf", "InterTight-800.ttf"):
+        assert (font_dir / f).exists(), f"Font fehlt: {f}"
+    pdf = document_render.render_pdf(
+        {"title": "Testdokument", "sections": [{"heading": "§1", "body": "Inhalt."}]},
+        company={"company_name": "Inexxio AG"}, object_id=100000123, version=1,
+    )
+    assert pdf[:4] == b"%PDF" and len(pdf) > 5000
+
+
+def test_document_render_escapes_and_is_robust():
+    """Der PDF-Renderer maskiert Nutzer-/Firmendaten kontextgerecht (HTML vs. CSS) und
+    verkraftet adversariale Eingaben (Injection-Markup, überlanger Titel) ohne Absturz."""
+    from app.services import document_render as dr
+
+    # CSS-String-Escaper: Backslash/Quote maskiert, Zeilenumbruch entfernt (nicht html.escape!)
+    assert dr._css_str('A "B" \\ C') == 'A \\"B\\" \\\\ C'
+    assert "\n" not in dr._css_str("Zeile1\nZeile2")
+    # Adversariale Firmen-/Inhaltsdaten + überlanger Titel → gültiges PDF, kein Crash
+    pdf = dr.render_pdf(
+        {"title": "X" * 400, "subtitle": "<b>x</b>", "document_date": "Gültig ab <2027>",
+         "sections": [{"heading": "<script>", "body": "a & b < c"}]},
+        company={"company_name": 'A & B "Co" \\ Ltd', "email": "<img src=x>",
+                 "street": "<style>*{}</style>", "zip_code": "8000", "city": "Zürich"},
+        object_id=100000123, version=2,
+    )
+    assert pdf[:4] == b"%PDF" and len(pdf) > 5000
+
+
+def test_document_module_review_fixes_present():
+    """Regressions-Schutz für die Review-Fixes: (1) ein nicht-physischer Artikel darf im
+    Prozess NUR den Dokument-Schritt tragen (sonst blieben Instanz-Schritte ewig blockiert);
+    (2) «Ersetzen» kopiert ``physical`` (sonst würde der Nachfolger physisch); (3) der Titel
+    wird auf die Spaltenlänge gekappt (keine abgebrochene Freigabe-Transaktion)."""
+    import inspect as _inspect
+
+    from app.routers import article_process
+    from app.services import deactivation, document
+
+    src_create = _inspect.getsource(article_process._create)
+    assert 'physical' in src_create and 'step_type != "document"' in src_create
+    assert "physical=src.physical" in _inspect.getsource(deactivation.duplicate_article)
+    assert "[:255]" in _inspect.getsource(document.instantiate_for_order)

@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, FileText } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -10,6 +10,7 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   scrap:      { label: 'Verschrotten',   icon: Trash2 },
   sale:       { label: 'Verkauf',        icon: Receipt },   // bedient auch die Gutschrift/Erstattung (Kredit-Modus)
+  document:   { label: 'Dokument',       icon: FileText },  // erzeugt ein nummeriertes Dokument (Vertrag/AGB/Zertifikat)
 };
 
 // Standort-Typen (Bewegung): Label + Icon
@@ -45,6 +46,7 @@ const STEP_SUBJECT_ROLE: Record<StepType, 'produce' | 'stock' | 'instance'> = {
   movement:   'instance',
   inspection: 'instance',
   scrap:      'instance',
+  document:   'produce',   // erzeugt einen (nicht-physischen) Liefergegenstand – kein Bestandszugriff
 };
 
 /** Ist der Ablauf eine **Bestands-Operation** (wirkt auf vorhandenen Bestand) statt einer

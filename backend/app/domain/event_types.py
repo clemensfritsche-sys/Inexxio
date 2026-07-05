@@ -65,6 +65,12 @@ REGISTRY: dict[str, EventType] = {
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
+    # **Dokument**: erzeugt einen nicht-physischen Liefergegenstand (Vertrag/AGB/Zertifikat …).
+    # Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE, weil der Auftrag etwas Neues
+    # hervorbringt (das nummerierte Dokument) statt auf vorhandenen Bestand zuzugreifen –
+    # so wird der Auftrag korrekt als „produce" abgeleitet und greift NIE FIFO auf Lager zu.
+    # Fachtabelle ``Document`` (eigene Objektnummer, eingefrorener Inhalt).
+    "document":   EventType("document",   "Dokument",       NEUTRAL,  PRODUCE,  "Document"),
 }
 
 # Erlaubte Schritttypen (Schema-Whitelist) und die Ressourcen-Gruppe (Verbrauch +
@@ -82,8 +88,10 @@ RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 # **kein Verschrotten** erlaubt: beides wirkt auf vorhandenen Bestand und läuft über einen
 # Auftrag (sonst würden die erzeugten Instanzen nicht korrekt markiert). Sonst alles erlaubt.
 # **Verschrotten** (scrap) ist die definierte Auflösung einer Abweichung (defektes Teil raus).
-ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement")
-ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale")
+# «document» ist im **Artikel-Prozess** zulässig (die Vorlage „wie das Dokument entsteht")
+# und ebenso im Auftrags-Ablauf (individuelles Einzeldokument).
+ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "document")
+ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "sale", "document")
 
 
 def allowed_step_types(owner_kind: str) -> tuple[str, ...]:

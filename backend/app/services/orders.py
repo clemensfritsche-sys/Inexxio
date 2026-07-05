@@ -13,6 +13,7 @@ from ..models import (
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
+from ..schemas.document import DocumentEmbed
 from ..schemas.inspection import InspectionEmbed, InspectionSample
 from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
@@ -44,7 +45,7 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
 
     Eine **Fehlmenge** (Subjekt/Komponente) ist KEIN Fehler mehr – der betroffene Schritt ist
     danach «blockiert» und wird über einen Nachschub-Unter-Auftrag gedeckt (``services/supply``)."""
-    from . import deviation, sale as sale_svc, subject
+    from . import deviation, document as document_svc, process, sale as sale_svc, subject
     from .events import emit as _emit
     from .purchase import instantiate_for_order as instantiate_purchase
     from .resource import reserve_resources
@@ -56,6 +57,7 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     subject.materialize_subject(db, order, actor_id)
     instantiate_purchase(db, order, actor_id)        # Beschaffungs-Schritte → Bestellungen
     sale_svc.instantiate_for_order(db, order, actor_id)  # Verkaufs-Schritte → Belege
+    document_svc.instantiate_for_order(db, order, actor_id)  # Dokument-Schritte → nummerierte Dokumente
     reserve_resources(db, order, actor_id)           # Komponenten mengengenau reservieren
     _emit(db, "order.released", object_type="order", object_id=order.object_id,
           payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
@@ -63,6 +65,10 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     # No-op für normale Aufträge und Nachschub).
     if order.parent_order_id is not None:
         deviation.apply_abort_on_release(db, order, actor_id)
+    # Abschluss neu bewerten: Schritte, die schon bei der Freigabe «done» sind (das eingefrorene
+    # Dokument), schliessen den Auftrag sofort ab. No-op für Aufträge mit noch offenen Schritten
+    # (Beschaffung/Verkauf starten in 'requested', also nicht «done»).
+    process.recompute_completion(db, order)
 
 
 def recurrence_due(order: Order) -> bool:
@@ -226,6 +232,25 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
         de.scrapped_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == disp.scrapped_by_id).first())
     return de
+
+
+def _document_embed(db: Session, order: Order, step: ArticleProcessStep,
+                    doc) -> DocumentEmbed:
+    """Eingebetteter Stand des Dokument-Schritts. Ist der Auftrag noch im Entwurf (kein
+    eingefrorenes Dokument), zeigt der Embed die **Vorschau aus der Vorlage** (``step.
+    document_content``) mit ``done=False`` – so ist der Inhalt im Panel sichtbar, bevor er
+    bei der Freigabe zum nummerierten Snapshot wird."""
+    from .document import creator_name, normalize_content
+    if doc is not None:
+        emb = DocumentEmbed.model_validate(doc)   # coerct content (dict) → DocumentContent
+        emb.done = True
+        emb.created_by_name = creator_name(db, doc)
+        return emb
+    return DocumentEmbed(
+        id=0, done=False, object_id=None,
+        content=normalize_content(step.document_content if step else None),
+        title=(step.document_content or {}).get("title") if step else None,
+    )
 
 
 def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
@@ -414,6 +439,12 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             first.setdefault("disposal", emb)
             if done:
                 by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
+        elif step.step_type == "document":
+            emb = _document_embed(db, order, step, fact)
+            si.document = emb
+            first.setdefault("document", emb)
+            if done:
+                by_name, at = emb.created_by_name, (fact.issued_at if fact else None)
         elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb
@@ -436,6 +467,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     resp.movement = first.get("movement")
     resp.resource = first.get("resource")
     resp.disposal = first.get("disposal")
+    resp.document = first.get("document")
     return resp
 
 

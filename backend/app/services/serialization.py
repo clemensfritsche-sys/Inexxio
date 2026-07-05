@@ -62,6 +62,11 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
     art = db.query(Article).filter(Article.id == order.article_id).first()
     if not art or not order.quantity:
         return []
+    # Nicht-physischer Artikel (Dokument, später Software): KEINE Bestands-Instanzen. Sein
+    # Liefergegenstand ist das nummerierte Dokument (``document.instantiate_for_order``);
+    # er taucht so nie als FIFO-/Lagerbestand auf. Vor jeder Nummernvergabe.
+    if getattr(art, "physical", True) is False:
+        return []
 
     # Neue Instanzen sind «Im Prozess» (pending) – sie werden erst zu «Freigegeben»
     # (passed, verbrauchbar), wenn ihr Auftrag vollständig abgeschlossen ist
