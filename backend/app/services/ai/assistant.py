@@ -68,7 +68,12 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     reply = ""
 
     for _ in range(_MAX_TOOL_ROUNDS):
-        resp = gateway.complete(convo, system=system, tools=tool_defs or None)
+        # Adaptives Reasoning (Opus 4.8): merklich bessere Bezugsauflösung & Planung,
+        # ohne erzwungenes Tool (auto) → mit Tool-Use kombinierbar.
+        resp = gateway.complete(
+            convo, system=system, tools=tool_defs or None,
+            thinking={"type": "adaptive"}, max_tokens=4096,
+        )
         in_tokens += getattr(resp.usage, "input_tokens", 0) or 0
         out_tokens += getattr(resp.usage, "output_tokens", 0) or 0
 

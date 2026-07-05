@@ -86,9 +86,14 @@ def complete(
     tool_choice: Optional[dict] = None,
     model: Optional[str] = None,
     max_tokens: Optional[int] = None,
+    thinking: Optional[dict] = None,
 ) -> Any:
     """EIN provider-agnostischer Modell-Aufruf (Messages-API-Form). Gibt das rohe
-    Message-Objekt zurück (content-Blöcke ``text`` / ``tool_use``, ``usage``)."""
+    Message-Objekt zurück (content-Blöcke ``text`` / ``thinking`` / ``tool_use``, ``usage``).
+
+    ``thinking`` (z. B. ``{"type": "adaptive"}``) aktiviert das Reasoning aktueller
+    Claude-Modelle – deutlich bessere Antwortqualität. Wird nur bei ``tool_choice=auto``
+    genutzt (erzwungenes Tool + Thinking ist nicht kombinierbar)."""
     client = _claude_client()
     from .registry import chat_model
     kwargs: dict[str, Any] = {
@@ -101,6 +106,8 @@ def complete(
         kwargs["tools"] = tools
     if tool_choice:
         kwargs["tool_choice"] = tool_choice
+    if thinking:
+        kwargs["thinking"] = thinking
     try:
         return client.messages.create(**kwargs)
     except AiUnavailable:

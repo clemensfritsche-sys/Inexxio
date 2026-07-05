@@ -19,10 +19,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable
 
+from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ...models import Article, Event, Instance, Order, UserProfile
+from ...domain import event_types
+from ...models import Article, ArticleProcessStep, Event, Instance, Order, UserProfile
 from ..admin import log_audit
 from ..events import emit
 from ..inventory import in_stock_clauses
@@ -279,6 +281,53 @@ def _t_create_order_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
             "hint": "Entwurf – die Freigabe ist ein separater, bestätigungspflichtiger Schritt."}
 
 
+def _t_get_order_steps(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Die Prozessschritte eines Auftrags lesen (Reihenfolge, Typ, Label)."""
+    o = visible_orders(db, p.effective).filter(Order.object_id == int(args["object_id"])).first()
+    if not o:
+        return {"error": "Auftrag nicht gefunden (oder keine Berechtigung)"}
+    rows = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.order_id == o.id, ArticleProcessStep.is_active == True)
+        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+        .all()
+    )
+    return {
+        "order_object_id": _num(o.object_id), "status": o.status,
+        "steps": [{"step_id": s.id, "type": s.step_type, "label": event_types.label(s.step_type)}
+                  for s in rows],
+    }
+
+
+def _t_add_order_step(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Einen Prozessschritt an einen Auftrags-ENTWURF anhängen (reversibel) – über
+    denselben Pfad wie der ERP-Prozess-Editor (`POST /orders/{id}/steps`)."""
+    from ...routers.article_process import _create, _order_owner
+    from ...schemas.article_process_step import ArticleProcessStepCreate
+    step_type = args.get("step_type")
+    if step_type not in event_types.ORDER_STEP_TYPES:
+        return {"error": f"Unbekannter Schritt-Typ. Erlaubt: {', '.join(event_types.ORDER_STEP_TYPES)}"}
+    o = visible_orders(db, p.effective).filter(Order.object_id == int(args["order_object_id"])).first()
+    if not o:
+        return {"error": "Auftrag nicht gefunden (oder keine Berechtigung)"}
+    if o.status != "draft":
+        return {"error": f"Auftrag ist '{o.status}' – Schritte lassen sich nur im Entwurf hinzufügen"}
+    try:
+        data = ArticleProcessStepCreate(
+            step_type=step_type,
+            mode=("consume" if step_type == "resource" else "supplier"),
+        )
+        resp = _create(db, _order_owner(db, o.object_id), data, p.actor)
+    except HTTPException as e:
+        return {"error": str(e.detail)}
+    emit(db, "ai.order_step_added", object_type="order", object_id=o.object_id,
+         payload={"step_type": step_type, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
+    db.commit()
+    return {"added": True, "order_object_id": _num(o.object_id), "step_id": resp.id,
+            "step_type": step_type, "label": event_types.label(step_type),
+            "hint": "Schritt-Details (z. B. Ziel/Prüfmaske) können im ERP-Prozess-Editor ergänzt werden."}
+
+
 def _t_propose_release_order(db: Session, p: AiPrincipal, args: dict) -> Any:
     """KRITISCH: Auftrag freigeben – nur als Vorschlag (menschliches Gate im Chat)."""
     from .actions import create_proposal
@@ -374,10 +423,29 @@ _DEFINITIONS: dict[str, dict] = {
     ),
     "create_order_draft": _tool(
         "create_order_draft",
-        "Einen Auftrag als ENTWURF anlegen (Artikel + Menge, reversibel). Nur auf ausdrücklichen Wunsch.",
-        {"article_object_id": {"type": "integer"}, "quantity": {"type": "integer"},
+        "Einen Auftrag als ENTWURF anlegen (Artikel + Menge, reversibel). Danach ggf. mit "
+        "add_order_step Prozessschritte anhängen. Nur auf ausdrücklichen Wunsch.",
+        {"article_object_id": {"type": "integer", "description": "Objektnummer des (freigegebenen) Artikels"},
+         "quantity": {"type": "integer"},
          "desired_delivery_date": {"type": "string", "description": "YYYY-MM-DD, optional"}},
         ["article_object_id", "quantity"],
+    ),
+    "get_order_steps": _tool(
+        "get_order_steps",
+        "Die Prozessschritte (Ablauf) eines Auftrags lesen.",
+        {"object_id": {"type": "integer"}},
+        ["object_id"],
+    ),
+    "add_order_step": _tool(
+        "add_order_step",
+        "Einen Prozessschritt an einen Auftrags-Entwurf anhängen. Schritt-Typen: "
+        "purchase (Beschaffung), resource (Ressource/Material/Betriebsmittel), "
+        "inspection (Datenerfassung/Prüfung), movement (Bewegung/Einlagern), "
+        "scrap (Verschrotten), sale (Verkauf), document (Dokument).",
+        {"order_object_id": {"type": "integer"},
+         "step_type": {"type": "string",
+                       "enum": ["purchase", "resource", "inspection", "movement", "scrap", "sale", "document"]}},
+        ["order_object_id", "step_type"],
     ),
     "propose_release_order": _tool(
         "propose_release_order",
@@ -399,6 +467,8 @@ _EXECUTORS: dict[str, ToolFn] = {
     "my_orders": _t_my_orders,
     "create_article_draft": _t_create_article_draft,
     "create_order_draft": _t_create_order_draft,
+    "get_order_steps": _t_get_order_steps,
+    "add_order_step": _t_add_order_step,
     "propose_release_order": _t_propose_release_order,
 }
 
@@ -406,10 +476,10 @@ _EXECUTORS: dict[str, ToolFn] = {
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
               "recent_events", "shop_products", "create_article_draft", "create_order_draft",
-              "propose_release_order"),
+              "get_order_steps", "add_order_step", "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
                  "recent_events", "shop_products", "create_article_draft", "create_order_draft",
-                 "propose_release_order"),
+                 "get_order_steps", "add_order_step", "propose_release_order"),
     "supplier": ("list_orders", "get_order"),
     "customer": ("shop_products", "my_orders"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.
