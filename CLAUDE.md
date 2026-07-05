@@ -638,7 +638,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Attribution = KI, **effektive Rechte = delegierender Mensch**. (3) **Rechte-gescopte Tools** (`tools.py`):
   rollen-gefilterte Whitelist (Kunde: shop/my_orders; Lieferant: nur eigene Aufträge; Staff: alles; autonom:
   read-only) – jedes Tool wrappt die BESTEHENDE Authz (`visible_orders`, `can_view`, `in_stock_clauses`);
-  **Scoping = Authz, nicht Prompt**. **Autonomie-Policy**: Entwürfe (Artikel/Auftrag, draft) legt die KI
+  **Scoping = Authz, nicht Prompt**. **Zielbild: permission-scoped Vollparität** – die KI soll grundsätzlich
+  ALLES einsehen/tun können, was der jeweilige Nutzer auch darf (Lesen breit, kritisches Schreiben hinter
+  Bestätigung). Werkzeug-Set wächst entsprechend (Staff aktuell u. a. Artikel/Auftrag/Instanz/Benutzer/
+  Standort/Firmen-Info/Audit-Log lesen, Artikel/Auftrag-Entwürfe + Prozessschritte + Instanz-Fixierung
+  schreiben, `resolve_object` für jede Objektnummer). Kritisches (Freigabe/Geld/Löschen/Rolle) bleibt Gate. **Autonomie-Policy**: Entwürfe (Artikel/Auftrag, draft) legt die KI
   direkt an (reversibel); **Kritisches** (Auftrag freigeben) nur als `AiAction`-Vorschlag (Migration `054`)
   → menschliche Bestätigung im Chat → autorisierter Pfad (`actions.py`, idempotent). (4) **Endpunkte**
   `routers/ai.py`: `/api/v1/ai/{config,chat,write,image-edit,actions/{id}/confirm|reject}`; Events `ai.*`

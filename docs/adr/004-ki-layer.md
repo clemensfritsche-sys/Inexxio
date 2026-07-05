@@ -106,6 +106,14 @@ explizites Prompt-Caching) ist Vertex **ausreichend**. → **Empfehlung:** Verte
 Default; das Gateway hält Anthropic-direkt swap-bar für die wenigen Funktionen, die
 Vertex (noch) nicht kann. Siehe *Offene Entscheidungen*.
 
+> **Zielbild (verbindlich): permission-scoped Vollparität.** Die KI soll grundsätzlich
+> **alles einsehen und tun können, was der jeweilige Nutzer auch darf** – nicht mehr, nicht
+> weniger. «Alles» wird durch einen wachsenden Satz Tools erreicht, die jeweils die bestehende
+> Authz wiederverwenden (Scoping automatisch korrekt). Zwei Achsen: **Lesen** wird breit
+> ausgerollt (Vollparität beim Einsehen), **Schreiben** deckt zunehmend alle Aktionen ab –
+> **kritische/irreversible** (Freigabe, Geld/Stripe, Löschen, Rollen ändern) bleiben hinter dem
+> menschlichen Gate (`AiAction`-Vorschlag), pro Aktion lockerbar.
+
 ### 2. Rechte-gescopte Tool-/Kontext-Schicht (das Scoping ist die Sicherheitsgrenze)
 
 Die KI bekommt **niemals** rohen DB- oder API-Zugriff. Sie bekommt eine Menge von

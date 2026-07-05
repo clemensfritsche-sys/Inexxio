@@ -109,12 +109,20 @@ def _t_get_order(db: Session, p: AiPrincipal, args: dict) -> Any:
     o = visible_orders(db, p.effective).filter(Order.object_id == int(args["object_id"])).first()
     if not o:
         return {"error": "Auftrag nicht gefunden (oder keine Berechtigung)"}
+    steps = (
+        db.query(ArticleProcessStep)
+        .filter(ArticleProcessStep.order_id == o.id, ArticleProcessStep.is_active == True)
+        .order_by(ArticleProcessStep.position, ArticleProcessStep.id)
+        .all()
+    )
     return {
         "object_id": _num(o.object_id), "status": o.status,
         "article": _article_ref(db, o.article_id), "quantity": o.quantity, "reason": o.reason,
         "parent_order_id": _num(o.parent_order_id),
         "released_at": o.released_at.isoformat() if o.released_at else None,
         "completed_at": o.completed_at.isoformat() if o.completed_at else None,
+        "steps": [{"step_id": s.id, "type": s.step_type, "label": event_types.label(s.step_type)}
+                  for s in steps],
     }
 
 
@@ -475,6 +483,70 @@ def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
     return {"object_id": _num(oid), "type": t, "detail": detail}
 
 
+def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Firmen-/Systemkonfiguration lesen (Personal) – ohne Geheimnisse (keine IBAN/Keys)."""
+    from ..admin import get_or_create_settings
+    s = get_or_create_settings(db)
+    return {
+        "object_id": _num(s.object_id), "company_name": s.company_name, "legal_form": s.legal_form,
+        "address": " ".join(x for x in [s.street, s.street_nr, s.zip_code, s.city, s.country] if x),
+        "uid_number": s.uid_number, "vat_number": s.vat_number,
+        "email": s.email, "phone": s.phone, "website": s.website,
+        "vat_method": s.vat_method, "vat_period": s.vat_period,
+        "default_payment_days": s.default_payment_days,
+        "article_names_catalog": list(getattr(s, "article_names", None) or []),
+        "default_receiving_location_id": _num(getattr(s, "default_receiving_location_id", None)),
+    }
+
+
+def _t_audit_log(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Audit-Log lesen (nur Admin): wer hat was wann geändert. Optional gefiltert."""
+    from ...models import AuditLog
+    q = db.query(AuditLog)
+    if args.get("object_id"):
+        q = q.filter(AuditLog.object_id == int(args["object_id"]))
+    if args.get("table_name"):
+        q = q.filter(AuditLog.table_name == args["table_name"])
+    rows = q.order_by(AuditLog.changed_at_utc.desc()).limit(min(int(args.get("limit") or _LIMIT), _LIMIT)).all()
+    uids = {r.user_id for r in rows if r.user_id}
+    names = {u.id: u.display_name for u in db.query(UserProfile).filter(UserProfile.id.in_(uids)).all()} if uids else {}
+    return [{
+        "object_id": _num(r.object_id), "table": r.table_name, "field": r.field_name,
+        "old": r.old_value, "new": r.new_value, "by": names.get(r.user_id, r.user_id),
+        "at": r.changed_at_utc.isoformat() if r.changed_at_utc else None,
+    } for r in rows]
+
+
+def _t_update_article(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Felder eines Artikel-ENTWURFS ändern (Name, Material, Gewicht …). Nur im Entwurf."""
+    a = db.query(Article).filter(Article.object_id == int(args["object_id"]), Article.is_active == True).first()
+    if not a:
+        return {"error": "Artikel nicht gefunden"}
+    if a.status != "draft":
+        return {"error": f"Artikel ist '{a.status}' – nur Entwürfe sind editierbar (sonst «Ersetzen»)"}
+    text_fields = ("name", "unit", "serialization", "size", "material", "cad_url", "surface")
+    qty_fields = ("weight_kg", "min_order_qty", "safety_stock")
+    changed = []
+    for f in text_fields:
+        if f in args and args[f] is not None:
+            setattr(a, f, str(args[f]).strip() or None if f != "name" else str(args[f]).strip())
+            changed.append(f)
+    for f in qty_fields:
+        if f in args and args[f] not in (None, ""):
+            try:
+                setattr(a, f, Decimal(str(args[f])))
+                changed.append(f)
+            except InvalidOperation:
+                return {"error": f"Ungültiger Zahlenwert für {f}"}
+    if not changed:
+        return {"error": "Keine gültigen Felder zum Ändern übergeben"}
+    log_audit(db, "articles", ",".join(changed), "per KI geändert", p.actor.id, object_id=a.object_id)
+    emit(db, "ai.article_updated", object_type="article", object_id=a.object_id,
+         payload={"fields": changed, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
+    db.commit()
+    return {"updated": True, "object_id": _num(a.object_id), "changed": changed}
+
+
 def _t_set_order_instances(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Einen Auftrags-Entwurf auf **konkrete, bestehende Instanzen** fixieren (statt FIFO) –
     so wirkt ein Bewegungs-/Prüf-/Verschrottungs-Schritt auf genau diese Instanz(en).
@@ -592,6 +664,16 @@ _DEFINITIONS: dict[str, dict] = {
         "Lagerplätze/Standorte auflisten (Ziele für Bewegungen). Optional Suchbegriff.",
         {"query": {"type": "string"}},
     ),
+    "company_info": _tool(
+        "company_info",
+        "Firmen-/Systemkonfiguration lesen (Firmenname, Adresse, MWST, Zahlungsziel, Artikelnamen-Katalog).",
+        {},
+    ),
+    "audit_log": _tool(
+        "audit_log",
+        "Audit-Log lesen (nur Admin): wer hat wann was geändert. Optional nach Objekt/Tabelle.",
+        {"object_id": {"type": "integer"}, "table_name": {"type": "string"}, "limit": {"type": "integer"}},
+    ),
     "shop_products": _tool(
         "shop_products",
         "Shop-Sortiment für Kaufberatung (publizierte Produkte mit Preisen, CHF).",
@@ -611,6 +693,17 @@ _DEFINITIONS: dict[str, dict] = {
          "material": {"type": "string"}, "surface": {"type": "string"},
          "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
         ["name"],
+    ),
+    "update_article": _tool(
+        "update_article",
+        "Felder eines Artikel-ENTWURFS ändern (Name, Einheit, Material, Gewicht, Oberfläche …). Nur im Entwurf.",
+        {"object_id": {"type": "integer"}, "name": {"type": "string"},
+         "unit": {"type": "string", "enum": ["Stk", "m", "kg", "l"]},
+         "serialization": {"type": "string", "enum": ["unit", "batch"]},
+         "size": {"type": "string"}, "weight_kg": {"type": "string"}, "material": {"type": "string"},
+         "cad_url": {"type": "string"}, "surface": {"type": "string"},
+         "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
+        ["object_id"],
     ),
     "create_order_draft": _tool(
         "create_order_draft",
@@ -671,7 +764,10 @@ _EXECUTORS: dict[str, ToolFn] = {
     "list_users": _t_list_users,
     "get_user": _t_get_user,
     "storage_locations": _t_storage_locations,
+    "company_info": _t_company_info,
+    "audit_log": _t_audit_log,
     "create_article_draft": _t_create_article_draft,
+    "update_article": _t_update_article,
     "create_order_draft": _t_create_order_draft,
     "get_order_steps": _t_get_order_steps,
     "add_order_step": _t_add_order_step,
@@ -683,14 +779,14 @@ _EXECUTORS: dict[str, ToolFn] = {
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
               "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
-              "list_users", "get_user", "storage_locations", "create_article_draft",
-              "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
-              "propose_release_order"),
+              "list_users", "get_user", "storage_locations", "company_info", "audit_log",
+              "create_article_draft", "update_article", "create_order_draft", "get_order_steps",
+              "add_order_step", "set_order_instances", "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
                  "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
-                 "list_users", "get_user", "storage_locations", "create_article_draft",
-                 "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
-                 "propose_release_order"),
+                 "list_users", "get_user", "storage_locations", "company_info",
+                 "create_article_draft", "update_article", "create_order_draft", "get_order_steps",
+                 "add_order_step", "set_order_instances", "propose_release_order"),
     "supplier": ("list_orders", "get_order"),
     "customer": ("shop_products", "my_orders"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.
