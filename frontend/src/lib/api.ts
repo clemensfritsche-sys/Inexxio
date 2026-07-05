@@ -2,7 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
-  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
+  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput, OrderDocument,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
@@ -239,6 +239,18 @@ class ApiClient {
     return this.fetchPdf(`/api/v1/erp/documents/${docId}/pdf`, name);
   }
 
+  // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
+  // Gibt eine relative URL (Token) zurück; die speichern die Verbraucher als String.
+  async uploadAttachment(file: File): Promise<{ url: string; width: number | null; height: number | null }> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_BASE}/api/v1/erp/attachments`, { method: 'POST', headers, body: form });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    return res.json();
+  }
+
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
   // Schlanker Feed (ohne Embeds); Detail via getOrder(id)
@@ -372,6 +384,11 @@ class ApiClient {
   // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
   getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
     return this.get(`/api/v1/erp/instances/${objectId}/orders`);
+  }
+
+  // Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer)
+  getInstanceDocuments(objectId: number): Promise<OrderDocument[]> {
+    return this.get(`/api/v1/erp/instances/${objectId}/documents`);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
@@ -576,3 +593,10 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
 }
 
 export const api = new ApiClient();
+
+// Absolute Anzeige-URL für ein Attachment (die DB speichert nur den relativen Token-Pfad).
+export function attachmentUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//.test(path) || path.startsWith('data:')) return path;
+  return `${API_BASE}${path}`;
+}

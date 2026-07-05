@@ -5,12 +5,13 @@ import type { ReactNode, ElementType } from 'react';
 import {
   Boxes, ArrowLeft, FileText, MapPin, Package, CalendarDays, History,
   ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert,
-  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash,
+  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FileDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, InstanceOrderRef, LocationType } from '@/types';
+import type { Instance, InstanceOrderRef, LocationType, OrderDocument } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
+import { DocumentView } from '@/components/erp/document-editor';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
@@ -34,6 +35,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const inst = record;
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
+  const [docs, setDocs] = useState<OrderDocument[]>([]);   // ausgestellte Dokumente dieser Instanz
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
   const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
@@ -44,6 +46,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     api.getInstanceOrders(inst.object_id)
       .then((o) => { if (!cancelled) setOrders(o); })
       .catch(() => { if (!cancelled) setOrders([]); });
+    api.getInstanceDocuments(inst.object_id)
+      .then((d) => { if (!cancelled) setDocs(d); })
+      .catch(() => { if (!cancelled) setDocs([]); });
     return () => { cancelled = true; };
   }, [inst.object_id]);
 
@@ -167,6 +172,38 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
           </div>
+
+          {/* Dokumente – ausgestellte Dokumente, deren Nummer diese Instanz ist.
+              Künftiger Andockpunkt für die KI-/Scan-Ablage beliebiger PDFs je Objektnummer. */}
+          {docs.length > 0 && (
+            <div>
+              <div style={{ ...S.osecHead, marginBottom: 14 }}>
+                <div style={{ ...S.osecIc, background: '#FBF3F2', color: '#E51A14' }}><FileText size={18} /></div>
+                <h3 style={S.osecH3}>Dokumente</h3>
+                <span style={S.ocount}>{docs.length}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {docs.map((d) => (
+                  <div key={d.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <button
+                      onClick={() => d.id && api.openDocumentPdf(d.id, d.object_number).catch(() => {})}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        alignSelf: 'flex-start', minHeight: 40, padding: '0 16px', borderRadius: 10,
+                        border: 'none', background: '#E51A14', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+                      }}>
+                      <FileDown size={16} /> Als PDF herunterladen
+                    </button>
+                    <DocumentView
+                      content={d.content ?? null}
+                      objectNr={d.object_number ? fmtObjId(d.object_number) : null}
+                      issuedAt={d.document_date ?? null}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Aufträge */}
           <div>

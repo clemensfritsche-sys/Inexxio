@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Package, ArrowLeft, ShoppingCart, Check } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, attachmentUrl } from '@/lib/api';
 import { useCart } from '@/lib/cart-context';
 import type { ShopProduct, ShopPriceOption, CartItem } from '@/types';
 import { formatMoney as fmt } from '@/lib/utils';
@@ -66,7 +66,7 @@ function ProductView() {
       sub_type: (selected.sub_type as CartItem['sub_type']) ?? null,
       currency: view.currency,
       gross: Number(view.gross),
-      image: product.images?.[0] ?? null,
+      image: product.images?.[0] ? attachmentUrl(product.images[0]) : null,
     };
     const res = cart.add(item);
     if (!res.ok) { setNotice(res.reason ?? 'Konnte nicht hinzugefügt werden'); return; }
@@ -91,7 +91,7 @@ function ProductView() {
         <div className="aspect-square rounded-xl bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
           {product.images?.[0] ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={product.images[0]} alt={product.title} className="w-full h-full object-cover" />
+            <img src={attachmentUrl(product.images[0])} alt={product.title} className="w-full h-full object-cover" />
           ) : (
             <Package size={64} strokeWidth={1} className="text-slate-300" />
           )}

@@ -592,9 +592,12 @@
   cursor: pointer; padding: 0; transition: background .15s, color .15s;
 }
 .erp-idbtn:hover { background: var(--bg-2); color: var(--fg-1); }
-.erp-idbtn-flag:hover { background: var(--warning-bg); color: var(--warning); }
+/* Abweichung-Knopf hebt sich dezent hervor: ruhend leicht amber hinterlegt, beim Hover satter. */
+.erp-idbtn-flag { background: var(--warning-bg); color: var(--warning); }
+.erp-idbtn-flag:hover { background: var(--warning); color: #fff; }
 .erp-idbtn:disabled { opacity: .4; cursor: not-allowed; }
 .erp-idbtn:disabled:hover { background: transparent; color: var(--fg-4); }
+.erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: transparent; color: var(--fg-4); }
 
 .erp-tool {
   width: 40px; height: 40px; border: 1px solid var(--border-1); background: #fff; border-radius: var(--r-sm);

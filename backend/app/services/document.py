@@ -120,3 +120,36 @@ def render_meta(db: Session, order: Order) -> tuple[Optional[int], Optional[date
     if inst is None:
         return None, None
     return inst.object_id, inst.released_at
+
+
+def instance_document_embeds(db: Session, instance: Instance) -> list:
+    """Ausgestellte Dokumente, deren Nummer GENAU diese Instanz ist (der Liefergegenstand).
+
+    Bindeglied Instanz→Dokument: das Dokument gehört zum Auftrag der Instanz und dessen
+    ``produced_instance`` IST diese Instanz (die kleinste Objektnummer des Auftrags trägt die
+    Dokumentennummer). So erscheint ein Dokument nur an «seiner» Instanz. Ergibt den
+    ``DocumentEmbed`` (Inhalt + Nummer = Instanz-Objektnummer + Datum = Instanz-Freigabe).
+    Auch der Andockpunkt für die spätere KI-/Scan-Ablage (beliebige PDFs je Objektnummer)."""
+    from ..schemas.document import DocumentEmbed
+    if instance.order_id is None:
+        return []
+    order = db.query(Order).filter(Order.id == instance.order_id).first()
+    if order is None:
+        return []
+    owner = produced_instance(db, order)
+    if owner is None or owner.object_id != instance.object_id:
+        return []
+    docs = (
+        db.query(Document)
+        .filter(Document.order_id == order.id, Document.done == True, Document.is_active == True)
+        .order_by(Document.id)
+        .all()
+    )
+    out = []
+    for doc in docs:
+        emb = DocumentEmbed.model_validate(doc)
+        emb.created_by_name = creator_name(db, doc)
+        emb.object_number = instance.object_id
+        emb.document_date = instance.released_at
+        out.append(emb)
+    return out

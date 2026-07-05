@@ -11,6 +11,7 @@ import type {
 import {
   Label, TextField, SelectField, Segmented, SectionTitle, Placeholder,
 } from '@/components/erp/fields';
+import { PhotoCapture } from '@/components/erp/photo-capture';
 import { useAutosave } from '@/lib/use-autosave';
 
 const VISIBILITY: { value: SalesVisibility; label: string; icon: React.ElementType; hint: string }[] = [
@@ -111,7 +112,6 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
 
   const flush = useAutosave(sig, sig !== savedSig, save);
 
-  const imagesText = (block.images ?? []).join('\n');
 
   return (
     <div style={{ ...card, boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow .2s' }}
@@ -165,13 +165,14 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
               style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
           </div>
           <div>
-            <Label>Bild-URLs</Label>
-            <textarea value={imagesText} onChange={(e) => setBlock({ images: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) })}
-              onBlur={flush} rows={2} placeholder="https://… (eine URL pro Zeile, z. B. GCS-Links)"
-              className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500"
-              style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
+            <Label>Produktbilder</Label>
+            <PhotoCapture
+              value={block.images ?? []}
+              max={10}
+              onChange={(urls) => setBlock({ images: urls })}
+            />
             <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <ImageIcon size={11} /> Eine Bild-URL pro Zeile.
+              <ImageIcon size={11} /> Fotografieren oder hochladen – das erste Bild ist das Titelbild.
             </div>
           </div>
         </div>

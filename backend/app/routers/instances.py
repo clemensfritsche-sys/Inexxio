@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
+from ..schemas.document import DocumentEmbed
 from ..schemas.instance import InstanceOrderRef, InstanceResponse
 from ..services.locations import location_labels, physical_location_labels
 from ..services.references import instance_orders
@@ -104,6 +105,25 @@ async def get_instance(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     return _denorm(db, [inst])[0]
+
+
+@router.get("/{object_id}/documents", response_model=list[DocumentEmbed])
+async def list_instance_documents(
+    object_id: int,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer). Grundlage des
+    Reiters «Dokumente» und künftig der KI-/Scan-Ablage beliebiger PDFs je Objektnummer."""
+    from ..services import document as document_svc
+    inst = (
+        db.query(Instance)
+        .filter(Instance.object_id == object_id, Instance.is_active == True)
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, detail="Instanz nicht gefunden")
+    return document_svc.instance_document_embeds(db, inst)
 
 
 @router.get("/{object_id}/orders", response_model=list[InstanceOrderRef])

@@ -237,7 +237,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-      {loading && <div style={{ fontSize: 13, color: '#94a3b8' }}>Laden…</div>}
+      {loading && <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Laden…</div>}
 
       {/* Start-Knoten (BPMN) */}
       {steps.length > 0 && <FlowNode label="Start" tone="start" />}
@@ -260,24 +260,24 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
               style={{
                 ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10,
                 opacity: drag === i ? 0.4 : 1,
-                background: isLocked ? '#f8fafc' : '#fff',
-                borderColor: isOver ? '#2563eb' : '#E2E8F0',
-                boxShadow: isOver ? '0 0 0 2px #dbeafe' : 'none',
+                background: isLocked ? 'var(--bg-2)' : '#fff',
+                borderColor: isOver ? 'var(--accent)' : 'var(--border-1)',
+                boxShadow: isOver ? '0 0 0 2px var(--accent-soft)' : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {!readOnly && (isLocked
-                  ? <Lock size={14} style={{ color: '#cbd5e1', flexShrink: 0 }} />
-                  : <GripVertical size={16} style={{ color: '#cbd5e1', cursor: 'grab', flexShrink: 0 }} />)}
-                <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: isLocked ? '#f1f5f9' : '#eff6ff', color: isLocked ? '#64748b' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  ? <Lock size={14} style={{ color: 'var(--border-2)', flexShrink: 0 }} />
+                  : <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />)}
+                <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: isLocked ? 'var(--bg-3)' : '#F4EBDD', color: isLocked ? 'var(--fg-3)' : '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={16} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>{i + 1}. {meta.label}</span>
-                    {isLocked && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: 999 }}>Pflicht</span>}
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>{i + 1}. {meta.label}</span>
+                    {isLocked && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-3)', background: 'var(--border-1)', padding: '1px 6px', borderRadius: 999 }}>Pflicht</span>}
                   </div>
-                  <div style={{ marginTop: 3, fontSize: 12, color: '#64748b' }}>
+                  <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>
                     {isLocked && (lockedRole(s) === 'versand'
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Lieferanten{s.target_location_id ? ` · ${fmtObjId(s.target_location_id)}` : ''}</span>
                       : lockedRole(s) === 'versandkunde'
@@ -301,13 +301,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                   </div>
                 </div>
                 {!readOnly && !isLocked && (
-                  <button onClick={() => removeStep(s.id)} title="Entfernen" style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
+                  <button onClick={() => removeStep(s.id)} title="Entfernen" style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
                 )}
               </div>
 
               {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
               {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8 }}>
                   <Label>Ziel-Lagerplatz (optional)</Label>
                   <SearchSelect
                     value={s.target_location_id ? `lagerplatz:${s.target_location_id}` : ''}
@@ -318,7 +318,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                       ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
                         value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
                     ]} />
-                  <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+                  <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-4)' }}>
                     Vorgabe → beim Scannen erzwungen. Leer → frei einlagerbar (per Scan erfasst).
                   </div>
                 </div>
@@ -326,9 +326,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
               {/* Beschaffung: sichtbare Stammdaten */}
               {s.step_type === 'purchase' && (
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
+                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#94a3b8' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
                       <Eye size={12} /> Für Lieferant sichtbar
                     </span>
                     {!readOnly && (editId === s.id ? (
@@ -349,10 +349,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
               {/* Datenerfassung: Maske-Übersicht */}
               {s.step_type === 'inspection' && (s.capture_fields?.length ?? 0) > 0 && (
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {s.capture_fields!.map((f, idx) => (
-                    <div key={idx} style={{ fontSize: 12, color: '#475569' }}>
-                      • {f.label} <span style={{ color: '#94a3b8' }}>
+                    <div key={idx} style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                      • {f.label} <span style={{ color: 'var(--fg-4)' }}>
                         {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : '(Text)'}
                       </span>
                     </div>
@@ -362,12 +362,12 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
               {/* Ressource: Zeilen (Artikel + Menge + Modus pro Zeile) */}
               {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {s.resource_lines!.map((l, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-2)' }}>
                       {l.mode === 'tool' ? <Wrench size={12} style={{ color: '#7c3aed', flexShrink: 0 }} /> : <PackageMinus size={12} style={{ color: '#0f766e', flexShrink: 0 }} />}
                       <span style={{ flex: 1, minWidth: 0 }}>{l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`}</span>
-                      <span style={{ color: '#94a3b8' }}>{l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk</span>
+                      <span style={{ color: 'var(--fg-4)' }}>{l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk</span>
                     </div>
                   ))}
                 </div>
@@ -391,17 +391,17 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
           ) : adding === 'choose' ? (
             <div style={{ ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Welcher Schritt?</span>
-                <button onClick={resetForm} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>Welcher Schritt?</span>
+                <button onClick={resetForm} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
               </div>
               {chooserTypes.map((t) => {
                 const m = STEP_META[t]; const Icon = m.icon;
                 return (
                   <button key={t} onClick={() => setAdding(t)} style={chooserBtn}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={16} /></div>
+                    <div style={{ width: 34, height: 34, borderRadius: 9, background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={16} /></div>
                     <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{m.label}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{STEP_HINT[t]}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-1)' }}>{m.label}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-4)' }}>{STEP_HINT[t]}</div>
                     </div>
                   </button>
                 );
@@ -409,7 +409,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
             </div>
           ) : (
             <div style={{ ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 14 }}>
-              <button onClick={() => setAdding('choose')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, alignSelf: 'flex-start' }}>
+              <button onClick={() => setAdding('choose')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, alignSelf: 'flex-start' }}>
                 <ArrowLeft size={13} /> {STEP_META[adding].label}
               </button>
 
@@ -427,7 +427,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                   ) : (
                     <TextField label="Webshop-Link" value={url} onChange={setUrl} required placeholder="https://shop.example.com/artikel" />
                   )}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                     <span>Lieferadresse aus der Systemkonfiguration. Der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
                   </div>
@@ -465,7 +465,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
               )}
 
               {adding === 'sale' && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                   <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span>Kaufmännischer Verkauf (Spiegel der Beschaffung): Kunde, Betrag, Rechnung
                     und Zahlung werden beim Auftrag erfasst. Der Versand läuft über eine Bewegung
@@ -474,7 +474,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
               )}
 
               {adding === 'document' && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                   <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   <span>An diesem Schritt entsteht ein Dokument. Den <strong>Inhalt</strong> (Titel,
                     Abschnitte) verfasst du erst im <strong>Auftrag</strong> – dort wird es als
@@ -537,14 +537,14 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
                 <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
               </div>
               <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
-                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', width: 92 }} />
-              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={15} /></button>
+                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', width: 92 }} />
+              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
           );
         })}
       </div>
       <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
-      <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PackageMinus size={12} style={{ color: '#0f766e' }} /> Verbrauch (FIFO)</span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Wrench size={12} style={{ color: '#7c3aed' }} /> Betriebsmittel (genutzt)</span>
       </div>
@@ -562,26 +562,26 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
       <Label>Erfassungsfelder (was wird geprüft?)</Label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {fields.map((f, i) => (
-          <div key={i} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div key={i} style={{ border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <input value={f.label} onChange={(e) => upd(i, { label: e.target.value })} placeholder="Bezeichnung (z. B. Länge)"
-                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500" style={{ borderColor: '#e2e8f0', flex: 1 }} />
+                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', flex: 1 }} />
               <select value={f.type} onChange={(e) => upd(i, { type: e.target.value as WField['type'] })}
-                className="px-2 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: '#e2e8f0' }}>
+                className="px-2 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }}>
                 <option value="measure">Soll-Ist</option>
                 <option value="bool">Gut/Schlecht</option>
                 <option value="text">Text</option>
               </select>
-              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={15} /></button>
+              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
             {f.type === 'measure' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <input value={f.target} onChange={(e) => upd(i, { target: e.target.value })} inputMode="decimal" placeholder="Soll"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: '#e2e8f0' }} />
+                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
                 <input value={f.tolerance} onChange={(e) => upd(i, { tolerance: e.target.value })} inputMode="decimal" placeholder="± Toleranz"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: '#e2e8f0' }} />
+                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
                 <input value={f.unit} onChange={(e) => upd(i, { unit: e.target.value })} placeholder="Einheit"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: '#e2e8f0' }} />
+                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
               </div>
             )}
           </div>
@@ -596,14 +596,14 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
 function Connector() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: 22 }}>
-      <div style={{ width: 2, flex: 1, background: '#cbd5e1' }} />
-      <ChevronDown size={14} style={{ color: '#cbd5e1', marginTop: -4 }} />
+      <div style={{ width: 2, flex: 1, background: 'var(--border-2)' }} />
+      <ChevronDown size={14} style={{ color: 'var(--border-2)', marginTop: -4 }} />
     </div>
   );
 }
 
 function FlowNode({ label, tone }: { label: string; tone: 'start' | 'end' }) {
-  const color = tone === 'start' ? '#16a34a' : '#64748b';
+  const color = tone === 'start' ? '#16a34a' : 'var(--fg-3)';
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 14px', borderRadius: 999, border: `1.5px solid ${color}`, color, fontSize: 11, fontWeight: 700, background: '#fff' }}>
@@ -635,7 +635,7 @@ function FieldChips({ value, onChange, optionalAvailable = [] }: {
             onClick={f.mandatory ? undefined : () => toggle(f.key)} />
         ))}
       </div>
-      <div style={{ marginTop: 6, fontSize: 11, color: '#94a3b8' }}>
+      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-4)' }}>
         Pflicht-Stammdaten sind für den Lieferanten immer sichtbar.
         {!hasOptional && ' Optionale Felder erscheinen hier nur, wenn sie am Artikel gepflegt sind.'}
       </div>
@@ -648,8 +648,8 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
     <button type="button" onClick={onClick} disabled={!onClick}
       style={{
         padding: '3px 9px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-        border: `1px solid ${on ? '#bfdbfe' : '#e2e8f0'}`,
-        background: on ? '#eff6ff' : '#fff', color: on ? '#2563eb' : '#94a3b8',
+        border: `1px solid ${on ? 'var(--accent-soft)' : 'var(--border-1)'}`,
+        background: on ? 'var(--accent-soft)' : '#fff', color: on ? 'var(--accent)' : 'var(--fg-4)',
         cursor: onClick ? 'pointer' : 'default', opacity: locked ? 0.85 : 1,
       }}>
       {label}
@@ -659,7 +659,7 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
 
 const cardStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, background: '#fff',
-  border: '1px solid #E2E8F0', borderRadius: 10, padding: '12px 14px',
+  border: '1px solid var(--border-1)', borderRadius: 10, padding: '12px 14px',
 };
 const noticeStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start', gap: 8, padding: '12px 14px',
@@ -667,26 +667,26 @@ const noticeStyle: React.CSSProperties = {
 };
 const addBtnStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px',
-  borderRadius: 10, border: '1px dashed #cbd5e1', background: '#fff', color: '#2563eb',
+  borderRadius: 10, border: '1px dashed var(--border-2)', background: '#fff', color: 'var(--accent)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%',
 };
 const chooserBtn: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', width: '100%',
-  borderRadius: 10, border: '1px solid #E2E8F0', background: '#fff', cursor: 'pointer',
+  borderRadius: 10, border: '1px solid var(--border-1)', background: '#fff', cursor: 'pointer',
 };
 const primaryBtn: React.CSSProperties = {
-  padding: '7px 14px', borderRadius: 7, border: 'none', background: '#2563eb',
+  padding: '7px 14px', borderRadius: 7, border: 'none', background: 'var(--accent)',
   color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 const secondaryBtn: React.CSSProperties = {
-  padding: '7px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff',
-  color: '#374151', fontSize: 13, cursor: 'pointer',
+  padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border-1)', background: '#fff',
+  color: 'var(--fg-2)', fontSize: 13, cursor: 'pointer',
 };
 const miniPrimary: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 6,
-  border: 'none', background: '#2563eb', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
 };
 const miniGhost: React.CSSProperties = {
-  padding: '3px 9px', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff',
-  color: '#475569', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-1)', background: '#fff',
+  color: 'var(--fg-2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
 };

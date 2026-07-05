@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Trash2, FileDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Trash2, FileDown, GripVertical } from 'lucide-react';
 import type { DocumentContent, DocumentSection } from '@/types';
 
 // Inexxio-Design-Tokens (Spiegel von styles/design-system/colors_and_type.css) – als
@@ -85,12 +86,17 @@ export function DocumentEditor({ value, onChange, onPreviewPdf }: {
     set({ sections: sections.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) });
   const addSection = () => set({ sections: [...sections, { heading: '', body: '' }] });
   const delSection = (i: number) => set({ sections: sections.filter((_, idx) => idx !== i) });
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= sections.length) return;
+
+  // Abschnitte per Drag & Drop umsortieren (Griff links; Feedback über den Ziel-Index).
+  const [drag, setDrag] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const onDrop = (target: number) => {
+    if (drag === null || drag === target) { setDrag(null); setOver(null); return; }
     const next = [...sections];
-    [next[i], next[j]] = [next[j], next[i]];
+    const [moved] = next.splice(drag, 1);
+    next.splice(target, 0, moved);
     set({ sections: next });
+    setDrag(null); setOver(null);
   };
 
   return (
@@ -104,25 +110,39 @@ export function DocumentEditor({ value, onChange, onPreviewPdf }: {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {sections.map((s, i) => (
-          <div key={i} style={{ border: `1px solid ${HAIRLINE}`, borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: '#fff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, minWidth: 20 }}>{i + 1}.</span>
-              <input value={s.heading ?? ''} onChange={(e) => setSection(i, { heading: e.target.value })}
-                placeholder="Überschrift (z. B. §1 Geltungsbereich)"
-                style={{ ...inp, fontFamily: DISPLAY, fontWeight: 700, flex: 1 }} />
-              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Nach oben"
-                style={iconBtn(i === 0)}><ArrowUp size={14} /></button>
-              <button type="button" onClick={() => move(i, 1)} disabled={i === sections.length - 1} title="Nach unten"
-                style={iconBtn(i === sections.length - 1)}><ArrowDown size={14} /></button>
-              <button type="button" onClick={() => delSection(i)} title="Abschnitt entfernen"
-                style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}><Trash2 size={15} /></button>
+        {sections.map((s, i) => {
+          const isOver = over === i && drag !== null && drag !== i;
+          return (
+            <div key={i}
+              onDragOver={(e) => { if (drag !== null) { e.preventDefault(); setOver(i); } }}
+              onDrop={(e) => { e.preventDefault(); onDrop(i); }}
+              style={{
+                border: `1px solid ${isOver ? RED : HAIRLINE}`, borderRadius: 10, padding: 12,
+                display: 'flex', flexDirection: 'column', gap: 8, background: '#fff',
+                opacity: drag === i ? 0.4 : 1,
+                boxShadow: isOver ? `0 0 0 2px ${RED}22` : 'none',
+              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span draggable
+                  onDragStart={() => setDrag(i)}
+                  onDragEnd={() => { setDrag(null); setOver(null); }}
+                  title="Zum Umsortieren ziehen"
+                  style={{ cursor: 'grab', color: '#cbd5e1', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <GripVertical size={16} />
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, minWidth: 18 }}>{i + 1}.</span>
+                <input value={s.heading ?? ''} onChange={(e) => setSection(i, { heading: e.target.value })}
+                  placeholder="Überschrift (z. B. §1 Geltungsbereich)"
+                  style={{ ...inp, fontFamily: DISPLAY, fontWeight: 700, flex: 1 }} />
+                <button type="button" onClick={() => delSection(i)} title="Abschnitt entfernen"
+                  style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
+              </div>
+              <textarea value={s.body ?? ''} onChange={(e) => setSection(i, { body: e.target.value })}
+                placeholder="Text des Abschnitts. Absätze durch Zeilenumbrüche trennen."
+                rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.55 }} />
             </div>
-            <textarea value={s.body ?? ''} onChange={(e) => setSection(i, { body: e.target.value })}
-              placeholder="Text des Abschnitts. Absätze durch Zeilenumbrüche trennen."
-              rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.55 }} />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -161,10 +181,3 @@ const pdfBtn: React.CSSProperties = {
   borderRadius: 9, border: `1px solid ${HAIRLINE}`, background: '#fff', color: INK,
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
-function iconBtn(disabled: boolean): React.CSSProperties {
-  return {
-    border: `1px solid ${HAIRLINE}`, background: '#fff', borderRadius: 6, padding: 4,
-    color: disabled ? '#cbd5e1' : '#64748b', cursor: disabled ? 'default' : 'pointer',
-    display: 'flex', alignItems: 'center',
-  };
-}

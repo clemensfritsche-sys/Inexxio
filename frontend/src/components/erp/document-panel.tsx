@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FileText, FileDown, Hash, Send, Save } from 'lucide-react';
+import { FileText, FileDown, Hash, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, DocumentContent } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { DocumentEditor, DocumentView } from '@/components/erp/document-editor';
-import { PanelHeader, PrimaryButton } from '@/components/erp/fields';
+import { PanelHeader, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
+import { useAutosave } from '@/lib/use-autosave';
 
 // Panel des Dokument-Schritts im Auftrag. Der Inhalt wird HIER – während der Ausführung –
 // verfasst und mit «Ausstellen» festgeschrieben (analog Datenerfassung). Nummer (= Instanz-
@@ -29,22 +30,43 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [draft, setDraft] = useState<DocumentContent>(() => (doc?.content as DocumentContent) ?? emptyContent());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Auto-Save (wie Google Docs): kein «Zwischenspeichern» mehr. Ein separater, leiser
+  // Indikator; das Tippen wird NICHT blockiert (eigener `saving`-Zustand statt `busy`).
+  const [savedSig, setSavedSig] = useState<string>(() => JSON.stringify((doc?.content as DocumentContent) ?? emptyContent()));
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState(false);
 
   // Frischen Stand nur bei WECHSEL der Fachzeile/Ausstellung übernehmen – NICHT bei jeder
   // content-Änderung (sonst würden laufende Eingaben überschrieben).
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
-    if (doc?.content) setDraft(doc.content as DocumentContent);
+    if (doc?.content) { setDraft(doc.content as DocumentContent); setSavedSig(JSON.stringify(doc.content)); }
   }, [doc?.id, done]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
-  async function submit(action: 'save' | 'issue') {
-    if (action === 'issue' && !draft.title.trim()) { setErr('Bitte einen Titel angeben'); return; }
+  const sig = JSON.stringify(draft);
+  const canAutosave = !locked && !done && !busy && sig !== savedSig;
+
+  async function autosave() {
+    setSaving(true); setErr(null);
+    try {
+      const updated = await api.updateOrderDocument(order.object_id as number, { step_id: stepId, content: draft, action: 'save' });
+      setSavedSig(sig);
+      onOrderUpdated(updated);
+      setFlash(true); setTimeout(() => setFlash(false), 700);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Automatisches Speichern fehlgeschlagen'); }
+    finally { setSaving(false); }
+  }
+  const flush = useAutosave(sig, canAutosave, autosave);
+
+  async function submit(action: 'issue') {
+    if (!draft.title.trim()) { setErr('Bitte einen Titel angeben'); return; }
     setBusy(true); setErr(null);
     try {
       const updated = await api.updateOrderDocument(order.object_id as number, { step_id: stepId, content: draft, action });
+      setSavedSig(sig);
       onOrderUpdated(updated);
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Ausstellen'); }
     finally { setBusy(false); }
   }
 
@@ -107,22 +129,20 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
         </>
       ) : (
         <>
-          <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} />
-          {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button onClick={() => submit('save')} disabled={busy} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 44, padding: '0 16px',
-              borderRadius: 10, border: '1px solid #E9E7E1', background: '#fff', color: '#0A0A0B',
-              fontSize: 14, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-            }}>
-              <Save size={16} /> Zwischenspeichern
-            </button>
-            <div style={{ flex: 1 }}>
-              <PrimaryButton icon={Send} onClick={() => submit('issue')} disabled={busy} tone="success">
-                {busy ? 'Wird ausgestellt…' : 'Dokument ausstellen'}
-              </PrimaryButton>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 7, minHeight: 18 }}>
+            <SaveIndicator saving={saving} flash={flash} />
+            <span style={{ fontSize: 11.5, color: '#6E6E73' }}>
+              {saving ? 'Speichert…' : canAutosave ? 'Nicht gespeicherte Änderungen' : 'Automatisch gespeichert'}
+            </span>
           </div>
+          {/* Enter speichert sofort (ausser in TEXTAREAs – dort Zeilenumbruch). */}
+          <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}>
+            <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} />
+          </div>
+          {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
+          <PrimaryButton icon={Send} onClick={() => submit('issue')} disabled={busy} tone="success">
+            {busy ? 'Wird ausgestellt…' : 'Dokument ausstellen'}
+          </PrimaryButton>
         </>
       )}
     </div>

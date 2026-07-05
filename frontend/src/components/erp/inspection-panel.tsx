@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { Label, PrimaryButton, PanelHeader } from '@/components/erp/fields';
+import { PhotoCapture } from '@/components/erp/photo-capture';
 import { useScan } from '@/components/scan/scan-provider';
 
 type Val = string | number | boolean | undefined;
@@ -49,6 +50,12 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [values, setValues] = useState<Record<string, Record<string, Val>>>(() => {
     const init: Record<string, Record<string, Val>> = {};
     samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = { ...(s.values as Record<string, Val>) }; });
+    return init;
+  });
+  // Foto-Belege je Stichprobe (Attachment-URLs).
+  const [photos, setPhotos] = useState<Record<string, string[]>>(() => {
+    const init: Record<string, string[]> = {};
+    samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = [...(s.photos ?? [])]; });
     return init;
   });
   const [saving, setSaving] = useState(false);
@@ -98,7 +105,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
           else if (f.type === 'bool') out[f.key] = v === true;
           else out[f.key] = v ?? '';
         });
-        return { instance_id: s.instance_id, slot: s.slot, values: out };
+        return { instance_id: s.instance_id, slot: s.slot, values: out, photos: photos[key] ?? [] };
       });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
         samples: payload, note: null, step_id: stepId ?? null,
@@ -166,6 +173,12 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
                   <CaptureRow key={f.key} field={f} value={values[key]?.[f.key]} ok={fieldOk(f, values[key]?.[f.key])}
                     readOnly={done} onChange={(v) => setVal(key, f.key, v)} />
                 ))}
+                <PhotoCapture
+                  label="Fotos"
+                  value={photos[key] ?? []}
+                  disabled={done}
+                  onChange={(urls) => setPhotos((p) => ({ ...p, [key]: urls }))}
+                />
               </div>
             );
           })}

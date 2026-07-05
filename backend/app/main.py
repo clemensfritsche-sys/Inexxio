@@ -11,7 +11,7 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
-    admin, article_process, articles, auth, contact, documents, erp, events, health,
+    admin, article_process, articles, attachments, auth, contact, documents, erp, events, health,
     instances, orders, sales, shop, storage_locations,
 )
 
@@ -508,6 +508,7 @@ app.include_router(sales.router)
 app.include_router(shop.router)
 app.include_router(events.router)
 app.include_router(documents.router)
+app.include_router(attachments.router)
 
 
 @app.get("/")
