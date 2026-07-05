@@ -15,9 +15,15 @@ Autonomie-Policy («erweiterte Autonomie», Entscheid des Auftraggebers):
   – NIE direkt: die KI legt nur einen ``AiAction``-Vorschlag an, den der Mensch im
   Chat bestätigt (``actions.py``)."""
 
+import ipaddress
+import json as _json
+import re
+import socket
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from html import unescape as _html_unescape
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from fastapi import HTTPException
 from sqlalchemy import func
@@ -229,7 +235,9 @@ def _t_create_article_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
         size=args.get("size") or None,
         weight_kg=_dec("weight_kg"),
         material=args.get("material") or None,
+        cad_url=args.get("cad_url") or None,
         surface=args.get("surface") or None,
+        supplier_article_number=args.get("supplier_article_number") or None,
         min_order_qty=_dec("min_order_qty"),
         safety_stock=_dec("safety_stock"),
     )
@@ -310,32 +318,16 @@ def _t_get_order_steps(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 
 def _t_add_order_step(db: Session, p: AiPrincipal, args: dict) -> Any:
-    """Einen Prozessschritt an einen Auftrags-ENTWURF anhängen (reversibel) – über
-    denselben Pfad wie der ERP-Prozess-Editor (`POST /orders/{id}/steps`)."""
-    from ...routers.article_process import _create, _order_owner
-    from ...schemas.article_process_step import ArticleProcessStepCreate
+    """Einen Prozessschritt an einen Auftrags-ENTWURF anhängen (reversibel) – inkl.
+    optionaler Beschaffungs-/Ziel-Konfig. Alle Typen: purchase, resource, inspection,
+    movement, scrap, sale, document."""
     step_type = args.get("step_type")
     if step_type not in event_types.ORDER_STEP_TYPES:
         return {"error": f"Unbekannter Schritt-Typ. Erlaubt: {', '.join(event_types.ORDER_STEP_TYPES)}"}
     o = visible_orders(db, p.effective).filter(Order.object_id == int(args["order_object_id"])).first()
     if not o:
         return {"error": "Auftrag nicht gefunden (oder keine Berechtigung)"}
-    if o.status != "draft":
-        return {"error": f"Auftrag ist '{o.status}' – Schritte lassen sich nur im Entwurf hinzufügen"}
-    try:
-        data = ArticleProcessStepCreate(
-            step_type=step_type,
-            mode=("consume" if step_type == "resource" else "supplier"),
-        )
-        resp = _create(db, _order_owner(db, o.object_id), data, p.actor)
-    except HTTPException as e:
-        return {"error": str(e.detail)}
-    emit(db, "ai.order_step_added", object_type="order", object_id=o.object_id,
-         payload={"step_type": step_type, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
-    db.commit()
-    return {"added": True, "order_object_id": _num(o.object_id), "step_id": resp.id,
-            "step_type": step_type, "label": event_types.label(step_type),
-            "hint": "Schritt-Details (z. B. Ziel/Prüfmaske) können im ERP-Prozess-Editor ergänzt werden."}
+    return _add_step(db, p, "order", int(o.object_id), args)
 
 
 def _t_propose_release_order(db: Session, p: AiPrincipal, args: dict) -> Any:
@@ -524,7 +516,8 @@ def _t_update_article(db: Session, p: AiPrincipal, args: dict) -> Any:
         return {"error": "Artikel nicht gefunden"}
     if a.status != "draft":
         return {"error": f"Artikel ist '{a.status}' – nur Entwürfe sind editierbar (sonst «Ersetzen»)"}
-    text_fields = ("name", "unit", "serialization", "size", "material", "cad_url", "surface")
+    text_fields = ("name", "unit", "serialization", "size", "material", "cad_url", "surface",
+                   "supplier_article_number")
     qty_fields = ("weight_kg", "min_order_qty", "safety_stock")
     changed = []
     for f in text_fields:
@@ -545,6 +538,203 @@ def _t_update_article(db: Session, p: AiPrincipal, args: dict) -> Any:
          payload={"fields": changed, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
     db.commit()
     return {"updated": True, "object_id": _num(a.object_id), "changed": changed}
+
+
+# ─── Web-Recherche (Produkt/Seite verstehen, z. B. für Beschaffung per Link) ───────
+
+_FETCH_TIMEOUT = 15.0
+_FETCH_MAX_BYTES = 900_000
+_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+
+def _is_public_host(host: str) -> bool:
+    """SSRF-Schutz: nur öffentlich erreichbare Hosts (keine internen/Cloud-Metadaten)."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return False
+    for info in infos:
+        try:
+            addr = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if (addr.is_private or addr.is_loopback or addr.is_link_local
+                or addr.is_reserved or addr.is_multicast or addr.is_unspecified):
+            return False
+    return True
+
+
+def _meta(html: str, *keys: str) -> str | None:
+    for k in keys:
+        for pat in (
+            r'<meta[^>]+(?:property|name)=["\']' + re.escape(k) + r'["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']' + re.escape(k) + r'["\']',
+        ):
+            m = re.search(pat, html, re.I)
+            if m:
+                return _html_unescape(m.group(1)).strip()
+    return None
+
+
+def _extract_product(url: str, html: str) -> dict:
+    title = None
+    m = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+    if m:
+        title = _html_unescape(re.sub(r"\s+", " ", m.group(1))).strip()
+    product: dict = {}
+    for block in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+                            html, re.I | re.S):
+        try:
+            data = _json.loads(block.strip())
+        except Exception:
+            continue
+        for node in (data if isinstance(data, list) else [data]):
+            if not isinstance(node, dict):
+                continue
+            t = node.get("@type")
+            if t == "Product" or (isinstance(t, list) and "Product" in t):
+                offers = node.get("offers") or {}
+                if isinstance(offers, list):
+                    offers = offers[0] if offers else {}
+                brand = node.get("brand")
+                img = node.get("image")
+                product = {
+                    "name": node.get("name"),
+                    "brand": brand.get("name") if isinstance(brand, dict) else brand,
+                    "material": node.get("material"), "color": node.get("color"),
+                    "sku": node.get("sku") or node.get("mpn"),
+                    "gtin": node.get("gtin13") or node.get("gtin"),
+                    "price": (offers or {}).get("price"),
+                    "currency": (offers or {}).get("priceCurrency"),
+                    "image": img if isinstance(img, str) else (img[0] if isinstance(img, list) and img else None),
+                }
+                break
+        if product:
+            break
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", html, flags=re.I | re.S)
+    text = _html_unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text))).strip()[:1500]
+    return {
+        "final_url": url,
+        "title": _meta(html, "og:title", "twitter:title") or title,
+        "description": _meta(html, "og:description", "description"),
+        "image": (product.get("image") if product else None) or _meta(html, "og:image", "twitter:image"),
+        "product": {k: v for k, v in (product or {}).items() if v} or None,
+        "text_excerpt": text,
+        "note": "Automatisch aus der Seite extrahiert – plausibel prüfen. Manche Shops (z. B. Amazon) "
+                "liefern evtl. nur Titel/Bild; ergänze offensichtliche Angaben sinnvoll.",
+    }
+
+
+def _t_fetch_web_page(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Eine öffentliche Webseite/Produktseite abrufen und Kerninfos extrahieren
+    (Titel, Beschreibung, Bild, Preis/Marke/Material aus strukturierten Daten)."""
+    import httpx
+    url = str(args.get("url") or "").strip()
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return {"error": "Ungültige URL (http/https erforderlich)"}
+    if not _is_public_host(parsed.hostname):
+        return {"error": "URL nicht erlaubt (nur öffentliche Adressen)"}
+    try:
+        with httpx.Client(follow_redirects=True, timeout=_FETCH_TIMEOUT,
+                          headers={"User-Agent": _UA, "Accept-Language": "de,en;q=0.8"}) as c:
+            r = c.get(url)
+            fh = urlparse(str(r.url)).hostname
+            if fh and not _is_public_host(fh):
+                return {"error": "Weiterleitung auf nicht erlaubte Adresse"}
+            html = r.text[:_FETCH_MAX_BYTES]
+    except Exception as e:
+        return {"error": f"Seite nicht erreichbar: {type(e).__name__}"}
+    return _extract_product(str(r.url), html)
+
+
+# ─── Prozessschritte an Artikel/Auftrag anhängen (mit Beschaffungs-/Ziel-Konfig) ───
+
+def _build_step_create(db: Session, p: AiPrincipal, args: dict):
+    """ArticleProcessStepCreate aus Tool-Argumenten bauen (purchase-webshop/-supplier,
+    movement-Ziel …). Rückgabe: (schema | None, error | None)."""
+    from ...schemas.article_process_step import ArticleProcessStepCreate
+    st = args.get("step_type")
+    kwargs: dict[str, Any] = {"step_type": st}
+    if st == "purchase":
+        if args.get("webshop_url"):
+            kwargs["mode"] = "webshop"
+            kwargs["webshop_url"] = str(args["webshop_url"])
+        elif args.get("supplier_object_id"):
+            u = db.query(UserProfile).filter(
+                UserProfile.object_id == int(args["supplier_object_id"]), UserProfile.is_active == True).first()
+            if not u:
+                return None, {"error": "Lieferant nicht gefunden"}
+            kwargs["mode"] = "supplier"
+            kwargs["supplier_id"] = u.id
+        else:
+            return None, {"error": "Beschaffung braucht entweder webshop_url oder supplier_object_id"}
+    elif st == "resource":
+        kwargs["mode"] = "consume"
+    elif st == "movement":
+        tt = args.get("target_type")
+        if tt:
+            kwargs["target_location_type"] = tt
+            tid = args.get("target_object_id")
+            if tt == "user" and not tid:
+                tid = p.effective.object_id      # «zu mir» = der angemeldete Nutzer
+            if tid:
+                kwargs["target_location_id"] = int(tid)
+    try:
+        return ArticleProcessStepCreate(**kwargs), None
+    except Exception as e:
+        return None, {"error": f"Ungültige Schritt-Angaben: {e}"}
+
+
+def _add_step(db: Session, p: AiPrincipal, owner_kind: str, object_id: int, args: dict) -> Any:
+    from ...routers.article_process import _create, _order_owner, _article_owner
+    data, err = _build_step_create(db, p, args)
+    if err:
+        return err
+    try:
+        owner = _order_owner(db, object_id) if owner_kind == "order" else _article_owner(db, object_id)
+        if owner.record.status != "draft":
+            return {"error": f"{'Auftrag' if owner_kind == 'order' else 'Artikel'} ist freigegeben – Schritte nur im Entwurf"}
+        resp = _create(db, owner, data, p.actor)
+    except HTTPException as e:
+        return {"error": str(e.detail)}
+    emit(db, f"ai.{owner_kind}_step_added", object_type=owner_kind, object_id=object_id,
+         payload={"step_type": args.get("step_type"), "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
+    db.commit()
+    return {"added": True, f"{owner_kind}_object_id": _num(object_id), "step_id": resp.id,
+            "step_type": args.get("step_type"), "label": event_types.label(args.get("step_type"))}
+
+
+def _t_add_article_step(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Einen Prozessschritt an den ARTIKEL-Prozess (Entwurf) hängen – z. B. Beschaffung
+    (webshop/Lieferant) oder Bewegung (Lieferziel). So entsteht «wie der Artikel beschafft
+    wird». Erlaubt: purchase, resource, inspection, movement, document."""
+    st = args.get("step_type")
+    if st not in event_types.ARTICLE_STEP_TYPES:
+        return {"error": f"Im Artikel-Prozess erlaubt: {', '.join(event_types.ARTICLE_STEP_TYPES)}"}
+    return _add_step(db, p, "article", int(args["article_object_id"]), args)
+
+
+def _t_propose_release_article(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """KRITISCH: einen Artikel freigeben (friert Spezifikation + Prozess ein; Voraussetzung
+    für Bestellungen). Nur als Vorschlag – menschliche Bestätigung im Chat."""
+    from .actions import create_proposal
+    a = db.query(Article).filter(Article.object_id == int(args["object_id"]), Article.is_active == True).first()
+    if not a:
+        return {"error": "Artikel nicht gefunden"}
+    if a.status != "draft":
+        return {"error": f"Artikel ist '{a.status}' – nur Entwürfe sind freizugeben"}
+    from ..processes import article_steps
+    if not article_steps(db, a.id):
+        return {"error": "Artikel hat noch keinen Prozessschritt – zuerst einen Ablauf hinterlegen"}
+    action = create_proposal(
+        db, p, "release_article", payload={"object_id": a.object_id},
+        summary=f"Artikel {a.object_id} «{a.name}» freigeben (danach bestellbar)",
+        target_object_id=a.object_id,
+    )
+    return {"proposed": True, "action_id": action.id, "summary": action.summary,
+            "hint": "Wartet auf Bestätigung. Danach kannst du einen Auftrag darauf anlegen/freigeben."}
 
 
 def _t_set_order_instances(db: Session, p: AiPrincipal, args: dict) -> Any:
@@ -674,6 +864,14 @@ _DEFINITIONS: dict[str, dict] = {
         "Audit-Log lesen (nur Admin): wer hat wann was geändert. Optional nach Objekt/Tabelle.",
         {"object_id": {"type": "integer"}, "table_name": {"type": "string"}, "limit": {"type": "integer"}},
     ),
+    "fetch_web_page": _tool(
+        "fetch_web_page",
+        "Eine öffentliche Webseite/Produktseite (z. B. Amazon-Link) abrufen und Kerninfos "
+        "extrahieren (Titel, Beschreibung, Bild, Preis/Marke/Material). Nutze dies, um aus "
+        "einem Produktlink einen Artikel zu befüllen.",
+        {"url": {"type": "string"}},
+        ["url"],
+    ),
     "shop_products": _tool(
         "shop_products",
         "Shop-Sortiment für Kaufberatung (publizierte Produkte mit Preisen, CHF).",
@@ -690,18 +888,21 @@ _DEFINITIONS: dict[str, dict] = {
         {"name": {"type": "string"}, "unit": {"type": "string", "enum": ["Stk", "m", "kg", "l"]},
          "serialization": {"type": "string", "enum": ["unit", "batch"]},
          "size": {"type": "string"}, "weight_kg": {"type": "string"},
-         "material": {"type": "string"}, "surface": {"type": "string"},
+         "material": {"type": "string"}, "surface": {"type": "string"}, "cad_url": {"type": "string"},
+         "supplier_article_number": {"type": "string", "description": "z. B. Hersteller-/Shop-Artikelnummer, ASIN"},
          "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
         ["name"],
     ),
     "update_article": _tool(
         "update_article",
-        "Felder eines Artikel-ENTWURFS ändern (Name, Einheit, Material, Gewicht, Oberfläche …). Nur im Entwurf.",
+        "Felder eines Artikel-ENTWURFS ändern (Name, Einheit, Material, Gewicht, Oberfläche, "
+        "Lieferanten-Artikelnummer …). Nur im Entwurf.",
         {"object_id": {"type": "integer"}, "name": {"type": "string"},
          "unit": {"type": "string", "enum": ["Stk", "m", "kg", "l"]},
          "serialization": {"type": "string", "enum": ["unit", "batch"]},
          "size": {"type": "string"}, "weight_kg": {"type": "string"}, "material": {"type": "string"},
          "cad_url": {"type": "string"}, "surface": {"type": "string"},
+         "supplier_article_number": {"type": "string"},
          "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
         ["object_id"],
     ),
@@ -731,14 +932,38 @@ _DEFINITIONS: dict[str, dict] = {
     ),
     "add_order_step": _tool(
         "add_order_step",
-        "Einen Prozessschritt an einen Auftrags-Entwurf anhängen. Schritt-Typen: "
-        "purchase (Beschaffung), resource (Ressource/Material/Betriebsmittel), "
-        "inspection (Datenerfassung/Prüfung), movement (Bewegung/Einlagern), "
-        "scrap (Verschrotten), sale (Verkauf), document (Dokument).",
+        "Einen Prozessschritt an einen Auftrags-Entwurf anhängen. Typen: purchase (Beschaffung), "
+        "resource, inspection (Datenerfassung), movement (Bewegung), scrap, sale (Verkauf), document. "
+        "Für purchase optional webshop_url ODER supplier_object_id; für movement optional Ziel.",
         {"order_object_id": {"type": "integer"},
          "step_type": {"type": "string",
-                       "enum": ["purchase", "resource", "inspection", "movement", "scrap", "sale", "document"]}},
+                       "enum": ["purchase", "resource", "inspection", "movement", "scrap", "sale", "document"]},
+         "webshop_url": {"type": "string", "description": "Beschaffung per Online-Shop-Link"},
+         "supplier_object_id": {"type": "integer", "description": "Beschaffung bei diesem Lieferanten"},
+         "target_type": {"type": "string", "enum": ["lagerplatz", "user", "instance"],
+                         "description": "Bewegungs-Ziel (user = zum angemeldeten Nutzer «zu mir»)"},
+         "target_object_id": {"type": "integer"}},
         ["order_object_id", "step_type"],
+    ),
+    "add_article_step": _tool(
+        "add_article_step",
+        "Einen Prozessschritt an den ARTIKEL-Prozess (Entwurf) anhängen – definiert, WIE der "
+        "Artikel beschafft/verarbeitet wird. Typen: purchase, resource, inspection, movement, document. "
+        "Für Beschaffung per Link: step_type=purchase + webshop_url. Für Lieferung an den Nutzer: "
+        "step_type=movement + target_type=user.",
+        {"article_object_id": {"type": "integer"},
+         "step_type": {"type": "string", "enum": ["purchase", "resource", "inspection", "movement", "document"]},
+         "webshop_url": {"type": "string"}, "supplier_object_id": {"type": "integer"},
+         "target_type": {"type": "string", "enum": ["lagerplatz", "user", "instance"]},
+         "target_object_id": {"type": "integer"}},
+        ["article_object_id", "step_type"],
+    ),
+    "propose_release_article": _tool(
+        "propose_release_article",
+        "KRITISCH: einen Artikel FREIGEBEN (Voraussetzung, um ihn zu bestellen). Nur als Vorschlag – "
+        "die Person bestätigt im Chat.",
+        {"object_id": {"type": "integer"}},
+        ["object_id"],
     ),
     "propose_release_order": _tool(
         "propose_release_order",
@@ -766,8 +991,11 @@ _EXECUTORS: dict[str, ToolFn] = {
     "storage_locations": _t_storage_locations,
     "company_info": _t_company_info,
     "audit_log": _t_audit_log,
+    "fetch_web_page": _t_fetch_web_page,
     "create_article_draft": _t_create_article_draft,
     "update_article": _t_update_article,
+    "add_article_step": _t_add_article_step,
+    "propose_release_article": _t_propose_release_article,
     "create_order_draft": _t_create_order_draft,
     "get_order_steps": _t_get_order_steps,
     "add_order_step": _t_add_order_step,
@@ -779,14 +1007,16 @@ _EXECUTORS: dict[str, ToolFn] = {
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
               "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
-              "list_users", "get_user", "storage_locations", "company_info", "audit_log",
-              "create_article_draft", "update_article", "create_order_draft", "get_order_steps",
-              "add_order_step", "set_order_instances", "propose_release_order"),
+              "list_users", "get_user", "storage_locations", "company_info", "audit_log", "fetch_web_page",
+              "create_article_draft", "update_article", "add_article_step", "propose_release_article",
+              "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
+              "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
                  "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
-                 "list_users", "get_user", "storage_locations", "company_info",
-                 "create_article_draft", "update_article", "create_order_draft", "get_order_steps",
-                 "add_order_step", "set_order_instances", "propose_release_order"),
+                 "list_users", "get_user", "storage_locations", "company_info", "fetch_web_page",
+                 "create_article_draft", "update_article", "add_article_step", "propose_release_article",
+                 "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
+                 "propose_release_order"),
     "supplier": ("list_orders", "get_order"),
     "customer": ("shop_products", "my_orders"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.

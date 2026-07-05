@@ -17,7 +17,7 @@ from ..events import emit
 from .principal import AiPrincipal
 
 # Kritische Aktionstypen und ihre Ausführung über die bestehenden Service-Pfade.
-CRITICAL_ACTIONS = ("release_order",)
+CRITICAL_ACTIONS = ("release_order", "release_article")
 
 
 def create_proposal(db: Session, p: AiPrincipal, action_type: str, *,
@@ -60,8 +60,25 @@ def _execute_release_order(db: Session, action: AiAction, ai_actor_id: int) -> i
     return order.object_id
 
 
+def _execute_release_article(db: Session, action: AiAction, ai_actor_id: int) -> int | None:
+    from ...models import Article
+    from ..processes import article_steps
+    oid = int((action.payload or {}).get("object_id"))
+    a = db.query(Article).filter(Article.object_id == oid, Article.is_active == True).first()
+    if not a:
+        raise HTTPException(404, detail="Artikel nicht mehr vorhanden")
+    if a.status != "draft":
+        raise HTTPException(409, detail=f"Artikel ist inzwischen '{a.status}' – Vorschlag hinfällig")
+    if not article_steps(db, a.id):
+        raise HTTPException(400, detail="Artikel hat keinen Prozessschritt – nicht freigebbar")
+    log_audit(db, "articles", "status", "released", ai_actor_id, object_id=a.object_id, old_value="draft")
+    a.status = "released"
+    return a.object_id
+
+
 _EXECUTORS = {
     "release_order": _execute_release_order,
+    "release_article": _execute_release_article,
 }
 
 
