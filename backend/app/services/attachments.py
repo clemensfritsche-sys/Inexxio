@@ -17,11 +17,16 @@ from ..models import Attachment
 _MAX_EDGE = 1600          # längste Kante in px (Foto-Doku / Shop reicht das dicke)
 _JPEG_QUALITY = 82
 _MAX_UPLOAD_BYTES = 20 * 1024 * 1024   # 20 MB Rohupload-Limit (vor Verkleinerung)
+_MAX_PIXELS = 40_000_000   # ~40 MP – Schutz vor Decompression-Bombs (kleine Datei, riesige Fläche)
 
 
 def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
     """Rohes Bild normalisieren (EXIF/Grösse/JPEG) und als ``Attachment`` ablegen (flush,
-    kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross."""
+    kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross.
+
+    Die GESAMTE Pillow-Verarbeitung liegt im Try (inkl. thumbnail/save), damit ein bösartiges
+    Bild nie einen 500/Worker-Crash auslöst, sondern sauber als 400 abgewiesen wird. Zusätzlich
+    ein hartes Pixel-Limit gegen Decompression-Bombs (kleine Datei ⇒ Gigapixel-Fläche)."""
     if not raw:
         raise HTTPException(400, detail="Leere Datei")
     if len(raw) > _MAX_UPLOAD_BYTES:
@@ -29,14 +34,19 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
     from PIL import Image, ImageOps
     try:
         img = Image.open(io.BytesIO(raw))
+        w, h = img.size
+        if w * h > _MAX_PIXELS:
+            raise HTTPException(413, detail="Bildauflösung zu hoch")
         img = ImageOps.exif_transpose(img)   # Handy-Fotos korrekt drehen
         img = img.convert("RGB")
+        img.thumbnail((_MAX_EDGE, _MAX_EDGE))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
+        data = buf.getvalue()
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(400, detail="Ungültiges oder nicht unterstütztes Bild")
-    img.thumbnail((_MAX_EDGE, _MAX_EDGE))
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
-    data = buf.getvalue()
     att = Attachment(
         token=secrets.token_urlsafe(24),
         mime="image/jpeg",
