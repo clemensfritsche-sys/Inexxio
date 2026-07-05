@@ -30,6 +30,11 @@ class Article(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
 
+    # Physisch (Default) vs. nicht-physisch (Dokument; später Software). Ein nicht-physischer
+    # Artikel erzeugt bei der Auftragsfreigabe KEINE Bestands-Instanzen; sein Liefergegenstand
+    # ist das nummerierte Dokument.
+    physical: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
+
     # Stammdaten (Pflichtfelder)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     unit: Mapped[str] = mapped_column(String(10), nullable=False)  # Stk | m | kg | l

@@ -12,8 +12,8 @@ from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, CompanySettings, Instance, ObjectRef, Order, StorageLocation,
-    UserProfile,
+    Article, CompanySettings, Document, Instance, ObjectRef, Order,
+    StorageLocation, UserProfile,
 )
 
 OBJ_ID_START = 100_000_001
@@ -26,6 +26,8 @@ _TYPE_MODELS = {
     "article": Article,
     "order": Order,
     "instance": Instance,
+    # Das Dokument ist der nummerierte Liefergegenstand des «Dokument»-Schritts (eigene Nummer).
+    "document": Document,
     "storage_location": StorageLocation,
     # Das Unternehmen selbst (Singleton) ist ebenfalls ein nummerierter ERP-Datensatz.
     "organization": CompanySettings,

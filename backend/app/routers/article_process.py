@@ -168,6 +168,16 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         raise HTTPException(400, detail=(
             "Im Artikel-Prozess (Herstellung) sind nur Beschaffung, Ressource, "
             "Datenerfassung und Bewegung zulässig – kein Verkauf/Verschrotten."))
+    # Nicht-physischer Artikel (Dokument): sein Prozess erzeugt KEINE Instanzen
+    # (``serialization.create_instances_for_order`` → []). Instanz-Schritte (Bewegung/
+    # Datenerfassung/Verschrotten/Verkauf) hätten daher nie ein Subjekt und blieben ewig
+    # «blockiert». Deshalb ist hier nur der Dokument-Schritt zulässig – weitere Abläufe
+    # (Signatur, Zertifizierung …) folgen bewusst später als eigene, saubere Schritte.
+    if owner.kind == "article" and getattr(owner.record, "physical", True) is False \
+            and data.step_type != "document":
+        raise HTTPException(400, detail=(
+            "Ein Dokument-Artikel (nicht physisch) kann im Prozess nur den Schritt "
+            "«Dokument» enthalten."))
     # Jedes Prozessschrittmodul ist universell einsetzbar – auch bei einem Mehrpositionen-
     # Auftrag (``order_lines`` statt Einzel-``article_id``): Beschaffung/Datenerfassung
     # legen je Position eine eigene Fachzeile an (analog Verkauf, ``services/purchase.py``);
@@ -192,6 +202,7 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         )
         position = (max_pos or 0) + 1
     is_resource = data.step_type == "resource"
+    is_document = data.step_type == "document"
     keeps_target = data.step_type == "movement"
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:
@@ -209,6 +220,7 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         target_location_type=data.target_location_type if keeps_target else None,
         target_location_id=data.target_location_id if keeps_target else None,
         resource_lines=resource_raw,
+        document_content=data.document_content.model_dump() if (is_document and data.document_content) else None,
     )
     db.add(step)
     db.flush()

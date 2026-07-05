@@ -210,6 +210,38 @@ class ApiClient {
     return this.patch(`/api/v1/erp/${owner}/${objectId}/steps/reorder`, { ordered_ids: orderedIds });
   }
 
+  // ─── Dokumente (PDF-Rendering, Web-Ansicht) ─────────────────────────────────
+  // Das PDF ist authentifiziert (Bearer) – ein blosser <a href> würde den Token nicht
+  // mitsenden. Daher als Blob mit Auth-Header laden und über einen programmatischen
+  // Download-Link ausliefern. Bewusst KEIN `window.open`: das läuft nach dem `await`
+  // ausserhalb der Klick-Geste und würde von Safari/Firefox als Popup blockiert – der
+  // Klick eines `<a download>` ist davon nicht betroffen und funktioniert überall.
+  private async fetchPdf(path: string, filename: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const res = await fetch(`${API_BASE}${path}`, { headers });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  // Eingefrorenes Dokument (nach Freigabe) als PDF laden.
+  openDocumentPdf(objectId: number): Promise<void> {
+    return this.fetchPdf(`/api/v1/erp/documents/${objectId}/pdf`, `Dokument-${String(objectId).padStart(9, '0')}.pdf`);
+  }
+
+  // Entwurfs-Vorschau der Dokument-Vorlage eines Prozessschritts (vor der Freigabe).
+  openStepDocumentPdf(stepId: number): Promise<void> {
+    return this.fetchPdf(`/api/v1/erp/steps/${stepId}/document/pdf`, 'Dokument-Vorschau.pdf');
+  }
+
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
 
   // Schlanker Feed (ohne Embeds); Detail via getOrder(id)

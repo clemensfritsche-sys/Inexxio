@@ -59,3 +59,7 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Operation – [{article_id, quantity, mode}], mode ∈ consume | tool.
     resource_lines: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
+    # Konfiguration «document» (Dokument): editierbare Vorlage (Titel/Untertitel/Abschnitte).
+    # Wird bei der Auftragsfreigabe in ein nummeriertes ``Document`` eingefroren.
+    document_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+

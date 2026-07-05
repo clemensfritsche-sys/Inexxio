@@ -10,6 +10,7 @@ firebase-admin==6.6.0
 httpx==0.28.0
 python-multipart==0.0.17
 pillow==11.0.0
+weasyprint==69.0
 google-cloud-storage==2.19.0
 google-cloud-secret-manager==2.21.1
 stripe==11.2.0

@@ -17,6 +17,7 @@ from .inspection import Inspection
 from .movement import Movement
 from .disposal import Disposal
 from .resource_usage import ResourceUsage
+from .document import Document
 from .storage_location import StorageLocation
 from .audit import AuditLog
 from .event import Event
@@ -27,6 +28,7 @@ __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
-    "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage", "StorageLocation",
+    "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
+    "Document", "StorageLocation",
     "AuditLog", "Event", "Notification", "ObjectRef",
 ]

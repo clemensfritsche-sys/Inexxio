@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 # ─── Erlaubte Werte ──────────────────────────────────────────────────────────
 
@@ -78,13 +78,21 @@ _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
 class ArticleCreate(BaseModel):
-    """Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'."""
+    """Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
+
+    ``physical`` trennt physische Güter (Default) von **nicht-physischen** (Dokument;
+    später Software). Für ein physisches Gut bleiben Einheit/Serialisierung/Grösse/Gewicht
+    **Pflicht** (unverändert streng). Für ein nicht-physisches werden diese aus der
+    Fertigungswelt stammenden Felder mit inerten Platzhaltern gefüllt (nie gelesen) –
+    so bleiben die DB-Spalten NOT NULL, ohne den Nutzer damit zu behelligen."""
 
     name: str
-    unit: str
-    serialization: str
-    size: str
-    weight_kg: Decimal
+    physical: bool = True
+    # Physische Stammdaten – Pflicht nur für physische Artikel (siehe ``_apply_physical``).
+    unit: Optional[str] = None
+    serialization: Optional[str] = None
+    size: Optional[str] = None
+    weight_kg: Optional[Decimal] = None
     # Optionale Stammdaten (nur bei Bedarf gepflegt)
     material: Optional[str] = None
     cad_url: Optional[str] = None
@@ -113,27 +121,50 @@ class ArticleCreate(BaseModel):
 
     @field_validator("unit")
     @classmethod
-    def _unit_allowed(cls, v: str) -> str:
+    def _unit_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
         if v not in ALLOWED_UNITS:
             raise ValueError(f"Einheit muss eine von {', '.join(ALLOWED_UNITS)} sein")
         return v
 
     @field_validator("serialization")
     @classmethod
-    def _serialization_allowed(cls, v: str) -> str:
+    def _serialization_allowed(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
         if v not in ALLOWED_SERIALIZATION:
             raise ValueError("Seriennummererfassung muss 'unit' (Einzelteil) oder 'batch' sein")
         return v
 
     @field_validator("size")
     @classmethod
-    def _size_valid(cls, v: str) -> str:
+    def _size_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
         return normalize_size(v)
 
     @field_validator("weight_kg")
     @classmethod
-    def _weight_valid(cls, v: Decimal) -> Decimal:
+    def _weight_valid(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        if v is None:
+            return v
         return validate_weight(v)
+
+    @model_validator(mode="after")
+    def _apply_physical(self) -> "ArticleCreate":
+        if self.physical:
+            missing = [f for f in ("unit", "serialization", "size", "weight_kg")
+                       if getattr(self, f) is None]
+            if missing:
+                raise ValueError("Einheit, Serialisierung, Grösse und Gewicht sind Pflichtfelder")
+        else:
+            # Nicht-physisch (Dokument/Software): inerte, gültige Platzhalter (nie gelesen).
+            self.unit = self.unit or "Stk"
+            self.serialization = self.serialization or "unit"
+            self.size = self.size or "1x1"
+            self.weight_kg = self.weight_kg if self.weight_kg is not None else Decimal("0.001")
+        return self
 
 
 class ArticleUpdate(BaseModel):
@@ -224,6 +255,7 @@ class ArticleResponse(BaseModel):
     object_id: Optional[int]
     status: str
     name: str
+    physical: bool = True
     unit: str
     serialization: str
     size: str

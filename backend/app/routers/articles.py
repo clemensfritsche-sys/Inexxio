@@ -157,6 +157,7 @@ async def create_article(
         object_id=next_object_id(db, "article"),
         status="draft",
         name=data.name,
+        physical=data.physical,
         unit=data.unit,
         serialization=data.serialization,
         size=data.size,

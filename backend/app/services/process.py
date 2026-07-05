@@ -30,8 +30,8 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import (
-    ArticleProcessStep, Disposal, Inspection, Instance, Movement, Order, PurchaseOrder,
-    ResourceUsage, Sale,
+    ArticleProcessStep, Disposal, Document, Inspection, Instance, Movement, Order,
+    PurchaseOrder, ResourceUsage, Sale,
 )
 from ..models.base import utcnow
 from .events import emit
@@ -45,6 +45,7 @@ STEP_LABELS = {key: et.label for key, et in event_types.REGISTRY.items()}
 _MODEL_BY_NAME = {
     "PurchaseOrder": PurchaseOrder, "Inspection": Inspection, "Movement": Movement,
     "Disposal": Disposal, "ResourceUsage": ResourceUsage, "Sale": Sale,
+    "Document": Document,
 }
 # Fachtabelle je Schritt-Typ (für die generische Routing-Auflösung).
 _FACT_MODEL = {key: _MODEL_BY_NAME[et.fact] for key, et in event_types.REGISTRY.items()}
@@ -113,7 +114,9 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource", "scrap"):
+    if step_type in ("movement", "resource", "scrap", "document"):
+        # Marker-Fachzeile: erledigt, sobald sie existiert. Das Dokument wird bei der
+        # Auftragsfreigabe eingefroren (``document.instantiate_for_order``) → sofort «done».
         return "done" if fact else "open"
     return "open"
 

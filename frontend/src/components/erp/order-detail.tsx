@@ -22,6 +22,7 @@ import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
 import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
+import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { localDate } from '@/lib/utils';
 
@@ -1157,6 +1158,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     movement: step.movement ?? order.movement,
     resource: step.resource ?? order.resource,
     disposal: step.disposal ?? order.disposal,
+    document: step.document ?? order.document,
   };
   const stepState = step.state;
   const stepId = step.id;
@@ -1181,6 +1183,9 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   }
   if (step.step_type === 'scrap') {
     return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+  }
+  if (step.step_type === 'document') {
+    return <DocumentPanel document={stepOrder.document ?? null} />;
   }
   return <StepFallback />;
 }

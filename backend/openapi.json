@@ -4381,6 +4381,144 @@
         }
       }
     },
+    "/api/v1/erp/documents/{object_id}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document",
+        "operationId": "get_document_api_v1_erp_documents__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/documents/{object_id}/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document Pdf",
+        "operationId": "get_document_pdf_api_v1_erp_documents__object_id__pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/steps/{step_id}/document/pdf": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Step Document Pdf",
+        "description": "Entwurfs-Vorschau der Dokument-Vorlage eines Prozessschritts (noch nicht eingefroren).",
+        "operationId": "get_step_document_pdf_api_v1_erp_steps__step_id__document_pdf_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Root",
@@ -4406,16 +4544,42 @@
             "type": "string",
             "title": "Name"
           },
+          "physical": {
+            "type": "boolean",
+            "title": "Physical",
+            "default": true
+          },
           "unit": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Unit"
           },
           "serialization": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Serialization"
           },
           "size": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Size"
           },
           "weight_kg": {
@@ -4425,6 +4589,9 @@
               },
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
               }
             ],
             "title": "Weight Kg"
@@ -4504,14 +4671,10 @@
         },
         "type": "object",
         "required": [
-          "name",
-          "unit",
-          "serialization",
-          "size",
-          "weight_kg"
+          "name"
         ],
         "title": "ArticleCreate",
-        "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'."
+        "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.\n\n``physical`` trennt physische Güter (Default) von **nicht-physischen** (Dokument;\nspäter Software). Für ein physisches Gut bleiben Einheit/Serialisierung/Grösse/Gewicht\n**Pflicht** (unverändert streng). Für ein nicht-physisches werden diese aus der\nFertigungswelt stammenden Felder mit inerten Platzhaltern gefüllt (nie gelesen) –\nso bleiben die DB-Spalten NOT NULL, ohne den Nutzer damit zu behelligen."
       },
       "ArticlePriceCreate": {
         "properties": {
@@ -4858,6 +5021,16 @@
               }
             ],
             "title": "Resource Lines"
+          },
+          "document_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4998,6 +5171,16 @@
             "type": "array",
             "title": "Resource Lines",
             "default": []
+          },
+          "document_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "is_active": {
             "type": "boolean",
@@ -5149,6 +5332,16 @@
             ],
             "title": "Resource Lines"
           },
+          "document_content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "is_active": {
             "anyOf": [
               {
@@ -5189,6 +5382,11 @@
           "name": {
             "type": "string",
             "title": "Name"
+          },
+          "physical": {
+            "type": "boolean",
+            "title": "Physical",
+            "default": true
           },
           "unit": {
             "type": "string",
@@ -6956,6 +7154,228 @@
         "title": "DisposalEmbed",
         "description": "Eingebetteter Stand der Verschrottung (im Auftrag).\n\nWelche Instanzen verschrottet wurden, steht in ``OrderResponse.instances``\n(``disposition='scrapped'``); dieser Embed trägt nur den Abschluss-Status."
       },
+      "DocumentContent": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentSection"
+            },
+            "type": "array",
+            "title": "Sections",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "DocumentContent",
+        "description": "Inhalt eines Dokuments – Titel/Untertitel/Datum + geordnete Abschnitte."
+      },
+      "DocumentEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "default": 0
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "default": false
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          }
+        },
+        "type": "object",
+        "title": "DocumentEmbed",
+        "description": "Eingebetteter Stand des Dokument-Schritts (im Auftrag).\n\nDas Dokument trägt – anders als die kaufmännischen Fachzeilen – eine **eigene\nObjektnummer** (``object_id``) und den eingefrorenen Inhalt (``content``)."
+      },
+      "DocumentResponse": {
+        "properties": {
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "order_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Object Id"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 1
+          },
+          "issued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_at"
+        ],
+        "title": "DocumentResponse",
+        "description": "Standalone-Ansicht eines eingefrorenen Dokuments (ERP-Detail / Web-View)."
+      },
+      "DocumentSection": {
+        "properties": {
+          "heading": {
+            "type": "string",
+            "title": "Heading",
+            "default": ""
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DocumentSection",
+        "description": "Ein Abschnitt: Überschrift (z. B. «§1 Geltungsbereich») + Fliesstext (mehrzeilig)."
+      },
       "ErpAdminUpdate": {
         "properties": {
           "role": {
@@ -8430,6 +8850,16 @@
               }
             ]
           },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/OrderStepInfo"
@@ -8670,6 +9100,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/DisposalEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentEmbed"
               },
               {
                 "type": "null"
