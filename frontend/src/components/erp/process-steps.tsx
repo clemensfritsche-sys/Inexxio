@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock, Wrench, PackageMinus } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -236,11 +236,11 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
   const chooserTypes: StepType[] = owner === 'articles' ? ARTICLE_STEP_ORDER : ORDER_STEP_ORDER;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {loading && <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Laden…</div>}
 
       {/* Start-Knoten (BPMN) */}
-      {steps.length > 0 && <FlowNode label="Start" tone="start" />}
+      {steps.length > 0 && <FlowTerm kind="start" />}
 
       {steps.map((s, i) => {
         const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
@@ -248,8 +248,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
         const isLocked = s.locked;
         const canDrag = !readOnly && !isLocked;
         const isOver = over === i && drag !== null && drag !== i;
+        const kc = kindColor(s.step_type as StepType, isLocked);
         return (
-          <div key={s.id}>
+          <div key={s.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Connector />
             <div
               draggable={canDrag}
@@ -258,24 +259,25 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
               onDragOver={(e) => { if (!readOnly && drag !== null) { e.preventDefault(); setOver(i); } }}
               onDrop={(e) => { e.preventDefault(); onDrop(i); }}
               style={{
-                ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10,
-                opacity: drag === i ? 0.4 : 1,
-                background: isLocked ? 'var(--bg-2)' : '#fff',
-                borderColor: isOver ? 'var(--accent)' : 'var(--border-1)',
-                boxShadow: isOver ? '0 0 0 2px var(--accent-soft)' : 'none',
+                position: 'relative', width: '100%', maxWidth: STEP_MAXW,
+                border: `1px solid ${isOver ? 'var(--accent)' : kc.border}`,
+                borderRadius: 'var(--r-lg)', background: kc.bg,
+                boxShadow: isOver ? '0 0 0 3px var(--accent-soft)' : 'var(--shadow-sm)',
+                opacity: drag === i ? 0.4 : 1, transition: 'box-shadow .16s,border-color .16s',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Kopf: Symbol-Kachel + Titel (+ Pflicht) + Löschen */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px' }}>
                 {!readOnly && (isLocked
-                  ? <Lock size={14} style={{ color: 'var(--border-2)', flexShrink: 0 }} />
+                  ? <Lock size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
                   : <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />)}
-                <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: isLocked ? 'var(--bg-3)' : '#F4EBDD', color: isLocked ? 'var(--fg-3)' : '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={16} />
+                <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon size={19} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>{i + 1}. {meta.label}</span>
-                    {isLocked && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-3)', background: 'var(--border-1)', padding: '1px 6px', borderRadius: 999 }}>Pflicht</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
+                    {isLocked && <span style={pflichtBadge}>Pflicht</span>}
                   </div>
                   <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>
                     {isLocked && (lockedRole(s) === 'versand'
@@ -301,13 +303,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                   </div>
                 </div>
                 {!readOnly && !isLocked && (
-                  <button onClick={() => removeStep(s.id)} title="Entfernen" style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0 }}><Trash2 size={15} /></button>
+                  <button onClick={() => removeStep(s.id)} title="Modul löschen" style={delBtn}><Trash2 size={15} /></button>
                 )}
               </div>
 
               {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
               {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
-                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8 }}>
+                <div style={cardBody}>
                   <Label>Ziel-Lagerplatz (optional)</Label>
                   <SearchSelect
                     value={s.target_location_id ? `lagerplatz:${s.target_location_id}` : ''}
@@ -326,8 +328,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
               {/* Beschaffung: sichtbare Stammdaten */}
               {s.step_type === 'purchase' && (
-                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div style={cardBody}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
                       <Eye size={12} /> Für Lieferant sichtbar
                     </span>
@@ -349,9 +351,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
 
               {/* Datenerfassung: Maske-Übersicht */}
               {s.step_type === 'inspection' && (s.capture_fields?.length ?? 0) > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ ...cardBody, display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {s.capture_fields!.map((f, idx) => (
-                    <div key={idx} style={{ fontSize: 12, color: 'var(--fg-2)' }}>
+                    <div key={idx} style={{ fontSize: 12.5, color: 'var(--fg-2)' }}>
                       • {f.label} <span style={{ color: 'var(--fg-4)' }}>
                         {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : '(Text)'}
                       </span>
@@ -360,16 +362,25 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                 </div>
               )}
 
-              {/* Ressource: Zeilen (Artikel + Menge + Modus pro Zeile) */}
+              {/* Ressource: Positionen (Artikel/Werkzeug + Menge) als Zeilen */}
               {s.step_type === 'resource' && (s.resource_lines?.length ?? 0) > 0 && (
-                <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {s.resource_lines!.map((l, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-2)' }}>
-                      {l.mode === 'tool' ? <Wrench size={12} style={{ color: '#7c3aed', flexShrink: 0 }} /> : <PackageMinus size={12} style={{ color: '#0f766e', flexShrink: 0 }} />}
-                      <span style={{ flex: 1, minWidth: 0 }}>{l.article_object_id ? `${fmtObjId(l.article_object_id)} · ` : ''}{l.article_name ?? `#${l.article_id}`}</span>
-                      <span style={{ color: 'var(--fg-4)' }}>{l.quantity}{l.unit ? ` ${unitLabel(l.unit)}` : ''}/Stk</span>
-                    </div>
-                  ))}
+                <div style={{ borderTop: '1px solid var(--border-1)' }}>
+                  {s.resource_lines!.map((l, idx) => {
+                    const tool = l.mode === 'tool';
+                    return (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 18px', borderBottom: idx < s.resource_lines!.length - 1 ? '1px solid var(--border-1)' : 'none' }}>
+                        <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', border: `1px solid ${tool ? '#E4D6EA' : '#EADFCB'}`, color: tool ? '#7E5586' : '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {tool ? <Wrench size={16} /> : <PackageMinus size={16} />}
+                        </span>
+                        {l.article_object_id != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)', fontWeight: 600, flexShrink: 0 }}>{fmtObjId(l.article_object_id)}</span>}
+                        <span style={{ flex: 1, minWidth: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.article_name ?? `#${l.article_id}`}</span>
+                          {tool && <span style={toolTag}>Werkzeug</span>}
+                        </span>
+                        <span style={{ font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{l.quantity}<span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>{l.unit ? unitLabel(l.unit) : 'Stk'}</span></span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -378,37 +389,36 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
         );
       })}
 
-      {steps.length > 0 && <Connector />}
-      {steps.length > 0 && !adding && <FlowNode label="Ende" tone="end" />}
+      {steps.length > 0 && !adding && <Connector />}
+      {steps.length > 0 && !adding && <FlowTerm kind="end" />}
 
       {/* Hinzufügen */}
       {!readOnly && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ width: '100%', maxWidth: STEP_MAXW, marginTop: 16 }}>
           {adding == null ? (
             <button onClick={() => setAdding('choose')} style={addBtnStyle}>
               <Plus size={15} /> Prozessschritt hinzufügen
             </button>
           ) : adding === 'choose' ? (
-            <div style={{ ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+            <div style={{ ...editorCard, gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)' }}>Welcher Schritt?</span>
+                <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>Welcher Schritt?</span>
                 <button onClick={resetForm} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
               </div>
-              {chooserTypes.map((t) => {
-                const m = STEP_META[t]; const Icon = m.icon;
-                return (
-                  <button key={t} onClick={() => setAdding(t)} style={chooserBtn}>
-                    <div style={{ width: 34, height: 34, borderRadius: 9, background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={16} /></div>
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-1)' }}>{m.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--fg-4)' }}>{STEP_HINT[t]}</div>
-                    </div>
-                  </button>
-                );
-              })}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+                {chooserTypes.map((t) => {
+                  const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t, false);
+                  return (
+                    <button key={t} onClick={() => setAdding(t)} title={STEP_HINT[t]} style={paletteTile}>
+                      <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: '#fff', border: `1px solid ${kc.border}`, color: kc.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={18} /></div>
+                      <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : (
-            <div style={{ ...cardStyle, flexDirection: 'column', alignItems: 'stretch', gap: 14 }}>
+            <div style={{ ...editorCard, gap: 14 }}>
               <button onClick={() => setAdding('choose')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, alignSelf: 'flex-start' }}>
                 <ArrowLeft size={13} /> {STEP_META[adding].label}
               </button>
@@ -592,23 +602,37 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
   );
 }
 
-// ─── BPMN-Hilfen ──────────────────────────────────────────────────────────────
-function Connector() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: 22 }}>
-      <div style={{ width: 2, flex: 1, background: 'var(--border-2)' }} />
-      <ChevronDown size={14} style={{ color: 'var(--border-2)', marginTop: -4 }} />
-    </div>
-  );
+// ─── BPMN-Hilfen (zentrierter vertikaler Fluss) ───────────────────────────────
+// Farbfamilie je Schritttyp (Design-Redesign): dezente Tönung, Symbol = Bedeutung.
+// Pflicht-Schritte bleiben neutral (grau), um «nicht editierbar» zu signalisieren.
+const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> = {
+  movement:   { bg: '#F3F8FB', border: '#D8E7EF', fg: 'var(--accent-ink)' },
+  resource:   { bg: '#FBF6ED', border: '#EADFCB', fg: '#9A7238' },
+  purchase:   { bg: '#FBF3EF', border: '#EBD9CF', fg: '#A65A3C' },
+  inspection: { bg: '#F3F8FB', border: '#D8E7EF', fg: 'var(--accent-ink)' },
+  document:   { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-2)' },
+  sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
+  scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
+};
+function kindColor(type: StepType, locked: boolean) {
+  if (locked) return { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-3)' };
+  return KIND_COLORS[type] ?? KIND_COLORS.purchase;
 }
 
-function FlowNode({ label, tone }: { label: string; tone: 'start' | 'end' }) {
-  const color = tone === 'start' ? '#16a34a' : 'var(--fg-3)';
+function Connector() {
+  return <div style={{ width: 2, height: 28, background: 'var(--border-2)', flex: 'none' }} />;
+}
+
+// Start-/Endknoten als runder Terminal-Knoten (grün «Start» / dunkel «Ende»).
+function FlowTerm({ kind }: { kind: 'start' | 'end' }) {
+  const start = kind === 'start';
   return (
-    <div style={{ display: 'flex', justifyContent: 'center' }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 14px', borderRadius: 999, border: `1.5px solid ${color}`, color, fontSize: 11, fontWeight: 700, background: '#fff' }}>
-        {label}
-      </span>
+    <div style={{
+      width: 52, height: 52, borderRadius: '50%', flex: 'none', boxShadow: 'var(--shadow-sm)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: start ? 'var(--success)' : 'var(--fg-1)', color: '#fff',
+    }} title={start ? 'Start' : 'Ende'}>
+      {start ? <Play size={22} /> : <Flag size={20} />}
     </div>
   );
 }
@@ -657,22 +681,40 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
   );
 }
 
-const cardStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, background: '#fff',
-  border: '1px solid var(--border-1)', borderRadius: 10, padding: '12px 14px',
+const STEP_MAXW = 600;   // Kartenbreite im zentrierten Fluss
+// Karten-Unterbereich (unter dem Kopf): Haarlinie oben, gleiche horizontale Polsterung.
+const cardBody: React.CSSProperties = {
+  borderTop: '1px solid var(--border-1)', padding: '12px 18px 15px',
+};
+// Editor-/Palette-Karte (neutral, für «Schritt hinzufügen»).
+const editorCard: React.CSSProperties = {
+  width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch',
+  background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+  boxShadow: 'var(--shadow-sm)', padding: '16px 18px',
+};
+const pflichtBadge: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+  color: 'var(--fg-3)', background: 'var(--bg-3)', padding: '1px 6px', borderRadius: 999,
+};
+const delBtn: React.CSSProperties = {
+  border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0,
+};
+const paletteTile: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+  borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: '#fff', cursor: 'pointer',
+};
+const toolTag: React.CSSProperties = {
+  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+  color: '#7E5586', background: '#F6F1F8', padding: '1px 6px', borderRadius: 4, flexShrink: 0,
 };
 const noticeStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start', gap: 8, padding: '12px 14px',
   background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e',
 };
 const addBtnStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px',
-  borderRadius: 10, border: '1px dashed var(--border-2)', background: '#fff', color: 'var(--accent)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px',
+  borderRadius: 'var(--r-lg)', border: '1px dashed var(--border-2)', background: '#fff', color: 'var(--accent)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%',
-};
-const chooserBtn: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', width: '100%',
-  borderRadius: 10, border: '1px solid var(--border-1)', background: '#fff', cursor: 'pointer',
 };
 const primaryBtn: React.CSSProperties = {
   padding: '7px 14px', borderRadius: 7, border: 'none', background: 'var(--accent)',
