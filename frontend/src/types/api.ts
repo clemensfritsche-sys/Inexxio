@@ -770,6 +770,26 @@ export interface paths {
         patch: operations["update_order_inspection_api_v1_erp_orders__object_id__inspection_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Document
+         * @description Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue).
+         */
+        patch: operations["update_order_document_api_v1_erp_orders__object_id__document_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/movement": {
         parameters: {
             query?: never;
@@ -1335,24 +1355,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/documents/{object_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Document */
-        get: operations["get_document_api_v1_erp_documents__object_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/documents/{object_id}/pdf": {
+    "/api/v1/erp/documents/{doc_id}/pdf": {
         parameters: {
             query?: never;
             header?: never;
@@ -1360,27 +1363,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Document Pdf */
-        get: operations["get_document_pdf_api_v1_erp_documents__object_id__pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/erp/steps/{step_id}/document/pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Step Document Pdf
-         * @description Entwurfs-Vorschau der Dokument-Vorlage eines Prozessschritts (noch nicht eingefroren).
-         */
-        get: operations["get_step_document_pdf_api_v1_erp_steps__step_id__document_pdf_get"];
+        get: operations["get_document_pdf_api_v1_erp_documents__doc_id__pdf_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1414,20 +1397,14 @@ export interface components {
          * ArticleCreate
          * @description Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
          *
-         *     ``physical`` trennt physische Güter (Default) von **nicht-physischen** (Dokument;
-         *     später Software). Für ein physisches Gut bleiben Einheit/Serialisierung/Grösse/Gewicht
-         *     **Pflicht** (unverändert streng). Für ein nicht-physisches werden diese aus der
-         *     Fertigungswelt stammenden Felder mit inerten Platzhaltern gefüllt (nie gelesen) –
-         *     so bleiben die DB-Spalten NOT NULL, ohne den Nutzer damit zu behelligen.
+         *     Pflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default
+         *     (Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein
+         *     Dokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:
+         *     ob ein Dokument entsteht, entscheidet allein der Prozessschritt «document».
          */
         ArticleCreate: {
             /** Name */
             name: string;
-            /**
-             * Physical
-             * @default true
-             */
-            physical: boolean;
             /** Unit */
             unit?: string | null;
             /** Serialization */
@@ -1541,7 +1518,6 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
-            document_content?: components["schemas"]["DocumentContent"] | null;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -1589,7 +1565,6 @@ export interface components {
              * @default []
              */
             resource_lines: components["schemas"]["ResourceLineView"][];
-            document_content?: components["schemas"]["DocumentContent"] | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -1628,7 +1603,6 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
-            document_content?: components["schemas"]["DocumentContent"] | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -1642,19 +1616,14 @@ export interface components {
             status: string;
             /** Name */
             name: string;
-            /**
-             * Physical
-             * @default true
-             */
-            physical: boolean;
             /** Unit */
             unit: string;
             /** Serialization */
             serialization: string;
             /** Size */
-            size: string;
+            size?: string | null;
             /** Weight Kg */
-            weight_kg: string;
+            weight_kg?: string | null;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -2151,7 +2120,7 @@ export interface components {
         };
         /**
          * DocumentContent
-         * @description Inhalt eines Dokuments – Titel/Untertitel/Datum + geordnete Abschnitte.
+         * @description Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte.
          */
         DocumentContent: {
             /**
@@ -2161,8 +2130,6 @@ export interface components {
             title: string;
             /** Subtitle */
             subtitle?: string | null;
-            /** Document Date */
-            document_date?: string | null;
             /**
              * Sections
              * @default []
@@ -2173,8 +2140,8 @@ export interface components {
          * DocumentEmbed
          * @description Eingebetteter Stand des Dokument-Schritts (im Auftrag).
          *
-         *     Das Dokument trägt – anders als die kaufmännischen Fachzeilen – eine **eigene
-         *     Objektnummer** (``object_id``) und den eingefrorenen Inhalt (``content``).
+         *     ``object_number`` (Instanz-Objektnummer) und ``document_date`` (Instanz-Freigabedatum)
+         *     werden serverseitig aus der vom Auftrag erzeugten Instanz abgeleitet.
          */
         DocumentEmbed: {
             /**
@@ -2182,52 +2149,18 @@ export interface components {
              * @default 0
              */
             id: number;
-            /** Object Id */
-            object_id?: number | null;
             /**
              * Done
              * @default false
              */
             done: boolean;
-            /** Title */
-            title?: string | null;
             content?: components["schemas"]["DocumentContent"] | null;
-            /**
-             * Version
-             * @default 1
-             */
-            version: number;
-            /** Issued At */
-            issued_at?: string | null;
+            /** Object Number */
+            object_number?: number | null;
+            /** Document Date */
+            document_date?: string | null;
             /** Created By Name */
             created_by_name?: string | null;
-        };
-        /**
-         * DocumentResponse
-         * @description Standalone-Ansicht eines eingefrorenen Dokuments (ERP-Detail / Web-View).
-         */
-        DocumentResponse: {
-            /** Object Id */
-            object_id?: number | null;
-            /** Order Object Id */
-            order_object_id?: number | null;
-            /** Article Object Id */
-            article_object_id?: number | null;
-            /** Title */
-            title?: string | null;
-            content?: components["schemas"]["DocumentContent"] | null;
-            /**
-             * Version
-             * @default 1
-             */
-            version: number;
-            /** Issued At */
-            issued_at?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
         /**
          * DocumentSection
@@ -2244,6 +2177,23 @@ export interface components {
              * @default
              */
             body: string;
+        };
+        /**
+         * DocumentUpdate
+         * @description Verfassen/Ausstellen des Dokuments am Auftragsschritt (analog Datenerfassung).
+         *
+         *     ``action='save'`` speichert den Zwischenstand (Schritt bleibt offen), ``action='issue'``
+         *     stellt das Dokument aus (Schritt erledigt, Inhalt festgeschrieben).
+         */
+        DocumentUpdate: {
+            /** Step Id */
+            step_id?: number | null;
+            content: components["schemas"]["DocumentContent"];
+            /**
+             * Action
+             * @default save
+             */
+            action: string;
         };
         /**
          * ErpAdminUpdate
@@ -5559,6 +5509,41 @@ export interface operations {
             };
         };
     };
+    update_order_document_api_v1_erp_orders__object_id__document_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_order_movement_api_v1_erp_orders__object_id__movement_patch: {
         parameters: {
             query?: never;
@@ -6652,74 +6637,12 @@ export interface operations {
             };
         };
     };
-    get_document_api_v1_erp_documents__object_id__get: {
+    get_document_pdf_api_v1_erp_documents__doc_id__pdf_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_document_pdf_api_v1_erp_documents__object_id__pdf_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_step_document_pdf_api_v1_erp_steps__step_id__document_pdf_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                step_id: number;
+                doc_id: number;
             };
             cookie?: never;
         };

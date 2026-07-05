@@ -2525,6 +2525,64 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/document": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Document",
+        "description": "Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue).",
+        "operationId": "update_order_document_api_v1_erp_orders__object_id__document_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/movement": {
       "patch": {
         "tags": [
@@ -4381,60 +4439,13 @@
         }
       }
     },
-    "/api/v1/erp/documents/{object_id}": {
-      "get": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Get Document",
-        "operationId": "get_document_api_v1_erp_documents__object_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/documents/{object_id}/pdf": {
+    "/api/v1/erp/documents/{doc_id}/pdf": {
       "get": {
         "tags": [
           "documents"
         ],
         "summary": "Get Document Pdf",
-        "operationId": "get_document_pdf_api_v1_erp_documents__object_id__pdf_get",
+        "operationId": "get_document_pdf_api_v1_erp_documents__doc_id__pdf_get",
         "security": [
           {
             "HTTPBearer": []
@@ -4442,58 +4453,12 @@
         ],
         "parameters": [
           {
-            "name": "object_id",
+            "name": "doc_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/steps/{step_id}/document/pdf": {
-      "get": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Get Step Document Pdf",
-        "description": "Entwurfs-Vorschau der Dokument-Vorlage eines Prozessschritts (noch nicht eingefroren).",
-        "operationId": "get_step_document_pdf_api_v1_erp_steps__step_id__document_pdf_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "step_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Step Id"
+              "title": "Doc Id"
             }
           }
         ],
@@ -4543,11 +4508,6 @@
           "name": {
             "type": "string",
             "title": "Name"
-          },
-          "physical": {
-            "type": "boolean",
-            "title": "Physical",
-            "default": true
           },
           "unit": {
             "anyOf": [
@@ -4674,7 +4634,7 @@
           "name"
         ],
         "title": "ArticleCreate",
-        "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.\n\n``physical`` trennt physische Güter (Default) von **nicht-physischen** (Dokument;\nspäter Software). Für ein physisches Gut bleiben Einheit/Serialisierung/Grösse/Gewicht\n**Pflicht** (unverändert streng). Für ein nicht-physisches werden diese aus der\nFertigungswelt stammenden Felder mit inerten Platzhaltern gefüllt (nie gelesen) –\nso bleiben die DB-Spalten NOT NULL, ohne den Nutzer damit zu behelligen."
+        "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.\n\nPflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default\n(Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein\nDokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:\nob ein Dokument entsteht, entscheidet allein der Prozessschritt «document»."
       },
       "ArticlePriceCreate": {
         "properties": {
@@ -5021,16 +4981,6 @@
               }
             ],
             "title": "Resource Lines"
-          },
-          "document_content": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DocumentContent"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "type": "object",
@@ -5171,16 +5121,6 @@
             "type": "array",
             "title": "Resource Lines",
             "default": []
-          },
-          "document_content": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DocumentContent"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "is_active": {
             "type": "boolean",
@@ -5332,16 +5272,6 @@
             ],
             "title": "Resource Lines"
           },
-          "document_content": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DocumentContent"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "is_active": {
             "anyOf": [
               {
@@ -5383,11 +5313,6 @@
             "type": "string",
             "title": "Name"
           },
-          "physical": {
-            "type": "boolean",
-            "title": "Physical",
-            "default": true
-          },
           "unit": {
             "type": "string",
             "title": "Unit"
@@ -5397,11 +5322,25 @@
             "title": "Serialization"
           },
           "size": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Size"
           },
           "weight_kg": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Weight Kg"
           },
           "material": {
@@ -5596,8 +5535,6 @@
           "name",
           "unit",
           "serialization",
-          "size",
-          "weight_kg",
           "is_active",
           "created_at",
           "updated_at"
@@ -7172,17 +7109,6 @@
             ],
             "title": "Subtitle"
           },
-          "document_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document Date"
-          },
           "sections": {
             "items": {
               "$ref": "#/components/schemas/DocumentSection"
@@ -7194,7 +7120,7 @@
         },
         "type": "object",
         "title": "DocumentContent",
-        "description": "Inhalt eines Dokuments – Titel/Untertitel/Datum + geordnete Abschnitte."
+        "description": "Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte."
       },
       "DocumentEmbed": {
         "properties": {
@@ -7203,32 +7129,10 @@
             "title": "Id",
             "default": 0
           },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
           "done": {
             "type": "boolean",
             "title": "Done",
             "default": false
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
           },
           "content": {
             "anyOf": [
@@ -7240,12 +7144,18 @@
               }
             ]
           },
-          "version": {
-            "type": "integer",
-            "title": "Version",
-            "default": 1
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
           },
-          "issued_at": {
+          "document_date": {
             "anyOf": [
               {
                 "type": "string",
@@ -7255,7 +7165,7 @@
                 "type": "null"
               }
             ],
-            "title": "Issued At"
+            "title": "Document Date"
           },
           "created_by_name": {
             "anyOf": [
@@ -7271,93 +7181,7 @@
         },
         "type": "object",
         "title": "DocumentEmbed",
-        "description": "Eingebetteter Stand des Dokument-Schritts (im Auftrag).\n\nDas Dokument trägt – anders als die kaufmännischen Fachzeilen – eine **eigene\nObjektnummer** (``object_id``) und den eingefrorenen Inhalt (``content``)."
-      },
-      "DocumentResponse": {
-        "properties": {
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "order_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Order Object Id"
-          },
-          "article_object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Object Id"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          },
-          "content": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DocumentContent"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "version": {
-            "type": "integer",
-            "title": "Version",
-            "default": 1
-          },
-          "issued_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Issued At"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "created_at"
-        ],
-        "title": "DocumentResponse",
-        "description": "Standalone-Ansicht eines eingefrorenen Dokuments (ERP-Detail / Web-View)."
+        "description": "Eingebetteter Stand des Dokument-Schritts (im Auftrag).\n\n``object_number`` (Instanz-Objektnummer) und ``document_date`` (Instanz-Freigabedatum)\nwerden serverseitig aus der vom Auftrag erzeugten Instanz abgeleitet."
       },
       "DocumentSection": {
         "properties": {
@@ -7375,6 +7199,35 @@
         "type": "object",
         "title": "DocumentSection",
         "description": "Ein Abschnitt: Überschrift (z. B. «§1 Geltungsbereich») + Fliesstext (mehrzeilig)."
+      },
+      "DocumentUpdate": {
+        "properties": {
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "content": {
+            "$ref": "#/components/schemas/DocumentContent"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "save"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "DocumentUpdate",
+        "description": "Verfassen/Ausstellen des Dokuments am Auftragsschritt (analog Datenerfassung).\n\n``action='save'`` speichert den Zwischenstand (Schritt bleibt offen), ``action='issue'``\nstellt das Dokument aus (Schritt erledigt, Inhalt festgeschrieben)."
       },
       "ErpAdminUpdate": {
         "properties": {

@@ -1,15 +1,18 @@
 """Schemas für das Prozessschrittmodul «Dokument».
 
-``DocumentContent`` ist die gemeinsame, bewusst schlanke Struktur eines „Word"-artigen
-Textdokuments (Titel + nummerierte Abschnitte). Sie lebt an ZWEI Orten mit demselben
-Format: editierbar auf der **Vorlage** (``ArticleProcessStep.document_content``) und – bei
-der Auftragsfreigabe eingefroren – als Snapshot auf dem erzeugten **Dokument** (``Document``).
+``DocumentContent`` ist die bewusst schlanke Struktur eines „Word"-artigen Textdokuments
+(Titel + Untertitel + nummerierte Abschnitte). Der Inhalt wird **während der
+Auftragsausführung** verfasst und mit «Ausstellen» festgeschrieben.
+
+Nummer & Datum kommen nicht vom Dokument selbst, sondern von der **Instanz**, die der
+Auftrag erzeugt: ``object_number`` = Instanz-Objektnummer, ``document_date`` =
+``instances.released_at``. Keine eigene Objektnummer, keine Versionsnummer.
 """
 
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class DocumentSection(BaseModel):
@@ -19,41 +22,41 @@ class DocumentSection(BaseModel):
 
 
 class DocumentContent(BaseModel):
-    """Inhalt eines Dokuments – Titel/Untertitel/Datum + geordnete Abschnitte."""
+    """Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte."""
     title: str = ""
     subtitle: Optional[str] = None
-    document_date: Optional[str] = None   # Anzeige-Datum (frei), z. B. «Gültig ab 01.01.2027»
     sections: list[DocumentSection] = []
+
+
+class DocumentUpdate(BaseModel):
+    """Verfassen/Ausstellen des Dokuments am Auftragsschritt (analog Datenerfassung).
+
+    ``action='save'`` speichert den Zwischenstand (Schritt bleibt offen), ``action='issue'``
+    stellt das Dokument aus (Schritt erledigt, Inhalt festgeschrieben)."""
+
+    step_id: Optional[int] = None
+    content: DocumentContent
+    action: str = "save"
+
+    @field_validator("action")
+    @classmethod
+    def _action_ok(cls, v: str) -> str:
+        if v not in ("save", "issue"):
+            raise ValueError("action muss 'save' oder 'issue' sein")
+        return v
 
 
 class DocumentEmbed(BaseModel):
     """Eingebetteter Stand des Dokument-Schritts (im Auftrag).
 
-    Das Dokument trägt – anders als die kaufmännischen Fachzeilen – eine **eigene
-    Objektnummer** (``object_id``) und den eingefrorenen Inhalt (``content``)."""
+    ``object_number`` (Instanz-Objektnummer) und ``document_date`` (Instanz-Freigabedatum)
+    werden serverseitig aus der vom Auftrag erzeugten Instanz abgeleitet."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int = 0
-    object_id: Optional[int] = None
     done: bool = False
-    title: Optional[str] = None
     content: Optional[DocumentContent] = None
-    version: int = 1
-    issued_at: Optional[datetime] = None
+    object_number: Optional[int] = None       # = Instanz-Objektnummer (die Dokumentennummer)
+    document_date: Optional[datetime] = None   # = instances.released_at
     created_by_name: Optional[str] = None
-
-
-class DocumentResponse(BaseModel):
-    """Standalone-Ansicht eines eingefrorenen Dokuments (ERP-Detail / Web-View)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    object_id: Optional[int] = None
-    order_object_id: Optional[int] = None
-    article_object_id: Optional[int] = None
-    title: Optional[str] = None
-    content: Optional[DocumentContent] = None
-    version: int = 1
-    issued_at: Optional[datetime] = None
-    created_at: datetime

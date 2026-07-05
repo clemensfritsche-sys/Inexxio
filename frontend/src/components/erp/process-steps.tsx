@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, ChevronDown, X, ArrowLeft, Lock, Wrench, PackageMinus } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, DocumentContent, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { PROCESS_MODE_LABEL } from '@/lib/purchase-order';
 import { unitLabel } from '@/lib/article';
@@ -11,7 +11,6 @@ import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { DocumentEditor } from '@/components/erp/document-editor';
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 // EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
@@ -23,10 +22,6 @@ type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 // Hilfsmaterial, Ersatzteile). So sind die Prozessschritte immer kompatibel.
 const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'document'];
 const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
-
-function emptyDoc(): DocumentContent {
-  return { title: '', subtitle: null, document_date: null, sections: [] };
-}
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
 function isValidWebshopUrl(v: string): boolean {
@@ -61,12 +56,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [resLines, setResLines] = useState<ResLine[]>([]);
-  const [docDraft, setDocDraft] = useState<DocumentContent>(emptyDoc());   // Dokument-Vorlage bei der Anlage
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editShared, setEditShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
-  const [editDoc, setEditDoc] = useState<DocumentContent>(emptyDoc());      // Dokument-Vorlage beim Bearbeiten
   const [drag, setDrag] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
 
@@ -121,22 +114,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
     setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
-    setTargetSel(''); setResLines([]); setDocDraft(emptyDoc()); setError(null);
-  }
-
-  // Dokument-Vorlage eines bestehenden Schritts speichern (ohne Editor zu schliessen –
-  // z. B. vor der PDF-Vorschau) bzw. mit Schliessen (Speichern-Knopf).
-  async function persistDoc(stepId: number, content: DocumentContent) {
-    const updated = await api.updateStep(owner, ownerObjectId!, stepId, { document_content: content });
-    setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
-  }
-  async function saveDoc(stepId: number) {
-    try { await persistDoc(stepId, editDoc); setEditId(null); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
-  }
-  async function previewDoc(stepId: number) {
-    try { await persistDoc(stepId, editDoc); await api.openStepDocumentPdf(stepId); }
-    catch (e) { setError(e instanceof Error ? e.message : 'PDF-Vorschau fehlgeschlagen'); }
+    setTargetSel(''); setResLines([]); setError(null);
   }
 
   // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
@@ -195,9 +173,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
         .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
       if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
     }
-    if (type === 'document' && !docDraft.title.trim()) {
-      setError('Bitte einen Titel für das Dokument angeben'); return;
-    }
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
     setSaving(true);
     try {
@@ -212,7 +187,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
         resource_lines: resourcePayload,
-        document_content: type === 'document' ? docDraft : null,
       });
       // Server fügt evtl. Pflicht-Bewegungen hinzu → kanonische Liste neu laden.
       await reload();
@@ -258,12 +232,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
     setDrag(null); setOver(null);
   }
 
-  // Nicht-physischer Artikel (Dokument): sein Prozess kennt nur den Dokument-Schritt
-  // (keine Instanzen → Instanz-Schritte blieben blockiert; Backend erzwingt dasselbe).
-  const articleIsDocument = owner === 'articles' && selfArticle?.physical === false;
-  const chooserTypes: StepType[] = owner !== 'articles'
-    ? ORDER_STEP_ORDER
-    : articleIsDocument ? ['document'] : ARTICLE_STEP_ORDER;
+  // Jeder Artikel kann alle Schritttypen enthalten (universelle Prozessschrittmodule).
+  const chooserTypes: StepType[] = owner === 'articles' ? ARTICLE_STEP_ORDER : ORDER_STEP_ORDER;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -326,7 +296,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'document' && (
-                      <span>{s.document_content?.title ? `«${s.document_content.title}»` : 'Noch kein Titel'} · {s.document_content?.sections?.length ?? 0} Abschnitt{(s.document_content?.sections?.length ?? 0) === 1 ? '' : 'e'}</span>
+                      <span>Inhalt wird im Auftrag verfasst</span>
                     )}
                   </div>
                 </div>
@@ -403,25 +373,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
                 </div>
               )}
 
-              {/* Dokument: Inhalt bearbeiten (Vorlage) */}
-              {s.step_type === 'document' && !readOnly && (
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-                  {editId === s.id ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <DocumentEditor value={editDoc} onChange={setEditDoc} onPreviewPdf={() => previewDoc(s.id)} />
-                      {error && <ErrorText msg={error} />}
-                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                        <button onClick={() => { setEditId(null); setError(null); }} style={secondaryBtn}>Abbrechen</button>
-                        <button onClick={() => saveDoc(s.id)} style={primaryBtn}><Check size={13} /> Speichern</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => { setEditId(s.id); setEditDoc(s.document_content ?? emptyDoc()); setError(null); }} style={miniGhost}>
-                      Inhalt bearbeiten
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         );
@@ -523,14 +474,12 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
               )}
 
               {adding === 'document' && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
-                    <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Der Inhalt wird hier verfasst und bei der Auftragsfreigabe als
-                      nummeriertes, unveränderliches Dokument im Inexxio-Design eingefroren.</span>
-                  </div>
-                  <DocumentEditor value={docDraft} onChange={setDocDraft} />
-                </>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
+                  <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>An diesem Schritt entsteht ein Dokument. Den <strong>Inhalt</strong> (Titel,
+                    Abschnitte) verfasst du erst im <strong>Auftrag</strong> – dort wird es als
+                    nummeriertes PDF im Inexxio-Design ausgestellt (Nummer = Instanz, Datum = Freigabe).</span>
+                </div>
               )}
 
               {error && <ErrorText msg={error} />}
@@ -553,7 +502,7 @@ const STEP_HINT: Record<StepType, string> = {
   resource: 'Material verbrauchen oder Betriebsmittel nutzen',
   scrap: 'Defekte/nicht benötigte Instanzen ausschleusen',
   sale: 'Verkauf bzw. Gutschrift/Erstattung (bei verkaufter Ware) – Bestätigung → Rechnung → Zahlung',
-  document: 'Dokument verfassen (Vertrag, AGB, Zertifikat) im Inexxio-Design',
+  document: 'Dokument (Vertrag, AGB, Zertifikat) – Inhalt im Auftrag verfasst',
 };
 
 // ─── Ressourcen-Zeilen (mini-BOM): Artikel + Menge + Modus-Toggle je Zeile ────

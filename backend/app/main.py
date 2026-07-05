@@ -151,9 +151,8 @@ _COLUMN_SAFETY_NET = (
     ("orders", "recurrence_kind", "VARCHAR(10)"),
     # Unter-Auftrag-Grund: deviation (Abweichung) | supply (Nachschub) – EIN Mechanismus
     ("orders", "reason", "VARCHAR(12)"),
-    # Dokument-Modul: nicht-physische Artikel + editierbare Dokument-Vorlage am Schritt.
-    ("articles", "physical", "BOOLEAN DEFAULT TRUE NOT NULL"),
-    ("article_process_steps", "document_content", "JSONB"),
+    # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
+    ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -174,6 +173,15 @@ _DROP_COLUMN_SAFETY_NET = (
     # Nachschub ist ein Unter-Auftrag (reason='supply'), kein verketteter Produktionsauftrag.
     ("orders", "subject_source"),
     ("orders", "fulfilled_by_order_id"),
+    # Dokument-Redesign: keine Typ-Trennung physisch/nicht-physisch mehr; das Dokument
+    # wird im Auftrag verfasst (keine eigene Nummer/Version/Vorlage – Nummer = Instanz).
+    ("articles", "physical"),
+    ("article_process_steps", "document_content"),
+    ("documents", "object_id"),
+    ("documents", "version"),
+    ("documents", "issued_at"),
+    ("documents", "title"),
+    ("documents", "replaced_by_id"),
 )
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes

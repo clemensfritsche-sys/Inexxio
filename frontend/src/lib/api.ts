@@ -2,7 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
-  PurchaseOrderUpdateInput, InspectionUpdateInput,
+  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
@@ -232,14 +232,11 @@ class ApiClient {
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  // Eingefrorenes Dokument (nach Freigabe) als PDF laden.
-  openDocumentPdf(objectId: number): Promise<void> {
-    return this.fetchPdf(`/api/v1/erp/documents/${objectId}/pdf`, `Dokument-${String(objectId).padStart(9, '0')}.pdf`);
-  }
-
-  // Entwurfs-Vorschau der Dokument-Vorlage eines Prozessschritts (vor der Freigabe).
-  openStepDocumentPdf(stepId: number): Promise<void> {
-    return this.fetchPdf(`/api/v1/erp/steps/${stepId}/document/pdf`, 'Dokument-Vorschau.pdf');
+  // Dokument (Fachzeile) als PDF laden – funktioniert für Entwurf & Ausgestelltes
+  // (Layout-Vorschau während des Verfassens). ``docId`` = Embed-id, ``nr`` = Instanznummer.
+  openDocumentPdf(docId: number, nr?: number | null): Promise<void> {
+    const name = nr ? `Dokument-${String(nr).padStart(9, '0')}.pdf` : 'Dokument.pdf';
+    return this.fetchPdf(`/api/v1/erp/documents/${docId}/pdf`, name);
   }
 
   // ─── ERP Orders (Aufträge) ──────────────────────────────────────────────────
@@ -316,6 +313,11 @@ class ApiClient {
   // Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen
   updateOrderInspection(objectId: number, data: InspectionUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/inspection`, data);
+  }
+
+  // Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue)
+  updateOrderDocument(objectId: number, data: DocumentUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/document`, data);
   }
 
   // Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)

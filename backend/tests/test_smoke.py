@@ -889,8 +889,9 @@ def test_object_registry_wired():
     assert ObjectRef.__tablename__ == "objects"
     # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
     # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
+    # Das Dokument trägt KEINE eigene Nummer (Nummer = Instanz) → nicht in der Registry.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "document", "storage_location", "organization"}
+        "user", "article", "order", "instance", "storage_location", "organization"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -2190,75 +2191,70 @@ def test_customer_return_wired_shop_style():
 
 
 def test_document_step_is_wired_end_to_end():
-    """«Dokument» ist ein vollwertiger Schritttyp: NEUTRAL/PRODUCE in der Registry, eigene
-    Fachtabelle ``Document`` MIT eigener Objektnummer (der Liefergegenstand), bei der
-    Freigabe eingefroren, sofort «done», nicht-physischer Artikel erzeugt keine Instanzen."""
-    import inspect as _inspect
+    """«Dokument» ist ein vollwertiger Schritttyp: NEUTRAL/PRODUCE in der Registry, Fachtabelle
+    ``Document`` OHNE eigene Objektnummer (Nummer = Instanz), wird WÄHREND der Ausführung mit
+    «Ausstellen» (``done``) abgeschlossen – nicht schon bei der Freigabe."""
+    import types as _types
 
     from app.domain import event_types as ev
     from app.models import Document
     from app.schemas.order import OrderResponse, OrderStepInfo
-    from app.services import document, process, serialization
+    from app.services import document, process
 
-    # Registry: keine Bestandswirkung, erzeugt einen (nicht-physischen) Liefergegenstand.
+    # Registry: keine Bestandswirkung, erzeugt einen Liefergegenstand (die Instanz).
     assert ev.REGISTRY["document"].polarity == ev.NEUTRAL
     assert ev.REGISTRY["document"].subject_role == ev.PRODUCE
     assert ev.REGISTRY["document"].fact == "Document"
     assert process._FACT_MODEL["document"] is Document
-    # Fachtabelle MIT eigener Objektnummer (anders als Sale/Disposal – das Dokument IST der
-    # nummerierte Liefergegenstand, wie eine Instanz).
+    # Fachtabelle OHNE eigene Objektnummer (Nummer = Instanz); mit ``done``.
     assert Document.__tablename__ == "documents"
-    assert "object_id" in Document.__table__.columns.keys()
-    # Schritt gilt als erledigt, sobald ein Dokument existiert (Marker, bei Freigabe eingefroren)
+    cols = Document.__table__.columns.keys()
+    assert "object_id" not in cols and "version" not in cols and "done" in cols
+    # Erledigt erst, wenn ausgestellt (done=True) – nicht schon, sobald die Fachzeile existiert.
     assert process._fact_status("document", None) == "open"
-    assert process._fact_status("document", object()) == "done"
+    assert process._fact_status("document", _types.SimpleNamespace(done=False)) == "open"
+    assert process._fact_status("document", _types.SimpleNamespace(done=True)) == "done"
     # In beiden Kontexten wählbar; Embed im Auftrag/Schritt vorhanden
     assert "document" in ev.ARTICLE_STEP_TYPES and "document" in ev.ORDER_STEP_TYPES
     assert "document" in OrderStepInfo.model_fields
     assert "document" in OrderResponse.model_fields
-    # Freigabe friert je Dokument-Schritt einen nummerierten Snapshot ein
-    src = _inspect.getsource(document.instantiate_for_order)
-    assert 'next_object_id(db, "document")' in src
-    # Nicht-physischer Artikel erzeugt KEINE Bestands-Instanzen (Early-Return vor Nummernvergabe)
-    assert "physical" in _inspect.getsource(serialization.create_instances_for_order)
-    # Objekt-Registry kennt den Typ (klickbar/scanbar/auflösbar)
-    from app.services import objects
-    assert objects._TYPE_MODELS["document"] is Document
-    # Inhalts-Normalisierung ist tolerant (leerer Rohinhalt → wohlgeformte Struktur)
+    # Inhalts-Normalisierung ist tolerant (leerer Rohinhalt → wohlgeformte Struktur, kein Datum)
     norm = document.normalize_content(None)
-    assert norm["title"] == "" and norm["sections"] == []
+    assert norm["title"] == "" and norm["sections"] == [] and "document_date" not in norm
 
 
-def test_non_physical_article_defaults_physical_fields():
-    """Ein nicht-physischer Artikel (Dokument) darf ohne Einheit/Grösse/Gewicht angelegt
-    werden – die Pflichtfelder werden mit inerten Platzhaltern gefüllt; ein physischer
-    bleibt streng."""
-    import pytest
+def test_article_create_requires_only_name():
+    """Ein Artikel braucht bei der Anlage NUR den Namen: Einheit/Serialisierung bekommen einen
+    Default (Stk / unit), Grösse & Gewicht bleiben optional (leer, z. B. bei einem Dokument).
+    Es gibt kein ``physical``-Flag mehr."""
+    from decimal import Decimal
 
     from app.schemas.article import ArticleCreate
 
-    doc = ArticleCreate(name="Vertrag", physical=False)
-    assert doc.physical is False
-    assert doc.unit and doc.serialization and doc.size and doc.weight_kg is not None
-    # Physischer Artikel ohne Pflichtfelder → Fehler
-    with pytest.raises(Exception):
-        ArticleCreate(name="Schraube", physical=True)
+    a = ArticleCreate(name="Vertrag")
+    assert a.unit == "Stk" and a.serialization == "unit"
+    assert a.size is None and a.weight_kg is None
+    assert not hasattr(a, "physical")
+    # Physische Attribute bleiben wählbar
+    b = ArticleCreate(name="Schraube", size="3x40x600", weight_kg=Decimal("0.05"))
+    assert b.size == "3x40x600"
 
 
-def test_document_pdf_renders_with_bundled_fonts():
-    """Der PDF-Renderer erzeugt ein nicht-leeres PDF im Inexxio-Design – die Marken-Fonts
-    (Inter/Inter Tight) sind gebündelt und werden eingebettet (kein Netzwerk nötig)."""
-    from pathlib import Path
-
+def test_document_pdf_renders_with_bundled_assets():
+    """Der PDF-Renderer erzeugt ein nicht-leeres PDF im Inexxio-Design – Marken-Fonts UND das
+    Logo sind gebündelt und werden offline eingebettet (kein Netzwerk nötig)."""
     from app.services import document_render
 
-    # Marken-Fonts liegen im Repo (deterministisches, offline PDF-Rendering)
     font_dir = document_render._FONT_DIR
     for f in ("Inter-400.ttf", "Inter-700.ttf", "InterTight-700.ttf", "InterTight-800.ttf"):
         assert (font_dir / f).exists(), f"Font fehlt: {f}"
+    assert document_render._LOGO_FILE.exists(), "Logo fehlt"
+    from datetime import datetime, timezone
     pdf = document_render.render_pdf(
         {"title": "Testdokument", "sections": [{"heading": "§1", "body": "Inhalt."}]},
-        company={"company_name": "Inexxio AG"}, object_id=100000123, version=1,
+        company={"company_name": "Inexxio AG", "street": "Industriestrasse", "street_nr": "12",
+                 "zip_code": "8000", "city": "Zürich", "email": "info@inexxio.com"},
+        object_id=100000123, issued_at=datetime(2026, 7, 5, tzinfo=timezone.utc),
     )
     assert pdf[:4] == b"%PDF" and len(pdf) > 5000
 
@@ -2273,26 +2269,33 @@ def test_document_render_escapes_and_is_robust():
     assert "\n" not in dr._css_str("Zeile1\nZeile2")
     # Adversariale Firmen-/Inhaltsdaten + überlanger Titel → gültiges PDF, kein Crash
     pdf = dr.render_pdf(
-        {"title": "X" * 400, "subtitle": "<b>x</b>", "document_date": "Gültig ab <2027>",
+        {"title": "X" * 400, "subtitle": "<b>x</b>",
          "sections": [{"heading": "<script>", "body": "a & b < c"}]},
         company={"company_name": 'A & B "Co" \\ Ltd', "email": "<img src=x>",
                  "street": "<style>*{}</style>", "zip_code": "8000", "city": "Zürich"},
-        object_id=100000123, version=2,
+        object_id=100000123,
     )
     assert pdf[:4] == b"%PDF" and len(pdf) > 5000
 
 
-def test_document_module_review_fixes_present():
-    """Regressions-Schutz für die Review-Fixes: (1) ein nicht-physischer Artikel darf im
-    Prozess NUR den Dokument-Schritt tragen (sonst blieben Instanz-Schritte ewig blockiert);
-    (2) «Ersetzen» kopiert ``physical`` (sonst würde der Nachfolger physisch); (3) der Titel
-    wird auf die Spaltenlänge gekappt (keine abgebrochene Freigabe-Transaktion)."""
+def test_document_redesign_shape():
+    """Regressions-Schutz für das Redesign: das Dokument wird im Auftrag verfasst (kein
+    ``next_object_id`` mehr, keine Vorlage am Schritt), die Instanz liefert Nummer & Datum,
+    und es gibt kein ``physical``-Flag/Schritt-Guard mehr."""
     import inspect as _inspect
 
+    from app.models import Article, ArticleProcessStep
     from app.routers import article_process
-    from app.services import deactivation, document
+    from app.schemas.document import DocumentEmbed
+    from app.services import document, serialization
 
-    src_create = _inspect.getsource(article_process._create)
-    assert 'physical' in src_create and 'step_type != "document"' in src_create
-    assert "physical=src.physical" in _inspect.getsource(deactivation.duplicate_article)
-    assert "[:255]" in _inspect.getsource(document.instantiate_for_order)
+    # Dokument-Fachzeile ohne eigene Nummer; Nummer/Datum kommen aus der Instanz.
+    assert "next_object_id" not in _inspect.getsource(document.instantiate_for_order)
+    assert {"object_number", "document_date"} <= set(DocumentEmbed.model_fields)
+    assert callable(document.record_document) and callable(document.produced_instance)
+    # Keine Typ-Trennung/kein Guard mehr; Artikel ohne physical, Schritt ohne document_content.
+    assert "physical" not in Article.__table__.columns.keys()
+    assert "document_content" not in ArticleProcessStep.__table__.columns.keys()
+    assert "physical" not in _inspect.getsource(article_process._create)
+    # Jeder Artikel erzeugt Instanzen (kein Early-Return für nicht-physisch mehr).
+    assert "physical" not in _inspect.getsource(serialization.create_instances_for_order)

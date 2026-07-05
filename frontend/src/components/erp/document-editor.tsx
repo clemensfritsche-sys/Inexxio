@@ -13,7 +13,7 @@ const HAIRLINE = '#E9E7E1';
 const DISPLAY = "'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif";
 
 function emptyContent(): DocumentContent {
-  return { title: '', subtitle: null, document_date: null, sections: [] };
+  return { title: '', subtitle: null, sections: [] };
 }
 
 function paragraphs(body: string): string[] {
@@ -21,19 +21,16 @@ function paragraphs(body: string): string[] {
 }
 
 // ─── Ansicht (identisch zum PDF): weisses A4-Blatt im Inexxio-Design ──────────────
-export function DocumentView({ content, objectNr, issuedAt, version }: {
+export function DocumentView({ content, objectNr, issuedAt }: {
   content: DocumentContent | null | undefined;
-  objectNr?: string | null;
-  issuedAt?: string | null;
-  version?: number | null;
+  objectNr?: string | null;         // = Instanz-Objektnummer (die Dokumentennummer)
+  issuedAt?: string | null;         // = Instanz-Freigabedatum
 }) {
   const c = content ?? emptyContent();
   const sections = c.sections ?? [];
   const meta: string[] = [];
   if (objectNr) meta.push(`Nr. ${objectNr}`);
-  if (issuedAt) meta.push(`Ausgestellt ${new Date(issuedAt).toLocaleDateString('de-CH')}`);
-  if (c.document_date) meta.push(c.document_date);
-  if (version) meta.push(`Version ${version}`);
+  if (issuedAt) meta.push(`Datum ${new Date(issuedAt).toLocaleDateString('de-CH')}`);
 
   return (
     <div style={{
@@ -104,8 +101,6 @@ export function DocumentEditor({ value, onChange, onPreviewPdf }: {
           style={{ ...inp, fontFamily: DISPLAY, fontWeight: 700, fontSize: 18, color: INK }} />
         <input value={c.subtitle ?? ''} onChange={(e) => set({ subtitle: e.target.value || null })}
           placeholder="Untertitel (optional)" style={inp} />
-        <input value={c.document_date ?? ''} onChange={(e) => set({ document_date: e.target.value || null })}
-          placeholder="Datum/Gültigkeit (optional, z. B. Gültig ab 01.01.2027)" style={inp} />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
