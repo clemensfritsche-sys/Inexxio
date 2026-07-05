@@ -11,11 +11,17 @@ class InspectionSample(BaseModel):
     instance_id: int            # object_id der Instanz
     slot: int = 1               # 1 bei Einzelteil; 1..N bei Charge (mehrere Proben)
     values: dict = {}           # erfasste Werte der Maske {field_key: value}
+    photos: list[str] = []      # Foto-Belege (Attachment-URLs)
 
     @field_validator("values", mode="before")
     @classmethod
     def _values_default(cls, v: Optional[dict]) -> dict:
         return v or {}
+
+    @field_validator("photos", mode="before")
+    @classmethod
+    def _photos_default(cls, v: Optional[list]) -> list:
+        return v or []
 
 
 class InspectionUpdate(BaseModel):

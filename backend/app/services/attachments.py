@@ -1,0 +1,65 @@
+"""Bild-Uploads (Fotos) – Speicherung in der DB, Auslieferung per Token.
+
+Bewusst ohne Cloud-Bucket: sofort lauffähig auf Cloud Run, ohne IAM/Bucket-Setup. Der
+Schnitt ist so gelegt, dass später NUR dieser Service auf GCS umgestellt werden müsste
+(die Verbraucher speichern eine URL, keinen Blob). Bilder werden beim Upload normalisiert:
+EXIF-Rotation angewandt, auf eine vernünftige Kantenlänge begrenzt und als JPEG re-kodiert –
+so bleibt die DB-Grösse beschränkt und die Anzeige schnell."""
+
+import io
+import secrets
+
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from ..models import Attachment
+
+_MAX_EDGE = 1600          # längste Kante in px (Foto-Doku / Shop reicht das dicke)
+_JPEG_QUALITY = 82
+_MAX_UPLOAD_BYTES = 20 * 1024 * 1024   # 20 MB Rohupload-Limit (vor Verkleinerung)
+
+
+def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
+    """Rohes Bild normalisieren (EXIF/Grösse/JPEG) und als ``Attachment`` ablegen (flush,
+    kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross."""
+    if not raw:
+        raise HTTPException(400, detail="Leere Datei")
+    if len(raw) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(413, detail="Datei zu gross (max. 20 MB)")
+    from PIL import Image, ImageOps
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img)   # Handy-Fotos korrekt drehen
+        img = img.convert("RGB")
+    except Exception:
+        raise HTTPException(400, detail="Ungültiges oder nicht unterstütztes Bild")
+    img.thumbnail((_MAX_EDGE, _MAX_EDGE))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
+    data = buf.getvalue()
+    att = Attachment(
+        token=secrets.token_urlsafe(24),
+        mime="image/jpeg",
+        data=data,
+        filename=(filename or None),
+        width=img.width,
+        height=img.height,
+        byte_size=len(data),
+        created_by=actor_id,
+    )
+    db.add(att)
+    db.flush()
+    return att
+
+
+def get_by_token(db: Session, token: str) -> Attachment:
+    att = db.query(Attachment).filter(
+        Attachment.token == token, Attachment.is_active == True).first()
+    if not att:
+        raise HTTPException(404, detail="Bild nicht gefunden")
+    return att
+
+
+def public_url(att: Attachment) -> str:
+    """Relative URL (Token) – die Verbraucher speichern diesen String."""
+    return f"/api/v1/attachments/{att.token}"

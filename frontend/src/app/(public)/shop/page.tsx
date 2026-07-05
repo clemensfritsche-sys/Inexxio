@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Package } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, attachmentUrl } from '@/lib/api';
 import type { ShopProduct } from '@/types';
 import { formatMoney as fmt } from '@/lib/utils';
 
@@ -34,7 +34,7 @@ export default function ShopPage() {
               <div className="aspect-[4/3] bg-slate-100 flex items-center justify-center overflow-hidden">
                 {p.images?.[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.images[0]} alt={p.title} className="w-full h-full object-cover" />
+                  <img src={attachmentUrl(p.images[0])} alt={p.title} className="w-full h-full object-cover" />
                 ) : (
                   <Package size={48} strokeWidth={1} className="text-slate-300" />
                 )}

@@ -908,6 +908,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/instances/{object_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Instance Documents
+         * @description Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer). Grundlage des
+         *     Reiters «Dokumente» und künftig der KI-/Scan-Ablage beliebiger PDFs je Objektnummer.
+         */
+        get: operations["list_instance_documents_api_v1_erp_instances__object_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances/{object_id}/orders": {
         parameters: {
             query?: never;
@@ -1372,6 +1393,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Attachment */
+        post: operations["upload_attachment_api_v1_erp_attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/attachments/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Serve Attachment */
+        get: operations["serve_attachment_api_v1_attachments__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1778,6 +1833,14 @@ export interface components {
             email?: string | null;
             /** Object Id */
             object_id?: number | null;
+        };
+        /** Body_upload_attachment_api_v1_erp_attachments_post */
+        Body_upload_attachment_api_v1_erp_attachments_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
         };
         /**
          * CaptureField
@@ -2303,6 +2366,11 @@ export interface components {
              * @default {}
              */
             values: Record<string, never>;
+            /**
+             * Photos
+             * @default []
+             */
+            photos: string[];
         };
         /**
          * InspectionUpdate
@@ -3697,6 +3765,15 @@ export interface components {
             is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
+        };
+        /** UploadResult */
+        UploadResult: {
+            /** Url */
+            url: string;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
         };
         /** UserProfileResponse */
         UserProfileResponse: {
@@ -5746,6 +5823,37 @@ export interface operations {
             };
         };
     };
+    list_instance_documents_api_v1_erp_instances__object_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentEmbed"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_instance_orders_api_v1_erp_instances__object_id__orders_get: {
         parameters: {
             query?: never;
@@ -6643,6 +6751,70 @@ export interface operations {
             header?: never;
             path: {
                 doc_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_attachment_api_v1_erp_attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_attachment_api_v1_erp_attachments_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    serve_attachment_api_v1_attachments__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
             };
             cookie?: never;
         };
