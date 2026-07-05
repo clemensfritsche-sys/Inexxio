@@ -6,9 +6,11 @@ Event-Strom, damit Regressionen einem konkreten Prompt-/Modell-Stand zuzuordnen 
 Modell-IDs sind über ``core/config.py`` (Env) übersteuerbar; die Defaults hier sind
 die geprüften Referenzwerte."""
 
+import re
+
 from ...core.config import get_settings
 
-PROMPT_VERSION = "2026-07-05.5"
+PROMPT_VERSION = "2026-07-05.6"
 
 _settings = get_settings()
 
@@ -17,8 +19,45 @@ def chat_model() -> str:
     return _settings.ai_chat_model
 
 
+def chat_model_light() -> str:
+    return _settings.ai_chat_model_light
+
+
 def image_model() -> str:
     return _settings.ai_image_model
+
+
+# ── Dynamische Modellwahl (Kosten/Latenz – Optimierung) ──────────────────────────
+# Nicht jede Anfrage braucht das teure Spitzenmodell: einfache Lese-/Zählfragen laufen
+# auf dem leichten, schnellen Modell OHNE Reasoning (günstiger, spürbar schneller); nur
+# mehrstufige oder schreibende Aufgaben (anlegen, bestellen, freigeben, einen Link
+# verarbeiten …) nutzen das starke Modell mit adaptivem Reasoning. Die Auswahl ist eine
+# reine Heuristik (kein Vorab-Modell-Call → keine Zusatzkosten/-latenz); im Zweifel wird
+# aufwärts geroutet (Korrektheit vor Kosten).
+_COMPLEX_RE = re.compile(
+    r"\b("
+    r"bestell|erstell|anleg|anzuleg|hinzu|\bfüg|freigeb|freigab|ändere?|aktualisier|"
+    r"beweg|einlager|verschrott|retour|erstatt|gutschrift|nachschub|lösch|deaktivier|"
+    r"reaktivier|fixier|zuweis|weise|verkauf|erfass|befüll|leg\b"
+    r")",
+    re.IGNORECASE,
+)
+_URL_RE = re.compile(r"https?://", re.IGNORECASE)
+
+
+def route(user_text: str) -> dict:
+    """Modell + Reasoning + Token-Budget für EINE Chat-Anfrage wählen (siehe oben).
+
+    Rückgabe: ``{"model", "thinking", "max_tokens"}`` – direkt an ``gateway.complete``."""
+    text = (user_text or "").strip()
+    complex_task = (
+        len(text) > 220
+        or bool(_URL_RE.search(text))
+        or bool(_COMPLEX_RE.search(text))
+    )
+    if complex_task:
+        return {"model": chat_model(), "thinking": {"type": "adaptive"}, "max_tokens": 4096}
+    return {"model": chat_model_light(), "thinking": None, "max_tokens": 1536}
 
 
 # ── System-Prompts (versioniert; Untrusted-Inhalte gehören NIE hierher) ──────────
@@ -48,6 +87,10 @@ audit_log (Admin), recent_events, shop_products/my_orders. Handeln: create_artic
 create_order_draft, add_order_step, set_order_instances, get_order_steps, propose_release_order
 (Freigabe = Vorschlag mit Bestätigung).
 
+## Antwortformat – knapp und sauber
+- **Fasse dich kurz.** Liefere direkt, was gefragt ist – ohne die Frage zu wiederholen, ohne Meta-Sätze («ich habe nun …», «gerne helfe ich …») und ohne deine Zwischenschritte aufzuzählen, wenn das Ergebnis reicht. Eine knappe Bestätigung mit den relevanten Objektnummern genügt.
+- **Markdown wird gerendert** – nutze es sauber: **fett** für Objektnummern und Kernwerte, `-`-Listen für Aufzählungen, Markdown-Tabellen (`| Spalte | Spalte |`) für mehrere gleichartige Datensätze. Für eine EINZELNE Angabe keine Tabelle, keine Liste – ein Satz.
+
 ## Wie du arbeitest – sei proaktiv und selbstständig
 - Antworte auf Deutsch (Schweiz: «ss» statt «ß»), klar und sachlich, Nutzer werden gesiezt. **Denke die Aufgabe zu Ende und ERLEDIGE sie mit deinen Werkzeugen, statt zurückzufragen oder auf ein «Modul» zu verweisen.** Frag nur nach, wenn eine Angabe wirklich fehlt und nicht auflösbar ist.
 - **Jede 9-stellige Zahl ist eine Objektnummer.** Ist unklar, was sie ist (Artikel? Auftrag? Instanz? Benutzer?), rufe **zuerst `resolve_object`** auf – rate nie.
@@ -58,7 +101,7 @@ create_order_draft, add_order_step, set_order_instances, get_order_steps, propos
 - **Zählen/Auswerten:** «wie viele User/Kunden/Artikel/Instanzen» → das passende list_*-Werkzeug nutzen (liefert `count`), nicht abwimmeln.
 - **Bestellen ab Webseite/Link (z. B. «Bestelle mir 3 Stück von diesem Schraubendreher [Amazon-Link], soll zu mir kommen»):** Führe die ganze Kette selbstständig aus:
   1. `fetch_web_page(url)` → Produktinfos (Name, Marke, Material, Masse, Preis, Bild).
-  2. `create_article_draft` mit sinnvollem Namen + allen ableitbaren Feldern (material, size, weight_kg, supplier_article_number …). Was du nicht sicher weisst, lass leer statt zu erfinden.
+  2. `create_article_draft` mit einem **kurzen, prägnanten Namen (max. 32 Zeichen** – NICHT den ganzen, langen Shop-Titel; nimm die Kernbezeichnung, z. B. «Schraubendreher PH2») + allen ableitbaren Feldern (material, size, weight_kg, supplier_article_number …). Was du nicht sicher weisst, lass leer statt zu erfinden.
   3. `add_article_step(step_type=purchase, webshop_url=<Link>)` → Beschaffung per Online-Shop.
   4. `add_article_step(step_type=movement, target_type=user)` → Lieferung zum angemeldeten Nutzer («zu mir»).
   5. `propose_release_article` → Freigabe des Artikels (Bestätigung nötig, weil er danach bestellt werden kann). Erkläre knapp, was du angelegt hast, und dass nach der Bestätigung der Auftrag folgt.

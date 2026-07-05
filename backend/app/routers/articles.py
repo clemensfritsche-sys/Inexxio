@@ -7,7 +7,9 @@ from ..core.database import get_db
 from ..models import (
     Article, Instance, Order, PurchaseOrder, UserProfile,
 )
-from ..schemas.article import ArticleCreate, ArticleResponse, ArticleUpdate
+from ..schemas.article import (
+    ArticleCreate, ArticleNameSuggestion, ArticleResponse, ArticleUpdate,
+)
 from ..schemas.deactivation import (
     DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
 )
@@ -176,6 +178,20 @@ async def create_article(
     db.commit()
     db.refresh(article)
     return _to_response(article, None)
+
+
+@router.get("/name-suggestions", response_model=list[ArticleNameSuggestion])
+async def name_suggestions(
+    q: str = "",
+    limit: int = 8,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_employee),
+):
+    """Intelligente Namensvorschläge (bereits verwendete/ähnliche Namen) beim Anlegen –
+    freie Namensgebung, aber Dubletten werden vermieden. Ohne KI (lexikalisch, `services/
+    article_names.py`). Muss VOR `/{object_id}` stehen (sonst würde die Zahl-Route greifen)."""
+    from ..services import article_names
+    return article_names.suggest(db, q, limit)
 
 
 @router.get("/{object_id}", response_model=ArticleResponse)

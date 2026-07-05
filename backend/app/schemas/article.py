@@ -11,7 +11,24 @@ ALLOWED_UNITS = ("Stk", "mm", "m2", "kg", "l")
 ALLOWED_SERIALIZATION = ("unit", "batch")
 ALLOWED_STATUS = ("draft", "released", "inactive")
 
+# Artikelnamen sind frei wählbar, aber bewusst KURZ gehalten (Feed/Etiketten/Listen bleiben
+# lesbar). Der Wert wird zentral hier gekappt – das Frontend begrenzt die Eingabe zusätzlich.
+NAME_MAX_LENGTH = 32
+
 _SIZE_RE = re.compile(r"^\d+(?:\.\d+)?(?:x\d+(?:\.\d+)?)+$")
+
+
+def clean_article_name(v: Optional[str], *, required: bool = True) -> Optional[str]:
+    """Artikelname normalisieren: trimmen, auf ``NAME_MAX_LENGTH`` kappen. ``required`` steuert,
+    ob ein leerer Wert ein Fehler ist (Anlage) oder erlaubt bleibt (None-Teilupdate)."""
+    if v is None:
+        if required:
+            raise ValueError("Name ist ein Pflichtfeld")
+        return None
+    v = v.strip()
+    if not v:
+        raise ValueError("Name ist ein Pflichtfeld" if required else "Name darf nicht leer sein")
+    return v[:NAME_MAX_LENGTH].rstrip()
 
 
 # ─── Wiederverwendbare Validatoren ───────────────────────────────────────────
@@ -111,10 +128,7 @@ class ArticleCreate(BaseModel):
     @field_validator("name")
     @classmethod
     def _name_not_empty(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("Name ist ein Pflichtfeld")
-        return v
+        return clean_article_name(v, required=True)
 
     @field_validator("unit")
     @classmethod
@@ -198,12 +212,7 @@ class ArticleUpdate(BaseModel):
     @field_validator("name")
     @classmethod
     def _name_not_empty(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        v = v.strip()
-        if not v:
-            raise ValueError("Name darf nicht leer sein")
-        return v
+        return clean_article_name(v, required=False)
 
     @field_validator("unit")
     @classmethod
@@ -276,3 +285,11 @@ class ArticleResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ArticleNameSuggestion(BaseModel):
+    """Ein Namensvorschlag beim Anlegen eines Artikels (freie Namensgebung, aber das
+    System schlägt bereits verwendete/ähnliche Namen vor, um Dubletten zu vermeiden)."""
+    name: str
+    count: int = 0                       # wie viele aktive Artikel diesen Namen bereits tragen
+    score: Optional[float] = None        # Ähnlichkeit zur Eingabe (nur bei Suche gesetzt)

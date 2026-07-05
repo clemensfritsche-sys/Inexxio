@@ -31,6 +31,9 @@ class AiChatResponse(BaseModel):
     reply: str
     proposals: list[AiProposal] = []
     model: str
+    # True, wenn die KI in diesem Lauf ERP-Daten verändert hat (Artikel/Auftrag/Schritt
+    # angelegt/geändert) → das Frontend lädt den Feed live nach (kein manueller Refresh).
+    changed: bool = False
 
 
 # ── Konfiguration (Frontend blendet den Assistenten danach ein/aus) ───────────────

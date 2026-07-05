@@ -59,6 +59,11 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
   expected_updated_at?: string | null;   // Optimistic Locking
 };
 
+// Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
+export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
+// Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
+export const ARTICLE_NAME_MAX_LENGTH = 32;
+
 // ─── Order (Auftrag) ──────────────────────────────────────────────────────────
 
 export type OrderStatus = 'draft' | 'released' | 'inactive' | 'completed';

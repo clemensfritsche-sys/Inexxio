@@ -320,7 +320,8 @@ function ArticleNamesCard({ names, onSave, saving, saved }: {
         </div>
       </div>
       <p className="mb-3 text-xs text-slate-500">
-        Beim Anlegen eines Artikels wird der Name aus dieser Liste gewählt. Hier Namen hinzufügen oder entfernen.
+        Artikelnamen sind frei wählbar. Diese optionale Liste wird beim Anlegen zusätzlich als
+        Vorschlag angeboten (neben bereits verwendeten Namen) – keine Pflicht mehr.
       </p>
       <div className="flex gap-2">
         <input value={input} onChange={(e) => setInput(e.target.value)}

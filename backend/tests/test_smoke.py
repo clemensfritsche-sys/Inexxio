@@ -327,6 +327,33 @@ def test_article_names_catalog_normalized():
     assert upd.article_names == ["Welle", "Bolzen"]
 
 
+def test_article_name_capped_and_trimmed():
+    """Freie Namensgebung, aber zentral getrimmt und auf NAME_MAX_LENGTH gekappt."""
+    from app.schemas.article import ArticleCreate, NAME_MAX_LENGTH, clean_article_name
+
+    assert clean_article_name("  Hallo Welt  ") == "Hallo Welt"
+    assert len(clean_article_name("X" * 60)) == NAME_MAX_LENGTH
+    with pytest.raises(ValueError):
+        clean_article_name("   ")                       # leer → Pflichtfeld
+    # Der Create-Schema-Pfad kappt ebenfalls (Frontend begrenzt zusätzlich).
+    assert len(ArticleCreate(name="A" * 50).name) == NAME_MAX_LENGTH
+
+
+def test_article_name_similarity_recognizes_shared_stem():
+    """Fuzzy-Vorschläge (ohne KI): gemeinsamer Wortstamm wird erkannt, Fremdes nicht."""
+    from app.services.article_names import _similarity, _MIN_SCORE
+
+    assert _similarity("Schraubendreher", "Schraubendreher") == 1.0
+    # «Akkuschrauber»/«Schraubenzieher» teilen den Stamm «schraub» → Vorschlag.
+    assert _similarity("Akkuschrauber", "Schraubendreher") >= _MIN_SCORE
+    assert _similarity("Schraubenzieher", "Schraubendreher") >= _MIN_SCORE
+    # Substring-Bonus: die Kernbezeichnung matcht stark.
+    assert _similarity("Schraub", "Schraubendreher") > 0.5
+    # Unverwandte Namen bleiben unter der Schwelle (kein Rausch-Vorschlag).
+    assert _similarity("Welle", "Dichtung") < _MIN_SCORE
+    assert _similarity("Bolzen", "Schraubendreher") < _MIN_SCORE
+
+
 def test_storage_location_has_note():
     """Lagerplatz trägt eine optionale Bemerkung (Spalte bleibt, UI entfernt)."""
     from app.models import StorageLocation

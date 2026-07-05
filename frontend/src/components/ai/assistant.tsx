@@ -13,9 +13,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Send, Sparkles, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import type { Components } from 'react-markdown';
 import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import type { AiChatMessage, AiProposal } from '@/types';
+
+/** Event, mit dem die KI dem ERP-Feed signalisiert «ich habe Daten verändert – lade neu». */
+export const DATA_CHANGED_EVENT = 'inexxio:data-changed';
 
 interface ChatItem {
   role: 'user' | 'assistant';
@@ -58,7 +64,9 @@ export function AiAssistant({ context }: { context?: string }) {
     return unsub;
   }, []);
 
-  useEffect(() => { if (open) setItems(loadHistory()); }, [open]);
+  // Verlauf einmal beim Mounten laden – überlebt so einen Seiten-Refresh (nicht erst
+  // beim Öffnen), damit ein laufendes KI-Gespräch nach dem Neuladen erhalten bleibt.
+  useEffect(() => { setItems(loadHistory()); }, []);
   useEffect(() => {
     try { sessionStorage.setItem(STORE_KEY, JSON.stringify(items.slice(-40))); } catch { /* voll */ }
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -79,6 +87,11 @@ export function AiAssistant({ context }: { context?: string }) {
         .map((m) => ({ role: m.role, content: m.content }));
       const res = await api.aiChat(history, context);
       setItems((cur) => [...cur, { role: 'assistant', content: res.reply, proposals: res.proposals }]);
+      // Hat die KI ERP-Daten verändert (Artikel/Auftrag/Schritt angelegt/geändert)?
+      // → Feed/Detail live nachladen, ohne dass der Nutzer manuell aktualisieren muss.
+      if (res.changed && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'KI derzeit nicht erreichbar');
       setItems((cur) => cur.slice(0, -1));   // Nutzertext zurück ins Feld
@@ -198,17 +211,47 @@ export function AiAssistant({ context }: { context?: string }) {
   );
 }
 
+// Markdown-Renderer für Antworten der KI: **fett**, Listen und saubere Tabellen werden
+// gerendert (statt roher Sternchen). Komponenten auf die Design-Tokens gemappt; kompakt
+// für die Chat-Blase. Kein rohes HTML (react-markdown ohne rehype-raw = XSS-sicher).
+const MD_COMPONENTS: Components = {
+  p: (props) => <p className="mb-2 leading-relaxed last:mb-0" {...props} />,
+  ul: (props) => <ul className="mb-2 list-disc space-y-0.5 pl-4 last:mb-0" {...props} />,
+  ol: (props) => <ol className="mb-2 list-decimal space-y-0.5 pl-4 last:mb-0" {...props} />,
+  li: (props) => <li className="leading-snug" {...props} />,
+  strong: (props) => <strong className="font-semibold text-fg-1" {...props} />,
+  em: (props) => <em className="italic" {...props} />,
+  a: (props) => <a className="text-accent underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />,
+  code: (props) => <code className="rounded bg-bg-3 px-1 py-0.5 font-mono text-[12px] text-fg-1" {...props} />,
+  pre: (props) => <pre className="mb-2 overflow-x-auto rounded-ds-md bg-bg-3 p-2 text-[12px] last:mb-0" {...props} />,
+  h1: (props) => <h4 className="mb-1 mt-1 font-display text-sm font-bold text-fg-1" {...props} />,
+  h2: (props) => <h4 className="mb-1 mt-1 font-display text-sm font-bold text-fg-1" {...props} />,
+  h3: (props) => <h4 className="mb-1 mt-1 font-display text-sm font-bold text-fg-1" {...props} />,
+  hr: () => <hr className="my-2 border-border-1" />,
+  table: (props) => (
+    <div className="mb-2 overflow-x-auto last:mb-0">
+      <table className="w-full border-collapse text-[12px]" {...props} />
+    </div>
+  ),
+  thead: (props) => <thead className="border-b border-border-2 text-left" {...props} />,
+  th: (props) => <th className="px-2 py-1 font-semibold text-fg-2" {...props} />,
+  td: (props) => <td className="border-t border-border-1 px-2 py-1 align-top text-fg-2" {...props} />,
+};
+
 function Bubble({ role, content }: { role: 'user' | 'assistant'; content: string }) {
   const mine = role === 'user';
+  if (mine) {
+    return (
+      <div className="max-w-[85%] self-end whitespace-pre-wrap rounded-ds-md bg-fg-1 px-3 py-2 text-sm text-bg-1">
+        {content}
+      </div>
+    );
+  }
   return (
-    <div
-      className={
-        mine
-          ? 'max-w-[85%] self-end whitespace-pre-wrap rounded-ds-md bg-fg-1 px-3 py-2 text-sm text-bg-1'
-          : 'max-w-[85%] self-start whitespace-pre-wrap rounded-ds-md bg-bg-2 px-3 py-2 text-sm text-fg-2'
-      }
-    >
-      {content}
+    <div className="max-w-[85%] self-start rounded-ds-md bg-bg-2 px-3 py-2 text-sm text-fg-2">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }

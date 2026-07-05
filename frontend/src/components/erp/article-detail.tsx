@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag, QrCode } from 'lucide-react';
+import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag, QrCode, AlertTriangle } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, UserProfile, OrdersMode } from '@/types';
+import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
+import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
   ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
@@ -13,7 +14,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
+import { TextField, SelectField, Segmented, Label, ErrorText, SaveIndicator, inputCls } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -96,10 +97,9 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], articleNames = [], onSaved, onCancel, onBack, onRefresh }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
-  articleNames?: string[];         // wählbare Artikelnamen (Systemkonfiguration)
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -153,13 +153,10 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const valid = !errs.name && !errs.size && !errs.weight;
 
   // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird –
-  // statt des generischen «Pflichtfelder …». Häufigste Ursache beim Anlegen:
-  // kein Artikelname wählbar, weil der Katalog (Systemkonfiguration) leer ist.
+  // statt des generischen «Pflichtfelder …». Namensgebung ist frei (kein Katalog mehr).
   const blockReason: string | null = valid ? null
     : (!form.name.trim()
-        ? (articleNames.length === 0
-            ? 'Keine Artikelnamen vorhanden – bitte zuerst unter Admin → Einstellungen → «Artikelnamen» anlegen.'
-            : 'Bitte einen Artikelnamen wählen.')
+        ? 'Bitte einen Artikelnamen eingeben.'
         : errs.name || errs.size || errs.weight || 'Pflichtfelder ausfüllen: Name, Grösse, Gewicht');
 
   const sig = signatureOf(form);
@@ -351,20 +348,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
               </>
             ) : (
               <>
-                <div>
-                  <SelectField label="Name" value={form.name} onChange={(v) => set('name', v)} required
-                    options={[
-                      { value: '', label: '— Artikelname wählen —' },
-                      ...(form.name && !articleNames.includes(form.name) ? [{ value: form.name, label: form.name }] : []),
-                      ...articleNames.map((n) => ({ value: n, label: n })),
-                    ]} />
-                  {articleNames.length === 0 && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: 'var(--warning)' }}>
-                      Keine Artikelnamen hinterlegt – bitte in Admin → Einstellungen → «Artikelnamen» anlegen.
-                    </div>
-                  )}
-                  {errs.name && form.name !== '' && <ErrorText msg={errs.name} />}
-                </div>
+                <NameField value={form.name} onChange={(v) => set('name', v)}
+                  error={form.name.trim() ? errs.name : null} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
                   <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
@@ -458,6 +443,84 @@ const lockedNotice: React.CSSProperties = {
 
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });
+}
+
+// Freies Namensfeld mit intelligenten Vorschlägen: das System schlägt beim Tippen bereits
+// verwendete/ähnliche Namen vor (kostenlos/lexikalisch, `services/article_names.py`), damit
+// keine Dubletten («Schraubendreher» vs. «Akkuschrauber») entstehen. Kein Katalog-Zwang mehr.
+function NameField({ value, onChange, error }: {
+  value: string; onChange: (v: string) => void; error?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [sugs, setSugs] = useState<ArticleNameSuggestion[]>([]);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Vorschläge entprellt laden, solange das Feld aktiv ist (leere Eingabe → häufigste Namen).
+  useEffect(() => {
+    if (!open) return;
+    let stale = false;
+    const t = setTimeout(() => {
+      api.articleNameSuggestions(value.trim(), 8)
+        .then((r) => { if (!stale) setSugs(r); })
+        .catch(() => { if (!stale) setSugs([]); });
+    }, 200);
+    return () => { stale = true; clearTimeout(t); };
+  }, [value, open]);
+
+  // Klick ausserhalb schliesst die Vorschlagsliste.
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const q = value.trim().toLowerCase();
+  const exact = sugs.find((s) => s.name.toLowerCase() === q && s.count > 0);
+  const list = sugs.filter((s) => s.name.toLowerCase() !== q);
+
+  return (
+    <div ref={boxRef} style={{ position: 'relative' }}>
+      <Label required>Name</Label>
+      <input
+        value={value}
+        maxLength={ARTICLE_NAME_MAX_LENGTH}
+        placeholder="Artikelname eingeben…"
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        className={inputCls}
+        style={{ borderColor: error ? '#fca5a5' : '#e2e8f0' }}
+      />
+      {error ? <ErrorText msg={error} /> : exact ? (
+        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AlertTriangle size={11} /> Ein Artikel mit diesem Namen besteht bereits ({exact.count}×) – ggf. wiederverwenden.
+        </div>
+      ) : (
+        <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+          Frei wählbar (max. {ARTICLE_NAME_MAX_LENGTH} Zeichen). Vorschläge helfen, Dubletten zu vermeiden.
+        </div>
+      )}
+      {open && list.length > 0 && (
+        <div className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-ds-md border border-border-1 bg-bg-1 py-1 shadow-ds-md">
+          {list.map((s) => (
+            <button
+              key={s.name}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}   // Blur vor Klick verhindern
+              onClick={() => { onChange(s.name); setOpen(false); }}
+              className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-fg-2 hover:bg-bg-2"
+            >
+              <span className="truncate">{s.name}</span>
+              <span style={{ flex: 'none', fontSize: 10.5, fontWeight: 600, color: s.count > 0 ? 'var(--warning)' : 'var(--fg-4)' }}>
+                {s.count > 0 ? `${s.count}× vorhanden` : 'ähnlich'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Read-only Gewicht (aus der Stückliste berechnet) – analog Preis-/Durchlaufzeit-Spanne.

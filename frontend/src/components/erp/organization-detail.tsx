@@ -174,10 +174,14 @@ function ArticleNames({ names, onChange }: { names: string[]; onChange: (n: stri
   }
   return (
     <>
+      <p className="mb-2.5 text-xs text-fg-3">
+        Optionale Vorschlagsliste: Artikelnamen sind frei wählbar. Diese Namen werden beim Anlegen
+        zusätzlich vorgeschlagen (neben bereits verwendeten) – keine Pflicht mehr.
+      </p>
       <div className="flex gap-2">
         <input value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-          placeholder="Neuer Artikelname, z. B. Welle Antrieb"
+          placeholder="Vorschlags-Name, z. B. Welle Antrieb"
           className="flex-1 px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500" />
         <button type="button" onClick={add} disabled={!input.trim()}
           className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
