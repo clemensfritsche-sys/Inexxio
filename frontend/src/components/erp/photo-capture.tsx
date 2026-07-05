@@ -48,7 +48,7 @@ export function PhotoCapture({ value, onChange, max = 8, disabled = false, label
             style={{ position: 'relative', width: 76, height: 76, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-1)', display: 'block', flexShrink: 0 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={attachmentUrl(u)} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            {!disabled && (
+            {!disabled && !busy && (
               <button type="button" title="Entfernen"
                 onClick={(e) => { e.preventDefault(); onChange(value.filter((_, idx) => idx !== i)); }}
                 style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: 999, border: 'none', background: 'rgba(10,10,11,.62)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
