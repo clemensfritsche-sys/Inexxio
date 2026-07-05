@@ -30,14 +30,14 @@ def test_role_scoped_tool_whitelist():
     supplier = AiPrincipal(actor=_ai(), on_behalf_of=_user("supplier"))
     autonomous = AiPrincipal(actor=_ai(), on_behalf_of=None)
 
-    assert _names(customer) == {"shop_products", "my_orders"}
+    assert _names(customer) == {"shop_products", "my_orders", "open_page"}
     assert "recent_events" not in _names(customer)
     assert "create_article_draft" not in _names(customer)
 
     assert {"list_articles", "recent_events", "create_article_draft",
-            "propose_release_order"} <= _names(staff)
+            "propose_release_order", "open_page"} <= _names(staff)
 
-    assert _names(supplier) == {"list_orders", "get_order"}
+    assert _names(supplier) == {"list_orders", "get_order", "open_page"}
 
     # Autonom (ohne Delegation): nur lesen, keine Schreib-Tools.
     assert _names(autonomous) == {"list_articles", "get_article", "inventory_summary", "recent_events"}

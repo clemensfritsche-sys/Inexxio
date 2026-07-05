@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 
 class CompanySettingsUpdate(BaseModel):
@@ -38,25 +38,12 @@ class CompanySettingsUpdate(BaseModel):
     hcaptcha_site_key: Optional[str] = None
     google_maps_api_key: Optional[str] = None
     default_receiving_location_id: Optional[int] = None
-    article_names: Optional[list[str]] = None
     # Shop / Verkauf
     shop_currencies: Optional[list[str]] = None
     shop_country_currency: Optional[dict] = None
     shop_default_currency: Optional[str] = None
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
-
-    @field_validator("article_names")
-    @classmethod
-    def _names_clean(cls, v: Optional[list[str]]) -> Optional[list[str]]:
-        if v is None:
-            return None
-        seen: list[str] = []
-        for name in v:
-            n = (name or "").strip()
-            if n and n not in seen:
-                seen.append(n)
-        return seen
 
 
 class CompanySettingsResponse(BaseModel):
@@ -97,18 +84,12 @@ class CompanySettingsResponse(BaseModel):
     hcaptcha_site_key: Optional[str]
     google_maps_api_key: Optional[str]
     default_receiving_location_id: Optional[int] = None
-    article_names: list[str] = []
     # Shop / Verkauf
     shop_currencies: Optional[list[str]] = None
     shop_country_currency: Optional[dict] = None
     shop_default_currency: str = "CHF"
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
-
-    @field_validator("article_names", mode="before")
-    @classmethod
-    def _names_default(cls, v: Optional[list]) -> list[str]:
-        return v or []
 
 
 class UserProfileResponse(BaseModel):

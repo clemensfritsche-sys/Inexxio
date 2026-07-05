@@ -56,10 +56,6 @@ class CompanySettings(Base):
     # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
     default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
 
-    # Artikel: Katalog wählbarer Artikelnamen (Pflege durch den Admin). Beim
-    # Anlegen eines Artikels wird der Name aus dieser Liste gewählt.
-    article_names: Mapped[Optional[list]] = mapped_column(JSONB)
-
     # ── Shop / Verkauf ──────────────────────────────────────────────────────────
     # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
     # Land → Default-Währung (editierbar) und die Fallback-Währung.

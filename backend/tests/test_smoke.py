@@ -319,14 +319,6 @@ def test_eval_fields_falls_back_to_gut_schlecht():
     assert fields == [DEFAULT_OK_FIELD] and fields[0]["type"] == "bool"
 
 
-def test_article_names_catalog_normalized():
-    """Artikelnamen-Katalog: getrimmt, eindeutig, leere verworfen."""
-    from app.schemas.admin import CompanySettingsUpdate
-
-    upd = CompanySettingsUpdate(article_names=["  Welle  ", "Welle", "", "Bolzen"])
-    assert upd.article_names == ["Welle", "Bolzen"]
-
-
 def test_article_name_capped_and_trimmed():
     """Freie Namensgebung, aber zentral getrimmt und auf NAME_MAX_LENGTH gekappt."""
     from app.schemas.article import ArticleCreate, NAME_MAX_LENGTH, clean_article_name

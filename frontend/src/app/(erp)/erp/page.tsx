@@ -174,6 +174,19 @@ export default function ErpPage() {
     api.getPublicSettings().then(setSettings).catch(() => {});
   }, []);
 
+  // Tiefer Link «?open=<Objektnummer>» (z. B. von der KI-Navigation): den Datensatz direkt
+  // öffnen. Typ serverseitig auflösen (funktioniert auch, bevor der Feed geladen ist).
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('open');
+    const oid = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(oid)) return;
+    api.resolveObject(oid).then((r) => {
+      setCreating(null);
+      setSel({ type: r.object_type as ErpRecordType, objectId: oid });
+      setMobileView('detail');
+    }).catch(() => {});
+  }, []);
+
   // Instanz-Feed: server-paginiert + server-durchsucht. Lädt Seite 0 beim Start und
   // bei jeder (entprellten) Suchänderung neu; weitere Seiten via Infinite-Scroll.
   useEffect(() => {

@@ -5041,6 +5041,16 @@
             "type": "boolean",
             "title": "Changed",
             "default": false
+          },
+          "navigate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AiNavigate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5175,6 +5185,25 @@
           "url"
         ],
         "title": "AiImageEditResponse"
+      },
+      "AiNavigate": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "label"
+        ],
+        "title": "AiNavigate",
+        "description": "Ein Navigationsvorschlag: die KI führt den Nutzer an die passende Stelle in der App\n(Shop-Produkt, Warenkorb, ERP-Datensatz …). Das Frontend rendert dafür einen Knopf."
       },
       "AiProposal": {
         "properties": {
@@ -7073,14 +7102,6 @@
             ],
             "title": "Default Receiving Location Id"
           },
-          "article_names": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Article Names",
-            "default": []
-          },
           "shop_currencies": {
             "anyOf": [
               {
@@ -7526,20 +7547,6 @@
               }
             ],
             "title": "Default Receiving Location Id"
-          },
-          "article_names": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Article Names"
           },
           "shop_currencies": {
             "anyOf": [

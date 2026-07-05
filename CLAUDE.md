@@ -288,8 +288,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   rein lexikalisch (Trigramm-Jaccard + Substring-/Wortstamm-Bonus, `services/article_names.py`,
   erkennt gemeinsame Stämme wie «schraub» → «Akkuschrauber»/«Schraubendreher»). Endpoint
   `GET /erp/articles/name-suggestions?q=…` (`ArticleNameSuggestion{name,count,score}`); Frontend
-  `NameField` (Freitext + Vorschlags-Dropdown, Dubletten-Hinweis). `company_settings.article_names`
-  bleibt als **optionale Vorschlags-Liste** (Seed, keine Pflicht) – Admin-UI entsprechend umbeschriftet.
+  `NameField` (Freitext + Vorschlags-Dropdown, Dubletten-Hinweis). Der frühere Admin-Katalog
+  `company_settings.article_names` ist **vollständig entfernt** (Modell/Schema/API + Admin-UI) –
+  Vorschläge stammen ausschliesslich aus echten Artikelnamen.
 - **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
   (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand). Im
   Stammdaten-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden gespeichert/angezeigt.
@@ -667,7 +668,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     `(public)/layout` (Website+Shop), ERP-, Konto-Layout – rechte-gescopt, rendert nur für angemeldete
     Nutzer. (4) **Live-Refresh**: verändert die KI ERP-Daten (`AiChatResponse.changed=true` via
     `tools.is_write_tool`), feuert das Widget `inexxio:data-changed` → der Feed lädt sofort nach. Der
-    Verlauf lädt beim Mounten (überlebt Seiten-Refresh).
+    Verlauf lädt beim Mounten (überlebt Seiten-Refresh); der Chat scrollt beim Öffnen ans Ende.
+    (5) **Navigation/Hinführen** (`open_page`-Tool → `AiChatResponse.navigate`): die KI kann den Nutzer
+    an die passende Stelle führen (Shop-Produkt/Warenkorb/«Meine Bestellungen»/ERP-Datensatz via
+    `/erp?open=<Objektnr>`) – das Widget rendert dazu einen Knopf. Ein Kaufwunsch «leg es in den
+    Warenkorb» wird NICHT abgewimmelt, sondern zum Produkt geführt. (6) **Rückfragen erlaubt**: bei
+    echter Unklarheit fragt die KI kurz nach statt zu raten. (7) **Schreibhilfe** liefert ein
+    vollständiges Dokument (mehrere ausformulierte Abschnitte), nie nur eine Überschrift.
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine

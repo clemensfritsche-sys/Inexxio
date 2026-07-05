@@ -77,7 +77,6 @@ _COLUMN_SAFETY_NET = (
     ("instances", "reservations", "JSONB"),
     ("instances", "reserved_quantity", "INTEGER DEFAULT 0 NOT NULL"),
     ("storage_locations", "note", "VARCHAR(500)"),
-    ("company_settings", "article_names", "JSONB"),
     # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
     ("company_settings", "object_id", "BIGINT"),
     ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
@@ -397,6 +396,31 @@ def _ensure_documents_shape() -> None:
         print(f"WARNING: _ensure_documents_shape() failed: {e}", flush=True)
 
 
+def _ensure_attachments_shape() -> None:
+    """Die ``attachments``-Tabelle exakt ans Modell angleichen (analog documents). Eine früher
+    per ``create_all()`` – oder mit übersprungener Migration – angelegte Alt-Tabelle konnte ohne
+    ``token`` entstehen; jeder Bild-Upload (Verkauf/Datenerfassung) scheiterte dann mit
+    «column token does not exist». Fehlt eine erwartete Spalte, wird die Tabelle idempotent neu
+    aufgebaut (Inhalt = verworfene Bild-Uploads, keine Rückwärtskompatibilität nötig)."""
+    from sqlalchemy import inspect
+    from .models import Attachment
+    try:
+        insp = inspect(engine)
+        if "attachments" not in insp.get_table_names():
+            Attachment.__table__.create(bind=engine, checkfirst=True)
+            return
+        have = {c["name"] for c in insp.get_columns("attachments")}
+        expected = set(Attachment.__table__.columns.keys())
+        if expected.issubset(have):
+            return  # Schema passt – nichts zu tun
+        with engine.begin() as conn:
+            conn.execute(text("DROP TABLE IF EXISTS attachments CASCADE"))
+        Attachment.__table__.create(bind=engine, checkfirst=True)
+        print("INFO: attachments-Tabelle neu aufgebaut (Schema an das Modell angeglichen).", flush=True)
+    except Exception as e:
+        print(f"WARNING: _ensure_attachments_shape() failed: {e}", flush=True)
+
+
 
 
 # Advisory-Lock-Schlüssel: Schema-/Daten-Fixups laufen genau EINMAL – auch bei
@@ -418,6 +442,7 @@ def _run_startup_fixups_once() -> None:
             print("INFO: Startup-Fixups laufen bereits (anderer Worker/Instanz) – übersprungen.", flush=True)
             return
         _ensure_documents_shape()     # documents-Tabelle exakt ans Modell angleichen (Reparatur)
+        _ensure_attachments_shape()   # attachments-Tabelle reparieren (fehlendes 'token' → Upload-Fehler)
         _ensure_columns()
         _ensure_object_id_sequence()
         _backfill_object_registry()
