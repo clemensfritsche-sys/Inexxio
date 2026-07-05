@@ -1,16 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Users, Loader2, AlertCircle, Shield, User, Truck, ShoppingBag, MoreVertical } from 'lucide-react';
+import { Search, Users, Loader2, AlertCircle, Shield, User, Truck, ShoppingBag, MoreVertical, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { userDisplayName } from '@/lib/utils';
-import type { UserProfile, UserPlatformRole } from '@/types';
+import type { UserProfile, UserPlatformRole, UserRole } from '@/types';
 
 const ROLE_CONFIG: Record<UserPlatformRole, { label: string; color: string; icon: React.ElementType }> = {
   admin: { label: 'Administrator', color: 'bg-red-50 text-red-700 border-red-200', icon: Shield },
   employee: { label: 'Mitarbeiter', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: User },
   supplier: { label: 'Lieferant', color: 'bg-green-50 text-green-700 border-green-200', icon: Truck },
   customer: { label: 'Kunde', color: 'bg-slate-50 text-slate-700 border-slate-200', icon: ShoppingBag },
+};
+
+// Anzeige-Map inkl. System-KI (ADR 004) – die Rolle 'ai' ist NICHT wählbar (nur Anzeige),
+// deshalb separat von ROLE_CONFIG (das Rollen-Menü iteriert weiterhin nur die Menschen-Rollen).
+const ROLE_DISPLAY: Record<UserRole, { label: string; color: string; icon: React.ElementType }> = {
+  ...ROLE_CONFIG,
+  ai: { label: 'System-KI', color: 'bg-bg-2 text-fg-2 border-border-2', icon: Sparkles },
 };
 
 export default function BenutzerPage() {
@@ -129,7 +136,7 @@ export default function BenutzerPage() {
               </tr>
             ) : (
               filtered.map((user) => {
-                const roleConfig = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.customer;
+                const roleConfig = ROLE_DISPLAY[user.role] ?? ROLE_CONFIG.customer;
                 const RoleIcon = roleConfig.icon;
                 return (
                   <tr key={user.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
@@ -167,7 +174,8 @@ export default function BenutzerPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="relative inline-block">
+                      {/* Die System-KI ist kein verwaltbarer Mensch: keine Rollen-/Deaktivierungs-Aktionen. */}
+                      <div className="relative inline-block" style={user.role === 'ai' ? { display: 'none' } : undefined}>
                         <button
                           onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
                           className="text-slate-400 hover:text-slate-700 transition-colors"

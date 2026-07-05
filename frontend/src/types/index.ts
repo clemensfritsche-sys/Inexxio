@@ -9,13 +9,16 @@ import type { components } from './api';
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
+// Von Menschen belegbare Rollen (Rollen-Dropdown). Die System-KI (role='ai',
+// ADR 004) ist bewusst NICHT wählbar – sie erscheint nur als Anzeige.
 export type UserPlatformRole = 'admin' | 'employee' | 'supplier' | 'customer';
+export type UserRole = UserPlatformRole | 'ai';
 
 type UserProfileApi = components['schemas']['UserProfileResponse'];
 
 // Aus dem Backend-Schema abgeleitet; nur `role` wird auf die bekannte Union verengt.
 export type UserProfile = Omit<UserProfileApi, 'role'> & {
-  role: UserPlatformRole;
+  role: UserRole;
 };
 
 // ─── Article ────────────────────────────────────────────────────────────────
@@ -448,6 +451,15 @@ export interface StorageLocationUpdateInput {
 // parent_order_id (Unterauftrag) – siehe Order.parent_order_id / abort_into_id.
 
 export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'organization';
+
+// ─── KI-Layer (ADR 004) ───────────────────────────────────────────────────────
+
+export type AiConfig = components['schemas']['AiConfig'];
+export type AiChatMessage = components['schemas']['AiChatMessage'];
+export type AiChatResponse = components['schemas']['AiChatResponse'];
+export type AiProposal = components['schemas']['AiProposal'];
+export type AiDocContent = components['schemas']['AiDocContent'];
+export type AiImageEditResponse = components['schemas']['AiImageEditResponse'];
 
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //

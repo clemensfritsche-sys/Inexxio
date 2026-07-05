@@ -7,6 +7,7 @@ import type { Order, DocumentContent } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { DocumentEditor, DocumentView } from '@/components/erp/document-editor';
 import { PanelHeader, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
+import { AiWriteAssist } from '@/components/ai/write-assist';
 import { useAutosave } from '@/lib/use-autosave';
 
 // Panel des Dokument-Schritts im Auftrag. Der Inhalt wird HIER – während der Ausführung –
@@ -140,6 +141,9 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
               {saving ? 'Speichert…' : canAutosave ? 'Nicht gespeicherte Änderungen' : 'Automatisch gespeichert'}
             </span>
           </div>
+          {/* KI-Schreibhilfe (ADR 004): verfasst/überarbeitet den Entwurf – Speichern
+              übernimmt der Autosave, «Ausstellen» bleibt der menschliche Schritt. */}
+          <AiWriteAssist current={draft} onResult={setDraft} />
           {/* Enter speichert sofort (ausser in TEXTAREAs – dort Zeilenumbruch). */}
           <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}>
             <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} />

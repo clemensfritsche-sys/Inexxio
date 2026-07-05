@@ -1,6 +1,6 @@
 # ADR 004: KI-Layer – Inexxio als KI-First-System
 
-**Status:** Proposed (Konzept – noch keine Implementierung)
+**Status:** Accepted (2026-07-05) – Phase 0–2 umgesetzt (siehe «Umsetzungsstand»)
 **Date:** 2026-07-05
 **Deciders:** Inexxio AG
 **Betrifft:** Provider-agnostische KI-Schicht, mit der Claude (Text/Tool-Use) und
@@ -253,24 +253,37 @@ Weitere baut additiv darauf; jede Phase ist für sich auslieferbar.
 
 ---
 
-## Offene Entscheidungen (Rückfragen an den Auftraggeber – mit Empfehlung)
+## Entscheide des Auftraggebers (2026-07-05)
 
-1. **Anbieter-Default: Vertex-EU vs. Anthropic-direkt?**
-   *Empfehlung:* **Vertex-EU** – DSGVO/CH-DSG-Datenresidenz + ZDR, EIN GCP-Vertrag/IAM/
-   Billing (Infra ist bereits GCP), ADC-Auth statt separatem Key. Das Gateway hält
-   Anthropic-direkt swap-bar für die wenigen Vertex-Lücken (Files/Code-Exec/MCP-Connector/
-   Managed Agents). *Nur zu entscheiden, wenn eine dieser Vertex-Lücken früh gebraucht wird.*
-2. **KI als eigener User – ja/nein?**
-   *Empfehlung:* **Ja, mit Delegation** (eigener `UserProfile`, `role='ai'`, Attribution =
-   KI, effektive Rechte = delegierender Mensch). Sauberer Audit-Trail, klarer Akteur auch
-   für autonome Läufe.
-3. **Erster Use-Case / Blaupause?**
-   *Empfehlung:* **Rechte-geschützter Assistent (read-only) zuerst**, «Artikel anlegen»
-   als erster Write-Fall (Phase 1).
-4. **Autonomie-Grundhaltung im Fundament?**
-   *Empfehlung:* **Erst nur lesen/vorschlagen** – jede zustandsändernde/nach-aussen-Aktion
-   braucht menschliche Bestätigung; Autonomie später **pro Aktionstyp**.
-5. **Gemini-Bild («Nano Banana») ab wann?** *Empfehlung:* Phase 2, am selben Vertex-Projekt.
+1. **Anbieter-Default:** **Vertex-EU** (Empfehlung angenommen). Gateway hält
+   Anthropic-direkt swap-bar (`AI_PROVIDER=anthropic`).
+2. **KI als eigener User:** **Ja, mit Delegation** – eigener `UserProfile`
+   (`role='ai'`), Attribution = KI, effektive Rechte = delegierender Mensch.
+3. **Use-Cases:** Rechte-geschützter Assistent (Chat-Widget für ERP, Konto & Shop)
+   **plus** «Artikel/Auftrag anlegen» **plus** KI-Schreibhilfe im Dokumente-
+   Prozessschrittmodul **plus** Bildbearbeitung beim Hinzufügen von Shopbildern (Gemini).
+4. **Autonomie:** **Erweitert** – reversible Entwürfe (Artikel/Auftrag, Status `draft`)
+   legt die KI direkt an; **kritische** Aktionen (Freigabe; später Geld/E-Mail) nur als
+   Vorschlag mit menschlicher Bestätigung im Chat.
+5. **Gemini-Bild:** sofort, am selben Vertex-Projekt (`AI_IMAGE_MODEL`).
+
+## Umsetzungsstand (mit diesem ADR ausgeliefert)
+
+- **Gateway** `backend/app/services/ai/gateway.py` (Vertex/Anthropic/Bild, graceful
+  503 ohne Konfiguration), **Registry** `registry.py` (Modelle + versionierte Prompts).
+- **Identität** `identity.py` (Seeding beim Start, `role='ai'`, eigene Objektnummer;
+  Admin kann die System-KI weder umrollen noch deaktivieren), **Delegation** `principal.py`.
+- **Tools** `tools.py` (rollen-gefilterte Whitelist; Scoping über `visible_orders`/
+  `can_view`/`in_stock_clauses`), **Chat** `assistant.py`, **Gate** `actions.py` +
+  `ai_actions`-Tabelle (Migration `054`), Router `routers/ai.py`
+  (`/api/v1/ai/{config,chat,write,image-edit,actions/*}`), Events `ai.*`.
+- **Frontend**: Chat-Widget `components/ai/assistant.tsx` (ERP-, Konto-, Shop-Layout;
+  Vorschlagskarten mit Bestätigen/Ablehnen), Schreibhilfe `write-assist.tsx` im
+  Dokument-Panel, Bild-KI `image-assist.tsx` im Verkauf-Panel.
+- **Konfiguration**: `.env.example` (`AI_PROVIDER`, `VERTEX_PROJECT_ID`, `VERTEX_REGION`,
+  `AI_CHAT_MODEL`, `AI_IMAGE_MODEL`, `ANTHROPIC_API_KEY`). Ohne `VERTEX_PROJECT_ID`
+  bleibt die KI unsichtbar/inaktiv – **Aktivierung = GCP-Projekt eintragen** (Cloud Run
+  Service-Account braucht `roles/aiplatform.user`).
 
 ## Bewusst (noch) NICHT gebaut
 

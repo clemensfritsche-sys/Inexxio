@@ -107,6 +107,9 @@ async def update_erp_record(
     ).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
+    # System-KI-Identität (ADR 004): Rolle ist fix – der Rest (Anzeige-Daten) bleibt editierbar.
+    if user.role == "ai" and data.model_dump(exclude_unset=True).get("role") not in (None, "ai"):
+        raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
     for key, value in data.model_dump(exclude_unset=True).items():
         old_val = getattr(user, key, None)
         old_str = str(old_val) if old_val is not None else None
