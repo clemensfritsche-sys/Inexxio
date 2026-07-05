@@ -58,20 +58,15 @@ def _similarity(query: str, candidate: str) -> float:
 
 
 def _pool(db: Session) -> dict[str, int]:
-    """Kandidaten-Namen mit Häufigkeit: bereits verwendete Artikelnamen (mit Anzahl) plus
-    die optionale Admin-Vorschlagsliste (`company_settings.article_names`, Anzahl 0) als Seed."""
+    """Kandidaten-Namen mit Häufigkeit: bereits verwendete Artikelnamen (mit Anzahl).
+    Kein Admin-Katalog mehr – die Vorschläge stammen ausschliesslich aus echten Daten."""
     rows = (
         db.query(Article.name, func.count(Article.id))
         .filter(Article.is_active == True, Article.name.isnot(None))
         .group_by(Article.name)
         .all()
     )
-    counts: dict[str, int] = {name: int(cnt) for name, cnt in rows if name and name.strip()}
-    from .admin import get_or_create_settings
-    for n in (get_or_create_settings(db).article_names or []):
-        if n and n.strip():
-            counts.setdefault(n.strip(), 0)
-    return counts
+    return {name: int(cnt) for name, cnt in rows if name and name.strip()}
 
 
 def suggest(db: Session, query: str, limit: int = 8) -> list[ArticleNameSuggestion]:

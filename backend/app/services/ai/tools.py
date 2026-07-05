@@ -478,6 +478,26 @@ def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
     return {"object_id": _num(oid), "type": t, "detail": detail}
 
 
+def _t_open_page(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Den Nutzer an die passende Stelle in der App FÜHREN (Navigation) – das Frontend
+    rendert dazu einen Knopf. Kein Datenzugriff; nur eine Zielangabe. So kann die KI
+    «soll ich es dir zeigen?» direkt umsetzen (z. B. zum Shop-Produkt bei Kaufinteresse)."""
+    kind = args.get("kind")
+    oid = args.get("object_id")
+    if kind == "shop_product" and oid:
+        return {"navigate": {"path": f"/shop/product?id={int(oid)}", "label": "Zum Produkt"}}
+    if kind == "erp_record" and oid:
+        return {"navigate": {"path": f"/erp?open={int(oid)}", "label": "Datensatz öffnen"}}
+    fixed = {
+        "shop": {"path": "/shop", "label": "Zum Shop"},
+        "cart": {"path": "/shop/cart", "label": "Zum Warenkorb"},
+        "my_orders": {"path": "/konto", "label": "Zu meinen Bestellungen"},
+    }
+    if kind in fixed:
+        return {"navigate": fixed[kind]}
+    return {"error": "Unbekanntes Navigationsziel (kind)"}
+
+
 def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Firmen-/Systemkonfiguration lesen (Personal) – ohne Geheimnisse (keine IBAN/Keys)."""
     from ..admin import get_or_create_settings
@@ -489,7 +509,6 @@ def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
         "email": s.email, "phone": s.phone, "website": s.website,
         "vat_method": s.vat_method, "vat_period": s.vat_period,
         "default_payment_days": s.default_payment_days,
-        "article_names_catalog": list(getattr(s, "article_names", None) or []),
         "default_receiving_location_id": _num(getattr(s, "default_receiving_location_id", None)),
     }
 
@@ -887,6 +906,16 @@ _DEFINITIONS: dict[str, dict] = {
         "Shop-Sortiment für Kaufberatung (publizierte Produkte mit Preisen, CHF).",
         {"query": {"type": "string", "description": "Titelsuche (Teilstring)"}},
     ),
+    "open_page": _tool(
+        "open_page",
+        "Den Nutzer an die passende Stelle in der App FÜHREN (Navigation, rendert einen Knopf). "
+        "Nutze dies, um «soll ich es dir zeigen?» umzusetzen – z. B. bei Kaufinteresse zum "
+        "Shop-Produkt (kind=shop_product + object_id), zum Warenkorb (cart), zu «Meine "
+        "Bestellungen» (my_orders) oder zu einem ERP-Datensatz (erp_record + object_id, nur Personal).",
+        {"kind": {"type": "string", "enum": ["shop", "shop_product", "cart", "my_orders", "erp_record"]},
+         "object_id": {"type": "integer", "description": "Objektnummer (bei shop_product/erp_record)"}},
+        ["kind"],
+    ),
     "my_orders": _tool(
         "my_orders",
         "Die eigenen Shop-Bestellungen der angemeldeten Person (Status, Betrag).",
@@ -994,6 +1023,7 @@ _EXECUTORS: dict[str, ToolFn] = {
     "shop_products": _t_shop_products,
     "my_orders": _t_my_orders,
     "resolve_object": _t_resolve_object,
+    "open_page": _t_open_page,
     "get_instance": _t_get_instance,
     "list_instances": _t_list_instances,
     "list_users": _t_list_users,
@@ -1016,19 +1046,19 @@ _EXECUTORS: dict[str, ToolFn] = {
 # Rollen-Whitelist: die Rolle begrenzt die Tool-Menge (und damit die Angriffsfläche).
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
-              "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
+              "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
               "list_users", "get_user", "storage_locations", "company_info", "audit_log", "fetch_web_page",
               "create_article_draft", "update_article", "add_article_step", "propose_release_article",
               "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
               "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
-                 "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
+                 "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
                  "list_users", "get_user", "storage_locations", "company_info", "fetch_web_page",
                  "create_article_draft", "update_article", "add_article_step", "propose_release_article",
                  "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
                  "propose_release_order"),
-    "supplier": ("list_orders", "get_order"),
-    "customer": ("shop_products", "my_orders"),
+    "supplier": ("list_orders", "get_order", "open_page"),
+    "customer": ("shop_products", "my_orders", "open_page"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.
     "ai": ("list_articles", "get_article", "inventory_summary", "recent_events"),
 }

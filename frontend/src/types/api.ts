@@ -1622,6 +1622,7 @@ export interface components {
              * @default false
              */
             changed: boolean;
+            navigate?: components["schemas"]["AiNavigate"] | null;
         };
         /** AiConfig */
         AiConfig: {
@@ -1678,6 +1679,17 @@ export interface components {
             width?: number | null;
             /** Height */
             height?: number | null;
+        };
+        /**
+         * AiNavigate
+         * @description Ein Navigationsvorschlag: die KI führt den Nutzer an die passende Stelle in der App
+         *     (Shop-Produkt, Warenkorb, ERP-Datensatz …). Das Frontend rendert dafür einen Knopf.
+         */
+        AiNavigate: {
+            /** Path */
+            path: string;
+            /** Label */
+            label: string;
         };
         /** AiProposal */
         AiProposal: {
@@ -2210,11 +2222,6 @@ export interface components {
             google_maps_api_key: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /**
-             * Article Names
-             * @default []
-             */
-            article_names: string[];
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -2295,8 +2302,6 @@ export interface components {
             google_maps_api_key?: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /** Article Names */
-            article_names?: string[] | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */

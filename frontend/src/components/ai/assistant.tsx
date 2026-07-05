@@ -12,7 +12,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Loader2, Send, Sparkles, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Check, Loader2, Send, Sparkles, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
@@ -23,10 +24,13 @@ import type { AiChatMessage, AiProposal } from '@/types';
 /** Event, mit dem die KI dem ERP-Feed signalisiert «ich habe Daten verändert – lade neu». */
 export const DATA_CHANGED_EVENT = 'inexxio:data-changed';
 
+type NavTarget = { path: string; label: string };
+
 interface ChatItem {
   role: 'user' | 'assistant';
   content: string;
   proposals?: AiProposal[];
+  navigate?: NavTarget;   // Navigationsvorschlag der KI (Knopf «… anzeigen»)
 }
 
 const STORE_KEY = 'inexxio_ai_chat_v1';
@@ -49,6 +53,13 @@ export function AiAssistant({ context }: { context?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // Immer ans Ende scrollen, wenn der Chat geöffnet wird (nicht oben stehen bleiben).
+  const scrollToEnd = useCallback(() => {
+    requestAnimationFrame(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }));
+  }, []);
+  useEffect(() => { if (open) scrollToEnd(); }, [open, scrollToEnd]);
 
   // Eigenständige Auth-Prüfung (das Widget hängt in mehreren Layouts): Token setzen,
   // dann die KI-Verfügbarkeit klären. Ausgeloggt/inaktiv → gar nicht rendern.
@@ -86,7 +97,10 @@ export function AiAssistant({ context }: { context?: string }) {
         .slice(-16)
         .map((m) => ({ role: m.role, content: m.content }));
       const res = await api.aiChat(history, context);
-      setItems((cur) => [...cur, { role: 'assistant', content: res.reply, proposals: res.proposals }]);
+      setItems((cur) => [...cur, {
+        role: 'assistant', content: res.reply, proposals: res.proposals,
+        navigate: res.navigate ?? undefined,
+      }]);
       // Hat die KI ERP-Daten verändert (Artikel/Auftrag/Schritt angelegt/geändert)?
       // → Feed/Detail live nachladen, ohne dass der Nutzer manuell aktualisieren muss.
       if (res.changed && typeof window !== 'undefined') {
@@ -168,6 +182,15 @@ export function AiAssistant({ context }: { context?: string }) {
               {items.map((m, i) => (
                 <div key={i} className="flex flex-col gap-2">
                   <Bubble role={m.role} content={m.content} />
+                  {m.navigate && (
+                    <button
+                      type="button"
+                      onClick={() => { setOpen(false); router.push(m.navigate!.path); }}
+                      className="flex items-center gap-2 self-start rounded-ds-md border border-border-1 bg-bg-1 px-3.5 py-2 text-xs font-semibold text-accent-ink transition-colors hover:bg-accent-soft"
+                    >
+                      <ArrowRight size={14} /> {m.navigate.label}
+                    </button>
+                  )}
                   {m.proposals?.map((p) => (
                     <ProposalCard key={p.id} proposal={p} busy={busy}
                       onDecide={(d) => decide(p.id, d)} />

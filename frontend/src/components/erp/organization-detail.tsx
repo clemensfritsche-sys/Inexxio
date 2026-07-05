@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Package, Plus, X } from 'lucide-react';
+import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
@@ -39,11 +39,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       setDirty(true);
     };
   }
-  function setNames(names: string[]) {
-    setForm((prev) => ({ ...prev, article_names: names }));
-    setDirty(true);
-  }
-
   async function save() {
     setSaving(true); setError(null);
     try {
@@ -55,8 +50,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
     } finally { setSaving(false); }
   }
-
-  const names = (('article_names' in form ? form.article_names : base.article_names) as string[] | null | undefined) ?? [];
 
   return (
     <div className="flex flex-col h-full">
@@ -137,12 +130,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="Google Maps API Key" val={v('google_maps_api_key')} onChange={set('google_maps_api_key')} span2 />
         </Sec>
 
-        {/* Artikelnamen-Katalog */}
-        <Sec title="Artikelnamen" editable icon={Package}>
-          <div className="col-span-2">
-            <ArticleNames names={names} onChange={setNames} />
-          </div>
-        </Sec>
       </div>
 
       {/* Speicherleiste – analog zur Benutzer-Detailseite */}
@@ -165,44 +152,3 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   );
 }
 
-function ArticleNames({ names, onChange }: { names: string[]; onChange: (n: string[]) => void }) {
-  const [input, setInput] = useState('');
-  function add() {
-    const n = input.trim();
-    if (!n || names.includes(n)) { setInput(''); return; }
-    onChange([...names, n]); setInput('');
-  }
-  return (
-    <>
-      <p className="mb-2.5 text-xs text-fg-3">
-        Optionale Vorschlagsliste: Artikelnamen sind frei wählbar. Diese Namen werden beim Anlegen
-        zusätzlich vorgeschlagen (neben bereits verwendeten) – keine Pflicht mehr.
-      </p>
-      <div className="flex gap-2">
-        <input value={input} onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
-          placeholder="Vorschlags-Name, z. B. Welle Antrieb"
-          className="flex-1 px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500" />
-        <button type="button" onClick={add} disabled={!input.trim()}
-          className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-          <Plus className="h-4 w-4" /> Hinzufügen
-        </button>
-      </div>
-      {names.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">Noch keine Artikelnamen angelegt.</p>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {names.map((name) => (
-            <span key={name} className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-1.5 text-sm text-slate-700">
-              {name}
-              <button type="button" onClick={() => onChange(names.filter((x) => x !== name))} aria-label={`${name} entfernen`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </>
-  );
-}

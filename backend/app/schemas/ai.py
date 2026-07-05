@@ -27,6 +27,13 @@ class AiProposal(BaseModel):
     decided_at: Optional[datetime] = None
 
 
+class AiNavigate(BaseModel):
+    """Ein Navigationsvorschlag: die KI führt den Nutzer an die passende Stelle in der App
+    (Shop-Produkt, Warenkorb, ERP-Datensatz …). Das Frontend rendert dafür einen Knopf."""
+    path: str          # relative App-Route, z. B. "/shop/product?id=100000320"
+    label: str         # Knopf-Beschriftung, z. B. "Zum Produkt"
+
+
 class AiChatResponse(BaseModel):
     reply: str
     proposals: list[AiProposal] = []
@@ -34,6 +41,8 @@ class AiChatResponse(BaseModel):
     # True, wenn die KI in diesem Lauf ERP-Daten verändert hat (Artikel/Auftrag/Schritt
     # angelegt/geändert) → das Frontend lädt den Feed live nach (kein manueller Refresh).
     changed: bool = False
+    # Optionaler Navigationsvorschlag – die KI kann den Nutzer an die passende Stelle führen.
+    navigate: Optional[AiNavigate] = None
 
 
 # ── Konfiguration (Frontend blendet den Assistenten danach ein/aus) ───────────────

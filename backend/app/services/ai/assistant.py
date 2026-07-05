@@ -51,7 +51,7 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     history = _sanitize_history(messages)
     if not history:
         return {"reply": "Womit kann ich helfen?", "proposals": [],
-                "model": registry.chat_model_light(), "changed": False}
+                "model": registry.chat_model_light(), "changed": False, "navigate": None}
 
     # Dynamische Modellwahl (Kosten/Latenz): leichtes Modell für einfache Lese-/Zählfragen,
     # starkes Modell + Reasoning für mehrstufige/schreibende Aufgaben – anhand der letzten
@@ -74,6 +74,7 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     in_tokens = out_tokens = 0
     proposal_ids: list[int] = []
     changed = False          # hat ein schreibendes Tool den ERP-Bestand verändert? (Live-Refresh)
+    navigate: dict | None = None   # letzter Navigationsvorschlag (open_page)
     reply = ""
 
     for _ in range(_MAX_TOOL_ROUNDS):
@@ -102,6 +103,8 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
             result = tools.execute(db, principal, tu.name, dict(tu.input or {}))
             if tools.is_write_tool(tu.name) and not (isinstance(result, dict) and result.get("error")):
                 changed = True
+            if isinstance(result, dict) and isinstance(result.get("navigate"), dict):
+                navigate = result["navigate"]           # letzter open_page-Vorschlag gewinnt
             if isinstance(result, dict) and result.get("proposed") and result.get("action_id"):
                 proposal_ids.append(int(result["action_id"]))
             results.append(_tool_result_block(tu.id, result))
@@ -130,7 +133,8 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
             {"id": a.id, "action_type": a.action_type, "summary": a.summary, "status": a.status}
             for a in rows
         ]
-    return {"reply": reply, "proposals": proposals, "model": model, "changed": changed}
+    return {"reply": reply, "proposals": proposals, "model": model, "changed": changed,
+            "navigate": navigate}
 
 
 # ─── Schreibhilfe (Dokumente-Prozessschrittmodul) ─────────────────────────────────
@@ -177,7 +181,7 @@ def write_document(db: Session, principal: AiPrincipal, instruction: str,
         system=registry.WRITE_SYSTEM_PROMPT,
         tools=[_DOC_TOOL],
         tool_choice={"type": "tool", "name": "write_document"},
-        max_tokens=3000,
+        max_tokens=4096,
     )
     block = next((b for b in resp.content if getattr(b, "type", None) == "tool_use"), None)
     if not block:
