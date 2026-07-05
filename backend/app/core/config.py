@@ -54,7 +54,10 @@ class Settings(BaseSettings):
     # Ohne konfiguriertes Projekt/Key ist die KI automatisch inaktiv (kein Crash).
     ai_provider: str = "vertex"
     vertex_project_id: str = ""                 # GCP-Projekt (leer = KI inaktiv bei 'vertex')
-    vertex_region: str = "europe-west1"         # EU-Region (Datenresidenz CH/EU)
+    # Vertex-Standort: 'eu' = EU-Multi-Region-Endpunkt (Datenresidenz CH/EU, breite
+    # Modellabdeckung inkl. Opus 4.6) | eine feste Region (europe-west1/-west4) | 'global'
+    # (keine EU-Garantie). Für DSGVO/CH-DSG bewusst 'eu' als Default.
+    vertex_region: str = "eu"
     anthropic_api_key: str = ""                 # nur für ai_provider='anthropic'
     # Modell-IDs – konfigurierbar, Registry in services/ai/registry.py.
     ai_chat_model: str = "claude-opus-4-8"

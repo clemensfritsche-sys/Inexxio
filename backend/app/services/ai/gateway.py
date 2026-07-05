@@ -26,6 +26,14 @@ class AiUnavailable(Exception):
     """KI nicht konfiguriert/erreichbar – Aufrufer antworten 503, kein Crash."""
 
 
+def _provider_detail(msg: str, e: Exception) -> str:
+    """Ausserhalb der Produktion die echte Provider-Ursache anhängen (Diagnose ohne
+    Log-Zugriff: z. B. 403 Rechte, 404 Modell/Region)."""
+    if settings.app_env.lower() != "production":
+        return f"{msg} ({type(e).__name__}: {str(e)[:400]})"
+    return msg
+
+
 # ── Verfügbarkeit ─────────────────────────────────────────────────────────────────
 
 def is_enabled() -> bool:
@@ -98,10 +106,10 @@ def complete(
     except AiUnavailable:
         raise
     except Exception as e:
-        # Provider-Fehler (Quota, Netz, Region) → sauber als «nicht verfügbar» melden;
-        # Details gehören ins Log, nicht zum Endnutzer.
+        # Provider-Fehler (Quota, Netz, Region, Modell/Rechte) → «nicht verfügbar».
+        # Voller Fehler ins Log; ausserhalb der Produktion zusätzlich in die Meldung.
         print(f"WARNING: AI completion failed: {type(e).__name__}: {e}", flush=True)
-        raise AiUnavailable("KI-Dienst derzeit nicht verfügbar")
+        raise AiUnavailable(_provider_detail("KI-Dienst derzeit nicht verfügbar", e))
 
 
 # ── Gemini-Bild («Nano Banana», Shop-Bildbearbeitung) ─────────────────────────────
@@ -125,10 +133,13 @@ def edit_image(image_bytes: bytes, mime: str, instruction: str) -> tuple[bytes, 
     if not image_enabled():
         raise AiUnavailable("Bild-KI nicht konfiguriert (VERTEX_PROJECT_ID fehlt)")
     from .registry import image_model
+    region = settings.vertex_region
+    # Host wie beim Anthropic-SDK: 'global' → ohne Regions-Präfix; 'eu'/feste Region →
+    # '{region}-aiplatform...'. Der Standort im Pfad ist stets die konfigurierte Region.
+    host = "aiplatform.googleapis.com" if region == "global" else f"{region}-aiplatform.googleapis.com"
     url = (
-        f"https://{settings.vertex_region}-aiplatform.googleapis.com/v1/projects/"
-        f"{settings.vertex_project_id}/locations/{settings.vertex_region}"
-        f"/publishers/google/models/{image_model()}:generateContent"
+        f"https://{host}/v1/projects/{settings.vertex_project_id}"
+        f"/locations/{region}/publishers/google/models/{image_model()}:generateContent"
     )
     body = {
         "contents": [{
@@ -160,4 +171,4 @@ def edit_image(image_bytes: bytes, mime: str, instruction: str) -> tuple[bytes, 
         raise
     except Exception as e:
         print(f"WARNING: AI image edit failed: {type(e).__name__}: {e}", flush=True)
-        raise AiUnavailable("Bild-KI derzeit nicht verfügbar")
+        raise AiUnavailable(_provider_detail("Bild-KI derzeit nicht verfügbar", e))

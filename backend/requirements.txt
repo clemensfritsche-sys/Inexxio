@@ -15,6 +15,6 @@ google-cloud-storage==2.19.0
 google-cloud-secret-manager==2.21.1
 stripe==11.2.0
 # KI-Layer (ADR 004): Claude via Vertex AI (EU) – [vertex] bringt google-auth für ADC.
-anthropic[vertex]==0.40.0
+anthropic[vertex]==0.116.0
 pytest==8.3.4
 pytest-asyncio==0.24.0
