@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag, QrCode, AlertTriangle } from 'lucide-react';
+import {
+  Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Clock, Tag, QrCode, AlertTriangle,
+  Ruler, ShoppingCart, Box, Square, Scale, Droplet, Fingerprint, Layers, PlusCircle, ExternalLink,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
-  ARTICLE_UNITS, SERIALIZATION_OPTIONS, statusConfig,
+  statusConfig,
   unitLabel, serializationLabel, normalizeSize, normalizeWeight,
   validateName, validateSize, validateWeight,
 } from '@/lib/article';
@@ -14,7 +17,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { TextField, SelectField, Segmented, Label, ErrorText, SaveIndicator, inputCls } from '@/components/erp/fields';
+import { TextField, Label, ErrorText, SaveIndicator, inputCls } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -328,43 +331,42 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'stammdaten' && (
-          <div style={H.card}>
+          <div style={{ maxWidth: 880 }}>
             {locked ? (
-              <>
-                <div style={lockedNotice}>
-                  <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
-                </div>
-                <Row k="Name" v={record!.name} />
-                <Row k="Einheit" v={unitLabel(record!.unit)} />
-                <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
-                {record!.size && <Row k="Grösse" v={record!.size} />}
-                {(weightIsComputed || record!.weight_kg != null) && (
-                  <Row k="Gewicht" v={weightIsComputed ? `${fmtWeight(computedWeight!)} kg (berechnet)` : `${record!.weight_kg} kg`} />
-                )}
-                {OPTIONAL_FIELDS.filter((f) => form[f.key].trim() !== '').map((f) => (
-                  <Row key={f.key} k={f.label} v={form[f.key]} />
-                ))}
-              </>
+              <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
-              <>
-                <NameField value={form.name} onChange={(v) => set('name', v)}
-                  error={form.name.trim() ? errs.name : null} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
-                  <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
-                </div>
-                <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600 (optional)" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt – optional" error={form.size ? errs.size : null} />
-                {weightIsComputed ? (
-                  <ComputedWeight value={computedWeight!} />
-                ) : (
-                  <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5 (optional)" hint="Grösser als 0, max. 3 Nachkommastellen – optional" error={form.weight_kg ? errs.weight : null} />
-                )}
-                <OptionalFieldsEditor added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
-              </>
+              <div style={SPEC.card}>
+                <SpecSection icon={FileText} title="Stammdaten">
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <NameField value={form.name} onChange={(v) => set('name', v)}
+                      error={form.name.trim() ? errs.name : null} />
+                  </div>
+                  <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
+                  <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
+                </SpecSection>
+
+                <SpecSection icon={Ruler} title="Physische Eigenschaften">
+                  <TextField label="Abmessungen (mm)" value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600 (optional)" hint="Masse in mm, aufsteigend & mit 'x' getrennt – optional" error={form.size ? errs.size : null} />
+                  {weightIsComputed ? (
+                    <ComputedWeight value={computedWeight!} />
+                  ) : (
+                    <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5 (optional)" hint="Grösser als 0, max. 3 Nachkommastellen – optional" error={form.weight_kg ? errs.weight : null} />
+                  )}
+                </SpecSection>
+
+                <SpecSection icon={ShoppingCart} title="Zusätzliche Angaben" last>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <OptionalFieldsEditor added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
+                  </div>
+                </SpecSection>
+              </div>
             )}
-            {!isCreate && <PriceRange record={record!} />}
-            {!isCreate && <LeadTimeRange record={record!} />}
+            {!isCreate && (record!.unit_cost_low != null || record!.lead_time_days_low != null) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 16 }}>
+                <PriceRange record={record!} />
+                <LeadTimeRange record={record!} />
+              </div>
+            )}
           </div>
         )}
         {tab === 'prozess' && (
@@ -556,11 +558,134 @@ function PriceRange({ record }: { record: Article }) {
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+// ─── Spezifikation: sektionierte Ansicht (Design-Redesign) ────────────────────
+// Symbol-Auswahl je Einheit/Serialisierung (statt Dropdown/Segmented) – «Symbol + Wort».
+const UNIT_PICK = [
+  { value: 'Stk', label: 'Stk.', icon: Box },
+  { value: 'mm', label: 'mm', icon: Ruler },
+  { value: 'm2', label: 'm²', icon: Square },
+  { value: 'kg', label: 'kg', icon: Scale },
+  { value: 'l', label: 'l', icon: Droplet },
+];
+const SERIAL_PICK = [
+  { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
+  { value: 'batch', label: 'Batch', icon: Layers },
+];
+
+const SPEC = {
+  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '26px 28px' } as React.CSSProperties,
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '22px 40px' } as React.CSSProperties,
+};
+
+// Abschnitts-Kopf (getöntes Symbol + Versalien-Titel + Haarlinie) – EIN Look über alle Sektionen.
+function SpecSection({ icon: Icon, title, last, children }: {
+  icon: React.ElementType; title: string; last?: boolean; children: React.ReactNode;
+}) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: 'var(--fg-3)', flexShrink: 0 }}>{k}</span>
-      <span style={{ color: 'var(--fg-1)', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    <div style={{ marginBottom: last ? 0 : 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 12, marginBottom: 22, borderBottom: '1px solid var(--border-1)' }}>
+        <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+          <Icon size={17} />
+        </span>
+        <span style={{ font: '800 14px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>{title}</span>
+      </div>
+      <div style={SPEC.grid}>{children}</div>
+    </div>
+  );
+}
+
+// Read-only-Feld: Versalien-Overline + kräftiger Wert (optional Einheit/mono).
+function ReadField({ label, value, unit, mono, full }: {
+  label: string; value: React.ReactNode; unit?: string; mono?: boolean; full?: boolean;
+}) {
+  return (
+    <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
+      <div style={{ font: '600 11.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>{label}</div>
+      <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 7, lineHeight: 1.4, ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14 } : null) }}>
+        {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 4 }}>{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+function ReadLink({ label, href, full }: { label: string; href: string; full?: boolean }) {
+  let host = href;
+  try { host = new URL(href).hostname.replace(/^www\./, ''); } catch { /* roher Wert */ }
+  return (
+    <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
+      <div style={{ font: '600 11.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>{label}</div>
+      <a href={href} target="_blank" rel="noreferrer"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
+        {host} <ExternalLink size={13} />
+      </a>
+    </div>
+  );
+}
+
+// Symbol-Auswahl (Pille mit Icon + Wort); aktiv = Akzent. Ersetzt Dropdown/Segmented.
+function IconPick({ label, value, onChange, options, required }: {
+  label: string; value: string; onChange: (v: string) => void; required?: boolean;
+  options: { value: string; label: string; icon: React.ElementType }[];
+}) {
+  return (
+    <div>
+      <Label required={required}>{label}</Label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {options.map((o) => {
+          const on = value === o.value; const Icon = o.icon;
+          return (
+            <button key={o.value} type="button" onClick={() => onChange(o.value)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px 7px 10px', borderRadius: 'var(--r-pill)', cursor: 'pointer', transition: 'all .13s',
+                border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`, background: on ? 'var(--accent-soft)' : '#fff' }}>
+              <Icon size={15} style={{ color: on ? 'var(--accent-ink)' : 'var(--fg-4)' }} />
+              <b style={{ font: '700 12.5px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>{o.label}</b>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Read-only-Spezifikation (freigegebener Artikel) – in Sektionen gegliedert.
+function SpecRead({ record, form, weightIsComputed, computedWeight }: {
+  record: Article; form: Form; weightIsComputed: boolean; computedWeight: string | number | null;
+}) {
+  const has = (k: OptKey) => form[k].trim() !== '';
+  const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
+  const hasProcurement = has('supplier_article_number') || has('cad_url') || has('min_order_qty')
+    || has('safety_stock') || record.landed_unit_cost != null;
+  return (
+    <div style={SPEC.card}>
+      <div style={{ ...lockedNotice, marginBottom: 24 }}>
+        <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
+      </div>
+      <SpecSection icon={FileText} title="Stammdaten" last={!hasPhysical && !hasProcurement}>
+        <ReadField label="Artikelname" value={record.name} full />
+        <ReadField label="Mengeneinheit" value={unitLabel(record.unit)} />
+        <ReadField label="Serialisierung" value={serializationLabel(record.serialization)} />
+        {has('surface') && <ReadField label="Oberfläche" value={form.surface} />}
+        {has('material') && <ReadField label="Material" value={form.material} />}
+      </SpecSection>
+      {hasPhysical && (
+        <SpecSection icon={Ruler} title="Physische Eigenschaften" last={!hasProcurement}>
+          {record.size && <ReadField label="Abmessungen" value={record.size} unit="mm" mono />}
+          {(weightIsComputed || record.weight_kg != null) && (
+            <ReadField label="Gewicht" value={weightIsComputed ? fmtWeight(computedWeight!) : String(record.weight_kg)}
+              unit={weightIsComputed ? 'kg (berechnet)' : 'kg'} mono />
+          )}
+        </SpecSection>
+      )}
+      {hasProcurement && (
+        <SpecSection icon={ShoppingCart} title="Beschaffung" last>
+          {has('supplier_article_number') && <ReadField label="Bestellnummer" value={form.supplier_article_number} />}
+          {record.landed_unit_cost != null && <ReadField label="EK-Preis" value={fmtChf(record.landed_unit_cost)} unit="CHF" mono />}
+          {has('min_order_qty') && <ReadField label="Mindestbestellmenge" value={form.min_order_qty} mono />}
+          {has('safety_stock') && <ReadField label="Sicherheitsbestand" value={form.safety_stock} mono />}
+          {has('cad_url') && <ReadLink label="CAD-Link" href={form.cad_url} full />}
+        </SpecSection>
+      )}
     </div>
   );
 }
@@ -572,8 +697,13 @@ function OptionalFieldsEditor({ added, form, onSet, onAdd, onRemove }: {
 }) {
   const available = OPTIONAL_FIELDS.filter((f) => !added.includes(f.key));
   return (
-    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Label>Optionale Felder</Label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {added.length === 0 && (
+        <p style={{ font: '500 13px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5, margin: 0 }}>
+          Noch keine zusätzlichen Felder. Füge bei Bedarf optionale Attribute hinzu – z. B. Oberfläche, Material,
+          CAD-Link oder Sicherheitsbestand.
+        </p>
+      )}
       {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
         <div key={f.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <div style={{ flex: 1 }}>
