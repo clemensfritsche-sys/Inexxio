@@ -65,11 +65,11 @@ REGISTRY: dict[str, EventType] = {
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
-    # **Dokument**: erzeugt einen nicht-physischen Liefergegenstand (Vertrag/AGB/Zertifikat …).
-    # Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE, weil der Auftrag etwas Neues
-    # hervorbringt (das nummerierte Dokument) statt auf vorhandenen Bestand zuzugreifen –
-    # so wird der Auftrag korrekt als „produce" abgeleitet und greift NIE FIFO auf Lager zu.
-    # Fachtabelle ``Document`` (eigene Objektnummer, eingefrorener Inhalt).
+    # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
+    # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
+    # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
+    # wird als „produce" abgeleitet und greift NIE FIFO auf Lager zu. Der Inhalt wird während
+    # der Ausführung verfasst und mit «Ausstellen» festgeschrieben.
     "document":   EventType("document",   "Dokument",       NEUTRAL,  PRODUCE,  "Document"),
 }
 

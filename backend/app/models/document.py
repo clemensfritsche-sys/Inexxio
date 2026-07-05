@@ -1,7 +1,6 @@
-from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,43 +9,37 @@ from .base import TimestampMixin
 
 
 class Document(Base, TimestampMixin):
-    """Ausführung des Prozessschritts «Dokument» – das **erzeugte, nummerierte Dokument**.
+    """Ausführung des Prozessschritts «Dokument» – eine Fachzeile unter dem Auftrag.
 
-    Anders als die kaufmännischen Fachzeilen (PurchaseOrder/Sale/Movement, die OHNE eigene
-    Nummer unter dem Auftrag laufen) IST das Dokument der Liefergegenstand des Auftrags und
-    trägt deshalb – wie eine Instanz – eine **eigene 9-stellige Objektnummer** (ISO-9001-
-    Nachvollziehbarkeit, klickbar/scanbar/verlinkbar).
+    Das Dokument trägt **keine eigene Objektnummer**. Sein Liefergegenstand ist die
+    **Instanz**, die der Auftrag erzeugt (wie bei jedem Erzeugungsauftrag): die
+    **Instanz-Objektnummer IST die Dokumentennummer**, und das **Freigabedatum der Instanz**
+    (``instances.released_at``) IST das Dokumentdatum. Verschiedene Ausfertigungen = verschiedene
+    Aufträge/Instanzen mit eigenen Nummern (statt einer Revisions-/Versionsnummer).
 
-    Der Inhalt (``content``) ist ein **eingefrorener Snapshot** der Schritt-Vorlage
-    (``article_process_steps.document_content``), festgehalten bei der Auftragsfreigabe.
-    Ab Erzeugung unveränderlich: eine Änderung erzeugt eine neue Version (``replaced_by_id``),
-    das Original bleibt erhalten (rechtliche/QM-Aufbewahrung).
+    Der Inhalt (``content``) wird – anders als früher – **während der Auftragsausführung**
+    an diesem Schritt verfasst (nicht am Artikel vorlagt) und mit «Ausstellen» (``done``)
+    festgeschrieben. Analog zur Datenerfassung (``Inspection``): erst mit dem Abschluss ist
+    der Schritt erledigt.
 
     ``content``-Struktur (bewusst schlank, „Word"-artige Textdokumente):
-        {"title": str, "subtitle": str|None, "document_date": str|None,
-         "sections": [{"heading": str, "body": str}]}
+        {"title": str, "subtitle": str|None, "sections": [{"heading": str, "body": str}]}
     """
 
     __tablename__ = "documents"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    # Eigene Objektnummer – das Dokument ist ein eigenständiger, nachvollziehbarer ERP-Datensatz.
-    object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
 
-    # Herkunft: unter welchem Auftrag entstanden, aus welcher Schritt-Definition, welche Vorlage.
+    # Herkunft: unter welchem Auftrag / aus welcher Schritt-Definition (bei Mehrpositionen: Artikel).
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
-    # Eingefrorener Inhalt (Snapshot der Vorlage bei Freigabe) + denormalisierter Titel (Feed).
+    # Verfasster Inhalt (während der Ausführung) – Snapshot beim Ausstellen unveränderlich.
     content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    # Versionierung: Ersetzen statt Ändern (Nachfolger-Objektnummer; Original bleibt erhalten).
-    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
-    replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    # «Ausgestellt» – erst dann gilt der Schritt als erledigt (analog Inspection.result).
+    done: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    # Zeitpunkt der Ausstellung (= Auftragsfreigabe, ab dann eingefroren). is_active kommt
-    # aus dem TimestampMixin (Soft-Delete).
-    issued_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # created_at/updated_at/is_active kommen aus dem TimestampMixin.

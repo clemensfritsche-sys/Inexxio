@@ -12,7 +12,7 @@ from sqlalchemy import func, select, text, union_all
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, CompanySettings, Document, Instance, ObjectRef, Order,
+    Article, CompanySettings, Instance, ObjectRef, Order,
     StorageLocation, UserProfile,
 )
 
@@ -26,8 +26,8 @@ _TYPE_MODELS = {
     "article": Article,
     "order": Order,
     "instance": Instance,
-    # Das Dokument ist der nummerierte Liefergegenstand des «Dokument»-Schritts (eigene Nummer).
-    "document": Document,
+    # Das Dokument trägt KEINE eigene Nummer – seine Nummer ist die Instanz-Objektnummer
+    # (der Liefergegenstand des Auftrags). Deshalb NICHT in der Nummernkreis-Registry.
     "storage_location": StorageLocation,
     # Das Unternehmen selbst (Singleton) ist ebenfalls ein nummerierter ERP-Datensatz.
     "organization": CompanySettings,

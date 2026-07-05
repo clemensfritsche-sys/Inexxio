@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from ..domain.event_types import STEP_TYPES as ALLOWED_STEP_TYPES
 from ..services.article_fields import normalize_shared_fields
-from .document import DocumentContent
 from .movement import LOCATION_TYPES
 
 # Schritttypen kommen aus der deklarativen Registry (``domain.event_types``) – EINE
@@ -141,8 +140,6 @@ class ArticleProcessStepCreate(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
-    # Editierbare Dokument-Vorlage (nur beim Schritttyp «document»).
-    document_content: Optional[DocumentContent] = None
 
     @field_validator("shared_fields")
     @classmethod
@@ -217,7 +214,6 @@ class ArticleProcessStepUpdate(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
-    document_content: Optional[DocumentContent] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -271,7 +267,6 @@ class ArticleProcessStepResponse(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: list[ResourceLineView] = []
-    document_content: Optional[DocumentContent] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime

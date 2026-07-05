@@ -30,17 +30,15 @@ class Article(Base, TimestampMixin):
 
     status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
 
-    # Physisch (Default) vs. nicht-physisch (Dokument; später Software). Ein nicht-physischer
-    # Artikel erzeugt bei der Auftragsfreigabe KEINE Bestands-Instanzen; sein Liefergegenstand
-    # ist das nummerierte Dokument.
-    physical: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
-
-    # Stammdaten (Pflichtfelder)
+    # Stammdaten. Pflicht ist einzig der **Name**; Einheit/Serialisierung tragen einen
+    # Default (Stk / unit), Grösse & Gewicht sind optional (physische Attribute, die z. B.
+    # ein Dokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-
+    # physisch mehr: ob ein Dokument entsteht, entscheidet allein der Prozessschritt «document».
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    unit: Mapped[str] = mapped_column(String(10), nullable=False)  # Stk | m | kg | l
-    serialization: Mapped[str] = mapped_column(String(20), nullable=False)  # unit | batch
-    size: Mapped[str] = mapped_column(String(100), nullable=False)  # z. B. 3x40x600
-    weight_kg: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    unit: Mapped[str] = mapped_column(String(10), default="Stk", server_default="Stk", nullable=False)  # Stk | m | kg | l
+    serialization: Mapped[str] = mapped_column(String(20), default="unit", server_default="unit", nullable=False)  # unit | batch
+    size: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # z. B. 3x40x600 (optional)
+    weight_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # optional
 
     # Optionale Stammdaten – nur bei Bedarf gepflegt (dynamische Feldliste im UI).
     material: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

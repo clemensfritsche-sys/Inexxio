@@ -1185,7 +1185,7 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
     return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   if (step.step_type === 'document') {
-    return <DocumentPanel document={stepOrder.document ?? null} />;
+    return <DocumentPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
   return <StepFallback />;
 }

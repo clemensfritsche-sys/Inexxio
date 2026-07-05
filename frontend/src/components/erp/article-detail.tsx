@@ -46,7 +46,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock';
 type Form = {
-  name: string; physical: boolean; unit: string; serialization: string; size: string; weight_kg: string;
+  name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
 };
 
@@ -61,13 +61,13 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
 ];
 
 function seedFrom(record: Article | null): Form {
-  const base = { name: '', physical: true, unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
+  const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '' };
   if (!record) return base;
   return {
     ...base,
-    name: record.name, physical: record.physical ?? true, unit: record.unit, serialization: record.serialization,
-    size: record.size, weight_kg: String(record.weight_kg),
+    name: record.name, unit: record.unit, serialization: record.serialization,
+    size: record.size ?? '', weight_kg: record.weight_kg != null ? String(record.weight_kg) : '',
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
@@ -76,21 +76,16 @@ function seedFrom(record: Article | null): Form {
 }
 
 
-// Normalisierte Änderungs-Signatur des Formulars (Autosave-Erkennung). Bei einem
-// Dokument (nicht-physisch) zählen NUR Name + Typ – Einheit/Grösse/Gewicht/optionale
-// Felder gibt es dort nicht. So bleibt die Signatur formstabil und identisch mit dem
-// gespeicherten Stand (kein Fehl-Autosave beim Öffnen eines Dokument-Artikels).
+// Normalisierte Änderungs-Signatur des Formulars (Autosave-Erkennung). Grösse/Gewicht sind
+// optional – leer bleibt leer (kein Fehl-Autosave beim Öffnen eines Artikels ohne diese Werte).
 function signatureOf(form: Form): string {
-  const isDoc = !form.physical;
   return JSON.stringify({
-    name: form.name.trim(), physical: form.physical,
-    ...(isDoc ? {} : {
-      unit: form.unit, serialization: form.serialization,
-      size: normalizeSize(form.size), weight_kg: normalizeWeight(form.weight_kg),
-      material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
-      supplier_article_number: form.supplier_article_number.trim(),
-      min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
-    }),
+    name: form.name.trim(), unit: form.unit, serialization: form.serialization,
+    size: form.size.trim() ? normalizeSize(form.size) : '',
+    weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : '',
+    material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
+    supplier_article_number: form.supplier_article_number.trim(),
+    min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
   });
 }
 
@@ -144,19 +139,16 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
   const locked = !isCreate && record !== null && record.status !== 'draft';
 
-  // Dokument (nicht-physischer Artikel): keine Einheit/Grösse/Gewicht, kein Bestand.
-  // Die Typ-Wahl ist eine Identitätsentscheidung – nur bei der Anlage wählbar.
-  const isDoc = !form.physical;
-
   // Gewicht wird read-only, sobald der Artikel verbaute Ressourcen hat: es ergibt
   // sich dann automatisch aus der Stückliste (über mehrere Ebenen, Backend).
   const computedWeight = record?.computed_weight_kg ?? null;
   const weightIsComputed = !isCreate && computedWeight != null;
 
+  // Pflicht ist nur der Name. Grösse/Gewicht sind optional – nur validieren, wenn befüllt.
   const errs = {
     name: validateName(form.name),
-    size: isDoc ? null : validateSize(form.size),
-    weight: isDoc ? null : validateWeight(form.weight_kg),
+    size: form.size.trim() ? validateSize(form.size) : null,
+    weight: form.weight_kg.trim() ? validateWeight(form.weight_kg) : null,
   };
   const valid = !errs.name && !errs.size && !errs.weight;
 
@@ -221,25 +213,20 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
     setSaving(true);
     setError(null);
     try {
-      // Dokument (nicht-physisch): nur Name senden – Einheit/Grösse/Gewicht sowie die
-      // physischen Zusatzfelder entfallen (Backend füllt neutrale Platzhalter). Der
-      // Typ (`physical`) ist eine Identitätswahl und wird nur bei der Anlage gesetzt.
-      const payload: ArticleInput = isDoc
-        ? { name: form.name.trim(), ...(isCreate ? { physical: false } : {}) }
-        : {
-            name: form.name.trim(),
-            ...(isCreate ? { physical: true } : {}),
-            unit: form.unit as ArticleUnit,
-            serialization: form.serialization as ArticleSerialization,
-            size: normalizeSize(form.size),
-            weight_kg: normalizeWeight(form.weight_kg),
-            material: form.material.trim() || null,
-            cad_url: form.cad_url.trim() || null,
-            surface: form.surface.trim() || null,
-            supplier_article_number: form.supplier_article_number.trim() || null,
-            min_order_qty: form.min_order_qty.trim() || null,
-            safety_stock: form.safety_stock.trim() || null,
-          };
+      // Grösse/Gewicht sind optional – leer ⇒ null (z. B. bei einem Dokument-Artikel).
+      const payload: ArticleInput = {
+        name: form.name.trim(),
+        unit: form.unit as ArticleUnit,
+        serialization: form.serialization as ArticleSerialization,
+        size: form.size.trim() ? normalizeSize(form.size) : null,
+        weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : null,
+        material: form.material.trim() || null,
+        cad_url: form.cad_url.trim() || null,
+        surface: form.surface.trim() || null,
+        supplier_article_number: form.supplier_article_number.trim() || null,
+        min_order_qty: form.min_order_qty.trim() || null,
+        safety_stock: form.safety_stock.trim() || null,
+      };
       if (isCreate) {
         onSaved(await api.createArticle(payload));
       } else {
@@ -267,10 +254,6 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
   const statusCfg = statusConfig(isCreate || !record ? 'draft' : record.status);
   const StatusCfgIcon = statusCfg.icon;
   const actions = isCreate || !record ? [] : articleActions(record.status, (stepsCount ?? 0) > 0);
-
-  // Ein Dokument hat keine physischen Instanzen → der Reiter «Bestand» entfällt.
-  const visibleTabs = TABS.filter((t) => !(isDoc && t.key === 'bestand'));
-  const activeTab: TabKey = isDoc && tab === 'bestand' ? 'stammdaten' : tab;
 
   return (
     <div className="flex flex-col h-full bg-bg-1">
@@ -329,8 +312,8 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginTop: 16 }}>
-          {visibleTabs.map((t) => {
-            const active = activeTab === t.key;
+          {TABS.map((t) => {
+            const active = tab === t.key;
             const Icon = t.icon;
             return (
               <button key={t.key} onClick={() => setTab(t.key)} className={cn('erp-tab', active && 'erp-tab-active')}>
@@ -347,7 +330,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
-        {activeTab === 'stammdaten' && (
+        {tab === 'stammdaten' && (
           <div style={H.card}>
             {locked ? (
               <>
@@ -356,26 +339,18 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
                 </div>
                 <Row k="Name" v={record!.name} />
-                <Row k="Art" v={isDoc ? 'Dokument' : 'Physisches Gut'} />
-                {!isDoc && (
-                  <>
-                    <Row k="Einheit" v={unitLabel(record!.unit)} />
-                    <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
-                    <Row k="Grösse" v={record!.size} />
-                    <Row k="Gewicht" v={weightIsComputed ? `${fmtWeight(computedWeight!)} kg (berechnet)` : `${record!.weight_kg} kg`} />
-                    {OPTIONAL_FIELDS.filter((f) => form[f.key].trim() !== '').map((f) => (
-                      <Row key={f.key} k={f.label} v={form[f.key]} />
-                    ))}
-                  </>
+                <Row k="Einheit" v={unitLabel(record!.unit)} />
+                <Row k="Seriennummererfassung" v={serializationLabel(record!.serialization)} />
+                {record!.size && <Row k="Grösse" v={record!.size} />}
+                {(weightIsComputed || record!.weight_kg != null) && (
+                  <Row k="Gewicht" v={weightIsComputed ? `${fmtWeight(computedWeight!)} kg (berechnet)` : `${record!.weight_kg} kg`} />
                 )}
+                {OPTIONAL_FIELDS.filter((f) => form[f.key].trim() !== '').map((f) => (
+                  <Row key={f.key} k={f.label} v={form[f.key]} />
+                ))}
               </>
             ) : (
               <>
-                {isCreate ? (
-                  <TypeChoice value={form.physical} onChange={(p) => set('physical', p)} />
-                ) : isDoc ? (
-                  <Row k="Art" v="Dokument" />
-                ) : null}
                 <div>
                   <SelectField label="Name" value={form.name} onChange={(v) => set('name', v)} required
                     options={[
@@ -390,43 +365,32 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
                   )}
                   {errs.name && form.name !== '' && <ErrorText msg={errs.name} />}
                 </div>
-                {isDoc ? (
-                  <div style={docHint}>
-                    <FileText size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Dokument-Artikel – keine physischen Stammdaten. Inhalt & Layout definierst du
-                      im Reiter «Prozess» über den Schritt «Dokument». Bei der Auftragsfreigabe wird daraus
-                      ein nummeriertes, unveränderliches PDF im Inexxio-Design.</span>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
+                  <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
+                </div>
+                <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600 (optional)" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt – optional" error={form.size ? errs.size : null} />
+                {weightIsComputed ? (
+                  <ComputedWeight value={computedWeight!} />
                 ) : (
-                  <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                      <SelectField label="Einheit" value={form.unit} onChange={(v) => set('unit', v)} options={ARTICLE_UNITS} required />
-                      <Segmented label="Seriennummererfassung" value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIALIZATION_OPTIONS} required />
-                    </div>
-                    <TextField label="Grösse (mm)" value={form.size} onChange={(v) => set('size', v)} required placeholder="z. B. 3x40x600" hint="Masse in Millimeter (mm), aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
-                    {weightIsComputed ? (
-                      <ComputedWeight value={computedWeight!} />
-                    ) : (
-                      <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} required placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
-                    )}
-                    <OptionalFieldsEditor added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
-                  </>
+                  <TextField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5 (optional)" hint="Grösser als 0, max. 3 Nachkommastellen – optional" error={form.weight_kg ? errs.weight : null} />
                 )}
+                <OptionalFieldsEditor added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
               </>
             )}
             {!isCreate && <PriceRange record={record!} />}
             {!isCreate && <LeadTimeRange record={record!} />}
           </div>
         )}
-        {activeTab === 'prozess' && (
+        {tab === 'prozess' && (
           <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
             readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
             onStepsCount={setStepsCount} />
         )}
-        {activeTab === 'bestand' && (
+        {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
         )}
-        {activeTab === 'verkauf' && (
+        {tab === 'verkauf' && (
           <SalesPanel articleObjectId={record?.object_id ?? null} />
         )}
       </div>
@@ -441,7 +405,7 @@ export function ArticleDetail({ record, suppliers = [], articleNames = [], onSav
       )}
 
       {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
-      {!locked && activeTab === 'stammdaten' && (
+      {!locked && tab === 'stammdaten' && (
         <div style={{ padding: '11px 28px', background: '#fff', borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 12.5, color: error ? 'var(--danger)' : 'var(--fg-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? blockReason ?? (isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
@@ -491,48 +455,6 @@ const lockedNotice: React.CSSProperties = {
   background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
   fontSize: 12.5, color: 'var(--fg-2)',
 };
-
-const docHint: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '11px 13px',
-  background: '#FBF3F2', border: '1px solid #F3D9D6', borderRadius: 'var(--r-md)',
-  fontSize: 12.5, color: 'var(--fg-2)',
-};
-
-// Art des Artikels – die eine fundamentale Identitätswahl (nur bei der Anlage):
-// **physisches Gut** (Bestand/Instanzen/Standorte) oder **Dokument** (nicht-physisch,
-// als PDF ausgegeben; z. B. AGB, Verträge). Zwei klare Karten statt eines Dropdowns.
-function TypeChoice({ value, onChange }: { value: boolean; onChange: (physical: boolean) => void }) {
-  const opts = [
-    { physical: true, icon: Package, title: 'Physisches Gut', desc: 'Bestand, Instanzen & Standorte' },
-    { physical: false, icon: FileText, title: 'Dokument', desc: 'AGB, Vertrag – als PDF ausgegeben' },
-  ];
-  return (
-    <div>
-      <Label required>Art des Artikels</Label>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        {opts.map((o) => {
-          const active = value === o.physical;
-          const Icon = o.icon;
-          return (
-            <button key={String(o.physical)} type="button" onClick={() => onChange(o.physical)}
-              style={{
-                display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 14px', textAlign: 'left',
-                borderRadius: 10, cursor: 'pointer',
-                border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-2)'}`,
-                background: active ? 'var(--accent-soft)' : '#fff',
-              }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: active ? 'var(--accent-ink)' : 'var(--fg-1)' }}>
-                <Icon size={17} /> {o.title}
-              </span>
-              <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{o.desc}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });

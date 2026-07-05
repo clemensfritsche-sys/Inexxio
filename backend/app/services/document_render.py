@@ -14,7 +14,9 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
-_FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+_ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
+_FONT_DIR = _ASSET_DIR / "fonts"
+_LOGO_FILE = _ASSET_DIR / "img" / "inexxio-logo.png"
 
 # ─── Inexxio-Tokens (Spiegel von styles/design-system/colors_and_type.css) ────────
 _RED = "#E51A14"        # der eine laute Akzent
@@ -73,28 +75,43 @@ def _obj_nr(object_id: Optional[int]) -> str:
     return str(object_id).zfill(9) if object_id else "—"
 
 
+def _address_lines(company: dict) -> list[str]:
+    """Saubere, mehrzeilige Firmen-Anschrift für den Briefkopf (nur befüllte Zeilen)."""
+    street = " ".join(str(x) for x in [company.get("street"), company.get("street_nr")] if x)
+    place = " ".join(str(x) for x in [company.get("zip_code"), company.get("city")] if x)
+    contact = " · ".join(str(x) for x in [company.get("email"), company.get("phone")] if x)
+    ids = " · ".join(str(x) for x in [
+        f"UID {company.get('uid_number')}" if company.get("uid_number") else None,
+        f"MWST {company.get('vat_number')}" if company.get("vat_number") else None,
+    ] if x)
+    lines = [company.get("company_name") or "Inexxio", street, place,
+             company.get("country"), contact, ids]
+    return [str(x) for x in lines if x]
+
+
 def render_pdf(content: dict, *, company: dict | None = None,
-               object_id: Optional[int] = None, issued_at=None, version: int = 1) -> bytes:
-    """Ein Dokument (kanonischer ``content``) als markengetreues A4-PDF rendern."""
+               object_id: Optional[int] = None, issued_at=None) -> bytes:
+    """Ein Dokument (kanonischer ``content``) als markengetreues A4-PDF rendern.
+
+    ``object_id`` = Instanz-Objektnummer (die Dokumentennummer), ``issued_at`` =
+    Instanz-Freigabedatum. Beides kann beim Entwurf noch fehlen (Vorschau)."""
     from weasyprint import HTML
 
     company = company or {}
-    company_name = company.get("company_name") or "Inexxio"
-    addr_bits = [company.get("street"), company.get("zip_code"), company.get("city")]
-    company_addr = " · ".join(b for b in [company.get("email"), " ".join(
-        str(x) for x in addr_bits if x)] if b)
+    address_html = "<br>".join(_esc(ln) for ln in _address_lines(company))
+    logo_html = (f'<img class="logo" src="{_LOGO_FILE.as_uri()}" alt="">'
+                 if _LOGO_FILE.exists()
+                 else f'<div class="brand">{_esc(company.get("company_name") or "Inexxio")}'
+                      f'<span class="dot">.</span></div>')
 
     title = content.get("title") or "Dokument"
     subtitle = content.get("subtitle")
-    doc_date = content.get("document_date")
     sections = content.get("sections") or []
 
-    meta_bits = [f"Nr. {_obj_nr(object_id)}"]
+    # Meta: Nummer = Instanz-Objektnummer, Datum = Instanz-Freigabe. Keine Version, kein «gültig ab».
+    meta_bits = [f"Nr. {_obj_nr(object_id)}" if object_id else "Entwurf"]
     if issued_at:
-        meta_bits.append(f"Ausgestellt {_fmt_date(issued_at)}")
-    if doc_date:
-        meta_bits.append(str(doc_date))   # wird bei der Ausgabe (unten) einmal escaped
-    meta_bits.append(f"Version {version}")
+        meta_bits.append(f"Datum {_fmt_date(issued_at)}")
 
     sections_html = "".join(
         f"<section class='clause'><h2>{_esc(s.get('heading') or '')}</h2>"
@@ -103,6 +120,7 @@ def render_pdf(content: dict, *, company: dict | None = None,
     )
 
     # Fusszeile lebt in einem CSS-``content``-String → CSS-escapen (nicht HTML).
+    company_name = company.get("company_name") or "Inexxio"
     footer_left = f"{_css_str(company_name)} · Dok. {_obj_nr(object_id)}"
 
     doc = f"""<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><style>
@@ -126,11 +144,12 @@ body {{ font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; color: {_BODY
 
 /* Briefkopf (nur Seite 1, im Fluss) */
 .letterhead {{ display: flex; justify-content: space-between; align-items: flex-start;
-  padding-bottom: 10px; border-bottom: 2px solid {_INK}; margin-bottom: 28px; }}
+  padding-bottom: 12px; border-bottom: 2px solid {_INK}; margin-bottom: 28px; }}
+.logo {{ height: 34px; width: auto; }}
 .brand {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 15pt;
   letter-spacing: -0.02em; color: {_INK}; }}
 .brand .dot {{ color: {_RED}; }}
-.brand-addr {{ font-size: 8pt; color: {_MUTED}; text-align: right; line-height: 1.5; padding-top: 3px; }}
+.brand-addr {{ font-size: 8pt; color: {_MUTED}; text-align: right; line-height: 1.55; padding-top: 2px; }}
 
 /* Titelblock */
 .kicker {{ font-family: 'Inter', sans-serif; font-weight: 600; font-size: 8.5pt;
@@ -155,8 +174,8 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
 .empty {{ color: {_MUTED}; font-style: italic; }}
 </style></head><body>
   <div class="letterhead">
-    <div class="brand">{_esc(company_name)}<span class="dot">.</span></div>
-    <div class="brand-addr">{_esc(company_addr)}</div>
+    {logo_html}
+    <div class="brand-addr">{address_html}</div>
   </div>
   <header>
     <div class="kicker">Dokument</div>

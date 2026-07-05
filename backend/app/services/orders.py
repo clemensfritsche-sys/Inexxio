@@ -57,7 +57,7 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     subject.materialize_subject(db, order, actor_id)
     instantiate_purchase(db, order, actor_id)        # Beschaffungs-Schritte → Bestellungen
     sale_svc.instantiate_for_order(db, order, actor_id)  # Verkaufs-Schritte → Belege
-    document_svc.instantiate_for_order(db, order, actor_id)  # Dokument-Schritte → nummerierte Dokumente
+    document_svc.instantiate_for_order(db, order, actor_id)  # Dokument-Schritte → leere Fachzeile (wird ausgeführt)
     reserve_resources(db, order, actor_id)           # Komponenten mengengenau reservieren
     _emit(db, "order.released", object_type="order", object_id=order.object_id,
           payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
@@ -236,20 +236,21 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
 
 def _document_embed(db: Session, order: Order, step: ArticleProcessStep,
                     doc) -> DocumentEmbed:
-    """Eingebetteter Stand des Dokument-Schritts. Ist der Auftrag noch im Entwurf (kein
-    eingefrorenes Dokument), zeigt der Embed die **Vorschau aus der Vorlage** (``step.
-    document_content``) mit ``done=False`` – so ist der Inhalt im Panel sichtbar, bevor er
-    bei der Freigabe zum nummerierten Snapshot wird."""
-    from .document import creator_name, normalize_content
+    """Eingebetteter Stand des Dokument-Schritts. Der Inhalt wird während der Ausführung
+    verfasst; Nummer (= Instanz-Objektnummer) und Datum (= Instanz-Freigabe) kommen aus der
+    vom Auftrag erzeugten Instanz. Vor der Freigabe existiert noch keine Fachzeile → leerer,
+    editierbarer Entwurf."""
+    from .document import creator_name, normalize_content, render_meta
+    obj_nr, doc_date = render_meta(db, order)
     if doc is not None:
-        emb = DocumentEmbed.model_validate(doc)   # coerct content (dict) → DocumentContent
-        emb.done = True
+        emb = DocumentEmbed.model_validate(doc)   # coerce content (dict) → DocumentContent
         emb.created_by_name = creator_name(db, doc)
+        emb.object_number = obj_nr
+        emb.document_date = doc_date
         return emb
     return DocumentEmbed(
-        id=0, done=False, object_id=None,
-        content=normalize_content(step.document_content if step else None),
-        title=(step.document_content or {}).get("title") if step else None,
+        id=0, done=False, content=normalize_content(None),
+        object_number=obj_nr, document_date=doc_date,
     )
 
 
@@ -444,7 +445,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             si.document = emb
             first.setdefault("document", emb)
             if done:
-                by_name, at = emb.created_by_name, (fact.issued_at if fact else None)
+                by_name, at = emb.created_by_name, (fact.updated_at if fact else None)
         elif step.step_type in process.RESOURCE_STEP_TYPES:
             emb = build_resource_embed(db, order, step, usage=fact)
             si.resource = emb

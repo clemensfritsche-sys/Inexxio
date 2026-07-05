@@ -33,16 +33,14 @@ export type Article = Omit<ArticleApi, 'status' | 'unit' | 'serialization'> & {
   serialization: ArticleSerialization;
 };
 
-// Eingaben für Anlage (alle Pflicht) bzw. Teil-Update aus dem Detailfenster.
+// Eingaben für Anlage bzw. Teil-Update aus dem Detailfenster. Pflicht ist nur der Name;
+// Einheit/Serialisierung tragen einen Default, Grösse & Gewicht sind optional.
 export interface ArticleInput {
   name: string;
-  // Physisch (Default) vs. nicht-physisch (Dokument). Bei einem Dokument sind
-  // Einheit/Serialisierung/Grösse/Gewicht nicht nötig (Backend füllt Platzhalter).
-  physical?: boolean;
   unit?: ArticleUnit;
   serialization?: ArticleSerialization;
-  size?: string;
-  weight_kg?: string;
+  size?: string | null;
+  weight_kg?: string | null;
   // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
   material?: string | null;
   cad_url?: string | null;
@@ -90,9 +88,11 @@ export type ResourceMode = 'consume' | 'tool';
 export type OrderStep = OrderApi['steps'][number];
 
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
+// Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
 export type DocumentContent = components['schemas']['DocumentContent'];
 export type DocumentSection = components['schemas']['DocumentSection'];
 export type OrderDocument = NonNullable<OrderApi['document']>;
+export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];
@@ -356,7 +356,6 @@ export interface ArticleProcessStepInput {
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;
-  document_content?: DocumentContent | null;
 }
 
 export interface ArticleProcessStepUpdateInput {
@@ -370,7 +369,6 @@ export interface ArticleProcessStepUpdateInput {
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;
-  document_content?: DocumentContent | null;
   is_active?: boolean;
 }
 

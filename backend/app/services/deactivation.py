@@ -217,7 +217,7 @@ def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id:
             supplier_id=s.supplier_id, webshop_url=s.webshop_url, shared_fields=s.shared_fields,
             sample_percent=s.sample_percent, capture_fields=s.capture_fields,
             target_location_type=s.target_location_type, target_location_id=s.target_location_id,
-            resource_lines=s.resource_lines, document_content=s.document_content,
+            resource_lines=s.resource_lines,
         ))
     db.flush()
 
@@ -227,10 +227,6 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
     (die Schritte werden mitkopiert; es gibt kein wiederverwendbares Prozess-Objekt)."""
     new = Article(
         object_id=next_object_id(db, "article"), status="draft",
-        # ``physical`` mitkopieren – sonst würde ein Dokument-Artikel (nicht-physisch) als
-        # physischer Nachfolger wiederauferstehen (Model-Default True) und bei Freigabe
-        # Phantom-Instanzen erzeugen.
-        physical=src.physical,
         name=src.name, unit=src.unit, serialization=src.serialization, size=src.size,
         weight_kg=src.weight_kg,
         material=src.material, cad_url=src.cad_url, surface=src.surface,

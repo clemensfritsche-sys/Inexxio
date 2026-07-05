@@ -114,10 +114,13 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource", "scrap", "document"):
-        # Marker-Fachzeile: erledigt, sobald sie existiert. Das Dokument wird bei der
-        # Auftragsfreigabe eingefroren (``document.instantiate_for_order``) → sofort «done».
+    if step_type in ("movement", "resource", "scrap"):
+        # Marker-Fachzeile: erledigt, sobald sie existiert.
         return "done" if fact else "open"
+    if step_type == "document":
+        # Das Dokument wird WÄHREND der Ausführung verfasst und mit «Ausstellen»
+        # (``done``) abgeschlossen – nicht schon bei der Freigabe (Fachzeile existiert leer).
+        return "done" if (fact and fact.done) else "open"
     return "open"
 
 

@@ -5,6 +5,7 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, OrderLine, UserProfile
 from ..schemas.disposal import ScrapUpdate
+from ..schemas.document import DocumentUpdate
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
@@ -16,6 +17,7 @@ from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
 from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
+from ..services.document import record_document
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
@@ -681,6 +683,21 @@ async def update_order_inspection(
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
     record_inspection(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/document", response_model=OrderResponse)
+async def update_order_document(
+    object_id: int,
+    data: DocumentUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue)."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    record_document(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
 
