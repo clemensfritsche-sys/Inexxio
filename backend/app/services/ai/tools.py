@@ -213,8 +213,11 @@ def _t_my_orders(db: Session, p: AiPrincipal, args: dict) -> Any:
 def _t_create_article_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Artikel-ENTWURF anlegen – derselbe Pfad wie ``POST /articles`` (reversibel,
     Status draft). Attribution: KI (Audit/Event), Mensch als Delegations-Kontext."""
-    name = (args.get("name") or "").strip()
-    if not name:
+    from ...schemas.article import clean_article_name
+    try:
+        # Frei wählbar, aber auf die maximale Länge gekappt (kurze, listentaugliche Namen).
+        name = clean_article_name(args.get("name"), required=True)
+    except ValueError:
         return {"error": "Name ist Pflicht"}
 
     def _dec(key: str) -> Decimal | None:
@@ -516,13 +519,20 @@ def _t_update_article(db: Session, p: AiPrincipal, args: dict) -> Any:
         return {"error": "Artikel nicht gefunden"}
     if a.status != "draft":
         return {"error": f"Artikel ist '{a.status}' – nur Entwürfe sind editierbar (sonst «Ersetzen»)"}
+    from ...schemas.article import clean_article_name
     text_fields = ("name", "unit", "serialization", "size", "material", "cad_url", "surface",
                    "supplier_article_number")
     qty_fields = ("weight_kg", "min_order_qty", "safety_stock")
     changed = []
     for f in text_fields:
         if f in args and args[f] is not None:
-            setattr(a, f, str(args[f]).strip() or None if f != "name" else str(args[f]).strip())
+            if f == "name":
+                try:
+                    setattr(a, f, clean_article_name(str(args[f]), required=True))
+                except ValueError as e:
+                    return {"error": str(e)}
+            else:
+                setattr(a, f, str(args[f]).strip() or None)
             changed.append(f)
     for f in qty_fields:
         if f in args and args[f] not in (None, ""):
@@ -1022,6 +1032,19 @@ _BY_ROLE: dict[str, tuple[str, ...]] = {
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.
     "ai": ("list_articles", "get_article", "inventory_summary", "recent_events"),
 }
+
+
+# Tools, die den ERP-Datenbestand verändern (Feed-relevant) → das Frontend soll nach
+# einem solchen KI-Lauf live neu laden. Vorschläge (propose_*) zählen NICHT: sie ändern
+# nichts, bis der Mensch sie bestätigt (das läuft über den Aktions-Confirm-Pfad).
+_WRITE_TOOLS: frozenset[str] = frozenset({
+    "create_article_draft", "update_article", "create_order_draft",
+    "add_article_step", "add_order_step", "set_order_instances",
+})
+
+
+def is_write_tool(name: str) -> bool:
+    return name in _WRITE_TOOLS
 
 
 def tools_for(principal: AiPrincipal) -> list[dict]:

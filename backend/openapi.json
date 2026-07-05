@@ -762,6 +762,69 @@
         ]
       }
     },
+    "/api/v1/erp/articles/name-suggestions": {
+      "get": {
+        "tags": [
+          "articles"
+        ],
+        "summary": "Name Suggestions",
+        "description": "Intelligente Namensvorschläge (bereits verwendete/ähnliche Namen) beim Anlegen –\nfreie Namensgebung, aber Dubletten werden vermieden. Ohne KI (lexikalisch, `services/\narticle_names.py`). Muss VOR `/{object_id}` stehen (sonst würde die Zahl-Route greifen).",
+        "operationId": "name_suggestions_api_v1_erp_articles_name_suggestions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 8,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArticleNameSuggestion"
+                  },
+                  "title": "Response Name Suggestions Api V1 Erp Articles Name Suggestions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/articles/{object_id}": {
       "get": {
         "tags": [
@@ -4973,6 +5036,11 @@
           "model": {
             "type": "string",
             "title": "Model"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed",
+            "default": false
           }
         },
         "type": "object",
@@ -5328,6 +5396,36 @@
         ],
         "title": "ArticleCreate",
         "description": "Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.\n\nPflicht ist einzig der **Name**. Einheit/Serialisierung tragen einen Default\n(Stk / Einzelteil), Grösse & Gewicht sind optional (physische Attribute, die z. B. ein\nDokument-Artikel nicht braucht). Es gibt KEINE Typ-Unterscheidung physisch/nicht-physisch:\nob ein Dokument entsteht, entscheidet allein der Prozessschritt «document»."
+      },
+      "ArticleNameSuggestion": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ArticleNameSuggestion",
+        "description": "Ein Namensvorschlag beim Anlegen eines Artikels (freie Namensgebung, aber das\nSystem schlägt bereits verwendete/ähnliche Namen vor, um Dubletten zu vermeiden)."
       },
       "ArticlePriceCreate": {
         "properties": {

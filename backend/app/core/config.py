@@ -60,7 +60,10 @@ class Settings(BaseSettings):
     vertex_region: str = "eu"
     anthropic_api_key: str = ""                 # nur für ai_provider='anthropic'
     # Modell-IDs – konfigurierbar, Registry in services/ai/registry.py.
-    ai_chat_model: str = "claude-opus-4-8"
+    # Dynamische Modellwahl (Kosten/Latenz): einfache Anfragen laufen auf dem leichten,
+    # schnellen Modell; nur komplexe/mehrstufige Aufgaben nutzen das starke Modell.
+    ai_chat_model: str = "claude-opus-4-8"                    # stark (komplex/Aktionen)
+    ai_chat_model_light: str = "claude-haiku-4-5-20251001"   # leicht/günstig/schnell (einfache Reads)
     ai_image_model: str = "gemini-3.1-flash-image"   # «Nano Banana 2» (Shop-Bildbearbeitung)
     ai_max_output_tokens: int = 2048
     ai_request_timeout: float = 55.0            # Sekunden je Modell-Aufruf

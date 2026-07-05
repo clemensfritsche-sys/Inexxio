@@ -17,6 +17,7 @@ import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/u
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { useScan } from '@/components/scan/scan-provider';
+import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
@@ -195,6 +196,24 @@ export default function ErpPage() {
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // KI-Live-Refresh: legt/ändert die KI im Chat einen Artikel/Auftrag/Prozessschritt,
+  // feuert das Widget DATA_CHANGED_EVENT – der Feed lädt sofort nach, ohne dass der
+  // Nutzer manuell aktualisieren muss (Optimierung #2). Re-Abo bei Suchänderung, damit
+  // die Instanzen mit der aktuellen Suche neu geladen werden.
+  useEffect(() => {
+    const q = search.trim();
+    function onDataChanged() {
+      api.getErpRecords().then(setUsers).catch(() => {});
+      api.getArticles().then(setArticles).catch(() => {});
+      api.getOrders().then(setOrders).catch(() => {});
+      api.getStorageLocations().then(setStorageLocations).catch(() => {});
+      api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
+      api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
+    }
+    window.addEventListener(DATA_CHANGED_EVENT, onDataChanged);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, onDataChanged);
+  }, [search]);
 
   // Auftrag-Detail (inkl. Prozess-Embeds) erst bei Auswahl laden (Detail-on-Demand)
   useEffect(() => {
@@ -511,7 +530,7 @@ export default function ErpPage() {
             onReset={() => { setSel(null); setCreating(null); setMobileView('list'); }}
           >
           {creating === 'article' && (
-            <ArticleDetail key="new-article" record={null} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
@@ -523,7 +542,7 @@ export default function ErpPage() {
             <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} articleNames={settings?.article_names ?? []} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (

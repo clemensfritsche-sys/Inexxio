@@ -1,5 +1,5 @@
 import type {
-  Article, ArticleInput, ArticleUpdateInput,
+  Article, ArticleInput, ArticleUpdateInput, ArticleNameSuggestion,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput, OrderDocument,
@@ -166,6 +166,13 @@ class ApiClient {
 
   createArticle(data: ArticleInput): Promise<Article> {
     return this.post('/api/v1/erp/articles', data);
+  }
+
+  // Intelligente Namensvorschläge beim Anlegen (bereits verwendete/ähnliche Namen –
+  // Dubletten vermeiden). Leere Eingabe → die häufigsten bestehenden Namen.
+  articleNameSuggestions(q: string, limit = 8): Promise<ArticleNameSuggestion[]> {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return this.get(`/api/v1/erp/articles/name-suggestions?${params.toString()}`);
   }
 
   updateArticle(objectId: number, data: ArticleUpdateInput): Promise<Article> {

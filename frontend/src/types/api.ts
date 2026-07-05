@@ -272,6 +272,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/articles/name-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Name Suggestions
+         * @description Intelligente Namensvorschläge (bereits verwendete/ähnliche Namen) beim Anlegen –
+         *     freie Namensgebung, aber Dubletten werden vermieden. Ohne KI (lexikalisch, `services/
+         *     article_names.py`). Muss VOR `/{object_id}` stehen (sonst würde die Zahl-Route greifen).
+         */
+        get: operations["name_suggestions_api_v1_erp_articles_name_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles/{object_id}": {
         parameters: {
             query?: never;
@@ -1595,6 +1617,11 @@ export interface components {
             proposals: components["schemas"]["AiProposal"][];
             /** Model */
             model: string;
+            /**
+             * Changed
+             * @default false
+             */
+            changed: boolean;
         };
         /** AiConfig */
         AiConfig: {
@@ -1709,6 +1736,22 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
+        };
+        /**
+         * ArticleNameSuggestion
+         * @description Ein Namensvorschlag beim Anlegen eines Artikels (freie Namensgebung, aber das
+         *     System schlägt bereits verwendete/ähnliche Namen vor, um Dubletten zu vermeiden).
+         */
+        ArticleNameSuggestion: {
+            /** Name */
+            name: string;
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /** Score */
+            score?: number | null;
         };
         /** ArticlePriceCreate */
         ArticlePriceCreate: {
@@ -4732,6 +4775,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArticleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    name_suggestions_api_v1_erp_articles_name_suggestions_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticleNameSuggestion"][];
                 };
             };
             /** @description Validation Error */

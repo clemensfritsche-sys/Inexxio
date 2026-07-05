@@ -105,7 +105,7 @@ jobs:
             --service-account "cloudrun-backend@${{ env.GCP_PROJECT }}.iam.gserviceaccount.com" \
             --add-cloudsql-instances "${{ env.GCP_PROJECT }}:${{ env.GCP_REGION }}:inexxio-dev-db" \
             --set-secrets "DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest,FIREBASE_PROJECT_ID=FIREBASE_PROJECT_ID:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
-            --set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,PRICES_TAX_INCLUSIVE=true,AI_PROVIDER=anthropic,AI_CHAT_MODEL=claude-opus-4-8,VERTEX_PROJECT_ID=inexxio-dev,VERTEX_REGION=eu,AI_IMAGE_MODEL=gemini-2.5-flash-image" \
+            --set-env-vars "APP_ENV=development,FRONTEND_BASE_URL=https://inexxio-dev.web.app,PRICES_TAX_INCLUSIVE=true,AI_PROVIDER=anthropic,AI_CHAT_MODEL=claude-opus-4-8,AI_CHAT_MODEL_LIGHT=claude-haiku-4-5-20251001,VERTEX_PROJECT_ID=inexxio-dev,VERTEX_REGION=eu,AI_IMAGE_MODEL=gemini-2.5-flash-image" \
             --min-instances 1 \
             --max-instances 3 \
             --memory 512Mi \

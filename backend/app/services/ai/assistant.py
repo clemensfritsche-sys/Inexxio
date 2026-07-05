@@ -50,7 +50,15 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     """Eine Assistent-Antwort erzeugen. Rückgabe: reply, offene Vorschläge, Nutzung."""
     history = _sanitize_history(messages)
     if not history:
-        return {"reply": "Womit kann ich helfen?", "proposals": [], "model": registry.chat_model()}
+        return {"reply": "Womit kann ich helfen?", "proposals": [],
+                "model": registry.chat_model_light(), "changed": False}
+
+    # Dynamische Modellwahl (Kosten/Latenz): leichtes Modell für einfache Lese-/Zählfragen,
+    # starkes Modell + Reasoning für mehrstufige/schreibende Aufgaben – anhand der letzten
+    # Nutzernachricht (siehe registry.route).
+    last_user = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+    routing = registry.route(last_user)
+    model = routing["model"]
 
     system = registry.CHAT_SYSTEM_PROMPT
     if principal.on_behalf_of:
@@ -65,14 +73,16 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     convo: list[dict] = list(history)
     in_tokens = out_tokens = 0
     proposal_ids: list[int] = []
+    changed = False          # hat ein schreibendes Tool den ERP-Bestand verändert? (Live-Refresh)
     reply = ""
 
     for _ in range(_MAX_TOOL_ROUNDS):
-        # Adaptives Reasoning (Opus 4.8): merklich bessere Bezugsauflösung & Planung,
-        # ohne erzwungenes Tool (auto) → mit Tool-Use kombinierbar.
+        # Adaptives Reasoning (nur beim starken Modell / komplexe Aufgaben – siehe routing):
+        # merklich bessere Bezugsauflösung & Planung, ohne erzwungenes Tool (auto) → mit
+        # Tool-Use kombinierbar.
         resp = gateway.complete(
-            convo, system=system, tools=tool_defs or None,
-            thinking={"type": "adaptive"}, max_tokens=4096,
+            convo, system=system, tools=tool_defs or None, model=model,
+            thinking=routing["thinking"], max_tokens=routing["max_tokens"],
         )
         in_tokens += getattr(resp.usage, "input_tokens", 0) or 0
         out_tokens += getattr(resp.usage, "output_tokens", 0) or 0
@@ -90,6 +100,8 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
         results = []
         for tu in tool_uses:
             result = tools.execute(db, principal, tu.name, dict(tu.input or {}))
+            if tools.is_write_tool(tu.name) and not (isinstance(result, dict) and result.get("error")):
+                changed = True
             if isinstance(result, dict) and result.get("proposed") and result.get("action_id"):
                 proposal_ids.append(int(result["action_id"]))
             results.append(_tool_result_block(tu.id, result))
@@ -103,7 +115,7 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     # Beobachtbarkeit: jeder Chat-Lauf als Event (Modell/Prompt-Version/Token, Akteur = KI).
     emit(db, "ai.chat", object_type="ai", object_id=None,
          payload={
-             "model": registry.chat_model(), "prompt_version": registry.PROMPT_VERSION,
+             "model": model, "prompt_version": registry.PROMPT_VERSION,
              "input_tokens": in_tokens, "output_tokens": out_tokens,
              "on_behalf_of": principal.on_behalf_of.id if principal.on_behalf_of else None,
              "role": principal.effective_role,
@@ -118,7 +130,7 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
             {"id": a.id, "action_type": a.action_type, "summary": a.summary, "status": a.status}
             for a in rows
         ]
-    return {"reply": reply, "proposals": proposals, "model": registry.chat_model()}
+    return {"reply": reply, "proposals": proposals, "model": model, "changed": changed}
 
 
 # ─── Schreibhilfe (Dokumente-Prozessschrittmodul) ─────────────────────────────────

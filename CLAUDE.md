@@ -281,8 +281,15 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
   Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
-- **Artikelnamen**: beim Anlegen aus einem Katalog gewählt (kein Freitext); Pflege via Admin →
-  Einstellungen → «Artikelnamen» (`company_settings.article_names`, auch über `settings/public`).
+- **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
+  (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
+  `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System
+  **bereits verwendete oder ähnliche** Namen vor, um Dubletten zu vermeiden – **ohne KI/Kosten**,
+  rein lexikalisch (Trigramm-Jaccard + Substring-/Wortstamm-Bonus, `services/article_names.py`,
+  erkennt gemeinsame Stämme wie «schraub» → «Akkuschrauber»/«Schraubendreher»). Endpoint
+  `GET /erp/articles/name-suggestions?q=…` (`ArticleNameSuggestion{name,count,score}`); Frontend
+  `NameField` (Freitext + Vorschlags-Dropdown, Dubletten-Hinweis). `company_settings.article_names`
+  bleibt als **optionale Vorschlags-Liste** (Seed, keine Pflicht) – Admin-UI entsprechend umbeschriftet.
 - **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
   (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand). Im
   Stammdaten-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden gespeichert/angezeigt.
@@ -651,6 +658,16 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Dokument-Panel (`ai/write-assist.tsx`), **Shop-Bild-Bearbeitung** im Verkauf-Panel (`ai/image-assist.tsx`,
   Ergebnis = neues Attachment, Original bleibt). Untrusted-Text (Dokumente/Fremdtexte) ist DATEN, nie
   Instruktion. *Bewusst NICHT gebaut: autonome Freigaben/Geld/E-Mail, MCP-Server nach aussen, RAG/Vektor.*
+  - **KI-Optimierungen (Kosten/Latenz/UX)**: (1) **Dynamische Modellwahl** (`registry.route`): einfache
+    Lese-/Zählfragen laufen auf dem **leichten** Modell (`ai_chat_model_light`, Haiku) OHNE Reasoning
+    (günstig/schnell), nur mehrstufige/schreibende Aufgaben (anlegen/bestellen/freigeben/Link) nutzen das
+    **starke** Modell (`ai_chat_model`, Opus) mit adaptivem Reasoning – reine Heuristik (kein Vorab-Call),
+    im Zweifel aufwärts. (2) **Knappe Antworten** (Prompt) + **Markdown-Rendering** im Chat (react-markdown +
+    remark-gfm, Design-Tokens; **fett**/Listen/Tabellen). (3) **KI überall**: das Widget hängt im
+    `(public)/layout` (Website+Shop), ERP-, Konto-Layout – rechte-gescopt, rendert nur für angemeldete
+    Nutzer. (4) **Live-Refresh**: verändert die KI ERP-Daten (`AiChatResponse.changed=true` via
+    `tools.is_write_tool`), feuert das Widget `inexxio:data-changed` → der Feed lädt sofort nach. Der
+    Verlauf lädt beim Mounten (überlebt Seiten-Refresh).
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
