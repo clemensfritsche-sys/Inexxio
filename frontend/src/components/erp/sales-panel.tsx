@@ -12,6 +12,7 @@ import {
   Label, TextField, SelectField, Segmented, SectionTitle, Placeholder,
 } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
+import { AiImageAssist } from '@/components/ai/image-assist';
 import { useAutosave } from '@/lib/use-autosave';
 
 const VISIBILITY: { value: SalesVisibility; label: string; icon: React.ElementType; hint: string }[] = [
@@ -174,6 +175,11 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
             <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
               <ImageIcon size={11} /> Fotografieren oder hochladen – das erste Bild ist das Titelbild.
             </div>
+            {/* KI-Bildbearbeitung (Gemini): erzeugt eine bearbeitete Kopie als neues Bild. */}
+            <AiImageAssist
+              images={block.images ?? []}
+              onAdd={(url) => setBlock({ images: [...(block.images ?? []), url] })}
+            />
           </div>
         </div>
       </div>

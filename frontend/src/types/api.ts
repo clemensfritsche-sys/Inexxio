@@ -1427,6 +1427,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ai Config
+         * @description Verfügbarkeit für das Frontend (Assistent/Bild-Knöpfe ein-/ausblenden).
+         */
+        get: operations["ai_config_api_v1_ai_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Chat
+         * @description Rechte-geschützter Assistent – für ALLE Rollen (Kunde, Lieferant, Personal).
+         *     Die Rolle bestimmt die Tool-Menge; das Daten-Scoping übernimmt die Service-Authz.
+         */
+        post: operations["ai_chat_api_v1_ai_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/write": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Write
+         * @description Schreibhilfe für das Dokumente-Prozessschrittmodul (nur Personal).
+         */
+        post: operations["ai_write_api_v1_ai_write_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/image-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ai Image Edit
+         * @description Shop-Produktbild mit Gemini bearbeiten (nur Personal). Das Ergebnis wird als
+         *     NEUES Attachment gespeichert (Original bleibt unangetastet – reversibel).
+         */
+        post: operations["ai_image_edit_api_v1_ai_image_edit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/actions/{action_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Action
+         * @description Menschliches Freigabe-Gate: KI-Vorschlag bestätigen → autorisierter Pfad, einmalig.
+         */
+        post: operations["confirm_action_api_v1_ai_actions__action_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/actions/{action_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Action */
+        post: operations["reject_action_api_v1_ai_actions__action_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1448,6 +1567,116 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AiChatMessage */
+        AiChatMessage: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /** Content */
+            content: string;
+        };
+        /** AiChatRequest */
+        AiChatRequest: {
+            /** Messages */
+            messages: components["schemas"]["AiChatMessage"][];
+            /** Context */
+            context?: string | null;
+        };
+        /** AiChatResponse */
+        AiChatResponse: {
+            /** Reply */
+            reply: string;
+            /**
+             * Proposals
+             * @default []
+             */
+            proposals: components["schemas"]["AiProposal"][];
+            /** Model */
+            model: string;
+        };
+        /** AiConfig */
+        AiConfig: {
+            /** Enabled */
+            enabled: boolean;
+            /** Image Enabled */
+            image_enabled: boolean;
+            /**
+             * Assistant Name
+             * @default Inexxio KI
+             */
+            assistant_name: string;
+        };
+        /** AiDocContent */
+        AiDocContent: {
+            /**
+             * Title
+             * @default
+             */
+            title: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /**
+             * Sections
+             * @default []
+             */
+            sections: components["schemas"]["AiDocSection"][];
+        };
+        /** AiDocSection */
+        AiDocSection: {
+            /**
+             * Heading
+             * @default
+             */
+            heading: string;
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+        };
+        /** AiImageEditRequest */
+        AiImageEditRequest: {
+            /** Image Url */
+            image_url: string;
+            /** Instruction */
+            instruction: string;
+        };
+        /** AiImageEditResponse */
+        AiImageEditResponse: {
+            /** Url */
+            url: string;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+        };
+        /** AiProposal */
+        AiProposal: {
+            /** Id */
+            id: number;
+            /** Action Type */
+            action_type: string;
+            /** Summary */
+            summary: string;
+            /** Status */
+            status: string;
+            /** Target Object Id */
+            target_object_id?: number | null;
+            /** Decided At */
+            decided_at?: string | null;
+        };
+        /** AiWriteRequest */
+        AiWriteRequest: {
+            /** Instruction */
+            instruction: string;
+            content?: components["schemas"]["AiDocContent"] | null;
+        };
+        /** AiWriteResponse */
+        AiWriteResponse: {
+            content: components["schemas"]["AiDocContent"];
+        };
         /**
          * ArticleCreate
          * @description Anlage eines Artikels über den '+'-Button. Status startet immer als 'draft'.
@@ -6827,6 +7056,187 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_config_api_v1_ai_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiConfig"];
+                };
+            };
+        };
+    };
+    ai_chat_api_v1_ai_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiChatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_write_api_v1_ai_write_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiWriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_image_edit_api_v1_ai_image_edit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiImageEditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiImageEditResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_action_api_v1_ai_actions__action_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_action_api_v1_ai_actions__action_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiProposal"];
                 };
             };
             /** @description Validation Error */

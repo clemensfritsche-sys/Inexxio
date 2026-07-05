@@ -628,6 +628,25 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Ziel gezeigt (`orders._movement_embed`) – der Lagerist kann kein falsches Ziel wählen. Weil das Ziel fest
   ist, lädt das Movement-Panel **keine** Lagerplatz-/Personen-/Instanz-Listen mehr (`movement-panel.tsx:
   hasFixedTarget` → spürbar schneller, gerade direkt nach dem Verkauf).
+- **KI-Layer (ADR 004, `docs/adr/004-ki-layer.md` – VOR KI-Arbeit lesen)**: vier dünne Schichten in
+  `backend/app/services/ai/`. (1) **Gateway** (`gateway.py`): provider-agnostisch – **Vertex-EU Default**
+  (`AI_PROVIDER=vertex` + `VERTEX_PROJECT_ID`, ADC-Auth), Anthropic-direkt swap-bar, Gemini-Bild
+  («Nano Banana») via Vertex-REST; ohne Konfiguration **inaktiv statt kaputt** (503, ERP läuft normal).
+  Modelle/Prompts versioniert in `registry.py` (`PROMPT_VERSION`), NIE in der Fachlogik. (2) **KI-Identität**
+  (`identity.py`): System-`UserProfile` `role='ai'` mit Objektnummer, beim Start geseedet; Audit/Events
+  zeigen «User KI»; Admin kann sie weder umrollen noch deaktivieren. **Delegation** (`principal.py`):
+  Attribution = KI, **effektive Rechte = delegierender Mensch**. (3) **Rechte-gescopte Tools** (`tools.py`):
+  rollen-gefilterte Whitelist (Kunde: shop/my_orders; Lieferant: nur eigene Aufträge; Staff: alles; autonom:
+  read-only) – jedes Tool wrappt die BESTEHENDE Authz (`visible_orders`, `can_view`, `in_stock_clauses`);
+  **Scoping = Authz, nicht Prompt**. **Autonomie-Policy**: Entwürfe (Artikel/Auftrag, draft) legt die KI
+  direkt an (reversibel); **Kritisches** (Auftrag freigeben) nur als `AiAction`-Vorschlag (Migration `054`)
+  → menschliche Bestätigung im Chat → autorisierter Pfad (`actions.py`, idempotent). (4) **Endpunkte**
+  `routers/ai.py`: `/api/v1/ai/{config,chat,write,image-edit,actions/{id}/confirm|reject}`; Events `ai.*`
+  (Modell/Prompt-Version/Token je Lauf). **Frontend**: schwebendes Chat-Widget `components/ai/assistant.tsx`
+  (ERP-, Konto-, Shop-Layout; Vorschlagskarten mit Bestätigen/Ablehnen), **KI-Schreibhilfe** im
+  Dokument-Panel (`ai/write-assist.tsx`), **Shop-Bild-Bearbeitung** im Verkauf-Panel (`ai/image-assist.tsx`,
+  Ergebnis = neues Attachment, Original bleibt). Untrusted-Text (Dokumente/Fremdtexte) ist DATEN, nie
+  Instruktion. *Bewusst NICHT gebaut: autonome Freigaben/Geld/E-Mail, MCP-Server nach aussen, RAG/Vektor.*
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine
@@ -660,7 +679,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
 > E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
-Nächste Aufgabe: Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
+Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
+Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
+Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
 eingebettete Kasse/Warenkorb inkl. Mehrpositionen-Verkauf (Fehlbestand + Nachschub, Zahlungsart) in der
 Sandbox testen (`docs/stripe-setup.md`); Retoure/Erstattung als Normalauftrag (verkaufte Instanzen unter
 «Instanz wählen» → Bewegung zurück + Gutschrift im `sale`-Modul inkl. Stripe-Refund; Kulanz ohne Rücknahme)

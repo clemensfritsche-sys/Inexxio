@@ -11,7 +11,7 @@ from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
-    admin, article_process, articles, attachments, auth, contact, documents, erp, events, health,
+    admin, ai, article_process, articles, attachments, auth, contact, documents, erp, events, health,
     instances, orders, sales, shop, storage_locations,
 )
 
@@ -457,6 +457,17 @@ async def lifespan(app: FastAPI):
         _bootstrap_admin()
     except Exception as e:
         print(f"WARNING: _bootstrap_admin() failed: {e}", flush=True)
+    # KI-Identität seeden (ADR 004): die KI ist ein echter Principal (role='ai') mit
+    # eigener Objektnummer – Audit/Events zeigen «angelegt von User KI». Idempotent.
+    try:
+        from .services.ai.identity import ensure_ai_user
+        db = SessionLocal()
+        try:
+            ensure_ai_user(db)
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"WARNING: ensure_ai_user() failed: {e}", flush=True)
     yield
 
 
@@ -509,6 +520,7 @@ app.include_router(shop.router)
 app.include_router(events.router)
 app.include_router(documents.router)
 app.include_router(attachments.router)
+app.include_router(ai.router)
 
 
 @app.get("/")

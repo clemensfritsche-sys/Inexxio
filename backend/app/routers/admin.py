@@ -103,6 +103,9 @@ async def update_user_role(
     user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
     if not user:
         raise HTTPException(404, detail="User not found")
+    # Die System-KI (role='ai', ADR 004) ist kein verwaltbarer Mensch: Rolle fix.
+    if user.role == "ai":
+        raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
     log_audit(db, "user_profiles", "role", data.role, current_user.id,
               object_id=user_id, old_value=user.role)
     user.role = data.role
@@ -122,6 +125,8 @@ async def deactivate_user(
     user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
     if not user:
         raise HTTPException(404, detail="User not found")
+    if user.role == "ai":
+        raise HTTPException(409, detail="Die System-KI kann nicht deaktiviert werden (Abschalten via KI-Konfiguration)")
     log_audit(db, "user_profiles", "is_active", "false", current_user.id,
               object_id=user_id, old_value="true")
     user.is_active = False

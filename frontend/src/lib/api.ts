@@ -9,6 +9,7 @@ import type {
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
+  AiConfig, AiChatMessage, AiChatResponse, AiProposal, AiDocContent, AiImageEditResponse,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -506,6 +507,32 @@ class ApiClient {
 
   simulatePayment(token: string, result: 'paid' | 'cancelled'): Promise<{ status: SaleStatus }> {
     return this.post('/api/v1/shop/payments/simulate', { sale_token: token, result });
+  }
+
+  // ─── KI-Layer (ADR 004) ─────────────────────────────────────────────────────
+
+  getAiConfig(): Promise<AiConfig> {
+    return this.get('/api/v1/ai/config');
+  }
+
+  aiChat(messages: AiChatMessage[], context?: string): Promise<AiChatResponse> {
+    return this.post('/api/v1/ai/chat', { messages, context: context ?? null });
+  }
+
+  aiWrite(instruction: string, content: AiDocContent | null): Promise<{ content: AiDocContent }> {
+    return this.post('/api/v1/ai/write', { instruction, content });
+  }
+
+  aiImageEdit(imageUrl: string, instruction: string): Promise<AiImageEditResponse> {
+    return this.post('/api/v1/ai/image-edit', { image_url: imageUrl, instruction });
+  }
+
+  aiConfirmAction(actionId: number): Promise<AiProposal> {
+    return this.post(`/api/v1/ai/actions/${actionId}/confirm`, {});
+  }
+
+  aiRejectAction(actionId: number): Promise<AiProposal> {
+    return this.post(`/api/v1/ai/actions/${actionId}/reject`, {});
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ from .resource_usage import ResourceUsage
 from .document import Document
 from .attachment import Attachment
 from .storage_location import StorageLocation
+from .ai import AiAction
 from .audit import AuditLog
 from .event import Event
 from .notification import Notification
@@ -31,5 +32,5 @@ __all__ = [
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
     "Document", "Attachment", "StorageLocation",
-    "AuditLog", "Event", "Notification", "ObjectRef",
+    "AiAction", "AuditLog", "Event", "Notification", "ObjectRef",
 ]
