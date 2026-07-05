@@ -45,7 +45,9 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
   /* eslint-enable react-hooks/exhaustive-deps */
 
   const sig = JSON.stringify(draft);
-  const canAutosave = !locked && !done && !busy && sig !== savedSig;
+  // `!saving` serialisiert Auto-Saves (kein Überholen); `!busy` schliesst das Rennen mit
+  // «Ausstellen» (dort ist busy=true → kein paralleler Save).
+  const canAutosave = !locked && !done && !busy && !saving && sig !== savedSig;
 
   async function autosave() {
     setSaving(true); setErr(null);
@@ -54,8 +56,11 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
       setSavedSig(sig);
       onOrderUpdated(updated);
       setFlash(true); setTimeout(() => setFlash(false), 700);
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Automatisches Speichern fehlgeschlagen'); }
-    finally { setSaving(false); }
+    } catch (e) {
+      // Wurde das Dokument zwischenzeitlich ausgestellt (409, unveränderlich), ist der
+      // späte Save gegenstandslos – kein Fehler zeigen (der Ausstellen-Pfad war erfolgreich).
+      if (!done) setErr(e instanceof Error ? e.message : 'Automatisches Speichern fehlgeschlagen');
+    } finally { setSaving(false); }
   }
   const flush = useAutosave(sig, canAutosave, autosave);
 
@@ -140,7 +145,7 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
             <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} />
           </div>
           {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
-          <PrimaryButton icon={Send} onClick={() => submit('issue')} disabled={busy} tone="success">
+          <PrimaryButton icon={Send} onClick={() => submit('issue')} disabled={busy || saving} tone="success">
             {busy ? 'Wird ausgestellt…' : 'Dokument ausstellen'}
           </PrimaryButton>
         </>
