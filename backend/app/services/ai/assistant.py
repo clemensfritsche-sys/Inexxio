@@ -17,7 +17,7 @@ from .principal import AiPrincipal
 
 _MAX_TURNS = 24          # Verlauf hart begrenzen (Kontext-/Kostenbudget)
 _MAX_MSG_CHARS = 6000
-_MAX_TOOL_ROUNDS = 6
+_MAX_TOOL_ROUNDS = 12    # mehrstufige Aufgaben (auflösen→anlegen→fixieren→Schritt) brauchen Luft
 
 
 def _sanitize_history(messages: list[dict]) -> list[dict]:

@@ -24,7 +24,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...domain import event_types
-from ...models import Article, ArticleProcessStep, Event, Instance, Order, UserProfile
+from ...models import (
+    Article, ArticleProcessStep, Event, Instance, Order, StorageLocation, UserProfile,
+)
 from ..admin import log_audit
 from ..events import emit
 from ..inventory import in_stock_clauses
@@ -349,6 +351,156 @@ def _t_propose_release_order(db: Session, p: AiPrincipal, args: dict) -> Any:
             "hint": "Wartet auf menschliche Bestätigung (Karte im Chat)."}
 
 
+# ─── Erweiterte Werkzeuge: Instanzen, Benutzer, Standorte, universelle Auflösung ───
+
+def _instance_view(db: Session, i: Instance) -> dict:
+    from ..locations import location_labels
+    a = db.query(Article.object_id, Article.name).filter(Article.id == i.article_id).first()
+    label = location_labels(db, [(i.location_type, i.location_id)]).get((i.location_type, i.location_id))
+    return {
+        "object_id": _num(i.object_id), "kind": i.kind, "quantity": i.quantity,
+        "serial_number": i.serial_number,
+        "article": {"object_id": _num(a[0]), "name": a[1]} if a else None,
+        "quality": i.quality, "disposition": i.disposition,
+        "location": label, "location_type": i.location_type,
+        "released_at": i.released_at.isoformat() if i.released_at else None,
+        "reserved_quantity": i.reserved_quantity,
+    }
+
+
+def _t_get_instance(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Eine Instanz (konkretes Stück/Charge) lesen – inkl. zugehörigem Artikel,
+    Qualität, Disposition und Standort. Damit löst die KI Instanz → Artikel selbst auf."""
+    i = db.query(Instance).filter(Instance.object_id == int(args["object_id"]), Instance.is_active == True).first()
+    if not i:
+        return {"error": "Instanz nicht gefunden"}
+    return _instance_view(db, i)
+
+
+def _t_list_instances(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Instanzen auflisten/zählen – optional gefiltert nach Artikel oder Suchbegriff
+    (Objektnummer/Seriennummer). Antwortet auch auf «wie viele Instanzen…»."""
+    q = db.query(Instance).filter(Instance.is_active == True)
+    if args.get("article_object_id"):
+        a = db.query(Article.id).filter(Article.object_id == int(args["article_object_id"])).first()
+        if a:
+            q = q.filter(Instance.article_id == a[0])
+    if args.get("disposition"):
+        q = q.filter(Instance.disposition == args["disposition"])
+    total = q.count()
+    rows = q.order_by(Instance.object_id.desc()).limit(_LIMIT).all()
+    return {"count": total, "instances": [_instance_view(db, i) for i in rows]}
+
+
+def _t_list_users(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Benutzerkonten auflisten/zählen (nur Personal). Beantwortet «wie viele User…».
+    Rollen: admin, employee, supplier, customer, ai (System-KI)."""
+    q = db.query(UserProfile).filter(UserProfile.is_active == True)
+    if args.get("role"):
+        q = q.filter(UserProfile.role == args["role"])
+    rows = q.order_by(UserProfile.email).all()
+    needle = (args.get("query") or "").strip().lower()
+
+    def _match(u: UserProfile) -> bool:
+        if not needle:
+            return True
+        return needle in (u.display_name or "").lower() or needle in (u.email or "").lower()
+
+    users = [{
+        "object_id": _num(u.object_id), "name": u.display_name, "email": u.email,
+        "role": u.role, "is_active": u.is_active,
+    } for u in rows if _match(u)]
+    by_role: dict[str, int] = {}
+    for u in rows:
+        if _match(u):
+            by_role[u.role] = by_role.get(u.role, 0) + 1
+    return {"count": len(users), "by_role": by_role, "users": users[:_LIMIT]}
+
+
+def _t_get_user(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Ein Benutzerkonto im Detail lesen (nur Personal)."""
+    ident = args.get("object_id")
+    q = db.query(UserProfile).filter(UserProfile.is_active == True)
+    u = None
+    if ident is not None:
+        u = q.filter(UserProfile.object_id == int(ident)).first()
+    elif args.get("email"):
+        u = q.filter(UserProfile.email == str(args["email"]).lower()).first()
+    if not u:
+        return {"error": "Benutzer nicht gefunden"}
+    return {
+        "object_id": _num(u.object_id), "name": u.display_name, "email": u.email,
+        "role": u.role, "company_name": u.company_name, "phone": u.phone,
+        "city": u.city, "country": u.country, "is_active": u.is_active,
+    }
+
+
+def _t_storage_locations(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Lagerplätze/Standorte auflisten (für Bewegungen). Optional Suchbegriff."""
+    q = db.query(StorageLocation).filter(StorageLocation.is_active == True)
+    needle = (args.get("query") or "").strip().lower()
+    rows = q.order_by(StorageLocation.object_id.desc()).limit(80).all()
+    out = []
+    for s in rows:
+        if needle and needle not in (s.name or "").lower() and needle not in str(s.object_id or ""):
+            continue
+        out.append({"object_id": _num(s.object_id), "name": s.name, "status": s.status,
+                    "city": s.address_city, "note": s.note})
+        if len(out) >= _LIMIT:
+            break
+    return {"count": len(out), "locations": out}
+
+
+def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Universelle Objektnummer auflösen: sagt, WAS die Nummer ist (Artikel/Auftrag/
+    Instanz/Benutzer/Lagerplatz) und liefert die Kernfakten. Erster Griff bei jeder
+    9-stelligen Zahl, deren Art unklar ist."""
+    from ..objects import resolve_object_type
+    oid = int(args["object_id"])
+    t = resolve_object_type(db, oid)
+    if not t:
+        return {"object_id": _num(oid), "type": None, "error": "Objektnummer nicht gefunden"}
+    detail: Any = {}
+    if t == "article":
+        detail = _t_get_article(db, p, {"object_id": oid})
+    elif t == "order":
+        detail = _t_get_order(db, p, {"object_id": oid})
+    elif t == "instance":
+        detail = _t_get_instance(db, p, {"object_id": oid})
+    elif t == "user":
+        detail = _t_get_user(db, p, {"object_id": oid})
+    elif t == "storage_location":
+        s = db.query(StorageLocation).filter(StorageLocation.object_id == oid).first()
+        detail = {"name": s.name, "status": s.status} if s else {}
+    return {"object_id": _num(oid), "type": t, "detail": detail}
+
+
+def _t_set_order_instances(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Einen Auftrags-Entwurf auf **konkrete, bestehende Instanzen** fixieren (statt FIFO) –
+    so wirkt ein Bewegungs-/Prüf-/Verschrottungs-Schritt auf genau diese Instanz(en).
+    Voraussetzung: dieselbe Artikelzugehörigkeit wie der Auftrag (mit get_instance prüfen)."""
+    from ...routers.orders import _set_chosen_instances
+    o = visible_orders(db, p.effective).filter(Order.object_id == int(args["order_object_id"])).first()
+    if not o:
+        return {"error": "Auftrag nicht gefunden (oder keine Berechtigung)"}
+    if o.status != "draft":
+        return {"error": f"Auftrag ist '{o.status}' – Instanzen nur im Entwurf fixierbar"}
+    ids = [int(x) for x in (args.get("instance_object_ids") or [])]
+    try:
+        _set_chosen_instances(db, o, ids)
+        db.flush()
+    except HTTPException as e:
+        db.rollback()
+        return {"error": str(e.detail)}
+    log_audit(db, "orders", "instance_object_ids", ",".join(str(i) for i in ids), p.actor.id,
+              object_id=o.object_id)
+    emit(db, "ai.order_instances_set", object_type="order", object_id=o.object_id,
+         payload={"instances": ids, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
+    db.commit()
+    return {"ok": True, "order_object_id": _num(o.object_id), "pinned_instances": [str(i) for i in ids],
+            "hint": "Auf Freigabe wirkt der Auftrag genau auf diese Instanz(en)."}
+
+
 # ─── Registry: Definitionen (Anthropic-Tool-Schema) + Rollen-Whitelist ─────────────
 
 ToolFn = Callable[[Session, AiPrincipal, dict], Any]
@@ -401,6 +553,45 @@ _DEFINITIONS: dict[str, dict] = {
         {"object_id": {"type": "integer"}, "event_type": {"type": "string"},
          "limit": {"type": "integer"}},
     ),
+    "resolve_object": _tool(
+        "resolve_object",
+        "Sagt, WAS eine 9-stellige Objektnummer ist (Artikel/Auftrag/Instanz/Benutzer/Lagerplatz) "
+        "und liefert die Kernfakten. Immer zuerst nutzen, wenn die Art einer Nummer unklar ist.",
+        {"object_id": {"type": "integer"}},
+        ["object_id"],
+    ),
+    "get_instance": _tool(
+        "get_instance",
+        "Eine Instanz (konkretes Stück/Charge) lesen – inkl. zugehörigem ARTIKEL, Qualität, "
+        "Disposition, Standort. So findest du selbst heraus, zu welchem Artikel eine Instanz gehört.",
+        {"object_id": {"type": "integer"}},
+        ["object_id"],
+    ),
+    "list_instances": _tool(
+        "list_instances",
+        "Instanzen auflisten/zählen. Optional nach Artikel oder Disposition "
+        "(in_process/in_stock/consumed/sold/scrapped).",
+        {"article_object_id": {"type": "integer"},
+         "disposition": {"type": "string",
+                         "enum": ["in_process", "in_stock", "consumed", "sold", "scrapped"]}},
+    ),
+    "list_users": _tool(
+        "list_users",
+        "Benutzerkonten auflisten/zählen (Personal). Beantwortet «wie viele User/Kunden/Lieferanten». "
+        "Optional nach Rolle (admin/employee/supplier/customer/ai) oder Suchbegriff.",
+        {"role": {"type": "string", "enum": ["admin", "employee", "supplier", "customer", "ai"]},
+         "query": {"type": "string"}},
+    ),
+    "get_user": _tool(
+        "get_user",
+        "Ein Benutzerkonto im Detail lesen (Personal) – per Objektnummer oder E-Mail.",
+        {"object_id": {"type": "integer"}, "email": {"type": "string"}},
+    ),
+    "storage_locations": _tool(
+        "storage_locations",
+        "Lagerplätze/Standorte auflisten (Ziele für Bewegungen). Optional Suchbegriff.",
+        {"query": {"type": "string"}},
+    ),
     "shop_products": _tool(
         "shop_products",
         "Shop-Sortiment für Kaufberatung (publizierte Produkte mit Preisen, CHF).",
@@ -436,6 +627,15 @@ _DEFINITIONS: dict[str, dict] = {
         {"object_id": {"type": "integer"}},
         ["object_id"],
     ),
+    "set_order_instances": _tool(
+        "set_order_instances",
+        "Einen Auftrags-Entwurf auf KONKRETE bestehende Instanzen fixieren (statt FIFO). "
+        "So bearbeitet ein Auftrag genau diese Instanz(en) – z. B. eine bestimmte Instanz bewegen. "
+        "Die Instanzen müssen zum Artikel des Auftrags gehören (mit get_instance auflösen).",
+        {"order_object_id": {"type": "integer"},
+         "instance_object_ids": {"type": "array", "items": {"type": "integer"}}},
+        ["order_object_id", "instance_object_ids"],
+    ),
     "add_order_step": _tool(
         "add_order_step",
         "Einen Prozessschritt an einen Auftrags-Entwurf anhängen. Schritt-Typen: "
@@ -465,21 +665,32 @@ _EXECUTORS: dict[str, ToolFn] = {
     "recent_events": _t_recent_events,
     "shop_products": _t_shop_products,
     "my_orders": _t_my_orders,
+    "resolve_object": _t_resolve_object,
+    "get_instance": _t_get_instance,
+    "list_instances": _t_list_instances,
+    "list_users": _t_list_users,
+    "get_user": _t_get_user,
+    "storage_locations": _t_storage_locations,
     "create_article_draft": _t_create_article_draft,
     "create_order_draft": _t_create_order_draft,
     "get_order_steps": _t_get_order_steps,
     "add_order_step": _t_add_order_step,
+    "set_order_instances": _t_set_order_instances,
     "propose_release_order": _t_propose_release_order,
 }
 
 # Rollen-Whitelist: die Rolle begrenzt die Tool-Menge (und damit die Angriffsfläche).
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
-              "recent_events", "shop_products", "create_article_draft", "create_order_draft",
-              "get_order_steps", "add_order_step", "propose_release_order"),
+              "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
+              "list_users", "get_user", "storage_locations", "create_article_draft",
+              "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
+              "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
-                 "recent_events", "shop_products", "create_article_draft", "create_order_draft",
-                 "get_order_steps", "add_order_step", "propose_release_order"),
+                 "recent_events", "shop_products", "resolve_object", "get_instance", "list_instances",
+                 "list_users", "get_user", "storage_locations", "create_article_draft",
+                 "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
+                 "propose_release_order"),
     "supplier": ("list_orders", "get_order"),
     "customer": ("shop_products", "my_orders"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.
