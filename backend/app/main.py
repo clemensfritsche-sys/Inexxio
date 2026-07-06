@@ -59,7 +59,7 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "default_receiving_location_id", "BIGINT"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
-    ("orders", "quantity", "INTEGER"),
+    ("orders", "quantity", "NUMERIC(14,3)"),
     ("orders", "desired_delivery_date", "DATE"),
     ("purchase_orders", "order_total", "NUMERIC(12,2)"),
     ("purchase_orders", "ordered_at", "TIMESTAMP WITH TIME ZONE"),
@@ -75,7 +75,7 @@ _COLUMN_SAFETY_NET = (
     ("instances", "reserved_for_order_id", "BIGINT"),
     # Mengengenaue Reservierung ohne Instanz-Teilung
     ("instances", "reservations", "JSONB"),
-    ("instances", "reserved_quantity", "INTEGER DEFAULT 0 NOT NULL"),
+    ("instances", "reserved_quantity", "NUMERIC(14,3) DEFAULT 0 NOT NULL"),
     ("storage_locations", "note", "VARCHAR(500)"),
     # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
     ("company_settings", "object_id", "BIGINT"),
@@ -152,6 +152,20 @@ _COLUMN_SAFETY_NET = (
     ("orders", "reason", "VARCHAR(12)"),
     # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
     ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
+)
+
+# Bruchmengen (Migration 055): Mengen-Spalten müssen NUMERIC(14,3) sein, nicht INTEGER –
+# sonst würde eine Bruchmenge (2.5 kg) beim Speichern abgeschnitten. ``create_all()`` ändert
+# bestehende Spalten NICHT und die ADD-Safety-Net ergänzt nur fehlende – darum hier explizit
+# per ALTER (idempotent: nur, wenn die Spalte noch ganzzahlig ist). Belt-and-suspenders zur
+# Migration, falls Alembic übersprungen wurde/fehlschlug.
+_NUMERIC_QTY_COLUMNS = (
+    ("instances", "quantity"),
+    ("instances", "reserved_quantity"),
+    ("orders", "quantity"),
+    ("order_lines", "quantity"),
+    ("purchase_orders", "quantity"),
+    ("sales", "quantity"),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -239,6 +253,19 @@ def _ensure_columns() -> None:
                 if col not in {c["name"] for c in insp.get_columns(table)}:
                     conn.execute(text(
                         f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {ddl}"
+                    ))
+            # Bruchmengen: ganzzahlige Mengen-Spalten auf NUMERIC(14,3) heben (idempotent).
+            for table, col in _NUMERIC_QTY_COLUMNS:
+                if table not in tables or col not in {c["name"] for c in insp.get_columns(table)}:
+                    continue
+                dtype = conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ), {"t": table, "c": col}).scalar()
+                if dtype and dtype.lower() != "numeric":
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN {col} "
+                        f"TYPE NUMERIC(14,3) USING {col}::numeric(14,3)"
                     ))
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:

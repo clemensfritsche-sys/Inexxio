@@ -31,7 +31,8 @@ class Sale(Base, TimestampMixin):
 
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    quantity: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # Verkaufsmenge als Dezimalzahl (NUMERIC(14,3)) – ganze Stück ODER Bruchmenge (kg/m²/…).
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
     # Routing: an welche Prozessschritt-Definition gebunden (mehrere möglich).
     step_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 

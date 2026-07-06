@@ -391,6 +391,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + ⓘ + rechter Slot/Status – EIN Look
   über ALLE Schritt-Panels), `StatusBadge`, `PrimaryButton`. Leitsatz: «weniger ist mehr» – Symbole
   statt Text, Infotexte in den Hover, sofort erkennbar was Sache ist / was zu tun ist.
+- **Bruchmengen (kg · m² · m³ · l, nicht nur ganze Stück)**: alle Mengen sind `Decimal`
+  (DB `NUMERIC(14,3)`, Migration `055`): `instances.quantity/reserved_quantity`,
+  `orders.quantity`, `order_lines.quantity`, `purchase_orders.quantity`, `sales.quantity`. Die
+  **EINE** Mengen-Stelle `services/quantity.py` (`to_qty`/`qty_sum`/`is_whole`) kapselt
+  Umwandlung/Rundung – Bestand/FIFO/Reservierung (`inventory`/`reservation`/`subject`/`process`/
+  `resource`/`recovery`/`scrap`) rechnen exakt (kein `float`). Die Reservierungs-Map
+  (`instances.reservations`) speichert Mengen als **String** (JSON-sicher); `events.emit`
+  serialisiert `Decimal`→`float` für den Event-Strom. Am API-Rand sind Mengen `float` (TS
+  `number` – Frontend unverändert). **Einzelteil-Artikel (`serialization='unit'`) dürfen nur
+  GANZE Stück** (2.5 Schrauben gibt es nicht – Router-Check gegen die Serialisierung); **Chargen
+  (`batch`) tragen Bruchmengen** (2.5 kg). Stichprobe: `required_sample` liefert ganze Proben
+  (`ceil`, auch für 2.5 kg). Frontend-Inputs (Menge/Ressourcen-Zeile/Teil-Verschrottung)
+  akzeptieren Nachkommastellen (kein `Math.trunc` mehr). *Shop-Kauf bleibt ganzzahlig (Stückzahl).*
 - **Performance/Infra** (siehe `docs/architecture-review-2026-06.md`): Objektnummern über die
   Postgres-Sequence `object_id_seq` (race-sicher, `services/objects.py`). Auftrags-Feed `GET /orders`
   liefert schlanke `OrderSummary` (ohne Embeds); das Detail kommt **on-demand** via `getOrder(id)`.

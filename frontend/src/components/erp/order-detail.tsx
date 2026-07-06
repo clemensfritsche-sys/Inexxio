@@ -1212,6 +1212,7 @@ export function TextFieldUnit({ label, value, onChange, unit, required, placehol
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        inputMode="decimal"
         className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         style={{ borderColor: '#e2e8f0' }}
       />

@@ -47,6 +47,11 @@ def _num(oid: int | None) -> str | None:
     return str(oid) if oid is not None else None
 
 
+def _qnum(v) -> float | None:
+    """Menge (Decimal/None) → JSON-tauglicher ``float`` für Tool-Antworten (Bruchmengen)."""
+    return float(v) if v is not None else None
+
+
 # ─── Lese-Tools (Grounding) ────────────────────────────────────────────────────────
 
 def _t_list_articles(db: Session, p: AiPrincipal, args: dict) -> Any:
@@ -84,7 +89,7 @@ def _t_get_article(db: Session, p: AiPrincipal, args: dict) -> Any:
         "min_order_qty": str(a.min_order_qty) if a.min_order_qty is not None else None,
         "safety_stock": str(a.safety_stock) if a.safety_stock is not None else None,
         "landed_unit_cost": str(a.landed_unit_cost) if a.landed_unit_cost is not None else None,
-        "free_stock": int(stock or 0),
+        "free_stock": _qnum(stock or 0),
         "sales_published": a.sales_published,
     }
 
@@ -105,7 +110,7 @@ def _t_list_orders(db: Session, p: AiPrincipal, args: dict) -> Any:
     rows = q.order_by(Order.object_id.desc()).limit(_LIMIT).all()
     return [{
         "object_id": _num(o.object_id), "status": o.status,
-        "article": _article_ref(db, o.article_id), "quantity": o.quantity,
+        "article": _article_ref(db, o.article_id), "quantity": _qnum(o.quantity),
         "reason": o.reason, "desired_delivery_date": str(o.desired_delivery_date) if o.desired_delivery_date else None,
         "created_at": o.created_at.isoformat() if o.created_at else None,
     } for o in rows]
@@ -123,7 +128,7 @@ def _t_get_order(db: Session, p: AiPrincipal, args: dict) -> Any:
     )
     return {
         "object_id": _num(o.object_id), "status": o.status,
-        "article": _article_ref(db, o.article_id), "quantity": o.quantity, "reason": o.reason,
+        "article": _article_ref(db, o.article_id), "quantity": _qnum(o.quantity), "reason": o.reason,
         "parent_order_id": _num(o.parent_order_id),
         "released_at": o.released_at.isoformat() if o.released_at else None,
         "completed_at": o.completed_at.isoformat() if o.completed_at else None,
@@ -144,7 +149,7 @@ def _t_inventory(db: Session, p: AiPrincipal, args: dict) -> Any:
     if args.get("article_object_id"):
         q = q.filter(Article.object_id == int(args["article_object_id"]))
     rows = q.order_by(Article.object_id.desc()).limit(_LIMIT).all()
-    return [{"article_object_id": _num(r[0]), "name": r[1], "unit": r[2], "free_stock": int(r[3])}
+    return [{"article_object_id": _num(r[0]), "name": r[1], "unit": r[2], "free_stock": _qnum(r[3])}
             for r in rows]
 
 
@@ -268,12 +273,12 @@ def _t_create_order_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
         return {"error": "Artikel nicht gefunden"}
     if article.status != "released":
         return {"error": "Nur freigegebene Artikel können in einem Auftrag referenziert werden"}
-    try:
-        qty = int(args.get("quantity") or 0)
-    except (TypeError, ValueError):
-        qty = 0
+    from ...services.quantity import is_whole, to_qty
+    qty = to_qty(args.get("quantity") or 0)   # Bruchmengen erlaubt (kg/m²/…)
     if qty <= 0:
         return {"error": "Menge muss > 0 sein"}
+    if article.serialization == "unit" and not is_whole(qty):
+        return {"error": f"«{article.name}» ist ein Einzelteil – die Menge muss eine ganze Zahl sein"}
     desired = None
     if args.get("desired_delivery_date"):
         try:
@@ -298,7 +303,7 @@ def _t_create_order_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
          actor_id=p.actor.id)
     db.commit()
     return {"created": True, "object_id": _num(order.object_id), "status": "draft",
-            "article": article.name, "quantity": qty,
+            "article": article.name, "quantity": _qnum(qty),
             "hint": "Entwurf – die Freigabe ist ein separater, bestätigungspflichtiger Schritt."}
 
 
@@ -361,13 +366,13 @@ def _instance_view(db: Session, i: Instance) -> dict:
     a = db.query(Article.object_id, Article.name).filter(Article.id == i.article_id).first()
     label = location_labels(db, [(i.location_type, i.location_id)]).get((i.location_type, i.location_id))
     return {
-        "object_id": _num(i.object_id), "kind": i.kind, "quantity": i.quantity,
+        "object_id": _num(i.object_id), "kind": i.kind, "quantity": _qnum(i.quantity),
         "serial_number": i.serial_number,
         "article": {"object_id": _num(a[0]), "name": a[1]} if a else None,
         "quality": i.quality, "disposition": i.disposition,
         "location": label, "location_type": i.location_type,
         "released_at": i.released_at.isoformat() if i.released_at else None,
-        "reserved_quantity": i.reserved_quantity,
+        "reserved_quantity": _qnum(i.reserved_quantity),
     }
 
 

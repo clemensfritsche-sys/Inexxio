@@ -19,7 +19,7 @@ class DeactivationImpact(BaseModel):
 
     articles: list[ImpactArticle] = []   # mitbetroffene Eltern-Artikel (consume)
     orders: list[ImpactOrder] = []       # laufende (freigegebene) Aufträge
-    stock: int = 0                       # freigegebener Lagerbestand (Stück)
+    stock: float = 0                     # freigegebener Lagerbestand (Bruchmenge möglich)
 
 
 class DeactivateRequest(BaseModel):

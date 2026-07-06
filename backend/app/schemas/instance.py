@@ -12,7 +12,7 @@ class InstanceResponse(BaseModel):
     article_id: int
     order_id: int
     kind: str
-    quantity: int
+    quantity: float       # Bruchmenge möglich (kg/m²/m³/l) – nicht nur ganze Stück
     serial_number: Optional[str]
     quality: str          # QC-Verdikt: pending | passed | failed
     disposition: str      # Verbleib: in_process | in_stock | consumed | sold | scrapped
@@ -23,7 +23,7 @@ class InstanceResponse(BaseModel):
     updated_at: datetime
 
     reserved_for_order_id: Optional[int] = None
-    reserved_quantity: int = 0   # mengengenau reservierte Stück (0 = frei)
+    reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
 
     # Denormalisiert vom Router
     order_object_id: Optional[int] = None
@@ -66,11 +66,11 @@ class InstanceEmbed(BaseModel):
     object_id: Optional[int]
     article_id: int   # welcher Position (Mehrpositionen-Auftrag) die Instanz zugehört
     kind: str
-    quantity: int
+    quantity: float       # Bruchmenge möglich (kg/m²/m³/l)
     quality: str          # QC-Verdikt: pending | passed | failed
     disposition: str      # Verbleib: in_process | in_stock | consumed | sold | scrapped
     reserved_for_order_id: Optional[int] = None   # fest reserviert (scharf ab Freigabe)
-    reserved_quantity: int = 0                     # mengengenau reservierte Stück
+    reserved_quantity: float = 0                   # mengengenau reservierte Menge
     location_type: Optional[str] = None
     location_id: Optional[int] = None
     location_label: Optional[str] = None   # vom Router denormalisiert

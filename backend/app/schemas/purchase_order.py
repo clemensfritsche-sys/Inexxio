@@ -91,7 +91,7 @@ class PurchaseEmbed(BaseModel):
     # jede Bestellung einen ANDEREN Artikel (``order.article_id`` ist dann NULL). Die id
     # dient zugleich als Disambiguierung bei ``PATCH .../purchase`` (``article_id``).
     article_id: Optional[int] = None
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None   # Bruchmenge möglich (kg/m²/…)
 
     order_total: Optional[Decimal]
     lead_time_days: Optional[int]

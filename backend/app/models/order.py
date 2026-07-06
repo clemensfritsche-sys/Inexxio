@@ -1,7 +1,8 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, String
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -36,7 +37,8 @@ class Order(Base, TimestampMixin):
     #             vorgewählte Instanzen → Subjekt FIFO ab Lager (Verkauf/Entnahme).
     #   chosen  – wirkt auf vorgewählte, vorhandene Instanzen (``instances.subject_of_order_id``).
     article_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
-    quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Bestellmenge als Dezimalzahl (NUMERIC(14,3)) – ganze Stück ODER Bruchmenge (kg/m²/m³/l).
+    quantity: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 3), nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     # Stripe-Bezüge (Quelle der Wahrheit für Zahlung/Abo): die Checkout-Session, über die

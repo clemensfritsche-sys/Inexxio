@@ -1,5 +1,6 @@
+from decimal import Decimal
 
-from sqlalchemy import BigInteger, Integer
+from sqlalchemy import BigInteger, Integer, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -22,5 +23,6 @@ class OrderLine(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Positionsmenge als Dezimalzahl (NUMERIC(14,3)) – ganze Stück ODER Bruchmenge.
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
     position: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)

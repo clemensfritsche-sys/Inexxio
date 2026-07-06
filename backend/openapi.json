@@ -7850,7 +7850,7 @@
             "default": []
           },
           "stock": {
-            "type": "integer",
+            "type": "number",
             "title": "Stock",
             "default": 0
           }
@@ -8426,7 +8426,7 @@
             "title": "Kind"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "quality": {
@@ -8449,7 +8449,7 @@
             "title": "Reserved For Order Id"
           },
           "reserved_quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Reserved Quantity",
             "default": 0
           },
@@ -8574,7 +8574,7 @@
             "title": "Kind"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "serial_number": {
@@ -8644,7 +8644,7 @@
             "title": "Reserved For Order Id"
           },
           "reserved_quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Reserved Quantity",
             "default": 0
           },
@@ -9002,7 +9002,7 @@
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "desired_delivery_date": {
@@ -9153,7 +9153,7 @@
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           }
         },
@@ -9209,7 +9209,7 @@
             "title": "Article Unit"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "position": {
@@ -9298,7 +9298,7 @@
           "quantity": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -9846,7 +9846,7 @@
           "quantity": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10021,7 +10021,7 @@
           "quantity": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10240,7 +10240,7 @@
           "quantity": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10652,7 +10652,7 @@
             "title": "Instance Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "split_from": {
@@ -10733,7 +10733,7 @@
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity",
             "default": 1
           },
@@ -10757,7 +10757,7 @@
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity",
             "default": 1
           },
@@ -10813,7 +10813,7 @@
           "need": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10824,7 +10824,7 @@
           "available": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -10882,7 +10882,7 @@
             "title": "Article Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity",
             "default": 1
           },
@@ -10950,7 +10950,7 @@
             "title": "Instance Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "into_instance_id": {
@@ -11002,7 +11002,7 @@
             "title": "Kind"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity",
             "default": 1
           },
@@ -11094,7 +11094,7 @@
           "quantity": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -11756,7 +11756,7 @@
             "title": "Object Id"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity",
             "default": 1
           }
@@ -11810,11 +11810,11 @@
             "title": "Article Name"
           },
           "quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Quantity"
           },
           "available_quantity": {
-            "type": "integer",
+            "type": "number",
             "title": "Available Quantity",
             "default": 0
           },

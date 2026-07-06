@@ -9,6 +9,8 @@ So gibt es keine „herumliegenden, undefinierten Teile": ein physisch vorhanden
 bekommt einen ehrlichen Endzustand (verschrottet) statt einfach zu verschwinden.
 """
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,7 @@ from ..models import Disposal, Order
 from . import process
 from .admin import log_audit
 from .events import emit
+from .quantity import to_qty
 from .reservation import reduce_quantity, release_all
 from .subject import order_instances
 
@@ -32,12 +35,12 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
     by_obj = {i.object_id: i for i in instances}
     # Auswahl vereinheitlichen: {instance_object_id: menge|None} (None = ganze Restmenge).
     # ``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (ganze Instanzen) werden
-    # zusammengeführt; ``items`` gewinnt bei Überschneidung.
-    chosen: dict[int, int | None] = {}
+    # zusammengeführt; ``items`` gewinnt bei Überschneidung. Menge als Decimal (Bruchmenge).
+    chosen: dict[int, Decimal | None] = {}
     for oid in (data.instance_ids or []):
         chosen.setdefault(oid, None)
     for it in (data.items or []):
-        chosen[it.instance_id] = it.quantity
+        chosen[it.instance_id] = to_qty(it.quantity) if it.quantity is not None else None
     if not chosen:
         raise HTTPException(400, detail="Bitte mindestens eine Instanz zum Verschrotten wählen")
 
@@ -48,12 +51,12 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
         if inst.disposition == "scrapped":
             continue                                # idempotent: schon verschrottet
-        whole = qty is None or qty >= (inst.quantity or 0)
+        whole = qty is None or qty >= to_qty(inst.quantity)
         if not whole and qty <= 0:
             raise HTTPException(400, detail=f"Ungültige Menge für Instanz {oid}")
         if whole:
             old = inst.disposition
-            cut = inst.quantity or 0
+            cut = to_qty(inst.quantity)
             inst.disposition = "scrapped"
             # ALLE Reservierungen lösen (nicht nur die dieses Auftrags): ein verschrottetes Teil
             # verlässt den Bestand endgültig und kann KEINEN Auftrag mehr beliefern. Hing es an

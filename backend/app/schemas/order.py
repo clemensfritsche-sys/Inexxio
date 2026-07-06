@@ -18,7 +18,7 @@ class ShortfallInstance(BaseModel):
     """Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse
     («Andere Instanz wählen»)."""
     object_id: int
-    quantity: int = 1
+    quantity: float = 1   # Bruchmenge möglich (kg/m²/…)
 
 
 class StepShortfall(BaseModel):
@@ -28,8 +28,8 @@ class StepShortfall(BaseModel):
     decken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."""
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
-    quantity: int
-    available_quantity: int = 0
+    quantity: float   # Bruchmenge möglich (kg/m²/…)
+    available_quantity: float = 0
     available_instances: list[ShortfallInstance] = []
 
 
@@ -77,7 +77,9 @@ ALLOWED_STATUS = ("draft", "released", "inactive", "completed")
 MAX_ORDER_QUANTITY = 100_000
 
 
-def _validate_qty(v: Optional[int]) -> Optional[int]:
+def _validate_qty(v: Optional[float]) -> Optional[float]:
+    """Menge > 0 und ≤ MAX. Bruchmengen (kg/m²/m³/l) sind erlaubt – ob ein Artikel nur
+    GANZE Stück haben darf (Einzelteil), prüft der Router gegen die Serialisierung."""
     if v is None:
         return v
     if v <= 0:
@@ -109,7 +111,7 @@ class OrderCreate(BaseModel):
     ist dann nicht mehr möglich, siehe ``services/order_lines.py``)."""
 
     article_id: int
-    quantity: int
+    quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -119,7 +121,7 @@ class OrderCreate(BaseModel):
 
     @field_validator("quantity")
     @classmethod
-    def _qty_positive(cls, v: int) -> int:
+    def _qty_positive(cls, v: float) -> float:
         return _validate_qty(v)
 
     @field_validator("desired_delivery_date")
@@ -134,11 +136,11 @@ class OrderLineCreate(BaseModel):
     Entwurf möglich; „Herstellen" scheidet dann aus (siehe ``services/order_lines.py``)."""
 
     article_id: int
-    quantity: int
+    quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
 
     @field_validator("quantity")
     @classmethod
-    def _qty_positive(cls, v: int) -> int:
+    def _qty_positive(cls, v: float) -> float:
         return _validate_qty(v)
 
 
@@ -152,7 +154,7 @@ class OrderLinePins(BaseModel):
 class OrderUpdate(BaseModel):
     status: Optional[str] = None
     article_id: Optional[int] = None
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
     # Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl, gleicher Artikel).
     instance_object_ids: Optional[list[int]] = None
     desired_delivery_date: Optional[date] = None
@@ -206,7 +208,7 @@ class OrderLineInfo(BaseModel):
     article_object_id: Optional[int] = None
     article_name: Optional[str] = None
     article_unit: Optional[str] = None
-    quantity: int
+    quantity: float   # Bruchmenge möglich (kg/m²/…)
     position: int
 
 
@@ -233,7 +235,7 @@ class OrderSummary(BaseModel):
     object_id: Optional[int]
     status: str
     article_id: Optional[int]
-    quantity: Optional[int]
+    quantity: Optional[float]   # Bruchmenge möglich (kg/m²/…)
     desired_delivery_date: Optional[date]
     is_active: bool
     created_at: datetime
@@ -263,7 +265,7 @@ class OrderResponse(BaseModel):
     stock_effect: str = "neutral"
     title: Optional[str]
     article_id: Optional[int]
-    quantity: Optional[int]
+    quantity: Optional[float]   # Bruchmenge möglich (kg/m²/…)
     desired_delivery_date: Optional[date]
     is_active: bool
     created_at: datetime

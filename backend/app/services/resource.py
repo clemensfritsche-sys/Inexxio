@@ -14,6 +14,8 @@ ein **Modus** (``mode``):
 verbrauchbar/nutzbar.
 """
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -28,6 +30,7 @@ from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
 from .locations import _obj_nr, resolve_physical_location
+from .quantity import ZERO, qty_sum, to_qty
 from .reservation import consume as consume_qty, free_qty, release, reserve
 from .subject import order_active_instances
 
@@ -65,10 +68,10 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     mehr als den Bedarf, wird die **Menge mengengenau reserviert** (``reservations``) –
     die Charge wird **nicht geteilt**, die Objektnummer bleibt erhalten. Committet NICHT."""
     from .order_lines import effective_quantity
-    qty = effective_quantity(db, order)
+    qty = to_qty(effective_quantity(db, order))
     if not qty:
         return
-    needs: dict[int, int] = {}
+    needs: dict[int, Decimal] = {}
     for d in process.order_step_defs(db, order):
         if d.step_type not in process.RESOURCE_STEP_TYPES:
             continue
@@ -76,7 +79,7 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
             if _line_mode(line, d) != "consume":
                 continue
             aid = line["article_id"]
-            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * qty
+            needs[aid] = needs.get(aid, ZERO) + to_qty(line.get("quantity", 1)) * qty
     for art_id, need in needs.items():
         if art_id == order.article_id:
             continue
@@ -116,11 +119,11 @@ class _Fifo:
         self.order_id = order_id
         self.i = 0
 
-    def take(self, need: int):
+    def take(self, need):
         cand = self.cands[self.i]
         avail = avail_amount(cand, self.order_id)
-        take = min(avail, need)
-        whole = take == cand.quantity          # die GANZE Instanz geht ins Produkt
+        take = min(avail, to_qty(need))
+        whole = take == to_qty(cand.quantity)  # die GANZE Instanz geht ins Produkt
         if take >= avail:                      # für diesen Auftrag erschöpft → nächste
             self.i += 1
         return cand, take, whole
@@ -136,12 +139,13 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
 
 
 def _consume_line(db: Session, order: Order, products: list[Instance],
-                  article_db_id: int, per_unit: int, actor_id: int) -> list[dict]:
+                  article_db_id: int, per_unit, actor_id: int) -> list[dict]:
     """FIFO-Verbrauch eines Komponenten-Artikels in die Produkt-Instanzen."""
     if article_db_id == order.article_id:
         raise HTTPException(400, detail="Ein Artikel kann sich nicht selbst verbrauchen")
+    per_unit = to_qty(per_unit)
     cands = fifo_candidates(db, article_db_id, order.id)
-    total_need = sum(per_unit * p.quantity for p in products)
+    total_need = qty_sum(per_unit * to_qty(p.quantity) for p in products)
     have = available_qty(cands, order.id)
     if have < total_need:
         art = _article(db, article_db_id)
@@ -154,7 +158,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
     fifo = _Fifo(cands, order.id)
     picks: list[dict] = []
     for product in products:
-        need = per_unit * product.quantity
+        need = per_unit * to_qty(product.quantity)
         while need > 0:
             cand, take, whole = fifo.take(need)
             if take <= 0:
@@ -267,17 +271,18 @@ def _line_view(db: Session, line: dict, step: ArticleProcessStep | None = None) 
 
 
 def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
-                     per_unit: int, for_order_id: int | None = None) -> dict[int, list[dict]]:
+                     per_unit, for_order_id: int | None = None) -> dict[int, list[dict]]:
     """FIFO-Vorschau OHNE Mutation: {produkt_obj_id: [{instance_id, quantity, split_from?}]}.
 
     Bildet ``_consume_line`` nach, damit vorab sichtbar ist, welche Instanz in
     welche Produkt-Instanz wandert."""
+    per_unit = to_qty(per_unit)
     cands = fifo_candidates(db, article_db_id, for_order_id)
     remaining = [[c.object_id or 0, avail_amount(c, for_order_id)] for c in cands]
     out: dict[int, list[dict]] = {}
     idx = 0
     for product in products:
-        need = per_unit * product.quantity
+        need = per_unit * to_qty(product.quantity)
         picks: list[dict] = []
         while need > 0 and idx < len(remaining):
             oid, avail = remaining[idx]
@@ -316,7 +321,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
     }
 
     from .order_lines import effective_quantity
-    order_qty = effective_quantity(db, order)
+    order_qty = to_qty(effective_quantity(db, order))
     products = order_active_instances(db, order)
     art_names = {raw["article_id"]: (_article(db, raw["article_id"]) or None)
                  for raw in step.resource_lines}
@@ -336,7 +341,7 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
             ]
             exec_line.picked = tools_by_art.get(art_id, [])
         else:
-            need = view["quantity"] * order_qty
+            need = to_qty(view["quantity"]) * order_qty
             have = available(db, art_id, order.id)   # SQL-Aggregat (kein Laden aller Instanzen)
             exec_line.need = need
             exec_line.available = have
