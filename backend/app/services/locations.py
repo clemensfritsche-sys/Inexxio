@@ -57,6 +57,10 @@ def location_label(db: Session, ltype: str | None, lid: int | None) -> str | Non
             .first()
         )
         return _obj_nr(lid) if inst else None
+    if ltype == "company":
+        from ..models import CompanySettings
+        c = db.query(CompanySettings).filter(CompanySettings.object_id == lid).first()
+        return (c.company_name or _obj_nr(lid)) if c else _obj_nr(lid)
     return None
 
 
@@ -66,10 +70,15 @@ LocKey = tuple[str | None, int | None]
 def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None]:
     """**Batch**-Variante von ``location_label``: EIN Query je Standort-Typ statt einem je
     Zeile (N+1) – für Feeds/Listen (Instanz-Feed, Artikel-Bestand, Auftrags-Instanzen)."""
-    ids: dict[str, set[int]] = {"lagerplatz": set(), "user": set(), "instance": set()}
+    ids: dict[str, set[int]] = {"lagerplatz": set(), "user": set(), "instance": set(), "company": set()}
     for ltype, lid in pairs:
         if ltype in ids and lid is not None:
             ids[ltype].add(lid)
+    from ..models import CompanySettings
+    companies = {
+        c.object_id: (c.company_name or _obj_nr(c.object_id))
+        for c in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids["company"]))
+    } if ids["company"] else {}
     existing_loc = {
         oid for (oid,) in db.query(StorageLocation.object_id).filter(
             StorageLocation.object_id.in_(ids["lagerplatz"]), StorageLocation.is_active == True)
@@ -94,6 +103,8 @@ def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None
             out[key] = users.get(lid)
         elif ltype == "instance":
             out[key] = _obj_nr(lid) if lid in existing_inst else None
+        elif ltype == "company":
+            out[key] = companies.get(lid, _obj_nr(lid))
         else:
             out[key] = None
     return out

@@ -272,8 +272,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Auftrag-Stepper** über alle Schritte (Schlüssel = Schritt-id, mehrere gleichartige möglich) + Panel
   des gewählten Schritts (Beschaffung/Datenerfassung/Bewegung/Ressource); Lieferant sieht nur die
   Beschaffung seiner Aufträge.
-- **Standorte**: jede Instanz hat immer einen Standort. Neue Instanzen starten bei der Freigabe beim
-  **Lieferanten** (Beschaffung mit Lieferant) bzw. an der **Lieferadresse** aus der Systemkonfiguration.
+- **Standorte**: jede Instanz hat **IMMER** einen Standort – **nie standortlos**. Neue Instanzen starten
+  bei der Freigabe beim **Lieferanten** (Beschaffung mit Lieferant), sonst beim **Unternehmen selbst**
+  (`location_type='company'` + Firmen-Objektnummer, `serialization._initial_location`; früher `NULL`).
+  «company» ist nur Start-Standort, **nie Bewegungsziel** (`LOCATION_TYPES` bleibt lagerplatz/user/instance;
+  Anzeige via `locations.location_labels`). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
+  ganzzahlig – Bruchmengen für kg/m²/l/m³ wären ein separater Decimal-Umbau der Bestands-Engine).
   Beim **Wareneingang («received»)** gibt der Besteller den **aktuellen Lagerort verpflichtend** an
   (`purchase_orders.receiving_location_id`); fehlt eine Vorgabe, wird automatisch ein Lagerplatz
   «Wareneingang» angelegt (`services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt

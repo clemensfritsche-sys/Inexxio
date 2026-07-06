@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Package, ArrowLeft, FileText, Workflow, Boxes, Lock, Trash2, Tag, QrCode, AlertTriangle,
+  Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, ShoppingCart, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
-  Scaling, Hash, Truck, Banknote, Link2, ListPlus, Weight, Sparkles, Plus, Shield,
+  Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
@@ -277,6 +277,15 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
                     <QrCode size={15} />
                   </button>
+                  {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer (Claude-Design):
+                      nur bei freigegebenem Artikel, öffnet den Dialog (mit «Ersetzen»-Option). */}
+                  {record.status === 'released' && (
+                    <button className="erp-idbtn" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
+                      aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
+                      style={{ color: 'var(--danger)' }} onClick={() => onStatusAction('inactive')}>
+                      <Ban size={15} />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -288,16 +297,18 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                 {StatusCfgIcon && <StatusCfgIcon size={15} strokeWidth={2.5} />}{statusCfg.label}
               </span>
             </div>
-            {actions.length > 0 && (
+            {/* «Deaktivieren» (danger) ist als kleines Symbol neben der Objektnummer platziert –
+                hier nur die übrigen Aktionen (z. B. «Freigeben» beim Entwurf). */}
+            {actions.some((a) => a.tone !== 'danger') && (
               <div style={{ display: 'flex', gap: 8 }}>
-                {actions.map((a) => (
+                {actions.filter((a) => a.tone !== 'danger').map((a) => (
                   <button
                     key={a.target}
                     onClick={() => onStatusAction(a.target)}
                     disabled={statusBusy || a.disabled}
                     data-tip={a.hint}
                     data-tip-pos="bottom"
-                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : a.tone === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-neutral')}
+                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
                   >
                     {a.label}
                   </button>
@@ -337,13 +348,17 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
               <div style={SPEC.card}>
-                <SpecSection icon={FileText} title="Stammdaten">
+                <SpecSection icon={FileText} title="Stammdaten"
+                  right={<SectionAddButton keys={SEC_STAMM} added={added} onAdd={addField} />}>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <NameField value={form.name} onChange={(v) => set('name', v)}
                       error={form.name.trim() ? errs.name : null} />
                   </div>
                   <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
                   <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
+                  {OPTIONAL_FIELDS.filter((f) => SEC_STAMM.includes(f.key) && added.includes(f.key)).map((f) => (
+                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
+                  ))}
                 </SpecSection>
 
                 <SpecSection icon={Box} title="Physische Eigenschaften">
@@ -355,7 +370,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                   )}
                 </SpecSection>
 
-                <SpecSection icon={ShoppingCart} title="Beschaffung">
+                <SpecSection icon={ShoppingCart} title="Beschaffung" last
+                  right={<SectionAddButton keys={SEC_BESCH} added={added} onAdd={addField} />}>
                   <EditField label="Bestellnummer" value={form.supplier_article_number} onChange={(v) => set('supplier_article_number', v)} placeholder="Artikelnummer des Lieferanten" />
                   <EditField label="CAD-/Onshape-Link" value={form.cad_url} onChange={(v) => set('cad_url', v)} placeholder="https://cad.onshape.com/…" />
                   {!isCreate && record!.lead_time_days_low != null && (
@@ -364,12 +380,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                   {!isCreate && record!.landed_unit_cost != null && (
                     <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record!.landed_unit_cost)} unit="CHF" autoHint="Aus der letzten Freigabe" mono />
                   )}
-                </SpecSection>
-
-                <SpecSection icon={ListPlus} title="Zusätzliche Angaben" last>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <AddFieldMenu added={added} form={form} onSet={set} onAdd={addField} onRemove={removeField} />
-                  </div>
+                  {OPTIONAL_FIELDS.filter((f) => SEC_BESCH.includes(f.key) && added.includes(f.key)).map((f) => (
+                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
+                  ))}
                 </SpecSection>
               </div>
             )}
@@ -443,11 +456,6 @@ const H: Record<string, React.CSSProperties> = {
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 },
 };
 
-const lockedNotice: React.CSSProperties = {
-  display: 'flex', alignItems: 'flex-start', gap: 8, padding: '11px 13px',
-  background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)',
-  fontSize: 12.5, color: 'var(--fg-2)',
-};
 
 function fmtWeight(v: string | number): string {
   return Number(v).toLocaleString('de-CH', { maximumFractionDigits: 3 });
@@ -536,9 +544,10 @@ function NameField({ value, onChange, error }: {
 // ─── Spezifikation: sektionierte Ansicht (Design-Redesign) ────────────────────
 // Symbol-Auswahl je Einheit/Serialisierung (statt Dropdown/Segmented) – «Symbol + Wort».
 const UNIT_PICK = [
-  { value: 'Stk', label: 'Stk.', icon: Box },
+  { value: 'Stk', label: 'Stk.', icon: Package },
   { value: 'mm', label: 'mm', icon: Ruler },
   { value: 'm2', label: 'm²', icon: Square },
+  { value: 'm3', label: 'm³', icon: Box },
   { value: 'kg', label: 'kg', icon: Scale },
   { value: 'l', label: 'l', icon: Droplet },
 ];
@@ -552,9 +561,10 @@ const SPEC = {
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '26px 44px' } as React.CSSProperties,
 };
 
-// Abschnitts-Kopf (getöntes Symbol + Versalien-Titel + Haarlinie) – EIN Look über alle Sektionen.
-function SpecSection({ icon: Icon, title, last, children }: {
-  icon: React.ElementType; title: string; last?: boolean; children: React.ReactNode;
+// Abschnitts-Kopf (getöntes Symbol + Versalien-Titel + Haarlinie + optionaler rechter Slot,
+// z. B. «+ Feld hinzufügen») – EIN Look über alle Sektionen.
+function SpecSection({ icon: Icon, title, last, right, children }: {
+  icon: React.ElementType; title: string; last?: boolean; right?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ marginBottom: last ? 0 : 40 }}>
@@ -563,11 +573,82 @@ function SpecSection({ icon: Icon, title, last, children }: {
           <Icon size={17} />
         </span>
         <span style={{ font: '800 14px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>{title}</span>
+        {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
       </div>
       <div style={SPEC.grid}>{children}</div>
     </div>
   );
 }
+
+// «Feld hinzufügen» als kleines +-Symbol (Hover-Tooltip) im Sektions-Kopf → Dropdown der
+// noch nicht sichtbaren optionalen Felder DIESER Sektion. Kein eigener «Zusätzliche»-Bereich.
+function SectionAddButton({ keys, added, onAdd }: {
+  keys: OptKey[]; added: OptKey[]; onAdd: (k: OptKey) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function h(e: MouseEvent) { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const available = OPTIONAL_FIELDS.filter((f) => keys.includes(f.key) && !added.includes(f.key));
+  if (available.length === 0) return null;
+  return (
+    <div ref={boxRef} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen((o) => !o)} data-tip="Feld hinzufügen" data-tip-pos="left"
+        aria-label="Feld hinzufügen"
+        style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', border: '1px solid var(--border-2)', background: '#fff', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <Plus size={16} />
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 30, width: 320, maxWidth: '80vw', background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', padding: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {available.map((f) => {
+            const Icon = MENU_ICON[f.key] ?? Layers;
+            return (
+              <button key={f.key} type="button" onClick={() => { onAdd(f.key); setOpen(false); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 11px', border: 'none', background: 'transparent', borderRadius: 'var(--r-sm)', cursor: 'pointer', textAlign: 'left' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-2)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)', color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                  <Icon size={16} />
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{f.label}</span>
+                  {f.hint && <span style={{ display: 'block', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 1 }}>{f.hint}</span>}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ein optionales Feld als Eingabe (in seiner Sektion) mit Entfernen-Symbol.
+function OptField({ f, form, onSet, onRemove }: {
+  f: typeof OPTIONAL_FIELDS[number]; form: Form; onSet: (k: OptKey, v: string) => void; onRemove: (k: OptKey) => void;
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Label>{f.label}</Label>
+        <button type="button" onClick={() => onRemove(f.key)} title="Feld entfernen"
+          style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0, marginBottom: 6 }}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+      <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
+      {f.hint && <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{f.hint}</div>}
+    </div>
+  );
+}
+
+// Optionale Felder je Sektion (Kontext-Zuordnung): Stammdaten ↔ Oberfläche/Material,
+// Beschaffung ↔ MOQ/Sicherheitsbestand.
+const SEC_STAMM: OptKey[] = ['surface', 'material'];
+const SEC_BESCH: OptKey[] = ['min_order_qty', 'safety_stock'];
 
 // Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, Akzent-Fokus).
 const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3 py-2.5 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft';
@@ -670,10 +751,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
     || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
   return (
     <div style={SPEC.card}>
-      <div style={{ ...lockedNotice, marginBottom: 24 }}>
-        <Lock size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>Artikel ist freigegeben und schreibgeschützt. Für Änderungen einen neuen Artikel anlegen.</span>
-      </div>
       <SpecSection icon={FileText} title="Stammdaten" last={!hasPhysical && !hasProcurement}>
         <ReadField icon={Tag} label="Artikelname" value={record.name} full />
         <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
@@ -704,89 +781,10 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
   );
 }
 
-// «Zusätzliche Angaben»: dynamische Feldliste – Symbol-Menü (Design-`.fieldmenu`).
-// Beschaffungs-Felder (Bestellnummer/CAD-Link) sind fest in der Beschaffung-Sektion,
-// daher hier NUR die übrigen optionalen Attribute.
-const MENU_KEYS: OptKey[] = ['material', 'surface', 'min_order_qty', 'safety_stock'];
+// Symbole für die optionalen Felder (im Sektions-«+»-Menü).
 const MENU_ICON: Record<string, React.ElementType> = {
   material: Layers, surface: Sparkles, min_order_qty: Package, safety_stock: Shield,
 };
-
-function AddFieldMenu({ added, form, onSet, onAdd, onRemove }: {
-  added: OptKey[]; form: Form;
-  onSet: (key: OptKey, v: string) => void; onAdd: (key: OptKey) => void; onRemove: (key: OptKey) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function h(e: MouseEvent) { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-  const menuFields = OPTIONAL_FIELDS.filter((f) => MENU_KEYS.includes(f.key));
-  const shown = menuFields.filter((f) => added.includes(f.key));
-  const available = menuFields.filter((f) => !added.includes(f.key));
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-      {shown.length === 0 && (
-        <p style={{ font: '500 13px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5, margin: 0, maxWidth: 560 }}>
-          Noch keine zusätzlichen Felder. Füge bei Bedarf optionale Attribute hinzu – z. B. Oberfläche, Material
-          oder Sicherheitsbestand.
-        </p>
-      )}
-      {shown.length > 0 && (
-        <div style={SPEC.grid}>
-          {shown.map((f) => (
-            <div key={f.key}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Label>{f.label}</Label>
-                <button type="button" onClick={() => onRemove(f.key)} title="Feld entfernen"
-                  style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0, marginBottom: 6 }}>
-                  <Trash2 size={13} />
-                </button>
-              </div>
-              <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
-              {f.hint && <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{f.hint}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-      <div ref={boxRef} style={{ position: 'relative' }}>
-        {available.length > 0 ? (
-          <>
-            <button type="button" onClick={() => setOpen((o) => !o)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 'var(--r-md)', border: '1px dashed var(--border-2)', background: '#fff', color: 'var(--accent)', font: '600 13px var(--font-body)', cursor: 'pointer' }}>
-              <Plus size={15} /> Feld hinzufügen
-            </button>
-            {open && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 30, width: 360, maxWidth: '100%', background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', boxShadow: 'var(--shadow-lg)', padding: 7, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {available.map((f) => {
-                  const Icon = MENU_ICON[f.key] ?? Layers;
-                  return (
-                    <button key={f.key} type="button" onClick={() => { onAdd(f.key); setOpen(false); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 11px', border: 'none', background: 'transparent', borderRadius: 'var(--r-sm)', cursor: 'pointer', textAlign: 'left' }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-2)'; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                      <span style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)', color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                        <Icon size={17} />
-                      </span>
-                      <span style={{ minWidth: 0 }}>
-                        <span style={{ display: 'block', font: '700 14px var(--font-body)', color: 'var(--fg-1)' }}>{f.label}</span>
-                        {f.hint && <span style={{ display: 'block', font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginTop: 1 }}>{f.hint}</span>}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        ) : (
-          <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-4)' }}>Alle Felder hinzugefügt.</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function formatDuration(days: number): string {
   if (days >= 1) return `${days.toFixed(days < 10 ? 1 : 0)} Tag${days >= 2 ? 'e' : ''}`;

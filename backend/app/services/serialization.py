@@ -28,12 +28,13 @@ from .objects import next_object_ids
 
 
 def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None]:
-    """Startstandort neuer Instanzen.
+    """Startstandort neuer Instanzen. **Nie standortlos** – jede Instanz trägt von Anfang
+    an einen Ort:
 
-    Beginnt der Prozess mit einer **Lieferanten-Beschaffung** (erster Schritt =
-    ``purchase``/supplier), starten die Instanzen beim **Lieferanten**. Sonst gibt
-    es (noch) keinen physischen Standort → ``(None, None)``; er wird durch den
-    ersten Bewegungs-Schritt gesetzt."""
+    * Beginnt der Prozess mit einer **Lieferanten-Beschaffung** (erster Schritt =
+      ``purchase``/supplier) → beim **Lieferanten** (``user``).
+    * Sonst → beim **Unternehmen** selbst (``company`` + Firmen-Objektnummer). Den realen
+      Lagerort setzt danach der erste Bewegungs-/Wareneingangsschritt."""
     defs = process.order_step_defs(db, order)
     first = defs[0] if defs else None
     if first and first.step_type == "purchase" and first.mode == "supplier" and first.supplier_id:
@@ -44,6 +45,10 @@ def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None
         )
         if sup and sup.object_id:
             return ("user", sup.object_id)
+    from .admin import get_or_create_settings
+    company = get_or_create_settings(db)
+    if company.object_id:
+        return ("company", company.object_id)
     return (None, None)
 
 

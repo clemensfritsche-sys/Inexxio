@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, field_validator
 #   lagerplatz → StorageLocation
 #   user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
 #   instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
+# Gültige **Bewegungsziele**. «company» (das Unternehmen selbst) ist bewusst NICHT dabei: es ist
+# nur der START-Standort neu erzeugter Instanzen (nie ein Bewegungsziel). Die Anzeige eines
+# company-Standorts übernimmt `services/locations.py` (location_labels), die Vergabe die
+# Serialisierung – so gibt es nie standortlose Instanzen, ohne die Ziel-Validierung zu lockern.
 LOCATION_TYPES = ("lagerplatz", "user", "instance")
 
 
@@ -57,3 +61,7 @@ class MovementEmbed(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     target_location_label: Optional[str] = None
+    # Bewegungs-Modus des Schritts: 'customer' = Pflicht-Versand zum Kunden (nur dann sind
+    # VERKAUFTE Instanzen bewegbar). Das Frontend spiegelt damit exakt die Backend-Regel,
+    # statt sie über den Ziel-Typ zu erraten (Ursache «Instanz gehört nicht zu diesem Auftrag»).
+    mode: Optional[str] = None

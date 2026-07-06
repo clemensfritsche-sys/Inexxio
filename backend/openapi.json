@@ -8820,6 +8820,17 @@
               }
             ],
             "title": "Target Location Label"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
           }
         },
         "type": "object",

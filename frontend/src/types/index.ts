@@ -24,7 +24,7 @@ export type UserProfile = Omit<UserProfileApi, 'role'> & {
 // ─── Article ────────────────────────────────────────────────────────────────
 
 export type ArticleStatus = 'draft' | 'released' | 'inactive';
-export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'kg' | 'l';
+export type ArticleUnit = 'Stk' | 'mm' | 'm2' | 'm3' | 'kg' | 'l';
 export type ArticleSerialization = 'unit' | 'batch';
 
 type ArticleApi = components['schemas']['ArticleResponse'];
@@ -120,7 +120,7 @@ export interface ResourceUpdateInput {
 export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
 
 // Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
-export type LocationType = 'lagerplatz' | 'user' | 'instance';
+export type LocationType = 'lagerplatz' | 'user' | 'instance' | 'company';
 
 export interface MovementTargetInput {
   instance_id: number;       // object_id der Instanz

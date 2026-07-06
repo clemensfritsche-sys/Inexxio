@@ -6,6 +6,7 @@ EINEN Tool-Use-Loop gegen das Gateway aus. Alle Tools laufen rechte-gescopt übe
 (Modell, Prompt-Version, Token – Beobachtbarkeit/Kosten)."""
 
 import json
+import time
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -18,6 +19,10 @@ from .principal import AiPrincipal
 _MAX_TURNS = 24          # Verlauf hart begrenzen (Kontext-/Kostenbudget)
 _MAX_MSG_CHARS = 6000
 _MAX_TOOL_ROUNDS = 12    # mehrstufige Aufgaben (auflösen→anlegen→fixieren→Schritt) brauchen Luft
+# Wall-Clock-Budget je Chat-Anfrage: es wird KEINE neue Tool-Runde mehr GESTARTET, sobald so
+# viele Sekunden verstrichen sind. Zusammen mit dem Modell-Timeout (ai_request_timeout je Call)
+# bleibt die Gesamtdauer sicher unter dem Cloud-Run-Request-Timeout – kein «ewiges Rechnen»/Hänger.
+_CHAT_TIME_BUDGET = 45.0
 
 
 def _sanitize_history(messages: list[dict]) -> list[dict]:
@@ -77,7 +82,15 @@ def run_chat(db: Session, principal: AiPrincipal, messages: list[dict],
     navigate: dict | None = None   # letzter Navigationsvorschlag (open_page)
     reply = ""
 
+    deadline = time.monotonic() + _CHAT_TIME_BUDGET
     for _ in range(_MAX_TOOL_ROUNDS):
+        # Zeitbudget: keine neue (u. U. langsame) Modell-Runde mehr starten, wenn das Budget
+        # aufgebraucht ist – lieber sauber mit dem bisherigen Stand antworten als den Request
+        # bis zum Cloud-Run-Timeout laufen lassen (Hänger/Absturz vermeiden).
+        if time.monotonic() > deadline:
+            reply = reply or ("Die Anfrage ist umfangreich und dauert länger als vorgesehen. "
+                              "Bitte in kleinere Schritte aufteilen oder konkretisieren.")
+            break
         # Adaptives Reasoning (nur beim starken Modell / komplexe Aufgaben – siehe routing):
         # merklich bessere Bezugsauflösung & Planung, ohne erzwungenes Tool (auto) → mit
         # Tool-Use kombinierbar.

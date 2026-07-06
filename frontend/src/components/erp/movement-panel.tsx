@@ -25,7 +25,11 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   // Instanzen bleiben aber bewegbar, wenn die Bewegung sie physisch bewegt: der **Pflicht-Versand
   // zum Kunden** (Ziel = Person/Kunde – die eben verkaufte Ware geht raus) und die **Retoure**
   // (reason='return' – die verkaufte Ware kommt zurück ins Lager).
-  const shipsSold = order.reason === 'return' || mv?.target_location_type === 'user';
+  // Verkaufte Instanzen sind NUR beim Pflicht-Versand zum Kunden (mode='customer') oder bei einer
+  // Retoure bewegbar – exakt wie im Backend (movement.record_movement). Früher wurde das über
+  // `target_location_type === 'user'` erraten; das galt aber für JEDE Bewegung zu einer Person und
+  // bot verkaufte Instanzen fälschlich an → Backend wies sie als «gehört nicht zu diesem Auftrag» ab.
+  const shipsSold = order.reason === 'return' || mv?.mode === 'customer';
   const instances = useMemo(
     () => (order.instances ?? []).filter((i) => shipsSold
       ? !['scrapped', 'consumed'].includes(i.disposition ?? '')
