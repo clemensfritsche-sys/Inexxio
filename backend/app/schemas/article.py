@@ -105,7 +105,7 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 
 # Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
 _OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
-_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
+_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock", "reorder_target")
 
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -130,6 +130,8 @@ class ArticleCreate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
+    reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
+    shelf_life_days: Optional[int] = None        # Haltbarkeit in Tagen (E)
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
     procurement_mode: Optional[str] = None   # Default 'supplier'
@@ -222,6 +224,8 @@ class ArticleUpdate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
+    reorder_target: Optional[Decimal] = None    # E
+    shelf_life_days: Optional[int] = None        # E
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
@@ -319,6 +323,8 @@ class ArticleResponse(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
+    reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
+    shelf_life_days: Optional[int] = None        # E: Haltbarkeit in Tagen
     # Beschaffungsquelle (Spezifikation) + denormalisierter Lieferantenname (Router)
     procurement_mode: str = "supplier"
     default_supplier_id: Optional[int] = None

@@ -4712,6 +4712,75 @@
         }
       }
     },
+    "/api/v1/legal/{kind}": {
+      "get": {
+        "tags": [
+          "legal"
+        ],
+        "summary": "Get Legal Document",
+        "operationId": "get_legal_document_api_v1_legal__kind__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/maintenance/sweep": {
+      "post": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Run Sweep",
+        "description": "Haltbarkeit ausbuchen, dann alle Artikel auf Meldebestand prüfen (Auto-Nachbestellung).",
+        "operationId": "run_sweep_api_v1_erp_maintenance_sweep_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/ai/config": {
       "get": {
         "tags": [
@@ -5444,6 +5513,31 @@
               }
             ],
             "title": "Safety Stock"
+          },
+          "reorder_target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reorder Target"
+          },
+          "shelf_life_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life Days"
           },
           "procurement_mode": {
             "anyOf": [
@@ -6289,6 +6383,28 @@
             ],
             "title": "Safety Stock"
           },
+          "reorder_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reorder Target"
+          },
+          "shelf_life_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life Days"
+          },
           "procurement_mode": {
             "type": "string",
             "title": "Procurement Mode",
@@ -6737,6 +6853,31 @@
               }
             ],
             "title": "Safety Stock"
+          },
+          "reorder_target": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reorder Target"
+          },
+          "shelf_life_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shelf Life Days"
           },
           "procurement_mode": {
             "anyOf": [
@@ -7295,6 +7436,17 @@
               }
             ],
             "title": "Pricing Zone Factors"
+          },
+          "legal_documents": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Documents"
           }
         },
         "type": "object",
@@ -7747,6 +7899,17 @@
               }
             ],
             "title": "Pricing Zone Factors"
+          },
+          "legal_documents": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Documents"
           }
         },
         "type": "object",
@@ -8938,6 +9101,51 @@
           "updated_at"
         ],
         "title": "InstanceResponse"
+      },
+      "LegalDocument": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "LegalDocument"
       },
       "MovementEmbed": {
         "properties": {
@@ -12782,6 +12990,24 @@
         },
         "type": "object",
         "title": "StorageLocationUpdate"
+      },
+      "SweepResult": {
+        "properties": {
+          "expired": {
+            "type": "integer",
+            "title": "Expired"
+          },
+          "reordered": {
+            "type": "integer",
+            "title": "Reordered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expired",
+          "reordered"
+        ],
+        "title": "SweepResult"
       },
       "UploadResult": {
         "properties": {

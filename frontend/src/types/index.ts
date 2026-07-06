@@ -51,6 +51,8 @@ export interface ArticleInput {
   supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
+  reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
+  shelf_life_days?: number | null;      // Haltbarkeit in Tagen (E)
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
   procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;
@@ -107,6 +109,14 @@ export type DocumentContent = components['schemas']['DocumentContent'];
 export type DocumentSection = components['schemas']['DocumentSection'];
 export type OrderDocument = NonNullable<OrderApi['document']>;
 export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
+
+// Öffentliches Rechtsdokument (AGB/Datenschutz/…) – aufgelöster Zeiger (D).
+export interface LegalDocument {
+  kind: string;
+  object_number: number | null;
+  document_date: string | null;
+  content: DocumentContent | null;
+}
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];
@@ -521,5 +531,7 @@ export interface CompanySettings {
   shop_default_currency: string;
   payments_provider: string | null;
   pricing_zone_factors: Record<string, number> | null;
+  // Öffentliche Rechtsdokumente (D): {"agb": <Objektnr>, "datenschutz": …}
+  legal_documents: Record<string, number> | null;
 }
 

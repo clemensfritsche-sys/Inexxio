@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Printer } from 'lucide-react';
+import { LegalDocument } from '@/components/public/legal-document';
 
 const VERSION = '1.0';
 const VALID_FROM = '01.01.2026';
@@ -23,6 +24,9 @@ export default function AGBPage() {
 
       <section className="section">
         <div className="container max-w-4xl">
+          {/* Gültige AGB kommen – wenn hinterlegt – aus dem Dokument-Modul (Zeiger am
+              Unternehmen, D). Ohne Zeiger greift der eingebaute Rechtstext als Fallback. */}
+          <LegalDocument kind="agb" fallback={<>
           {/* Tab Navigation */}
           <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -416,6 +420,7 @@ export default function AGBPage() {
               </Section>
             </div>
           )}
+          </>} />
         </div>
       </section>
     </div>

@@ -1470,6 +1470,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/legal/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Legal Document */
+        get: operations["get_legal_document_api_v1_legal__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/maintenance/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Sweep
+         * @description Haltbarkeit ausbuchen, dann alle Artikel auf Meldebestand prüfen (Auto-Nachbestellung).
+         */
+        post: operations["run_sweep_api_v1_erp_maintenance_sweep_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/config": {
         parameters: {
             query?: never;
@@ -1769,6 +1806,10 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
+            /** Reorder Target */
+            reorder_target?: number | string | null;
+            /** Shelf Life Days */
+            shelf_life_days?: number | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2002,6 +2043,10 @@ export interface components {
             min_order_qty?: string | null;
             /** Safety Stock */
             safety_stock?: string | null;
+            /** Reorder Target */
+            reorder_target?: string | null;
+            /** Shelf Life Days */
+            shelf_life_days?: number | null;
             /**
              * Procurement Mode
              * @default supplier
@@ -2135,6 +2180,10 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
+            /** Reorder Target */
+            reorder_target?: number | string | null;
+            /** Shelf Life Days */
+            shelf_life_days?: number | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2281,6 +2330,8 @@ export interface components {
             payments_provider?: string | null;
             /** Pricing Zone Factors */
             pricing_zone_factors?: Record<string, never> | null;
+            /** Legal Documents */
+            legal_documents?: Record<string, never> | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -2358,6 +2409,8 @@ export interface components {
             payments_provider?: string | null;
             /** Pricing Zone Factors */
             pricing_zone_factors?: Record<string, never> | null;
+            /** Legal Documents */
+            legal_documents?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -2846,6 +2899,16 @@ export interface components {
             physical_location_label?: string | null;
             /** Reserved For Order Object Id */
             reserved_for_order_object_id?: number | null;
+        };
+        /** LegalDocument */
+        LegalDocument: {
+            /** Kind */
+            kind: string;
+            /** Object Number */
+            object_number?: number | null;
+            /** Document Date */
+            document_date?: string | null;
+            content?: components["schemas"]["DocumentContent"] | null;
         };
         /**
          * MovementEmbed
@@ -4137,6 +4200,13 @@ export interface components {
             is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
+        };
+        /** SweepResult */
+        SweepResult: {
+            /** Expired */
+            expired: number;
+            /** Reordered */
+            reordered: number;
         };
         /** UploadResult */
         UploadResult: {
@@ -7260,6 +7330,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_legal_document_api_v1_legal__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegalDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_sweep_api_v1_erp_maintenance_sweep_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepResult"];
                 };
             };
         };

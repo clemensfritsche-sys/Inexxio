@@ -3,14 +3,14 @@
 import { useState, useRef } from 'react';
 import {
   Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
-  Key, CheckCircle2, AlertCircle, Loader2, Lock, ShoppingBag,
+  Key, CheckCircle2, AlertCircle, Loader2, Lock, ShoppingBag, PackageSearch,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'shop';
+type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'shop' | 'legal_docs';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -25,6 +25,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
+  legal_documents: null,
 };
 
 export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {
@@ -185,6 +186,27 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         </div>
       </SettingsCard>
 
+      <SettingsCard icon={<FileText className="h-5 w-5" />} title="Rechtstexte (öffentliche Dokumente)"
+        saved={saved === 'legal_docs'} saving={saving === 'legal_docs'}
+        onSave={(d) => saveSection('legal_docs', { legal_documents: buildLegalDocs(d, s.legal_documents) })}>
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <FileText className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
+          <p className="text-xs text-blue-800">
+            Objektnummer der <strong>gültigen</strong> Dokument-Instanz eintragen (aus einem Auftrag mit
+            «Dokument»-Schritt, ausgestellt). Die Website zeigt dann diese Fassung; ältere bleiben archiviert.
+            Leer = eingebauter Standardtext.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="AGB · Dokumentennummer" name="legal_agb" type="number"
+            defaultValue={s.legal_documents?.agb ?? ''} placeholder="z. B. 100000123" hint="Objektnummer der AGB-Dokument-Instanz" />
+          <Field label="Datenschutz · Dokumentennummer" name="legal_datenschutz" type="number"
+            defaultValue={s.legal_documents?.datenschutz ?? ''} placeholder="z. B. 100000124" hint="Objektnummer der Datenschutz-Dokument-Instanz" />
+        </div>
+      </SettingsCard>
+
+      <MaintenanceCard />
+
       <ShopConfigCard
         settings={s}
         saving={saving === 'shop'}
@@ -193,6 +215,57 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
       />
     </div>
   );
+}
+
+// ─── Lagerwartung (E): Haltbarkeit ausbuchen + Meldebestand prüfen ────────────────
+function MaintenanceCard() {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ expired: number; reordered: number } | null>(null);
+  const [err, setErr] = useState('');
+  async function run() {
+    setRunning(true); setErr(''); setResult(null);
+    try { setResult(await api.runMaintenanceSweep()); }
+    catch { setErr('Wartungslauf fehlgeschlagen.'); }
+    finally { setRunning(false); }
+  }
+  return (
+    <div className="card p-4 sm:p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><PackageSearch className="h-5 w-5" /></div>
+        <h2 className="text-base font-semibold text-slate-900">Lagerwartung</h2>
+      </div>
+      <p className="mb-4 text-sm text-slate-600">
+        Bucht abgelaufene Bestände aus (Haltbarkeit) und prüft alle Artikel auf ihren
+        Meldebestand – fehlt Bestand, wird automatisch nachbestellt. Läuft ausserdem reaktiv bei
+        Bestandsabgängen; dieser Knopf stösst einen vollständigen Lauf sofort an.
+      </p>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={run} disabled={running}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageSearch className="h-4 w-4" />}
+          Jetzt prüfen
+        </button>
+        {result && (
+          <span className="text-sm text-slate-600">
+            {result.expired} ausgebucht · {result.reordered} nachbestellt
+          </span>
+        )}
+        {err && <span className="text-sm text-red-600">{err}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Baut die legal_documents-Map aus den Formularfeldern (leer → Eintrag entfernen).
+function buildLegalDocs(d: Record<string, string>, current: Record<string, number> | null): Record<string, number> {
+  const out: Record<string, number> = { ...(current ?? {}) };
+  for (const [field, kind] of [['legal_agb', 'agb'], ['legal_datenschutz', 'datenschutz']] as const) {
+    const raw = (d[field] ?? '').trim();
+    const n = Number(raw);
+    if (raw && Number.isFinite(n) && n > 0) out[kind] = Math.trunc(n);
+    else delete out[kind];
+  }
+  return out;
 }
 
 // ─── Shop / Verkauf ───────────────────────────────────────────────────────────

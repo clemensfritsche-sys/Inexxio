@@ -45,8 +45,18 @@ class Article(Base, TimestampMixin):
     cad_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # CAD-Link
     surface: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Oberfläche
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
-    safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
+    safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand = Meldebestand (E)
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
+
+    # ── Meldebestand / Auto-Nachbestellung (E) ─────────────────────────────────────
+    # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter
+    # ``safety_stock`` (= Meldebestand), legt das System einen Nachschub-Auftrag an (bis
+    # ``reorder_target`` bzw. – wenn leer – zurück auf ``safety_stock``). Setzt einen
+    # freigegebenen Artikel-Prozess voraus (produzierbar/beschaffbar).
+    reorder_target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)
+    # Haltbarkeit in Tagen: bei der Freigabe → ``instances.expires_at``; ein abgelaufenes Teil
+    # wird beim Sweep ausgebucht (senkt den Bestand → Meldebestand greift).
+    shelf_life_days: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     # ── Beschaffungsquelle (Teil der Spezifikation, friert bei Freigabe ein) ───────────
     # WO dieser Artikel beschafft wird, gehört zur Produktspezifikation – nicht in jeden
