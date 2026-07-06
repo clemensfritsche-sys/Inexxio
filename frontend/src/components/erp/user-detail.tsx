@@ -5,6 +5,7 @@ import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
+import { ObjectDocuments } from '@/components/erp/object-documents';
 import type { UserProfile, CustomerOrder } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { localDate } from '@/lib/utils';
@@ -329,6 +330,9 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
         <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
         <OrdersSec objectId={record.object_id} />
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+          <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />
+        </div>
       </div>
 
       {/* Save bar */}

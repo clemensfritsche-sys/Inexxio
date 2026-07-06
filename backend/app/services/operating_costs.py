@@ -71,7 +71,7 @@ def _ai_costs(db: Session, start: datetime) -> dict:
     """Tatsächliche KI-Kosten des Monats aus dem Event-Strom (Tokens × Modellpreis)."""
     rows = (
         db.query(Event.payload)
-        .filter(Event.event_type.in_(("ai.chat", "ai.document_written")),
+        .filter(Event.event_type.in_(("ai.chat", "ai.document_written", "ai.document_analyzed")),
                 Event.created_at >= start)
         .all()
     )

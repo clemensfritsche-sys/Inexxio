@@ -27,6 +27,13 @@ class Settings(BaseSettings):
 
     initial_admin_email: str = "clemens.fritsche@gmail.com"
 
+    # ── Datei-Ablage (Belege/Dokumente) ──────────────────────────────────────────
+    # Google Cloud Storage für hochgeladene Dokumente (PDF/Bilder). Ist ``gcs_bucket``
+    # gesetzt, landen Dateien im Bucket (Cloud-Run-ADC-Auth, kein Key); sonst als
+    # Fallback in der DB (``document_blobs``) – sofort lauffähig ohne Bucket/IAM-Setup.
+    gcs_bucket: str = ""
+    gcs_document_prefix: str = "documents"
+
     # ── Shop / Verkauf ───────────────────────────────────────────────────────────
     # Zahlungs-Provider: 'manual' (Default, kein externer Call – überbrückbar für Tests)
     # oder 'stripe' (Gerüst; ohne STRIPE_SECRET_KEY niemals aktiv, kein Crash).

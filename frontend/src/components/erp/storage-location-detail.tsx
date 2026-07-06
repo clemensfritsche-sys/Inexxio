@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Link2 } from 'lucide-react';
+import { Warehouse, ArrowLeft, FileText, MapPin, Boxes, Link2, FolderOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { StorageLocation, StorageLocationStatus, StorageLocationInput, ObjectReference } from '@/types';
 import { storageStatusConfig } from '@/lib/storage-location';
@@ -14,9 +14,10 @@ import { ObjId } from '@/components/erp/obj-id';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ObjectLabel } from '@/components/scan/object-label';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
+import { ObjectDocuments } from '@/components/erp/object-documents';
 import { localDate } from '@/lib/utils';
 
-type TabKey = 'stammdaten' | 'verwendung';
+type TabKey = 'stammdaten' | 'verwendung' | 'dokumente';
 
 type Form = {
   max_load_kg: string; dimensions: string;
@@ -261,6 +262,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
           {([
             ['stammdaten', 'Stammdaten', FileText] as const,
             ...(!isCreate ? [['verwendung', 'Verwendung', Link2] as const] : []),
+            ...(!isCreate ? [['dokumente', 'Dokumente', FolderOpen] as const] : []),
           ]).map(([key, label, Icon]) => {
             const active = tab === key;
             return (
@@ -283,6 +285,8 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'verwendung' ? (
           <UsageList refs={refs} />
+        ) : tab === 'dokumente' ? (
+          <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Lagerplatz" />
         ) : (
         <>
         {locked ? (

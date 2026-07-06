@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, ShoppingCart, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
-  Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban,
+  Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
@@ -22,6 +22,7 @@ import { Label, ErrorText, SaveIndicator, SearchSelect } from '@/components/erp/
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
+import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { cn, formatAmount as fmtChf, localDate, userDisplayName } from '@/lib/utils';
@@ -40,13 +41,14 @@ function articleActions(status: string, hasProcess: boolean): StatusAction[] {
   return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
-type TabKey = 'stammdaten' | 'prozess' | 'bestand' | 'verkauf';
+type TabKey = 'stammdaten' | 'prozess' | 'bestand' | 'verkauf' | 'dokumente';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'stammdaten', label: 'Spezifikation', icon: FileText },
   { key: 'prozess', label: 'Prozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
   { key: 'verkauf', label: 'Verkauf', icon: Tag },
+  { key: 'dokumente', label: 'Dokumente', icon: FolderOpen },
 ];
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'shelf_life_days';
@@ -436,6 +438,9 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         )}
         {tab === 'verkauf' && (
           <SalesPanel articleObjectId={record?.object_id ?? null} />
+        )}
+        {tab === 'dokumente' && (
+          <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Artikel" />
         )}
       </div>
 

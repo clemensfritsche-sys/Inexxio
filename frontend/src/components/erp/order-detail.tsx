@@ -24,6 +24,7 @@ import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import { ObjectDocuments } from '@/components/erp/object-documents';
 import { localDate } from '@/lib/utils';
 
 type ViewerRole = 'staff' | 'supplier';
@@ -905,6 +906,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               viewerRole={viewerRole} company={company} onOrderUpdated={onSaved} />
           </>
         ) : null}
+
+        {/* Dokumente – Belege/Lieferscheine/Rechnungen zu diesem Auftrag (KI-Aufnahme)
+            + im Prozess erzeugte Dokumente. Nur Personal, nur bei bestehendem Auftrag. */}
+        {!isCreate && isStaff && (
+          <div style={{ marginTop: 20 }}>
+            <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
+          </div>
+        )}
       </div>
 
       {/* Meta footer (edit only) */}

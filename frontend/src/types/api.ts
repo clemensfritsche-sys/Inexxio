@@ -1436,6 +1436,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/documents/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Document
+         * @description Ein Dokument hochladen; die KI liest es und schlägt Name + Objektzuordnung vor.
+         *     Ergebnis ist ein **Vorschlag** – erst ``confirm`` legt das Dokument an.
+         */
+        post: operations["analyze_document_api_v1_ai_documents_analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/documents/{action_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Document
+         * @description Menschliche Bestätigung: Name + Objektzuordnung festschreiben → Dokument anlegen
+         *     (über den autorisierten ``AiAction``-Pfad). Zuordnung ist Pflicht (min. ein Objekt).
+         */
+        post: operations["confirm_document_api_v1_ai_documents__action_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/documents/{action_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Document
+         * @description Vorschlag ablehnen: die (noch nicht zugeordnete) Datei wird aus der Ablage entfernt.
+         */
+        post: operations["reject_document_api_v1_ai_documents__action_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/objects/{object_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Object Documents
+         * @description Alle Dokumente eines Objekts: hochgeladene Dateien (n:m) + im Schritt «Dokument»
+         *     erzeugte Dokumente. Neueste zuerst.
+         */
+        get: operations["object_documents_api_v1_erp_objects__object_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/document-files/{doc_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Document
+         * @description Die Datei authentifiziert ausliefern (inline – Vorschau im Browser).
+         */
+        get: operations["download_document_api_v1_erp_document_files__doc_id__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/document-files/{doc_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Document
+         * @description Dokument entfernen (Soft-Delete – die Datei bleibt archiviert, verschwindet aber
+         *     aus den Reitern). Verknüpfungen werden mit deaktiviert.
+         */
+        delete: operations["delete_document_api_v1_erp_document_files__doc_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/attachments": {
         parameters: {
             query?: never;
@@ -2213,6 +2337,16 @@ export interface components {
             /** Object Id */
             object_id?: number | null;
         };
+        /** Body_analyze_document_api_v1_ai_documents_analyze_post */
+        Body_analyze_document_api_v1_ai_documents_analyze_post: {
+            /**
+             * File
+             * Format: binary
+             */
+            file: string;
+            /** Context Object Id */
+            context_object_id?: number | null;
+        };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
             /**
@@ -2583,6 +2717,61 @@ export interface components {
             scrapped_count: number;
         };
         /**
+         * DocumentAnalyzeResponse
+         * @description Ergebnis der Analyse – ein bearbeitbarer Vorschlag (noch NICHT gespeichert).
+         */
+        DocumentAnalyzeResponse: {
+            /** Action Id */
+            action_id?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Doc Type */
+            doc_type?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Language */
+            language?: string | null;
+            /** Filename */
+            filename?: string | null;
+            /** Mime */
+            mime?: string | null;
+            /** Byte Size */
+            byte_size?: number | null;
+            /** Page Count */
+            page_count?: number | null;
+            /**
+             * Ai Analyzed
+             * @default false
+             */
+            ai_analyzed: boolean;
+            /** Extracted Data */
+            extracted_data?: Record<string, never> | null;
+            /**
+             * Suggested Links
+             * @default []
+             */
+            suggested_links: components["schemas"]["SuggestedLink"][];
+            /**
+             * Duplicate
+             * @default false
+             */
+            duplicate: boolean;
+            /** Duplicate Object Id */
+            duplicate_object_id?: number | null;
+        };
+        /** DocumentConfirmRequest */
+        DocumentConfirmRequest: {
+            /** Title */
+            title: string;
+            /**
+             * Doc Type
+             * @default other
+             */
+            doc_type: string;
+            /** Links */
+            links: components["schemas"]["DocumentLinkInput"][];
+        };
+        /**
          * DocumentContent
          * @description Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte.
          */
@@ -2625,6 +2814,21 @@ export interface components {
             document_date?: string | null;
             /** Created By Name */
             created_by_name?: string | null;
+        };
+        /** DocumentLinkInput */
+        DocumentLinkInput: {
+            /** Object Id */
+            object_id: number;
+            /**
+             * Relation
+             * @default about
+             */
+            relation: string;
+            /**
+             * Primary
+             * @default false
+             */
+            primary: boolean;
         };
         /**
          * DocumentSection
@@ -2978,6 +3182,42 @@ export interface components {
             tracking_number?: string | null;
             /** Carrier */
             carrier?: string | null;
+        };
+        /**
+         * ObjectDocument
+         * @description Ein Dokument im Reiter «Dokumente» eines Objekts. Vereint zwei Quellen:
+         *     ``kind='file'`` = hochgeladenes Fremd-Dokument, ``kind='generated'`` = im
+         *     Prozessschritt «Dokument» erzeugtes Inexxio-Dokument.
+         */
+        ObjectDocument: {
+            /** Kind */
+            kind: string;
+            /** Id */
+            id: number;
+            /** Object Number */
+            object_number?: number | null;
+            /** Title */
+            title: string;
+            /** Doc Type */
+            doc_type?: string | null;
+            /** Summary */
+            summary?: string | null;
+            /** Mime */
+            mime?: string | null;
+            /** Filename */
+            filename?: string | null;
+            /** Page Count */
+            page_count?: number | null;
+            /** Byte Size */
+            byte_size?: number | null;
+            /** Download Url */
+            download_url: string;
+            /** Relation */
+            relation?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
         };
         /**
          * ObjectReference
@@ -4200,6 +4440,25 @@ export interface components {
             is_active?: boolean | null;
             /** Expected Updated At */
             expected_updated_at?: string | null;
+        };
+        /** SuggestedLink */
+        SuggestedLink: {
+            /** Object Id */
+            object_id: number;
+            /** Object Type */
+            object_type?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Relation
+             * @default about
+             */
+            relation: string;
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
         };
         /** SweepResult */
         SweepResult: {
@@ -7240,6 +7499,198 @@ export interface operations {
         };
     };
     get_document_pdf_api_v1_erp_documents__doc_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_document_api_v1_ai_documents_analyze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_analyze_document_api_v1_ai_documents_analyze_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentAnalyzeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_document_api_v1_ai_documents__action_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_document_api_v1_ai_documents__action_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    object_documents_api_v1_erp_objects__object_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectDocument"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_document_api_v1_erp_document_files__doc_id__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                doc_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_document_api_v1_erp_document_files__doc_id__delete: {
         parameters: {
             query?: never;
             header?: never;

@@ -937,9 +937,10 @@ def test_object_registry_wired():
     assert ObjectRef.__tablename__ == "objects"
     # Eigenständige Objekttypen (Prozesse sind KEINE Objekte mehr – kein Eintrag).
     # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
-    # Das Dokument trägt KEINE eigene Nummer (Nummer = Instanz) → nicht in der Registry.
+    # Das Prozessschritt-Dokument trägt KEINE eigene Nummer (Nummer = Instanz); ein
+    # hochgeladenes Dokument (``DocumentFile``, Typ ``document``) hingegen schon.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "organization"}
+        "user", "article", "order", "instance", "storage_location", "organization", "document"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 

@@ -10,6 +10,7 @@ import type {
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
   AiConfig, AiChatMessage, AiChatResponse, AiProposal, AiDocContent, AiImageEditResponse,
+  ObjectDocument, DocumentAnalyzeResponse, DocumentConfirmInput,
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -259,6 +260,44 @@ class ApiClient {
   openDocumentPdf(docId: number, nr?: number | null): Promise<void> {
     const name = nr ? `Dokument-${String(nr).padStart(9, '0')}.pdf` : 'Dokument.pdf';
     return this.fetchPdf(`/api/v1/erp/documents/${docId}/pdf`, name);
+  }
+
+  // ─── Dokumente (hochgeladene Belege/Anleitungen – KI-Aufnahme + Reiter «Dokumente») ─
+
+  // Reiter «Dokumente» eines beliebigen ERP-Objekts (hochgeladene Dateien + erzeugte Dokumente)
+  getObjectDocuments(objectId: number): Promise<ObjectDocument[]> {
+    return this.get(`/api/v1/erp/objects/${objectId}/documents`);
+  }
+
+  // Datei hochladen → KI analysiert & schlägt Name + Objektzuordnung vor (noch nicht gespeichert)
+  async analyzeDocument(file: File, contextObjectId: number | null): Promise<DocumentAnalyzeResponse> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const form = new FormData();
+    form.append('file', file);
+    if (contextObjectId != null) form.append('context_object_id', String(contextObjectId));
+    const res = await fetch(`${API_BASE}/api/v1/ai/documents/analyze`, { method: 'POST', headers, body: form });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    return res.json();
+  }
+
+  // Bestätigen: Name + Zuordnung festschreiben → Dokument anlegen (AiAction-Pfad)
+  confirmDocument(actionId: number, data: DocumentConfirmInput): Promise<ObjectDocument> {
+    return this.post(`/api/v1/ai/documents/${actionId}/confirm`, data);
+  }
+
+  // Vorschlag ablehnen (Datei wird aus der Ablage entfernt)
+  rejectDocument(actionId: number): Promise<{ rejected: boolean }> {
+    return this.post(`/api/v1/ai/documents/${actionId}/reject`, {});
+  }
+
+  // Eine hochgeladene Datei authentifiziert laden (inline-Vorschau/Download)
+  openDocumentFile(docId: number, filename?: string | null): Promise<void> {
+    return this.fetchPdf(`/api/v1/erp/document-files/${docId}/download`, filename || 'dokument');
+  }
+
+  deleteDocumentFile(docId: number): Promise<{ deleted: boolean }> {
+    return this.delete(`/api/v1/erp/document-files/${docId}`);
   }
 
   // ─── Foto-/Bild-Upload (multipart) ──────────────────────────────────────────
