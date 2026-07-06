@@ -24,6 +24,12 @@ const KIND_META: Record<ScanKind, { icon: React.ElementType; label: string }> = 
   object:     { icon: ScanLine,  label: 'Datensatz' },
 };
 
+// Defensiv: ein unerwarteter/neuer ``kind`` (z. B. eine Standort-Art wie «company», die kein
+// scannbarer Objekttyp ist) darf NIE die App crashen – Fallback auf das generische «Datensatz».
+function kindMeta(kind: ScanKind | undefined | null) {
+  return (kind && KIND_META[kind]) || KIND_META.object;
+}
+
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
 export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & { onClose: () => void }) {
@@ -138,8 +144,8 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
 
         {/* Aktueller Schritt – mit Symbol des erwarteten Objekttyps */}
         <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {step?.kind && (() => { const K = KIND_META[step.kind].icon; return (
-            <div style={kindBadge} title={KIND_META[step.kind].label}>
+          {step?.kind && (() => { const K = kindMeta(step.kind).icon; return (
+            <div style={kindBadge} title={kindMeta(step.kind).label}>
               <K size={20} strokeWidth={2} />
             </div>
           ); })()}
@@ -147,7 +153,7 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
               {multi ? `Schritt ${stepIndex + 1}/${steps.length}: ` : ''}{step?.label ?? '—'}
             </div>
-            {step?.kind && <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{KIND_META[step.kind].label} scannen</div>}
+            {step?.kind && <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{kindMeta(step.kind).label} scannen</div>}
             {step?.hint && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{step.hint}</div>}
           </div>
         </div>
@@ -172,8 +178,8 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
             {cameraLive && (
               <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? '#dc2626' : feedback?.kind === 'ok' ? '#16a34a' : 'rgba(255,255,255,0.9)' }} />
             )}
-            {cameraLive && step?.kind && !feedback && (() => { const K = KIND_META[step.kind].icon; return (
-              <div style={frameIcon}><K size={46} strokeWidth={1.5} /><span style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{KIND_META[step.kind].label}</span></div>
+            {cameraLive && step?.kind && !feedback && (() => { const K = kindMeta(step.kind).icon; return (
+              <div style={frameIcon}><K size={46} strokeWidth={1.5} /><span style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{kindMeta(step.kind).label}</span></div>
             ); })()}
             {feedback && (
               <div style={{ ...badge, background: feedback.kind === 'ok' ? '#16a34a' : '#dc2626' }}>
