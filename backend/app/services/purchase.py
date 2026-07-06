@@ -59,6 +59,28 @@ def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
     return (po.order_total / po.quantity).quantize(Decimal("0.0001"))
 
 
+def resolve_source(step, article: Article | None) -> tuple[str, Optional[int], Optional[str]]:
+    """Bezugsquelle einer Bestellung → ``(mode, supplier_id, webshop_url)``.
+
+    Die Quelle gehört zur **Produktspezifikation** (``articles.procurement_mode`` +
+    ``default_supplier_id``/``default_webshop_url``): der ``purchase``-Schritt ist nur der
+    Auslöser und **erbt** sie als Default. Trägt der Schritt selbst eine Quelle (Override für
+    einen Sonderfall), gewinnt diese. Ohne beides bleibt es beim Modus des Artikels ohne
+    konkrete Quelle (der Besteller beschafft selbst)."""
+    if step is not None and step.supplier_id:
+        return ("supplier", step.supplier_id, None)
+    if step is not None and step.webshop_url:
+        return ("webshop", None, step.webshop_url)
+    if article is not None:
+        mode = article.procurement_mode or "supplier"
+        if mode == "webshop" and article.default_webshop_url:
+            return ("webshop", None, article.default_webshop_url)
+        if article.default_supplier_id:
+            return ("supplier", article.default_supplier_id, None)
+        return (mode, None, None)
+    return ("supplier", None, None)
+
+
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
     """Bei Auftragsfreigabe je Beschaffungs-Schritt **des gewählten Prozesses** eine
     Bestellung anlegen (Mehr-Operationen-Routing über ``step_id``) – EIN Schritt, aber
@@ -86,6 +108,9 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
     have_by_step: dict[int | None, set[int]] = {}
     for po in existing:
         have_by_step.setdefault(po.step_id, set()).add(po.article_id)
+    # Artikel der Positionen batch-laden (Beschaffungs-Default je Position).
+    arts = {a.id: a for a in db.query(Article).filter(
+        Article.id.in_({art_id for art_id, _ in targets})).all()}
     created: list[PurchaseOrder] = []
     for step in steps:
         have = set(have_by_step.get(step.id, set()))
@@ -94,14 +119,17 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
         for art_id, qty in targets:
             if art_id in have:
                 continue   # idempotent – diese Position hat schon ihre Bestellung
+            # Bezugsquelle aus dem Artikel (Spezifikation) erben, am Schritt überschreibbar –
+            # als Snapshot auf die Bestellung (die Bestellung bleibt stabil bei späteren Änderungen).
+            mode, supplier_id, webshop_url = resolve_source(step, arts.get(art_id))
             po = PurchaseOrder(
                 order_id=order.id,
                 article_id=art_id,
                 quantity=qty,
                 step_id=step.id,
-                mode=step.mode,
-                supplier_id=step.supplier_id,
-                webshop_url=step.webshop_url,
+                mode=mode,
+                supplier_id=supplier_id,
+                webshop_url=webshop_url,
                 status="requested",
                 # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
                 receiving_location_id=None,

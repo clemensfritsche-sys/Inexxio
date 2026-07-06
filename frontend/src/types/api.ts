@@ -1748,6 +1748,12 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
+            /** Procurement Mode */
+            procurement_mode?: string | null;
+            /** Default Supplier Id */
+            default_supplier_id?: number | null;
+            /** Default Webshop Url */
+            default_webshop_url?: string | null;
         };
         /**
          * ArticleNameSuggestion
@@ -1975,6 +1981,19 @@ export interface components {
             min_order_qty?: string | null;
             /** Safety Stock */
             safety_stock?: string | null;
+            /**
+             * Procurement Mode
+             * @default supplier
+             */
+            procurement_mode: string;
+            /** Default Supplier Id */
+            default_supplier_id?: number | null;
+            /** Default Supplier Name */
+            default_supplier_name?: string | null;
+            /** Default Supplier Object Id */
+            default_supplier_object_id?: number | null;
+            /** Default Webshop Url */
+            default_webshop_url?: string | null;
             /** Landed Unit Cost */
             landed_unit_cost?: string | null;
             /**
@@ -2095,6 +2114,12 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
+            /** Procurement Mode */
+            procurement_mode?: string | null;
+            /** Default Supplier Id */
+            default_supplier_id?: number | null;
+            /** Default Webshop Url */
+            default_webshop_url?: string | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Expected Updated At */

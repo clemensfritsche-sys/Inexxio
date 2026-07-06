@@ -177,12 +177,9 @@ class ArticleProcessStepCreate(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> "ArticleProcessStepCreate":
-        # Bezugsquelle nur beim Beschaffungsschritt relevant
-        if self.step_type == "purchase":
-            if self.mode == "supplier" and not self.supplier_id:
-                raise ValueError("Im Modus 'Lieferant' muss ein Lieferant gewählt sein")
-            if self.mode == "webshop" and not self.webshop_url:
-                raise ValueError("Im Modus 'Webshop' muss ein Link hinterlegt sein")
+        # Bezugsquelle gehört zur **Artikel-Spezifikation** (``articles.procurement_*``); der
+        # Beschaffungs-Schritt ERBT sie und braucht daher KEINE eigene Quelle. Optional kann er
+        # sie pro Fall überschreiben (``supplier_id`` bzw. ``webshop_url``) – keine Pflicht mehr.
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
         if self.step_type == "resource" and not self.resource_lines:
