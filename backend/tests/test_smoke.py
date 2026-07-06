@@ -29,7 +29,7 @@ def test_models_exposed_from_package():
     """Models are re-exported from the package regardless of their file."""
     from app.models import (
         Article, ArticleProcessStep, AuditLog, CompanySettings, Notification,
-        Order, PurchaseOrder, StorageLocation, UserProfile,
+        Order, PurchaseOrder, UserProfile,
     )
 
     assert UserProfile.__tablename__ == "user_profiles"
@@ -37,7 +37,6 @@ def test_models_exposed_from_package():
     assert ArticleProcessStep.__tablename__ == "article_process_steps"
     assert Order.__tablename__ == "orders"
     assert PurchaseOrder.__tablename__ == "purchase_orders"
-    assert StorageLocation.__tablename__ == "storage_locations"
     assert AuditLog.__tablename__ == "audit_log"
     assert Notification.__tablename__ == "notifications"
     assert CompanySettings.__tablename__ == "company_settings"
@@ -93,7 +92,6 @@ def test_object_id_allocator_shared_across_types():
     assert objects.UserProfile.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
-    assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Instance.object_id in objects._OBJECT_ID_COLUMNS
     # Bestellungen laufen unter der Auftragsnummer → KEINE eigene Objektnummer
     assert not hasattr(objects, "PurchaseOrder")
@@ -375,13 +373,18 @@ def test_article_name_similarity_recognizes_shared_stem():
     assert _similarity("Bolzen", "Schraubendreher") < _MIN_SCORE
 
 
-def test_storage_location_has_note():
-    """Lagerplatz trägt eine optionale Bemerkung (Spalte bleibt, UI entfernt)."""
-    from app.models import StorageLocation
+def test_storage_location_is_instance_backed():
+    """F: ein Lagerplatz ist eine Instanz eines is_location-Artikels. Bemerkung/Geo/Kapazität
+    an der Instanz, Traglast am Artikel; is_location-Instanzen sind aus dem Bestand ausgeschlossen."""
+    from app.models import Article, Instance
     from app.schemas.storage_location import StorageLocationCreate
+    from app.services import location_records
 
-    assert hasattr(StorageLocation, "note")
+    assert hasattr(Instance, "note") and hasattr(Instance, "is_location")
+    assert hasattr(Instance, "latitude") and hasattr(Instance, "longitude")
+    assert hasattr(Article, "is_location") and hasattr(Article, "max_load_kg")
     assert "note" in StorageLocationCreate.model_fields
+    assert callable(location_records.create) and callable(location_records.to_response)
 
 
 def test_order_step_info_carries_completion():
@@ -939,7 +942,7 @@ def test_object_registry_wired():
     # Das Unternehmen selbst ist ebenfalls ein nummerierter ERP-Datensatz.
     # Das Dokument trägt KEINE eigene Nummer (Nummer = Instanz) → nicht in der Registry.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "storage_location", "organization"}
+        "user", "article", "order", "instance", "organization"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -963,18 +966,19 @@ def test_inventory_allocate_quantity_exact():
 def test_deactivation_replace_wired():
     """Inaktiv/Ersetzen: Service, Schemas und Endpunkte vorhanden + Validierung."""
     import pytest as _pytest
-    from app.services import deactivation
+    from app.services import deactivation, location_records
     from app.schemas.deactivation import DeactivateRequest
-    from app.models import Article, Order, StorageLocation
+    from app.models import Article, Order
 
     for f in ("consume_parents", "article_impact", "deactivate_article",
-              "cancel_order_effects", "storage_location_in_use",
-              "duplicate_article", "duplicate_order", "duplicate_storage_location"):
+              "cancel_order_effects", "duplicate_article", "duplicate_order"):
         assert hasattr(deactivation, f)
+    # Lagerplatz (F, Instanz-basiert): in-use/Ersetzen in location_records.
+    assert callable(location_records.in_use) and callable(location_records.replace)
     # Reaktivieren von Artikeln ist entfallen (inaktiv ist endgültig).
     assert not hasattr(deactivation, "article_reactivation_blocker")
-    # replaced_by_id auf allen drei Datensatztypen
-    for m in (Article, Order, StorageLocation):
+    # replaced_by_id auf Artikel + Auftrag
+    for m in (Article, Order):
         assert hasattr(m, "replaced_by_id")
     # orders_mode-Validierung
     assert DeactivateRequest().orders_mode == "phase_out"
@@ -1341,9 +1345,9 @@ def test_in_stock_clauses_combine_both_axes():
     from app.services.inventory import in_stock_clauses
 
     clauses = in_stock_clauses()
-    assert len(clauses) == 3   # quality, disposition, quantity > 0
+    assert len(clauses) == 4   # quality, disposition, quantity > 0, NOT is_location (F)
     rendered = " ".join(str(c) for c in clauses)
-    assert "quality" in rendered and "disposition" in rendered
+    assert "quality" in rendered and "disposition" in rendered and "is_location" in rendered
 
 
 def test_instance_order_link_is_immutable_history():

@@ -3361,7 +3361,7 @@
           "storage-locations"
         ],
         "summary": "Replace Storage Location",
-        "description": "Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen\n(nur wenn leer). Liefert den **neuen** Lagerplatz zurück.",
+        "description": "Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv (nur wenn leer).",
         "operationId": "replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post",
         "security": [
           {
@@ -12340,6 +12340,20 @@
             ],
             "title": "Max Load Kg"
           },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
           "width_mm": {
             "anyOf": [
               {
@@ -12713,6 +12727,28 @@
               }
             ],
             "title": "Replaces Id"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
           }
         },
         "type": "object",
@@ -12814,6 +12850,20 @@
               }
             ],
             "title": "Max Load Kg"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
           },
           "width_mm": {
             "anyOf": [

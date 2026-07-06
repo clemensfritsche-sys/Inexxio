@@ -40,6 +40,15 @@ class Article(Base, TimestampMixin):
     size: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # z. B. 3x40x600 (optional)
     weight_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # optional
 
+    # ── Lagerplatz-Artikel (F): ein Lagerplatz IST eine Instanz eines is_location-Artikels ──
+    # Der Artikel trägt die geteilten Eigenschaften des Ortstyps: Bezeichnung, Abmessung
+    # (``size``) und **Traglast** (``max_load_kg``, neues Spezifikationsfeld). Die konkrete
+    # Instanz trägt Standort/Geo/Kapazität. ``is_location``-Instanzen zählen NIE als Bestand
+    # (Ausschluss in ``inventory.in_stock_clauses``).
+    is_location: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    max_load_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Traglast
+
     # Optionale Stammdaten – nur bei Bedarf gepflegt (dynamische Feldliste im UI).
     material: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     cad_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # CAD-Link

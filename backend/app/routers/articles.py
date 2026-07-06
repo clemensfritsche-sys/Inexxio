@@ -162,9 +162,10 @@ async def list_articles(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_employee),
 ):
+    # is_location-Artikel sind Lagerplatz-Typen (F) – nicht im Artikel-Feed.
     articles = (
         db.query(Article)
-        .filter(Article.is_active == True)
+        .filter(Article.is_active == True, Article.is_location == False)
         .order_by(Article.object_id)
         .all()
     )
