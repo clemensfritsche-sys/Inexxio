@@ -291,6 +291,26 @@ export default function ErpPage() {
 
   const selectedRow = sel ? rows.find((r) => r.type === sel.type && r.objectId === sel.objectId) ?? null : null;
 
+  // Cross-Feed-Navigation (z. B. Klick auf den Artikel im Instanz-Detail): zeigt der ausgewählte
+  // Datensatz auf einen Typ, dessen Detail sonst AUS DER LISTE rendert (Artikel/Lagerplatz), er aber
+  // (noch) nicht geladen ist, wird er on-demand nachgeladen – sonst bliebe die Detailseite leer.
+  // Auftrag/Instanz haben bereits ihren eigenen Fetch-Pfad (orderDetail/instanceDetail).
+  const [navRecord, setNavRecord] = useState<Row | null>(null);
+  useEffect(() => {
+    if (!sel || selectedRow || sel.type === 'order' || sel.type === 'instance') { setNavRecord(null); return; }
+    let cancelled = false;
+    const load: Promise<Row | null> =
+      sel.type === 'article'
+        ? api.getArticle(sel.objectId).then((d): Row => ({ type: 'article', key: `a${d.id}`, objectId: sel.objectId, data: d }))
+        : sel.type === 'storage_location'
+          ? api.getStorageLocation(sel.objectId).then((d): Row => ({ type: 'storage_location', key: `l${d.id}`, objectId: sel.objectId, data: d }))
+          : Promise.resolve(null);
+    load.then((row) => { if (!cancelled) setNavRecord(row); }).catch(() => { if (!cancelled) setNavRecord(null); });
+    return () => { cancelled = true; };
+  }, [sel, selectedRow]);
+  // Für aus-der-Liste rendernde Typen: der geladene Feed-Datensatz ODER der on-demand nachgeladene.
+  const activeRow = selectedRow ?? navRecord;
+
   // Instanz-Pagination: nur laden, wenn Instanzen sichtbar sind (Feed «alle» oder «Instanzen»).
   const instancesRelevant = typeFilter === null || typeFilter === 'instance';
   const hasMoreInstances = instancesRelevant && instances.length < instanceTotal;
@@ -403,7 +423,7 @@ export default function ErpPage() {
   }
 
   const showList = mobileView === 'list';
-  const hasDetail = creating !== null || selectedRow !== null || sel?.type === 'order' || sel?.type === 'instance';
+  const hasDetail = creating !== null || activeRow !== null || sel?.type === 'order' || sel?.type === 'instance';
 
   return (
     <ErpNavContext.Provider value={openByObjectId}>
@@ -551,11 +571,11 @@ export default function ErpPage() {
           {creating === 'storage_location' && (
             <StorageLocationDetail key="new-storage" record={null} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
-          {!creating && selectedRow?.type === 'user' && (
-            <UserDetail key={selectedRow.key} record={selectedRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
+          {!creating && activeRow?.type === 'user' && (
+            <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
-          {!creating && selectedRow?.type === 'article' && (
-            <ArticleDetail key={selectedRow.key} record={selectedRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          {!creating && activeRow?.type === 'article' && (
+            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (
@@ -570,11 +590,11 @@ export default function ErpPage() {
             <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')}
               onChanged={() => { api.getOrders().then(setOrders).catch(() => {}); reloadInstances(); }} />
           )}
-          {!creating && selectedRow?.type === 'storage_location' && (
-            <StorageLocationDetail key={selectedRow.key} record={selectedRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+          {!creating && activeRow?.type === 'storage_location' && (
+            <StorageLocationDetail key={activeRow.key} record={activeRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
-          {!creating && selectedRow?.type === 'organization' && (
-            <OrganizationDetail key={selectedRow.key} record={selectedRow.data}
+          {!creating && activeRow?.type === 'organization' && (
+            <OrganizationDetail key={activeRow.key} record={activeRow.data}
               onSaved={(s) => setSettings(s)} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (

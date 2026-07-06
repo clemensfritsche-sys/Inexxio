@@ -241,3 +241,29 @@ class ErpAdminUpdate(BaseModel):
     job_title: Optional[str] = None
     employment_start_date: Optional[date] = None
     weekly_hours: Optional[Decimal] = None
+
+
+# ─── Betriebskosten (Monat-bis-heute, tatsächlich wo messbar) ────────────────────
+class CostItem(BaseModel):
+    label: str
+    value_chf: float
+    hint: Optional[str] = None
+
+
+class CostGroup(BaseModel):
+    key: str            # ai | payments | infrastructure
+    label: str
+    total_chf: float    # Monat-bis-heute
+    basis: str          # 'actual' (gemessen) | 'estimate' (geschätzt)
+    items: list[CostItem] = []
+
+
+class OperatingCostsResponse(BaseModel):
+    """Betriebskosten des laufenden Monats bis heute (tatsächlich, wo messbar) +
+    Hochrechnung aufs Monatsende."""
+    period_label: str          # z. B. «Juli 2026»
+    day_of_month: int
+    days_in_month: int
+    groups: list[CostGroup] = []
+    total_mtd_chf: float
+    projected_month_chf: float

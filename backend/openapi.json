@@ -249,6 +249,33 @@
         }
       }
     },
+    "/api/v1/admin/operating-costs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Operating Costs",
+        "description": "Betriebskosten des laufenden Monats bis heute – tatsächliche KI-/Zahlungskosten\n(aus Event-Strom bzw. Stripe-Verkäufen) + Infrastruktur-Schätzung + Hochrechnung.",
+        "operationId": "get_operating_costs_api_v1_admin_operating_costs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatingCostsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/users": {
       "get": {
         "tags": [
@@ -7772,6 +7799,71 @@
         ],
         "title": "ContactRequest"
       },
+      "CostGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "total_chf": {
+            "type": "number",
+            "title": "Total Chf"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CostItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "total_chf",
+          "basis"
+        ],
+        "title": "CostGroup"
+      },
+      "CostItem": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value_chf": {
+            "type": "number",
+            "title": "Value Chf"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value_chf"
+        ],
+        "title": "CostItem"
+      },
       "CountResponse": {
         "properties": {
           "count": {
@@ -9088,6 +9180,48 @@
         ],
         "title": "ObjectResolution",
         "description": "Auflösung einer universellen Objektnummer auf ihren Typ (für Scan/Quer-Refs)."
+      },
+      "OperatingCostsResponse": {
+        "properties": {
+          "period_label": {
+            "type": "string",
+            "title": "Period Label"
+          },
+          "day_of_month": {
+            "type": "integer",
+            "title": "Day Of Month"
+          },
+          "days_in_month": {
+            "type": "integer",
+            "title": "Days In Month"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CostGroup"
+            },
+            "type": "array",
+            "title": "Groups",
+            "default": []
+          },
+          "total_mtd_chf": {
+            "type": "number",
+            "title": "Total Mtd Chf"
+          },
+          "projected_month_chf": {
+            "type": "number",
+            "title": "Projected Month Chf"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_label",
+          "day_of_month",
+          "days_in_month",
+          "total_mtd_chf",
+          "projected_month_chf"
+        ],
+        "title": "OperatingCostsResponse",
+        "description": "Betriebskosten des laufenden Monats bis heute (tatsächlich, wo messbar) +\nHochrechnung aufs Monatsende."
       },
       "OrderCoverStock": {
         "properties": {

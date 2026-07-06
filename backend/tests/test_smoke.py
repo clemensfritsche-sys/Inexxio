@@ -193,27 +193,30 @@ def test_purchase_step_source_is_optional_override():
 
 
 def test_procurement_source_resolves_from_article():
-    """resolve_source: Schritt-Override gewinnt, sonst erbt die Bestellung die Quelle aus der
-    Artikel-Spezifikation (procurement_mode + default_supplier_id/default_webshop_url)."""
+    """resolve_source: die Bezugsquelle kommt AUSSCHLIESSLICH aus der Artikel-Spezifikation
+    (kein Schritt-Override) – procurement_mode + default_supplier_id/default_webshop_url."""
     from types import SimpleNamespace as NS
 
-    from app.services.purchase import resolve_source
+    from app.services.purchase import has_source, resolve_source
 
     art_sup = NS(procurement_mode="supplier", default_supplier_id=7, default_webshop_url=None)
     art_web = NS(procurement_mode="webshop", default_supplier_id=None,
                  default_webshop_url="https://a.example/x")
+    art_empty = NS(procurement_mode="supplier", default_supplier_id=None, default_webshop_url=None)
 
-    # Kein Override am Schritt → erbt vom Artikel
-    step = NS(supplier_id=None, webshop_url=None)
-    assert resolve_source(step, art_sup) == ("supplier", 7, None)
-    assert resolve_source(step, art_web) == ("webshop", None, "https://a.example/x")
-    # Override am Schritt gewinnt (Lieferant bzw. Link)
-    assert resolve_source(NS(supplier_id=99, webshop_url=None), art_web) == ("supplier", 99, None)
-    assert resolve_source(NS(supplier_id=None, webshop_url="https://b.example/y"), art_sup) \
-        == ("webshop", None, "https://b.example/y")
-    # Ohne Artikel-Default & ohne Override → Modus ohne konkrete Quelle (Besteller beschafft selbst)
-    assert resolve_source(step, NS(procurement_mode="supplier", default_supplier_id=None,
-                                   default_webshop_url=None)) == ("supplier", None, None)
+    assert resolve_source(art_sup) == ("supplier", 7, None)
+    assert resolve_source(art_web) == ("webshop", None, "https://a.example/x")
+    # Ohne hinterlegte Quelle → Modus ohne konkrete Quelle
+    assert resolve_source(art_empty) == ("supplier", None, None)
+    assert resolve_source(None) == ("supplier", None, None)
+
+    # has_source: Grundlage der Freigabe-Sperre
+    assert has_source(art_sup) is True
+    assert has_source(art_web) is True
+    assert has_source(art_empty) is False
+    assert has_source(NS(procurement_mode="webshop", default_supplier_id=5,
+                         default_webshop_url=None)) is False   # Modus webshop, aber kein Link
+    assert has_source(None) is False
 
 
 def test_process_step_types_and_optional_config():
@@ -2342,3 +2345,18 @@ def test_document_redesign_shape():
     assert "physical" not in _inspect.getsource(article_process._create)
     # Jeder Artikel erzeugt Instanzen (kein Early-Return für nicht-physisch mehr).
     assert "physical" not in _inspect.getsource(serialization.create_instances_for_order)
+
+
+def test_operating_cost_model_pricing():
+    """Modell-Preiszuordnung der Betriebskosten (Substring-Match, Opus als Default)."""
+    from app.services.operating_costs import _price_for, _MODEL_PRICES
+
+    assert _price_for("claude-opus-4-8") == _MODEL_PRICES["opus"]
+    assert _price_for("claude-haiku-4-5-20251001") == _MODEL_PRICES["haiku"]
+    assert _price_for("claude-sonnet-5") == _MODEL_PRICES["sonnet"]
+    # Unbekannt/leer → konservativ Opus
+    assert _price_for(None) == _MODEL_PRICES["opus"]
+    assert _price_for("mystery-model") == _MODEL_PRICES["opus"]
+    # Output ist stets teurer als Input
+    for pin, pout in _MODEL_PRICES.values():
+        assert pout > pin > 0

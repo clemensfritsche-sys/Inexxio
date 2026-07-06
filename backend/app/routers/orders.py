@@ -485,6 +485,20 @@ async def update_order(
                 )
         elif not process.order_step_infos(db, order):
             raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
+        # Freigabe-Gate: hat der Auftrag einen Beschaffungs-Schritt, muss jeder betroffene Artikel
+        # eine hinterlegte Bezugsquelle haben (sonst könnte keine Bestellung entstehen).
+        if process.has_step(db, order, "purchase"):
+            from ..services.purchase import has_source
+            art_ids = ([order.article_id] if order.article_id
+                       else [l.article_id for l in order_lines_svc.lines_for(db, order)])
+            missing = [a for a in (db.query(Article).filter(Article.id == aid).first() for aid in art_ids)
+                       if a and not has_source(a)]
+            if missing:
+                names = ", ".join(f"«{a.name}»" for a in missing)
+                raise HTTPException(
+                    400,
+                    detail=f"Beschaffung unvollständig: für {names} ist keine Bezugsquelle hinterlegt "
+                           "(Artikel → Spezifikation → Beschaffung).")
         # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
         # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
         # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
