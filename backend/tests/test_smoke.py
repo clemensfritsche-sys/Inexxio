@@ -192,31 +192,33 @@ def test_purchase_step_source_is_optional_override():
     assert override2.webshop_url == "https://shop.example/x"
 
 
-def test_procurement_source_resolves_from_article():
-    """resolve_source: die Bezugsquelle kommt AUSSCHLIESSLICH aus der Artikel-Spezifikation
-    (kein Schritt-Override) – procurement_mode + default_supplier_id/default_webshop_url."""
+def test_procurement_source_step_over_article():
+    """resolve_source: die Bezugsquelle wird im **Schritt** definiert (max. Flexibilität,
+    mehrere Quellen je Prozess); der Artikel-Default dient als Vorbelegung/Fallback."""
     from types import SimpleNamespace as NS
 
     from app.services.purchase import has_source, resolve_source
 
     art_sup = NS(procurement_mode="supplier", default_supplier_id=7, default_webshop_url=None)
-    art_web = NS(procurement_mode="webshop", default_supplier_id=None,
-                 default_webshop_url="https://a.example/x")
     art_empty = NS(procurement_mode="supplier", default_supplier_id=None, default_webshop_url=None)
+    step_none = NS(supplier_id=None, webshop_url=None)
+    step_sup = NS(supplier_id=99, webshop_url=None)
+    step_web = NS(supplier_id=None, webshop_url="https://b.example/y")
 
-    assert resolve_source(art_sup) == ("supplier", 7, None)
-    assert resolve_source(art_web) == ("webshop", None, "https://a.example/x")
-    # Ohne hinterlegte Quelle → Modus ohne konkrete Quelle
-    assert resolve_source(art_empty) == ("supplier", None, None)
-    assert resolve_source(None) == ("supplier", None, None)
+    # Schritt-Quelle gewinnt
+    assert resolve_source(step_sup, art_sup) == ("supplier", 99, None)
+    assert resolve_source(step_web, art_sup) == ("webshop", None, "https://b.example/y")
+    # Kein Schritt-Override → Artikel-Default als Fallback
+    assert resolve_source(step_none, art_sup) == ("supplier", 7, None)
+    # Weder Schritt noch Artikel → Modus ohne konkrete Quelle
+    assert resolve_source(step_none, art_empty) == ("supplier", None, None)
+    assert resolve_source(None, None) == ("supplier", None, None)
 
-    # has_source: Grundlage der Freigabe-Sperre
-    assert has_source(art_sup) is True
-    assert has_source(art_web) is True
-    assert has_source(art_empty) is False
-    assert has_source(NS(procurement_mode="webshop", default_supplier_id=5,
-                         default_webshop_url=None)) is False   # Modus webshop, aber kein Link
-    assert has_source(None) is False
+    # has_source: Freigabe-Sperre – Schritt ODER Artikel deckt die Quelle
+    assert has_source(step_sup, art_empty) is True     # Quelle am Schritt
+    assert has_source(step_none, art_sup) is True       # Quelle am Artikel (Fallback)
+    assert has_source(step_none, art_empty) is False    # nirgends hinterlegt
+    assert has_source(None, None) is False
 
 
 def test_process_step_types_and_optional_config():

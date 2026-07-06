@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Trash2, FileDown, GripVertical } from 'lucide-react';
-import type { DocumentContent, DocumentSection } from '@/types';
+import type { CompanySettings, DocumentContent, DocumentSection } from '@/types';
 
 // Inexxio-Design-Tokens (Spiegel von styles/design-system/colors_and_type.css) – als
 // Inline-Werte, damit die Web-Ansicht PIXELGENAU dem PDF-Render entspricht.
@@ -21,17 +21,35 @@ function paragraphs(body: string): string[] {
   return (body || '').replace(/\r\n/g, '\n').split('\n').map((b) => b.trim()).filter(Boolean);
 }
 
+// Firmen-Anschrift für den Briefkopf – exakt wie ``document_render._address_lines``
+// (nur befüllte Zeilen), damit Online-Ansicht und PDF dieselben Angaben zeigen.
+function addressLines(company?: Partial<CompanySettings> | null): string[] {
+  if (!company) return [];
+  const street = [company.street, company.street_number].filter(Boolean).join(' ');
+  const place = [company.zip, company.city].filter(Boolean).join(' ');
+  const contact = [company.email, company.phone].filter(Boolean).join(' · ');
+  const ids = [
+    company.uid ? `UID ${company.uid}` : null,
+    company.vat_number ? `MWST ${company.vat_number}` : null,
+  ].filter(Boolean).join(' · ');
+  return [company.company_name || 'Inexxio', street, place, company.country, contact, ids]
+    .map((x) => (x ?? '').toString().trim()).filter(Boolean);
+}
+
 // ─── Ansicht (identisch zum PDF): weisses A4-Blatt im Inexxio-Design ──────────────
-export function DocumentView({ content, objectNr, issuedAt }: {
+export function DocumentView({ content, objectNr, issuedAt, company }: {
   content: DocumentContent | null | undefined;
   objectNr?: string | null;         // = Instanz-Objektnummer (die Dokumentennummer)
   issuedAt?: string | null;         // = Instanz-Freigabedatum
+  company?: Partial<CompanySettings> | null;   // Briefkopf/Fusszeile (wie im PDF)
 }) {
   const c = content ?? emptyContent();
   const sections = c.sections ?? [];
   const meta: string[] = [];
   if (objectNr) meta.push(`Nr. ${objectNr}`);
   if (issuedAt) meta.push(`Datum ${new Date(issuedAt).toLocaleDateString('de-CH')}`);
+  const addr = addressLines(company);
+  const companyName = company?.company_name || 'Inexxio';
 
   return (
     <div style={{
@@ -39,6 +57,23 @@ export function DocumentView({ content, objectNr, issuedAt }: {
       padding: '40px 44px', boxShadow: '0 1px 3px rgba(16,14,12,0.05)',
       color: BODY, fontSize: 14, lineHeight: 1.62,
     }}>
+      {/* Briefkopf (wie im PDF): Logo/Marke links, Anschrift rechts, dunkle Trennlinie. */}
+      {(company || addr.length > 0) && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24,
+          paddingBottom: 12, borderBottom: `2px solid ${INK}`, marginBottom: 28,
+        }}>
+          {company?.logo_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={company.logo_url} alt="" style={{ height: 34, width: 'auto' }} />
+            : <div style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 20, letterSpacing: '-0.02em', color: INK }}>
+                {companyName}<span style={{ color: RED }}>.</span>
+              </div>}
+          <div style={{ fontSize: 11, color: MUTED, textAlign: 'right', lineHeight: 1.55 }}>
+            {addr.map((ln, i) => <div key={i}>{ln}</div>)}
+          </div>
+        </div>
+      )}
       <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.18em', color: RED, marginBottom: 10 }}>
         Dokument
       </div>
@@ -68,15 +103,22 @@ export function DocumentView({ content, objectNr, issuedAt }: {
           </section>
         ))}
       </div>
+      {/* Fusszeile (wie im PDF: «Firma · Dok. Nr»); Seitenzahlen entfallen im Web (kein Blattumbruch). */}
+      {(company || objectNr) && (
+        <div style={{ marginTop: 30, paddingTop: 10, borderTop: `1px solid ${HAIRLINE}`, fontSize: 11, color: MUTED, fontVariantNumeric: 'tabular-nums' }}>
+          {companyName} · Dok. {objectNr ?? '—'}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Editor: Titel/Untertitel/Datum + Abschnitte (Live-Vorschau darunter) ─────────
-export function DocumentEditor({ value, onChange, onPreviewPdf }: {
+export function DocumentEditor({ value, onChange, onPreviewPdf, company }: {
   value: DocumentContent | null | undefined;
   onChange: (c: DocumentContent) => void;
   onPreviewPdf?: () => void;
+  company?: Partial<CompanySettings> | null;
 }) {
   const c: DocumentContent = value ?? emptyContent();
   const sections = c.sections ?? [];
@@ -160,7 +202,7 @@ export function DocumentEditor({ value, onChange, onPreviewPdf }: {
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MUTED, marginBottom: 8 }}>
           Vorschau
         </div>
-        <DocumentView content={c} />
+        <DocumentView content={c} company={company} />
       </div>
     </div>
   );

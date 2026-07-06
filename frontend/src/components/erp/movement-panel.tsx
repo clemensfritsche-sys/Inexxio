@@ -12,6 +12,12 @@ import { ObjId } from '@/components/erp/obj-id';
 import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
+// Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). «company» hat keinen
+// scannbaren Kind → undefined (generischer Prompt, manuelle Eingabe/Suche).
+const SRC_SCAN_KIND: Record<string, ScanKind | undefined> = {
+  lagerplatz: 'lagerplatz', user: 'user', instance: 'instance',
+};
+
 
 export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   order: Order;
@@ -107,14 +113,20 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     const inst = queue[0];
     const iid = inst.object_id as number;
     const steps: ScanStep[] = [];
-    // Quell-Scan nur bei **physisch scannbarem** Standort (Lagerplatz mit QR-Etikett oder eine
-    // Behälter-Instanz). Bei Person/Lieferant (Wareneingang von aussen) ODER «Unternehmen»
-    // (abstrakter Startort neu erzeugter Instanzen) gibt es nichts zu scannen → überspringen.
-    // «company» ist zudem kein gültiger ``ScanKind`` – der Schritt würde den Scanner sonst crashen.
-    if (inst.location_id != null && (inst.location_type === 'lagerplatz' || inst.location_type === 'instance')) {
+    // Quell-Standort verifizieren – für JEDEN Standort mit Nummer. Ein Lagerplatz/Behälter
+    // trägt ein QR-Etikett (Kamera), «Unternehmen»/«Person» kein Etikett – dort greift die
+    // **manuelle Eingabe/Suche** des Scanners (Nummer eintippen bzw. Kandidat wählen). ``kind``
+    // nur für scannbare Typen setzen (company hat keinen ScanKind → generisch); der Dialog ist
+    // gegen unbekannte kinds ohnehin gehärtet.
+    if (inst.location_id != null) {
+      const srcKind = SRC_SCAN_KIND[inst.location_type ?? ''];
       steps.push({
-        label: 'Aktueller Standort', hint: `Standort von ${fmtObjId(iid)} scannen`, expected: inst.location_id,
-        kind: inst.location_type as ScanKind,
+        label: 'Aktueller Standort',
+        hint: srcKind === 'lagerplatz' || srcKind === 'instance'
+          ? `Standort von ${fmtObjId(iid)} scannen oder Nummer eingeben`
+          : `Aktuellen Standort bestätigen – Nummer eingeben oder wählen (${inst.location_label ?? fmtObjId(inst.location_id)})`,
+        expected: inst.location_id,
+        kind: srcKind,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
       });
     }

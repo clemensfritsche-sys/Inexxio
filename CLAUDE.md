@@ -203,16 +203,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); beim
     **Wareneingang («received») ist der aktuelle Lagerort Pflichteingabe** des Bestellers
     (`receiving_location_id`) – dorthin wechseln die Instanzen (`services/purchase.py`).
-    **Bezugsquelle = Teil der Produktspezifikation** (Migration `056`, statt am Schritt): WO ein
-    Artikel beschafft wird, gehört zum Artikel (Reiter «Spezifikation» → Beschaffung) –
-    `articles.procurement_mode` (supplier|webshop) + `default_supplier_id`/`default_webshop_url`
-    (friert bei Freigabe ein, wie die übrige Spezifikation). Der `purchase`-Schritt ist nur der
-    **Auslöser** und **erbt** die Quelle – **KEIN Schritt-Override** (WO ein Artikel bezogen wird, ist
-    Produkt-, nicht Schritt-Eigenschaft). `purchase.resolve_source(article)` ist die EINE Auflösung,
+    **Bezugsquelle wird IM PROZESSSCHRITT definiert** (max. Flexibilität – ein Prozess darf mehrere
+    `purchase`-Schritte mit UNTERSCHIEDLICHEN Lieferanten/Quellen haben, was ein reines Artikel-Feld
+    nicht abbilden kann): am Schritt `article_process_steps.mode` (supplier|webshop) +
+    `supplier_id`/`webshop_url`. Der **Artikel-Standard** (`articles.procurement_mode` +
+    `default_supplier_id`/`default_webshop_url`, Reiter «Spezifikation» → Beschaffung) dient als
+    **Vorbelegung/Fallback**: das Schritt-Formular ist damit vorbelegt und leer gelassene Schritte erben
+    ihn. `purchase.resolve_source(step, article)` ist die EINE Auflösung (Schritt ≻ Artikel-Default),
     ihr Ergebnis wird als Snapshot auf die Bestellung geschrieben; `serialization._initial_location`
-    erbt den Lieferanten-Startort ebenso. **Freigabe-Gate** (`purchase.has_source`): ein Artikel/Auftrag
-    mit `purchase`-Schritt lässt sich nur freigeben, wenn die Bezugsquelle am Artikel hinterlegt ist
-    (Router-Check in `articles.py`/`orders.py`; das Frontend warnt proaktiv am Schritt, `procurementReady`).
+    erbt den Lieferanten-Startort ebenso. **Freigabe-Gate** (`purchase.has_source(step, article)`): ein
+    Artikel/Auftrag mit `purchase`-Schritt lässt sich nur freigeben, wenn die Bezugsquelle **am Schritt
+    ODER als Artikel-Default** auflösbar ist (Router-Check in `articles.py`/`orders.py`; das Frontend
+    warnt proaktiv am Schritt, `procurementReady`).
   - **inspection** = «**Datenerfassung**»: allgemeine Werterfassung (nicht nur QC) – nennt **konkret die
     zu prüfenden Instanzen** (Stichprobe). Prüfumfang % via `sample_percent`: Einzelteil → N zufällig
     (stabil) ausgewählte Instanzen; Charge → eine Instanz mit N Proben. Je Stichprobe ein Wertesatz

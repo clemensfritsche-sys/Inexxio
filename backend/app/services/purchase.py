@@ -59,13 +59,17 @@ def compute_landed_unit_cost(po: PurchaseOrder) -> Optional[Decimal]:
     return (po.order_total / po.quantity).quantize(Decimal("0.0001"))
 
 
-def resolve_source(article: Article | None) -> tuple[str, Optional[int], Optional[str]]:
+def resolve_source(step, article: Article | None) -> tuple[str, Optional[int], Optional[str]]:
     """Bezugsquelle einer Bestellung → ``(mode, supplier_id, webshop_url)``.
 
-    Die Quelle gehört **allein** zur Produktspezifikation (``articles.procurement_mode`` +
-    ``default_supplier_id``/``default_webshop_url``): der ``purchase``-Schritt ist nur der
-    Auslöser. KEIN Schritt-Override – WO ein Artikel bezogen wird, ist eine Eigenschaft des
-    Produkts, nicht des einzelnen Schritts."""
+    Die Quelle wird **im Prozessschritt** definiert (max. Flexibilität: mehrere ``purchase``-
+    Schritte eines Prozesses dürfen unterschiedliche Lieferanten/Quellen haben). Der Artikel-
+    Default (``procurement_mode``/``default_supplier_id``/``default_webshop_url``) dient als
+    **Vorbelegung/Fallback**, falls der Schritt (noch) keine eigene Quelle trägt."""
+    if step is not None and getattr(step, "supplier_id", None):
+        return ("supplier", step.supplier_id, None)
+    if step is not None and getattr(step, "webshop_url", None):
+        return ("webshop", None, step.webshop_url)
     if article is not None:
         mode = article.procurement_mode or "supplier"
         if mode == "webshop" and article.default_webshop_url:
@@ -76,15 +80,11 @@ def resolve_source(article: Article | None) -> tuple[str, Optional[int], Optiona
     return ("supplier", None, None)
 
 
-def has_source(article: Article | None) -> bool:
-    """Ist die Bezugsquelle vollständig hinterlegt? (Lieferant bei ``supplier`` bzw.
-    Webshop-Link bei ``webshop``.) Grundlage der Freigabe-Sperre: ein Artikel/Auftrag mit
-    Beschaffungs-Schritt ohne hinterlegte Quelle darf nicht freigegeben werden."""
-    if article is None:
-        return False
-    if (article.procurement_mode or "supplier") == "webshop":
-        return bool(article.default_webshop_url)
-    return bool(article.default_supplier_id)
+def has_source(step, article: Article | None) -> bool:
+    """Ist die Bezugsquelle vollständig hinterlegt (Schritt ODER Artikel-Default)? Grundlage der
+    Freigabe-Sperre: ein purchase-Schritt ohne auflösbare Quelle blockiert die Freigabe."""
+    _mode, supplier_id, webshop_url = resolve_source(step, article)
+    return bool(supplier_id or webshop_url)
 
 
 def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[PurchaseOrder]:
@@ -125,9 +125,9 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
         for art_id, qty in targets:
             if art_id in have:
                 continue   # idempotent – diese Position hat schon ihre Bestellung
-            # Bezugsquelle aus dem Artikel (Spezifikation) – als Snapshot auf die Bestellung
-            # (die Bestellung bleibt stabil bei späteren Änderungen der Spezifikation).
-            mode, supplier_id, webshop_url = resolve_source(arts.get(art_id))
+            # Bezugsquelle aus dem **Schritt** (Fallback Artikel-Default) – als Snapshot auf die
+            # Bestellung (die Bestellung bleibt stabil bei späteren Änderungen der Spezifikation).
+            mode, supplier_id, webshop_url = resolve_source(step, arts.get(art_id))
             po = PurchaseOrder(
                 order_id=order.id,
                 article_id=art_id,
