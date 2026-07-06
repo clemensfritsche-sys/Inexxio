@@ -19,7 +19,7 @@ import { localDate } from '@/lib/utils';
 type TabKey = 'stammdaten' | 'verwendung';
 
 type Form = {
-  max_load_kg: string; dimensions: string; capacity: string;
+  max_load_kg: string; dimensions: string;
   latitude: string; longitude: string;
   address_street: string; address_zip: string; address_city: string; address_country: string;
 };
@@ -35,12 +35,12 @@ function joinDims(record: StorageLocation): string {
 function seedFrom(record: StorageLocation | null): Form {
   if (!record) {
     return {
-      max_load_kg: '', dimensions: '', capacity: '',
+      max_load_kg: '', dimensions: '',
       latitude: '', longitude: '', address_street: '', address_zip: '', address_city: '', address_country: '',
     };
   }
   return {
-    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record), capacity: s(record.capacity),
+    max_load_kg: s(record.max_load_kg), dimensions: joinDims(record),
     latitude: s(record.latitude), longitude: s(record.longitude),
     address_street: s(record.address_street), address_zip: s(record.address_zip),
     address_city: s(record.address_city), address_country: s(record.address_country),
@@ -83,7 +83,6 @@ function buildInput(form: Form): StorageLocationInput {
   const dims = parseDims(form.dimensions);
   return {
     max_load_kg: num(form.max_load_kg),
-    capacity: num(form.capacity),
     width_mm: dims?.w ?? null, depth_mm: dims?.d ?? null, height_mm: dims?.h ?? null,
     latitude: num(form.latitude), longitude: num(form.longitude),
     address_street: strOrNull(form.address_street), address_zip: strOrNull(form.address_zip),
@@ -300,7 +299,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             <Card>
               <Row k="Max. Traglast" v={record!.max_load_kg != null ? `${record!.max_load_kg} kg` : '—'} />
               <Row k="Abmessungen (B×L×H)" v={joinDims(record!) ? `${joinDims(record!)} mm` : '—'} />
-              <Row k="Lagermenge" v={record!.capacity != null ? String(record!.capacity) : '—'} />
             </Card>
           </>
         ) : (
@@ -324,7 +322,6 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
             <Card>
               <TextField label="Max. Traglast (kg)" value={form.max_load_kg} onChange={(v) => set('max_load_kg', v)} required placeholder="z. B. 500" error={errs.weight} />
               <TextField label="Abmessungen B × L × H (mm)" value={form.dimensions} onChange={(v) => set('dimensions', v)} required placeholder="z. B. 800x1200x1500" hint="Breite × Länge × Höhe in mm, getrennt durch 'x'" error={errs.dimensions} />
-              <TextField label="Lagermenge (Kapazität)" value={form.capacity} onChange={(v) => set('capacity', v)} placeholder="z. B. 100" hint="Wie viele Einheiten dieser Lagerplatz fasst (optional)" />
             </Card>
           </>
         )}

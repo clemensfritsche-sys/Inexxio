@@ -1060,7 +1060,8 @@ export interface paths {
         put?: never;
         /**
          * Replace Storage Location
-         * @description Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv (nur wenn leer).
+         * @description Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen
+         *     (nur wenn leer). Liefert den **neuen** Lagerplatz zurück.
          */
         post: operations["replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post"];
         delete?: never;
@@ -4067,8 +4068,6 @@ export interface components {
             note?: string | null;
             /** Max Load Kg */
             max_load_kg?: number | string | null;
-            /** Capacity */
-            capacity?: number | string | null;
             /** Width Mm */
             width_mm?: number | null;
             /** Depth Mm */
@@ -4156,10 +4155,6 @@ export interface components {
             replaced_by_id?: number | null;
             /** Replaces Id */
             replaces_id?: number | null;
-            /** Capacity */
-            capacity?: string | null;
-            /** Article Object Id */
-            article_object_id?: number | null;
         };
         /** StorageLocationUpdate */
         StorageLocationUpdate: {
@@ -4175,8 +4170,6 @@ export interface components {
             note?: string | null;
             /** Max Load Kg */
             max_load_kg?: number | string | null;
-            /** Capacity */
-            capacity?: number | string | null;
             /** Width Mm */
             width_mm?: number | null;
             /** Depth Mm */

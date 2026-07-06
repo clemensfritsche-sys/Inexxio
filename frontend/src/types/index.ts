@@ -428,7 +428,6 @@ export interface StorageLocationInput {
   location_type?: string | null;
   note?: string | null;
   max_load_kg?: number | string | null;
-  capacity?: number | string | null;   // Lagermenge (= Instanz-Menge, F)
   width_mm?: number | null;
   depth_mm?: number | null;
   height_mm?: number | null;
@@ -451,7 +450,6 @@ export interface StorageLocationUpdateInput {
   location_type?: string | null;
   note?: string | null;
   max_load_kg?: number | string | null;
-  capacity?: number | string | null;   // Lagermenge (= Instanz-Menge, F)
   width_mm?: number | null;
   depth_mm?: number | null;
   height_mm?: number | null;

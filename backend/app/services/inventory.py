@@ -71,16 +71,11 @@ def available_qty(candidates: list[Instance], for_order_id: int | None = None) -
 
 def in_stock_clauses() -> tuple:
     """SQLAlchemy-Bedingungen für „physisch am Lager" – qualitativ freigegeben
-    (``quality=passed``) UND dispositiv am Lager (``disposition=in_stock``), Menge > 0.
-
-    **Lagerplatz-Instanzen** (``is_location``, F) sind zwar Instanzen, aber KEIN handelbarer
-    Bestand – hier die EINE Stelle, die sie überall (Bestand/FIFO/Reservierung/Verkauf)
-    ausschliesst."""
+    (``quality=passed``) UND dispositiv am Lager (``disposition=in_stock``), Menge > 0."""
     return (
         Instance.quality == "passed",
         Instance.disposition == "in_stock",
         Instance.quantity > 0,
-        Instance.is_location == False,
     )
 
 

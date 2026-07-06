@@ -3,7 +3,7 @@
 Eine Instanz hat IMMER einen Standort, und ein Standort ist stets ein
 Datensatzobjekt mit 9-stelliger Nummer:
 
-    lagerplatz → Lagerplatz-Instanz (Instanz eines is_location-Artikels, F)
+    lagerplatz → StorageLocation
     user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
     instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
 
@@ -17,7 +17,7 @@ Den realen Ort setzt der erste Bewegungs-Schritt; die Vorgabe-Lieferadresse steh
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Instance, UserProfile
+from ..models import Instance, StorageLocation, UserProfile
 from ..schemas.movement import LOCATION_TYPES
 
 
@@ -38,9 +38,8 @@ def location_label(db: Session, ltype: str | None, lid: int | None) -> str | Non
         return None
     if ltype == "lagerplatz":
         loc = (
-            db.query(Instance)
-            .filter(Instance.object_id == lid, Instance.is_location == True,
-                    Instance.is_active == True)
+            db.query(StorageLocation)
+            .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
             .first()
         )
         return _obj_nr(lid) if loc else None
@@ -81,9 +80,8 @@ def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None
         for c in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids["company"]))
     } if ids["company"] else {}
     existing_loc = {
-        oid for (oid,) in db.query(Instance.object_id).filter(
-            Instance.object_id.in_(ids["lagerplatz"]), Instance.is_location == True,
-            Instance.is_active == True)
+        oid for (oid,) in db.query(StorageLocation.object_id).filter(
+            StorageLocation.object_id.in_(ids["lagerplatz"]), StorageLocation.is_active == True)
     } if ids["lagerplatz"] else set()
     users = {
         u.object_id: _user_label(u) for u in db.query(UserProfile).filter(
