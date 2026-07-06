@@ -418,7 +418,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           </div>
         )}
         {tab === 'prozess' && (
-          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null}
+          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
             readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
             onStepsCount={setStepsCount}
             procurementReady={form.procurement_mode === 'webshop' ? !!form.default_webshop_url.trim() : !!form.default_supplier_id} />

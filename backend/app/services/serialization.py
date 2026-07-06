@@ -38,10 +38,10 @@ def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None
     defs = process.order_step_defs(db, order)
     first = defs[0] if defs else None
     if first and first.step_type == "purchase":
-        # Bezugsquelle aus dem **Artikel** (Spezifikation) – kein Schritt-Override.
+        # Bezugsquelle aus dem **Schritt** (Fallback Artikel-Default).
         from .purchase import resolve_source
         art = db.query(Article).filter(Article.id == order.article_id).first() if order.article_id else None
-        mode, supplier_id, _url = resolve_source(art)
+        mode, supplier_id, _url = resolve_source(first, art)
         if mode == "supplier" and supplier_id:
             sup = (
                 db.query(UserProfile)

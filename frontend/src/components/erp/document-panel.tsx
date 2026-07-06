@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { FileText, FileDown, Hash, Send } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Order, DocumentContent } from '@/types';
+import type { CompanySettings, Order, DocumentContent } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { DocumentEditor, DocumentView } from '@/components/erp/document-editor';
 import { PanelHeader, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
@@ -17,10 +17,11 @@ function emptyContent(): DocumentContent {
   return { title: '', subtitle: null, sections: [] };
 }
 
-export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
+export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdated }: {
   order: Order;
   stepState: string;               // 'locked' | 'active' | 'done' | 'blocked'
   stepId: number;
+  company?: Partial<CompanySettings> | null;   // Briefkopf/Fusszeile (Online = PDF)
   onOrderUpdated: (o: Order) => void;
 }) {
   const doc = order.document ?? null;
@@ -131,7 +132,7 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
             <FileDown size={16} /> {busy ? 'Wird geladen…' : 'Als PDF herunterladen'}
           </button>
           {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
-          <DocumentView content={doc?.content ?? null} objectNr={nr ? fmtObjId(nr) : null} issuedAt={doc?.document_date ?? null} />
+          <DocumentView content={doc?.content ?? null} objectNr={nr ? fmtObjId(nr) : null} issuedAt={doc?.document_date ?? null} company={company} />
         </>
       ) : (
         <>
@@ -146,7 +147,7 @@ export function DocumentPanel({ order, stepState, stepId, onOrderUpdated }: {
           <AiWriteAssist current={draft} onResult={setDraft} />
           {/* Enter speichert sofort (ausser in TEXTAREAs – dort Zeilenumbruch). */}
           <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}>
-            <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} />
+            <DocumentEditor value={draft} onChange={setDraft} onPreviewPdf={preview} company={company} />
           </div>
           {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
           <PrimaryButton icon={Send} onClick={() => submit('issue')} disabled={busy || saving} tone="success">

@@ -3,13 +3,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, Label, SearchSelect, TextField } from '@/components/erp/fields';
+import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
+
+// Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
+function isValidWebshopUrl(v: string): boolean {
+  try {
+    const u = new URL(v.trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
 
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 // EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
@@ -22,10 +32,10 @@ type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'document'];
 const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
 
-export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCount, selfArticleObjectId = null, procurementReady }: {
+export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null, procurementReady }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
   ownerObjectId: number | null;          // Objektnummer des Trägers
-  suppliers?: UserProfile[];             // (nicht mehr genutzt – Bezugsquelle kommt vom Artikel)
+  suppliers?: UserProfile[];             // Auswahl der Bezugsquelle direkt im Beschaffungs-Schritt
   readOnly?: boolean;
   onStepsCount?: (n: number, isStockOp: boolean) => void;
   selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
@@ -34,6 +44,10 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<'choose' | StepType | null>(null);
+  // Bezugsquelle des Beschaffungs-Schritts (im Prozess definiert, je Schritt eigen):
+  const [mode, setMode] = useState<ProcessStepMode>('supplier');
+  const [supplierId, setSupplierId] = useState('');
+  const [url, setUrl] = useState('');
   const [shared, setShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
   const [samplePercent, setSamplePercent] = useState('100');
   const [wfields, setWfields] = useState<WField[]>([]);
@@ -79,6 +93,16 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
     return out;
   }, [selfArticle]);
 
+  // Beim Öffnen des Beschaffungs-Formulars die Bezugsquelle mit dem **Artikel-Standard**
+  // vorbelegen (Reiter «Spezifikation» → Beschaffung) – je Schritt frei überschreibbar, sodass
+  // ein Prozess mehrere Beschaffungen mit unterschiedlichen Lieferanten abbilden kann.
+  useEffect(() => {
+    if (adding !== 'purchase') return;
+    setMode((selfArticle?.procurement_mode as ProcessStepMode) || 'supplier');
+    setSupplierId(selfArticle?.default_supplier_id != null ? String(selfArticle.default_supplier_id) : '');
+    setUrl(selfArticle?.default_webshop_url ?? '');
+  }, [adding, selfArticle]);
+
   // Bewegung braucht Lagerplätze/Personen/Instanzen als Zielauswahl; Ressource die Artikel.
   // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
   useEffect(() => {
@@ -99,7 +123,7 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
   }
 
   function resetForm() {
-    setAdding(null);
+    setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
     setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
     setTargetSel(''); setResLines([]); setError(null);
   }
@@ -142,8 +166,13 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
 
   async function addStep(type: StepType) {
     setError(null);
-    // Beschaffung: die Bezugsquelle kommt AUSSCHLIESSLICH aus der Artikel-Spezifikation –
-    // kein Schritt-Override mehr (nichts hier zu validieren/erfassen).
+    // Beschaffung: Bezugsquelle wird **direkt im Prozessschritt** definiert (Lieferant ODER
+    // Webshop-Link), vorbelegt aus dem Artikel-Standard, je Schritt frei überschreibbar – so
+    // kann EIN Prozess mehrere Beschaffungen mit unterschiedlichen Quellen abbilden. Ein leer
+    // gelassener Schritt erbt automatisch den Artikel-Standard (Fallback im Backend).
+    if (type === 'purchase' && mode === 'webshop' && url.trim() && !isValidWebshopUrl(url)) {
+      setError('Bitte einen gültigen Webshop-Link angeben (https://…)'); return;
+    }
     if (type === 'inspection') {
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
@@ -165,9 +194,10 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
     try {
       await api.createStep(owner, ownerObjectId!, {
         step_type: type,
-        // Beschaffung: keine Quelle am Schritt – sie kommt aus der Artikel-Spezifikation.
-        supplier_id: null,
-        webshop_url: null,
+        // Bezugsquelle direkt am Schritt (leer = Artikel-Standard erben).
+        mode: type === 'purchase' ? mode : undefined,
+        supplier_id: type === 'purchase' && mode === 'supplier' && supplierId ? Number(supplierId) : null,
+        webshop_url: type === 'purchase' && mode === 'webshop' && url.trim() ? url.trim() : null,
         shared_fields: type === 'purchase' ? shared : null,
         sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
@@ -274,13 +304,17 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
                         : (s.target_location_id
                           ? `Wareneingang → Lagerplatz ${fmtObjId(s.target_location_id)}`
                           : 'Wareneingang · frei beim Einlagern'))}
-                    {!isLocked && s.step_type === 'purchase' && (
-                      // Die Bezugsquelle kommt immer aus der Produktspezifikation (kein Schritt-
-                      // Override). Fehlt sie am Artikel, klarer roter Hinweis (keine Freigabe möglich).
-                      owner === 'articles' && procurementReady === false
-                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#b91c1c', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt – bitte in der Spezifikation hinterlegen</span>
-                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Bezugsquelle vom Artikel</span>
-                    )}
+                    {!isLocked && s.step_type === 'purchase' && (() => {
+                      // Bezugsquelle am Schritt (Lieferant/Webshop) – oder geerbt vom Artikel-Standard.
+                      if (s.mode === 'webshop' && s.webshop_url)
+                        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Webshop · {s.webshop_url.replace(/^https?:\/\//, '').slice(0, 40)}</span>;
+                      if (s.mode === 'supplier' && s.supplier_id)
+                        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Lieferant · {s.supplier_name ?? fmtObjId(s.supplier_id)}</span>;
+                      // Kein Schritt-Override → erbt den Artikel-Standard. Fehlt der ebenfalls, roter Hinweis.
+                      return owner === 'articles' && procurementReady === false
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#b91c1c', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt – Schritt oder Spezifikation ergänzen</span>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Bezugsquelle vom Artikel-Standard</span>;
+                    })()}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
                     {!isLocked && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
@@ -414,16 +448,31 @@ export function ProcessSteps({ owner, ownerObjectId, readOnly = false, onStepsCo
 
               {adding === 'purchase' && (
                 <>
-                  {/* Die Bezugsquelle (Lieferant/Link) gehört zur Produktspezifikation (Reiter
-                      «Spezifikation» → Beschaffung) – NICHT an den Schritt. Kein Override. */}
+                  {/* Bezugsquelle direkt im Prozessschritt (Lieferant ODER Webshop-Link) –
+                      vorbelegt aus dem Artikel-Standard, je Schritt frei überschreibbar, sodass
+                      ein Prozess mehrere Beschaffungen mit unterschiedlichen Quellen abbilden kann. */}
+                  <Segmented label="Bezugsquelle" value={mode} onChange={(v) => setMode(v as ProcessStepMode)}
+                    options={[{ value: 'supplier', label: 'Lieferant' }, { value: 'webshop', label: 'Webshop' }]} />
+                  {mode === 'supplier' ? (
+                    <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId}
+                      placeholder="Artikel-Standard erben"
+                      options={[
+                        { value: '', label: 'Artikel-Standard erben' },
+                        ...suppliers.filter((s) => s.object_id != null).map((s) => ({
+                          value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` })),
+                      ]} />
+                  ) : (
+                    <TextField label="Webshop-Link" value={url} onChange={setUrl}
+                      placeholder="https://shop.example.com/artikel" hint="Leer lassen, um den Artikel-Standard zu erben." />
+                  )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Bezugsquelle (Lieferant/Link) kommt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung). Lieferadresse aus der Systemkonfiguration; der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
+                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse aus der Systemkonfiguration; der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
                   </div>
-                  {owner === 'articles' && procurementReady === false && (
+                  {owner === 'articles' && procurementReady === false && mode === 'supplier' && !supplierId && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
                       <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                      <span>Noch keine Bezugsquelle am Artikel hinterlegt – ohne diese lässt sich der Artikel nicht freigeben. Bitte im Reiter «Spezifikation» → Beschaffung ergänzen.</span>
+                      <span>Ohne Bezugsquelle (hier oder als Artikel-Standard) lässt sich der Artikel nicht freigeben.</span>
                     </div>
                   )}
                   <div><Label>Für den Lieferanten sichtbare Spezifikation</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>

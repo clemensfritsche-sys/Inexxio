@@ -8,7 +8,7 @@ import {
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FileDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, InstanceOrderRef, LocationType, OrderDocument } from '@/types';
+import type { CompanySettings, Instance, InstanceOrderRef, LocationType, OrderDocument } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { DocumentView } from '@/components/erp/document-editor';
@@ -27,8 +27,9 @@ import { cn, localDate, timeAgo } from '@/lib/utils';
  * gibt es daher nur die «Abweichung melden»-Abkürzung (ein Unter-Auftrag).
  * Design: Inexxio Design System (Instanz-Detail-Redesign).
  */
-export function InstanceDetail({ record, onBack, onChanged }: {
+export function InstanceDetail({ record, company, onBack, onChanged }: {
   record: Instance;
+  company?: Partial<CompanySettings> | null;   // Briefkopf/Fusszeile der Dokumente (Online = PDF)
   onBack: () => void;
   onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Anlage einer Abweichung)
 }) {
@@ -198,6 +199,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                       content={d.content ?? null}
                       objectNr={d.object_number ? fmtObjId(d.object_number) : null}
                       issuedAt={d.document_date ?? null}
+                      company={company}
                     />
                   </div>
                 ))}

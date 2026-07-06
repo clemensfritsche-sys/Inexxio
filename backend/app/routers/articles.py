@@ -284,16 +284,18 @@ async def update_article(
             article.default_webshop_url = None
         elif article.procurement_mode == "webshop":
             article.default_supplier_id = None
-    # Freigabe-Gate: Fehlt einem Prozessschritt seine benötigte Konfiguration, ist keine
-    # Freigabe möglich. Beschaffungs-Schritt → die Bezugsquelle muss am Artikel hinterlegt sein
-    # (Lieferant bzw. Webshop-Link), sonst könnte keine Bestellung entstehen.
+    # Freigabe-Gate: Fehlt einem Prozessschritt seine benötigte Konfiguration, ist keine Freigabe
+    # möglich. Jeder Beschaffungs-Schritt braucht eine auflösbare Bezugsquelle – am Schritt selbst
+    # (Lieferant/Webshop) ODER als Artikel-Default –, sonst könnte keine Bestellung entstehen.
     if releasing:
         from ..services.purchase import has_source
-        if any(s.step_type == "purchase" for s in article_steps(db, article.id)) and not has_source(article):
+        if any(s.step_type == "purchase" and not has_source(s, article)
+               for s in article_steps(db, article.id)):
             raise HTTPException(
                 400,
-                detail="Beschaffung unvollständig: Bitte unter «Spezifikation → Beschaffung» eine Bezugsquelle "
-                       "(Lieferant bzw. Webshop-Link) hinterlegen, bevor der Artikel freigegeben wird.")
+                detail="Beschaffung unvollständig: Bitte für jeden Beschaffungs-Schritt eine Bezugsquelle "
+                       "(Lieferant bzw. Webshop-Link) hinterlegen – am Schritt oder als Artikel-Standard "
+                       "unter «Spezifikation → Beschaffung» –, bevor der Artikel freigegeben wird.")
     # Inaktivieren kaskadiert (consume-Eltern) – laufende Aufträge laufen aus (Default).
     if going_inactive:
         deactivation.deactivate_article(db, article, current_user.id, "phase_out")

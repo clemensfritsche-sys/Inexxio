@@ -587,7 +587,7 @@ export default function ErpPage() {
             )
           )}
           {!creating && sel?.type === 'instance' && instanceDetail && (
-            <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')}
+            <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} company={settings} onBack={() => setMobileView('list')}
               onChanged={() => { api.getOrders().then(setOrders).catch(() => {}); reloadInstances(); }} />
           )}
           {!creating && activeRow?.type === 'storage_location' && (

@@ -485,20 +485,21 @@ async def update_order(
                 )
         elif not process.order_step_infos(db, order):
             raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
-        # Freigabe-Gate: hat der Auftrag einen Beschaffungs-Schritt, muss jeder betroffene Artikel
-        # eine hinterlegte Bezugsquelle haben (sonst könnte keine Bestellung entstehen).
-        if process.has_step(db, order, "purchase"):
+        # Freigabe-Gate: hat der Auftrag Beschaffungs-Schritte, muss je Schritt × betroffenem
+        # Artikel eine auflösbare Bezugsquelle vorliegen (Schritt-Quelle ODER Artikel-Default).
+        p_steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
+        if p_steps:
             from ..services.purchase import has_source
             art_ids = ([order.article_id] if order.article_id
                        else [l.article_id for l in order_lines_svc.lines_for(db, order)])
-            missing = [a for a in (db.query(Article).filter(Article.id == aid).first() for aid in art_ids)
-                       if a and not has_source(a)]
+            arts = [db.query(Article).filter(Article.id == aid).first() for aid in art_ids]
+            missing = sorted({a.name for step in p_steps for a in arts if a and not has_source(step, a)})
             if missing:
-                names = ", ".join(f"«{a.name}»" for a in missing)
+                names = ", ".join(f"«{n}»" for n in missing)
                 raise HTTPException(
                     400,
                     detail=f"Beschaffung unvollständig: für {names} ist keine Bezugsquelle hinterlegt "
-                           "(Artikel → Spezifikation → Beschaffung).")
+                           "(am Beschaffungs-Schritt oder als Artikel-Standard unter Spezifikation → Beschaffung).")
         # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
         # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
         # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
