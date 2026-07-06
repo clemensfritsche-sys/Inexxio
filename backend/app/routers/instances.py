@@ -71,8 +71,9 @@ async def list_instances(
 ):
     """Instanz-Feed (höchste Kardinalität) – server-seitig paginierbar
     (``limit``/``offset``, neueste zuerst) und durchsuchbar (``search``)."""
+    # is_location-Instanzen sind Lagerplätze (F) – eigener Feed «Lagerplätze», nicht hier.
     q = _apply_search(
-        db.query(Instance).filter(Instance.is_active == True), search
+        db.query(Instance).filter(Instance.is_active == True, Instance.is_location == False), search
     ).order_by(Instance.object_id.desc())
     if limit:
         q = q.offset(offset).limit(limit)
@@ -87,7 +88,8 @@ async def count_instances(
     _: UserProfile = Depends(require_employee),
 ):
     """Gesamtzahl (matchender) Instanzen – für die Feed-Zähler/Pagination."""
-    q = _apply_search(db.query(Instance.id).filter(Instance.is_active == True), search)
+    q = _apply_search(db.query(Instance.id).filter(
+        Instance.is_active == True, Instance.is_location == False), search)
     return CountResponse(count=int(q.count()))
 
 

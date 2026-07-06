@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ...domain import event_types
 from ...models import (
-    Article, ArticleProcessStep, Event, Instance, Order, StorageLocation, UserProfile,
+    Article, ArticleProcessStep, Event, Instance, Order, UserProfile,
 )
 from ..admin import log_audit
 from ..events import emit
@@ -444,15 +444,25 @@ def _t_get_user(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 
 def _t_storage_locations(db: Session, p: AiPrincipal, args: dict) -> Any:
-    """Lagerplätze/Standorte auflisten (für Bewegungen). Optional Suchbegriff."""
-    q = db.query(StorageLocation).filter(StorageLocation.is_active == True)
+    """Lagerplätze/Standorte auflisten (für Bewegungen). Optional Suchbegriff.
+
+    F: ein Lagerplatz ist eine Instanz eines is_location-Artikels; Bezeichnung kommt vom Artikel."""
+    rows = (
+        db.query(Instance)
+        .filter(Instance.is_active == True, Instance.is_location == True)
+        .order_by(Instance.object_id.desc()).limit(80).all()
+    )
     needle = (args.get("query") or "").strip().lower()
-    rows = q.order_by(StorageLocation.object_id.desc()).limit(80).all()
+    art_ids = {i.article_id for i in rows}
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
     out = []
     for s in rows:
-        if needle and needle not in (s.name or "").lower() and needle not in str(s.object_id or ""):
+        art = arts.get(s.article_id)
+        name = art.name if art else "Lagerplatz"
+        if needle and needle not in name.lower() and needle not in str(s.object_id or ""):
             continue
-        out.append({"object_id": _num(s.object_id), "name": s.name, "status": s.status,
+        out.append({"object_id": _num(s.object_id), "name": name,
+                    "status": (art.status if art else "released"),
                     "city": s.address_city, "note": s.note})
         if len(out) >= _LIMIT:
             break
@@ -477,9 +487,6 @@ def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
         detail = _t_get_instance(db, p, {"object_id": oid})
     elif t == "user":
         detail = _t_get_user(db, p, {"object_id": oid})
-    elif t == "storage_location":
-        s = db.query(StorageLocation).filter(StorageLocation.object_id == oid).first()
-        detail = {"name": s.name, "status": s.status} if s else {}
     return {"object_id": _num(oid), "type": t, "detail": detail}
 
 
