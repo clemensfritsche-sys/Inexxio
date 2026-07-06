@@ -168,6 +168,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - Frontend: ERP mit Reitern Benutzer + Artikel (Master-Detail-Feed)
 - Frontend: Artikel-Anlage via «+» (Pflichtfelder Name/Einheit/Serialisierung/Grösse/Gewicht), Detailfenster mit Reitern Stammdaten/Prozess/Bestand
 - Frontend: Admin Einstellungen + Benutzerverwaltung
+- **Betriebskosten Monat-bis-heute** (`GET /admin/operating-costs`, `services/operating_costs.py`): am
+  Unternehmens-Datensatz eine kompakte Übersicht der **tatsächlichen** laufenden Kosten – KI aus dem
+  Event-Strom (verbrauchte Tokens × Modell-Tarif), Zahlungen aus Stripe-Gebühren der bezahlten Verkäufe,
+  Infrastruktur als anteilige Google-Cloud-Schätzung; grosse Ist-Summe + Monats-Hochrechnung.
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
 - **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
   Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
@@ -203,10 +207,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Artikel beschafft wird, gehört zum Artikel (Reiter «Spezifikation» → Beschaffung) –
     `articles.procurement_mode` (supplier|webshop) + `default_supplier_id`/`default_webshop_url`
     (friert bei Freigabe ein, wie die übrige Spezifikation). Der `purchase`-Schritt ist nur der
-    **Auslöser** und **erbt** die Quelle als Default; pro Schritt optional überschreibbar (mehrere
-    Lieferanten) via `supplier_id`/`webshop_url` am Schritt. `purchase.resolve_source(step, article)`
-    ist die EINE Auflösungsstelle (Override ≻ Artikel-Default), ihr Ergebnis wird als Snapshot auf die
-    Bestellung geschrieben; `serialization._initial_location` erbt den Lieferanten-Startort ebenso.
+    **Auslöser** und **erbt** die Quelle – **KEIN Schritt-Override** (WO ein Artikel bezogen wird, ist
+    Produkt-, nicht Schritt-Eigenschaft). `purchase.resolve_source(article)` ist die EINE Auflösung,
+    ihr Ergebnis wird als Snapshot auf die Bestellung geschrieben; `serialization._initial_location`
+    erbt den Lieferanten-Startort ebenso. **Freigabe-Gate** (`purchase.has_source`): ein Artikel/Auftrag
+    mit `purchase`-Schritt lässt sich nur freigeben, wenn die Bezugsquelle am Artikel hinterlegt ist
+    (Router-Check in `articles.py`/`orders.py`; das Frontend warnt proaktiv am Schritt, `procurementReady`).
   - **inspection** = «**Datenerfassung**»: allgemeine Werterfassung (nicht nur QC) – nennt **konkret die
     zu prüfenden Instanzen** (Stichprobe). Prüfumfang % via `sample_percent`: Einzelteil → N zufällig
     (stabil) ausgewählte Instanzen; Charge → eine Instanz mit N Proben. Je Stichprobe ein Wertesatz

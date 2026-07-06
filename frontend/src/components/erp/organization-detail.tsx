@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CompanySettings } from '@/types';
+import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
 
 /**
@@ -154,81 +154,92 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   );
 }
 
-// ─── Betriebskosten-Übersicht (Was kostet der Betrieb des Systems?) ───────────
-// Transparente Schätzung der laufenden Kosten (Cloud, KI, Zahlung, Analyse) für ein
-// kleines Schweizer KMU. Richtwerte in CHF/Monat – die realen Kosten sind nutzungs-
-// abhängig (Traffic, KI-Anfragen, Transaktionen).
-const COST_GROUPS: { title: string; icon: React.ElementType; items: { name: string; est: string; note: string }[] }[] = [
-  {
-    title: 'Infrastruktur · Google Cloud', icon: Server,
-    items: [
-      { name: 'Cloud Run · Backend-API', est: '5–20', note: 'läuft dauerhaft (1 Instanz), skaliert nach Last' },
-      { name: 'Cloud SQL · PostgreSQL', est: '10–30', note: 'verwaltete Datenbank, kleine Instanz' },
-      { name: 'Firebase Hosting · Website/Shop', est: '0–5', note: 'Gratis-Kontingent deckt kleine bis mittlere Last' },
-      { name: 'Cloud Storage · Bilder/Dokumente', est: '0–2', note: 'nutzungsabhängig, sehr günstig' },
-      { name: 'Secret Manager · Schlüssel', est: '≈ 0', note: 'vernachlässigbar' },
-    ],
-  },
-  {
-    title: 'Künstliche Intelligenz', icon: Sparkles,
-    items: [
-      { name: 'Claude · KI-Chat & Schreibhilfe', est: '5–50', note: 'je Anfrage ~0.001–0.05 CHF – einfache Fragen günstig, komplexe teurer' },
-      { name: 'Gemini · Bildbearbeitung', est: '0–10', note: '~0.03 CHF je bearbeitetem Produktbild' },
-    ],
-  },
-  {
-    title: 'Zahlung · Analyse · E-Mail', icon: CreditCard,
-    items: [
-      { name: 'Stripe · Online-Zahlungen', est: 'variabel', note: '≈ 2.9 % + 0.30 CHF je Transaktion – keine Fixkosten' },
-      { name: 'Plausible · Analytics (DSGVO)', est: '0–9', note: 'self-hosted 0, Cloud ab ~9 CHF' },
-      { name: 'Gmail API · E-Mail-Versand', est: '≈ 0', note: 'im Google-Workspace-Abo enthalten' },
-      { name: 'Domain · .com/.ch', est: '1–2', note: 'Jahresgebühr auf den Monat umgelegt' },
-    ],
-  },
-];
+// ─── Betriebskosten-Übersicht – tatsächliche Zahlen Monat-bis-heute ───────────
+// KI (Tokens × Tarif) und Zahlungen (Stripe-Gebühren) sind GEMESSEN; die Infrastruktur
+// ist eine anteilige Schätzung der fixen Google-Cloud-Grundkosten. Kompakt gruppiert,
+// mit grosser Summe und Monats-Hochrechnung.
+const GROUP_ICON: Record<string, React.ElementType> = {
+  ai: Sparkles, payments: CreditCard, infrastructure: Server,
+};
+
+function chf(v: number): string {
+  return v.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function CostOverview() {
+  const [data, setData] = useState<OperatingCosts | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api.getOperatingCosts().then((d) => { if (!cancelled) setData(d); }).catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, []);
+  if (failed) return null;   // Zusatz-Übersicht – bei Fehler still weglassen (kein Blocker)
+
+  const unit = <span style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>CHF</span>;
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
           <Coins size={15} />
         </span>
-        <span style={{ font: '800 13px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>Betriebskosten (Schätzung)</span>
+        <span style={{ font: '800 13px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>
+          Betriebskosten{data ? ` · ${data.period_label}` : ''}
+        </span>
       </div>
       <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
-        {COST_GROUPS.map((g, gi) => {
-          const Icon = g.icon;
-          return (
-            <div key={g.title} style={{ borderTop: gi > 0 ? '1px solid var(--border-1)' : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px 7px', font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--fg-3)' }}>
-                <Icon size={13} /> {g.title}
+        {/* Kopf: grosse Ist-Summe + Monats-Hochrechnung */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, padding: '16px 18px 14px', background: 'linear-gradient(180deg,#FBF7F0,#fff)' }}>
+          <div>
+            <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4)' }}>
+              Bisher diesen Monat{data ? ` · Tag ${data.day_of_month}/${data.days_in_month}` : ''}
+            </div>
+            <div style={{ font: '800 26px var(--font-display)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
+              {data ? chf(data.total_mtd_chf) : '—'}{unit}
+            </div>
+          </div>
+          {data && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)' }}>Hochrechnung Monat</div>
+              <div style={{ font: '700 15px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
+                ≈ {chf(data.projected_month_chf)}{unit}
               </div>
-              {g.items.map((it) => (
-                <div key={it.name} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '7px 16px' }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ font: '600 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{it.name}</div>
-                    <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 1 }}>{it.note}</div>
-                  </div>
-                  <div style={{ flex: 'none', font: '700 13.5px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                    {it.est}<span style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)', marginLeft: 4 }}>{it.est === 'variabel' ? '' : 'CHF/Mt'}</span>
-                  </div>
-                </div>
-              ))}
+            </div>
+          )}
+        </div>
+        {/* Gruppen – je eine kompakte Zeile mit Basis-Badge + Betrag + Detail-Hinweis */}
+        {(data?.groups ?? []).map((g) => {
+          const Icon = GROUP_ICON[g.key] ?? Coins;
+          const measured = g.basis === 'actual';
+          const hints = g.items.map((i) => i.hint).filter(Boolean).join(' · ');
+          return (
+            <div key={g.key} style={{ borderTop: '1px solid var(--border-1)', padding: '10px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Icon size={15} style={{ color: 'var(--fg-3)', flex: 'none' }} />
+                <span style={{ flex: 1, font: '650 13.5px var(--font-body)', color: 'var(--fg-1)', minWidth: 0 }}>{g.label}</span>
+                <span style={{ flex: 'none', font: '600 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 7px', borderRadius: 999,
+                  color: measured ? '#166534' : '#9A7238', background: measured ? '#DCFCE7' : '#F4EBDD' }}>
+                  {measured ? 'gemessen' : 'geschätzt'}
+                </span>
+                <span style={{ flex: 'none', font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', minWidth: 78, textAlign: 'right' }}>
+                  {chf(g.total_chf)}{unit}
+                </span>
+              </div>
+              {hints && (
+                <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 3, marginLeft: 25 }}>{hints}</div>
+              )}
             </div>
           );
         })}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '12px 16px', borderTop: '1px solid var(--border-2)', background: 'var(--bg-2)' }}>
-          <div style={{ flex: 1, font: '800 13px var(--font-body)', color: 'var(--fg-1)' }}>Grober Rahmen · laufend</div>
-          <div style={{ flex: 'none', font: '800 15px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
-            ~ 35–140<span style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)', marginLeft: 4 }}>CHF/Mt</span>
+        {!data && !failed && (
+          <div style={{ padding: '14px 18px', borderTop: '1px solid var(--border-1)', font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>
+            Wird geladen …
           </div>
-        </div>
+        )}
       </div>
       <p style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5, marginTop: 8 }}>
-        Richtwerte für den laufenden Betrieb (ohne Stripe-Transaktionsgebühren, die pro Verkauf anfallen).
-        Die realen Kosten hängen von Traffic, Zahl der KI-Anfragen und Verkäufen ab – bei geringer Nutzung
-        eher am unteren, bei starker Nutzung am oberen Rand.
+        KI und Zahlungen sind <b>tatsächlich gemessen</b> (verbrauchte Tokens × Modell-Tarif bzw. Stripe-Gebühren
+        der bezahlten Verkäufe). Die Infrastruktur ist eine anteilige Schätzung der fixen Google-Cloud-Grundkosten.
       </p>
     </div>
   );

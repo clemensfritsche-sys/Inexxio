@@ -5,7 +5,7 @@ import type {
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput, OrderDocument,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
-  CompanySettings, UserProfile, DeactivationImpact, OrdersMode,
+  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
@@ -138,6 +138,10 @@ class ApiClient {
 
   getPublicSettings(): Promise<Partial<CompanySettings>> {
     return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
+  }
+
+  getOperatingCosts(): Promise<OperatingCosts> {
+    return this.get<OperatingCosts>('/api/v1/admin/operating-costs');
   }
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {

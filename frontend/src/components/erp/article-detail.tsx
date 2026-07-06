@@ -418,9 +418,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           </div>
         )}
         {tab === 'prozess' && (
-          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
+          <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null}
             readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
-            onStepsCount={setStepsCount} />
+            onStepsCount={setStepsCount}
+            procurementReady={form.procurement_mode === 'webshop' ? !!form.default_webshop_url.trim() : !!form.default_supplier_id} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
@@ -430,20 +431,14 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         )}
       </div>
 
-      {/* Meta footer (edit only) */}
-      {!isCreate && (
-        <div style={{ padding: '9px 28px', borderTop: '1px solid var(--border-1)', background: '#fff', flexShrink: 0, fontSize: 11.5, color: 'var(--fg-4)', display: 'flex', gap: 18 }}>
-          <span>Einheit: {unitLabel(record.unit)}</span>
-          <span>Erfassung: {serializationLabel(record.serialization)}</span>
-          <span>Erstellt: {localDate(record.created_at)}</span>
-        </div>
-      )}
-
-      {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
-      {!locked && tab === 'stammdaten' && (
+      {/* Kein dekorativer Footer mehr. Die Aktions-/Status-Leiste erscheint nur, wenn sie etwas
+          tut: beim Anlegen (Hinweis + Abbrechen) oder wenn ein Fehler/Blocker anzuzeigen ist –
+          im normalen (gültigen) Bearbeiten bleibt das Fenster ohne Footer. Der Speichern-Status
+          steckt ohnehin als grüner Flash im Kopf (SaveIndicator). */}
+      {!locked && tab === 'stammdaten' && (isCreate || error || blockReason) && (
         <div style={{ padding: '11px 28px', background: '#fff', borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 12.5, color: error ? 'var(--danger)' : 'var(--fg-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? blockReason ?? (isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
+            {error ?? blockReason ?? 'Wird automatisch angelegt, sobald vollständig'}
           </span>
           {isCreate && (
             <button onClick={onCancel} className="erp-actbtn erp-actbtn-neutral" style={{ flexShrink: 0 }}>

@@ -51,13 +51,14 @@ def _validate_supplier(db: Session, supplier_id: int | None) -> None:
 
 def _supplier_refs(db: Session, supplier_pks: set[int]) -> dict[int, tuple[str, int | None]]:
     """{UserProfile.id → (Anzeigename, Objektnummer)} für die Beschaffungs-Denormalisierung
-    (batch, kein N+1 im Feed)."""
+    (batch, kein N+1 im Feed). ``display_name`` ist eine **@property** (keine Spalte) – daher die
+    vollen Objekte laden und den Namen in Python bilden, NICHT in der Query selektieren
+    (sonst ArgumentError „got <property object>")."""
     ids = {pk for pk in supplier_pks if pk}
     if not ids:
         return {}
-    rows = db.query(UserProfile.id, UserProfile.display_name, UserProfile.object_id).filter(
-        UserProfile.id.in_(ids)).all()
-    return {r[0]: (r[1], r[2]) for r in rows}
+    rows = db.query(UserProfile).filter(UserProfile.id.in_(ids)).all()
+    return {u.id: (u.display_name, u.object_id) for u in rows}
 
 
 def _price_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
@@ -283,6 +284,16 @@ async def update_article(
             article.default_webshop_url = None
         elif article.procurement_mode == "webshop":
             article.default_supplier_id = None
+    # Freigabe-Gate: Fehlt einem Prozessschritt seine benötigte Konfiguration, ist keine
+    # Freigabe möglich. Beschaffungs-Schritt → die Bezugsquelle muss am Artikel hinterlegt sein
+    # (Lieferant bzw. Webshop-Link), sonst könnte keine Bestellung entstehen.
+    if releasing:
+        from ..services.purchase import has_source
+        if any(s.step_type == "purchase" for s in article_steps(db, article.id)) and not has_source(article):
+            raise HTTPException(
+                400,
+                detail="Beschaffung unvollständig: Bitte unter «Spezifikation → Beschaffung» eine Bezugsquelle "
+                       "(Lieferant bzw. Webshop-Link) hinterlegen, bevor der Artikel freigegeben wird.")
     # Inaktivieren kaskadiert (consume-Eltern) – laufende Aufträge laufen aus (Default).
     if going_inactive:
         deactivation.deactivate_article(db, article, current_user.id, "phase_out")

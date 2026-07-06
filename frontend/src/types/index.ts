@@ -65,6 +65,8 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 
 // Namensvorschlag beim Anlegen (freie Namensgebung + intelligente Dubletten-Vermeidung).
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
+// Betriebskosten (Monat-bis-heute) – Admin-Übersicht am Unternehmen.
+export type OperatingCosts = components['schemas']['OperatingCostsResponse'];
 // Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
 export const ARTICLE_NAME_MAX_LENGTH = 32;
 

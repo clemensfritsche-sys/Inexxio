@@ -111,6 +111,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/operating-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Operating Costs
+         * @description Betriebskosten des laufenden Monats bis heute – tatsächliche KI-/Zahlungskosten
+         *     (aus Event-Strom bzw. Stripe-Verkäufen) + Infrastruktur-Schätzung + Hochrechnung.
+         */
+        get: operations["get_operating_costs_api_v1_admin_operating_costs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -2354,6 +2375,31 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** CostGroup */
+        CostGroup: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Total Chf */
+            total_chf: number;
+            /** Basis */
+            basis: string;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["CostItem"][];
+        };
+        /** CostItem */
+        CostItem: {
+            /** Label */
+            label: string;
+            /** Value Chf */
+            value_chf: number;
+            /** Hint */
+            hint?: string | null;
+        };
         /** CountResponse */
         CountResponse: {
             /** Count */
@@ -2899,6 +2945,28 @@ export interface components {
             object_id: number;
             /** Object Type */
             object_type: string;
+        };
+        /**
+         * OperatingCostsResponse
+         * @description Betriebskosten des laufenden Monats bis heute (tatsächlich, wo messbar) +
+         *     Hochrechnung aufs Monatsende.
+         */
+        OperatingCostsResponse: {
+            /** Period Label */
+            period_label: string;
+            /** Day Of Month */
+            day_of_month: number;
+            /** Days In Month */
+            days_in_month: number;
+            /**
+             * Groups
+             * @default []
+             */
+            groups: components["schemas"]["CostGroup"][];
+            /** Total Mtd Chf */
+            total_mtd_chf: number;
+            /** Projected Month Chf */
+            projected_month_chf: number;
         };
         /**
          * OrderCoverStock
@@ -4496,6 +4564,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_operating_costs_api_v1_admin_operating_costs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingCostsResponse"];
                 };
             };
         };

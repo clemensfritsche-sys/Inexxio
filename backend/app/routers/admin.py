@@ -7,10 +7,12 @@ from ..models import AuditLog, UserProfile
 from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,
+    OperatingCostsResponse,
     UserProfileResponse,
     UserRoleUpdate,
 )
 from ..services.admin import get_or_create_settings, log_audit
+from ..services.operating_costs import operating_costs
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -78,6 +80,16 @@ async def get_public_settings(db: Session = Depends(get_db)):
         "email": s.email, "phone": s.phone, "website": s.website,
         "google_maps_api_key": s.google_maps_api_key,
     }
+
+
+@router.get("/operating-costs", response_model=OperatingCostsResponse)
+async def get_operating_costs(
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_admin),
+):
+    """Betriebskosten des laufenden Monats bis heute – tatsächliche KI-/Zahlungskosten
+    (aus Event-Strom bzw. Stripe-Verkäufen) + Infrastruktur-Schätzung + Hochrechnung."""
+    return operating_costs(db)
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
