@@ -72,18 +72,20 @@ def store(db: Session, data: bytes, mime: str, filename: str | None) -> dict:
         raise HTTPException(413, detail="Datei zu gross (max. 30 MB)")
     digest = hash_bytes(data)
     key = f"{settings.gcs_document_prefix}/{digest[:2]}/{secrets.token_urlsafe(18)}{_ext_for(mime, filename)}"
+    # GCS, wenn ein Bucket konfiguriert ist – aber NIE hart scheitern: klappt der Upload nicht
+    # (Bucket fehlt, Service-Account ohne Rechte, Netz), fällt DIESE Datei auf die DB zurück.
+    # Der tatsächliche Ablageort steht je Datei am ``storage_backend`` → das Lesen findet die
+    # Bytes immer korrekt. So ist das Setzen von ``GCS_BUCKET`` gefahrlos (kein Deploy-Ordering).
     if settings.gcs_bucket:
-        blob = _gcs_bucket().blob(key)
         try:
-            blob.upload_from_string(data, content_type=mime)
+            _gcs_bucket().blob(key).upload_from_string(data, content_type=mime)
+            return {"storage_key": key, "storage_backend": "gcs", "byte_size": len(data), "sha256": digest}
         except Exception as e:
-            raise HTTPException(503, detail=f"Upload nach GCS fehlgeschlagen: {type(e).__name__}")
-        backend = "gcs"
-    else:
-        db.add(DocumentBlob(storage_key=key, mime=mime, data=data, byte_size=len(data)))
-        db.flush()
-        backend = "db"
-    return {"storage_key": key, "storage_backend": backend, "byte_size": len(data), "sha256": digest}
+            print(f"WARNING: GCS-Upload fehlgeschlagen ({type(e).__name__}) – Fallback in die DB. "
+                  f"Bucket/Service-Account-Rechte prüfen.", flush=True)
+    db.add(DocumentBlob(storage_key=key, mime=mime, data=data, byte_size=len(data)))
+    db.flush()
+    return {"storage_key": key, "storage_backend": "db", "byte_size": len(data), "sha256": digest}
 
 
 def read(db: Session, storage_key: str, backend: str) -> tuple[bytes, str]:
