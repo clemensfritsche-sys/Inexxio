@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Article, ArticleProcessStep, Inspection, Instance, InstanceOrderLink, Order,
-    ResourceUsage,
+    ResourceUsage, StorageLocation,
 )
 from .locations import _obj_nr
 
@@ -103,9 +103,9 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
     return out
 
 
-def storage_location_references(db: Session, loc: Instance) -> list[dict]:
-    """Verwendung eines Lagerplatzes (F: die Lagerplatz-**Instanz**): aktuell lagernde
-    Instanzen + Artikel, deren Prozessschritte hierher referenzieren, neueste zuerst."""
+def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
+    """Verwendung eines Lagerplatzes: aktuell lagernde Instanzen + Artikel, deren
+    Prozessschritte hierher referenzieren (Lieferadresse/Bewegungsziel), neueste zuerst."""
     lid = loc.object_id
     refs: list[dict] = []
 

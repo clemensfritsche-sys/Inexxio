@@ -58,7 +58,6 @@ class StorageLocationCreate(BaseModel):
     note: Optional[str] = None
 
     max_load_kg: Optional[Decimal] = None
-    capacity: Optional[Decimal] = None       # F: Lagermenge (= Instanz-Menge)
     width_mm: Optional[int] = None
     depth_mm: Optional[int] = None
     height_mm: Optional[int] = None
@@ -103,7 +102,6 @@ class StorageLocationUpdate(BaseModel):
     note: Optional[str] = None
 
     max_load_kg: Optional[Decimal] = None
-    capacity: Optional[Decimal] = None       # F: Lagermenge (= Instanz-Menge)
     width_mm: Optional[int] = None
     depth_mm: Optional[int] = None
     height_mm: Optional[int] = None
@@ -191,7 +189,3 @@ class StorageLocationResponse(BaseModel):
     # Ersetzen (Nachvollziehbarkeit): Nachfolger / Vorgänger (Objektnummern)
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None
-    # F: ein Lagerplatz IST eine Instanz eines is_location-Artikels. Kapazität («Lagermenge»)
-    # = Instanz-Menge; ``article_object_id`` = der Ortstyp-Artikel (Traglast/Abmessung).
-    capacity: Optional[Decimal] = None
-    article_object_id: Optional[int] = None

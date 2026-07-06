@@ -26,7 +26,7 @@ Ersetzen: alter Datensatz inaktiv + **Duplikat als Entwurf** + Verknüpfung
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Instance, Order, OrderLine
+from ..models import Article, ArticleProcessStep, Instance, Order, OrderLine, StorageLocation
 from .admin import log_audit
 from .events import emit
 from .inventory import in_stock_clauses
@@ -190,7 +190,14 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int,
     emit(db, "order.cancelled", object_type="order", object_id=order.object_id, actor_id=actor_id)
 
 
-# ─── Lagerplatz: siehe services/location_records (F, Instanz-basiert) ──────────
+# ─── Lagerplatz ───────────────────────────────────────────────────────────────
+
+def storage_location_in_use(db: Session, loc: StorageLocation) -> bool:
+    return db.query(Instance.id).filter(
+        Instance.is_active == True, Instance.location_type == "lagerplatz",
+        Instance.location_id == loc.object_id,
+    ).first() is not None
+
 
 # ─── Ersetzen: Duplikat als Entwurf + Verknüpfung ────────────────────────────
 
@@ -251,4 +258,18 @@ def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
     return new
 
 
-# Lagerplatz-Duplikat (Ersetzen) siehe services/location_records.replace (F).
+def duplicate_storage_location(db: Session, src: StorageLocation, actor_id: int) -> StorageLocation:
+    new = StorageLocation(
+        object_id=next_object_id(db, "storage_location"), status="draft", name=src.name, code=src.code,
+        location_type=src.location_type, note=src.note, max_load_kg=src.max_load_kg,
+        width_mm=src.width_mm, depth_mm=src.depth_mm, height_mm=src.height_mm,
+        is_dry=src.is_dry, is_tempered=src.is_tempered, is_hazmat=src.is_hazmat,
+        is_blocked=src.is_blocked, latitude=src.latitude, longitude=src.longitude,
+        address_street=src.address_street, address_zip=src.address_zip,
+        address_city=src.address_city, address_country=src.address_country,
+    )
+    db.add(new)
+    db.flush()
+    log_audit(db, "storage_locations", None, f"Lagerplatz als Ersatz für {src.object_id} angelegt",
+              actor_id, object_id=new.object_id)
+    return new

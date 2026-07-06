@@ -19,6 +19,7 @@ from .disposal import Disposal
 from .resource_usage import ResourceUsage
 from .document import Document
 from .attachment import Attachment
+from .storage_location import StorageLocation
 from .ai import AiAction
 from .audit import AuditLog
 from .event import Event
@@ -30,6 +31,6 @@ __all__ = [
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
-    "Document", "Attachment",
+    "Document", "Attachment", "StorageLocation",
     "AiAction", "AuditLog", "Event", "Notification", "ObjectRef",
 ]

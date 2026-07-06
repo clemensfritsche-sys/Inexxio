@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Article, CompanySettings, Instance, ObjectRef, Order,
-    UserProfile,
+    StorageLocation, UserProfile,
 )
 
 OBJ_ID_START = 100_000_001
@@ -28,7 +28,7 @@ _TYPE_MODELS = {
     "instance": Instance,
     # Das Dokument trägt KEINE eigene Nummer – seine Nummer ist die Instanz-Objektnummer
     # (der Liefergegenstand des Auftrags). Deshalb NICHT in der Nummernkreis-Registry.
-    # Lagerplätze (F) sind Instanzen eines is_location-Artikels – kein eigener Objekttyp mehr.
+    "storage_location": StorageLocation,
     # Das Unternehmen selbst (Singleton) ist ebenfalls ein nummerierter ERP-Datensatz.
     "organization": CompanySettings,
 }
@@ -112,6 +112,7 @@ def backfill_registry(db: Session) -> None:
 _FOREIGN_KEYS = (
     ("articles", "fk_articles_replaced_by", "replaced_by_id"),
     ("orders", "fk_orders_replaced_by", "replaced_by_id"),
+    ("storage_locations", "fk_storage_locations_replaced_by", "replaced_by_id"),
     ("instances", "fk_instances_location", "location_id"),
 )
 

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Numeric, String
+from sqlalchemy import BigInteger, DateTime, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,8 +27,7 @@ class Instance(Base, TimestampMixin):
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
 
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    # Nullable (F): Lager-Instanzen (``is_location``) entstehen NICHT aus einem Auftrag.
-    order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
     kind: Mapped[str] = mapped_column(String(10), default="unit", nullable=False)   # unit | batch
     # Menge als Dezimalzahl (NUMERIC(14,3)): ein Einzelteil trägt 1, eine Charge die
@@ -50,23 +49,9 @@ class Instance(Base, TimestampMixin):
     # Ein abgelaufenes Teil wird beim Sweep ausgebucht (disposition → scrapped).
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # ── Lagerplatz-Instanz (F): eine Instanz eines is_location-Artikels IST ein Lagerplatz ──
-    # ``is_location`` (denormalisiert vom Artikel) → aus dem Bestand ausgeschlossen. Geo/Adresse
-    # (der Karten-Standort, per-Instanz – NICHT am Artikel-Typ) + freie Bemerkung. Die Kapazität
-    # («Lagermenge») ist die normale ``quantity``.
-    is_location: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False)
-    note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6), nullable=True)
-    longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6), nullable=True)
-    address_street: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    address_zip: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    address_city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    address_country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-
     # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:
-    #   lagerplatz → Lagerplatz-Instanz (is_location) | user → UserProfile | instance → andere Instanz
+    #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 

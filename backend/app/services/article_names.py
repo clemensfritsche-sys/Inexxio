@@ -62,7 +62,7 @@ def _pool(db: Session) -> dict[str, int]:
     Kein Admin-Katalog mehr – die Vorschläge stammen ausschliesslich aus echten Daten."""
     rows = (
         db.query(Article.name, func.count(Article.id))
-        .filter(Article.is_active == True, Article.is_location == False, Article.name.isnot(None))
+        .filter(Article.is_active == True, Article.name.isnot(None))
         .group_by(Article.name)
         .all()
     )

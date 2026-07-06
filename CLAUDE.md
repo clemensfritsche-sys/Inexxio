@@ -301,18 +301,6 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
   Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
-- **Lagerplatz = Artikel + Instanz (F, Vereinheitlichung)**: Ein Lagerplatz IST eine **Instanz** eines
-  **`is_location`-Artikels**. Der **Artikel** trägt die geteilten Typ-Eigenschaften – Bezeichnung,
-  **Abmessung** (`articles.size`) und **Traglast** (`articles.max_load_kg`, neues Spezifikationsfeld); die
-  **Instanz** trägt den konkreten Ort: **Geo/Adresse** (der Karten-Standort – per Instanz, NICHT am Typ,
-  denn zwei Plätze desselben Typs stehen woanders), **Bemerkung** (`instances.note`) und die **Kapazität**
-  («Lagermenge» = `instances.quantity`). `is_location`-Instanzen zählen **NIE** als Bestand – die EINE
-  Stelle `inventory.in_stock_clauses()` schliesst sie überall aus (Bestand/FIFO/Reservierung/Verkauf); sie
-  entstehen ohne Auftrag (`instances.order_id` nullable). Projektion/CRUD in `services/location_records.py`
-  (Artikel+Instanz → stabile `StorageLocationResponse`-Form); das `/erp/storage-locations`-API und die
-  `location_type='lagerplatz'`-Semantik bleiben **unverändert** (`lagerplatz` zeigt jetzt auf die
-  Lagerplatz-**Instanz**). `is_location`-Artikel/-Instanzen sind aus Artikel-/Instanz-Feed + Namens-
-  vorschlägen ausgeblendet. Das frühere `StorageLocation`-Modell/-Tabelle ist **entfernt** (Migration `059`).
 - **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
   (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
   `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System
