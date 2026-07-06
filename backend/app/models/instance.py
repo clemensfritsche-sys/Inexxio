@@ -1,7 +1,8 @@
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import BigInteger, DateTime, Integer, String
+from sqlalchemy import BigInteger, DateTime, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -29,7 +30,10 @@ class Instance(Base, TimestampMixin):
     order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
     kind: Mapped[str] = mapped_column(String(10), default="unit", nullable=False)   # unit | batch
-    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Menge als Dezimalzahl (NUMERIC(14,3)): ein Einzelteil trägt 1, eine Charge die
+    # Bestellmenge – für kg/m²/m³/l auch als **Bruchmenge** (2.5 kg, 0.75 m²), nicht nur
+    # ganze Stück. Arithmetik ausschliesslich über ``services/quantity.py`` (exakt, kein float).
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=1, nullable=False)
     serial_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
 
     # ZWEI getrennte Achsen statt eines überladenen qc_status:
@@ -56,7 +60,8 @@ class Instance(Base, TimestampMixin):
     # 1000 Schrauben, von der 30 reserviert sind, bleibt also mit 970 frei verfügbar –
     # **ohne** dass eine zweite Instanz mit eigener Nummer entsteht.
     reservations: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
-    reserved_quantity: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    reserved_quantity: Mapped[Decimal] = mapped_column(
+        Numeric(14, 3), default=0, server_default="0", nullable=False)
 
     # Einzel-Reservierungs-Zeiger (Altfeld / Schnellprüfung): gesetzt, solange genau EIN
     # Auftrag die Instanz (teil-)reserviert. Massgeblich ist die ``reservations``-Map.

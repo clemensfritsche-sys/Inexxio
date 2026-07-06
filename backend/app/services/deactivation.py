@@ -112,7 +112,7 @@ def article_impact(db: Session, article: Article) -> dict:
         .filter(Instance.is_active == True, Instance.article_id.in_(ids), *in_stock_clauses())
         .scalar()
     )
-    return {"articles": parent_arts, "orders": orders, "stock": int(stock or 0)}
+    return {"articles": parent_arts, "orders": orders, "stock": float(stock or 0)}
 
 
 def deactivate_article(db: Session, article: Article, actor_id: int,

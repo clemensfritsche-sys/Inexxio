@@ -63,6 +63,22 @@ def _validate_article(db: Session, article_id: int | None) -> None:
         raise HTTPException(400, detail="Nur freigegebene Artikel können in einem Auftrag referenziert werden")
 
 
+def _assert_quantity_serialization(db: Session, article_id: int | None, quantity) -> None:
+    """Einzelteil-Artikel (``serialization='unit'``) dürfen nur GANZE Stück tragen – 2.5
+    Schrauben gibt es nicht (jede Instanz ist ein Stück). Chargen (``batch``) dürfen
+    Bruchmengen tragen (2.5 kg, 0.75 m²). Die Prüfung braucht den Artikel, darum hier im
+    Router statt im Schema."""
+    from ..services.quantity import is_whole
+    if article_id is None or quantity is None:
+        return
+    art = db.query(Article).filter(Article.id == article_id).first()
+    if art and art.serialization == "unit" and not is_whole(quantity):
+        raise HTTPException(
+            400,
+            detail=f"«{art.name}» wird als Einzelteil geführt – die Menge muss eine ganze Zahl sein "
+                   "(Bruchmengen nur bei Chargen-Artikeln, z. B. kg/m²/l).")
+
+
 def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Instance]:
     """Zu fixierende (gepinnte) Instanzen prüfen: Artikel des Auftrags, am Lager verfügbar
     und nicht bereits **fest reserviert** von einem anderen Auftrag. Die Festlegung im
@@ -211,6 +227,7 @@ async def create_order(
     # definiert wird – nicht aus der Anlage. Weitere Artikel lassen sich jederzeit über
     # POST .../lines ergänzen (Mehrpositionen – siehe unten).
     _validate_article(db, data.article_id)             # nur freigegebene Artikel
+    _assert_quantity_serialization(db, data.article_id, data.quantity)  # unit → ganze Zahl
     order.article_id = data.article_id
     order.quantity = data.quantity
     db.add(order)
@@ -238,6 +255,7 @@ async def add_order_line(
     if order.status != "draft":
         raise HTTPException(400, detail="Weitere Positionen sind nur im Entwurf möglich")
     _validate_article(db, data.article_id)
+    _assert_quantity_serialization(db, data.article_id, data.quantity)  # unit → ganze Zahl
     existing_lines = order_lines_svc.lines_for(db, order)
     # FIX: Doppelte Positionen desselben Artikels zerlegen die gesamte Mehrpositionen-Logik,
     # die je Auftrag nach ``article_id`` schlüsselt: die FIFO-Allokation zählte die Instanzen
@@ -406,6 +424,8 @@ async def update_order(
             400, detail="Bei einem Mehrpositionen-Auftrag sind Artikel/Menge nicht direkt editierbar")
     if "article_id" in payload:
         _validate_article(db, payload["article_id"])
+    if "quantity" in payload:
+        _assert_quantity_serialization(db, payload.get("article_id", order.article_id), payload["quantity"])
     # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.
     if payload.get("status") == "released" and order.status == "inactive":
         raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")

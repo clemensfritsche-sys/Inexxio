@@ -9,10 +9,13 @@ Frei verfügbar = ``quantity − reserved_quantity``; ``reserved_quantity`` ist 
 denormalisierte Summe der Reservierungen (für die SQL-Verfügbarkeitsfilter).
 """
 
+from decimal import Decimal
+
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models import Instance
+from .quantity import ZERO, to_qty
 from .reservation import free_qty, reserved_for
 
 
@@ -49,7 +52,7 @@ def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = 
     return rows
 
 
-def avail_amount(inst: Instance, for_order_id: int | None) -> int:
+def avail_amount(inst: Instance, for_order_id: int | None) -> Decimal:
     """Wie viel dieser Instanz für die Allokation zur Verfügung steht: die **freie**
     Restmenge plus die für DIESEN Auftrag bereits reservierte Menge."""
     amt = free_qty(inst)
@@ -58,9 +61,12 @@ def avail_amount(inst: Instance, for_order_id: int | None) -> int:
     return amt
 
 
-def available_qty(candidates: list[Instance], for_order_id: int | None = None) -> int:
+def available_qty(candidates: list[Instance], for_order_id: int | None = None) -> Decimal:
     """Summe der **verfügbaren** Mengen einer Kandidatenliste (frei + eigene Reservierung)."""
-    return sum(avail_amount(c, for_order_id) for c in candidates)
+    total = ZERO
+    for c in candidates:
+        total += avail_amount(c, for_order_id)
+    return total
 
 
 def in_stock_clauses() -> tuple:
@@ -73,19 +79,21 @@ def in_stock_clauses() -> tuple:
     )
 
 
-def allocate(need: int, quantities: list[int]) -> list[int]:
+def allocate(need, quantities: list) -> list[Decimal]:
     """FIFO-Allokation (rein/testbar): wie viel je Kandidat (in Reihenfolge) belegt
-    wird, bis ``need`` gedeckt ist. Summe ≤ need; nie mehr als der Kandidat hat."""
-    out: list[int] = []
-    remaining = need
+    wird, bis ``need`` gedeckt ist. Summe ≤ need; nie mehr als der Kandidat hat.
+    Bruchmengen-fähig (``Decimal``): ``need``/``quantities`` dürfen Nachkommastellen haben."""
+    out: list[Decimal] = []
+    remaining = to_qty(need)
     for q in quantities:
-        take = min(remaining, q) if remaining > 0 else 0
+        qd = to_qty(q)
+        take = min(remaining, qd) if remaining > 0 else ZERO
         out.append(take)
         remaining -= take
     return out
 
 
-def available(db: Session, article_db_id: int, for_order_id: int | None = None) -> int:
+def available(db: Session, article_db_id: int, for_order_id: int | None = None) -> Decimal:
     """Verfügbare (allozierbare) Menge eines Artikels: freie Restmenge plus – mit
     ``for_order_id`` – die für diesen Auftrag bereits reservierte Menge."""
     return available_qty(fifo_candidates(db, article_db_id, for_order_id), for_order_id)

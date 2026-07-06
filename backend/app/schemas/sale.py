@@ -88,7 +88,7 @@ class SaleEmbed(BaseModel):
 
     id: int
     status: str
-    quantity: Optional[int] = None
+    quantity: Optional[float] = None   # Bruchmenge möglich (kg/m²/…)
     customer_id: Optional[int] = None
     order_total: Optional[Decimal] = None
     vat_rate: Optional[Decimal] = None

@@ -147,15 +147,16 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind, i.quantity, order.article_unit ?? undefined)}</span>
               {sel && (i.quantity ?? 1) > 1 && (
-                // Charge: Teilmenge zum Verschrotten wählen (1 … volle Menge).
+                // Charge: Teilmenge zum Verschrotten wählen (Bruchmenge möglich, z. B. 0.75 … volle Menge).
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b' }}>
-                  <input type="number" min={1} max={i.quantity ?? 1}
+                  <input type="number" min={0} step="any" max={i.quantity ?? 1}
                     value={qtys[oid] ?? i.quantity ?? 1}
                     onChange={(e) => {
-                      const v = Math.max(1, Math.min(i.quantity ?? 1, Number(e.target.value) || 1));
+                      const raw = Math.round((Number(e.target.value) || 0) * 1000) / 1000;
+                      const v = Math.min(i.quantity ?? 1, Math.max(0, raw)) || 0;
                       setQtys((q) => ({ ...q, [oid]: v }));
                     }}
-                    style={{ width: 52, padding: '3px 6px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right' }} />
+                    style={{ width: 60, padding: '3px 6px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, textAlign: 'right' }} />
                   <span>/ {i.quantity}</span>
                 </span>
               )}

@@ -73,18 +73,23 @@ def create_instances_for_order(db: Session, order: Order, actor_id: int) -> list
     # (`process.recompute_completion`) bzw. eine Eingangskontrolle sie freigibt.
     loc_type, loc_id = _initial_location(db, order)
 
+    from .quantity import to_qty
+    order_qty = to_qty(order.quantity)
     created: list[Instance] = []
-    if art.serialization == "batch":
+    kind = "batch" if art.serialization == "batch" else "unit"
+    if kind == "batch":
+        # Charge → EINE Instanz mit der (ggf. gebrochenen) Bestellmenge (2.5 kg, 0.75 m²).
         count = 1
-    else:  # unit → je Stück eine Instanz
-        count = order.quantity
+    else:
+        # Einzelteil → je Stück eine Instanz. Es kann nur GANZE Stück geben – die Menge ist
+        # bei unit-Artikeln bereits ganzzahlig (Anwendung erzwingt es); defensiv gerundet.
+        count = int(order_qty.to_integral_value())
     # Objektnummern als Block vergeben (eine Query statt einer je Instanz).
     obj_ids = next_object_ids(db, count, "instance")
-    kind = "batch" if art.serialization == "batch" else "unit"
     for i in range(count):
         inst = Instance(
             object_id=obj_ids[i], article_id=art.id, order_id=order.id,
-            kind=kind, quantity=order.quantity if kind == "batch" else 1,
+            kind=kind, quantity=order_qty if kind == "batch" else 1,
             quality="pending", disposition="in_process", released_at=None,
             location_type=loc_type, location_id=loc_id,
         )

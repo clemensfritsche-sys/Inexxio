@@ -20,6 +20,8 @@ werden, wenn sie zugleich sauber (Stripe) gutgeschrieben wird – das kommt geb�
 Gutschrift-Funktion (TODO), nicht als isolierte Mengen-Kürzung.
 """
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -28,14 +30,15 @@ from . import process
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, fifo_candidates
+from .quantity import ZERO
 from .reservation import free_qty, reserve
 from .subject import record_link
 
 
-def _fifo_cover(db: Session, order: Order, article_id: int, need: int) -> int:
-    """``need`` Stück des Artikels aus **freiem** Lagerbestand FIFO für den Auftrag
+def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
+    """``need`` (Menge) des Artikels aus **freiem** Lagerbestand FIFO für den Auftrag
     reservieren (+ als Subjekt markieren). Liefert die tatsächlich gedeckte Menge."""
-    covered = 0
+    covered = ZERO
     cands = fifo_candidates(db, article_id, for_order_id=None)   # nur freie Restmengen
     for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
         if take <= 0:
@@ -58,7 +61,7 @@ def cover_from_stock(db: Session, order: Order, actor_id: int,
     short = process.subject_shortfalls(db, order)
     if not short:
         raise HTTPException(409, detail="Kein offener Bedarf – es ist nichts zu decken")
-    covered = 0
+    covered = ZERO
     if instance_object_ids:
         chosen = list(dict.fromkeys(instance_object_ids))
         rows = {
@@ -69,7 +72,7 @@ def cover_from_stock(db: Session, order: Order, actor_id: int,
             inst = rows.get(oid)
             if not inst:
                 raise HTTPException(400, detail=f"Instanz {oid} wurde nicht gefunden")
-            rem = short.get(inst.article_id, 0)
+            rem = short.get(inst.article_id, ZERO)
             if rem <= 0:
                 raise HTTPException(400, detail=f"Instanz {oid} passt zu keinem offenen Bedarf dieses Auftrags")
             if not (inst.quality == "passed" and inst.disposition == "in_stock"):

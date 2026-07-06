@@ -22,6 +22,7 @@ Ein Schritt ist «aktiv», sobald alle vorherigen erledigt sind. Der Auftrag wir
 automatisch ``completed``, wenn alle definierten Schritte erledigt sind.
 """
 
+from decimal import Decimal
 from math import ceil
 
 from fastapi import HTTPException
@@ -36,6 +37,7 @@ from ..models import (
 from ..models.base import utcnow
 from .events import emit
 from .inventory import available
+from .quantity import ONE, ZERO, to_qty
 from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
 
 # Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
@@ -302,7 +304,7 @@ def has_step(db: Session, order: Order, step_type: str) -> bool:
 # (``services/supply.py``); pinnt er bei Abschluss seine Stück an den Eltern, wird der
 # Schritt bei der nächsten Auswertung von selbst wieder ``active``.
 
-def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
+def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     """Fehlmenge(n) des **Subjekts** je Artikel ({article_id: qty}) – **EINE Formel für
     ALLE Auftragsarten** (kein ``subject_kind``-Sonderpfad): ``Soll − Gesichert``.
 
@@ -321,16 +323,16 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
     if is_fixed_subject(order):
         return {}   # Abweichung/Retoure: Subjekt steht fest (gewählte/verkaufte Instanzen)
     # Soll je Artikel
-    targets: dict[int, int] = {}
+    targets: dict[int, Decimal] = {}
     if order.article_id and order.quantity:
-        targets[order.article_id] = order.quantity
+        targets[order.article_id] = to_qty(order.quantity)
     else:
         for line in lines_for(db, order):
-            targets[line.article_id] = targets.get(line.article_id, 0) + line.quantity
+            targets[line.article_id] = targets.get(line.article_id, ZERO) + to_qty(line.quantity)
     if not targets:
         return {}
     # Gesichert je Artikel
-    secured: dict[int, int] = {}
+    secured: dict[int, Decimal] = {}
     for inst in db.query(Instance).filter(
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
@@ -340,7 +342,7 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
         # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
         if inst.quality == "failed":
             continue
-        secured[inst.article_id] = secured.get(inst.article_id, 0) + reserved_for(inst, order.id)
+        secured[inst.article_id] = secured.get(inst.article_id, ZERO) + reserved_for(inst, order.id)
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, Instance.quality != "failed"
     ).all():
@@ -348,27 +350,27 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
             continue
         if (inst.reservations or {}).get(str(order.id)):
             continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
-        secured[inst.article_id] = secured.get(inst.article_id, 0) + (inst.quantity or 0)
-    return {a: t - secured.get(a, 0) for a, t in targets.items() if t - secured.get(a, 0) > 0}
+        secured[inst.article_id] = secured.get(inst.article_id, ZERO) + to_qty(inst.quantity)
+    return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
 
 
-def subject_shortfalls(db: Session, order: Order) -> dict[int, int]:
+def subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     """Öffentliche Sicht auf die **Subjekt**-Fehlmengen eines Auftrags ({article_id: qty}) –
     Grundlage der Wiederherstellung nach einer Aussteuerung (aus Lager decken / Menge
     reduzieren, ``services/recovery.py``). Nur das Subjekt (Fertigware), NICHT die Komponenten."""
     return _subject_shortfalls(db, order)
 
 
-def _component_needs(db: Session, order: Order) -> dict[int, int]:
+def _component_needs(db: Session, order: Order) -> dict[int, Decimal]:
     """Offener Komponentenbedarf (consume) über alle Ressourcen-Schritte, je Artikel.
     **Bereits verbrauchte** Schritte (Fachzeile vorhanden) zählen nicht mehr mit – sonst
     entstünde nach dem Verbrauch ein Phantom-Bedarf (überflüssiger Nachschub)."""
     from .order_lines import effective_quantity
-    needs: dict[int, int] = {}
+    needs: dict[int, Decimal] = {}
     resource_steps = [d for d in order_step_defs(db, order) if d.step_type in RESOURCE_STEP_TYPES]
     if not resource_steps:
         return needs
-    qty = effective_quantity(db, order)
+    qty = to_qty(effective_quantity(db, order))
     rows = _facts(db, order, "resource")
     sole = len(resource_steps) == 1
     for d in resource_steps:
@@ -378,14 +380,14 @@ def _component_needs(db: Session, order: Order) -> dict[int, int]:
             if (line.get("mode") or "consume") != "consume":
                 continue
             aid = line["article_id"]
-            needs[aid] = needs.get(aid, 0) + line.get("quantity", 1) * qty
+            needs[aid] = needs.get(aid, ZERO) + to_qty(line.get("quantity", 1)) * qty
     return needs
 
 
 SUBJECT_STEP_TYPES = ("movement", "inspection", "scrap", "sale")
 
 
-def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, int]:
+def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, Decimal]:
     """Fehlmengen, die genau diesen Schritt **blockieren** ({article_id: qty}); leer = frei.
 
     sale/movement/inspection/scrap → brauchen das **Subjekt** (Fertigware): fehlt es (z. B.
@@ -401,20 +403,20 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     eigenständiger Subjekt-Bedarf. Sie werden NICHT auf Fehlmengen geprüft – sonst würde der
     Versand blockiert, sobald der Verkauf bezahlt ist (die Ware ist dann bereits «verkauft», also
     aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus)."""
-    out: dict[int, int] = {}
+    out: dict[int, Decimal] = {}
     if step.step_type in SUBJECT_STEP_TYPES and not step.locked:
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
         from .order_lines import effective_quantity
-        qty = effective_quantity(db, order)
+        qty = to_qty(effective_quantity(db, order))
         for line in (step.resource_lines or []):
             if (line.get("mode") or "consume") != "consume":
                 continue
             aid = line["article_id"]
-            need = line.get("quantity", 1) * qty
+            need = to_qty(line.get("quantity", 1)) * qty
             have = available(db, aid, order.id)
             if need > have:
-                out[aid] = out.get(aid, 0) + (need - have)
+                out[aid] = out.get(aid, ZERO) + (need - have)
     return out
 
 
@@ -423,16 +425,16 @@ def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
     return bool(step_shortfalls(db, order, step))
 
 
-def order_shortfalls(db: Session, order: Order) -> dict[int, int]:
+def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     """Alle nicht gedeckten Bedarfe des Auftrags, je Artikel aggregiert ({article_id: qty}) –
     Grundlage für den Nachschub (``services/supply.py``)."""
-    agg: dict[int, int] = {}
+    agg: dict[int, Decimal] = {}
     for aid, subj in _subject_shortfalls(db, order).items():
-        agg[aid] = agg.get(aid, 0) + subj
+        agg[aid] = agg.get(aid, ZERO) + subj
     for aid, need in _component_needs(db, order).items():
         have = available(db, aid, order.id)
         if need > have:
-            agg[aid] = agg.get(aid, 0) + (need - have)
+            agg[aid] = agg.get(aid, ZERO) + (need - have)
     return agg
 
 
@@ -451,13 +453,13 @@ def release_instances(db: Session, order: Order) -> None:
                 Instance.quality == "pending", Instance.disposition == "in_process")
         .all()
     )
-    total = 0
+    total = ZERO
     for inst in rows:
         inst.quality = "passed"          # QC-Verdikt: freigegeben
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
-        total += inst.quantity or 0
+        total += to_qty(inst.quantity)
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
     if total:
@@ -495,7 +497,7 @@ def sell_order_subjects(db: Session, order: Order) -> None:
             continue
         sold = reserved_for(inst, order.id)
         consume_qty(inst, order.id, sold)        # Menge mindern + Reservierung lösen
-        if (inst.quantity or 0) <= 0:
+        if to_qty(inst.quantity) <= 0:
             inst.disposition = "sold"            # vollständig verkauft
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": sold, "delta": -sold, "polarity": event_types.DECREASE,
@@ -510,8 +512,9 @@ def sell_order_subjects(db: Session, order: Order) -> None:
     )
     for inst in produced:
         inst.disposition = "sold"
+        qty = to_qty(inst.quantity)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
-             payload={"quantity": inst.quantity or 0, "delta": -(inst.quantity or 0),
+             payload={"quantity": qty, "delta": -qty,
                       "polarity": event_types.DECREASE, "order": order.object_id})
 
 
@@ -530,7 +533,7 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
             continue
         if inst.location_type != "lagerplatz":
             continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-        back = max(inst.quantity or 0, 1)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
+        back = max(to_qty(inst.quantity), ONE)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
         inst.quantity = back
         inst.disposition = "in_stock"
         inst.quality = "passed"
@@ -643,7 +646,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     )
     if not parent or parent.status not in ("draft", "released"):
         return
-    remaining = order_shortfalls(db, parent).get(order.article_id, 0)
+    remaining = order_shortfalls(db, parent).get(order.article_id, ZERO)
     if remaining <= 0:
         return
     from .order_lines import lines_for
@@ -666,7 +669,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
         .order_by(Instance.object_id)
         .all()
     )
-    pegged = 0
+    pegged = ZERO
     for inst in produced:
         if remaining <= 0:
             break
@@ -687,10 +690,14 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
                       "quantity": pegged})
 
 
-def required_sample(quantity: int | None, sample_percent: int | None) -> int:
-    """Zu prüfende Stückzahl der Eingangskontrolle (mind. 1, wenn Menge > 0)."""
-    qty = quantity or 0
+def required_sample(quantity, sample_percent: int | None) -> int:
+    """Zu prüfende Stück-/Probenzahl der Datenerfassung (ganze Zahl, mind. 1 bei Menge > 0).
+
+    Bruchmengen-fähig: eine Charge von 2.5 kg ergibt bei 100 % ``ceil(2.5)`` = 3 Proben;
+    nie mehr als (aufgerundet) die Menge (Einzelteil: nicht mehr Proben als Instanzen)."""
+    qty = to_qty(quantity)
     pct = sample_percent if sample_percent is not None else 100
     if qty <= 0 or pct <= 0:
         return 0
-    return min(qty, max(1, ceil(qty * pct / 100)))
+    n = ceil(qty * Decimal(pct) / Decimal(100))
+    return int(min(ceil(qty), max(1, n)))

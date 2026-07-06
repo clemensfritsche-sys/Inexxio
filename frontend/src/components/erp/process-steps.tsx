@@ -168,9 +168,14 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers, readOnly = false
     }
     let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
     if (type === 'resource') {
+      // Menge pro Stück Produkt – Bruchmengen erlaubt (0.5 kg Material je Stück), auf 3 NK
+      // gerundet; nie ≤ 0 (mind. 0.001). KEIN Math.trunc mehr (hätte 0.5 auf 0→1 verfälscht).
       resourcePayload = resLines
         .filter((l) => l.article_id)
-        .map((l) => ({ article_id: Number(l.article_id), quantity: Math.max(1, Math.trunc(Number(l.quantity) || 1)), mode: l.mode }));
+        .map((l) => {
+          const q = Math.round((Number(l.quantity) || 1) * 1000) / 1000;
+          return { article_id: Number(l.article_id), quantity: q > 0 ? q : 1, mode: l.mode };
+        });
       if (resourcePayload.length === 0) { setError('Bitte mindestens eine Ressource hinzufügen'); return; }
     }
     const tgt = type === 'movement' && targetSel ? targetSel.split(':') : null;
@@ -546,7 +551,7 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
               <div style={{ flex: 1 }}>
                 <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
               </div>
-              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="numeric" placeholder="Menge/Stk"
+              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="decimal" placeholder="Menge/Einh."
                 className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', width: 92 }} />
               <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>

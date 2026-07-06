@@ -25,6 +25,7 @@ from .admin import log_audit
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
+from .quantity import qty_sum, to_qty
 from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
@@ -212,7 +213,7 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
-def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity: int) -> None:
+def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) -> None:
     """Kern der Bestands-Allokation für GENAU einen Artikel + Menge unter einem Auftrag:
 
     1. die fixierten (gepinnten) Instanzen DIESES Artikels prüfen – sie müssen
@@ -227,13 +228,13 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity: in
         if not (inst.quality == "passed" and inst.disposition == "in_stock"):
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist nicht freigegeben/am Lager – Freigabe nicht möglich")
-        need = inst.quantity - reserved_for(inst, order.id)
+        need = to_qty(inst.quantity) - reserved_for(inst, order.id)
         if free_qty(inst) < need:                          # von einem anderen Auftrag belegt
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
         reserve(inst, order.id, need)                      # ganze Pin-Instanz, OHNE Teilung
         record_link(db, inst.object_id, order.id)
-    remaining = quantity - sum(i.quantity for i in pinned)
+    remaining = to_qty(quantity) - qty_sum(i.quantity for i in pinned)
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
     cands = fifo_candidates(db, article_id, for_order_id=None)   # freie Restmengen

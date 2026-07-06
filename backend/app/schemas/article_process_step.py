@@ -59,7 +59,7 @@ class ResourceLine(BaseModel):
     FIFO) oder ``tool`` (Betriebsmittel → nur genutzt). Default ``consume``."""
 
     article_id: int
-    quantity: int = 1               # Menge pro Stück Produkt (BOM-Standard)
+    quantity: float = 1             # Menge pro Stück Produkt (BOM) – Bruchmenge möglich (0.5 kg)
     mode: str = "consume"
 
     @field_validator("mode")
@@ -71,7 +71,7 @@ class ResourceLine(BaseModel):
 
     @field_validator("quantity")
     @classmethod
-    def _qty_ok(cls, v: int) -> int:
+    def _qty_ok(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("Menge muss grösser als 0 sein")
         return v

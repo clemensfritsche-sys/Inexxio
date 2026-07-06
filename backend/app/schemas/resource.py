@@ -9,7 +9,7 @@ class ResourcePlanItem(BaseModel):
     """Eine FIFO-Verbrauchsposition (Vorschau/Protokoll): Quelle + Menge + Ziel-Instanz."""
 
     instance_id: int
-    quantity: int
+    quantity: float   # Bruchmenge möglich (kg/m²/…)
     into_instance_id: Optional[int] = None   # in welche Produkt-Instanz verbaut
     split_from: Optional[int] = None          # Teilcharge aus dieser Instanz
 
@@ -27,9 +27,9 @@ class ResourceLineExec(ResourceLineView):
     Schritttyp und steuert die Anzeige im Auftrag."""
 
     mode: str = "consume"
-    # consume
-    need: Optional[int] = None
-    available: Optional[int] = None
+    # consume (Bruchmengen möglich – kg/m²/…)
+    need: Optional[float] = None
+    available: Optional[float] = None
     sufficient: Optional[bool] = None
     plan: list[ResourcePlanItem] = []
     # tool
@@ -44,7 +44,7 @@ class ResourceComponentPick(BaseModel):
     article_id: int
     article_name: Optional[str] = None
     instance_id: int
-    quantity: int
+    quantity: float   # Bruchmenge möglich (kg/m²/…)
     split_from: Optional[int] = None
 
 
@@ -56,7 +56,7 @@ class ResourceProductPlan(BaseModel):
 
     instance_id: int            # Objektnummer der Produkt-Instanz
     kind: Optional[str] = None  # unit | batch
-    quantity: int = 1
+    quantity: float = 1         # Bruchmenge möglich (Charge à 2.5 kg)
     components: list[ResourceComponentPick] = []
 
 
