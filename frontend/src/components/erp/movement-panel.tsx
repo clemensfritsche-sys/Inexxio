@@ -107,12 +107,14 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     const inst = queue[0];
     const iid = inst.object_id as number;
     const steps: ScanStep[] = [];
-    // Quell-Scan nur bei physisch scannbarem Standort. Liegt die Instanz bei einer
-    // Person/Lieferant (Wareneingang von aussen), gibt es nichts zu scannen → überspringen.
-    if (inst.location_id != null && inst.location_type !== 'user') {
+    // Quell-Scan nur bei **physisch scannbarem** Standort (Lagerplatz mit QR-Etikett oder eine
+    // Behälter-Instanz). Bei Person/Lieferant (Wareneingang von aussen) ODER «Unternehmen»
+    // (abstrakter Startort neu erzeugter Instanzen) gibt es nichts zu scannen → überspringen.
+    // «company» ist zudem kein gültiger ``ScanKind`` – der Schritt würde den Scanner sonst crashen.
+    if (inst.location_id != null && (inst.location_type === 'lagerplatz' || inst.location_type === 'instance')) {
       steps.push({
         label: 'Aktueller Standort', hint: `Standort von ${fmtObjId(iid)} scannen`, expected: inst.location_id,
-        kind: (inst.location_type as ScanKind) ?? undefined,
+        kind: inst.location_type as ScanKind,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
       });
     }
