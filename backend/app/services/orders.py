@@ -205,6 +205,7 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
 def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
                     mv: Movement | None) -> MovementEmbed:
     me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None, note=mv.note if mv else None)
+    me.mode = step.mode                      # 'customer' = Pflicht-Versand (nur dann sold bewegbar)
     me.target_location_type = step.target_location_type
     me.target_location_id = step.target_location_id
     # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei wählbar, sondern

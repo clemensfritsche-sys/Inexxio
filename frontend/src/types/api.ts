@@ -2809,6 +2809,8 @@ export interface components {
             target_location_id?: number | null;
             /** Target Location Label */
             target_location_label?: string | null;
+            /** Mode */
+            mode?: string | null;
         };
         /**
          * MovementTarget

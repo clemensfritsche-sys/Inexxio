@@ -14,6 +14,7 @@ export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
   { value: 'Stk', label: 'Stk.' },
   { value: 'mm',  label: 'mm' },
   { value: 'm2',  label: 'm²' },
+  { value: 'm3',  label: 'm³' },
   { value: 'kg',  label: 'kg' },
   { value: 'l',   label: 'l' },
 ];
