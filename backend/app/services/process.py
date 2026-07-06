@@ -453,12 +453,14 @@ def release_instances(db: Session, order: Order) -> None:
                 Instance.quality == "pending", Instance.disposition == "in_process")
         .all()
     )
+    from .expiry import set_on_release
     total = ZERO
     for inst in rows:
         inst.quality = "passed"          # QC-Verdikt: freigegeben
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
+        set_on_release(db, inst, inst.released_at)   # Ablaufdatum (E), falls Haltbarkeit gesetzt
         total += to_qty(inst.quantity)
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).

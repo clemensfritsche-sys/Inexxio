@@ -199,6 +199,8 @@ async def create_article(
         surface=data.surface,
         min_order_qty=data.min_order_qty,
         safety_stock=data.safety_stock,
+        reorder_target=data.reorder_target,
+        shelf_life_days=data.shelf_life_days,
         procurement_mode=proc_mode,
         default_supplier_id=data.default_supplier_id if proc_mode == "supplier" else None,
         default_webshop_url=data.default_webshop_url if proc_mode == "webshop" else None,
@@ -248,7 +250,11 @@ async def update_article(
     article = _get_active(db, object_id)
     payload = data.model_dump(exclude_unset=True)
     ensure_version(article, payload.pop("expected_updated_at", None))
-    ensure_mutable(article.status, payload, "Artikel")
+    # Logistik-Parameter (Meldebestand/Zielbestand/Haltbarkeit, E) sind KEINE eingefrorene
+    # Spezifikation, sondern operative Steuergrössen – auch am freigegebenen Artikel tunebar
+    # (analog zur lebenden Verkaufs-Ebene). Vom Freeze-Check ausnehmen.
+    _LIVE = {"safety_stock", "reorder_target", "shelf_life_days"}
+    ensure_mutable(article.status, {k: v for k, v in payload.items() if k not in _LIVE}, "Artikel")
     if "default_supplier_id" in payload:
         _validate_supplier(db, payload["default_supplier_id"])
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"

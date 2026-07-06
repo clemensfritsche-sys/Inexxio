@@ -45,6 +45,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
         raise HTTPException(400, detail="Bitte mindestens eine Instanz zum Verschrotten wählen")
 
     scrapped = 0
+    touched_articles: set[int] = set()
     for oid, qty in chosen.items():
         inst = by_obj.get(oid)
         if not inst:
@@ -77,6 +78,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
              payload={"quantity": cut, "delta": -cut,
                       "polarity": event_types.DECREASE, "reason": "scrapped",
                       "order": order.object_id})
+        touched_articles.add(inst.article_id)
         scrapped += 1
 
     disp = process.fact_for_step(db, order, step)
@@ -92,6 +94,11 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
     emit(db, "scrap.recorded", object_type="order", object_id=order.object_id,
          payload={"count": scrapped}, actor_id=actor_id)
     process.recompute_completion(db, order)
+    # Bestandsabgang → Meldebestand prüfen (Auto-Nachbestellung, E). Verschrottung ist ein
+    # klarer Stock-Drop; sinkt der freie Bestand unter den Meldebestand, entsteht Nachschub.
+    from .replenishment import check_article
+    for art_id in touched_articles:
+        check_article(db, art_id, actor_id)
     db.commit()
     db.refresh(disp)
     return disp

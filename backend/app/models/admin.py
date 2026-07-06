@@ -68,3 +68,11 @@ class CompanySettings(Base):
     # Optionale Preis-Pipeline-Stufe ② (PPP/Kaufkraft): Land → Faktor, z. B.
     # {"Deutschland": 1.1, "USA": 0.9}. Leer/NULL = Stufe abgeschaltet (Default).
     pricing_zone_factors: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    # ── Öffentliche Rechtsdokumente (D): «Zeiger, kein Ersetzen» ────────────────────
+    # Ein Rechtsdokument (AGB/Datenschutz/…) ist append-only: jede Fassung ist eine
+    # eigene, unveränderliche Dokument-Instanz (Nummer = Instanz-Objektnummer, Datum =
+    # Freigabe). Welche Fassung gerade GILT, ist eine Unternehmens-Entscheidung – also ein
+    # Zeiger hier, nicht am Dokument. Map ``{"agb": 100000123, "datenschutz": …}`` (Wert =
+    # Objektnummer der gültigen Dokument-Instanz). Alte Fassungen bleiben archiviert.
+    legal_documents: Mapped[Optional[dict]] = mapped_column(JSONB)

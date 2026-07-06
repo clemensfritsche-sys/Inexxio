@@ -740,6 +740,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > **Inaktive Artikel sind endgültig** (kein Reaktivieren). Setup/Keys: `docs/stripe-setup.md`.
 > E-Mail (Gmail API) ist **noch nicht** umgesetzt.
 
+- **Öffentliche Rechtsdokumente (D, «Zeiger, kein Ersetzen»)**: AGB/Datenschutz kommen aus dem
+  **Dokument-Modul** statt aus hartkodiertem Seitentext. Ein Rechtsdokument ist append-only – jede
+  Fassung ist eine eigene, **unveränderliche Dokument-Instanz** (Nummer = Objektnummer, Datum =
+  Freigabe). Welche GILT, ist ein **Zeiger am Unternehmen** (`company_settings.legal_documents` JSONB,
+  `{"agb": <Objektnr>, "datenschutz": …}`), NICHT eine Eigenschaft der Instanz – neue Fassung = neue
+  Instanz + Zeiger umstellen (kein Verschrotten/Ersetzen; alte Fassung bleibt archiviert). Auflösung
+  `services/legal.resolve` (Zeiger→Instanz→`instance_document_embeds`); Public-Endpoint
+  `GET /api/v1/legal/{kind}` (404 → Website-Fallback auf eingebauten Text). Frontend: `/agb` +
+  `/datenschutz` rendern `<LegalDocument kind=… fallback={…}>` (DocumentView inkl. Briefkopf), Admin →
+  Systemkonfiguration → «Rechtstexte» (Objektnummer je Typ). Erfüllt die AGB-Akzeptanz-Version geschenkt.
+- **Meldebestand + Auto-Nachbestellung + Haltbarkeit (E, «Nicht die Zeit soll bestellen, sondern der
+  Bestand»)**: Drei getrennte Konzepte. **Meldebestand** = `articles.safety_stock`; fällt der **freie**
+  Bestand darunter, legt `services/replenishment.check_article` einen eigenständigen Nachschub-Auftrag
+  (`orders.reason='replenishment'`, ohne Eltern) an und gibt ihn frei – füllt bis `articles.reorder_target`
+  (bzw. Meldebestand) auf (MOQ-gerundet), fährt den Artikel-Prozess (produzieren/beschaffen). Reuse von
+  `orders.release_order` (wie ADR-003-Nachschub, nur ohne Pegging), idempotent (ein offener Nachschub je
+  Artikel). **Ablaufdatum**: `articles.shelf_life_days` → `instances.expires_at` (bei Freigabe gesetzt,
+  `release_instances`); `services/expiry.sweep` bucht Abgelaufene aus (`disposition='scrapped'`) → senkt
+  den Bestand → füttert denselben Nachbestell-Auslöser. **Auslöser** reaktiv (nach Verschrottung –
+  `scrap.record_scrap` ruft `check_article`) + periodisch über `POST /api/v1/erp/maintenance/sweep`
+  (`replenishment.evaluate_all` + `expiry.sweep`, Personal-Knopf «Lagerwartung», künftig Cloud Scheduler).
+  Logistik-Felder (safety_stock/reorder_target/shelf_life_days) sind **auch am freigegebenen Artikel
+  tunebar** (operative Steuergrössen, nicht eingefrorene Spezifikation).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

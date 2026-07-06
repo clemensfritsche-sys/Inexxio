@@ -3,7 +3,7 @@ import type {
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput, OrderDocument,
-  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput,
+  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -140,8 +140,18 @@ class ApiClient {
     return this.get<Record<string, unknown>>('/api/v1/admin/settings/public').then(mapSettingsFromBackend);
   }
 
+  // Öffentliches Rechtsdokument (AGB/Datenschutz/…) – aufgelöster Zeiger (D). 404 → null.
+  getLegalDocument(kind: string): Promise<LegalDocument | null> {
+    return this.get<LegalDocument>(`/api/v1/legal/${kind}`).catch(() => null);
+  }
+
   getOperatingCosts(): Promise<OperatingCosts> {
     return this.get<OperatingCosts>('/api/v1/admin/operating-costs');
+  }
+
+  // Lagerwartung (E): Haltbarkeit ausbuchen + Meldebestand prüfen (Auto-Nachbestellung).
+  runMaintenanceSweep(): Promise<{ expired: number; reordered: number }> {
+    return this.post('/api/v1/erp/maintenance/sweep', {});
   }
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
@@ -604,6 +614,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',
     payments_provider: (s.payments_provider as string | null) ?? null,
     pricing_zone_factors: (s.pricing_zone_factors as Record<string, number> | null) ?? null,
+    legal_documents: (s.legal_documents as Record<string, number> | null) ?? null,
   };
 }
 

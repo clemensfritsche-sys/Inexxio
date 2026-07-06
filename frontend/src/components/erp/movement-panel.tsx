@@ -113,18 +113,15 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     const inst = queue[0];
     const iid = inst.object_id as number;
     const steps: ScanStep[] = [];
-    // Quell-Standort verifizieren – für JEDEN Standort mit Nummer. Ein Lagerplatz/Behälter
-    // trägt ein QR-Etikett (Kamera), «Unternehmen»/«Person» kein Etikett – dort greift die
-    // **manuelle Eingabe/Suche** des Scanners (Nummer eintippen bzw. Kandidat wählen). ``kind``
-    // nur für scannbare Typen setzen (company hat keinen ScanKind → generisch); der Dialog ist
-    // gegen unbekannte kinds ohnehin gehärtet.
+    // Quell-Standort verifizieren – für JEDEN Standort mit Nummer, IMMER mit **beiden** Wegen:
+    // Kamera-Scan UND manuelle Eingabe/Suche (der Dialog zeigt stets beides – der Nutzer wählt,
+    // was er nutzt). ``kind`` nur für scannbare Typen setzen (company hat keinen ScanKind →
+    // generisch); der Dialog ist gegen unbekannte kinds gehärtet und die Kamera läuft überall.
     if (inst.location_id != null) {
       const srcKind = SRC_SCAN_KIND[inst.location_type ?? ''];
       steps.push({
         label: 'Aktueller Standort',
-        hint: srcKind === 'lagerplatz' || srcKind === 'instance'
-          ? `Standort von ${fmtObjId(iid)} scannen oder Nummer eingeben`
-          : `Aktuellen Standort bestätigen – Nummer eingeben oder wählen (${inst.location_label ?? fmtObjId(inst.location_id)})`,
+        hint: `Standort von ${fmtObjId(iid)} scannen oder Nummer eingeben`,
         expected: inst.location_id,
         kind: srcKind,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
