@@ -110,6 +110,14 @@ export type DocumentSection = components['schemas']['DocumentSection'];
 export type OrderDocument = NonNullable<OrderApi['document']>;
 export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
 
+// Hochgeladene Fremd-Dokumente (Belege/Anleitungen) – KI-Aufnahme + Reiter «Dokumente».
+export type ObjectDocument = components['schemas']['ObjectDocument'];
+export type DocumentAnalyzeResponse = components['schemas']['DocumentAnalyzeResponse'];
+export type SuggestedLink = components['schemas']['SuggestedLink'];
+export type DocumentConfirmInput = components['schemas']['DocumentConfirmRequest'];
+export type DocumentLinkInput = components['schemas']['DocumentLinkInput'];
+export type DocumentFileType = 'invoice' | 'delivery_note' | 'manual' | 'datasheet' | 'certificate' | 'contract' | 'receipt' | 'other';
+
 // Öffentliches Rechtsdokument (AGB/Datenschutz/…) – aufgelöster Zeiger (D).
 export interface LegalDocument {
   kind: string;

@@ -4626,6 +4626,301 @@
         }
       }
     },
+    "/api/v1/ai/documents/analyze": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Analyze Document",
+        "description": "Ein Dokument hochladen; die KI liest es und schlägt Name + Objektzuordnung vor.\nErgebnis ist ein **Vorschlag** – erst ``confirm`` legt das Dokument an.",
+        "operationId": "analyze_document_api_v1_ai_documents_analyze_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_document_api_v1_ai_documents_analyze_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentAnalyzeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/documents/{action_id}/confirm": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Confirm Document",
+        "description": "Menschliche Bestätigung: Name + Objektzuordnung festschreiben → Dokument anlegen\n(über den autorisierten ``AiAction``-Pfad). Zuordnung ist Pflicht (min. ein Objekt).",
+        "operationId": "confirm_document_api_v1_ai_documents__action_id__confirm_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Action Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectDocument"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/documents/{action_id}/reject": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Reject Document",
+        "description": "Vorschlag ablehnen: die (noch nicht zugeordnete) Datei wird aus der Ablage entfernt.",
+        "operationId": "reject_document_api_v1_ai_documents__action_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "action_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Action Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/objects/{object_id}/documents": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Object Documents",
+        "description": "Alle Dokumente eines Objekts: hochgeladene Dateien (n:m) + im Schritt «Dokument»\nerzeugte Dokumente. Neueste zuerst.",
+        "operationId": "object_documents_api_v1_erp_objects__object_id__documents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ObjectDocument"
+                  },
+                  "title": "Response Object Documents Api V1 Erp Objects  Object Id  Documents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/document-files/{doc_id}/download": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Download Document",
+        "description": "Die Datei authentifiziert ausliefern (inline – Vorschau im Browser).",
+        "operationId": "download_document_api_v1_erp_document_files__doc_id__download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/document-files/{doc_id}": {
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Delete Document",
+        "description": "Dokument entfernen (Soft-Delete – die Datei bleibt archiviert, verschwindet aber\naus den Reitern). Verknüpfungen werden mit deaktiviert.",
+        "operationId": "delete_document_api_v1_erp_document_files__doc_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/attachments": {
       "post": {
         "tags": [
@@ -7004,6 +7299,31 @@
         ],
         "title": "AudienceMember"
       },
+      "Body_analyze_document_api_v1_ai_documents_analyze_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          },
+          "context_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_analyze_document_api_v1_ai_documents_analyze_post"
+      },
       "Body_upload_attachment_api_v1_erp_attachments_post": {
         "properties": {
           "file": {
@@ -8273,6 +8593,181 @@
         "title": "DisposalEmbed",
         "description": "Eingebetteter Stand der Verschrottung (im Auftrag).\n\nWelche Instanzen verschrottet wurden, steht in ``OrderResponse.instances``\n(``disposition='scrapped'``); dieser Embed trägt nur den Abschluss-Status."
       },
+      "DocumentAnalyzeResponse": {
+        "properties": {
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "byte_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byte Size"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "ai_analyzed": {
+            "type": "boolean",
+            "title": "Ai Analyzed",
+            "default": false
+          },
+          "extracted_data": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracted Data"
+          },
+          "suggested_links": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedLink"
+            },
+            "type": "array",
+            "title": "Suggested Links",
+            "default": []
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate",
+            "default": false
+          },
+          "duplicate_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Object Id"
+          }
+        },
+        "type": "object",
+        "title": "DocumentAnalyzeResponse",
+        "description": "Ergebnis der Analyse – ein bearbeitbarer Vorschlag (noch NICHT gespeichert)."
+      },
+      "DocumentConfirmRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "doc_type": {
+            "type": "string",
+            "title": "Doc Type",
+            "default": "other"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentLinkInput"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "links"
+        ],
+        "title": "DocumentConfirmRequest"
+      },
       "DocumentContent": {
         "properties": {
           "title": {
@@ -8364,6 +8859,29 @@
         "type": "object",
         "title": "DocumentEmbed",
         "description": "Eingebetteter Stand des Dokument-Schritts (im Auftrag).\n\n``object_number`` (Instanz-Objektnummer) und ``document_date`` (Instanz-Freigabedatum)\nwerden serverseitig aus der vom Auftrag erzeugten Instanz abgeleitet."
+      },
+      "DocumentLinkInput": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation",
+            "default": "about"
+          },
+          "primary": {
+            "type": "boolean",
+            "title": "Primary",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id"
+        ],
+        "title": "DocumentLinkInput"
       },
       "DocumentSection": {
         "properties": {
@@ -9334,6 +9852,146 @@
         "type": "object",
         "title": "MovementUpdate",
         "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.\n\nBei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."
+      },
+      "ObjectDocument": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "mime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "page_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Count"
+          },
+          "byte_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Byte Size"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url"
+          },
+          "relation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relation"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "download_url"
+        ],
+        "title": "ObjectDocument",
+        "description": "Ein Dokument im Reiter «Dokumente» eines Objekts. Vereint zwei Quellen:\n``kind='file'`` = hochgeladenes Fremd-Dokument, ``kind='generated'`` = im\nProzessschritt «Dokument» erzeugtes Inexxio-Dokument."
       },
       "ObjectReference": {
         "properties": {
@@ -12990,6 +13648,45 @@
         },
         "type": "object",
         "title": "StorageLocationUpdate"
+      },
+      "SuggestedLink": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "object_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Type"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation",
+            "default": "about"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "label"
+        ],
+        "title": "SuggestedLink"
       },
       "SweepResult": {
         "properties": {

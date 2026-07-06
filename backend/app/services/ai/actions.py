@@ -17,7 +17,7 @@ from ..events import emit
 from .principal import AiPrincipal
 
 # Kritische Aktionstypen und ihre Ausführung über die bestehenden Service-Pfade.
-CRITICAL_ACTIONS = ("release_order", "release_article")
+CRITICAL_ACTIONS = ("release_order", "release_article", "link_document")
 
 
 def create_proposal(db: Session, p: AiPrincipal, action_type: str, *,
@@ -76,9 +76,17 @@ def _execute_release_article(db: Session, action: AiAction, ai_actor_id: int) ->
     return a.object_id
 
 
+def _execute_link_document(db: Session, action: AiAction, ai_actor_id: int) -> int | None:
+    """Bestätigten Dokument-Vorschlag materialisieren: ``DocumentFile`` + Verknüpfungen
+    anlegen (der Confirm-Router hat die finalen Titel/Zuordnungen in ``payload`` gesetzt)."""
+    from . import documents
+    return documents.materialize(db, action, ai_actor_id)
+
+
 _EXECUTORS = {
     "release_order": _execute_release_order,
     "release_article": _execute_release_article,
+    "link_document": _execute_link_document,
 }
 
 

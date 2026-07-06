@@ -708,6 +708,36 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Warenkorb» wird NICHT abgewimmelt, sondern zum Produkt geführt. (6) **Rückfragen erlaubt**: bei
     echter Unklarheit fragt die KI kurz nach statt zu raten. (7) **Schreibhilfe** liefert ein
     vollständiges Dokument (mehrere ausformulierte Abschnitte), nie nur eine Überschrift.
+- **Beleg-/Dokument-Modul (hochgeladene Fremd-Dokumente, KI-Aufnahme, Reiter «Dokumente»)**: Für
+  unvermeidbare Fremd-Dokumente (Rechnungen, Lieferscheine, Anleitungen, Datenblätter, Zertifikate,
+  Verträge), die MIT Lieferungen ins Unternehmen kommen – NICHT von Inexxio verfasst. **Abgrenzung:**
+  das Prozessschritt-`Document` (`models/document.py`) sind Inexxio-EIGENE, verfasste Textdokumente
+  (Nummer = Instanz); das neue `DocumentFile` (`models/document_file.py`) ist eine **hochgeladene
+  Datei** mit **eigener Objektnummer** (Typ `document`). **Ablauf (ADR-004-Muster «Vorschlagen ≠
+  Ausführen»):** Datei hochladen/fotografieren (`POST /ai/documents/analyze`, multipart) → die KI liest
+  das PDF/Bild direkt (Vision/Document-Block, kein separates OCR; PDF-Textlayer wird zusätzlich per
+  `pypdf` gratis extrahiert und als `extracted_text` gespeichert = spätere RAG-Basis) und erfasst über
+  ein **erzwungenes Tool** `extract_document` strukturiert **Name, Typ, Zusammenfassung, Bezugsgrössen**
+  (`services/ai/documents.py`). Aus den Bezugsgrössen matcht der Server **passende ERP-Objekte**
+  (`match_candidates`: Artikel-Fuzzy via `article_names._similarity`, Lieferant/Firma, im Text genannte
+  Objektnummern, plus das Kontext-Objekt) und legt einen **`AiAction`-Vorschlag** (`action_type=
+  'link_document'`) an – NICHTS ist damit gespeichert. Der Mensch prüft/ändert **Name + Objektzuordnung**
+  und **bestätigt** (`POST /ai/documents/{id}/confirm`) → erst dann materialisiert `documents.materialize`
+  das `DocumentFile` + die **n:m-Verknüpfungen** (`document_links`). **Ein Dokument entsteht NIE
+  objektlos** (Freigabe-Gate: min. 1 Verknüpfung; manuelle Objektnummer-Eingabe möglich). Ablehnen
+  (`reject`) entfernt die Datei aus der Ablage. **Zuordnung ist n:m** (eine Rechnung betrifft Lieferant
+  + mehrere Artikel + Auftrag). **Dublette** über `sha256` erkannt. **Speicher:** `services/storage.py` –
+  **GCS**, wenn `settings.gcs_bucket` gesetzt (Cloud-Run-ADC, kein Key), sonst DB-Fallback
+  (`document_blobs`); PDFs werden **byte-genau** abgelegt (kein JPEG-Re-Encode wie bei `attachments`).
+  **Auslieferung authentifiziert** (`GET /erp/document-files/{id}/download`, `require_employee` – Rechnungen
+  sind sensibel, NICHT der öffentliche Foto-Token-Weg). **Reiter «Dokumente» je ERP-Objekt**
+  (`GET /erp/objects/{id}/documents`, generisch über die Objektnummer): vereint hochgeladene Dateien
+  (via Links) UND die im Schritt «Dokument» erzeugten Dokumente. Frontend: `components/erp/object-
+  documents.tsx` (`ObjectDocuments` + Upload-/Analyse-/Bestätigungs-Dialog, Kamera-Aufnahme), eingebunden
+  in ALLE Detailansichten (Artikel/Auftrag/Instanz/Benutzer/Lagerplatz/Unternehmen). **RAG (semantische
+  Suche über den `extracted_text`) ist bewusst im Backlog** – der weiche Start deckt «Objekt bekannt →
+  Text am Objekt» ab; korpusweite Suche kommt später über das geplante Typesense. Ohne konfigurierte KI
+  läuft das Modul weiter (Titel = Dateiname, manuelle Zuordnung). Migration `059`.
 
 > **HINWEIS (aktuelles Kernmodell):** **Auftrag → Prozess → Instanz.** Der **Artikel** trägt seine
 > **Spezifikation** (vormals «Stammdaten») + **einen** Prozess (Schritte inline, kein Prozess-Objekt, keine

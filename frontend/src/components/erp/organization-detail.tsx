@@ -5,6 +5,7 @@ import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, K
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
+import { ObjectDocuments } from '@/components/erp/object-documents';
 
 /**
  * Detailansicht des **Unternehmens** als vollwertiger ERP-Datensatz – im **gleichen
@@ -131,6 +132,10 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         </Sec>
 
         <CostOverview />
+
+        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
+          <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />
+        </div>
 
       </div>
 
