@@ -5417,6 +5417,39 @@
               }
             ],
             "title": "Safety Stock"
+          },
+          "procurement_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Procurement Mode"
+          },
+          "default_supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Supplier Id"
+          },
+          "default_webshop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Webshop Url"
           }
         },
         "type": "object",
@@ -6229,6 +6262,55 @@
             ],
             "title": "Safety Stock"
           },
+          "procurement_mode": {
+            "type": "string",
+            "title": "Procurement Mode",
+            "default": "supplier"
+          },
+          "default_supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Supplier Id"
+          },
+          "default_supplier_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Supplier Name"
+          },
+          "default_supplier_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Supplier Object Id"
+          },
+          "default_webshop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Webshop Url"
+          },
           "landed_unit_cost": {
             "anyOf": [
               {
@@ -6628,6 +6710,39 @@
               }
             ],
             "title": "Safety Stock"
+          },
+          "procurement_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Procurement Mode"
+          },
+          "default_supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Supplier Id"
+          },
+          "default_webshop_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Webshop Url"
           },
           "is_active": {
             "anyOf": [

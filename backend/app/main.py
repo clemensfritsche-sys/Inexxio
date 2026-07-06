@@ -90,6 +90,10 @@ _COLUMN_SAFETY_NET = (
     ("articles", "supplier_article_number", "VARCHAR(255)"),
     ("articles", "min_order_qty", "NUMERIC(12,3)"),
     ("articles", "safety_stock", "NUMERIC(12,3)"),
+    # Beschaffungsquelle an der Artikel-Spezifikation (vom purchase-Schritt geerbt)
+    ("articles", "procurement_mode", "VARCHAR(20) DEFAULT 'supplier' NOT NULL"),
+    ("articles", "default_supplier_id", "BIGINT"),
+    ("articles", "default_webshop_url", "VARCHAR(500)"),
     # Durchlaufzeit (Freigabe → Abschluss)
     ("orders", "released_at", "TIMESTAMP WITH TIME ZONE"),
     ("orders", "completed_at", "TIMESTAMP WITH TIME ZONE"),

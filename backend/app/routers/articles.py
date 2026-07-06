@@ -39,6 +39,27 @@ def _get_active(db: Session, object_id: int) -> Article:
     return article
 
 
+def _validate_supplier(db: Session, supplier_id: int | None) -> None:
+    """Der Beschaffungs-Default-Lieferant muss ein aktiver Lieferant sein (wie am Schritt)."""
+    if supplier_id is None:
+        return
+    u = db.query(UserProfile).filter(
+        UserProfile.id == supplier_id, UserProfile.is_active == True).first()
+    if not u or u.role != "supplier":
+        raise HTTPException(400, detail="Gewählter Benutzer ist kein aktiver Lieferant")
+
+
+def _supplier_refs(db: Session, supplier_pks: set[int]) -> dict[int, tuple[str, int | None]]:
+    """{UserProfile.id → (Anzeigename, Objektnummer)} für die Beschaffungs-Denormalisierung
+    (batch, kein N+1 im Feed)."""
+    ids = {pk for pk in supplier_pks if pk}
+    if not ids:
+        return {}
+    rows = db.query(UserProfile.id, UserProfile.display_name, UserProfile.object_id).filter(
+        UserProfile.id.in_(ids)).all()
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
 def _price_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
     """Min/Max Stückpreis (Bestellsumme ÷ Menge) je Artikel über akzeptierte Bestellungen."""
     if not article_ids:
@@ -103,7 +124,8 @@ def _predecessors(db: Session, object_ids: list[int]) -> dict[int, int]:
 
 def _to_response(article: Article, price_range: tuple | None,
                  lead_range: tuple | None = None,
-                 computed_weight=None, replaces_id: int | None = None) -> ArticleResponse:
+                 computed_weight=None, replaces_id: int | None = None,
+                 supplier_ref: tuple | None = None) -> ArticleResponse:
     resp = ArticleResponse.model_validate(article)
     if price_range:
         low, high = price_range
@@ -116,6 +138,9 @@ def _to_response(article: Article, price_range: tuple | None,
         resp.lead_time_days_low, resp.lead_time_days_high = lead_range
     resp.computed_weight_kg = computed_weight
     resp.replaces_id = replaces_id
+    # Beschaffungs-Default: Lieferantenname/Objektnummer denormalisieren (Anzeige/klickbar).
+    if supplier_ref:
+        resp.default_supplier_name, resp.default_supplier_object_id = supplier_ref
     return resp
 
 
@@ -127,6 +152,7 @@ def _single(db: Session, article: Article) -> ArticleResponse:
         _lead_time_ranges(db, [article.id]).get(article.id),
         computed_weights(db, [article.id]).get(article.id),
         _predecessors(db, [article.object_id]).get(article.object_id),
+        _supplier_refs(db, {article.default_supplier_id}).get(article.default_supplier_id),
     )
 
 
@@ -145,8 +171,9 @@ async def list_articles(
     leads = _lead_time_ranges(db, [a.id for a in articles])
     cweights = computed_weights(db, [a.id for a in articles])
     preds = _predecessors(db, [a.object_id for a in articles if a.object_id])
+    sup_refs = _supplier_refs(db, {a.default_supplier_id for a in articles})
     return [_to_response(a, ranges.get(a.id), leads.get(a.id), cweights.get(a.id),
-                         preds.get(a.object_id)) for a in articles]
+                         preds.get(a.object_id), sup_refs.get(a.default_supplier_id)) for a in articles]
 
 
 @router.post("", response_model=ArticleResponse, status_code=201)
@@ -155,6 +182,9 @@ async def create_article(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
+    # Beschaffungs-Default konsistent halten: nur das zum Modus passende Quellfeld speichern.
+    _validate_supplier(db, data.default_supplier_id)
+    proc_mode = data.procurement_mode or "supplier"
     article = Article(
         object_id=next_object_id(db, "article"),
         status="draft",
@@ -168,6 +198,9 @@ async def create_article(
         surface=data.surface,
         min_order_qty=data.min_order_qty,
         safety_stock=data.safety_stock,
+        procurement_mode=proc_mode,
+        default_supplier_id=data.default_supplier_id if proc_mode == "supplier" else None,
+        default_webshop_url=data.default_webshop_url if proc_mode == "webshop" else None,
     )
     db.add(article)
     db.flush()
@@ -215,6 +248,8 @@ async def update_article(
     payload = data.model_dump(exclude_unset=True)
     ensure_version(article, payload.pop("expected_updated_at", None))
     ensure_mutable(article.status, payload, "Artikel")
+    if "default_supplier_id" in payload:
+        _validate_supplier(db, payload["default_supplier_id"])
     going_inactive = payload.get("status") == "inactive" and article.status != "inactive"
     # Inaktiv ist **endgültig**: ein deaktivierter Artikel kann NICHT reaktiviert werden
     # (die Identität ist abgeschlossen – Neustart = neuer Artikel/Nachfolger via «Ersetzen»).
@@ -241,6 +276,13 @@ async def update_article(
             log_audit(db, "articles", key, new_str, current_user.id,
                       object_id=article.object_id, old_value=old_str)
         setattr(article, key, value)
+    # Beschaffungs-Default konsistent halten: nur das zum Modus passende Quellfeld behalten
+    # (analog zum Beschaffungs-Prozessschritt), wenn Modus/Quelle angefasst wurde.
+    if {"procurement_mode", "default_supplier_id", "default_webshop_url"} & set(payload):
+        if article.procurement_mode == "supplier":
+            article.default_webshop_url = None
+        elif article.procurement_mode == "webshop":
+            article.default_supplier_id = None
     # Inaktivieren kaskadiert (consume-Eltern) – laufende Aufträge laufen aus (Default).
     if going_inactive:
         deactivation.deactivate_article(db, article, current_user.id, "phase_out")

@@ -51,6 +51,10 @@ export interface ArticleInput {
   supplier_article_number?: string | null;
   min_order_qty?: string | null;
   safety_stock?: string | null;
+  // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
+  procurement_mode?: ProcessStepMode | null;
+  default_supplier_id?: number | null;
+  default_webshop_url?: string | null;
 }
 
 export type ArticleUpdateInput = Partial<ArticleInput> & {

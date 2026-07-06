@@ -18,13 +18,13 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
+import { Label, ErrorText, SaveIndicator, SearchSelect } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
+import { cn, formatAmount as fmtChf, localDate, userDisplayName } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -53,6 +53,8 @@ type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | '
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
+  // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
+  procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
 
 // Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen)
@@ -67,7 +69,8 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
-    material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '' };
+    material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
+    procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
   return {
     ...base,
@@ -77,6 +80,9 @@ function seedFrom(record: Article | null): Form {
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
+    procurement_mode: record.procurement_mode ?? 'supplier',
+    default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
+    default_webshop_url: record.default_webshop_url ?? '',
   };
 }
 
@@ -91,6 +97,9 @@ function signatureOf(form: Form): string {
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
+    procurement_mode: form.procurement_mode,
+    default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
+    default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
   });
 }
 
@@ -227,6 +236,12 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         supplier_article_number: form.supplier_article_number.trim() || null,
         min_order_qty: form.min_order_qty.trim() || null,
         safety_stock: form.safety_stock.trim() || null,
+        // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
+        procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
+        default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
+          ? Number(form.default_supplier_id) : null,
+        default_webshop_url: form.procurement_mode === 'webshop'
+          ? (form.default_webshop_url.trim() || null) : null,
       };
       if (isCreate) {
         onSaved(await api.createArticle(payload));
@@ -372,6 +387,20 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
                 <SpecSection icon={ShoppingCart} title="Beschaffung" last
                   right={<SectionAddButton keys={SEC_BESCH} added={added} onAdd={addField} />}>
+                  {/* Bezugsquelle gehört zur Spezifikation – der Beschaffungs-Prozessschritt erbt sie. */}
+                  <IconPick label="Bezugsquelle" value={form.procurement_mode} onChange={(v) => set('procurement_mode', v)} options={PROC_PICK} />
+                  {form.procurement_mode === 'webshop' ? (
+                    <EditField label="Beschaffungs-Link" value={form.default_webshop_url} onChange={(v) => set('default_webshop_url', v)} placeholder="https://shop.example.com/artikel" hint="Wird bei der Bestellung übernommen – am Schritt überschreibbar" />
+                  ) : (
+                    <div>
+                      <Label>Lieferant</Label>
+                      <SearchSelect value={form.default_supplier_id} onChange={(v) => set('default_supplier_id', v)}
+                        options={[{ value: '', label: '— kein Lieferant (später) —' },
+                          ...suppliers.map((s) => ({ value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` }))]}
+                        placeholder="Lieferant wählen" />
+                      <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>Standard-Lieferant – der Beschaffungs-Schritt erbt ihn (überschreibbar)</div>
+                    </div>
+                  )}
                   <EditField label="Bestellnummer" value={form.supplier_article_number} onChange={(v) => set('supplier_article_number', v)} placeholder="Artikelnummer des Lieferanten" />
                   <EditField label="CAD-/Onshape-Link" value={form.cad_url} onChange={(v) => set('cad_url', v)} placeholder="https://cad.onshape.com/…" />
                   {!isCreate && record!.lead_time_days_low != null && (
@@ -554,6 +583,11 @@ const UNIT_PICK = [
 const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
   { value: 'batch', label: 'Batch', icon: Layers },
+];
+// Bezugsquelle des Artikels (Spezifikation) – vom Beschaffungs-Prozessschritt geerbt.
+const PROC_PICK = [
+  { value: 'supplier', label: 'Lieferant', icon: Truck },
+  { value: 'webshop', label: 'Webshop', icon: Link2 },
 ];
 
 const SPEC = {
@@ -747,7 +781,9 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
-  const hasProcurement = has('supplier_article_number') || has('cad_url') || has('min_order_qty')
+  const isWebshop = record.procurement_mode === 'webshop';
+  const hasSource = isWebshop ? !!record.default_webshop_url : !!record.default_supplier_id;
+  const hasProcurement = hasSource || has('supplier_article_number') || has('cad_url') || has('min_order_qty')
     || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
   return (
     <div style={SPEC.card}>
@@ -769,6 +805,10 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
       )}
       {hasProcurement && (
         <SpecSection icon={ShoppingCart} title="Beschaffung" last>
+          {isWebshop
+            ? (record.default_webshop_url && <ReadField icon={Link2} label="Beschaffungs-Link" link={record.default_webshop_url} full />)
+            : (record.default_supplier_id && <ReadField icon={Truck} label="Lieferant"
+                value={record.default_supplier_name ? `${fmtObjId(record.default_supplier_object_id)} · ${record.default_supplier_name}` : fmtObjId(record.default_supplier_object_id)} />)}
           {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
           {record.lead_time_days_low != null && <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record)} autoHint="Automatisch aus vorherigen Lieferungen" />}
           {record.landed_unit_cost != null && <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record.landed_unit_cost)} unit="CHF" mono />}

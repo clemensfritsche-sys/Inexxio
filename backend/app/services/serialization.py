@@ -37,14 +37,19 @@ def _initial_location(db: Session, order: Order) -> tuple[str | None, int | None
       Lagerort setzt danach der erste Bewegungs-/Wareneingangsschritt."""
     defs = process.order_step_defs(db, order)
     first = defs[0] if defs else None
-    if first and first.step_type == "purchase" and first.mode == "supplier" and first.supplier_id:
-        sup = (
-            db.query(UserProfile)
-            .filter(UserProfile.id == first.supplier_id, UserProfile.is_active == True)
-            .first()
-        )
-        if sup and sup.object_id:
-            return ("user", sup.object_id)
+    if first and first.step_type == "purchase":
+        # Bezugsquelle aus dem **Artikel** (Spezifikation) erben, am Schritt überschreibbar.
+        from .purchase import resolve_source
+        art = db.query(Article).filter(Article.id == order.article_id).first() if order.article_id else None
+        mode, supplier_id, _url = resolve_source(first, art)
+        if mode == "supplier" and supplier_id:
+            sup = (
+                db.query(UserProfile)
+                .filter(UserProfile.id == supplier_id, UserProfile.is_active == True)
+                .first()
+            )
+            if sup and sup.object_id:
+                return ("user", sup.object_id)
     from .admin import get_or_create_settings
     company = get_or_create_settings(db)
     if company.object_id:

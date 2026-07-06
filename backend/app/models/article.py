@@ -48,6 +48,17 @@ class Article(Base, TimestampMixin):
     safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
 
+    # ── Beschaffungsquelle (Teil der Spezifikation, friert bei Freigabe ein) ───────────
+    # WO dieser Artikel beschafft wird, gehört zur Produktspezifikation – nicht in jeden
+    # einzelnen Beschaffungs-Prozessschritt. Der ``purchase``-Schritt bleibt der Auslöser und
+    # **erbt diese Quelle als Default** (pro Fall am Schritt überschreibbar). Zwei Modi:
+    #   supplier → Bestellung bei ``default_supplier_id`` (UserProfile, Rolle 'supplier')
+    #   webshop  → Beschaffung über ``default_webshop_url`` (kein externer Lieferant)
+    procurement_mode: Mapped[str] = mapped_column(
+        String(20), default="supplier", server_default="supplier", nullable=False)
+    default_supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    default_webshop_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
     # Einstandspreis netto/Stück – read-only, aus der zuletzt freigegebenen
     # Bestellung (Purchase Order) automatisch zurückgeschrieben.
     landed_unit_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4), nullable=True)

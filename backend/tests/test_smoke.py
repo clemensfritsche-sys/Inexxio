@@ -176,20 +176,44 @@ def test_purchase_order_update_schema_validates_status():
         PurchaseOrderUpdate(order_total=Decimal("-1"))
 
 
-def test_process_step_requires_consistent_mode():
-    """Lieferant-Modus braucht supplier_id, Webshop-Modus braucht URL."""
-    import pytest
-
+def test_purchase_step_source_is_optional_override():
+    """Die Bezugsquelle gehört zur Artikel-Spezifikation; der Beschaffungs-Schritt ERBT sie
+    und braucht daher KEINE eigene Quelle (früher Pflicht). Optional überschreibbar."""
     from app.schemas.article_process_step import ArticleProcessStepCreate
 
-    ok = ArticleProcessStepCreate(mode="supplier", supplier_id=42)
-    assert ok.supplier_id == 42
-    ok2 = ArticleProcessStepCreate(mode="webshop", webshop_url="https://shop.example/x")
-    assert ok2.webshop_url == "https://shop.example/x"
-    with pytest.raises(ValueError):
-        ArticleProcessStepCreate(mode="supplier")
-    with pytest.raises(ValueError):
-        ArticleProcessStepCreate(mode="webshop")
+    # Ohne Quelle → ok (erbt vom Artikel)
+    inherit = ArticleProcessStepCreate(step_type="purchase", mode="supplier")
+    assert inherit.supplier_id is None and inherit.webshop_url is None
+    # Optionaler Override am Schritt bleibt möglich
+    override = ArticleProcessStepCreate(step_type="purchase", mode="supplier", supplier_id=42)
+    assert override.supplier_id == 42
+    override2 = ArticleProcessStepCreate(step_type="purchase", mode="webshop",
+                                         webshop_url="https://shop.example/x")
+    assert override2.webshop_url == "https://shop.example/x"
+
+
+def test_procurement_source_resolves_from_article():
+    """resolve_source: Schritt-Override gewinnt, sonst erbt die Bestellung die Quelle aus der
+    Artikel-Spezifikation (procurement_mode + default_supplier_id/default_webshop_url)."""
+    from types import SimpleNamespace as NS
+
+    from app.services.purchase import resolve_source
+
+    art_sup = NS(procurement_mode="supplier", default_supplier_id=7, default_webshop_url=None)
+    art_web = NS(procurement_mode="webshop", default_supplier_id=None,
+                 default_webshop_url="https://a.example/x")
+
+    # Kein Override am Schritt → erbt vom Artikel
+    step = NS(supplier_id=None, webshop_url=None)
+    assert resolve_source(step, art_sup) == ("supplier", 7, None)
+    assert resolve_source(step, art_web) == ("webshop", None, "https://a.example/x")
+    # Override am Schritt gewinnt (Lieferant bzw. Link)
+    assert resolve_source(NS(supplier_id=99, webshop_url=None), art_web) == ("supplier", 99, None)
+    assert resolve_source(NS(supplier_id=None, webshop_url="https://b.example/y"), art_sup) \
+        == ("webshop", None, "https://b.example/y")
+    # Ohne Artikel-Default & ohne Override → Modus ohne konkrete Quelle (Besteller beschafft selbst)
+    assert resolve_source(step, NS(procurement_mode="supplier", default_supplier_id=None,
+                                   default_webshop_url=None)) == ("supplier", None, None)
 
 
 def test_process_step_types_and_optional_config():

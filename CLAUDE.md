@@ -199,6 +199,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); beim
     **Wareneingang («received») ist der aktuelle Lagerort Pflichteingabe** des Bestellers
     (`receiving_location_id`) – dorthin wechseln die Instanzen (`services/purchase.py`).
+    **Bezugsquelle = Teil der Produktspezifikation** (Migration `056`, statt am Schritt): WO ein
+    Artikel beschafft wird, gehört zum Artikel (Reiter «Spezifikation» → Beschaffung) –
+    `articles.procurement_mode` (supplier|webshop) + `default_supplier_id`/`default_webshop_url`
+    (friert bei Freigabe ein, wie die übrige Spezifikation). Der `purchase`-Schritt ist nur der
+    **Auslöser** und **erbt** die Quelle als Default; pro Schritt optional überschreibbar (mehrere
+    Lieferanten) via `supplier_id`/`webshop_url` am Schritt. `purchase.resolve_source(step, article)`
+    ist die EINE Auflösungsstelle (Override ≻ Artikel-Default), ihr Ergebnis wird als Snapshot auf die
+    Bestellung geschrieben; `serialization._initial_location` erbt den Lieferanten-Startort ebenso.
   - **inspection** = «**Datenerfassung**»: allgemeine Werterfassung (nicht nur QC) – nennt **konkret die
     zu prüfenden Instanzen** (Stichprobe). Prüfumfang % via `sample_percent`: Einzelteil → N zufällig
     (stabil) ausgewählte Instanzen; Charge → eine Instanz mit N Proben. Je Stichprobe ein Wertesatz
