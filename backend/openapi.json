@@ -3023,58 +3023,6 @@
         }
       }
     },
-    "/api/v1/erp/instances/{object_id}/documents": {
-      "get": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "List Instance Documents",
-        "description": "Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer). Grundlage des\nReiters «Dokumente» und künftig der KI-/Scan-Ablage beliebiger PDFs je Objektnummer.",
-        "operationId": "list_instance_documents_api_v1_erp_instances__object_id__documents_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DocumentEmbed"
-                  },
-                  "title": "Response List Instance Documents Api V1 Erp Instances  Object Id  Documents Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/instances/{object_id}/orders": {
       "get": {
         "tags": [

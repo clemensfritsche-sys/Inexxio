@@ -76,13 +76,12 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/erp/articles/{object_id}/sales | staff | Verkaufs-Profil (publiziert/Sichtbarkeit/Inhalt) – immer editierbar |
 | GET/POST | /api/v1/erp/articles/{object_id}/sales/prices | staff | Verkaufspreise (1:n) lesen/anlegen |
 | PATCH/DELETE | /api/v1/erp/articles/{object_id}/sales/prices/{price_id} | staff | Preis ändern/entfernen |
-| GET/POST | /api/v1/erp/articles/{object_id}/sales/audience | staff | Zielgruppe (private/unlisted) lesen/zuweisen |
+| POST | /api/v1/erp/articles/{object_id}/sales/audience | staff | Zielgruppe (private) zuweisen (Lesen: eingebettet im Sales-Profil) |
 | DELETE | /api/v1/erp/articles/{object_id}/sales/audience/{row_id} | staff | Kunden-Zuweisung entfernen |
 | GET | /api/v1/shop/config | – | Shop-Währungen + Default + Provider + **Publishable Key** (eingebettete Kasse) |
 | GET | /api/v1/shop/products | optional | Publizierte Produkte (public + private des Kunden), inkl. Preis-Optionen |
 | GET | /api/v1/shop/products/{object_id} | optional | Produktdetail (kanonisch über replaced_by_id) inkl. `prices[]` |
 | POST | /api/v1/shop/checkout | user | **Warenkorb** (`items[]`) → CheckoutIntent → Stripe-Embedded (`client_secret`) / manual; Auftrag entsteht aufgeschoben bei Zahlung |
-| GET | /api/v1/shop/session/{session_id} | user | Intent-/Zahlungsstatus (Erfolgsseite nach eingebetteter Kasse) |
 | POST | /api/v1/shop/portal | user | Stripe Customer Portal (Abo/Zahlungsmittel verwalten) → URL |
 | POST | /api/v1/shop/payments/webhook | – | Stripe-Webhook (signaturgeprüft): Zahlung/Abo spiegeln |
 | GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manueller Fallback-Provider) |

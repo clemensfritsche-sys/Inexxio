@@ -817,7 +817,7 @@ def _tool(name: str, description: str, properties: dict, required: list[str] | N
 _DEFINITIONS: dict[str, dict] = {
     "list_articles": _tool(
         "list_articles",
-        "ERP-Artikel suchen/auflisten (Stammdaten). Nutze dies für Fragen zu Artikeln.",
+        "ERP-Artikel suchen/auflisten (Spezifikation). Nutze dies für Fragen zu Artikeln.",
         {"query": {"type": "string", "description": "Namenssuche (Teilstring)"},
          "status": {"type": "string", "enum": ["draft", "released", "inactive"]}},
     ),

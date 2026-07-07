@@ -2,7 +2,7 @@ import type {
   Article, ArticleInput, ArticleUpdateInput, ArticleNameSuggestion,
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
-  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput, OrderDocument,
+  PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
@@ -457,11 +457,6 @@ class ApiClient {
   // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
   getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
     return this.get(`/api/v1/erp/instances/${objectId}/orders`);
-  }
-
-  // Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer)
-  getInstanceDocuments(objectId: number): Promise<OrderDocument[]> {
-    return this.get(`/api/v1/erp/instances/${objectId}/documents`);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────

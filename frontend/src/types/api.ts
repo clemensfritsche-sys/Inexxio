@@ -951,27 +951,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/instances/{object_id}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Instance Documents
-         * @description Ausgestellte Dokumente dieser Instanz (Nummer = Instanz-Objektnummer). Grundlage des
-         *     Reiters «Dokumente» und künftig der KI-/Scan-Ablage beliebiger PDFs je Objektnummer.
-         */
-        get: operations["list_instance_documents_api_v1_erp_instances__object_id__documents_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/instances/{object_id}/orders": {
         parameters: {
             query?: never;
@@ -6619,37 +6598,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_instance_documents_api_v1_erp_instances__object_id__documents_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DocumentEmbed"][];
                 };
             };
             /** @description Validation Error */

@@ -7,7 +7,8 @@ import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
 
 // Read-only Übersicht der Bestands-Instanzen eines Auftrags. Die Instanzen
-// entstehen bei der Auftragsfreigabe – mit Standort und QC-Status ab Tag 1.
+// entstehen bei der Auftragsfreigabe – mit Standort und den zwei Instanz-Achsen
+// (quality/disposition) ab Tag 1.
 export function OrderInstances({ order }: { order: Order }) {
   const instances = order.instances ?? [];
   if (instances.length === 0) return null;

@@ -42,10 +42,10 @@ function articleActions(status: string, hasProcess: boolean): StatusAction[] {
   return [];   // inaktiv → keine Aktionen (endgültig)
 }
 
-type TabKey = 'stammdaten' | 'prozess' | 'bestand' | 'verkauf' | 'dokumente';
+type TabKey = 'spezifikation' | 'prozess' | 'bestand' | 'verkauf' | 'dokumente';
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
-  { key: 'stammdaten', label: 'Spezifikation', icon: FileText },
+  { key: 'spezifikation', label: 'Spezifikation', icon: FileText },
   { key: 'prozess', label: 'Prozess', icon: Workflow },
   { key: 'bestand', label: 'Bestand', icon: Boxes },
   { key: 'verkauf', label: 'Verkauf', icon: Tag },
@@ -128,7 +128,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
 }) {
   const isCreate = record === null;
-  const [tab, setTab] = useState<TabKey>('stammdaten');
+  const [tab, setTab] = useState<TabKey>('spezifikation');
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
@@ -358,13 +358,13 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
-        {tab === 'stammdaten' && (
+        {tab === 'spezifikation' && (
           <div style={{ maxWidth: 880 }}>
             {locked ? (
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
               <div style={SPEC.card}>
-                <SpecSection icon={FileText} title="Stammdaten"
+                <SpecSection icon={FileText} title="Spezifikation"
                   right={<SectionAddButton keys={SEC_STAMM} added={added} onAdd={addField} />}>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <NameField value={form.name} onChange={(v) => set('name', v)}
@@ -430,7 +430,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           tut: beim Anlegen (Hinweis + Abbrechen) oder wenn ein Fehler/Blocker anzuzeigen ist –
           im normalen (gültigen) Bearbeiten bleibt das Fenster ohne Footer. Der Speichern-Status
           steckt ohnehin als grüner Flash im Kopf (SaveIndicator). */}
-      {!locked && tab === 'stammdaten' && (isCreate || error || blockReason) && (
+      {!locked && tab === 'spezifikation' && (isCreate || error || blockReason) && (
         <div style={{ padding: '11px 28px', background: '#fff', borderTop: '1px solid var(--border-1)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ flex: 1, fontSize: 12.5, color: error ? 'var(--danger)' : 'var(--fg-4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {error ?? blockReason ?? 'Wird automatisch angelegt, sobald vollständig'}
@@ -572,7 +572,7 @@ const UNIT_PICK = [
 ];
 const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
-  { value: 'batch', label: 'Batch', icon: Layers },
+  { value: 'batch', label: 'Charge', icon: Layers },
 ];
 const SPEC = {
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '28px 30px' } as React.CSSProperties,
@@ -769,7 +769,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
     || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
   return (
     <div style={SPEC.card}>
-      <SpecSection icon={FileText} title="Stammdaten" last={!hasPhysical && !hasProcurement}>
+      <SpecSection icon={FileText} title="Spezifikation" last={!hasPhysical && !hasProcurement}>
         <ReadField icon={Tag} label="Artikelname" value={record.name} full />
         <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
         <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />

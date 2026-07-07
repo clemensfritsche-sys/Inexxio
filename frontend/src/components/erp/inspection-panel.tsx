@@ -104,7 +104,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const allOk = samples.every((s) => sampleOk(sKey(s.instance_id, s.slot)));
 
   function sampleLabel(instanceId: number, slot: number): string {
-    return isBatch ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Unit ${fmtObjId(instanceId)}`;
+    return isBatch ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Instanz ${fmtObjId(instanceId)}`;
   }
 
   async function submit() {

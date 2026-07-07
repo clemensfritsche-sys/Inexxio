@@ -297,7 +297,7 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
         {s === 'ordered' && isBuyer && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
             <MapPin size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>«Lieferung bestätigen» ist rein kaufmännisch. Das Einlagern (Lagerort) erfolgt anschliessend im Bewegungs-Schritt.</span>
+            <span>«Lieferung bestätigen» ist rein kaufmännisch. Das Einlagern (Lagerplatz) erfolgt anschliessend im Bewegungs-Schritt.</span>
           </div>
         )}
 
