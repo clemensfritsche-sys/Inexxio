@@ -162,7 +162,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 
 ### Tatsächlich gebaut (Stand Juni 2026)
 - Monorepo-Struktur vollständig
-- Backend: FastAPI mit UserProfile (Benutzer- & Profilverwaltung), Admin-Einstellungen, Audit-Log, Notifications, Kontaktformular
+- Backend: FastAPI mit UserProfile (Benutzer- & Profilverwaltung), Admin-Einstellungen, Audit-Log, Kontaktformular
 - Backend: Artikel-Stammdaten (`articles`, Status draft/released/inactive, gemeinsamer Nummernkreis via `services/objects.py`)
 - Frontend: Öffentliche Website (Homepage, Über uns, Kontakt, Impressum, AGB, Datenschutz)
 - Frontend: ERP mit Reitern Benutzer + Artikel (Master-Detail-Feed)
@@ -173,6 +173,20 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Event-Strom (verbrauchte Tokens × Modell-Tarif), Zahlungen aus Stripe-Gebühren der bezahlten Verkäufe,
   Infrastruktur als anteilige Google-Cloud-Schätzung; grosse Ist-Summe + Monats-Hochrechnung.
 - Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
+- **Code-Cleanup & Härtung (Juli 2026, `docs/cleanup-2026-07.md`)**: Migration `060` –
+  **Meldebestand-Bug behoben** (`orders.reason` VARCHAR(12)→(20): `replenishment` hat 13
+  Zeichen, JEDE Auto-Nachbestellung scheiterte vorher am Truncation-Fehler); GIN-Index auf
+  `instances.reservations` + Indizes `sales.customer_id`/`orders.recurring_parent_id`/
+  `purchase_orders.supplier_id`; PR-#90-Spalten in Alembic nachgezogen (Alembic = Schema-SSOT);
+  tote Spalten (`orders.stripe_checkout_session_id`, `sales.fx_rate`), das nie verdrahtete
+  `Notification`-Modell und die F-Rollback-Reste (#85) entfernt. **Race-Conditions gehärtet**
+  (Row-Locks): Stripe-Webhook-Doppelzustellung (CheckoutIntent), FIFO-Allokation in allen
+  Schreibpfaden (kein Überverkauf), `ensure_supply`/`check_article` (kein Doppel-Nachschub);
+  Shop-Handler mit FX-/Stripe-Calls als `def` (kein Event-Loop-Blocking). Tote Endpunkte
+  (`GET /shop/session/{id}`, `GET …/sales/audience`, `GET /erp/instances/{id}/documents`)
+  + totes i18n (`frontend/messages/`, next-intl war nie installiert) entfernt. Wording
+  kanonisch (Spezifikation/Charge/Instanz/Lagerplatz). Responsive: Inline-Grids kollabieren
+  auf Mobile, Warenkorb auf Tokens + umbrechend, Touch-Ziele ≥40px, Freiraum fürs KI-Widget.
 - **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
   Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
   `position`). Schritt-Status wird aus der Fachtabelle abgeleitet (keine Orchestrierungstabelle);
@@ -470,7 +484,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **kanonisiert über `replaced_by_id`** – ein ersetzter Artikel zeigt nahtlos auf den Nachfolger, URL/Listing
   brechen nicht), `POST /shop/checkout` (Login-Pflicht, kein Gast-Checkout). Frontend: ERP-Reiter **Verkauf**
   am Artikel (Autosave, Preise/Inhalt de+en/Zielgruppe/Verfügbarkeit/CHF-Vorschau) + Admin-Shop-Konfig
-  (Provider/Zonen) + öffentlicher Shop (`/shop`, `/shop/product`, `/shop/success`, `/shop/pay` für manual).
+  (Provider/Zonen) + öffentlicher Shop (`/shop`, `/shop/product`, `/shop/cart`, `/shop/checkout`, `/shop/pay` für manual).
   **Ersetzen** kopiert das Verkaufs-Profil auf den Nachfolger. *Bewusst NICHT gebaut: Coupon-Engine,
   Bundles, Gast-Checkout, metered-Abos, kunden-/gruppenspezifische Preislisten, Auto-Fulfillment je
   Abo-Zyklus (TODO-/Extension-Hooks an Ort).*
