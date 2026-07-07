@@ -83,8 +83,7 @@ class Article(Base, TimestampMixin):
     # produktiv verkauft wird. Kein eigenes «Angebot»-Objekt, keine Objektnummer.
     sales_published: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False)
-    # Sichtbarkeit: public (im Shop gelistet) | private (nur zugewiesene Kunden) |
-    # unlisted (nur per direktem Link, nicht gelistet).
+    # Sichtbarkeit: public (im Shop gelistet) | private (nur zugewiesene Kunden).
     sales_visibility: Mapped[str] = mapped_column(
         String(10), default="public", server_default="public", nullable=False)
     # **Verfügbarkeit (Achse B)** – unabhängig vom Preismodell (Einmalkauf/Abo):

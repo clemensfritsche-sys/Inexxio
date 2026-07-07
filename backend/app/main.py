@@ -143,17 +143,17 @@ _COLUMN_SAFETY_NET = (
     ("articles", "sales_fulfillment", "VARCHAR(10) DEFAULT 'make' NOT NULL"),
     ("article_prices", "pinned", "JSONB"),
     ("company_settings", "pricing_zone_factors", "JSONB"),
-    # Stripe-Integration: Customer-/Session-/Subscription-/PaymentIntent-Bezüge + Snapshot
+    # Stripe-Integration: Customer-/Subscription-/PaymentIntent-Bezüge + Snapshot
     ("user_profiles", "stripe_customer_id", "VARCHAR(64)"),
-    ("orders", "stripe_checkout_session_id", "VARCHAR(80)"),
     ("orders", "stripe_subscription_id", "VARCHAR(80)"),
     ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
     ("sales", "stripe_snapshot", "JSONB"),
     # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
     ("article_prices", "sub_type", "VARCHAR(10)"),
     ("orders", "recurrence_kind", "VARCHAR(10)"),
-    # Unter-Auftrag-Grund: deviation (Abweichung) | supply (Nachschub) – EIN Mechanismus
-    ("orders", "reason", "VARCHAR(12)"),
+    # Unter-Auftrag-Grund: deviation | supply | return | replenishment – EIN Mechanismus.
+    # VARCHAR(20): 'replenishment' (13 Zeichen) passte nicht in die frühere Breite 12.
+    ("orders", "reason", "VARCHAR(20)"),
     # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
     ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
     # Datenerfassung: Freigabe/Unterschrift + Bilderfassung (Konfiguration am Schritt, Werte an der Erfassung).
@@ -179,6 +179,13 @@ _NUMERIC_QTY_COLUMNS = (
     ("order_lines", "quantity"),
     ("purchase_orders", "quantity"),
     ("sales", "quantity"),
+)
+
+# VARCHAR-Spalten, die nachträglich verbreitert wurden (Migration 060): idempotentes
+# ALTER, falls Alembic übersprungen wurde. 'replenishment' (13 Zeichen) scheiterte an
+# der ursprünglichen Breite 12 – jede Auto-Nachbestellung endete im Truncation-Fehler.
+_VARCHAR_WIDEN_COLUMNS = (
+    ("orders", "reason", 20),
 )
 
 # Obsolete Spalten, die aus dem Modell entfernt wurden. In Prod wird das Schema
@@ -208,6 +215,23 @@ _DROP_COLUMN_SAFETY_NET = (
     ("documents", "issued_at"),
     ("documents", "title"),
     ("documents", "replaced_by_id"),
+    # Nie befüllte Stripe-/FX-Spalten (Cleanup 2026-07): der Checkout läuft über
+    # CheckoutIntent.stripe_session_id; der Beleg-Snapshot nutzt base_amount_chf + fx_date.
+    ("orders", "stripe_checkout_session_id"),
+    ("sales", "fx_rate"),
+    # Reste des per Notfall-Revert (#85) zurückgenommenen Konzepts «Lagerplatz als
+    # Instanz» (F): die Migration 059_location_as_instance lief auf der Dev-DB, ihr
+    # Rückbau nie. storage_locations behält seine eigenen Spalten – hier nur articles/instances.
+    ("articles", "is_location"),
+    ("articles", "max_load_kg"),
+    ("instances", "is_location"),
+    ("instances", "note"),
+    ("instances", "latitude"),
+    ("instances", "longitude"),
+    ("instances", "address_street"),
+    ("instances", "address_zip"),
+    ("instances", "address_city"),
+    ("instances", "address_country"),
 )
 
 # Indizes, die nach dem Initial-Schema ergänzt wurden. create_all() legt Indizes
@@ -224,6 +248,19 @@ _INDEX_SAFETY_NET = (
     ("ix_aps_order_id", "article_process_steps", "order_id"),
     ("ix_instances_subject_of_order", "instances", "subject_of_order_id"),
     ("ix_company_settings_object_id", "company_settings", "object_id"),
+    # Heisse Filterspalten (Cleanup 2026-07): «Meine Bestellungen», Abo-Ketten,
+    # Lieferanten-Feed – ohne Index Seq-Scans auf wachsenden Tabellen.
+    ("ix_sales_customer_id", "sales", "customer_id"),
+    ("ix_orders_recurring_parent_id", "orders", "recurring_parent_id"),
+    ("ix_purchase_orders_supplier_id", "purchase_orders", "supplier_id"),
+)
+
+# Roh-Indizes mit speziellem Typ: GIN auf der Reservierungs-Map – die Hot-Path-Abfragen
+# ``Instance.reservations.has_key(...)`` (Unterdeckung, Verkaufs-Abgang, Abschluss)
+# wären sonst Full-Table-Scans über den gesamten Bestand.
+_RAW_INDEX_SAFETY_NET = (
+    "CREATE INDEX IF NOT EXISTS ix_instances_reservations "
+    "ON instances USING gin (reservations jsonb_path_ops)",
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
@@ -280,6 +317,18 @@ def _ensure_columns() -> None:
                         f"ALTER TABLE {table} ALTER COLUMN {col} "
                         f"TYPE NUMERIC(14,3) USING {col}::numeric(14,3)"
                     ))
+            # Zu schmale VARCHAR-Spalten idempotent verbreitern (nur vergrössern).
+            for table, col, width in _VARCHAR_WIDEN_COLUMNS:
+                if table not in tables or col not in {c["name"] for c in insp.get_columns(table)}:
+                    continue
+                current = conn.execute(text(
+                    "SELECT character_maximum_length FROM information_schema.columns "
+                    "WHERE table_name = :t AND column_name = :c"
+                ), {"t": table, "c": col}).scalar()
+                if current is not None and current < width:
+                    conn.execute(text(
+                        f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({width})"
+                    ))
             for table, col in _DROP_COLUMN_SAFETY_NET:
                 if table in tables:
                     conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
@@ -288,6 +337,9 @@ def _ensure_columns() -> None:
                     conn.execute(text(
                         f"CREATE INDEX IF NOT EXISTS {index_name} ON {table} ({col})"
                     ))
+            if "instances" in tables:
+                for stmt in _RAW_INDEX_SAFETY_NET:
+                    conn.execute(text(stmt))
             if "purchase_orders" in tables:
                 for stmt in _DATA_FIXES:
                     conn.execute(text(stmt))

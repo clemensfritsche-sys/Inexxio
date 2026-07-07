@@ -1131,8 +1131,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Audience */
-        get: operations["list_audience_api_v1_erp_articles__object_id__sales_audience_get"];
+        get?: never;
         put?: never;
         /** Add Audience */
         post: operations["add_audience_api_v1_erp_articles__object_id__sales_audience_post"];
@@ -1265,28 +1264,6 @@ export interface paths {
          * @description Manueller Provider: Zahlung als Erfolg/Abbruch simulieren (Tests ohne Stripe-Keys).
          */
         post: operations["simulate_payment_api_v1_shop_payments_simulate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/shop/session/{session_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Session Status
-         * @description Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/
-         *     finalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch
-         *     ``pending`` sein («wird verarbeitet»).
-         */
-        get: operations["session_status_api_v1_shop_session__session_id__get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7098,37 +7075,6 @@ export interface operations {
             };
         };
     };
-    list_audience_api_v1_erp_articles__object_id__sales_audience_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AudienceMember"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     add_audience_api_v1_erp_articles__object_id__sales_audience_post: {
         parameters: {
             query?: never;
@@ -7360,37 +7306,6 @@ export interface operations {
                 "application/json": components["schemas"]["PaymentSimulate"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    session_status_api_v1_shop_session__session_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

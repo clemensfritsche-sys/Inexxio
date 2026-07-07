@@ -3730,55 +3730,6 @@
       }
     },
     "/api/v1/erp/articles/{object_id}/sales/audience": {
-      "get": {
-        "tags": [
-          "sales"
-        ],
-        "summary": "List Audience",
-        "operationId": "list_audience_api_v1_erp_articles__object_id__sales_audience_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AudienceMember"
-                  },
-                  "title": "Response List Audience Api V1 Erp Articles  Object Id  Sales Audience Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "sales"
@@ -4233,52 +4184,6 @@
             "HTTPBearer": []
           }
         ]
-      }
-    },
-    "/api/v1/shop/session/{session_id}": {
-      "get": {
-        "tags": [
-          "shop"
-        ],
-        "summary": "Session Status",
-        "description": "Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/\nfinalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch\n``pending`` sein («wird verarbeitet»).",
-        "operationId": "session_status_api_v1_shop_session__session_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/shop/orders": {
