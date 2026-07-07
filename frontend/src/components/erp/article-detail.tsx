@@ -52,11 +52,11 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'dokumente', label: 'Dokumente', icon: FolderOpen },
 ];
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'shelf_life_days';
+type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target';
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
-  reorder_target: string; shelf_life_days: string;
+  reorder_target: string;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
   procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
@@ -70,13 +70,12 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
   { key: 'min_order_qty', label: 'MOQ (Mindestbestellmenge)', numeric: true, placeholder: 'z. B. 50' },
   { key: 'safety_stock', label: 'Meldebestand (Sicherheitsbestand)', numeric: true, placeholder: 'z. B. 20', hint: 'Fällt der freie Bestand darunter, wird automatisch nachbestellt.' },
   { key: 'reorder_target', label: 'Zielbestand (Nachbestellung)', numeric: true, placeholder: 'z. B. 100', hint: 'Auf diese Menge wird bei Nachbestellung aufgefüllt (leer = Meldebestand).' },
-  { key: 'shelf_life_days', label: 'Haltbarkeit (Tage)', numeric: true, placeholder: 'z. B. 365', hint: 'Abgelaufene Teile werden ausgebucht und lösen ggf. eine Nachbestellung aus.' },
 ];
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    reorder_target: '', shelf_life_days: '',
+    reorder_target: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
   return {
@@ -88,7 +87,6 @@ function seedFrom(record: Article | null): Form {
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     reorder_target: record.reorder_target != null ? String(record.reorder_target) : '',
-    shelf_life_days: record.shelf_life_days != null ? String(record.shelf_life_days) : '',
     procurement_mode: record.procurement_mode ?? 'supplier',
     default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
     default_webshop_url: record.default_webshop_url ?? '',
@@ -246,7 +244,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         min_order_qty: form.min_order_qty.trim() || null,
         safety_stock: form.safety_stock.trim() || null,
         reorder_target: form.reorder_target.trim() || null,
-        shelf_life_days: form.shelf_life_days.trim() ? Math.trunc(Number(form.shelf_life_days)) : null,
         // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
         procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
         default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id

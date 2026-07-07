@@ -52,7 +52,6 @@ export interface ArticleInput {
   min_order_qty?: string | null;
   safety_stock?: string | null;
   reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
-  shelf_life_days?: number | null;      // Haltbarkeit in Tagen (E)
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
   procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;

@@ -4908,7 +4908,7 @@
           "maintenance"
         ],
         "summary": "Run Sweep",
-        "description": "Haltbarkeit ausbuchen, dann alle Artikel auf Meldebestand prüfen (Auto-Nachbestellung).",
+        "description": "Alle Artikel auf ihren Meldebestand prüfen und fehlenden Bestand nachbestellen.",
         "operationId": "run_sweep_api_v1_erp_maintenance_sweep_post",
         "responses": {
           "200": {
@@ -5675,17 +5675,6 @@
               }
             ],
             "title": "Reorder Target"
-          },
-          "shelf_life_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shelf Life Days"
           },
           "procurement_mode": {
             "anyOf": [
@@ -6653,17 +6642,6 @@
             ],
             "title": "Reorder Target"
           },
-          "shelf_life_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shelf Life Days"
-          },
           "procurement_mode": {
             "type": "string",
             "title": "Procurement Mode",
@@ -7126,17 +7104,6 @@
               }
             ],
             "title": "Reorder Target"
-          },
-          "shelf_life_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shelf Life Days"
           },
           "procurement_mode": {
             "anyOf": [
@@ -13788,10 +13755,6 @@
       },
       "SweepResult": {
         "properties": {
-          "expired": {
-            "type": "integer",
-            "title": "Expired"
-          },
           "reordered": {
             "type": "integer",
             "title": "Reordered"
@@ -13799,7 +13762,6 @@
         },
         "type": "object",
         "required": [
-          "expired",
           "reordered"
         ],
         "title": "SweepResult"

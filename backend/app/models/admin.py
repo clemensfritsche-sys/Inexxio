@@ -69,10 +69,11 @@ class CompanySettings(Base):
     # {"Deutschland": 1.1, "USA": 0.9}. Leer/NULL = Stufe abgeschaltet (Default).
     pricing_zone_factors: Mapped[Optional[dict]] = mapped_column(JSONB)
 
-    # ── Öffentliche Rechtsdokumente (D): «Zeiger, kein Ersetzen» ────────────────────
-    # Ein Rechtsdokument (AGB/Datenschutz/…) ist append-only: jede Fassung ist eine
-    # eigene, unveränderliche Dokument-Instanz (Nummer = Instanz-Objektnummer, Datum =
-    # Freigabe). Welche Fassung gerade GILT, ist eine Unternehmens-Entscheidung – also ein
-    # Zeiger hier, nicht am Dokument. Map ``{"agb": 100000123, "datenschutz": …}`` (Wert =
-    # Objektnummer der gültigen Dokument-Instanz). Alte Fassungen bleiben archiviert.
+    # ── Öffentliche Rechtsdokumente (D): Zeiger auf einen **Artikel** ───────────────
+    # Je Rechtsdokument-Art (AGB/Datenschutz/…) die **Objektnummer eines Artikels**. Die
+    # Website zieht dessen erste freigegebene Instanz (den ausgestellten Dokument-Beleg).
+    # Map ``{"agb": 100000123, "datenschutz": …}`` (Wert = Artikel-Objektnummer). Neue
+    # Fassung = neuer Artikel + «Ersetzen» (``replaced_by_id``): die Auflösung folgt der
+    # Kette automatisch auf die neueste Fassung mit freigegebenem Beleg; alte Fassungen
+    # bleiben über ihre Instanz-Objektnummer archiviert (``services/legal.py``).
     legal_documents: Mapped[Optional[dict]] = mapped_column(JSONB)

@@ -1578,7 +1578,7 @@ export interface paths {
         put?: never;
         /**
          * Run Sweep
-         * @description Haltbarkeit ausbuchen, dann alle Artikel auf Meldebestand prüfen (Auto-Nachbestellung).
+         * @description Alle Artikel auf ihren Meldebestand prüfen und fehlenden Bestand nachbestellen.
          */
         post: operations["run_sweep_api_v1_erp_maintenance_sweep_post"];
         delete?: never;
@@ -1888,8 +1888,6 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
-            /** Shelf Life Days */
-            shelf_life_days?: number | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2164,8 +2162,6 @@ export interface components {
             safety_stock?: string | null;
             /** Reorder Target */
             reorder_target?: string | null;
-            /** Shelf Life Days */
-            shelf_life_days?: number | null;
             /**
              * Procurement Mode
              * @default supplier
@@ -2301,8 +2297,6 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
-            /** Shelf Life Days */
-            shelf_life_days?: number | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -4497,8 +4491,6 @@ export interface components {
         };
         /** SweepResult */
         SweepResult: {
-            /** Expired */
-            expired: number;
             /** Reordered */
             reordered: number;
         };

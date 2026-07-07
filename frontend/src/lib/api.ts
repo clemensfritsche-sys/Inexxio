@@ -150,8 +150,8 @@ class ApiClient {
     return this.get<OperatingCosts>('/api/v1/admin/operating-costs');
   }
 
-  // Lagerwartung (E): Haltbarkeit ausbuchen + Meldebestand prüfen (Auto-Nachbestellung).
-  runMaintenanceSweep(): Promise<{ expired: number; reordered: number }> {
+  // Lagerwartung (E): Meldebestand prüfen (Auto-Nachbestellung).
+  runMaintenanceSweep(): Promise<{ reordered: number }> {
     return this.post('/api/v1/erp/maintenance/sweep', {});
   }
 

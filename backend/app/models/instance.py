@@ -45,9 +45,6 @@ class Instance(Base, TimestampMixin):
     # Zeitpunkt der Freigabe (disposition → in_stock). Basis für FIFO beim Verbrauch
     # (Ressource-Schritt): ältester Freigabe-Zeitpunkt zuerst.
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Haltbarkeit (E): gesetzt bei Freigabe, wenn der Artikel eine ``shelf_life_days`` trägt.
-    # Ein abgelaufenes Teil wird beim Sweep ausgebucht (disposition → scrapped).
-    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:

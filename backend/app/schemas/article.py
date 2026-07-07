@@ -131,7 +131,6 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
-    shelf_life_days: Optional[int] = None        # Haltbarkeit in Tagen (E)
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
     procurement_mode: Optional[str] = None   # Default 'supplier'
@@ -225,7 +224,6 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E
-    shelf_life_days: Optional[int] = None        # E
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
@@ -324,7 +322,6 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
-    shelf_life_days: Optional[int] = None        # E: Haltbarkeit in Tagen
     # Beschaffungsquelle (Spezifikation) + denormalisierter Lieferantenname (Router)
     procurement_mode: str = "supplier"
     default_supplier_id: Optional[int] = None

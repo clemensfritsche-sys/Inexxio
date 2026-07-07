@@ -453,14 +453,12 @@ def release_instances(db: Session, order: Order) -> None:
                 Instance.quality == "pending", Instance.disposition == "in_process")
         .all()
     )
-    from .expiry import set_on_release
     total = ZERO
     for inst in rows:
         inst.quality = "passed"          # QC-Verdikt: freigegeben
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
             inst.released_at = now
-        set_on_release(db, inst, inst.released_at)   # Ablaufdatum (E), falls Haltbarkeit gesetzt
         total += to_qty(inst.quantity)
     # Bestands-Zugang als Domain-Event mit DEKLARIERTER Polarität festhalten – so wird
     # der Event-Strom zur ökonomischen Wahrheit (Bestand = Projektion über Events).
@@ -553,15 +551,25 @@ def _finalize_subjects(db: Session, order: Order) -> None:
     return_subjects_to_stock(db, order)
 
 
-def _spawn_recurrence(db: Session, order: Order) -> None:
+def _spawn_recurrence(db: Session, order: Order, subject_object_ids: list[int] | None = None) -> None:
     """Wiederkehrenden Auftrag fortschreiben: ist der abgeschlossene Auftrag als
     wiederkehrend markiert, wird der **nächste** (Entwurf) erzeugt – Termin =
     bisheriger Anker + Periode. Die Wiederkehr wandert auf den neuen Auftrag (Kette).
-    Kein eigenes Objekt, kein Cron – ein abgeschlossener Auftrag zieht den nächsten nach."""
+    Kein eigenes Objekt, kein Cron – ein abgeschlossener Auftrag zieht den nächsten nach.
+
+    Der Folge-Auftrag erbt zusätzlich den **individuellen Auftrags-Prozess** (die eigenen
+    Schritte werden kopiert) und – bei einem Auftrag auf **gewählte Instanzen** (z. B. die
+    zu wartende Maschine) – **dieselben Subjekt-Instanzen** (``subject_object_ids``, vor dem
+    Lösen der Bindung erfasst): sie werden auf den Kind-Auftrag gepinnt und bei dessen
+    Freigabe erneut reserviert (``subject.materialize_subject``). So läuft eine wiederkehrende
+    Wartung mit Prozess-im-Auftrag vollständig weiter, statt leer herauszukommen. Ein reiner
+    Produce-Auftrag (keine eigenen Schritte, keine gewählten Instanzen) verhält sich
+    unverändert – er fährt beim nächsten Mal wieder den Artikel-Prozess."""
     if not getattr(order, "recurrence_active", False) or not order.recurrence_interval_days:
         return
     from datetime import timedelta
 
+    from .deactivation import _copy_steps
     from .objects import next_object_id
     base = order.recurrence_anchor or (order.completed_at.date() if order.completed_at else utcnow().date())
     new_anchor = base + timedelta(days=order.recurrence_interval_days)
@@ -575,6 +583,16 @@ def _spawn_recurrence(db: Session, order: Order) -> None:
     )
     db.add(child)
     db.flush()
+    # (1) Individueller Auftrags-Prozess: die eigenen Schritte auf den Nachfolger kopieren.
+    #     Ein Auftrag ohne eigene Schritte (Erzeugung über den Artikel-Prozess) kopiert nichts.
+    _copy_steps(db, src_order_id=order.id, dst_order_id=child.id)
+    # (2) Subjekt (gewählte Instanzen, z. B. die zu wartende Maschine) mitnehmen: auf den
+    #     Kind-Auftrag pinnen – seine Freigabe reserviert sie dann erneut.
+    if subject_object_ids:
+        for inst in db.query(Instance).filter(
+            Instance.object_id.in_(subject_object_ids), Instance.is_active == True,
+        ).all():
+            inst.subject_of_order_id = child.id
     order.recurrence_active = False   # Staffelstab an den Nachfolger
     emit(db, "order.recurrence_spawned", object_type="order", object_id=child.object_id,
          payload={"parent": order.object_id})
@@ -604,6 +622,15 @@ def recompute_completion(db: Session, order: Order) -> None:
         order.status = "completed"
         if order.completed_at is None:
             order.completed_at = utcnow()
+        # Wiederkehrend: die (evtl.) gewählten Subjekt-Instanzen JETZT erfassen – bevor die
+        # Bindung unten gelöst wird – damit sie auf den Nachfolge-Auftrag wandern können
+        # (z. B. dieselbe Maschine erneut warten). Leer bei Erzeugungs-/Abo-Aufträgen.
+        recurring_subjects = (
+            [i.object_id for i in db.query(Instance).filter(
+                Instance.subject_of_order_id == order.id, Instance.is_active == True).all()
+             if i.object_id]
+            if getattr(order, "recurrence_active", False) else []
+        )
         release_instances(db, order)        # produzierte Instanzen freigeben (verbrauchbar)
         _finalize_subjects(db, order)        # Verkauf: reservierte Menge mengengenau abbuchen
         # Restliche Reservierungen dieses Auftrags lösen (Auftrag fertig): ein neutral
@@ -616,7 +643,7 @@ def recompute_completion(db: Session, order: Order) -> None:
         ).all():
             release(inst, order.id)
             inst.subject_of_order_id = None
-        _spawn_recurrence(db, order)         # wiederkehrend: nächsten Auftrag nachziehen
+        _spawn_recurrence(db, order, recurring_subjects)   # wiederkehrend: nächsten Auftrag nachziehen
         _peg_supply_to_parent(db, order)     # Nachschub: erzeugte Stück an den Eltern pinnen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
         # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: er ist jetzt nicht

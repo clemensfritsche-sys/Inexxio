@@ -91,7 +91,7 @@ class CompanySettingsResponse(BaseModel):
     shop_default_currency: str = "CHF"
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
-    # Öffentliche Rechtsdokumente (D): {"agb": <Objektnr>, "datenschutz": …}
+    # Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
     legal_documents: Optional[dict] = None
 
 

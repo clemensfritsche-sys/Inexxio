@@ -192,16 +192,18 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
           <FileText className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
           <p className="text-xs text-blue-800">
-            Objektnummer der <strong>gültigen</strong> Dokument-Instanz eintragen (aus einem Auftrag mit
-            «Dokument»-Schritt, ausgestellt). Die Website zeigt dann diese Fassung; ältere bleiben archiviert.
-            Leer = eingebauter Standardtext.
+            Objektnummer des <strong>Artikels</strong> eintragen, der das Rechtsdokument trägt (ein Artikel
+            mit «Dokument»-Prozessschritt und freigegebenem Bestand). Die Website zieht daraus die erste
+            freigegebene Fassung. Neue Fassung = Artikel «Ersetzen» – die Website folgt automatisch auf den
+            Nachfolger, sobald dieser einen freigegebenen Beleg hat; ältere bleiben archiviert. Leer =
+            eingebauter Standardtext.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="AGB · Dokumentennummer" name="legal_agb" type="number"
-            defaultValue={s.legal_documents?.agb ?? ''} placeholder="z. B. 100000123" hint="Objektnummer der AGB-Dokument-Instanz" />
-          <Field label="Datenschutz · Dokumentennummer" name="legal_datenschutz" type="number"
-            defaultValue={s.legal_documents?.datenschutz ?? ''} placeholder="z. B. 100000124" hint="Objektnummer der Datenschutz-Dokument-Instanz" />
+          <Field label="AGB · Artikelnummer" name="legal_agb" type="number"
+            defaultValue={s.legal_documents?.agb ?? ''} placeholder="z. B. 100000123" hint="Objektnummer des AGB-Artikels" />
+          <Field label="Datenschutz · Artikelnummer" name="legal_datenschutz" type="number"
+            defaultValue={s.legal_documents?.datenschutz ?? ''} placeholder="z. B. 100000124" hint="Objektnummer des Datenschutz-Artikels" />
         </div>
       </SettingsCard>
 
@@ -217,10 +219,10 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
   );
 }
 
-// ─── Lagerwartung (E): Haltbarkeit ausbuchen + Meldebestand prüfen ────────────────
+// ─── Lagerwartung (E): Meldebestand prüfen (Auto-Nachbestellung) ──────────────────
 function MaintenanceCard() {
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ expired: number; reordered: number } | null>(null);
+  const [result, setResult] = useState<{ reordered: number } | null>(null);
   const [err, setErr] = useState('');
   async function run() {
     setRunning(true); setErr(''); setResult(null);
@@ -235,9 +237,9 @@ function MaintenanceCard() {
         <h2 className="text-base font-semibold text-slate-900">Lagerwartung</h2>
       </div>
       <p className="mb-4 text-sm text-slate-600">
-        Bucht abgelaufene Bestände aus (Haltbarkeit) und prüft alle Artikel auf ihren
-        Meldebestand – fehlt Bestand, wird automatisch nachbestellt. Läuft ausserdem reaktiv bei
-        Bestandsabgängen; dieser Knopf stösst einen vollständigen Lauf sofort an.
+        Prüft alle Artikel auf ihren Meldebestand – fehlt Bestand, wird automatisch nachbestellt.
+        Läuft ausserdem reaktiv bei Bestandsabgängen; dieser Knopf stösst einen vollständigen Lauf
+        sofort an.
       </p>
       <div className="flex items-center gap-3">
         <button type="button" onClick={run} disabled={running}
@@ -247,7 +249,7 @@ function MaintenanceCard() {
         </button>
         {result && (
           <span className="text-sm text-slate-600">
-            {result.expired} ausgebucht · {result.reordered} nachbestellt
+            {result.reordered} nachbestellt
           </span>
         )}
         {err && <span className="text-sm text-red-600">{err}</span>}

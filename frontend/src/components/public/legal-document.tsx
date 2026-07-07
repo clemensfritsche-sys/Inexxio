@@ -7,12 +7,13 @@ import { DocumentView } from '@/components/erp/document-editor';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 /**
- * Öffentliche Rechtsdokument-Ansicht (D — «Zeiger, kein Ersetzen»).
+ * Öffentliche Rechtsdokument-Ansicht (D — Zeiger auf einen Artikel).
  *
- * Löst den am Unternehmen gepflegten Zeiger auf: ist eine gültige, ausgestellte
- * Dokument-Instanz für ``kind`` hinterlegt, wird sie im offiziellen Inexxio-Layout
- * (identisch zum PDF, inkl. Briefkopf) gerendert. Sonst greift der eingebaute
- * ``fallback``-Rechtstext (migrationsfreundlich, nie eine leere Seite).
+ * Löst den am Unternehmen gepflegten Artikel-Zeiger auf: trägt der hinterlegte Artikel
+ * (bzw. sein Nachfolger via «Ersetzen») eine freigegebene, ausgestellte Dokument-Instanz
+ * für ``kind``, wird sie im offiziellen Inexxio-Layout (identisch zum PDF, inkl. Briefkopf)
+ * gerendert. Sonst greift der eingebaute ``fallback``-Rechtstext (migrationsfreundlich,
+ * nie eine leere Seite).
  */
 export function LegalDocument({ kind, fallback }: { kind: string; fallback: ReactNode }) {
   const [doc, setDoc] = useState<LegalDocument | null | undefined>(undefined);   // undefined = lädt

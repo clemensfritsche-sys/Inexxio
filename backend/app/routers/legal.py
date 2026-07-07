@@ -1,9 +1,10 @@
 """Öffentliche Rechtsdokumente (AGB/Datenschutz/…) für die Website (D).
 
-Löst den am Unternehmen gepflegten **Zeiger** (``company_settings.legal_documents``) auf
-die gültige, unveränderliche Dokument-Instanz auf und liefert deren Inhalt + Nummer +
-Datum. Kein Auth (öffentliche Website-Seiten). Ist kein Zeiger gesetzt/auflösbar → 404,
-dann fällt die Website auf ihren eingebauten Rechtstext zurück.
+Löst den am Unternehmen gepflegten **Artikel-Zeiger** (``company_settings.legal_documents``)
+auf: nimmt die erste freigegebene Instanz des hinterlegten Artikels (bzw. – über die
+``replaced_by_id``-Kette – der neuesten Fassung mit freigegebenem Beleg) und liefert deren
+Inhalt + Nummer + Datum. Kein Auth (öffentliche Website-Seiten). Ist kein Zeiger gesetzt/
+auflösbar → 404, dann fällt die Website auf ihren eingebauten Rechtstext zurück.
 """
 
 from typing import Optional
