@@ -6215,6 +6215,41 @@
             ],
             "title": "Capture Fields"
           },
+          "require_signature": {
+            "type": "boolean",
+            "title": "Require Signature",
+            "default": false
+          },
+          "signer_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Ids"
+          },
+          "require_photo": {
+            "type": "boolean",
+            "title": "Require Photo",
+            "default": false
+          },
+          "photo_instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Instruction"
+          },
           "target_location_type": {
             "anyOf": [
               {
@@ -6361,6 +6396,35 @@
             "title": "Capture Fields",
             "default": []
           },
+          "require_signature": {
+            "type": "boolean",
+            "title": "Require Signature",
+            "default": false
+          },
+          "signer_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Signer Ids",
+            "default": []
+          },
+          "require_photo": {
+            "type": "boolean",
+            "title": "Require Photo",
+            "default": false
+          },
+          "photo_instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Instruction"
+          },
           "target_location_type": {
             "anyOf": [
               {
@@ -6504,6 +6568,53 @@
               }
             ],
             "title": "Capture Fields"
+          },
+          "require_signature": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Require Signature"
+          },
+          "signer_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Ids"
+          },
+          "require_photo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Require Photo"
+          },
+          "photo_instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Instruction"
           },
           "target_location_type": {
             "anyOf": [
@@ -9207,6 +9318,80 @@
             "type": "array",
             "title": "Samples",
             "default": []
+          },
+          "require_signature": {
+            "type": "boolean",
+            "title": "Require Signature",
+            "default": false
+          },
+          "signer_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Signer Ids",
+            "default": []
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
+          "signed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed By Name"
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "require_photo": {
+            "type": "boolean",
+            "title": "Require Photo",
+            "default": false
+          },
+          "photo_instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Instruction"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
           }
         },
         "type": "object",
@@ -9282,6 +9467,28 @@
               }
             ],
             "title": "Step Id"
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
           }
         },
         "type": "object",

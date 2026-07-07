@@ -137,6 +137,10 @@ class ArticleProcessStepCreate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
+    require_signature: bool = False
+    signer_ids: Optional[list[int]] = None
+    require_photo: bool = False
+    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
@@ -208,6 +212,10 @@ class ArticleProcessStepUpdate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
+    require_signature: Optional[bool] = None
+    signer_ids: Optional[list[int]] = None
+    require_photo: Optional[bool] = None
+    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
@@ -261,12 +269,21 @@ class ArticleProcessStepResponse(BaseModel):
     shared_fields: list[str] = []
     sample_percent: Optional[int] = None
     capture_fields: list[CaptureField] = []
+    require_signature: bool = False
+    signer_ids: list[int] = []
+    require_photo: bool = False
+    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: list[ResourceLineView] = []
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("signer_ids", mode="before")
+    @classmethod
+    def _signers_default(cls, v: Optional[list]) -> list[int]:
+        return [int(x) for x in v] if v else []
 
     @field_validator("shared_fields", mode="before")
     @classmethod

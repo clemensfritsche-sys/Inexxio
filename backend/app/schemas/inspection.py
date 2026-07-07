@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -34,6 +35,8 @@ class InspectionUpdate(BaseModel):
     samples: list[InspectionSample] = []
     note: Optional[str] = None
     step_id: Optional[int] = None   # konkrete Schritt-Definition (Mehr-Operationen-Routing)
+    signature_url: Optional[str] = None   # digitale Unterschrift (Bild-URL), falls Freigabe verlangt
+    photo_url: Optional[str] = None       # Schritt-Foto («Bilderfassung»), falls verlangt
 
 
 class InspectionEmbed(BaseModel):
@@ -53,6 +56,16 @@ class InspectionEmbed(BaseModel):
     inspector_name: Optional[str] = None
     fields: list[CaptureField] = []     # Maske (aus der Prozessdefinition)
     samples: list[InspectionSample] = []  # konkrete Stichproben (Instanz + erfasste Werte)
+
+    # Freigabe/Unterschrift + Bilderfassung (Konfiguration aus der Definition + erfasste Werte).
+    require_signature: bool = False
+    signer_ids: list[int] = []          # zugelassene Unterzeichner (Objektnummern); leer = jede/r
+    signature_url: Optional[str] = None
+    signed_by_name: Optional[str] = None
+    signed_at: Optional[datetime] = None
+    require_photo: bool = False
+    photo_instruction: Optional[str] = None
+    photo_url: Optional[str] = None
 
     @field_validator("samples", mode="before")
     @classmethod

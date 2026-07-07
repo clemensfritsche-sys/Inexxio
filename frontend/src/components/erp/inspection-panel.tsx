@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanLine } from 'lucide-react';
-import { api } from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanLine, Camera, PenLine } from 'lucide-react';
+import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { Label, PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
+import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
 
 type Val = string | number | boolean | undefined;
@@ -61,6 +62,19 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scan = useScan();
+
+  // Bilderfassung + Freigabe/Unterschrift (Konfiguration aus der Definition).
+  const requirePhoto = insp?.require_photo ?? false;
+  const photoInstruction = insp?.photo_instruction ?? '';
+  const requireSig = insp?.require_signature ?? false;
+  const signerIds = insp?.signer_ids ?? [];
+  const [stepPhoto, setStepPhoto] = useState<string[]>(() => (insp?.photo_url ? [insp.photo_url] : []));
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(insp?.signature_url ?? null);
+  const [myObjId, setMyObjId] = useState<number | null>(null);
+  useEffect(() => { api.getMe().then((u) => setMyObjId(u.object_id ?? null)).catch(() => {}); }, []);
+  const canSign = signerIds.length === 0 || (myObjId != null && signerIds.includes(myObjId));
+  const photoReady = !requirePhoto || stepPhoto.length > 0;
+  const sigReady = !requireSig || !!signatureUrl;
   // Datenerfassung Instanz für Instanz: erst scannen (richtiges Teil?), dann erfassen,
   // dann die nächste. `unlocked` = bereits gescannte (freigeschaltete) Instanzen.
   const [unlocked, setUnlocked] = useState<number[]>([]);
@@ -109,6 +123,8 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
         samples: payload, note: null, step_id: stepId ?? null,
+        photo_url: requirePhoto ? (stepPhoto[0] ?? null) : null,
+        signature_url: requireSig ? signatureUrl : null,
       }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -193,15 +209,68 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         </div>
       )}
 
+      {/* Bilderfassung + Freigabe/Unterschrift (falls für diesen Schritt verlangt) */}
+      {(requirePhoto || requireSig) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
+          {requirePhoto && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+                <Camera size={14} /> Bilderfassung
+                {photoInstruction && <span style={{ fontWeight: 500, color: '#64748b' }}>· {photoInstruction}</span>}
+              </div>
+              {done ? (
+                insp?.photo_url ? (
+                  <a href={attachmentUrl(insp.photo_url)} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={attachmentUrl(insp.photo_url)} alt="Foto" style={{ height: 76, borderRadius: 8, border: '1px solid #e2e8f0', objectFit: 'cover' }} />
+                  </a>
+                ) : <span style={{ fontSize: 12, color: '#94a3b8' }}>—</span>
+              ) : (
+                <PhotoCapture value={stepPhoto} onChange={setStepPhoto} max={1} />
+              )}
+            </div>
+          )}
+          {requireSig && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
+                <PenLine size={14} /> Freigabe / Unterschrift
+              </div>
+              {done ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {insp?.signature_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={attachmentUrl(insp.signature_url)} alt="Unterschrift" style={{ height: 54, maxWidth: 220, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 8, padding: 4, background: '#fff' }} />
+                  )}
+                  {insp?.signed_by_name && <span style={{ fontSize: 12, color: '#64748b' }}>Freigegeben von {insp.signed_by_name}</span>}
+                </div>
+              ) : !canSign ? (
+                <div style={{ fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Lock size={13} /> Nur zugewiesene Personen dürfen freigeben – bitte mit einer berechtigten Person anmelden.
+                </div>
+              ) : (
+                <SignaturePad value={signatureUrl} onChange={setSignatureUrl}
+                  signerHint={signerIds.length > 0 ? 'Sie sind für die Freigabe berechtigt.' : undefined} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
-      {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind */}
+      {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind (+ Foto/Unterschrift falls verlangt) */}
       {!done && allUnlocked && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
             {allOk ? <CheckCircle2 size={14} /> : <XCircle size={14} />} Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}
           </span>
-          <PrimaryButton icon={CheckCircle2} tone={allOk ? 'success' : 'primary'} onClick={submit} disabled={saving}>
+          {(!photoReady || !sigReady) && (
+            <span style={{ fontSize: 11.5, color: '#b45309' }}>
+              {!photoReady ? 'Bitte das verlangte Foto aufnehmen. ' : ''}{!sigReady ? 'Bitte mit einer Unterschrift freigeben.' : ''}
+            </span>
+          )}
+          <PrimaryButton icon={CheckCircle2} tone={allOk ? 'success' : 'primary'} onClick={submit}
+            disabled={saving || !photoReady || !sigReady || (requireSig && !canSign)}>
             {saving ? 'Speichert…' : 'Erfassung abschliessen'}
           </PrimaryButton>
         </div>

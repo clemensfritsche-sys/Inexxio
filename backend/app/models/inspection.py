@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, Integer, String, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Integer, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -40,3 +41,9 @@ class Inspection(Base, TimestampMixin):
     # Auf 100 %-Prüfung hochgestuft (eine Stichprobe war ungenügend)
     escalated: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False)
+
+    # Freigabe/Unterschrift (Bild-URL + wer + wann) und Schritt-Foto («Bilderfassung»).
+    signature_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    signed_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    photo_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
