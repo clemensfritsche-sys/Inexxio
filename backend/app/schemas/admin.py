@@ -45,6 +45,7 @@ class CompanySettingsUpdate(BaseModel):
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
     legal_documents: Optional[dict] = None
+    legal_ack_config: Optional[dict] = None
 
 
 class CompanySettingsResponse(BaseModel):
@@ -93,6 +94,8 @@ class CompanySettingsResponse(BaseModel):
     pricing_zone_factors: Optional[dict] = None
     # Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
     legal_documents: Optional[dict] = None
+    # Bestätigungspflicht je Dokument-Art: {"agb": ["all"], …} (Consent-Gate)
+    legal_ack_config: Optional[dict] = None
 
 
 class UserProfileResponse(BaseModel):

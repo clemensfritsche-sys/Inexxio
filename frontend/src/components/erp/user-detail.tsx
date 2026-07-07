@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag, FolderOpen } from 'lucide-react';
+import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag, FolderOpen, Link2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import type { UserProfile, CustomerOrder } from '@/types';
 
-type UserTab = 'profil' | 'orders' | 'docs';
+type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
 import type { StatusCfg } from '@/lib/status-flow';
 import { localDate } from '@/lib/utils';
 
@@ -331,6 +332,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
         <DetailTabs<UserTab> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={[
           { key: 'profil', label: 'Profil', icon: User },
           { key: 'orders', label: 'Bestellungen', icon: ShoppingBag },
+          { key: 'verwendung', label: 'Verwendung', icon: Link2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </div>
@@ -339,6 +341,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'profil' && <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
+        {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />}
       </div>
 

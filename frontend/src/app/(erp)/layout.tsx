@@ -8,6 +8,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { ScanProvider } from '@/components/scan/scan-provider';
 import { AiAssistant } from '@/components/ai/assistant';
+import { ConsentGate } from '@/components/consent/consent-gate';
 
 const ROLE_KEY = 'inexxio_user_role';
 
@@ -70,6 +71,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <AiAssistant context="ERP" />
+      <ConsentGate />
     </ScanProvider>
   );
 }

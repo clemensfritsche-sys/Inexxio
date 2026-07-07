@@ -302,11 +302,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Auftrag-Stepper** über alle Schritte (Schlüssel = Schritt-id, mehrere gleichartige möglich) + Panel
   des gewählten Schritts (Beschaffung/Datenerfassung/Bewegung/Ressource); Lieferant sieht nur die
   Beschaffung seiner Aufträge.
-- **Standorte**: jede Instanz hat **IMMER** einen Standort – **nie standortlos**. Neue Instanzen starten
-  bei der Freigabe beim **Lieferanten** (Beschaffung mit Lieferant), sonst beim **Unternehmen selbst**
-  (`location_type='company'` + Firmen-Objektnummer, `serialization._initial_location`; früher `NULL`).
-  «company» ist nur Start-Standort, **nie Bewegungsziel** (`LOCATION_TYPES` bleibt lagerplatz/user/instance;
-  Anzeige via `locations.location_labels`). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
+- **Standorte**: eine Instanz **kann** einen Standort haben – **standortlos ist erlaubt** (kein
+  erzwungener Firmen-Default mehr; `serialization._initial_location` gibt `NULL` zurück, ausser die
+  Lieferanten-Beschaffung ist der erste Schritt → Start beim **Lieferanten**). Den realen Ort setzt der
+  erste Bewegungs-Schritt. `LOCATION_TYPES` = lagerplatz/user/instance (Anzeige via
+  `locations.location_labels`, NULL toleriert). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
   ganzzahlig – Bruchmengen für kg/m²/l/m³ wären ein separater Decimal-Umbau der Bestands-Engine).
   Beim **Wareneingang («received»)** gibt der Besteller den **aktuellen Lagerort verpflichtend** an
   (`purchase_orders.receiving_location_id`); fehlt eine Vorgabe, wird automatisch ein Lagerplatz
@@ -315,6 +315,25 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
   Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
+- **Generischer Rückverweis «wer zeigt auf mich» je Objektnummer** (`services/references.object_references`,
+  `GET /erp/objects/{id}/references`): was aktuell an einer Objektnummer **verortet** ist (`instances.
+  location_id == id`, ohne Typ-Filter – Objektnummern sind global eindeutig) + referenzierende
+  Prozessschritte. Reiter **«Verwendung»** generisch an Benutzer/Instanz/Lagerplatz (Frontend
+  `components/erp/object-references.tsx`); `storage_location_references` delegiert darauf. AGB/Datenschutz-
+  Artikelnummer wird auch **am ERP-Unternehmens-Datensatz** gepflegt (`organization-detail`, Sektion
+  «AGB & Datenschutz»), nicht nur Admin → Einstellungen.
+- **Consent-Gate: versionierte Bestätigung von Pflichtdokumenten** (`services/consent.py`,
+  `routers/consent.py`, `models/document_acknowledgement.py`, Migration 064): AGB/Datenschutz/… müssen
+  aktiv bestätigt werden, wenn eine neue Fassung erscheint. Die **Version** ist die Objektnummer der
+  gültigen Dokument-Instanz (`legal.resolve` folgt der Artikel-/`replaced_by_id`-Kette). Am Unternehmen
+  legt `company_settings.legal_ack_config` (`{kind: [Rollen]}`, `"all"` = jede Rolle) fest, welche Arten
+  von WEM bestätigt werden müssen – gilt für **alle** angemeldeten Rollen (Mitarbeiter, **Lieferant**,
+  Kunde, Admin; Endpunkte an `get_current_user`). Wer welche Version wann bestätigt hat, liegt append-only
+  in `document_acknowledgements` (Nachweis CH DSG/DSGVO; AGB spiegelt weiterhin `terms_accepted_at`).
+  `GET /consent/pending` liefert offene Bestätigungen (inkl. gerendertem Inhalt), `POST /consent/acknowledge`
+  quittiert. Frontend: **blockierendes Modal** `components/consent/consent-gate.tsx` (in ERP-, Konto- und
+  Public/Shop-Layout gemountet, self-contained via `onAuthChange`) – zeigt je ein Dokument mit «gelesen +
+  akzeptieren», bis nichts mehr offen ist. Konfiguration am Unternehmens-Datensatz (Checkbox je Typ).
 - **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
   (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
   `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System

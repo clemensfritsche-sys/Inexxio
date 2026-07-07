@@ -1,17 +1,17 @@
 """Standorte für Instanzen (Prozessschritt «Bewegung»).
 
-Eine Instanz hat IMMER einen Standort, und ein Standort ist stets ein
-Datensatzobjekt mit 9-stelliger Nummer:
+Eine Instanz **kann** einen Standort haben (sie darf auch standortlos sein, ``NULL`` =
+«noch nicht festgelegt»); ist einer gesetzt, ist er stets ein Datensatzobjekt mit
+9-stelliger Nummer:
 
     lagerplatz → StorageLocation
     user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
     instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
 
-Bei der Auftragsfreigabe erhält jede neue Instanz einen Startstandort: beginnt der
-Prozess mit einer Lieferanten-Beschaffung, startet sie **beim Lieferanten**, sonst
-ohne Standort (``NULL`` = «noch nicht festgelegt», siehe ``services/serialization.py``).
-Den realen Ort setzt der erste Bewegungs-Schritt; die Vorgabe-Lieferadresse steht in
-``company_settings.default_receiving_location_id`` (Anzeige im Beschaffungs-Embed).
+Bei der Auftragsfreigabe startet eine Instanz beim **Lieferanten** (Lieferanten-
+Beschaffung als erster Schritt) oder **ohne Standort** (siehe
+``services/serialization.py``). Den realen Ort setzt der erste Bewegungs-Schritt; die
+Vorgabe-Lieferadresse steht in ``company_settings.default_receiving_location_id``.
 """
 
 from fastapi import HTTPException

@@ -25,7 +25,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
-  legal_documents: null,
+  legal_documents: null, legal_ack_config: null,
 };
 
 export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {
@@ -186,7 +186,7 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         </div>
       </SettingsCard>
 
-      <SettingsCard icon={<FileText className="h-5 w-5" />} title="Rechtstexte (öffentliche Dokumente)"
+      <SettingsCard icon={<FileText className="h-5 w-5" />} title="AGB & Datenschutz (Website-Rechtstexte)"
         saved={saved === 'legal_docs'} saving={saving === 'legal_docs'}
         onSave={(d) => saveSection('legal_docs', { legal_documents: buildLegalDocs(d, s.legal_documents) })}>
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">

@@ -77,3 +77,11 @@ class CompanySettings(Base):
     # Kette automatisch auf die neueste Fassung mit freigegebenem Beleg; alte Fassungen
     # bleiben über ihre Instanz-Objektnummer archiviert (``services/legal.py``).
     legal_documents: Mapped[Optional[dict]] = mapped_column(JSONB)
+
+    # ── Bestätigungspflicht je Rechtsdokument (Consent-Gate) ────────────────────────
+    # Welche ``legal_documents``-Arten aktiv **bestätigt** werden müssen (blockierendes
+    # Pop-up bei neuer Fassung) und von WEM. Map ``{"agb": ["all"], "supplier_terms":
+    # ["supplier"]}`` – Wert = Rollen (``"all"`` = jede angemeldete Rolle). Fehlt eine Art
+    # hier, ist sie rein informativ (kein Zwang). Die „Version" ist die aktuell gültige
+    # Dokument-Instanz (``legal.resolve``); pro Nutzer/Version in ``document_acknowledgements``.
+    legal_ack_config: Mapped[Optional[dict]] = mapped_column(JSONB)

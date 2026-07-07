@@ -18,6 +18,7 @@ from .movement import Movement
 from .disposal import Disposal
 from .resource_usage import ResourceUsage
 from .document import Document
+from .document_acknowledgement import DocumentAcknowledgement
 from .document_file import DocumentFile
 from .document_link import DocumentLink
 from .document_blob import DocumentBlob
@@ -33,6 +34,7 @@ __all__ = [
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
-    "Document", "DocumentFile", "DocumentLink", "DocumentBlob", "Attachment", "StorageLocation",
+    "Document", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
+    "Attachment", "StorageLocation",
     "AiAction", "AuditLog", "Event", "ObjectRef",
 ]

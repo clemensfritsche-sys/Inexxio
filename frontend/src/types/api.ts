@@ -56,6 +56,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/consent/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pending
+         * @description Noch zu bestätigende Pflichtdokumente des aktuellen Nutzers (aktuelle Version).
+         */
+        get: operations["list_pending_api_v1_consent_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/consent/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge
+         * @description Ein Dokument bestätigen; liefert die **verbleibenden** offenen Bestätigungen zurück.
+         */
+        post: operations["acknowledge_api_v1_consent_acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/contact": {
         parameters: {
             query?: never;
@@ -972,6 +1012,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/objects/{object_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Object References
+         * @description Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.
+         */
+        get: operations["list_object_references_api_v1_erp_objects__object_id__references_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/storage-locations": {
         parameters: {
             query?: never;
@@ -1727,6 +1787,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcknowledgeRequest */
+        AcknowledgeRequest: {
+            /** Kind */
+            kind: string;
+        };
         /** AiChatMessage */
         AiChatMessage: {
             /**
@@ -2455,6 +2520,8 @@ export interface components {
             pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
+            /** Legal Ack Config */
+            legal_ack_config?: Record<string, never> | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -2534,6 +2601,8 @@ export interface components {
             pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
+            /** Legal Ack Config */
+            legal_ack_config?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -3690,6 +3759,21 @@ export interface components {
             result: string;
         };
         /**
+         * PendingDocument
+         * @description Ein noch zu bestätigendes Dokument für den aktuellen Nutzer (Consent-Gate).
+         */
+        PendingDocument: {
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Object Number */
+            object_number?: number | null;
+            /** Document Date */
+            document_date?: string | null;
+            content?: components["schemas"]["DocumentContent"] | null;
+        };
+        /**
          * PriceView
          * @description Berechneter Anzeige-Preis (eine Währung) – Ergebnis der Preis-Pipeline.
          */
@@ -4814,6 +4898,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfileResponse"];
+                };
+            };
+        };
+    };
+    list_pending_api_v1_consent_pending_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDocument"][];
+                };
+            };
+        };
+    };
+    acknowledge_api_v1_consent_acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcknowledgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingDocument"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6621,6 +6758,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceOrderRef"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_object_references_api_v1_erp_objects__object_id__references_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectReference"][];
                 };
             };
             /** @description Validation Error */

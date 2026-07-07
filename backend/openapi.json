@@ -120,6 +120,88 @@
         ]
       }
     },
+    "/api/v1/consent/pending": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "List Pending",
+        "description": "Noch zu bestätigende Pflichtdokumente des aktuellen Nutzers (aktuelle Version).",
+        "operationId": "list_pending_api_v1_consent_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PendingDocument"
+                  },
+                  "type": "array",
+                  "title": "Response List Pending Api V1 Consent Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/consent/acknowledge": {
+      "post": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Acknowledge",
+        "description": "Ein Dokument bestätigen; liefert die **verbleibenden** offenen Bestätigungen zurück.",
+        "operationId": "acknowledge_api_v1_consent_acknowledge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PendingDocument"
+                  },
+                  "type": "array",
+                  "title": "Response Acknowledge Api V1 Consent Acknowledge Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/contact": {
       "post": {
         "tags": [
@@ -3075,6 +3157,58 @@
         }
       }
     },
+    "/api/v1/erp/objects/{object_id}/references": {
+      "get": {
+        "tags": [
+          "objects"
+        ],
+        "summary": "List Object References",
+        "description": "Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.",
+        "operationId": "list_object_references_api_v1_erp_objects__object_id__references_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ObjectReference"
+                  },
+                  "title": "Response List Object References Api V1 Erp Objects  Object Id  References Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/storage-locations": {
       "get": {
         "tags": [
@@ -5211,6 +5345,19 @@
   },
   "components": {
     "schemas": {
+      "AcknowledgeRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "AcknowledgeRequest"
+      },
       "AiChatMessage": {
         "properties": {
           "role": {
@@ -7698,6 +7845,17 @@
               }
             ],
             "title": "Legal Documents"
+          },
+          "legal_ack_config": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Ack Config"
           }
         },
         "type": "object",
@@ -8161,6 +8319,17 @@
               }
             ],
             "title": "Legal Documents"
+          },
+          "legal_ack_config": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Ack Config"
           }
         },
         "type": "object",
@@ -11313,6 +11482,58 @@
           "sale_token"
         ],
         "title": "PaymentSimulate"
+      },
+      "PendingDocument": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title"
+        ],
+        "title": "PendingDocument",
+        "description": "Ein noch zu bestätigendes Dokument für den aktuellen Nutzer (Consent-Gate)."
       },
       "PriceView": {
         "properties": {

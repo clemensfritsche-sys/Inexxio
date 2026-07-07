@@ -124,6 +124,9 @@ export interface LegalDocument {
   document_date: string | null;
   content: DocumentContent | null;
 }
+
+// Zu bestätigendes Pflichtdokument (Consent-Gate) – versioniert über die Objektnummer.
+export type PendingDocument = components['schemas']['PendingDocument'];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];
@@ -548,7 +551,9 @@ export interface CompanySettings {
   shop_default_currency: string;
   payments_provider: string | null;
   pricing_zone_factors: Record<string, number> | null;
-  // Öffentliche Rechtsdokumente (D): {"agb": <Objektnr>, "datenschutz": …}
+  // Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
   legal_documents: Record<string, number> | null;
+  // Bestätigungspflicht je Dokument-Art (Consent-Gate): {"agb": ["all"], …}
+  legal_ack_config: Record<string, string[]> | null;
 }
 

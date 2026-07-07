@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { AiAssistant } from '@/components/ai/assistant';
+import { ConsentGate } from '@/components/consent/consent-gate';
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -46,6 +47,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       </main>
       <Footer />
       <AiAssistant context="Kundenkonto" />
+      <ConsentGate />
     </>
   );
 }

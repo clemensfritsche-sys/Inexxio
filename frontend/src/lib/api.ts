@@ -4,6 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
+  PendingDocument,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -115,6 +116,16 @@ class ApiClient {
 
   updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
     return this.patch('/api/v1/auth/me', data);
+  }
+
+  // ─── Consent-Gate: zu bestätigende Pflichtdokumente ─────────────────────────
+  getPendingDocuments(): Promise<PendingDocument[]> {
+    return this.get('/api/v1/consent/pending');
+  }
+
+  // Ein Dokument bestätigen; liefert die verbleibenden offenen Bestätigungen zurück.
+  acknowledgeDocument(kind: string): Promise<PendingDocument[]> {
+    return this.post('/api/v1/consent/acknowledge', { kind });
   }
 
   // ─── Admin: Users ──────────────────────────────────────────────────────────
@@ -487,6 +498,11 @@ class ApiClient {
     return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
   }
 
+  // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).
+  getObjectReferences(objectId: number): Promise<ObjectReference[]> {
+    return this.get(`/api/v1/erp/objects/${objectId}/references`);
+  }
+
   // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
   // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
 
@@ -661,6 +677,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     payments_provider: (s.payments_provider as string | null) ?? null,
     pricing_zone_factors: (s.pricing_zone_factors as Record<string, number> | null) ?? null,
     legal_documents: (s.legal_documents as Record<string, number> | null) ?? null,
+    legal_ack_config: (s.legal_ack_config as Record<string, string[]> | null) ?? null,
   };
 }
 

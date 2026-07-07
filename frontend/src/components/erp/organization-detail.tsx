@@ -56,6 +56,33 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
     } finally { setSaving(false); }
   }
 
+  // Rechtstexte-Zeiger (kind → Artikelnummer) + Bestätigungspflicht (kind → Rollen).
+  const legalDocs: Record<string, number> =
+    (('legal_documents' in form ? form.legal_documents : base.legal_documents) as Record<string, number> | null | undefined) ?? {};
+  function setLegal(kind: 'agb' | 'datenschutz') {
+    return (val: string | boolean) => {
+      const raw = String(val ?? '').trim();
+      const n = Number(raw);
+      const next: Record<string, number> = { ...legalDocs };
+      if (raw && Number.isFinite(n) && n > 0) next[kind] = Math.trunc(n);
+      else delete next[kind];
+      setForm((prev) => ({ ...prev, legal_documents: next }));
+      setDirty(true);
+    };
+  }
+  const ackConfig: Record<string, string[]> =
+    (('legal_ack_config' in form ? form.legal_ack_config : base.legal_ack_config) as Record<string, string[]> | null | undefined) ?? {};
+  function setAck(kind: 'agb' | 'datenschutz') {
+    return (val: string | boolean) => {
+      const on = val === true || val === 'true';
+      const next: Record<string, string[]> = { ...ackConfig };
+      if (on) next[kind] = ['all'];
+      else delete next[kind];
+      setForm((prev) => ({ ...prev, legal_ack_config: next }));
+      setDirty(true);
+    };
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header – analog zur Benutzer-Detailseite */}
@@ -139,6 +166,13 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="Plausible Domain" val={v('plausible_domain')} onChange={set('plausible_domain')} />
           <Field label="hCaptcha Site Key" val={v('hcaptcha_site_key')} onChange={set('hcaptcha_site_key')} />
           <Field label="Google Maps API Key" val={v('google_maps_api_key')} onChange={set('google_maps_api_key')} span2 />
+        </Sec>
+
+        <Sec title="AGB & Datenschutz (Website-Rechtstexte)" editable icon={FileText}>
+          <Field label="AGB · Artikelnummer" val={legalDocs.agb != null ? String(legalDocs.agb) : ''} onChange={setLegal('agb')} />
+          <Field label="AGB muss bestätigt werden (alle Rollen)" val={!!ackConfig.agb} onChange={setAck('agb')} type="check" />
+          <Field label="Datenschutz · Artikelnummer" val={legalDocs.datenschutz != null ? String(legalDocs.datenschutz) : ''} onChange={setLegal('datenschutz')} />
+          <Field label="Datenschutz muss bestätigt werden (alle Rollen)" val={!!ackConfig.datenschutz} onChange={setAck('datenschutz')} type="check" />
         </Sec>
 
         <CostOverview />
