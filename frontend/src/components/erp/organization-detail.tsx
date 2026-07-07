@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins } from 'lucide-react';
+import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs } from '@/components/erp/detail-tabs';
+
+type OrgTab = 'stamm' | 'docs';
 
 /**
  * Detailansicht des **Unternehmens** als vollwertiger ERP-Datensatz – im **gleichen
@@ -23,6 +26,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<OrgTab>('stamm');
 
   useEffect(() => {
     setForm({}); setDirty(false); setError(null);
@@ -75,10 +79,16 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
             <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id)}</div>
           </div>
         </div>
+        <DetailTabs<OrgTab> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={[
+          { key: 'stamm', label: 'Stammdaten', icon: Building2 },
+          { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+        ]} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+        {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
+        {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>
           <Field label="Firmenname" val={v('company_name')} onChange={set('company_name')} span2 />
           <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />
@@ -132,11 +142,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         </Sec>
 
         <CostOverview />
-
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-          <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />
-        </div>
-
+        </>)}
       </div>
 
       {/* Speicherleiste – analog zur Benutzer-Detailseite */}

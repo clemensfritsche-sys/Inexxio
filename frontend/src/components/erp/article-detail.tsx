@@ -18,14 +18,15 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, ErrorText, SaveIndicator, SearchSelect } from '@/components/erp/fields';
+import { Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { cn, formatAmount as fmtChf, localDate, userDisplayName } from '@/lib/utils';
+import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -347,18 +348,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 2, marginTop: 16 }}>
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            const Icon = t.icon;
-            return (
-              <button key={t.key} onClick={() => setTab(t.key)} className={cn('erp-tab', active && 'erp-tab-active')}>
-                <Icon size={15} /> {t.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Tabs (einheitliche Optik über alle Datensätze) */}
+        <DetailTabs<TabKey> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={TABS} />
       </div>
 
       {/* Content */}
@@ -397,20 +388,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
                 <SpecSection icon={ShoppingCart} title="Beschaffung" last
                   right={<SectionAddButton keys={SEC_BESCH} added={added} onAdd={addField} />}>
-                  {/* Bezugsquelle gehört zur Spezifikation – der Beschaffungs-Prozessschritt erbt sie. */}
-                  <IconPick label="Bezugsquelle" value={form.procurement_mode} onChange={(v) => set('procurement_mode', v)} options={PROC_PICK} />
-                  {form.procurement_mode === 'webshop' ? (
-                    <EditField label="Beschaffungs-Link" value={form.default_webshop_url} onChange={(v) => set('default_webshop_url', v)} placeholder="https://shop.example.com/artikel" hint="Wird bei der Bestellung übernommen – am Schritt überschreibbar" />
-                  ) : (
-                    <div>
-                      <Label>Lieferant</Label>
-                      <SearchSelect value={form.default_supplier_id} onChange={(v) => set('default_supplier_id', v)}
-                        options={[{ value: '', label: '— kein Lieferant (später) —' },
-                          ...suppliers.map((s) => ({ value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` }))]}
-                        placeholder="Lieferant wählen" />
-                      <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>Standard-Lieferant – der Beschaffungs-Schritt erbt ihn (überschreibbar)</div>
-                    </div>
-                  )}
+                  {/* Bezugsquelle & Lieferant werden AUSSCHLIESSLICH im Beschaffungs-Prozessschritt
+                      gepflegt (one single source of truth) – hier nur reine Artikel-Attribute. */}
+                  <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
+                    Bezugsquelle &amp; Lieferant legst du im Reiter «Prozess» am Beschaffungs-Schritt fest.
+                  </div>
                   <EditField label="Bestellnummer" value={form.supplier_article_number} onChange={(v) => set('supplier_article_number', v)} placeholder="Artikelnummer des Lieferanten" />
                   <EditField label="CAD-/Onshape-Link" value={form.cad_url} onChange={(v) => set('cad_url', v)} placeholder="https://cad.onshape.com/…" />
                   {!isCreate && record!.lead_time_days_low != null && (
@@ -592,12 +574,6 @@ const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
   { value: 'batch', label: 'Batch', icon: Layers },
 ];
-// Bezugsquelle des Artikels (Spezifikation) – vom Beschaffungs-Prozessschritt geerbt.
-const PROC_PICK = [
-  { value: 'supplier', label: 'Lieferant', icon: Truck },
-  { value: 'webshop', label: 'Webshop', icon: Link2 },
-];
-
 const SPEC = {
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '28px 30px' } as React.CSSProperties,
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '26px 44px' } as React.CSSProperties,
@@ -789,9 +765,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
-  const isWebshop = record.procurement_mode === 'webshop';
-  const hasSource = isWebshop ? !!record.default_webshop_url : !!record.default_supplier_id;
-  const hasProcurement = hasSource || has('supplier_article_number') || has('cad_url') || has('min_order_qty')
+  const hasProcurement = has('supplier_article_number') || has('cad_url') || has('min_order_qty')
     || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
   return (
     <div style={SPEC.card}>
@@ -813,10 +787,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight }: {
       )}
       {hasProcurement && (
         <SpecSection icon={ShoppingCart} title="Beschaffung" last>
-          {isWebshop
-            ? (record.default_webshop_url && <ReadField icon={Link2} label="Beschaffungs-Link" link={record.default_webshop_url} full />)
-            : (record.default_supplier_id && <ReadField icon={Truck} label="Lieferant"
-                value={record.default_supplier_name ? `${fmtObjId(record.default_supplier_object_id)} · ${record.default_supplier_name}` : fmtObjId(record.default_supplier_object_id)} />)}
           {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
           {record.lead_time_days_low != null && <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record)} autoHint="Automatisch aus vorherigen Lieferungen" />}
           {record.landed_unit_cost != null && <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record.landed_unit_cost)} unit="CHF" mono />}

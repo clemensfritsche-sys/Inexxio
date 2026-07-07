@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2 } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -25,7 +25,10 @@ import { SalePanel } from '@/components/erp/sale-panel';
 import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs } from '@/components/erp/detail-tabs';
 import { localDate } from '@/lib/utils';
+
+type OrderTab = 'auftrag' | 'docs';
 
 type ViewerRole = 'staff' | 'supplier';
 
@@ -113,6 +116,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const [statusBusy, setStatusBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
+  const [tab, setTab] = useState<OrderTab>('auftrag');
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
@@ -509,6 +513,13 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
+        {/* Reiter (nur Personal, nur bei bestehendem Auftrag): Dokumente-Reiter dazu. */}
+        {isStaff && !isCreate && (
+          <DetailTabs<OrderTab> style={{ marginTop: 10 }} active={tab} onChange={setTab} tabs={[
+            { key: 'auftrag', label: 'Auftrag', icon: ClipboardList },
+            { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+          ]} />
+        )}
       </div>
 
       {/* Content */}
@@ -517,6 +528,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        {tab === 'docs' && !isCreate ? (
+          <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
+        ) : (<>
         {!isCreate && record.abort_into_id != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
             <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
@@ -907,13 +921,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           </>
         ) : null}
 
-        {/* Dokumente – Belege/Lieferscheine/Rechnungen zu diesem Auftrag (KI-Aufnahme)
-            + im Prozess erzeugte Dokumente. Nur Personal, nur bei bestehendem Auftrag. */}
-        {!isCreate && isStaff && (
-          <div style={{ marginTop: 20 }}>
-            <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
-          </div>
-        )}
+        </>)}
       </div>
 
       {/* Meta footer (edit only) */}
