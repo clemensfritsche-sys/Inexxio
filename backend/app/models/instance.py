@@ -27,10 +27,7 @@ class Instance(Base, TimestampMixin):
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, nullable=True, index=True)
 
     article_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
-    # Herkunfts-Auftrag. Nullable, weil eine **Lagerplatz-Instanz** (``articles.is_location``,
-    # disposition='location') KEINEN Auftrag hat – sie ist ein Ort, kein Erzeugnis. Bestands-
-    # Instanzen entstehen weiterhin unter einem Auftrag bei dessen Freigabe.
-    order_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    order_id: Mapped[int] = mapped_column(BigInteger, index=True, nullable=False)
 
     kind: Mapped[str] = mapped_column(String(10), default="unit", nullable=False)   # unit | batch
     # Menge als Dezimalzahl (NUMERIC(14,3)): ein Einzelteil trägt 1, eine Charge die

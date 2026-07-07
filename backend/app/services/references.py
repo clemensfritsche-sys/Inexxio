@@ -103,35 +103,34 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
     return out
 
 
-def object_references(db: Session, object_id: int) -> list[dict]:
-    """**Wer zeigt auf diese Objektnummer?** – generisch für JEDEN Objekttyp (Lagerplatz,
-    Person, Behälter-/Standort-Instanz, Unternehmen). Weil Objektnummern global eindeutig sind,
-    identifiziert ``location_id == object_id`` den Standort zweifelsfrei – ohne Typ-Filter:
-
-    * **verortete Instanzen** – alles, was aktuell an dieser Objektnummer liegt (bei einer
-      Person gehaltene Teile, in einem Behälter/Lagerplatz gelagerte Instanzen …);
-    * **Prozessschritte**, die sie als Ziel/Lieferadresse referenzieren (Artikel-Prozess).
-
-    Neueste zuerst. EIN Query je Bezugsart (kein N+1). Andere Rückverweis-Arten (z. B.
-    Auftrags-Historie einer Instanz) laufen bewusst über ``instance_orders``."""
+def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
+    """Verwendung eines Lagerplatzes: aktuell lagernde Instanzen + Artikel, deren
+    Prozessschritte hierher referenzieren (Lieferadresse/Bewegungsziel), neueste zuerst."""
+    lid = loc.object_id
     refs: list[dict] = []
+
+    # Aktuell hier lagernde Instanzen (mit Artikelbezug)
     insts = (
         db.query(Instance)
-        .filter(Instance.is_active == True, Instance.location_id == object_id)
+        .filter(Instance.is_active == True, Instance.location_type == "lagerplatz",
+                Instance.location_id == lid)
         .all()
     )
+    # Artikel-Prozessschritte, die diesen Lagerplatz als Ziel referenzieren
     steps = (
         db.query(ArticleProcessStep)
         .filter(ArticleProcessStep.is_active == True,
-                ArticleProcessStep.target_location_id == object_id)
+                ArticleProcessStep.target_location_type == "lagerplatz",
+                ArticleProcessStep.target_location_id == lid)
         .all()
     )
+    # Artikel BATCH laden (vorher ein Query je Instanz UND je Schritt, N+1)
     art_ids = {i.article_id for i in insts} | {s.article_id for s in steps if s.article_id}
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
     for i in insts:
         art = arts.get(i.article_id)
         name = art.name if art else "Instanz"
-        refs.append({"kind": f"{name} · verortet", "ref_type": "instance",
+        refs.append({"kind": f"{name} · lagernd", "ref_type": "instance",
                      "object_id": i.object_id, "label": _obj_nr(i.object_id or 0),
                      "at": i.updated_at})
 
@@ -146,8 +145,3 @@ def object_references(db: Session, object_id: int) -> list[dict]:
 
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs
-
-
-def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
-    """Verwendung eines Lagerplatzes = generischer Rückverweis auf seine Objektnummer."""
-    return object_references(db, loc.object_id)

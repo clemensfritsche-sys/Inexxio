@@ -42,7 +42,6 @@ export interface ArticleInput {
   name: string;
   unit?: ArticleUnit;
   serialization?: ArticleSerialization;
-  is_location?: boolean;               // F: Standort-Typ (Instanzen sind Orte)
   size?: string | null;
   weight_kg?: string | null;
   // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)

@@ -302,11 +302,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Auftrag-Stepper** über alle Schritte (Schlüssel = Schritt-id, mehrere gleichartige möglich) + Panel
   des gewählten Schritts (Beschaffung/Datenerfassung/Bewegung/Ressource); Lieferant sieht nur die
   Beschaffung seiner Aufträge.
-- **Standorte**: eine Instanz **kann** einen Standort haben – **standortlos ist erlaubt** (kein
-  erzwungener Firmen-Default mehr, `serialization._initial_location` gibt `NULL` zurück; Ausnahme:
-  Lieferanten-Beschaffung als erster Schritt → Start beim **Lieferanten**). Den realen Ort setzt der
-  erste Bewegungs-Schritt. `LOCATION_TYPES` = lagerplatz/user/instance (Anzeige via
-  `locations.location_labels`, NULL wird toleriert). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
+- **Standorte**: jede Instanz hat **IMMER** einen Standort – **nie standortlos**. Neue Instanzen starten
+  bei der Freigabe beim **Lieferanten** (Beschaffung mit Lieferant), sonst beim **Unternehmen selbst**
+  (`location_type='company'` + Firmen-Objektnummer, `serialization._initial_location`; früher `NULL`).
+  «company» ist nur Start-Standort, **nie Bewegungsziel** (`LOCATION_TYPES` bleibt lagerplatz/user/instance;
+  Anzeige via `locations.location_labels`). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
   ganzzahlig – Bruchmengen für kg/m²/l/m³ wären ein separater Decimal-Umbau der Bestands-Engine).
   Beim **Wareneingang («received»)** gibt der Besteller den **aktuellen Lagerort verpflichtend** an
   (`purchase_orders.receiving_location_id`); fehlt eine Vorgabe, wird automatisch ein Lagerplatz
@@ -315,26 +315,6 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
   Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
-- **Lagerplatz als Instanz (F, Phase 1, parallel zu `StorageLocation`)**: ein Artikel mit
-  `articles.is_location=true` ist ein **Standort-Typ** – seine Instanzen sind **Orte**, kein Bestand.
-  Sie tragen `disposition='location'` und sind darüber automatisch aus Bestand/FIFO/Reservierung
-  ausgeschlossen (die EINE Stelle `inventory.in_stock_clauses` verlangt `in_stock` – **kein Sonder-Join**).
-  Eine Lagerplatz-Instanz hat **keinen Auftrag** (`instances.order_id` nullable, Migration 062) – ein Ort wird
-  **deklariert, nicht produziert**: Direkt-Anlage `POST /erp/instances/location` (`locations.create_location_
-  instance`), optionaler Eltern-Standort = **Hierarchie** (Gebäude→Fach via `location_type='instance'`).
-  Andere Instanzen liegen darin über `location_type='instance'`; Bewegung/Scan/Etikett erben sie als
-  normale Instanzen. Frontend: Artikel-«Spezifikation» Schalter «Standort-Typ», Reiter «Bestand» Knopf
-  «Lagerplatz-Instanz anlegen», Badge «Standort» (`instanceStatusConfig`). *Bestehende `StorageLocation`s
-  laufen unverändert weiter (Phase 2 = Migration/Abbau ist bewusst offen).*
-- **Generischer Rückverweis «wer zeigt auf mich» je Objektnummer** (`services/references.object_references`,
-  `GET /erp/objects/{id}/references`): was aktuell an einer Objektnummer **verortet** ist (`instances.
-  location_id == id`, ohne Typ-Filter – Objektnummern sind global eindeutig) + Prozessschritte, die sie als
-  Ziel referenzieren. Reiter **«Verwendung»** generisch an Benutzer/Instanz/Lagerplatz (Frontend
-  `components/erp/object-references.tsx`, analog `ObjectDocuments`); `storage_location_references` delegiert
-  darauf. Beantwortet «was hält diese Person / was liegt in diesem Behälter / was lagert auf diesem Platz».
-- **AGB/Datenschutz-Artikelnummer auch am ERP-Unternehmens-Datensatz** (nicht nur Admin → Einstellungen):
-  `organization-detail` trägt die Sektion «AGB & Datenschutz (Website-Rechtstexte)» (schreibt
-  `company_settings.legal_documents`), dort wo der Nutzer sie erwartet.
 - **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
   (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
   `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System

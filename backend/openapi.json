@@ -2927,53 +2927,6 @@
         }
       }
     },
-    "/api/v1/erp/instances/location": {
-      "post": {
-        "tags": [
-          "instances"
-        ],
-        "summary": "Create Location",
-        "description": "Eine Lagerplatz-Instanz anlegen: eine Instanz eines ``is_location``-Artikels, die ein\n**Ort** ist (aus dem Bestand ausgeschlossen). Andere Instanzen liegen darin via\n``location_type='instance'``; ein optionaler Eltern-Standort bildet die Hierarchie.",
-        "operationId": "create_location_api_v1_erp_instances_location_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LocationInstanceCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InstanceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/erp/instances/count": {
       "get": {
         "tags": [
@@ -3105,58 +3058,6 @@
                     "$ref": "#/components/schemas/InstanceOrderRef"
                   },
                   "title": "Response List Instance Orders Api V1 Erp Instances  Object Id  Orders Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/objects/{object_id}/references": {
-      "get": {
-        "tags": [
-          "objects"
-        ],
-        "summary": "List Object References",
-        "description": "Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.",
-        "operationId": "list_object_references_api_v1_erp_objects__object_id__references_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ObjectReference"
-                  },
-                  "title": "Response List Object References Api V1 Erp Objects  Object Id  References Get"
                 }
               }
             }
@@ -5689,17 +5590,6 @@
             ],
             "title": "Weight Kg"
           },
-          "is_location": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Location"
-          },
           "material": {
             "anyOf": [
               {
@@ -6675,11 +6565,6 @@
             ],
             "title": "Weight Kg"
           },
-          "is_location": {
-            "type": "boolean",
-            "title": "Is Location",
-            "default": false
-          },
           "material": {
             "anyOf": [
               {
@@ -7133,17 +7018,6 @@
               }
             ],
             "title": "Weight Kg"
-          },
-          "is_location": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Location"
           },
           "material": {
             "anyOf": [
@@ -9817,42 +9691,6 @@
           "kind"
         ],
         "title": "LegalDocument"
-      },
-      "LocationInstanceCreate": {
-        "properties": {
-          "article_object_id": {
-            "type": "integer",
-            "title": "Article Object Id"
-          },
-          "location_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Type"
-          },
-          "location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "article_object_id"
-        ],
-        "title": "LocationInstanceCreate",
-        "description": "Anlage einer **Lagerplatz-Instanz** (F): eine Instanz eines ``is_location``-Artikels,\ndie ein Ort ist. Optionaler Eltern-Standort für die Hierarchie (Gebäude→Fach)."
       },
       "MovementEmbed": {
         "properties": {

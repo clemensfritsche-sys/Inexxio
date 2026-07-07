@@ -12,12 +12,11 @@ import type { Instance, InstanceOrderRef, LocationType, ObjectDocument, CompanyS
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
-import { ObjectReferences } from '@/components/erp/object-references';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
 
-type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
+type InstTab = 'spec' | 'orders' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { cn, localDate, timeAgo } from '@/lib/utils';
@@ -158,7 +157,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
         <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },
           { key: 'orders', label: 'Aufträge', icon: ClipboardList },
-          { key: 'verwendung', label: 'Verwendung', icon: Boxes },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </div>
@@ -166,9 +164,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
       {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-20" style={{ background: 'var(--bg-1)' }}>
         <div style={S.body}>
-          {tab === 'verwendung' && (
-            <ObjectReferences objectId={inst.object_id ?? null} emptyHint="Nichts an dieser Instanz verortet (kein Inhalt / leerer Behälter)." />
-          )}
           {tab === 'docs' && (
             <ObjectDocuments objectId={inst.object_id ?? null} contextLabel="dieser Instanz" />
           )}
