@@ -1,7 +1,7 @@
 # Frontend – Next.js 14 (TypeScript)
 
 ## Technologie
-Next.js 14, TypeScript, Tailwind CSS, App Router, next-intl, React Query, Zustand
+Next.js 14, TypeScript, Tailwind CSS, App Router, React Query (punktuell), react-hook-form + zod
 
 ## Starten
 ```bash
@@ -47,8 +47,8 @@ src/app/
   (blau). Beim Editieren einer Datei auf Tokens migrieren (`docs/design-system/README.md §4`).
 
 ## i18n
-next-intl, Locales: de (primary), en
-Übersetzungen: /messages/de.json, /messages/en.json
+Aktuell **einsprachig Deutsch**. Das frühere next-intl-Konzept (inkl. `/messages/*.json`)
+war nie verdrahtet und ist entfernt (Cleanup 2026-07); EN kommt später (KI-Übersetzung geplant).
 
 ## Auth Guard
 ERP-Seiten prüfen Firebase Auth. Nicht eingeloggt → Redirect zu /login.

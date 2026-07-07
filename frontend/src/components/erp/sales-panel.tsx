@@ -232,7 +232,7 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
 
       {adding ? (
         <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10 }}>
             <SelectField label="Art" value={form.kind} onChange={(v) => setForm((f) => ({ ...f, kind: v as PriceKind }))}
               options={[{ value: 'one_time', label: 'Einmalkauf' }, { value: 'subscription', label: 'Abo' }]} />
             {form.kind === 'subscription' && (
@@ -244,7 +244,7 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
             <SelectField label="Abo-Typ" value={form.subType} onChange={(v) => setForm((f) => ({ ...f, subType: v as PriceSubType }))}
               options={(Object.keys(SUB_TYPE_LABEL) as PriceSubType[]).map((k) => ({ value: k, label: SUB_TYPE_LABEL[k] }))} />
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10 }}>
             <TextField label="Preis (CHF, brutto)" value={form.amount} onChange={(v) => setForm((f) => ({ ...f, amount: v }))} placeholder="z. B. 199.00" />
             <TextField label="Vergleichspreis (optional)" value={form.compare} onChange={(v) => setForm((f) => ({ ...f, compare: v }))} placeholder="durchgestrichen" />
           </div>
@@ -319,14 +319,14 @@ function PriceRow({ articleObjectId, price, onChanged }: {
         </button>
       </div>
       {isSub && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10 }}>
           <SelectField label="Abo-Typ" value={subType} onChange={(v) => setSubType(v as PriceSubType)}
             options={(Object.keys(SUB_TYPE_LABEL) as PriceSubType[]).map((k) => ({ value: k, label: SUB_TYPE_LABEL[k] }))} />
           <SelectField label="Intervall" value={interval} onChange={(v) => setInterval(v as PriceInterval)}
             options={[{ value: 'month', label: 'monatlich' }, { value: 'year', label: 'jährlich' }]} />
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 10 }}>
         <TextField label="Preis (CHF, brutto)" value={amount} onChange={setAmount} placeholder="199.00" />
         <TextField label="Vergleichspreis" value={compare} onChange={setCompare} placeholder="optional" />
       </div>

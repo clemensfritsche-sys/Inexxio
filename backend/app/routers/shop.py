@@ -43,8 +43,12 @@ async def shop_config(db: Session = Depends(get_db)):
     }
 
 
+# Die Shop-Handler mit externen HTTP-Calls (FX-Tageskurs, Stripe-API) sind bewusst
+# **synchron** (``def``): FastAPI führt sie im Threadpool aus. Als ``async def`` würde
+# der synchrone Abruf (bis 8 s Timeout) den GANZEN Event-Loop blockieren – eine
+# unauthentifizierte DoS-Fläche auf dem öffentlichen Listing.
 @router.get("/products", response_model=list[ShopProduct])
-async def list_products(
+def list_products(
     request: Request,
     currency: str | None = Query(None),
     country: str | None = Query(None),
@@ -58,7 +62,7 @@ async def list_products(
 
 
 @router.get("/products/{object_id}", response_model=ShopProduct)
-async def get_product(
+def get_product(
     object_id: int,
     request: Request,
     currency: str | None = Query(None),
@@ -78,7 +82,7 @@ async def get_product(
 
 
 @router.post("/checkout", response_model=ShopCheckoutResult)
-async def checkout(
+def checkout(
     data: ShopCheckout,
     db: Session = Depends(get_db),
     # Login-Pflicht (kein Gast-Checkout – bewusst NICHT gebaut). Ein eingeloggter
@@ -146,27 +150,6 @@ async def simulate_payment(data: PaymentSimulate, db: Session = Depends(get_db),
         "cancelled" if (intent and intent.status == "cancelled") else "unknown")}
 
 
-@router.get("/session/{session_id}")
-async def session_status(session_id: str, db: Session = Depends(get_db),
-                         user: UserProfile = Depends(get_current_user)):
-    """Status zu einer Stripe-Checkout-Session (für die Erfolgsseite). Der Webhook erzeugt/
-    finalisiert die Aufträge asynchron – kurz nach der Rückkehr kann der Intent noch
-    ``pending`` sein («wird verarbeitet»)."""
-    intent = db.query(CheckoutIntent).filter(
-        CheckoutIntent.stripe_session_id == session_id).first()
-    if not intent:
-        raise HTTPException(404, detail="Bestellung nicht gefunden")
-    if user.role not in ("admin", "employee") and intent.customer_id != user.id:
-        raise HTTPException(403, detail="Keine Berechtigung")
-    orders = _intent_orders(intent)
-    return {
-        "order_object_id": (orders or [None])[0],
-        "order_object_ids": orders,
-        "status": "paid" if intent.status == "completed" else "requested",
-        "paid": intent.status == "completed",
-    }
-
-
 @router.get("/orders", response_model=list[CustomerOrder])
 async def my_orders(db: Session = Depends(get_db),
                     user: UserProfile = Depends(get_current_user)):
@@ -175,7 +158,7 @@ async def my_orders(db: Session = Depends(get_db),
 
 
 @router.post("/orders/{order_object_id}/cancel-subscription")
-async def cancel_subscription(order_object_id: int, db: Session = Depends(get_db),
+def cancel_subscription(order_object_id: int, db: Session = Depends(get_db),
                               user: UserProfile = Depends(get_current_user)):
     """Abo **on-site** kündigen. Kündigt zuerst beim Zahlungs-Provider (Stripe) und spiegelt
     erst danach lokal – scheitert der Provider-Call, bleibt das Abo aktiv (sauberer Fehler)."""
@@ -223,7 +206,7 @@ async def request_return(order_object_id: int, data: ShopReturnRequest,
 
 
 @router.post("/portal")
-async def customer_portal(request: Request, db: Session = Depends(get_db),
+def customer_portal(request: Request, db: Session = Depends(get_db),
                           user: UserProfile = Depends(get_current_user)):
     """Stripe Customer Portal (Abo/Zahlungsmittel selbst verwalten). Liefert die Portal-URL."""
     from ..core.config import get_settings

@@ -21,7 +21,7 @@ export const ARTICLE_UNITS: { value: ArticleUnit; label: string }[] = [
 
 export const SERIALIZATION_OPTIONS: { value: ArticleSerialization; label: string }[] = [
   { value: 'unit',  label: 'Einzelteil' },
-  { value: 'batch', label: 'Batch' },
+  { value: 'batch', label: 'Charge' },
 ];
 
 export function unitLabel(value: string): string {

@@ -83,7 +83,7 @@ def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
     for art_id, need in needs.items():
         if art_id == order.article_id:
             continue
-        cands = fifo_candidates(db, art_id, for_order_id=None)
+        cands = fifo_candidates(db, art_id, for_order_id=None, lock=True)
         for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
             if take > 0:
                 reserve(cand, order.id, take)   # mengengenau, OHNE Teilung
@@ -144,7 +144,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
     if article_db_id == order.article_id:
         raise HTTPException(400, detail="Ein Artikel kann sich nicht selbst verbrauchen")
     per_unit = to_qty(per_unit)
-    cands = fifo_candidates(db, article_db_id, order.id)
+    cands = fifo_candidates(db, article_db_id, order.id, lock=True)
     total_need = qty_sum(per_unit * to_qty(p.quantity) for p in products)
     have = available_qty(cands, order.id)
     if have < total_need:

@@ -109,7 +109,7 @@ export function Sec({ title, children, editable, icon: Icon }: {
         <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#64748b' }}>{title}</span>
         {editable && <Pencil size={10} style={{ color: '#2563eb', marginLeft: 2 }} />}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px' }}>{children}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '10px 14px' }}>{children}</div>
     </div>
   );
 }
@@ -336,7 +336,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'profil' && <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />}

@@ -89,14 +89,8 @@ async def delete_price(object_id: int, price_id: int, db: Session = Depends(get_
     return {"deleted": True}
 
 
-# ─── Zielgruppe (private/unlisted) ───────────────────────────────────────────────
-
-@router.get("/{object_id}/sales/audience", response_model=list[AudienceMember])
-async def list_audience(object_id: int, db: Session = Depends(get_db),
-                        _: UserProfile = Depends(require_employee)):
-    article = _get_article(db, object_id)
-    return [AudienceMember(**m) for m in sales_svc.audience_for(db, article.id)]
-
+# ─── Zielgruppe (private) ─────────────────────────────────────────────────────────
+# Kein eigener GET: die Zielgruppe kommt eingebettet im Sales-Profil (``get_sales``).
 
 @router.post("/{object_id}/sales/audience", response_model=list[AudienceMember], status_code=201)
 async def add_audience(object_id: int, data: AudienceAdd, db: Session = Depends(get_db),

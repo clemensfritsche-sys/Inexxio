@@ -363,12 +363,9 @@ def list_products(db: Session, user: UserProfile | None, currency: str,
     is_staff = bool(user and user.role in ("admin", "employee"))
     out: list[dict] = []
     for a in rows:
-        if a.sales_visibility == "public":
-            pass
-        elif a.sales_visibility == "private":
-            if not (a.id in assigned or is_staff):
-                continue
-        else:   # unlisted → nicht listen
+        # Sichtbarkeit ist per Schema/Normalisierung auf public|private beschränkt
+        # (das frühere 'unlisted' ist entfernt, siehe main._ARTICLE_DATA_FIXES).
+        if a.sales_visibility == "private" and not (a.id in assigned or is_staff):
             continue
         prices = prices_by_article.get(a.id) or []
         if not prices:   # nur Produkte mit gepflegtem Preis listen
@@ -618,7 +615,7 @@ def _materialize_multiline(db: Session, order: Order, lines: list, customer: Use
 
     for line in lines:
         art_id, need = line["article_id"], line["quantity"]
-        cands = fifo_candidates(db, art_id, for_order_id=None)
+        cands = fifo_candidates(db, art_id, for_order_id=None, lock=True)
         have = available_qty(cands)
         if have < need:
             raise HTTPException(
@@ -657,6 +654,20 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
     (make) bzw. den schon reservierten (stock) finalisieren, Snapshot anteilig einfrieren
     und den Verkauf auf ``paid`` setzen. Liefert die Anzahl finalisierter Positionen."""
     from . import sale as sale_svc
+    from ..models import CheckoutIntent
+
+    # Nebenläufigkeits-Schutz: Stripe stellt denselben Zahlungserfolg mehrfach zu (Retries;
+    # zusätzlich ``completed`` UND ``async_payment_succeeded``). Der Status-Check unten ist
+    # ohne Row-Lock ein Check-then-Act – zwei parallele Zustellungen erzeugten sonst doppelte
+    # Aufträge + doppelt bezahlte Belege. FOR UPDATE serialisiert die Verarbeitung je Intent.
+    locked = (
+        db.query(CheckoutIntent)
+        .filter(CheckoutIntent.id == intent.id)
+        .with_for_update()
+        .first()
+    )
+    if locked is not None:
+        intent = locked
 
     if intent.status == "completed":
         return 0

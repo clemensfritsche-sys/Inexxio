@@ -41,7 +41,7 @@ class PurchaseOrder(Base, TimestampMixin):
 
     # Bezugsquelle (aus dem Prozessschritt kopiert)
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)
-    supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     webshop_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # Lieferadresse / Wareneingang: Lagerplatz-Objektnummer aus dem Beschaffungsschritt.
     # Dorthin wechseln die Instanzen beim Wareneingang («received»).

@@ -237,7 +237,7 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
     remaining = to_qty(quantity) - qty_sum(i.quantity for i in pinned)
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
-    cands = fifo_candidates(db, article_id, for_order_id=None)   # freie Restmengen
+    cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # freie Restmengen
     # **Partielle Deckung ist erlaubt** (kein Fehler mehr bei Unterdeckung): es wird FIFO
     # reserviert, was am Lager ist; die **Fehlmenge** deckt ein Nachschub-Unter-Auftrag
     # (``services/supply.py``). Der erste auf das Subjekt zugreifende Schritt (Bewegung/…)

@@ -255,7 +255,7 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
             {isWebshop ? (
               <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" hint="Webshop wird sofort bezahlt – kein Zahlungsziel" />
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
                 <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" />
                 <TextField label="Zahlungsziel (Tage)" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30" />
               </div>
@@ -297,7 +297,7 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
         {s === 'ordered' && isBuyer && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
             <MapPin size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>«Lieferung bestätigen» ist rein kaufmännisch. Das Einlagern (Lagerort) erfolgt anschliessend im Bewegungs-Schritt.</span>
+            <span>«Lieferung bestätigen» ist rein kaufmännisch. Das Einlagern (Lagerplatz) erfolgt anschliessend im Bewegungs-Schritt.</span>
           </div>
         )}
 

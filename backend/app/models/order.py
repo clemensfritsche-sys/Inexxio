@@ -41,9 +41,8 @@ class Order(Base, TimestampMixin):
     quantity: Mapped[Optional[Decimal]] = mapped_column(Numeric(14, 3), nullable=True)
     desired_delivery_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
-    # Stripe-Bezüge (Quelle der Wahrheit für Zahlung/Abo): die Checkout-Session, über die
-    # bezahlt wurde, und – bei Abos – die Stripe-Subscription (Status wird gespiegelt).
-    stripe_checkout_session_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)
+    # Stripe-Bezug (Quelle der Wahrheit für Abos): die Stripe-Subscription (Status wird
+    # gespiegelt). Die Checkout-Session lebt am ``CheckoutIntent`` (stripe_session_id).
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)
 
     # Prozess-Eckdaten für die Durchlaufzeit (Freigabe → Abschluss).
@@ -59,7 +58,7 @@ class Order(Base, TimestampMixin):
     recurrence_lead_time_days: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False)
     recurrence_anchor: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # nächster Soll-/Ablauftermin
-    recurring_parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Auftrag, aus dem dieser entstand
+    recurring_parent_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)  # Auftrag, aus dem dieser entstand
     # Abo-Typ (gespiegelt vom Verkaufspreis): usage = Nutzungsabo | product = Produktabo.
     # Steuert die per-Zyklus-Logik (``invoice.paid``): Produktabo erzeugt je Zyklus ein
     # Folge-Fulfillment, Nutzungsabo nicht (reiner Zugang/Miete, einmalig erfüllt).
@@ -69,17 +68,24 @@ class Order(Base, TimestampMixin):
     replaced_by_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
     # **Unter-Auftrag** (``parent_order_id`` = Objektnummer des Eltern-Auftrags). EIN
-    # Mechanismus, zwei Gründe (``reason``):
-    #   'deviation' – Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag: wirkt auf bereits
-    #                 vorhandene Instanzen des Eltern-Auftrags. Der Eltern **pausiert**, bis
-    #                 die Abweichung geklärt ist (``process._is_paused_by_deviation``).
-    #   'supply'    – Nachschub: deckt einen Bedarf (Verkauf/Verbrauch) des Eltern, der nicht
-    #                 aus dem Bestand gedeckt war. Produziert/beschafft die Fehlmenge und
-    #                 **pinnt** sie bei Abschluss an den Eltern (``process._peg_supply_to_parent``).
-    #                 Der Eltern pausiert NICHT – der betroffene Schritt ist «blockiert», bis der
-    #                 Nachschub liefert (abgeleiteter Zustand, kein Auto-Trigger).
+    # Mechanismus, mehrere Gründe (``reason``):
+    #   'deviation'     – Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag: wirkt auf bereits
+    #                     vorhandene Instanzen des Eltern-Auftrags. Der Eltern **pausiert**, bis
+    #                     die Abweichung geklärt ist (``process._is_paused_by_deviation``).
+    #   'supply'        – Nachschub: deckt einen Bedarf (Verkauf/Verbrauch) des Eltern, der nicht
+    #                     aus dem Bestand gedeckt war. Produziert/beschafft die Fehlmenge und
+    #                     **pinnt** sie bei Abschluss an den Eltern (``process._peg_supply_to_parent``).
+    #                     Der Eltern pausiert NICHT – der betroffene Schritt ist «blockiert», bis der
+    #                     Nachschub liefert (abgeleiteter Zustand, kein Auto-Trigger).
+    #   'return'        – Retoure/Erstattung: festes Subjekt = **verkaufte** Instanzen,
+    #                     ``parent`` = Original-Verkauf (Geld über das ``sale``-Modul im
+    #                     Kredit-Modus, Ware über die Bewegung). KEINE Eltern-Pause.
+    #   'replenishment' – Auto-Nachbestellung bei unterschrittenem Meldebestand
+    #                     (``services/replenishment.py``): eigenständig, OHNE Eltern.
     parent_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
-    reason: Mapped[Optional[str]] = mapped_column(String(12), nullable=True)  # deviation | supply
+    # VARCHAR(20): 'replenishment' hat 13 Zeichen – die frühere Breite 12 liess jede
+    # Auto-Nachbestellung mit einem Truncation-Fehler scheitern (Migration 060).
+    reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # deviation | supply | return | replenishment
 
     # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
     # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**

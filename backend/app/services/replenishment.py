@@ -64,7 +64,15 @@ def check_article(db: Session, article_id: int, actor_id: int | None) -> Order |
     Committet NICHT (der Aufrufer schliesst ab). Liefert den neuen Auftrag oder None."""
     from .orders import release_order
 
-    article = db.query(Article).filter(Article.id == article_id, Article.is_active == True).first()
+    # ``with_for_update``: parallele Auslöser (Doppel-Sweep, Sweep + Verschrottung)
+    # serialisieren am Artikel – sonst legt der Check-then-Act (``_open_replenishment``)
+    # zwei Nachbestellungen für denselben Artikel an.
+    article = (
+        db.query(Article)
+        .filter(Article.id == article_id, Article.is_active == True)
+        .with_for_update()
+        .first()
+    )
     if not article or article.safety_stock is None:
         return None                     # kein Meldebestand gepflegt → nichts zu tun
     if not _can_supply(db, article):

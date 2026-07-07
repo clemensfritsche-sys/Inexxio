@@ -527,7 +527,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'docs' && !isCreate ? (
           <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
         ) : (<>
@@ -651,7 +651,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   )}
                 </>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: isMultiPosition ? '1fr' : '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMultiPosition ? '1fr' : 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 14 }}>
                 {!isMultiPosition && (
                   <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
                 )}
@@ -1457,7 +1457,7 @@ function AddPositionRow({ articles, excludeArticleIds, onAdd }: {
   }
   return (
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 8 }}>
         <SearchSelect label="Artikel" value={articleId} onChange={setArticleId}
           options={[{ value: '', label: '— Artikel wählen —' }, ...options.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))]} />
         <TextFieldUnit label="Menge" value={qty} onChange={setQty} unit={unit} placeholder="z. B. 5" />
@@ -1540,7 +1540,7 @@ function RecurrenceCard({ order, onSaved, version }: {
         </label>
         {active && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 14 }}>
               <div>
                 <Label>Periode (Tage)</Label>
                 <input value={interval} onChange={(e) => setIntervalDays(e.target.value)} inputMode="numeric"

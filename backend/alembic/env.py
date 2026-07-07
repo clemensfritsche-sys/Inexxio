@@ -23,7 +23,6 @@ from app.models import (  # noqa: F401
     ArticleProcessStep,
     AuditLog,
     CompanySettings,
-    Notification,
     Order,
     PurchaseOrder,
     StorageLocation,

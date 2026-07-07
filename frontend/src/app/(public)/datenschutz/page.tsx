@@ -177,7 +177,7 @@ export default function DatenschutzPage() {
             <p>
               Wir verwenden nur technisch notwendige Cookies für den Betrieb der Website:
             </p>
-            <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">

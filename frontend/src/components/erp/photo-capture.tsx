@@ -51,7 +51,7 @@ export function PhotoCapture({ value, onChange, max = 8, disabled = false, label
             {!disabled && !busy && (
               <button type="button" title="Entfernen"
                 onClick={(e) => { e.preventDefault(); onChange(value.filter((_, idx) => idx !== i)); }}
-                style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, borderRadius: 999, border: 'none', background: 'rgba(10,10,11,.62)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                style={{ position: 'absolute', top: 2, right: 2, width: 28, height: 28, borderRadius: 999, border: 'none', background: 'rgba(10,10,11,.62)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={12} />
               </button>
             )}

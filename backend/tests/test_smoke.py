@@ -28,7 +28,7 @@ def test_routers_importable():
 def test_models_exposed_from_package():
     """Models are re-exported from the package regardless of their file."""
     from app.models import (
-        Article, ArticleProcessStep, AuditLog, CompanySettings, Notification,
+        Article, ArticleProcessStep, AuditLog, CompanySettings,
         Order, PurchaseOrder, StorageLocation, UserProfile,
     )
 
@@ -39,8 +39,10 @@ def test_models_exposed_from_package():
     assert PurchaseOrder.__tablename__ == "purchase_orders"
     assert StorageLocation.__tablename__ == "storage_locations"
     assert AuditLog.__tablename__ == "audit_log"
-    assert Notification.__tablename__ == "notifications"
     assert CompanySettings.__tablename__ == "company_settings"
+    # Das nie verdrahtete Notification-Modell ist entfernt (Cleanup 2026-07).
+    import app.models as models_pkg
+    assert not hasattr(models_pkg, "Notification")
 
 
 def test_auth_helpers_decoupled():
@@ -2363,3 +2365,33 @@ def test_operating_cost_model_pricing():
     # Output ist stets teurer als Input
     for pin, pout in _MODEL_PRICES.values():
         assert pout > pin > 0
+
+
+def test_order_reason_column_fits_all_reason_values():
+    """Regression (Cleanup 2026-07, B1): 'replenishment' hat 13 Zeichen – die frühere
+    Spaltenbreite VARCHAR(12) liess JEDE Auto-Nachbestellung mit einem Truncation-
+    Fehler scheitern (SQLite-Tests prüfen Längen nicht, Postgres schon)."""
+    from app.models import Order
+
+    width = Order.__table__.c.reason.type.length
+    for value in ("deviation", "supply", "return", "replenishment"):
+        assert len(value) <= width, f"orders.reason zu schmal für '{value}'"
+
+
+def test_allocation_write_paths_lock_fifo_candidates():
+    """Regression (Cleanup 2026-07, B3): jede FIFO-**Allokation** (reservieren/verbrauchen)
+    muss die Kandidaten sperren (SELECT … FOR UPDATE) – sonst reservieren zwei gleichzeitige
+    Checkouts dieselbe letzte Instanz doppelt (Überverkauf). Reine Previews lesen ohne Lock."""
+    import inspect as _inspect
+
+    from app.services import recovery, resource, sales, subject
+
+    for mod, fn in ((sales, "_materialize_multiline"), (subject, "_allocate_stock_for"),
+                    (recovery, "_fifo_cover")):
+        src = _inspect.getsource(getattr(mod, fn))
+        assert "lock=True" in src, f"{mod.__name__}.{fn} alloziert ohne Row-Lock"
+    src = _inspect.getsource(resource)
+    assert src.count("lock=True") >= 2   # reserve_components + _consume_line
+
+    from app.services.sales import fulfill_intent
+    assert "with_for_update" in _inspect.getsource(fulfill_intent)

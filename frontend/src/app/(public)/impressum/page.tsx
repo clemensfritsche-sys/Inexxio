@@ -90,7 +90,7 @@ export default async function ImpressumPage() {
             <h2 className="mb-4 text-2xl font-bold text-slate-900">
               Angaben gemäss Art. 11 UWG
             </h2>
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-sm">
                 <tbody>
                   <Row label="Firma">
@@ -126,7 +126,7 @@ export default async function ImpressumPage() {
           {/* Section 2: Kontakt */}
           <div className="mb-10">
             <h2 className="mb-4 text-2xl font-bold text-slate-900">Kontakt</h2>
-            <div className="overflow-hidden rounded-xl border border-slate-200">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="w-full text-sm">
                 <tbody>
                   <Row label="E-Mail">

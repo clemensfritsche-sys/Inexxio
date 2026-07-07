@@ -482,7 +482,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse aus der Systemkonfiguration; der tatsächliche Lagerort wird beim Wareneingang erfasst.</span>
+                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse aus der Systemkonfiguration; der tatsächliche Lagerplatz wird beim Wareneingang erfasst.</span>
                   </div>
                   {owner === 'articles' && procurementReady === false && mode === 'supplier' && !supplierId && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
@@ -655,7 +655,7 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
               <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
             {f.type === 'measure' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 96px), 1fr))', gap: 8 }}>
                 <input value={f.target} onChange={(e) => upd(i, { target: e.target.value })} inputMode="decimal" placeholder="Soll"
                   className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
                 <input value={f.tolerance} onChange={(e) => upd(i, { tolerance: e.target.value })} inputMode="decimal" placeholder="± Toleranz"

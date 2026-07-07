@@ -26,7 +26,6 @@ from .storage_location import StorageLocation
 from .ai import AiAction
 from .audit import AuditLog
 from .event import Event
-from .notification import Notification
 from .object_ref import ObjectRef
 
 __all__ = [
@@ -35,5 +34,5 @@ __all__ = [
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
     "Document", "DocumentFile", "DocumentLink", "DocumentBlob", "Attachment", "StorageLocation",
-    "AiAction", "AuditLog", "Event", "Notification", "ObjectRef",
+    "AiAction", "AuditLog", "Event", "ObjectRef",
 ]
