@@ -39,7 +39,7 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
     """``need`` (Menge) des Artikels aus **freiem** Lagerbestand FIFO für den Auftrag
     reservieren (+ als Subjekt markieren). Liefert die tatsächlich gedeckte Menge."""
     covered = ZERO
-    cands = fifo_candidates(db, article_id, for_order_id=None)   # nur freie Restmengen
+    cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # nur freie Restmengen
     for cand, take in zip(cands, allocate(need, [free_qty(c) for c in cands])):
         if take <= 0:
             continue

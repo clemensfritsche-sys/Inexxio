@@ -58,6 +58,3 @@ def ensure_ai_user(db: Session) -> UserProfile:
     db.refresh(user)
     return user
 
-
-def is_ai_user(user: UserProfile) -> bool:
-    return user.firebase_uid == AI_FIREBASE_UID or user.role == AI_ROLE

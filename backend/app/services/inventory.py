@@ -32,19 +32,27 @@ def claim_clauses(for_order_id: int | None) -> tuple:
     )
 
 
-def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None) -> list[Instance]:
+def fifo_candidates(db: Session, article_db_id: int, for_order_id: int | None = None,
+                    lock: bool = False) -> list[Instance]:
     """Verbrauchbare/verkäufliche Instanzen eines Artikels: **freigegeben** (qc passed,
     am Lager), **freie Restmenge** (bzw. für diesen Auftrag reserviert), **FIFO nach
     Freigabe** (``released_at``, ersatzweise ``created_at``), dann Objektnummer.
 
     Mit ``for_order_id`` werden die für diesen Auftrag reservierten Instanzen **zuerst**
-    verbraucht (Reservierung ist „vorgemerkter" Bestand dieses Auftrags)."""
+    verbraucht (Reservierung ist „vorgemerkter" Bestand dieses Auftrags).
+
+    ``lock=True`` sperrt die Kandidaten (``SELECT … FOR UPDATE``) – Pflicht in **jedem
+    Allokations-Schreibpfad** (Reservieren/Verbrauchen): ohne Sperre ist die Zuteilung
+    ein Check-then-Act, bei dem zwei gleichzeitige Checkouts/Freigaben dieselbe letzte
+    Instanz doppelt reservieren (Überverkauf). Reine Anzeigen/Previews lesen ohne Lock."""
     q = db.query(Instance).filter(
         Instance.article_id == article_db_id,
         Instance.is_active == True,
         *in_stock_clauses(),
         *claim_clauses(for_order_id),
     )
+    if lock:
+        q = q.with_for_update()
     rows = q.all()
     rows.sort(key=lambda i: (
         0 if (for_order_id is not None and reserved_for(i, for_order_id) > 0) else 1,

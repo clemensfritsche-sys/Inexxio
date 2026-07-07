@@ -48,6 +48,11 @@ def ensure_supply(db: Session, order: Order, actor_id: int | None,
     ab). Liefert die neu angelegten Nachschub-Aufträge (auch der tieferen Ebenen)."""
     from .orders import release_order
 
+    # Nebenläufigkeits-Schutz: den Eltern-Auftrag sperren, damit parallele Auslöser
+    # (Shop-Webhook + ERP-Knopf «Nachschub anlegen») serialisieren – der Idempotenz-Check
+    # ``_existing_open_supply`` ist sonst ein Check-then-Act und legt doppelten Nachschub an.
+    db.query(Order).filter(Order.id == order.id).with_for_update().first()
+
     # ``chain`` = Artikel, die ein **Vorfahre bereits produziert** (Nachschub-Kette). Den
     # eigenen Artikel NICHT vorab eintragen: ein Verkauf von P braucht legitim Nachschub von P.
     chain = set(_chain or ())
