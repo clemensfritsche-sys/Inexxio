@@ -9981,6 +9981,44 @@
               }
             ],
             "title": "Created By Name"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          },
+          "reserved": {
+            "type": "boolean",
+            "title": "Reserved",
+            "default": false
           }
         },
         "type": "object",

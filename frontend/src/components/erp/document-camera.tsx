@@ -106,7 +106,9 @@ const viewport: React.CSSProperties = {
   position: 'relative', width: '100%', aspectRatio: '4 / 3', background: '#0f172a',
   borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
 };
-const video: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover' };
+// pointerEvents:none – auf iOS/Safari rendert das <video> sonst ÜBER den absolut
+// positionierten Overlays und verschluckt Taps auf den «öffnen»-Chip (Bug: Chip reagiert nicht).
+const video: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' };
 const cameraOff: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#94a3b8', padding: 24 };
 const frame: React.CSSProperties = {
   position: 'absolute', inset: '10% 8%', border: '3px solid rgba(255,255,255,0.85)', borderRadius: 12,
@@ -117,8 +119,8 @@ const hintChip: React.CSSProperties = {
   borderRadius: 999, background: 'rgba(15,23,42,.6)', color: '#fff', fontSize: 11.5, fontWeight: 600, pointerEvents: 'none',
 };
 const openChip: React.CSSProperties = {
-  position: 'absolute', bottom: 12, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px',
-  borderRadius: 999, background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+  position: 'absolute', bottom: 12, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px',
+  borderRadius: 999, background: '#2563eb', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: 'none',
   boxShadow: '0 6px 18px rgba(37,99,235,.4)',
 };
 const shutter: React.CSSProperties = {

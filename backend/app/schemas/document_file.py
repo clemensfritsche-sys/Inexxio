@@ -68,3 +68,10 @@ class ObjectDocument(BaseModel):
     relation: Optional[str] = None
     created_at: Optional[datetime] = None
     created_by_name: Optional[str] = None
+    # Nur für erstellte Dokumente (kind='generated'): Ein solches Dokument IST die vom Auftrag
+    # erzeugte Instanz – daher trägt es DEREN Status (nicht «Erstellt») und seinen Inhalt kann
+    # das Frontend direkt rendern (keine PDF-Iframe/CSP-Umwege).
+    content: Optional[dict] = None
+    quality: Optional[str] = None        # Instanz-Achse «ist es gut?» (pending|passed|failed)
+    disposition: Optional[str] = None    # Instanz-Achse «wo ist es?» (in_process|in_stock|…)
+    reserved: bool = False               # Instanz reserviert (für die Status-Badge)

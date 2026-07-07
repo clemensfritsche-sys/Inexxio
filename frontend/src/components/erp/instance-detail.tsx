@@ -8,10 +8,11 @@ import {
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, InstanceOrderRef, LocationType } from '@/types';
+import type { Instance, InstanceOrderRef, LocationType, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
 
@@ -42,6 +43,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
   const [tab, setTab] = useState<InstTab>('spec');
+  // Ist diese Instanz ein erstelltes Dokument, IST sie dieses Dokument – wir zeigen den
+  // Inhalt direkt in der Spezifikation (die «Essenz» dieser digitalen Instanz).
+  const [genDoc, setGenDoc] = useState<ObjectDocument | null>(null);
+  const [company, setCompany] = useState<Partial<CompanySettings> | null>(null);
 
   useEffect(() => {
     if (inst.object_id == null) return;
@@ -49,8 +54,18 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     api.getInstanceOrders(inst.object_id)
       .then((o) => { if (!cancelled) setOrders(o); })
       .catch(() => { if (!cancelled) setOrders([]); });
+    api.getObjectDocuments(inst.object_id)
+      .then((docs) => { if (!cancelled) setGenDoc(docs.find((d) => d.kind === 'generated' && d.content) ?? null); })
+      .catch(() => { if (!cancelled) setGenDoc(null); });
     return () => { cancelled = true; };
   }, [inst.object_id]);
+
+  useEffect(() => {
+    if (!genDoc) return;
+    let alive = true;
+    api.getPublicSettings().then((s) => { if (alive) setCompany(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [genDoc]);
 
   const status = instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
   const LocIcon = LOCATION_META[(inst.location_type as LocationType)]?.icon ?? MapPin;
@@ -154,6 +169,13 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           )}
           {/* Auf einen Blick */}
           {tab === 'spec' && (
+          <>
+          {genDoc && (
+            <div style={{ marginBottom: 24 }}>
+              <DocumentView content={genDoc.content as unknown as DocumentContent} company={company}
+                objectNr={fmtObjId(inst.object_id)} issuedAt={genDoc.created_at ?? null} />
+            </div>
+          )}
           <div style={S.glance}>
             <Tile
               wide icon={FileText} label="Spezifikation"
@@ -181,15 +203,14 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
           </div>
+          </>
           )}
 
-          {/* Aufträge */}
+          {/* Aufträge – ohne Überschrift (der aktive Reiter benennt es bereits) */}
           {tab === 'orders' && (
           <div>
-            <div style={{ ...S.osecHead, marginBottom: 14 }}>
-              <div style={{ ...S.osecIc, background: '#E7F0F4', color: '#1C6487' }}><ClipboardList size={18} /></div>
-              <h3 style={S.osecH3}>Aufträge</h3>
-              {orders && orders.length > 1 && (
+            {orders && orders.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
                 <button
                   className="erp-chip"
                   style={S.sortchip}
@@ -199,8 +220,8 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                   {sortDir === 'desc' ? <ArrowDownWideNarrow size={14} /> : <ArrowUpWideNarrow size={14} />}
                   {sortDir === 'desc' ? 'Neueste zuerst' : 'Älteste zuerst'}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {orders === null ? (
               <div style={S.emptyLine}>Laden…</div>
