@@ -914,6 +914,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/instances/location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Location
+         * @description Eine Lagerplatz-Instanz anlegen: eine Instanz eines ``is_location``-Artikels, die ein
+         *     **Ort** ist (aus dem Bestand ausgeschlossen). Andere Instanzen liegen darin via
+         *     ``location_type='instance'``; ein optionaler Eltern-Standort bildet die Hierarchie.
+         */
+        post: operations["create_location_api_v1_erp_instances_location_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/instances/count": {
         parameters: {
             query?: never;
@@ -964,6 +986,26 @@ export interface paths {
          *     Instanz ist die Summe aller Prozesse, die ein Auftrag an ihr ausgelöst hat.
          */
         get: operations["list_instance_orders_api_v1_erp_instances__object_id__orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/objects/{object_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Object References
+         * @description Verwendung einer Objektnummer: verortete Instanzen + referenzierende Prozessschritte.
+         */
+        get: operations["list_object_references_api_v1_erp_objects__object_id__references_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1874,6 +1916,8 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: number | string | null;
+            /** Is Location */
+            is_location?: boolean | null;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -2148,6 +2192,11 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: string | null;
+            /**
+             * Is Location
+             * @default false
+             */
+            is_location: boolean;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -2283,6 +2332,8 @@ export interface components {
             size?: string | null;
             /** Weight Kg */
             weight_kg?: number | string | null;
+            /** Is Location */
+            is_location?: boolean | null;
             /** Material */
             material?: string | null;
             /** Cad Url */
@@ -3131,6 +3182,19 @@ export interface components {
             /** Document Date */
             document_date?: string | null;
             content?: components["schemas"]["DocumentContent"] | null;
+        };
+        /**
+         * LocationInstanceCreate
+         * @description Anlage einer **Lagerplatz-Instanz** (F): eine Instanz eines ``is_location``-Artikels,
+         *     die ein Ort ist. Optionaler Eltern-Standort für die Hierarchie (Gebäude→Fach).
+         */
+        LocationInstanceCreate: {
+            /** Article Object Id */
+            article_object_id: number;
+            /** Location Type */
+            location_type?: string | null;
+            /** Location Id */
+            location_id?: number | null;
         };
         /**
          * MovementEmbed
@@ -6541,6 +6605,39 @@ export interface operations {
             };
         };
     };
+    create_location_api_v1_erp_instances_location_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationInstanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     count_instances_api_v1_erp_instances_count_get: {
         parameters: {
             query?: {
@@ -6621,6 +6718,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceOrderRef"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_object_references_api_v1_erp_objects__object_id__references_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectReference"][];
                 };
             };
             /** @description Validation Error */

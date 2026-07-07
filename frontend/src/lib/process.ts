@@ -83,6 +83,8 @@ const INSTANCE_STATUS: Record<string, StatusCfg> = {
   consumed:   { label: 'Verbraucht',   color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
   scrapped:   { label: 'Verschrottet', color: '#475569', bg: '#f1f5f9', icon: Trash2 },
   sold:       { label: 'Verkauft',     color: '#0d9488', bg: '#f0fdfa', icon: Banknote },
+  // Lagerplatz-als-Instanz (F): ein Ort, kein Bestand (aus FIFO/Reservierung ausgeschlossen).
+  location:   { label: 'Standort',     color: '#0369a1', bg: '#f0f9ff', icon: Warehouse },
 };
 
 // Projektion der zwei Achsen (quality + disposition) PLUS Reservierung auf EINE Badge.
@@ -95,6 +97,7 @@ export function instanceStatusConfig(
   disposition: string | null | undefined,
   reserved: boolean = false,
 ): StatusCfg {
+  if (disposition === 'location') return INSTANCE_STATUS.location;
   if (disposition === 'scrapped') return INSTANCE_STATUS.scrapped;
   if (disposition === 'sold') return INSTANCE_STATUS.sold;
   if (disposition === 'consumed') return INSTANCE_STATUS.consumed;

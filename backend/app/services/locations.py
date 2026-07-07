@@ -1,28 +1,67 @@
 """Standorte für Instanzen (Prozessschritt «Bewegung»).
 
-Eine Instanz hat IMMER einen Standort, und ein Standort ist stets ein
-Datensatzobjekt mit 9-stelliger Nummer:
+Eine Instanz **kann** einen Standort haben (sie darf auch standortlos sein, ``NULL`` =
+«noch nicht festgelegt»); ist einer gesetzt, ist er stets ein Datensatzobjekt mit
+9-stelliger Nummer:
 
     lagerplatz → StorageLocation
     user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
-    instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
+    instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter ODER ein
+                 Lagerplatz-als-Instanz, ``articles.is_location``)
 
-Bei der Auftragsfreigabe erhält jede neue Instanz einen Startstandort: beginnt der
-Prozess mit einer Lieferanten-Beschaffung, startet sie **beim Lieferanten**, sonst
-ohne Standort (``NULL`` = «noch nicht festgelegt», siehe ``services/serialization.py``).
-Den realen Ort setzt der erste Bewegungs-Schritt; die Vorgabe-Lieferadresse steht in
-``company_settings.default_receiving_location_id`` (Anzeige im Beschaffungs-Embed).
+Bei der Auftragsfreigabe startet eine Instanz beim **Lieferanten** (Lieferanten-
+Beschaffung als erster Schritt) oder **ohne Standort** (siehe
+``services/serialization.py``). Den realen Ort setzt der erste Bewegungs-Schritt; die
+Vorgabe-Lieferadresse steht in ``company_settings.default_receiving_location_id``.
 """
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Instance, StorageLocation, UserProfile
+from ..models import Article, Instance, StorageLocation, UserProfile
 from ..schemas.movement import LOCATION_TYPES
 
 
 def _user_label(u: UserProfile) -> str:
     return u.display_name
+
+
+def create_location_instance(
+    db: Session, article: Article, parent_type: str | None, parent_id: int | None, actor_id: int | None
+) -> Instance:
+    """Eine **Lagerplatz-Instanz** anlegen (F): eine Instanz eines ``is_location``-Artikels,
+    die ein **Ort** ist statt Bestand. Sie trägt ``disposition='location'`` (und ist damit
+    über ``inventory.in_stock_clauses`` automatisch aus Bestand/FIFO/Reservierung ausgeschlossen)
+    und **keinen** Auftrag (``order_id=None``) – ein Ort wird deklariert, nicht produziert.
+
+    Optionaler Eltern-Standort (``parent_type``/``parent_id``) = die Hierarchie (Gebäude→Fach):
+    eine Orts-Instanz kann in einem Lagerplatz/bei einer Person/in einer anderen Orts-Instanz
+    liegen. Leer = oberste Ebene (standortlos). Committet NICHT – der Aufrufer schliesst ab."""
+    from ..models.base import utcnow
+    from .admin import log_audit
+    from .events import emit
+    from .objects import next_object_id
+
+    if not article.is_location:
+        raise HTTPException(400, detail="Artikel ist kein Standort-Typ (is_location=false)")
+    if parent_type is not None or parent_id is not None:
+        if parent_type is None or parent_id is None:
+            raise HTTPException(400, detail="Eltern-Standort braucht Typ UND Objektnummer")
+        validate_location(db, parent_type, parent_id)   # muss existieren
+    inst = Instance(
+        object_id=next_object_id(db, "instance"),
+        article_id=article.id, order_id=None,
+        kind="unit", quantity=1,
+        quality="passed", disposition="location", released_at=utcnow(),
+        location_type=parent_type, location_id=parent_id,
+    )
+    db.add(inst)
+    db.flush()
+    log_audit(db, "instances", None, f"Lagerplatz-Instanz «{article.name}» angelegt",
+              actor_id, object_id=inst.object_id)
+    emit(db, "location.created", object_type="instance", object_id=inst.object_id,
+         payload={"article_id": article.id}, actor_id=actor_id)
+    return inst
 
 
 def _obj_nr(lid: int) -> str:

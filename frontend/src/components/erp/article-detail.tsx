@@ -55,6 +55,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target';
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
+  is_location: boolean;   // F: Standort-Typ (Instanzen sind Orte, kein Bestand)
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
   reorder_target: string;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
@@ -74,6 +75,7 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
+    is_location: false,
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
     reorder_target: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
@@ -81,6 +83,7 @@ function seedFrom(record: Article | null): Form {
   return {
     ...base,
     name: record.name, unit: record.unit, serialization: record.serialization,
+    is_location: record.is_location ?? false,
     size: record.size ?? '', weight_kg: record.weight_kg != null ? String(record.weight_kg) : '',
     material: record.material ?? '', cad_url: record.cad_url ?? '', surface: record.surface ?? '',
     supplier_article_number: record.supplier_article_number ?? '',
@@ -99,6 +102,7 @@ function seedFrom(record: Article | null): Form {
 function signatureOf(form: Form): string {
   return JSON.stringify({
     name: form.name.trim(), unit: form.unit, serialization: form.serialization,
+    is_location: form.is_location,
     size: form.size.trim() ? normalizeSize(form.size) : '',
     weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : '',
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
@@ -108,6 +112,41 @@ function signatureOf(form: Form): string {
     default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
     default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
   });
+}
+
+
+// Reiter «Bestand»: die Instanzen des Artikels. Bei einem **Standort-Typ** (``is_location``)
+// zusätzlich der Knopf, konkrete Lagerplatz-Instanzen anzulegen (die dann Orte sind).
+function BestandTab({ article }: { article: Article | null }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function createLoc() {
+    if (!article?.object_id) return;
+    setBusy(true); setErr(null);
+    try {
+      await api.createLocationInstance({ article_object_id: article.object_id });
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Anlage fehlgeschlagen');
+    } finally { setBusy(false); }
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {article?.is_location && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button type="button" onClick={createLoc} disabled={busy || !article.object_id}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: busy ? '#7dd3fc' : '#0369a1', color: '#fff', font: '600 13px var(--font-body)', cursor: busy ? 'wait' : 'pointer' }}>
+            <Plus size={15} /> Lagerplatz-Instanz anlegen
+          </button>
+          {!article.object_id && <span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)' }}>Zuerst speichern.</span>}
+          {err && <span style={{ font: '500 12px var(--font-body)', color: '#dc2626' }}>{err}</span>}
+        </div>
+      )}
+      <InstanceList key={refreshKey} articleObjectId={article?.object_id ?? null}
+        unit={article ? unitLabel(article.unit) : undefined} />
+    </div>
+  );
 }
 
 // Vorübergehender Transportfehler (Server nicht erreichbar / Kaltstart) vs.
@@ -235,6 +274,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         name: form.name.trim(),
         unit: form.unit as ArticleUnit,
         serialization: form.serialization as ArticleSerialization,
+        is_location: form.is_location,
         size: form.size.trim() ? normalizeSize(form.size) : null,
         weight_kg: form.weight_kg.trim() ? normalizeWeight(form.weight_kg) : null,
         material: form.material.trim() || null,
@@ -369,6 +409,10 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                   </div>
                   <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
                   <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
+                  <label style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'flex-start', gap: 9, font: '500 13px var(--font-body)', color: 'var(--fg-2)', cursor: 'pointer', padding: '2px 0' }}>
+                    <input type="checkbox" checked={form.is_location} onChange={(e) => set('is_location', e.target.checked)} style={{ marginTop: 2 }} />
+                    <span>Standort-Typ (Lagerplatz) – Instanzen dieses Artikels sind <strong>Orte</strong> (kein Bestand). Andere Instanzen liegen darin; im Reiter «Bestand» legst du konkrete Lagerplätze an.</span>
+                  </label>
                   {OPTIONAL_FIELDS.filter((f) => SEC_STAMM.includes(f.key) && added.includes(f.key)).map((f) => (
                     <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
                   ))}
@@ -412,9 +456,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
             onStepsCount={setStepsCount}
             procurementReady={form.procurement_mode === 'webshop' ? !!form.default_webshop_url.trim() : !!form.default_supplier_id} />
         )}
-        {tab === 'bestand' && (
-          <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
-        )}
+        {tab === 'bestand' && <BestandTab article={record} />}
         {tab === 'verkauf' && (
           <SalesPanel articleObjectId={record?.object_id ?? null} />
         )}

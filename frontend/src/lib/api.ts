@@ -487,6 +487,16 @@ class ApiClient {
     return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
   }
 
+  // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).
+  getObjectReferences(objectId: number): Promise<ObjectReference[]> {
+    return this.get(`/api/v1/erp/objects/${objectId}/references`);
+  }
+
+  // Lagerplatz-Instanz anlegen (Instanz eines is_location-Artikels; optionaler Eltern-Standort).
+  createLocationInstance(data: { article_object_id: number; location_type?: string | null; location_id?: number | null }): Promise<Instance> {
+    return this.post('/api/v1/erp/instances/location', data);
+  }
+
   // ─── Verkauf (ERP, Reiter «Verkauf» am Artikel) ─────────────────────────────
   // Verkaufs-Daten sind IMMER editierbar (auch bei freigegebenem Artikel).
 

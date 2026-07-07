@@ -123,6 +123,7 @@ class ArticleCreate(BaseModel):
     serialization: Optional[str] = None   # Default 'unit'
     size: Optional[str] = None            # optional
     weight_kg: Optional[Decimal] = None   # optional
+    is_location: Optional[bool] = None    # F: Standort-Typ (Instanzen sind Orte, kein Bestand)
     # Optionale Stammdaten (nur bei Bedarf gepflegt)
     material: Optional[str] = None
     cad_url: Optional[str] = None
@@ -217,6 +218,7 @@ class ArticleUpdate(BaseModel):
     serialization: Optional[str] = None
     size: Optional[str] = None
     weight_kg: Optional[Decimal] = None
+    is_location: Optional[bool] = None    # F: Standort-Typ
     material: Optional[str] = None
     cad_url: Optional[str] = None
     surface: Optional[str] = None
@@ -314,6 +316,7 @@ class ArticleResponse(BaseModel):
     serialization: str
     size: Optional[str] = None
     weight_kg: Optional[Decimal] = None
+    is_location: bool = False    # F: Standort-Typ (Instanzen sind Orte)
     # Optionale Stammdaten (dynamische Feldliste)
     material: Optional[str] = None
     cad_url: Optional[str] = None

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import String, cast, or_
@@ -7,7 +9,9 @@ from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
 from ..schemas.instance import InstanceOrderRef, InstanceResponse
-from ..services.locations import location_labels, physical_location_labels
+from ..services.locations import (
+    create_location_instance, location_labels, physical_location_labels,
+)
 from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -15,6 +19,15 @@ router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
 class CountResponse(BaseModel):
     count: int
+
+
+class LocationInstanceCreate(BaseModel):
+    """Anlage einer **Lagerplatz-Instanz** (F): eine Instanz eines ``is_location``-Artikels,
+    die ein Ort ist. Optionaler Eltern-Standort für die Hierarchie (Gebäude→Fach)."""
+
+    article_object_id: int
+    location_type: Optional[str] = None
+    location_id: Optional[int] = None
 
 
 def _apply_search(q, search: str):
@@ -77,6 +90,27 @@ async def list_instances(
         q = q.offset(offset).limit(limit)
     rows = q.all()
     return _denorm(db, rows)
+
+
+@router.post("/location", response_model=InstanceResponse, status_code=201)
+async def create_location(
+    data: LocationInstanceCreate,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(require_employee),
+):
+    """Eine Lagerplatz-Instanz anlegen: eine Instanz eines ``is_location``-Artikels, die ein
+    **Ort** ist (aus dem Bestand ausgeschlossen). Andere Instanzen liegen darin via
+    ``location_type='instance'``; ein optionaler Eltern-Standort bildet die Hierarchie."""
+    art = (
+        db.query(Article)
+        .filter(Article.object_id == data.article_object_id, Article.is_active == True)
+        .first()
+    )
+    if not art:
+        raise HTTPException(404, detail="Artikel nicht gefunden")
+    inst = create_location_instance(db, art, data.location_type, data.location_id, user.id)
+    db.commit()
+    return _denorm(db, [inst])[0]
 
 
 @router.get("/count", response_model=CountResponse)

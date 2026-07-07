@@ -40,6 +40,16 @@ class Article(Base, TimestampMixin):
     size: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # z. B. 3x40x600 (optional)
     weight_kg: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # optional
 
+    # ── Lagerplatz-als-Instanz (F) ─────────────────────────────────────────────────
+    # Ist dieser Artikel ein **Standort-Typ** («Regalfach», «Palettenplatz», «Behälter»)?
+    # Seine Instanzen sind dann **Orte**, nicht Bestand: sie tragen ``disposition='location'``
+    # und sind über die EINE Bestands-Klausel (``inventory.in_stock_clauses`` verlangt
+    # ``in_stock``) automatisch aus Bestand/FIFO/Reservierung ausgeschlossen – KEINE Sonder-
+    # Joins nötig. Andere Instanzen liegen dort via ``location_type='instance'`` (Hierarchie
+    # Gebäude→Fach fällt gratis an). Bewegung/Scan/Etikett erben sie als normale Instanzen.
+    is_location: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+
     # Optionale Stammdaten – nur bei Bedarf gepflegt (dynamische Feldliste im UI).
     material: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     cad_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # CAD-Link
