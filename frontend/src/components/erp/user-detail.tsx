@@ -8,7 +8,7 @@ import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import type { UserProfile, CustomerOrder } from '@/types';
+import type { UserProfile, CustomerOrder, Acknowledgement } from '@/types';
 
 type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -224,6 +224,29 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
 
 // ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
 
+// Bestätigungen (Consent-Gate): welche Pflichtdokumente dieser Nutzer wann bestätigt hat.
+// «AGB akzeptiert am … · Stand <Objektnummer der Fassung>». Blendet sich aus, wenn leer.
+function AcknowledgementsCard({ objectId }: { objectId: number | null | undefined }) {
+  const [acks, setAcks] = useState<Acknowledgement[] | null>(null);
+  useEffect(() => {
+    if (objectId == null) { setAcks([]); return; }
+    let cancelled = false;
+    api.getUserAcknowledgements(objectId).then((a) => { if (!cancelled) setAcks(a); }).catch(() => { if (!cancelled) setAcks([]); });
+    return () => { cancelled = true; };
+  }, [objectId]);
+  if (!acks || acks.length === 0) return null;
+  return (
+    <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 8 }}>Bestätigungen</div>
+      {acks.map((a, i) => (
+        <div key={i} style={{ fontSize: 13, color: '#334155', padding: '3px 0' }}>
+          <strong>{a.title}</strong> akzeptiert am {localDate(a.accepted_at)} · Stand {fmtObjId(a.version_object_id)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function OrdersSec({ objectId }: { objectId: number | null | undefined }) {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   useEffect(() => {
@@ -339,7 +362,10 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
-        {tab === 'profil' && <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />}
+        {tab === 'profil' && <>
+          <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
+          <AcknowledgementsCard objectId={record.object_id} />
+        </>}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />}

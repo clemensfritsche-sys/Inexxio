@@ -4,7 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument,
+  PendingDocument, Acknowledgement,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -126,6 +126,11 @@ class ApiClient {
   // Ein Dokument bestätigen; liefert die verbleibenden offenen Bestätigungen zurück.
   acknowledgeDocument(kind: string): Promise<PendingDocument[]> {
     return this.post('/api/v1/consent/acknowledge', { kind });
+  }
+
+  // Bestätigungen eines Nutzers (für den Benutzer-ERP-Datensatz).
+  getUserAcknowledgements(userObjectId: number): Promise<Acknowledgement[]> {
+    return this.get(`/api/v1/consent/acknowledgements/${userObjectId}`);
   }
 
   // ─── Admin: Users ──────────────────────────────────────────────────────────

@@ -25,8 +25,9 @@ def test_legal_pointer_targets_article_via_replacement_chain():
     chain_src = inspect.getsource(legal._replacement_chain)
     assert "replaced_by_id" in chain_src                 # folgt der Ersetzungs-Kette
     doc_src = inspect.getsource(legal._first_released_document)
-    assert "in_stock_clauses" in doc_src                 # nur freigegebener Bestand
-    assert "released_at" in doc_src                       # FIFO: erste zuerst
+    # Auflösung über das AUSGESTELLTE Dokument (nicht den Lagerstatus): nur verschrottete raus.
+    assert 'disposition != "scrapped"' in doc_src
+    assert "released_at" in doc_src                       # Sortierung: älteste Freigabe zuerst
 
 
 def test_recurrence_clones_custom_steps_and_carries_subject():

@@ -15,13 +15,27 @@ def test_consent_role_scope_pure():
     assert consent._role_in_scope(None, ["all"]) is True
 
 
-def test_consent_required_kinds_from_config():
+def test_consent_required_kinds_hardcoded_for_all_roles():
     from app.services import consent
-    settings = SimpleNamespace(legal_ack_config={"agb": ["all"], "supplier_terms": ["supplier"]})
-    assert set(consent.required_kinds(settings, "customer")) == {"agb"}
-    assert set(consent.required_kinds(settings, "supplier")) == {"agb", "supplier_terms"}
-    # Ohne Konfiguration blockiert nichts (sicherer Default).
-    assert consent.required_kinds(SimpleNamespace(legal_ack_config=None), "admin") == []
+    # Hart verdrahtet (kein Admin-Häkchen): AGB für JEDE Rolle, unabhängig von der Konfig.
+    assert "agb" in consent.MUST_ACKNOWLEDGE_KINDS
+    for role in ("customer", "supplier", "employee", "admin", None):
+        assert consent.required_kinds(SimpleNamespace(legal_ack_config=None), role) == ["agb"]
+
+
+def test_legal_resolves_on_issued_document_not_stock():
+    # Ein Rechtsdokument ist gültig, sobald es AUSGESTELLT ist – nicht erst, wenn der
+    # Auftrag „in_stock" abgeschlossen ist (das war die Ursache «AGB wird nicht angezeigt»).
+    from app.services import legal
+    src = inspect.getsource(legal._first_released_document)
+    assert "in_stock_clauses" not in src
+    assert 'disposition != "scrapped"' in src
+
+
+def test_acknowledgements_endpoint_wired():
+    from app.routers import consent as consent_router
+    paths = {r.path for r in consent_router.router.routes}
+    assert "/api/v1/consent/acknowledgements/{user_object_id}" in paths
 
 
 def test_pending_document_serialization():

@@ -127,6 +127,8 @@ export interface LegalDocument {
 
 // Zu bestätigendes Pflichtdokument (Consent-Gate) – versioniert über die Objektnummer.
 export type PendingDocument = components['schemas']['PendingDocument'];
+// Erfolgte Bestätigung (am Benutzer-ERP-Datensatz sichtbar).
+export type Acknowledgement = components['schemas']['Acknowledgement'];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];

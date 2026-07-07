@@ -27,6 +27,12 @@ _KIND_LABELS = {
     "widerruf": "Widerrufsbelehrung", "supplier_terms": "Lieferantenvereinbarung",
 }
 
+# Welche Dokument-Arten IMMER aktiv bestätigt werden müssen (rechtlich klar «zu akzeptieren»)
+# – hart verdrahtet statt konfigurierbar (kein Admin-Häkchen). Gilt für ALLE angemeldeten
+# Rollen. Eine Art wird nur dann verlangt, wenn am Unternehmen auch tatsächlich ein Dokument
+# dafür hinterlegt/auflösbar ist (sonst gibt es nichts zu bestätigen).
+MUST_ACKNOWLEDGE_KINDS: tuple[str, ...] = ("agb",)
+
 
 def _label(kind: str, content: dict | None) -> str:
     if content and content.get("title"):
@@ -43,8 +49,12 @@ def _role_in_scope(role: str | None, roles) -> bool:
 
 
 def required_kinds(settings, role: str | None) -> list[str]:
-    """Die Dokument-Arten, die diese Rolle bestätigen muss (aus der Firmen-Konfiguration)."""
-    return [k for k, roles in _config(settings).items() if _role_in_scope(role, roles)]
+    """Die Dokument-Arten, die bestätigt werden müssen – **hart verdrahtet** (``MUST_ACKNOWLEDGE_
+    KINDS``), für **jede** Rolle gleich. ``settings``/``role`` bleiben in der Signatur (Tests/
+    künftige Rollen-Feinsteuerung), werden aktuell aber nicht ausgewertet. Ob tatsächlich etwas
+    zu bestätigen ist, entscheidet erst die Auflösung eines gültigen Dokuments (siehe
+    ``pending_documents``)."""
+    return list(MUST_ACKNOWLEDGE_KINDS)
 
 
 def _has_ack(db: Session, user_id: int, kind: str, version: int) -> bool:
@@ -102,3 +112,21 @@ def acknowledge(db: Session, user: UserProfile, kind: str) -> None:
     emit(db, "document.acknowledged", object_type="user", object_id=user.object_id,
          payload={"kind": kind, "version": version}, actor_id=user.id)
     db.commit()
+
+
+def acknowledgements_for(db: Session, user: UserProfile) -> list[dict]:
+    """Alle Bestätigungen eines Nutzers (neueste zuerst) – für den Benutzer-ERP-Datensatz
+    («AGB akzeptiert am … · Stand Objektnummer …»)."""
+    rows = (
+        db.query(DocumentAcknowledgement)
+        .filter(DocumentAcknowledgement.user_id == user.id,
+                DocumentAcknowledgement.is_active == True)
+        .order_by(DocumentAcknowledgement.accepted_at.desc())
+        .all()
+    )
+    return [{
+        "kind": r.kind,
+        "title": _KIND_LABELS.get(r.kind, r.kind.replace("_", " ").upper()),
+        "version_object_id": r.version_object_id,
+        "accepted_at": r.accepted_at,
+    } for r in rows]

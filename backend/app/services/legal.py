@@ -20,7 +20,6 @@ from sqlalchemy.orm import Session
 from ..models import Article, Instance
 from .admin import get_or_create_settings
 from .document import instance_document_embeds
-from .inventory import in_stock_clauses
 
 
 def pointer(db: Session, kind: str) -> Optional[int]:
@@ -52,15 +51,19 @@ def _replacement_chain(db: Session, article: Article) -> list[Article]:
 
 
 def _first_released_document(db: Session, article_id: int):
-    """Die **erste** (FIFO) freigegebene Instanz des Artikels, die einen ausgestellten
-    Dokument-Beleg trägt → ``(Instanz, DocumentEmbed)`` oder ``(None, None)``.
+    """Die erste Instanz des Artikels, die einen **ausgestellten** Dokument-Beleg trägt
+    → ``(Instanz, DocumentEmbed)`` oder ``(None, None)``.
 
-    „Freigegeben" = qc passed UND am Lager (``inventory.in_stock_clauses``); „erste" =
-    älteste Freigabe zuerst (``released_at``), dann Objektnummer."""
+    Massgeblich ist das **ausgestellte Dokument** (``Document.done=True``, festgeschrieben),
+    NICHT der Lagerstatus der Instanz: ein Rechtsdokument ist gültig, sobald es ausgestellt
+    ist – der Bestands-/Auftrags-Abschluss (``in_stock``) ist dafür irrelevant. Ausgeschlossen
+    werden nur verschrottete Instanzen. Sortierung: älteste Freigabe zuerst (``released_at``,
+    NULLs zuletzt), dann Objektnummer."""
     insts = (
         db.query(Instance)
-        .filter(Instance.article_id == article_id, Instance.is_active == True, *in_stock_clauses())
-        .order_by(Instance.released_at, Instance.object_id)
+        .filter(Instance.article_id == article_id, Instance.is_active == True,
+                Instance.disposition != "scrapped")
+        .order_by(Instance.released_at.asc().nullslast(), Instance.object_id)
         .all()
     )
     for inst in insts:

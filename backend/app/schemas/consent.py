@@ -18,3 +18,12 @@ class PendingDocument(BaseModel):
 
 class AcknowledgeRequest(BaseModel):
     kind: str
+
+
+class Acknowledgement(BaseModel):
+    """Eine erfolgte Bestätigung (für den Benutzer-ERP-Datensatz)."""
+
+    kind: str
+    title: str
+    version_object_id: int          # Stand = Objektnummer der bestätigten Dokument-Instanz
+    accepted_at: datetime

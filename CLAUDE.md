@@ -323,17 +323,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Artikelnummer wird auch **am ERP-Unternehmens-Datensatz** gepflegt (`organization-detail`, Sektion
   «AGB & Datenschutz»), nicht nur Admin → Einstellungen.
 - **Consent-Gate: versionierte Bestätigung von Pflichtdokumenten** (`services/consent.py`,
-  `routers/consent.py`, `models/document_acknowledgement.py`, Migration 064): AGB/Datenschutz/… müssen
-  aktiv bestätigt werden, wenn eine neue Fassung erscheint. Die **Version** ist die Objektnummer der
-  gültigen Dokument-Instanz (`legal.resolve` folgt der Artikel-/`replaced_by_id`-Kette). Am Unternehmen
-  legt `company_settings.legal_ack_config` (`{kind: [Rollen]}`, `"all"` = jede Rolle) fest, welche Arten
-  von WEM bestätigt werden müssen – gilt für **alle** angemeldeten Rollen (Mitarbeiter, **Lieferant**,
-  Kunde, Admin; Endpunkte an `get_current_user`). Wer welche Version wann bestätigt hat, liegt append-only
-  in `document_acknowledgements` (Nachweis CH DSG/DSGVO; AGB spiegelt weiterhin `terms_accepted_at`).
-  `GET /consent/pending` liefert offene Bestätigungen (inkl. gerendertem Inhalt), `POST /consent/acknowledge`
-  quittiert. Frontend: **blockierendes Modal** `components/consent/consent-gate.tsx` (in ERP-, Konto- und
-  Public/Shop-Layout gemountet, self-contained via `onAuthChange`) – zeigt je ein Dokument mit «gelesen +
-  akzeptieren», bis nichts mehr offen ist. Konfiguration am Unternehmens-Datensatz (Checkbox je Typ).
+  `routers/consent.py`, `models/document_acknowledgement.py`, Migration 064): Bestätigungspflichtige
+  Dokumente sind **hart verdrahtet** (`consent.MUST_ACKNOWLEDGE_KINDS = ("agb",)`) – **kein Admin-Häkchen**,
+  gilt für **jede** angemeldete Rolle (Mitarbeiter, **Lieferant**, Kunde, Admin; Endpunkte an
+  `get_current_user`). Verlangt wird eine Art nur, wenn tatsächlich ein Dokument auflösbar ist. Die
+  **Version** ist die Objektnummer der gültigen Dokument-Instanz (`legal.resolve` folgt der Artikel-/
+  `replaced_by_id`-Kette). Wer welche Version wann bestätigt hat, liegt append-only in
+  `document_acknowledgements` (Nachweis CH DSG/DSGVO; AGB spiegelt weiterhin `terms_accepted_at`). Am
+  **Benutzer-ERP-Datensatz** wird der Nachweis gezeigt («AGB akzeptiert am … · Stand <Objektnr>»,
+  `GET /consent/acknowledgements/{user_object_id}`). `GET /consent/pending` liefert offene Bestätigungen,
+  `POST /consent/acknowledge` quittiert. Frontend: **blockierendes Modal** `components/consent/consent-
+  gate.tsx` (in ERP-, Konto- und Public/Shop-Layout gemountet, self-contained via `onAuthChange`) – zeigt
+  je ein Dokument mit «gelesen + akzeptieren», bis nichts mehr offen ist. *(`legal_ack_config` bleibt als
+  Spalte für künftige Rollen-Feinsteuerung, aktuell ungenutzt.)*
 - **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
   (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
   `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System
@@ -806,14 +808,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Öffentliche Rechtsdokumente (D, Zeiger auf einen Artikel)**: AGB/Datenschutz kommen aus dem
   **Dokument-Modul** statt aus hartkodiertem Seitentext. Am Unternehmen wird je Typ die **Objektnummer
   eines Artikels** hinterlegt (`company_settings.legal_documents` JSONB, `{"agb": <Artikel-Objektnr>,
-  "datenschutz": …}`); die Website zieht dessen **erste freigegebene Instanz** (den ausgestellten
-  Dokument-Beleg). **Neue Fassung = neuer Artikel + «Ersetzen»** (`replaced_by_id`): die Auflösung folgt
-  der Ersetzungs-Kette automatisch auf die **neueste Fassung mit freigegebenem Beleg** (wie der Shop
-  kanonisiert) – der Zeiger muss nicht angefasst werden; ein noch belegloser Nachfolger (Entwurf) wird
-  übersprungen, die alte Fassung bleibt gültig, bis die neue tatsächlich einen freigegebenen Bestand hat.
-  Alte Instanzen bleiben über ihre Objektnummer archiviert (Nachweis im Streitfall). Auflösung
-  `services/legal.resolve` (Artikel→`replaced_by_id`-Kette→erste freigegebene Instanz→`instance_document_
-  embeds`); Public-Endpoint `GET /api/v1/legal/{kind}` (404 → Website-Fallback auf eingebauten Text).
+  "datenschutz": …}`); die Website zieht dessen **erste Instanz mit ausgestelltem Dokument-Beleg**
+  (`Document.done=True`) – massgeblich ist die **Ausstellung**, NICHT der Lagerstatus (`in_stock`) der
+  Instanz; nur verschrottete Instanzen werden übersprungen. **Neue Fassung = neuer Artikel + «Ersetzen»**
+  (`replaced_by_id`): die Auflösung folgt der Ersetzungs-Kette automatisch auf die **neueste Fassung mit
+  ausgestelltem Beleg** (wie der Shop kanonisiert) – der Zeiger muss nicht angefasst werden; ein noch
+  belegloser Nachfolger (Entwurf) wird übersprungen, die alte Fassung bleibt gültig, bis die neue
+  tatsächlich einen ausgestellten Beleg hat. Alte Instanzen bleiben über ihre Objektnummer archiviert
+  (Nachweis im Streitfall). Auflösung `services/legal.resolve` (Artikel→`replaced_by_id`-Kette→erste
+  Instanz mit ausgestelltem `instance_document_embeds`); Public-Endpoint `GET /api/v1/legal/{kind}`
+  (404 → Website-Fallback auf eingebauten Text). **Voraussetzung:** das Dokument muss in einem Auftrag
+  auf den Artikel **ausgestellt** worden sein (Prozessschritt «Dokument» → «Ausstellen»).
   Frontend: `/agb` + `/datenschutz` rendern `<LegalDocument kind=… fallback={…}>` (DocumentView inkl.
   Briefkopf), Admin → Systemkonfiguration → «Rechtstexte» (Artikelnummer je Typ). Erfüllt die
   AGB-Akzeptanz-Version geschenkt.
