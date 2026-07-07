@@ -49,6 +49,16 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Menge + Erfassungsfelder (Soll-Ist mit Toleranz, Gut/Schlecht, Text).
     sample_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    # «Freigabe/Unterschrift»: eine Person quittiert die Datenerfassung mit digitaler
+    # Unterschrift (als Bild). Optional auf bestimmte Personen (Objektnummern) beschränkt –
+    # leer/NULL = jede eingeloggte Person darf unterschreiben (wird protokolliert).
+    require_signature: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    signer_ids: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    # «Bilderfassung»: genau EIN Foto je Schritt; die Anweisung beschreibt, was zu fotografieren ist.
+    require_photo: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    photo_instruction: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
     # Konfiguration «movement» (Bewegung): optionales Vorgabe-Ziel. Beides NULL =
     # der Lagerist entscheidet beim Ausführen frei je Instanz.

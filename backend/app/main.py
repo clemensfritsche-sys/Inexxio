@@ -156,6 +156,15 @@ _COLUMN_SAFETY_NET = (
     ("orders", "reason", "VARCHAR(12)"),
     # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
     ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    # Datenerfassung: Freigabe/Unterschrift + Bilderfassung (Konfiguration am Schritt, Werte an der Erfassung).
+    ("article_process_steps", "require_signature", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("article_process_steps", "signer_ids", "JSONB"),
+    ("article_process_steps", "require_photo", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("article_process_steps", "photo_instruction", "VARCHAR(300)"),
+    ("inspections", "signature_url", "VARCHAR(300)"),
+    ("inspections", "signed_by", "BIGINT"),
+    ("inspections", "signed_at", "TIMESTAMP WITH TIME ZONE"),
+    ("inspections", "photo_url", "VARCHAR(300)"),
 )
 
 # Bruchmengen (Migration 055): Mengen-Spalten müssen NUMERIC(14,3) sein, nicht INTEGER –

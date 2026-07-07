@@ -717,7 +717,7 @@ async def update_order_inspection(
     """Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed)."""
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
-    record_inspection(db, order, data, current_user.id)
+    record_inspection(db, order, data, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 
