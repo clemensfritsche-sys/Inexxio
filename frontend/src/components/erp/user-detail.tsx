@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag } from 'lucide-react';
+import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag, FolderOpen } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs } from '@/components/erp/detail-tabs';
 import type { UserProfile, CustomerOrder } from '@/types';
+
+type UserTab = 'profil' | 'orders' | 'docs';
 import type { StatusCfg } from '@/lib/status-flow';
 import { localDate } from '@/lib/utils';
 
@@ -253,6 +256,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
   const [dirty, setDirty]   = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [tab, setTab]       = useState<UserTab>('profil');
 
   useEffect(() => { setForm({}); setDirty(false); setError(null); }, [record.object_id]);
 
@@ -324,15 +328,18 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
             <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id)}</div>
           </div>
         </div>
+        <DetailTabs<UserTab> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={[
+          { key: 'profil', label: 'Profil', icon: User },
+          { key: 'orders', label: 'Bestellungen', icon: ShoppingBag },
+          { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+        ]} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
-        <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
-        <OrdersSec objectId={record.object_id} />
-        <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-          <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />
-        </div>
+        {tab === 'profil' && <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />}
+        {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
+        {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />}
       </div>
 
       {/* Save bar */}

@@ -16,8 +16,8 @@ import { instanceStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
-import { useScan } from '@/components/scan/scan-provider';
 import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
+import { DocumentIngestDialog } from '@/components/erp/object-documents';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
@@ -150,7 +150,9 @@ export default function ErpPage() {
 
   const mapsApiKey = settings?.google_maps_api_key ?? null;
   const suppliers = users.filter((u) => u.role === 'supplier');
-  const scan = useScan();
+  // Kombinierte Kamera im Feed: EIN Knopf für Scannen (Code → Datensatz öffnen) UND
+  // Dokument erfassen (Auslöser → KI-Aufnahme). Kein Moduswechsel.
+  const [feedCapture, setFeedCapture] = useState(false);
 
   useEffect(() => {
     // Kern-Feeds (geringe Kardinalität) blockierend laden – die Shell erscheint
@@ -354,25 +356,6 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  // Kamera-Scan im Feed → gescannten Datensatz öffnen. Kandidaten = alle Datensätze
-  // (restrict): ein Code ausserhalb des ERP wird im Dialog abgewiesen, Kamera läuft weiter.
-  function scanToOpen() {
-    // Freier Lookup: jede gültige Objektnummer wird akzeptiert und serverseitig
-    // aufgelöst (auch nicht geladene Instanzen). Kandidaten dienen der manuellen Suche.
-    scan({
-      title: 'Datensatz scannen',
-      steps: [{
-        label: 'Datensatz',
-        hint: 'QR-/Barcode eines beliebigen Datensatzes',
-        kind: 'object',
-        candidates: rows
-          .filter((r) => r.objectId != null)
-          .map((r) => ({ objectId: r.objectId as number, label: `${rowTitle(r)} · ${TYPE_META[r.type].label}` })),
-      }],
-      onComplete: ([objectId]) => { openByObjectId(objectId); },
-    });
-  }
-
   function startCreate(type: 'article' | 'order' | 'storage_location') {
     setPlusOpen(false);
     setSel(null);
@@ -457,10 +440,10 @@ export default function ErpPage() {
                 </button>
               )}
               <button
-                onClick={scanToOpen}
-                data-tip="Barcode / QR scannen"
+                onClick={() => setFeedCapture(true)}
+                data-tip="Scannen oder Dokument erfassen"
                 data-tip-pos="bottom"
-                aria-label="Barcode / QR scannen"
+                aria-label="Scannen oder Dokument erfassen"
                 className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors"
               >
                 <ScanLine size={18} />
@@ -606,6 +589,16 @@ export default function ErpPage() {
           </ErrorBoundary>
         </div>
       </div>
+      {feedCapture && (
+        <DocumentIngestDialog
+          contextObjectId={null}
+          captureEnabled={viewerRole === 'staff'}
+          title={viewerRole === 'staff' ? 'Scannen oder Dokument erfassen' : 'Datensatz scannen'}
+          onCode={(oid) => { setFeedCapture(false); openByObjectId(oid); }}
+          onClose={() => setFeedCapture(false)}
+          onDone={() => setFeedCapture(false)}
+        />
+      )}
     </div>
     </ErpNavContext.Provider>
   );

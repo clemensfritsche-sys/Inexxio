@@ -5,14 +5,17 @@ import type { ReactNode, ElementType } from 'react';
 import {
   Boxes, ArrowLeft, FileText, MapPin, Package, CalendarDays, History,
   ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert,
-  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash,
+  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, LocationType } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
+
+type InstTab = 'spec' | 'orders' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { cn, localDate, timeAgo } from '@/lib/utils';
@@ -38,6 +41,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
   const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<InstTab>('spec');
 
   useEffect(() => {
     if (inst.object_id == null) return;
@@ -135,12 +139,21 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           </div>
         </div>
         {devErr && <div style={S.devErr}>{devErr}</div>}
+        <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
+          { key: 'spec', label: 'Spezifikation', icon: FileText },
+          { key: 'orders', label: 'Aufträge', icon: ClipboardList },
+          { key: 'docs', label: 'Dokumente', icon: FolderOpen },
+        ]} />
       </div>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-1)' }}>
         <div style={S.body}>
+          {tab === 'docs' && (
+            <ObjectDocuments objectId={inst.object_id ?? null} contextLabel="dieser Instanz" />
+          )}
           {/* Auf einen Blick */}
+          {tab === 'spec' && (
           <div style={S.glance}>
             <Tile
               wide icon={FileText} label="Spezifikation"
@@ -168,14 +181,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
           </div>
-
-          {/* Dokumente – vereint hochgeladene Belege/Anleitungen (KI-Aufnahme) UND die im
-              Prozessschritt «Dokument» erzeugten Dokumente dieser Instanz. */}
-          <div style={{ marginBottom: 30 }}>
-            <ObjectDocuments objectId={inst.object_id ?? null} contextLabel="dieser Instanz" />
-          </div>
+          )}
 
           {/* Aufträge */}
+          {tab === 'orders' && (
           <div>
             <div style={{ ...S.osecHead, marginBottom: 14 }}>
               <div style={{ ...S.osecIc, background: '#E7F0F4', color: '#1C6487' }}><ClipboardList size={18} /></div>
@@ -220,6 +229,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               </div>
             )}
           </div>
+          )}
 
         </div>
       </div>

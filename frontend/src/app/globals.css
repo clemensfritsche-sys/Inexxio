@@ -629,6 +629,15 @@
 .erp-tab:hover { color: var(--fg-1); }
 .erp-tab-active { color: var(--inexxio-red); border-bottom-color: var(--inexxio-red); }
 
+/* ── Dokument-Zeile (Reiter «Dokumente»): Aktionen erscheinen beim Hover ── */
+.erp-docrow { transition: border-color .15s, box-shadow .15s; }
+.erp-docrow:hover { border-color: var(--border-2); box-shadow: var(--shadow-sm); }
+.erp-docrow-actions { opacity: 0; transition: opacity .15s; }
+.erp-docrow:hover .erp-docrow-actions,
+.erp-docrow:focus-within .erp-docrow-actions { opacity: 1; }
+/* Touch-Geräte kennen kein Hover → Aktionen dauerhaft zeigen. */
+@media (hover: none) { .erp-docrow-actions { opacity: 1; } }
+
 /* ── Detail-Kopf: Status-Aktionsknöpfe (Freigeben/Deaktivieren …) ── */
 .erp-actbtn {
   display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px;

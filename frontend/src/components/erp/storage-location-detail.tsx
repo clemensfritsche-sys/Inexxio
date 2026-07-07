@@ -15,6 +15,7 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 import { ObjectLabel } from '@/components/scan/object-label';
 import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { DetailTabs, type DetailTab } from '@/components/erp/detail-tabs';
 import { localDate } from '@/lib/utils';
 
 type TabKey = 'stammdaten' | 'verwendung' | 'dokumente';
@@ -257,24 +258,12 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 2, marginTop: 12 }}>
-          {([
-            ['stammdaten', 'Stammdaten', FileText] as const,
-            ...(!isCreate ? [['verwendung', 'Verwendung', Link2] as const] : []),
-            ...(!isCreate ? [['dokumente', 'Dokumente', FolderOpen] as const] : []),
-          ]).map(([key, label, Icon]) => {
-            const active = tab === key;
-            return (
-              <button key={key} onClick={() => setTab(key)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  color: active ? '#2563eb' : '#64748b', background: 'none', border: 'none',
-                  borderBottom: `2px solid ${active ? '#2563eb' : 'transparent'}`, marginBottom: -13 }}>
-                <Icon size={14} /> {label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Tabs (einheitliche Optik über alle Datensätze) */}
+        <DetailTabs<TabKey> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={([
+          { key: 'stammdaten', label: 'Stammdaten', icon: FileText },
+          ...(!isCreate ? [{ key: 'verwendung', label: 'Verwendung', icon: Link2 }] : []),
+          ...(!isCreate ? [{ key: 'dokumente', label: 'Dokumente', icon: FolderOpen }] : []),
+        ] as DetailTab<TabKey>[])} />
       </div>
 
       {/* Content */}

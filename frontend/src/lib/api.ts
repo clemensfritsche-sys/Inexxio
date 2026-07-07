@@ -296,6 +296,18 @@ class ApiClient {
     return this.fetchPdf(`/api/v1/erp/document-files/${docId}/download`, filename || 'dokument');
   }
 
+  // Datei-Bytes authentifiziert holen und als lokale Object-URL bereitstellen (Inline-Vorschau
+  // von PDF/Bild – ein <iframe>/<img> kann den Bearer-Token nicht selbst mitsenden). Der Aufrufer
+  // gibt die URL per URL.revokeObjectURL wieder frei.
+  async documentPreviewUrl(downloadPath: string): Promise<{ url: string; mime: string }> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+    const res = await fetch(`${API_BASE}${downloadPath}`, { headers });
+    if (!res.ok) throw new Error(await this.errorMessage(res));
+    const blob = await res.blob();
+    return { url: URL.createObjectURL(blob), mime: blob.type || 'application/octet-stream' };
+  }
+
   deleteDocumentFile(docId: number): Promise<{ deleted: boolean }> {
     return this.delete(`/api/v1/erp/document-files/${docId}`);
   }
