@@ -3218,6 +3218,17 @@ export interface components {
             created_at?: string | null;
             /** Created By Name */
             created_by_name?: string | null;
+            /** Content */
+            content?: Record<string, never> | null;
+            /** Quality */
+            quality?: string | null;
+            /** Disposition */
+            disposition?: string | null;
+            /**
+             * Reserved
+             * @default false
+             */
+            reserved: boolean;
         };
         /**
          * ObjectReference

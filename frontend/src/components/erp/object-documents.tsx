@@ -18,9 +18,12 @@ import {
   ShieldCheck, FileSignature, Receipt, File as FileIcon, FolderOpen, Info, AlertTriangle, Eye,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { ObjectDocument, DocumentAnalyzeResponse, DocumentFileType, SuggestedLink } from '@/types';
+import type { ObjectDocument, DocumentAnalyzeResponse, DocumentFileType, SuggestedLink, CompanySettings, DocumentContent } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { DocumentCamera } from '@/components/erp/document-camera';
+import { DocumentView } from '@/components/erp/document-editor';
+import { StatusBadge } from '@/components/erp/fields';
+import { instanceStatusConfig } from '@/lib/process';
 import { localDate } from '@/lib/utils';
 
 // ─── Dokumenttyp: Symbol + Label (Farbe = Bedeutung) ──────────────────────────────
@@ -126,9 +129,14 @@ export function ObjectDocuments({ objectId, contextLabel }: {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ font: '700 14px var(--font-body)', color: 'var(--fg-1)' }}>{d.title}</span>
-                    <span style={{ font: '600 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 7px', borderRadius: 999, color: cfg.tone, background: `${cfg.tone}14` }}>
-                      {cfg.label}
-                    </span>
+                    {/* Ein erstelltes Dokument IST die Instanz → es zeigt DEREN Status (nicht «Erstellt»). */}
+                    {d.kind === 'generated' && d.quality ? (
+                      <StatusBadge cfg={instanceStatusConfig(d.quality, d.disposition ?? 'in_process', !!d.reserved)} size={10} />
+                    ) : (
+                      <span style={{ font: '600 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 7px', borderRadius: 999, color: cfg.tone, background: `${cfg.tone}14` }}>
+                        {cfg.label}
+                      </span>
+                    )}
                   </div>
                   {d.summary && <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', marginTop: 4, lineHeight: 1.45 }}>{d.summary}</div>}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, font: '500 11px var(--font-body)', color: 'var(--fg-4)', flexWrap: 'wrap' }}>
@@ -166,22 +174,35 @@ export function ObjectDocuments({ objectId, contextLabel }: {
   );
 }
 
-// ─── Inline-Vorschau (Bild / PDF – auch selbst erstellte Dokumente als PDF) ────────
+// ─── Inline-Vorschau ──────────────────────────────────────────────────────────────
+// Erstellte Dokumente (kind='generated') werden direkt als Inexxio-Dokument gerendert
+// (DocumentView – kein PDF-Iframe, keine CSP-Blockade). Hochgeladene Dateien: Bild als
+// <img>, PDF als <iframe> (authentifiziert geladen → Object-URL; frame-src blob: erlaubt).
 function DocumentPreview({ entry, onClose, onDownload }: {
   entry: ObjectDocument; onClose: () => void; onDownload: () => void;
 }) {
+  const isGenerated = entry.kind === 'generated' && !!entry.content;
   const [src, setSrc] = useState<string | null>(null);
   const [mime, setMime] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [company, setCompany] = useState<Partial<CompanySettings> | null>(null);
 
   useEffect(() => {
+    if (!isGenerated) return;
+    let alive = true;
+    api.getPublicSettings().then((s) => { if (alive) setCompany(s); }).catch(() => {});
+    return () => { alive = false; };
+  }, [isGenerated]);
+
+  useEffect(() => {
+    if (isGenerated) return;
     let url: string | null = null;
     let alive = true;
     api.documentPreviewUrl(entry.download_url)
       .then((r) => { if (alive) { url = r.url; setSrc(r.url); setMime(r.mime); } })
       .catch(() => { if (alive) setError('Vorschau konnte nicht geladen werden.'); });
     return () => { alive = false; if (url) URL.revokeObjectURL(url); };
-  }, [entry.download_url]);
+  }, [entry.download_url, isGenerated]);
 
   const isImage = mime.startsWith('image/') || (entry.mime ?? '').startsWith('image/');
 
@@ -199,8 +220,14 @@ function DocumentPreview({ entry, onClose, onDownload }: {
           <button onClick={onDownload} data-tip="Herunterladen" data-tip-pos="bottom" aria-label="Herunterladen" className="erp-idbtn"><Download size={17} /></button>
           <button onClick={onClose} aria-label="Schliessen" className="erp-idbtn"><X size={18} /></button>
         </div>
-        <div style={{ flex: 1, minHeight: 0, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {error ? (
+        <div style={{ flex: 1, minHeight: 0, overflowY: isGenerated ? 'auto' : 'hidden', background: '#f1f5f9', display: 'flex', alignItems: isGenerated ? 'flex-start' : 'center', justifyContent: 'center' }}>
+          {isGenerated ? (
+            <div style={{ padding: 24, width: '100%', maxWidth: 820 }}>
+              <DocumentView content={entry.content as unknown as DocumentContent} company={company}
+                objectNr={entry.object_number ? fmtObjId(entry.object_number) : null}
+                issuedAt={entry.created_at ?? null} />
+            </div>
+          ) : error ? (
             <div style={{ color: 'var(--fg-4)', fontSize: 13, textAlign: 'center', padding: 24 }}>{error}<br />Bitte stattdessen herunterladen.</div>
           ) : !src ? (
             <Loader2 size={28} className="animate-spin" style={{ color: 'var(--accent)' }} />

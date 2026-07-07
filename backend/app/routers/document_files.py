@@ -218,24 +218,41 @@ def _file_entry(db: Session, df: DocumentFile, relation: Optional[str]) -> Objec
     )
 
 
-def _gen_entry(db: Session, doc: Document, object_number: Optional[int],
-               doc_date: Optional[datetime]) -> ObjectDocument:
+def _gen_entry(db: Session, doc: Document, instance: Optional[Instance]) -> ObjectDocument:
+    """Ein erstelltes Dokument als Reiter-Eintrag. Es IST die vom Auftrag erzeugte Instanz –
+    daher trägt es deren Status (nicht «Erstellt») und seinen Inhalt (für die Inline-Vorschau
+    ohne PDF-Iframe)."""
     content = doc.content or {}
     title = (content.get("title") or "").strip() or "Dokument"
     return ObjectDocument(
-        kind="generated", id=doc.id, object_number=object_number, title=title,
+        kind="generated", id=doc.id,
+        object_number=instance.object_id if instance else None, title=title,
         doc_type="generated", summary=(content.get("subtitle") or None),
         mime="application/pdf", filename=None, page_count=None, byte_size=None,
         download_url=f"/api/v1/erp/documents/{doc.id}/pdf",
-        relation="issued", created_at=doc_date or doc.created_at,
+        relation="issued",
+        created_at=(instance.released_at if instance else None) or doc.created_at,
         created_by_name=document_svc.creator_name(db, doc),
+        content=content,
+        quality=(instance.quality if instance else None),
+        disposition=(instance.disposition if instance else None),
+        reserved=bool(instance and (instance.reserved_quantity or 0) > 0),
     )
 
 
 def _generated_for(db: Session, object_id: int) -> list[ObjectDocument]:
-    """Im Prozessschritt «Dokument» erzeugte, ausgestellte Dokumente mit Bezug zu diesem Objekt."""
+    """Im Prozessschritt «Dokument» erzeugte, ausgestellte Dokumente mit Bezug zu diesem Objekt.
+
+    Das Dokument = die vom Auftrag erzeugte Instanz. Wir reichen die Instanz durch, damit der
+    Eintrag deren Status trägt (Kernpunkt: Dokument-Status == Instanz-Status)."""
     t = resolve_object_type(db, object_id)
     out: list[ObjectDocument] = []
+
+    def _docs_of(order: Order):
+        return (db.query(Document)
+                .filter(Document.order_id == order.id, Document.done == True,
+                        Document.is_active == True).order_by(Document.id).all())
+
     if t == "instance":
         inst = db.query(Instance).filter(Instance.object_id == object_id,
                                          Instance.is_active == True).first()
@@ -243,21 +260,15 @@ def _generated_for(db: Session, object_id: int) -> list[ObjectDocument]:
             order = db.query(Order).filter(Order.id == inst.order_id).first() if inst.order_id else None
             owner = document_svc.produced_instance(db, order) if order else None
             if owner is not None and owner.object_id == inst.object_id:
-                docs = (db.query(Document)
-                        .filter(Document.order_id == order.id, Document.done == True,
-                                Document.is_active == True).order_by(Document.id).all())
-                for d in docs:
-                    out.append(_gen_entry(db, d, inst.object_id, inst.released_at))
+                for d in _docs_of(order):
+                    out.append(_gen_entry(db, d, inst))
         return out
     if t == "order":
         o = db.query(Order).filter(Order.object_id == object_id).first()
         if o:
-            nr, dt = document_svc.render_meta(db, o)
-            docs = (db.query(Document)
-                    .filter(Document.order_id == o.id, Document.done == True,
-                            Document.is_active == True).order_by(Document.id).all())
-            for d in docs:
-                out.append(_gen_entry(db, d, nr, dt))
+            inst = document_svc.produced_instance(db, o)
+            for d in _docs_of(o):
+                out.append(_gen_entry(db, d, inst))
         return out
     if t == "article":
         from ..models import Article
@@ -268,7 +279,7 @@ def _generated_for(db: Session, object_id: int) -> list[ObjectDocument]:
                             Document.is_active == True).order_by(Document.id.desc()).all())
             for d in docs:
                 order = db.query(Order).filter(Order.id == d.order_id).first()
-                nr, dt = document_svc.render_meta(db, order) if order else (None, None)
-                out.append(_gen_entry(db, d, nr, dt))
+                inst = document_svc.produced_instance(db, order) if order else None
+                out.append(_gen_entry(db, d, inst))
         return out
     return out
