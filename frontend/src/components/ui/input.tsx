@@ -32,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={inputId}
             className={cn(
               'w-full border rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400',
-              'focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-shadow',
+              'focus:ring-2 focus:ring-accent focus:border-transparent outline-none transition-shadow',
               error ? 'border-red-300 focus:ring-red-500' : 'border-slate-300',
               leftAddon && 'pl-10',
               rightAddon && 'pr-10',

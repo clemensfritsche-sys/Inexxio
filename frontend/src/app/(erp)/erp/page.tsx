@@ -68,7 +68,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
     // EINHEITLICHER Status für ALLE Aufträge – auch Unter-Aufträge (kein Sonder-«Abweichung»-
     // Badge mehr): wiederkehrend & fällig zuerst, sonst Beschaffungs-/Auftragsstatus.
     badge = row.data.recurrence_due
-      ? { label: 'fällig', color: '#dc2626', bg: '#fef2f2', icon: Repeat }
+      ? { label: 'fällig', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Repeat }
       : row.data.status === 'released' && row.data.purchase_status
         ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
         : orderStatusConfig(row.data.status);
@@ -434,7 +434,7 @@ export default function ErpPage() {
                   onClick={() => setSearch('')}
                   title="Eingabe löschen"
                   aria-label="Eingabe löschen"
-                  className="flex-none w-6 h-6 rounded-ds-sm flex items-center justify-center bg-bg-3 text-fg-3 hover:text-fg-1 transition-colors"
+                  className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-3 text-fg-3 hover:text-fg-1 transition-colors"
                 >
                   <X size={13} />
                 </button>
@@ -444,7 +444,7 @@ export default function ErpPage() {
                 data-tip="Scannen oder Dokument erfassen"
                 data-tip-pos="bottom"
                 aria-label="Scannen oder Dokument erfassen"
-                className="flex-none w-8 h-8 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors"
+                className="flex-none w-10 h-10 rounded-ds-sm flex items-center justify-center bg-bg-2 border border-border-1 text-fg-3 hover:text-fg-1 hover:bg-bg-3 transition-colors"
               >
                 <ScanLine size={18} />
               </button>

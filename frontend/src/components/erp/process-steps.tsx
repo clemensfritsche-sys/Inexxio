@@ -655,7 +655,7 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
               <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
             {f.type === 'measure' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 96px), 1fr))', gap: 8 }}>
                 <input value={f.target} onChange={(e) => upd(i, { target: e.target.value })} inputMode="decimal" placeholder="Soll"
                   className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
                 <input value={f.tolerance} onChange={(e) => upd(i, { tolerance: e.target.value })} inputMode="decimal" placeholder="± Toleranz"

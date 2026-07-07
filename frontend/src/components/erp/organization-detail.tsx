@@ -86,7 +86,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
         {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>

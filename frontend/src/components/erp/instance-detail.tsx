@@ -162,7 +162,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
       </div>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto" style={{ background: 'var(--bg-1)' }}>
+      <div className="flex-1 overflow-y-auto pb-20" style={{ background: 'var(--bg-1)' }}>
         <div style={S.body}>
           {tab === 'docs' && (
             <ObjectDocuments objectId={inst.object_id ?? null} contextLabel="dieser Instanz" />

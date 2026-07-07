@@ -267,7 +267,9 @@ const frameIcon: React.CSSProperties = {
   color: 'rgba(255,255,255,0.85)', pointerEvents: 'none', textShadow: '0 1px 4px rgba(0,0,0,0.5)',
 };
 const iconBtn: React.CSSProperties = {
-  border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, display: 'flex',
+  // ≥44px Touch-Ziel (Padding statt grösserem Icon); negativer Margin hält die Optik kompakt.
+  border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 13, margin: -9,
+  display: 'flex',
 };
 const input: React.CSSProperties = {
   width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 9, paddingBottom: 9, fontSize: 14,

@@ -357,7 +357,7 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
+        style={{ flex: 1, overflowY: 'auto', padding: '24px 28px 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'spezifikation' && (
           <div style={{ maxWidth: 880 }}>
             {locked ? (
@@ -576,7 +576,7 @@ const SERIAL_PICK = [
 ];
 const SPEC = {
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '28px 30px' } as React.CSSProperties,
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '26px 44px' } as React.CSSProperties,
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '26px 44px' } as React.CSSProperties,
 };
 
 // Abschnitts-Kopf (getöntes Symbol + Versalien-Titel + Haarlinie + optionaler rechter Slot,

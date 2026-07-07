@@ -271,7 +271,7 @@ export function StorageLocationDetail({ record, mapsApiKey, onSaved, onCancel, o
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', boxShadow: flash ? 'inset 0 0 0 2px #16a34a' : 'none', transition: 'box-shadow 0.2s' }}>
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'verwendung' ? (
           <UsageList refs={refs} />
         ) : tab === 'dokumente' ? (
