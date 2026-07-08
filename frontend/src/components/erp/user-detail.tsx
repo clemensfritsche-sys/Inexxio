@@ -6,6 +6,7 @@ import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
+import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import type { UserProfile, CustomerOrder, Acknowledgement } from '@/types';
@@ -368,7 +369,22 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
         </>}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}
-        {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />}
+        {tab === 'docs' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            <div>
+              <div style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)', marginBottom: 2 }}>Freigaben & Anerkennungen</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-4)', marginBottom: 10 }}>
+                Dokumente, die diese Person unterschreibt/bestätigt (als Partei) oder anerkennt (als Publikum).
+                Die Ansicht «Meine Dokumente» im Konto der Person spiegelt genau diese Daten.
+              </div>
+              <UserDocumentsOverview objectId={record.object_id} />
+            </div>
+            <div>
+              <div style={{ font: '700 13px var(--font-body)', color: 'var(--fg-1)', marginBottom: 10 }}>Abgelegte Dokumente</div>
+              <ObjectDocuments objectId={record.object_id} contextLabel="dieser Person" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Save bar */}

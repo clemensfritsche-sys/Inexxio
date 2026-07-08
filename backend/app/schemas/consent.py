@@ -41,6 +41,15 @@ class MyHistoryDocument(BaseModel):
     content: Optional[DocumentContent] = None
 
 
+class UserDocumentOverview(BaseModel):
+    """Vollständige Dokument-Beteiligung eines Nutzers (ERP-Benutzer-Datensatz = primäre Sicht;
+    das Profil «Meine Dokumente» spiegelt genau diese Daten)."""
+
+    signoffs: list[MySignoffDocument] = []        # offene Freigaben (als Partei)
+    acks: list[PendingDocument] = []              # offene Anerkennungen (als Publikum)
+    history: list[MyHistoryDocument] = []         # erledigte Vorgänge
+
+
 class AcknowledgeRequest(BaseModel):
     kind: str
     object_number: Optional[int] = None   # bei kind='document' (Publikums-Dokument) die Version

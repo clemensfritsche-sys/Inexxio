@@ -538,6 +538,54 @@
         ]
       }
     },
+    "/api/v1/consent/user/{user_object_id}/documents": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "User Documents",
+        "description": "Vollständige Dokument-Beteiligung eines Nutzers – **primäre** Sicht am ERP-Benutzer-\nDatensatz (offene Freigaben + offene Anerkennungen + Erledigt). Personal-Sicht.",
+        "operationId": "user_documents_api_v1_consent_user__user_object_id__documents_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDocumentOverview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/consent/acknowledgements/{user_object_id}": {
       "get": {
         "tags": [
@@ -15221,6 +15269,37 @@
           "url"
         ],
         "title": "UploadResult"
+      },
+      "UserDocumentOverview": {
+        "properties": {
+          "signoffs": {
+            "items": {
+              "$ref": "#/components/schemas/MySignoffDocument"
+            },
+            "type": "array",
+            "title": "Signoffs",
+            "default": []
+          },
+          "acks": {
+            "items": {
+              "$ref": "#/components/schemas/PendingDocument"
+            },
+            "type": "array",
+            "title": "Acks",
+            "default": []
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/MyHistoryDocument"
+            },
+            "type": "array",
+            "title": "History",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "UserDocumentOverview",
+        "description": "Vollständige Dokument-Beteiligung eines Nutzers (ERP-Benutzer-Datensatz = primäre Sicht;\ndas Profil «Meine Dokumente» spiegelt genau diese Daten)."
       },
       "UserProfileResponse": {
         "properties": {

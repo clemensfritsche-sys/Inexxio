@@ -114,6 +114,7 @@ export type SignoffView = components['schemas']['SignoffView'];
 export type SignoffAction = components['schemas']['SignoffAction'];
 export type MySignoffDocument = components['schemas']['MySignoffDocument'];
 export type MyHistoryDocument = components['schemas']['MyHistoryDocument'];
+export type UserDocumentOverview = components['schemas']['UserDocumentOverview'];
 export type DocSigner = components['schemas']['DocSigner'];
 export type DocSignAction = 'confirm' | 'sign';
 export type DocAudience = 'all' | 'roles' | 'persons';

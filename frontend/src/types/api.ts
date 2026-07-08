@@ -279,6 +279,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/consent/user/{user_object_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User Documents
+         * @description Vollständige Dokument-Beteiligung eines Nutzers – **primäre** Sicht am ERP-Benutzer-
+         *     Datensatz (offene Freigaben + offene Anerkennungen + Erledigt). Personal-Sicht.
+         */
+        get: operations["user_documents_api_v1_consent_user__user_object_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/consent/acknowledgements/{user_object_id}": {
         parameters: {
             query?: never;
@@ -5133,6 +5154,28 @@ export interface components {
             /** Height */
             height?: number | null;
         };
+        /**
+         * UserDocumentOverview
+         * @description Vollständige Dokument-Beteiligung eines Nutzers (ERP-Benutzer-Datensatz = primäre Sicht;
+         *     das Profil «Meine Dokumente» spiegelt genau diese Daten).
+         */
+        UserDocumentOverview: {
+            /**
+             * Signoffs
+             * @default []
+             */
+            signoffs: components["schemas"]["MySignoffDocument"][];
+            /**
+             * Acks
+             * @default []
+             */
+            acks: components["schemas"]["PendingDocument"][];
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["MyHistoryDocument"][];
+        };
         /** UserProfileResponse */
         UserProfileResponse: {
             /** Id */
@@ -5727,6 +5770,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyHistoryDocument"][];
+                };
+            };
+        };
+    };
+    user_documents_api_v1_consent_user__user_object_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDocumentOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -12,7 +12,8 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.consent import (
-    Acknowledgement, AcknowledgeRequest, MyHistoryDocument, MySignoffDocument, PendingDocument,
+    Acknowledgement, AcknowledgeRequest, MyHistoryDocument, MySignoffDocument,
+    PendingDocument, UserDocumentOverview,
 )
 from ..schemas.document import SignoffAction
 from ..services import consent
@@ -73,6 +74,24 @@ async def my_history(
     """Erledigte Dokument-Vorgänge des Nutzers (Unterschriften/Bestätigungen + Anerkennungen)
     – damit ein bereits akzeptiertes/unterschriebenes Dokument in «Meine Dokumente» sichtbar bleibt."""
     return consent.my_document_history(db, current_user)
+
+
+@router.get("/user/{user_object_id}/documents", response_model=UserDocumentOverview)
+async def user_documents(
+    user_object_id: int,
+    _: UserProfile = Depends(require_employee),
+    db: Session = Depends(get_db),
+):
+    """Vollständige Dokument-Beteiligung eines Nutzers – **primäre** Sicht am ERP-Benutzer-
+    Datensatz (offene Freigaben + offene Anerkennungen + Erledigt). Personal-Sicht."""
+    user = (
+        db.query(UserProfile)
+        .filter(UserProfile.object_id == user_object_id, UserProfile.is_active == True)
+        .first()
+    )
+    if not user:
+        raise HTTPException(404, detail="Benutzer nicht gefunden")
+    return consent.user_document_overview(db, user)
 
 
 @router.get("/acknowledgements/{user_object_id}", response_model=list[Acknowledgement])

@@ -246,6 +246,19 @@ def my_document_history(db: Session, user: UserProfile) -> list[dict]:
     return out
 
 
+def user_document_overview(db: Session, user: UserProfile) -> dict:
+    """Vollständige Dokument-Beteiligung eines Nutzers – die **primäre** Sicht am ERP-
+    Benutzer-Datensatz (die Profil-Ansicht «Meine Dokumente» spiegelt genau diese Daten):
+    offene Freigaben (als Partei), offene Anerkennungen (als Publikum) und die erledigten
+    Vorgänge. EINE Quelle für ERP + Profil."""
+    from .document import my_pending_signoffs
+    return {
+        "signoffs": my_pending_signoffs(db, user),
+        "acks": pending_documents(db, user),
+        "history": my_document_history(db, user),
+    }
+
+
 def acknowledgements_for(db: Session, user: UserProfile) -> list[dict]:
     """Alle Bestätigungen eines Nutzers (neueste zuerst) – für den Benutzer-ERP-Datensatz
     («AGB akzeptiert am … · Stand Objektnummer …»)."""

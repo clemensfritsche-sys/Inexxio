@@ -43,6 +43,7 @@ export function DocumentsSection() {
         <h2 style={{ font: '700 18px var(--font-display)', color: 'var(--fg-1)', margin: 0 }}>Meine Dokumente</h2>
         <p style={{ fontSize: 13.5, color: 'var(--fg-3)', margin: '4px 0 0' }}>
           Dokumente, die Sie unterschreiben/bestätigen (als benannte Partei) oder zur Kenntnis nehmen (Anerkennung).
+          Diese Übersicht spiegelt Ihren ERP-Datensatz.
         </p>
       </div>
 

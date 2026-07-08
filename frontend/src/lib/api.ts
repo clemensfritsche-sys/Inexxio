@@ -4,7 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, SignoffAction,
+  PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -171,6 +171,11 @@ class ApiClient {
   // Bestätigungen eines Nutzers (für den Benutzer-ERP-Datensatz).
   getUserAcknowledgements(userObjectId: number): Promise<Acknowledgement[]> {
     return this.get(`/api/v1/consent/acknowledgements/${userObjectId}`);
+  }
+
+  // Vollständige Dokument-Beteiligung eines Nutzers – PRIMÄRE Sicht am ERP-Benutzer-Datensatz.
+  getUserDocumentOverview(userObjectId: number): Promise<UserDocumentOverview> {
+    return this.get(`/api/v1/consent/user/${userObjectId}/documents`);
   }
 
   // ─── «Meine Dokumente»: Freigabe-Parteien (unterschreiben/bestätigen) ───────

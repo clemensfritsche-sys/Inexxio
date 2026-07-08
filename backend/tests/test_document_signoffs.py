@@ -193,6 +193,17 @@ def test_passkey_name_auto_defaulted():
     assert 'f"Passkey {n + 1}"' in src
 
 
+def test_user_document_overview_wired():
+    # PRIMÄRE Sicht am ERP-Benutzer-Datensatz: offene Freigaben + Anerkennungen + Erledigt.
+    from app.services import consent
+    assert hasattr(consent, "user_document_overview")
+    from app.routers import consent as consent_router
+    assert "/api/v1/consent/user/{user_object_id}/documents" in {r.path for r in consent_router.router.routes}
+    from app.schemas.consent import UserDocumentOverview
+    for f in ("signoffs", "acks", "history"):
+        assert f in UserDocumentOverview.model_fields
+
+
 def test_my_history_endpoint_wired():
     # «Meine Dokumente → Erledigt»: bereits unterschriebene/anerkannte Dokumente bleiben sichtbar.
     from app.services import consent
