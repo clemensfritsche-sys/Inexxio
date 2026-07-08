@@ -249,17 +249,21 @@ def _document_embed(db: Session, order: Order, step: ArticleProcessStep,
     verfasst; Nummer (= Instanz-Objektnummer) und Datum (= Instanz-Freigabe) kommen aus der
     vom Auftrag erzeugten Instanz. Vor der Freigabe existiert noch keine Fachzeile → leerer,
     editierbarer Entwurf."""
-    from .document import creator_name, normalize_content, render_meta
+    from .document import _enrich_embed, creator_name, normalize_content, render_meta
     obj_nr, doc_date = render_meta(db, order)
     if doc is not None:
         emb = DocumentEmbed.model_validate(doc)   # coerce content (dict) → DocumentContent
         emb.created_by_name = creator_name(db, doc)
         emb.object_number = obj_nr
         emb.document_date = doc_date
+        _enrich_embed(db, doc, emb)               # Freigabe-Parteien + Sichtbarkeit/Reihenfolge
         return emb
+    # Vorgabe-Deklaration schon im leeren Entwurf zeigen (Sichtbarkeit/Reihenfolge vom Schritt).
     return DocumentEmbed(
-        id=0, done=False, content=normalize_content(None),
+        id=0, done=False, issued=False, content=normalize_content(None),
         object_number=obj_nr, document_date=doc_date,
+        sign_sequential=bool(getattr(step, "sign_sequential", False)),
+        visibility=getattr(step, "doc_visibility", None) or "internal",
     )
 
 

@@ -89,12 +89,44 @@ def _address_lines(company: dict) -> list[str]:
     return [str(x) for x in lines if x]
 
 
+def _signoffs_html(signoffs: list[dict] | None) -> str:
+    """Freigabe-/Unterschriften-Layer (DocuSign-Prinzip: auf die unveränderliche Basis
+    gerendert). Jede Partei: Unterschrift-Bild ODER «Bestätigt»/«ausstehend» + Name + Datum.
+
+    Bilder werden als **data-URI** übergeben (der Aufrufer löst sie aus der Ablage auf) –
+    keine Netzwerk-/Auth-Abhängigkeit im PDF-Renderer."""
+    if not signoffs:
+        return ""
+    cells = []
+    for s in signoffs:
+        status = s.get("status")
+        if status == "signed" and s.get("image"):
+            mark = f'<img class="sig-img" src="{s["image"]}" alt="">'
+        elif status == "signed":
+            mark = '<span class="sig-ok">✓ Bestätigt</span>'
+        elif status == "rejected":
+            mark = '<span class="sig-no">Abgelehnt</span>'
+        else:
+            mark = '<span class="sig-pending">ausstehend</span>'
+        action = "Unterschrift" if s.get("action") == "sign" else "Bestätigung"
+        meta = action + (f" · {_fmt_date(s['acted_at'])}" if s.get("acted_at") else "")
+        cells.append(
+            f'<div class="sig-cell"><div class="sig-line">{mark}</div>'
+            f'<div class="sig-name">{_esc(s.get("name") or "")}</div>'
+            f'<div class="sig-meta">{_esc(meta)}</div></div>'
+        )
+    return ('<div class="signoffs"><div class="signoffs-title">Freigaben</div>'
+            f'<div class="sig-grid">{"".join(cells)}</div></div>')
+
+
 def render_pdf(content: dict, *, company: dict | None = None,
-               object_id: Optional[int] = None, issued_at=None) -> bytes:
+               object_id: Optional[int] = None, issued_at=None,
+               signoffs: list[dict] | None = None) -> bytes:
     """Ein Dokument (kanonischer ``content``) als markengetreues A4-PDF rendern.
 
     ``object_id`` = Instanz-Objektnummer (die Dokumentennummer), ``issued_at`` =
-    Instanz-Freigabedatum. Beides kann beim Entwurf noch fehlen (Vorschau)."""
+    Instanz-Freigabedatum. Beides kann beim Entwurf noch fehlen (Vorschau). ``signoffs`` =
+    Freigabe-Parteien (mit Unterschrift-Bild als data-URI) für den Freigabe-Block."""
     from weasyprint import HTML
 
     company = company or {}
@@ -172,6 +204,21 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
 .clause p:last-child {{ margin-bottom: 0; }}
 
 .empty {{ color: {_MUTED}; font-style: italic; }}
+
+/* Freigaben/Unterschriften-Layer */
+.signoffs {{ margin-top: 34px; padding-top: 14px; border-top: 2px solid {_INK}; break-inside: avoid; }}
+.signoffs-title {{ font-family: 'Inter', sans-serif; font-weight: 600; font-size: 8.5pt;
+  text-transform: uppercase; letter-spacing: 0.14em; color: {_RED}; margin-bottom: 12px; }}
+.sig-grid {{ display: flex; flex-wrap: wrap; gap: 22px; }}
+.sig-cell {{ width: 46%; break-inside: avoid; }}
+.sig-line {{ height: 46px; border-bottom: 1px solid {_INK}; display: flex; align-items: flex-end;
+  padding-bottom: 3px; }}
+.sig-img {{ max-height: 42px; max-width: 100%; }}
+.sig-ok {{ color: #15803D; font-weight: 700; font-size: 10pt; }}
+.sig-no {{ color: {_RED}; font-weight: 700; font-size: 10pt; }}
+.sig-pending {{ color: {_MUTED}; font-style: italic; font-size: 9pt; }}
+.sig-name {{ margin-top: 5px; font-size: 9.5pt; font-weight: 700; color: {_INK}; }}
+.sig-meta {{ font-size: 8pt; color: {_MUTED}; }}
 </style></head><body>
   <div class="letterhead">
     {logo_html}
@@ -187,6 +234,7 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
   <div class="body">
     {sections_html or '<p class="empty">Dieses Dokument hat noch keinen Inhalt.</p>'}
   </div>
+  {_signoffs_html(signoffs)}
 </body></html>"""
 
     return HTML(string=doc).write_pdf()

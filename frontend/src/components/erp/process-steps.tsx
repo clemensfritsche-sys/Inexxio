@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
@@ -24,6 +24,20 @@ function isValidWebshopUrl(v: string): boolean {
 type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
 // EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
 type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
+
+// «Dokument»-Deklaration am Schritt (Freigabe-Struktur, gilt für alle Ausfertigungen).
+type DocSignerRow = { signer_object_id: number; action: 'confirm' | 'sign' };
+type DocCfg = {
+  signers: DocSignerRow[];              // endliche Freigabe-Parteien (geordnet)
+  sequential: boolean;                  // Reihenfolge erzwingen
+  audience: '' | 'all' | 'roles' | 'persons';   // offenes Anerkennungs-Publikum
+  roles: string[];                      // bei audience='roles'
+  persons: number[];                    // bei audience='persons' (Objektnummern)
+  visibility: 'public' | 'internal' | 'confidential';
+};
+function emptyDocCfg(): DocCfg {
+  return { signers: [], sequential: false, audience: '', roles: [], persons: [], visibility: 'internal' };
+}
 
 // Zulässige Schritttypen je Kontext (Spiegel von Backend domain.event_types):
 // Artikel = Herstellung (kein Verkauf); Auftrag = Operation am Bestand mit **allen**
@@ -56,6 +70,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   const [photoInstr, setPhotoInstr] = useState('');
   const [reqSig, setReqSig] = useState(false);
   const [signerIds, setSignerIds] = useState<string[]>([]);   // Objektnummern zugelassener Unterzeichner
+  const [docCfg, setDocCfg] = useState<DocCfg>(emptyDocCfg());   // «Dokument»-Freigabe-Deklaration
   const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -118,6 +133,12 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
       setReqPhoto(false); setPhotoInstr(''); setReqSig(false); setSignerIds([]);
       return;
     }
+    if (adding === 'document') {
+      // Personen für die Freigabe-Parteien + Publikums-Auswahl (jede Rolle wählbar).
+      api.getUsers().then(setAllUsers).catch(() => {});
+      setDocCfg(emptyDocCfg());
+      return;
+    }
     if (adding !== 'movement') return;
     api.getStorageLocations().then(setStorageLocs).catch(() => {});
     api.getUsers().then(setAllUsers).catch(() => {});
@@ -136,7 +157,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   function resetForm() {
     setAdding(null); setMode('supplier'); setSupplierId(''); setUrl('');
     setShared(MANDATORY_FIELD_KEYS); setSamplePercent('100'); setWfields([]);
-    setTargetSel(''); setResLines([]); setError(null);
+    setTargetSel(''); setResLines([]); setDocCfg(emptyDocCfg()); setError(null);
   }
 
   // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
@@ -219,6 +240,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
         resource_lines: resourcePayload,
+        // «Dokument»-Freigabe-Deklaration (nur beim Dokument-Schritt gesetzt).
+        doc_signers: type === 'document' && docCfg.signers.length ? docCfg.signers : null,
+        sign_sequential: type === 'document' ? docCfg.sequential : false,
+        doc_audience: type === 'document' && docCfg.audience ? docCfg.audience : null,
+        doc_audience_roles: type === 'document' && docCfg.audience === 'roles' ? (docCfg.roles as DocAudienceRole[]) : null,
+        doc_audience_person_ids: type === 'document' && docCfg.audience === 'persons' ? docCfg.persons : null,
+        doc_visibility: type === 'document' ? docCfg.visibility : undefined,
       });
       // Server fügt evtl. Pflicht-Bewegungen hinzu → kanonische Liste neu laden.
       await reload();
@@ -336,7 +364,14 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'document' && (
-                      <span>Inhalt wird im Auftrag verfasst</span>
+                      <span>{(() => {
+                        const n = s.doc_signers?.length ?? 0;
+                        const parts: string[] = [];
+                        parts.push(n > 0 ? `${n} Freigabe-Partei${n === 1 ? '' : 'en'}${s.sign_sequential ? ' · sequenziell' : ''}` : 'ohne Freigabe-Parteien');
+                        if (s.doc_audience) parts.push(`Publikum: ${s.doc_audience === 'all' ? 'alle' : s.doc_audience === 'roles' ? 'Rollen' : 'Personen'}`);
+                        if (s.doc_visibility && s.doc_visibility !== 'internal') parts.push(s.doc_visibility === 'public' ? 'öffentlich' : 'vertraulich');
+                        return parts.join(' · ');
+                      })()}</span>
                     )}
                   </div>
                 </div>
@@ -554,12 +589,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
               )}
 
               {adding === 'document' && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-                  <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>An diesem Schritt entsteht ein Dokument. Den <strong>Inhalt</strong> (Titel,
-                    Abschnitte) verfasst du erst im <strong>Auftrag</strong> – dort wird es als
-                    nummeriertes PDF im Inexxio-Design ausgestellt (Nummer = Instanz, Datum = Freigabe).</span>
-                </div>
+                <DocConfigEditor cfg={docCfg} onChange={setDocCfg} users={allUsers} />
               )}
 
               {error && <ErrorText msg={error} />}
@@ -711,6 +741,156 @@ function SignerSelect({ users, value, onChange }: {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ─── «Dokument»-Deklaration: Freigabe-Parteien + Publikum + Sichtbarkeit ──────
+const AUDIENCE_ROLE_LABELS: Record<string, string> = {
+  customer: 'Kunden', supplier: 'Lieferanten', employee: 'Mitarbeiter', admin: 'Admins',
+};
+
+function DocConfigEditor({ cfg, onChange, users }: {
+  cfg: DocCfg; onChange: (c: DocCfg) => void; users: UserProfile[];
+}) {
+  const [drag, setDrag] = useState<number | null>(null);
+  const set = (patch: Partial<DocCfg>) => onChange({ ...cfg, ...patch });
+  const pickable = users.filter((u) => u.object_id != null);
+  const nameOf = (oid: number) => {
+    const u = users.find((x) => x.object_id === oid);
+    return u ? userDisplayName(u) : `Objekt ${fmtObjId(oid)}`;
+  };
+  const chosen = new Set(cfg.signers.map((s) => s.signer_object_id));
+  const signerOptions = [
+    { value: '', label: '+ Freigabe-Partei hinzufügen…' },
+    ...pickable.filter((u) => !chosen.has(u.object_id!)).map((u) => ({
+      value: String(u.object_id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id!)}` })),
+  ];
+  const personOptions = [
+    { value: '', label: '+ Person hinzufügen…' },
+    ...pickable.filter((u) => !cfg.persons.includes(u.object_id!)).map((u) => ({
+      value: String(u.object_id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id!)}` })),
+  ];
+
+  function addSigner(v: string) {
+    if (!v) return;
+    set({ signers: [...cfg.signers, { signer_object_id: Number(v), action: 'sign' }] });
+  }
+  function delSigner(i: number) { set({ signers: cfg.signers.filter((_, idx) => idx !== i) }); }
+  function setAction(i: number, a: 'confirm' | 'sign') {
+    set({ signers: cfg.signers.map((s, idx) => (idx === i ? { ...s, action: a } : s)) });
+  }
+  function moveSigner(target: number) {
+    if (drag === null || drag === target) { setDrag(null); return; }
+    const next = [...cfg.signers];
+    const [m] = next.splice(drag, 1);
+    next.splice(target, 0, m);
+    set({ signers: next }); setDrag(null);
+  }
+  function toggleRole(r: string) {
+    set({ roles: cfg.roles.includes(r) ? cfg.roles.filter((x) => x !== r) : [...cfg.roles, r] });
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
+        <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>An diesem Schritt entsteht ein Dokument. Den <strong>Inhalt</strong> verfasst du erst
+          im <strong>Auftrag</strong>; hier legst du fest, <strong>wer freigeben</strong> muss
+          (endliche Parteien) und <strong>wer anerkennen</strong> soll (offenes Publikum).</span>
+      </div>
+
+      {/* Freigabe-Parteien (endlich, gated die Freigabe) */}
+      <div>
+        <Label>Freigabe-Parteien (Unterschrift / Bestätigung)</Label>
+        <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', margin: '2px 0 8px' }}>
+          Erst wenn ALLE hier genannten Personen freigegeben haben, gilt das Dokument als
+          freigegeben. Leer = sofort mit «Ausstellen» freigegeben.
+        </div>
+        {cfg.signers.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+            {cfg.signers.map((s, i) => (
+              <div key={s.signer_object_id}
+                onDragOver={(e) => { if (drag !== null) e.preventDefault(); }}
+                onDrop={(e) => { e.preventDefault(); moveSigner(i); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', borderRadius: 9,
+                  border: '1px solid var(--border-1)', background: '#fff', opacity: drag === i ? 0.4 : 1 }}>
+                <span draggable onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
+                  title="Reihenfolge ziehen" style={{ cursor: 'grab', color: '#cbd5e1', display: 'flex' }}>
+                  <GripVertical size={15} />
+                </span>
+                <span style={{ font: '700 11px var(--font-body)', color: 'var(--fg-4)', minWidth: 16 }}>{i + 1}.</span>
+                <span style={{ flex: 1, font: '600 13px var(--font-body)', color: 'var(--fg-1)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {nameOf(s.signer_object_id)}
+                </span>
+                <Segmented label="" value={s.action}
+                  onChange={(v) => setAction(i, v as 'confirm' | 'sign')}
+                  options={[{ value: 'confirm', label: 'Bestätigen' }, { value: 'sign', label: 'Unterschreiben' }]} />
+                <button type="button" onClick={() => delSigner(i)} title="Entfernen"
+                  style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 3, flexShrink: 0 }}><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        {signerOptions.length > 1
+          ? <SearchSelect value="" onChange={addSigner} options={signerOptions} placeholder="+ Freigabe-Partei hinzufügen…" />
+          : <div style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)' }}>Keine weiteren Personen verfügbar.</div>}
+        {cfg.signers.length >= 2 && (
+          <div style={{ marginTop: 8 }}>
+            <OptionToggle checked={cfg.sequential} onChange={(v) => set({ sequential: v })}
+              label="Der Reihe nach unterschreiben" hint="Jede Partei kann erst handeln, wenn die vorige unterschrieben hat." />
+          </div>
+        )}
+      </div>
+
+      {/* Sichtbarkeit */}
+      <Segmented label="Sichtbarkeit" value={cfg.visibility}
+        onChange={(v) => set({ visibility: v as DocCfg['visibility'] })}
+        options={[{ value: 'public', label: 'Öffentlich' }, { value: 'internal', label: 'Intern' }, { value: 'confidential', label: 'Vertraulich' }]} />
+
+      {/* Anerkennungs-Publikum (offen, blockiert den Auftrag NIE) */}
+      <div>
+        <Segmented label="Anerkennungs-Publikum" value={cfg.audience || 'none'}
+          onChange={(v) => set({ audience: (v === 'none' ? '' : v) as DocCfg['audience'] })}
+          options={[{ value: 'none', label: 'Keins' }, { value: 'all', label: 'Alle' }, { value: 'roles', label: 'Rollen' }, { value: 'persons', label: 'Personen' }]} />
+        <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 4 }}>
+          Wer das freigegebene Dokument aktiv anerkennen muss (rollierendes Gate, blockiert den Auftrag nicht).
+        </div>
+        {cfg.audience === 'roles' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {(['customer', 'supplier', 'employee', 'admin'] as const).map((r) => {
+              const on = cfg.roles.includes(r);
+              return (
+                <button key={r} type="button" onClick={() => toggleRole(r)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
+                    border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`, background: on ? 'var(--accent-soft)' : '#fff',
+                    font: '600 12.5px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>
+                  {on && <Check size={13} />} {AUDIENCE_ROLE_LABELS[r]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {cfg.audience === 'persons' && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {cfg.persons.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cfg.persons.map((oid) => (
+                  <span key={oid} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 'var(--r-pill)', background: 'var(--accent-soft)', font: '600 12px var(--font-body)', color: 'var(--accent-ink)' }}>
+                    {nameOf(oid)}
+                    <button type="button" onClick={() => set({ persons: cfg.persons.filter((x) => x !== oid) })}
+                      style={{ border: 'none', background: 'none', color: 'var(--accent-ink)', cursor: 'pointer', display: 'flex', padding: 0 }}><X size={12} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {personOptions.length > 1 && (
+              <SearchSelect value="" onChange={(v) => v && set({ persons: [...cfg.persons, Number(v)] })}
+                options={personOptions} placeholder="+ Person hinzufügen…" />
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

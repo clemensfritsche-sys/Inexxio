@@ -216,6 +216,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/consent/my-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Documents
+         * @description Dokumente, auf die ich als **Freigabe-Partei** noch handeln muss (unterschreiben/
+         *     bestätigen) – für die persönliche «Meine Dokumente»-Ansicht (jede Rolle).
+         */
+        get: operations["my_documents_api_v1_consent_my_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/consent/signoffs/{signoff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Act Signoff
+         * @description Als benannte Freigabe-Partei handeln (unterschreiben/bestätigen/ablehnen/zurückziehen);
+         *     liefert die **verbleibenden** offenen Dokumente zurück.
+         */
+        post: operations["act_signoff_api_v1_consent_signoffs__signoff_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/consent/acknowledgements/{user_object_id}": {
         parameters: {
             query?: never;
@@ -1011,6 +1053,51 @@ export interface paths {
          * @description Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue).
          */
         patch: operations["update_order_document_api_v1_erp_orders__object_id__document_patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/document/signoff/{signoff_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Act Order Document Signoff
+         * @description Freigabe-Partei handelt inline am Auftrag (unterschreiben/bestätigen/ablehnen/zurückziehen).
+         *
+         *     Für ANGEMELDETE Nutzer (nicht nur Personal): auch ein Kunde/Lieferant, der als Partei
+         *     benannt ist, kann hier signieren – die Berechtigung prüft ``act_on_signoff`` über die
+         *     Objektnummer. Der Auftrag muss für den Nutzer sichtbar sein.
+         */
+        post: operations["act_order_document_signoff_api_v1_erp_orders__object_id__document_signoff__signoff_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/document/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw Order Document
+         * @description Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar, alle
+         *     Freigabe-Parteien verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist.
+         */
+        post: operations["withdraw_order_document_api_v1_erp_orders__object_id__document_withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/erp/orders/{object_id}/movement": {
@@ -1931,6 +2018,8 @@ export interface components {
         AcknowledgeRequest: {
             /** Kind */
             kind: string;
+            /** Object Number */
+            object_number?: number | null;
         };
         /**
          * Acknowledgement
@@ -2239,6 +2328,24 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
+            /** Doc Signers */
+            doc_signers?: components["schemas"]["DocSigner"][] | null;
+            /**
+             * Sign Sequential
+             * @default false
+             */
+            sign_sequential: boolean;
+            /** Doc Audience */
+            doc_audience?: string | null;
+            /** Doc Audience Roles */
+            doc_audience_roles?: string[] | null;
+            /** Doc Audience Person Ids */
+            doc_audience_person_ids?: number[] | null;
+            /**
+             * Doc Visibility
+             * @default internal
+             */
+            doc_visibility: string;
         };
         /** ArticleProcessStepResponse */
         ArticleProcessStepResponse: {
@@ -2303,6 +2410,33 @@ export interface components {
              * @default []
              */
             resource_lines: components["schemas"]["ResourceLineView"][];
+            /**
+             * Doc Signers
+             * @default []
+             */
+            doc_signers: components["schemas"]["DocSigner"][];
+            /**
+             * Sign Sequential
+             * @default false
+             */
+            sign_sequential: boolean;
+            /** Doc Audience */
+            doc_audience?: string | null;
+            /**
+             * Doc Audience Roles
+             * @default []
+             */
+            doc_audience_roles: string[];
+            /**
+             * Doc Audience Person Ids
+             * @default []
+             */
+            doc_audience_person_ids: number[];
+            /**
+             * Doc Visibility
+             * @default internal
+             */
+            doc_visibility: string;
             /** Is Active */
             is_active: boolean;
             /**
@@ -2349,6 +2483,18 @@ export interface components {
             target_location_id?: number | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
+            /** Doc Signers */
+            doc_signers?: components["schemas"]["DocSigner"][] | null;
+            /** Sign Sequential */
+            sign_sequential?: boolean | null;
+            /** Doc Audience */
+            doc_audience?: string | null;
+            /** Doc Audience Roles */
+            doc_audience_roles?: string[] | null;
+            /** Doc Audience Person Ids */
+            doc_audience_person_ids?: number[] | null;
+            /** Doc Visibility */
+            doc_visibility?: string | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -2932,6 +3078,22 @@ export interface components {
             scrapped_count: number;
         };
         /**
+         * DocSigner
+         * @description Eine deklarierte **Freigabe-Partei** eines Dokument-Schritts (geordnet).
+         *
+         *     ``signer_object_id`` = Objektnummer der Person; ``action`` = ``confirm`` (bestätigen,
+         *     ohne Bild) | ``sign`` (unterschreiben, mit Unterschrift-Bild).
+         */
+        DocSigner: {
+            /** Signer Object Id */
+            signer_object_id: number;
+            /**
+             * Action
+             * @default sign
+             */
+            action: string;
+        };
+        /**
          * DocumentAnalyzeResponse
          * @description Ergebnis der Analyse – ein bearbeitbarer Vorschlag (noch NICHT gespeichert).
          */
@@ -3022,6 +3184,11 @@ export interface components {
              * @default false
              */
             done: boolean;
+            /**
+             * Issued
+             * @default false
+             */
+            issued: boolean;
             content?: components["schemas"]["DocumentContent"] | null;
             /** Object Number */
             object_number?: number | null;
@@ -3029,6 +3196,21 @@ export interface components {
             document_date?: string | null;
             /** Created By Name */
             created_by_name?: string | null;
+            /**
+             * Signoffs
+             * @default []
+             */
+            signoffs: components["schemas"]["SignoffView"][];
+            /**
+             * Sign Sequential
+             * @default false
+             */
+            sign_sequential: boolean;
+            /**
+             * Visibility
+             * @default internal
+             */
+            visibility: string;
         };
         /** DocumentLinkInput */
         DocumentLinkInput: {
@@ -3426,6 +3608,36 @@ export interface components {
             tracking_number?: string | null;
             /** Carrier */
             carrier?: string | null;
+        };
+        /**
+         * MySignoffDocument
+         * @description Ein Dokument, auf das ICH als **Freigabe-Partei** noch handeln muss («Meine Dokumente»).
+         */
+        MySignoffDocument: {
+            /** Signoff Id */
+            signoff_id: number;
+            /** Title */
+            title: string;
+            /** Object Number */
+            object_number?: number | null;
+            /** Document Date */
+            document_date?: string | null;
+            /**
+             * Action
+             * @default sign
+             */
+            action: string;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+            /**
+             * Actionable
+             * @default true
+             */
+            actionable: boolean;
+            content?: components["schemas"]["DocumentContent"] | null;
         };
         /**
          * ObjectDocument
@@ -4590,6 +4802,54 @@ export interface components {
             quantity: number;
         };
         /**
+         * SignoffAction
+         * @description Aktion einer Freigabe-Partei auf «ihr» Signoff (Unterschrift/Bestätigung/Ablehnung).
+         */
+        SignoffAction: {
+            /**
+             * Action
+             * @default sign
+             */
+            action: string;
+            /** Signature Url */
+            signature_url?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * SignoffView
+         * @description Eine Freigabe-Partei eines Dokuments (Anzeige im Auftrag / «Meine Dokumente»).
+         */
+        SignoffView: {
+            /** Id */
+            id: number;
+            /** Signer Object Id */
+            signer_object_id: number;
+            /** Signer Name */
+            signer_name?: string | null;
+            /**
+             * Action
+             * @default sign
+             */
+            action: string;
+            /**
+             * Order Index
+             * @default 0
+             */
+            order_index: number;
+            /**
+             * Status
+             * @default pending
+             */
+            status: string;
+            /** Signature Url */
+            signature_url?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Acted At */
+            acted_at?: string | null;
+        };
+        /**
          * StepReorder
          * @description Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
          *     werden serverseitig automatisch neu eingefügt/positioniert.
@@ -5313,6 +5573,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PendingDocument"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_documents_api_v1_consent_my_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySignoffDocument"][];
+                };
+            };
+        };
+    };
+    act_signoff_api_v1_consent_signoffs__signoff_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                signoff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignoffAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MySignoffDocument"][];
                 };
             };
             /** @description Validation Error */
@@ -6919,6 +7234,75 @@ export interface operations {
                 "application/json": components["schemas"]["DocumentUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    act_order_document_signoff_api_v1_erp_orders__object_id__document_signoff__signoff_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+                signoff_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignoffAction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_order_document_api_v1_erp_orders__object_id__document_withdraw_post: {
+        parameters: {
+            query?: {
+                step_id?: number | null;
+            };
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

@@ -69,6 +69,23 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Operation – [{article_id, quantity, mode}], mode ∈ consume | tool.
     resource_lines: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
-    # «document» (Dokument) braucht am Artikel KEINE Konfiguration: der Schritt sagt nur,
-    # dass hier ein Dokument entsteht – der Inhalt wird erst im Auftrag verfasst.
+    # Konfiguration «document» (Dokument). Der INHALT wird erst im Auftrag verfasst; am
+    # Schritt wird die **Freigabe-/Anerkennungs-Struktur** deklariert (was für ALLE
+    # Ausfertigungen dieses Dokuments gilt):
+    #  • ``doc_signers`` – die endliche, geordnete Liste der **Freigabe-Parteien**
+    #    ([{"signer_object_id": Objektnr, "action": "confirm"|"sign"}]). Erst wenn ALLE
+    #    signiert haben, ist das Dokument freigegeben (Auftrag abgeschlossen).
+    #  • ``sign_sequential`` – müssen die Parteien der Reihe nach signieren (Drag&Drop-Ordnung)?
+    #  • ``doc_audience`` – das offene **Anerkennungs-Publikum** des freigegebenen Dokuments
+    #    (None | 'all' | 'roles' | 'persons'); blockiert den Auftrag NIE (rollierendes Gate).
+    #  • ``doc_audience_roles`` / ``doc_audience_person_ids`` – Zielgruppe zum Publikum.
+    #  • ``doc_visibility`` – Sichtbarkeit ('public' | 'internal' | 'confidential').
+    doc_signers: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    sign_sequential: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    doc_audience: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    doc_audience_roles: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    doc_audience_person_ids: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    doc_visibility: Mapped[str] = mapped_column(
+        String(16), default="internal", server_default="internal", nullable=False)
 

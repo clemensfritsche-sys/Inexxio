@@ -16,8 +16,22 @@ class PendingDocument(BaseModel):
     content: Optional[DocumentContent] = None    # zum Rendern (DocumentView)
 
 
+class MySignoffDocument(BaseModel):
+    """Ein Dokument, auf das ICH als **Freigabe-Partei** noch handeln muss («Meine Dokumente»)."""
+
+    signoff_id: int
+    title: str
+    object_number: Optional[int] = None
+    document_date: Optional[datetime] = None
+    action: str = "sign"                         # confirm | sign
+    status: str = "pending"                      # pending | rejected
+    actionable: bool = True                      # bin ich JETZT an der Reihe (sequenziell)?
+    content: Optional[DocumentContent] = None
+
+
 class AcknowledgeRequest(BaseModel):
     kind: str
+    object_number: Optional[int] = None   # bei kind='document' (Publikums-Dokument) die Version
 
 
 class Acknowledgement(BaseModel):

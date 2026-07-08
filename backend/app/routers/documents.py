@@ -6,16 +6,46 @@ erzeugten Instanz; funktioniert für den Entwurf (noch nicht ausgestellt) und da
 Dokument gleichermassen (Layout-Vorschau während des Verfassens).
 """
 
+import base64
+
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import CompanySettings, Order, UserProfile
+from ..services import attachments as attachments_svc
 from ..services import document as document_svc
 from ..services.document_render import render_pdf
 
 router = APIRouter(prefix="/api/v1/erp", tags=["documents"])
+
+
+def _signature_data_uri(db: Session, url: str | None) -> str | None:
+    """Eine Unterschrift-Attachment-URL (``/api/v1/attachments/{token}``) in eine data-URI
+    auflösen, damit WeasyPrint das Bild ohne Netzwerk/Auth einbetten kann."""
+    if not url:
+        return None
+    token = url.rstrip("/").split("/")[-1]
+    try:
+        att = attachments_svc.get_by_token(db, token)
+    except Exception:
+        return None
+    return f"data:{att.mime};base64,{base64.b64encode(att.data).decode('ascii')}"
+
+
+def _signoff_render_data(db: Session, doc) -> list[dict]:
+    """Freigabe-Parteien eines Dokuments für den PDF-Freigabe-Block (mit Bild als data-URI)."""
+    out: list[dict] = []
+    for s in document_svc.signoffs_for(db, doc):
+        out.append({
+            "name": document_svc._user_name(db, s.signer_object_id) or f"Objekt {s.signer_object_id}",
+            "action": s.action,
+            "status": s.status,
+            "acted_at": s.acted_at,
+            "image": _signature_data_uri(db, s.signature_url) if s.status == "signed" else None,
+        })
+    return out
 
 
 def _company(db: Session) -> dict:
@@ -59,6 +89,7 @@ async def get_document_pdf(
     pdf = render_pdf(
         document_svc.normalize_content(doc.content),
         company=_company(db), object_id=obj_nr, issued_at=doc_date,
+        signoffs=_signoff_render_data(db, doc),
     )
     fname = f"Dokument-{str(obj_nr).zfill(9)}.pdf" if obj_nr else "Dokument-Entwurf.pdf"
     return _pdf_response(pdf, fname)

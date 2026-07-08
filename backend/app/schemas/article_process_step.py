@@ -15,6 +15,42 @@ from .movement import LOCATION_TYPES
 ALLOWED_MODES = ("supplier", "webshop")
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
 ALLOWED_RESOURCE_MODES = ("consume", "tool")
+ALLOWED_SIGN_ACTIONS = ("confirm", "sign")
+ALLOWED_AUDIENCE = ("all", "roles", "persons")
+ALLOWED_VISIBILITY = ("public", "internal", "confidential")
+ALLOWED_AUDIENCE_ROLES = ("customer", "supplier", "employee", "admin")
+
+
+class DocSigner(BaseModel):
+    """Eine deklarierte **Freigabe-Partei** eines Dokument-Schritts (geordnet).
+
+    ``signer_object_id`` = Objektnummer der Person; ``action`` = ``confirm`` (bestätigen,
+    ohne Bild) | ``sign`` (unterschreiben, mit Unterschrift-Bild)."""
+
+    signer_object_id: int
+    action: str = "sign"
+
+    @field_validator("action")
+    @classmethod
+    def _action_ok(cls, v: str) -> str:
+        if v not in ALLOWED_SIGN_ACTIONS:
+            raise ValueError("action muss 'confirm' (bestätigen) oder 'sign' (unterschreiben) sein")
+        return v
+
+
+def normalize_doc_signers(rows: Optional[list]) -> Optional[list[dict]]:
+    """Freigabe-Parteien säubern: eindeutige Objektnummern, Reihenfolge erhalten."""
+    if not rows:
+        return None
+    out: list[dict] = []
+    seen: set[int] = set()
+    for raw in rows:
+        s = raw if isinstance(raw, DocSigner) else DocSigner(**raw)
+        if s.signer_object_id in seen:
+            continue
+        seen.add(s.signer_object_id)
+        out.append(s.model_dump())
+    return out or None
 
 
 def _check_target_location_type(v: Optional[str]) -> Optional[str]:
@@ -144,11 +180,44 @@ class ArticleProcessStepCreate(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
+    # «document»-Deklaration (Struktur der Freigabe/Anerkennung – gilt für alle Ausfertigungen)
+    doc_signers: Optional[list[DocSigner]] = None
+    sign_sequential: bool = False
+    doc_audience: Optional[str] = None
+    doc_audience_roles: Optional[list[str]] = None
+    doc_audience_person_ids: Optional[list[int]] = None
+    doc_visibility: str = "internal"
 
     @field_validator("shared_fields")
     @classmethod
     def _shared_ok(cls, v: Optional[list[str]]) -> list[str]:
         return normalize_shared_fields(v)
+
+    @field_validator("doc_audience")
+    @classmethod
+    def _audience_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, "", "none"):
+            return None
+        if v not in ALLOWED_AUDIENCE:
+            raise ValueError(f"Publikum muss eine von {', '.join(ALLOWED_AUDIENCE)} sein")
+        return v
+
+    @field_validator("doc_visibility")
+    @classmethod
+    def _visibility_ok(cls, v: str) -> str:
+        if v not in ALLOWED_VISIBILITY:
+            raise ValueError(f"Sichtbarkeit muss eine von {', '.join(ALLOWED_VISIBILITY)} sein")
+        return v
+
+    @field_validator("doc_audience_roles")
+    @classmethod
+    def _aud_roles_ok(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        if not v:
+            return None
+        bad = [r for r in v if r not in ALLOWED_AUDIENCE_ROLES]
+        if bad:
+            raise ValueError(f"Unbekannte Rolle(n): {', '.join(bad)}")
+        return list(dict.fromkeys(v))
 
     @field_validator("target_location_type")
     @classmethod
@@ -219,6 +288,12 @@ class ArticleProcessStepUpdate(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: Optional[list[ResourceLine]] = None
+    doc_signers: Optional[list[DocSigner]] = None
+    sign_sequential: Optional[bool] = None
+    doc_audience: Optional[str] = None
+    doc_audience_roles: Optional[list[str]] = None
+    doc_audience_person_ids: Optional[list[int]] = None
+    doc_visibility: Optional[str] = None
     is_active: Optional[bool] = None
 
     @field_validator("shared_fields")
@@ -227,6 +302,24 @@ class ArticleProcessStepUpdate(BaseModel):
         if v is None:
             return None
         return normalize_shared_fields(v)
+
+    @field_validator("doc_audience")
+    @classmethod
+    def _audience_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, "", "none"):
+            return None
+        if v not in ALLOWED_AUDIENCE:
+            raise ValueError(f"Publikum muss eine von {', '.join(ALLOWED_AUDIENCE)} sein")
+        return v
+
+    @field_validator("doc_visibility")
+    @classmethod
+    def _visibility_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if v not in ALLOWED_VISIBILITY:
+            raise ValueError(f"Sichtbarkeit muss eine von {', '.join(ALLOWED_VISIBILITY)} sein")
+        return v
 
     @field_validator("target_location_type")
     @classmethod
@@ -276,6 +369,13 @@ class ArticleProcessStepResponse(BaseModel):
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     resource_lines: list[ResourceLineView] = []
+    # «document»-Deklaration
+    doc_signers: list[DocSigner] = []
+    sign_sequential: bool = False
+    doc_audience: Optional[str] = None
+    doc_audience_roles: list[str] = []
+    doc_audience_person_ids: list[int] = []
+    doc_visibility: str = "internal"
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -284,6 +384,16 @@ class ArticleProcessStepResponse(BaseModel):
     @classmethod
     def _signers_default(cls, v: Optional[list]) -> list[int]:
         return [int(x) for x in v] if v else []
+
+    @field_validator("doc_signers", mode="before")
+    @classmethod
+    def _doc_signers_default(cls, v: Optional[list]) -> list:
+        return v or []
+
+    @field_validator("doc_audience_roles", "doc_audience_person_ids", mode="before")
+    @classmethod
+    def _aud_list_default(cls, v: Optional[list]) -> list:
+        return v or []
 
     @field_validator("shared_fields", mode="before")
     @classmethod

@@ -414,6 +414,99 @@
         ]
       }
     },
+    "/api/v1/consent/my-documents": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "My Documents",
+        "description": "Dokumente, auf die ich als **Freigabe-Partei** noch handeln muss (unterschreiben/\nbestätigen) – für die persönliche «Meine Dokumente»-Ansicht (jede Rolle).",
+        "operationId": "my_documents_api_v1_consent_my_documents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MySignoffDocument"
+                  },
+                  "type": "array",
+                  "title": "Response My Documents Api V1 Consent My Documents Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/consent/signoffs/{signoff_id}": {
+      "post": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "Act Signoff",
+        "description": "Als benannte Freigabe-Partei handeln (unterschreiben/bestätigen/ablehnen/zurückziehen);\nliefert die **verbleibenden** offenen Dokumente zurück.",
+        "operationId": "act_signoff_api_v1_consent_signoffs__signoff_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "signoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Signoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignoffAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MySignoffDocument"
+                  },
+                  "title": "Response Act Signoff Api V1 Consent Signoffs  Signoff Id  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/consent/acknowledgements/{user_object_id}": {
       "get": {
         "tags": [
@@ -2995,6 +3088,137 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/document/signoff/{signoff_id}": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Act Order Document Signoff",
+        "description": "Freigabe-Partei handelt inline am Auftrag (unterschreiben/bestätigen/ablehnen/zurückziehen).\n\nFür ANGEMELDETE Nutzer (nicht nur Personal): auch ein Kunde/Lieferant, der als Partei\nbenannt ist, kann hier signieren – die Berechtigung prüft ``act_on_signoff`` über die\nObjektnummer. Der Auftrag muss für den Nutzer sichtbar sein.",
+        "operationId": "act_order_document_signoff_api_v1_erp_orders__object_id__document_signoff__signoff_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "signoff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Signoff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignoffAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/document/withdraw": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Withdraw Order Document",
+        "description": "Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar, alle\nFreigabe-Parteien verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist.",
+        "operationId": "withdraw_order_document_api_v1_erp_orders__object_id__document_withdraw_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Step Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5614,6 +5838,17 @@
           "kind": {
             "type": "string",
             "title": "Kind"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
           }
         },
         "type": "object",
@@ -6568,6 +6803,69 @@
               }
             ],
             "title": "Resource Lines"
+          },
+          "doc_signers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DocSigner"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Signers"
+          },
+          "sign_sequential": {
+            "type": "boolean",
+            "title": "Sign Sequential",
+            "default": false
+          },
+          "doc_audience": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience"
+          },
+          "doc_audience_roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience Roles"
+          },
+          "doc_audience_person_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience Person Ids"
+          },
+          "doc_visibility": {
+            "type": "string",
+            "title": "Doc Visibility",
+            "default": "internal"
           }
         },
         "type": "object",
@@ -6737,6 +7035,51 @@
             "type": "array",
             "title": "Resource Lines",
             "default": []
+          },
+          "doc_signers": {
+            "items": {
+              "$ref": "#/components/schemas/DocSigner"
+            },
+            "type": "array",
+            "title": "Doc Signers",
+            "default": []
+          },
+          "sign_sequential": {
+            "type": "boolean",
+            "title": "Sign Sequential",
+            "default": false
+          },
+          "doc_audience": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience"
+          },
+          "doc_audience_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doc Audience Roles",
+            "default": []
+          },
+          "doc_audience_person_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Doc Audience Person Ids",
+            "default": []
+          },
+          "doc_visibility": {
+            "type": "string",
+            "title": "Doc Visibility",
+            "default": "internal"
           },
           "is_active": {
             "type": "boolean",
@@ -6934,6 +7277,81 @@
               }
             ],
             "title": "Resource Lines"
+          },
+          "doc_signers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DocSigner"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Signers"
+          },
+          "sign_sequential": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign Sequential"
+          },
+          "doc_audience": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience"
+          },
+          "doc_audience_roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience Roles"
+          },
+          "doc_audience_person_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Audience Person Ids"
+          },
+          "doc_visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Visibility"
           },
           "is_active": {
             "anyOf": [
@@ -8987,6 +9405,25 @@
         "title": "DisposalEmbed",
         "description": "Eingebetteter Stand der Verschrottung (im Auftrag).\n\nWelche Instanzen verschrottet wurden, steht in ``OrderResponse.instances``\n(``disposition='scrapped'``); dieser Embed trägt nur den Abschluss-Status."
       },
+      "DocSigner": {
+        "properties": {
+          "signer_object_id": {
+            "type": "integer",
+            "title": "Signer Object Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "sign"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signer_object_id"
+        ],
+        "title": "DocSigner",
+        "description": "Eine deklarierte **Freigabe-Partei** eines Dokument-Schritts (geordnet).\n\n``signer_object_id`` = Objektnummer der Person; ``action`` = ``confirm`` (bestätigen,\nohne Bild) | ``sign`` (unterschreiben, mit Unterschrift-Bild)."
+      },
       "DocumentAnalyzeResponse": {
         "properties": {
           "action_id": {
@@ -9205,6 +9642,11 @@
             "title": "Done",
             "default": false
           },
+          "issued": {
+            "type": "boolean",
+            "title": "Issued",
+            "default": false
+          },
           "content": {
             "anyOf": [
               {
@@ -9248,6 +9690,24 @@
               }
             ],
             "title": "Created By Name"
+          },
+          "signoffs": {
+            "items": {
+              "$ref": "#/components/schemas/SignoffView"
+            },
+            "type": "array",
+            "title": "Signoffs",
+            "default": []
+          },
+          "sign_sequential": {
+            "type": "boolean",
+            "title": "Sign Sequential",
+            "default": false
+          },
+          "visibility": {
+            "type": "string",
+            "title": "Visibility",
+            "default": "internal"
           }
         },
         "type": "object",
@@ -10342,6 +10802,73 @@
         "type": "object",
         "title": "MovementUpdate",
         "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.\n\nBei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."
+      },
+      "MySignoffDocument": {
+        "properties": {
+          "signoff_id": {
+            "type": "integer",
+            "title": "Signoff Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
+          },
+          "document_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Date"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "sign"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "pending"
+          },
+          "actionable": {
+            "type": "boolean",
+            "title": "Actionable",
+            "default": true
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "signoff_id",
+          "title"
+        ],
+        "title": "MySignoffDocument",
+        "description": "Ein Dokument, auf das ICH als **Freigabe-Partei** noch handeln muss («Meine Dokumente»)."
       },
       "ObjectDocument": {
         "properties": {
@@ -13578,6 +14105,119 @@
         ],
         "title": "ShortfallInstance",
         "description": "Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse\n(«Andere Instanz wählen»)."
+      },
+      "SignoffAction": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "sign"
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "SignoffAction",
+        "description": "Aktion einer Freigabe-Partei auf «ihr» Signoff (Unterschrift/Bestätigung/Ablehnung)."
+      },
+      "SignoffView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "signer_object_id": {
+            "type": "integer",
+            "title": "Signer Object Id"
+          },
+          "signer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Name"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "sign"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index",
+            "default": 0
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "pending"
+          },
+          "signature_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature Url"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "acted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "signer_object_id"
+        ],
+        "title": "SignoffView",
+        "description": "Eine Freigabe-Partei eines Dokuments (Anzeige im Auftrag / «Meine Dokumente»)."
       },
       "StepReorder": {
         "properties": {

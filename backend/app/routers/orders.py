@@ -5,7 +5,7 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, OrderLine, UserProfile
 from ..schemas.disposal import ScrapUpdate
-from ..schemas.document import DocumentUpdate
+from ..schemas.document import DocumentUpdate, SignoffAction
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.order import (
@@ -17,7 +17,9 @@ from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
 from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
-from ..services.document import record_document
+from ..services.document import (
+    act_on_signoff, get_signoff, record_document, withdraw_issuance,
+)
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.movement import record_movement
@@ -733,6 +735,46 @@ async def update_order_document(
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
     record_document(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/document/signoff/{signoff_id}", response_model=OrderResponse)
+async def act_order_document_signoff(
+    object_id: int,
+    signoff_id: int,
+    data: SignoffAction,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(get_current_user),
+):
+    """Freigabe-Partei handelt inline am Auftrag (unterschreiben/bestätigen/ablehnen/zurückziehen).
+
+    Für ANGEMELDETE Nutzer (nicht nur Personal): auch ein Kunde/Lieferant, der als Partei
+    benannt ist, kann hier signieren – die Berechtigung prüft ``act_on_signoff`` über die
+    Objektnummer. Der Auftrag muss für den Nutzer sichtbar sein."""
+    order = db.query(Order).filter(Order.object_id == object_id, Order.is_active == True).first()
+    if not order:
+        raise HTTPException(404, detail="Auftrag nicht gefunden")
+    signoff = get_signoff(db, signoff_id)
+    if signoff.order_id != order.id:
+        raise HTTPException(404, detail="Freigabe-Partei gehört nicht zu diesem Auftrag")
+    act_on_signoff(db, signoff, data, current_user)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/document/withdraw", response_model=OrderResponse)
+async def withdraw_order_document(
+    object_id: int,
+    step_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar, alle
+    Freigabe-Parteien verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    withdraw_issuance(db, order, step_id, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 

@@ -157,6 +157,15 @@ _COLUMN_SAFETY_NET = (
     ("orders", "reason", "VARCHAR(20)"),
     # Dokument-Modul: der Schritt wird WÄHREND der Ausführung ausgestellt (done-Flag).
     ("documents", "done", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    # Dokument-Freigabe: 'issued' (Inhalt eingefroren) getrennt von 'done' (alle Parteien signiert).
+    ("documents", "issued", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    # Dokument-Deklaration am Schritt: Freigabe-Parteien + Anerkennungs-Publikum + Sichtbarkeit.
+    ("article_process_steps", "doc_signers", "JSONB"),
+    ("article_process_steps", "sign_sequential", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("article_process_steps", "doc_audience", "VARCHAR(16)"),
+    ("article_process_steps", "doc_audience_roles", "JSONB"),
+    ("article_process_steps", "doc_audience_person_ids", "JSONB"),
+    ("article_process_steps", "doc_visibility", "VARCHAR(16) DEFAULT 'internal' NOT NULL"),
     # Datenerfassung: Freigabe/Unterschrift + Bilderfassung (Konfiguration am Schritt, Werte an der Erfassung).
     ("article_process_steps", "require_signature", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ("article_process_steps", "signer_ids", "JSONB"),
@@ -269,6 +278,12 @@ _DATA_FIXES = (
     "UPDATE purchase_orders SET status='ordered' WHERE status IN ('approved','confirmed')",
 )
 
+# Dokument-Freigabe (Migration 066): ein bereits ausgestelltes Alt-Dokument (done) war
+# ohne Freigabe-Parteien sofort freigegeben → issued nachziehen (idempotent).
+_DOCUMENT_DATA_FIXES = (
+    "UPDATE documents SET issued=true WHERE done=true AND issued=false",
+)
+
 # «serialization» ist kein eigener Prozessschritt mehr – die Bestands-Instanzen
 # entstehen bei der Auftragsfreigabe. Bestehende Definitionen soft-löschen.
 _STEP_DATA_FIXES = (
@@ -344,6 +359,14 @@ def _ensure_columns() -> None:
             if "purchase_orders" in tables:
                 for stmt in _DATA_FIXES:
                     conn.execute(text(stmt))
+            if "documents" in tables:
+                # Über information_schema auf DERSELBEN Verbindung prüfen (sieht die eben in
+                # dieser Transaktion via ADD COLUMN ergänzte Spalte – anders als der Vor-Loop-``insp``).
+                doc_cols = {r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name='documents'"))}
+                if {"issued", "done"}.issubset(doc_cols):
+                    for stmt in _DOCUMENT_DATA_FIXES:
+                        conn.execute(text(stmt))
             if "article_process_steps" in tables:
                 for stmt in _STEP_DATA_FIXES:
                     conn.execute(text(stmt))
@@ -478,9 +501,15 @@ def _ensure_documents_shape() -> None:
             Document.__table__.create(bind=engine, checkfirst=True)
             return
         have = {c["name"] for c in insp.get_columns("documents")}
-        expected = set(Document.__table__.columns.keys())
-        if expected.issubset(have):
-            return  # Schema passt – nichts zu tun
+        # NUR ein fehlender STRUKTUR-Kern rechtfertigt den (destruktiven) Neuaufbau – rein
+        # additive Flags (``done``/``issued``) ergänzt danach ``_ensure_columns`` non-destruktiv.
+        # Wichtig: ``documents`` trägt die ausgestellten **Rechtsdokumente** (AGB/Datenschutz),
+        # die ``legal.resolve`` referenziert – ein Neuaufbau wegen einer neuen additiven Spalte
+        # (nach einem Modell-Zuwachs, bevor Alembic lief) würde sie unwiederbringlich löschen.
+        structural = {"id", "order_id", "step_id", "article_id", "content",
+                      "created_by", "created_at", "updated_at", "is_active"}
+        if structural.issubset(have):
+            return  # Struktur passt – additive Spalten übernimmt _ensure_columns
         with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS documents CASCADE"))
         Document.__table__.create(bind=engine, checkfirst=True)

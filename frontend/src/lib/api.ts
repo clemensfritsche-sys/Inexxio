@@ -4,7 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument, Acknowledgement,
+  PendingDocument, Acknowledgement, MySignoffDocument, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -163,13 +163,25 @@ class ApiClient {
   }
 
   // Ein Dokument bestätigen; liefert die verbleibenden offenen Bestätigungen zurück.
-  acknowledgeDocument(kind: string): Promise<PendingDocument[]> {
-    return this.post('/api/v1/consent/acknowledge', { kind });
+  // Bei einem Publikums-Dokument (kind='document') zusätzlich die Objektnummer (Version).
+  acknowledgeDocument(kind: string, objectNumber?: number | null): Promise<PendingDocument[]> {
+    return this.post('/api/v1/consent/acknowledge', { kind, object_number: objectNumber ?? null });
   }
 
   // Bestätigungen eines Nutzers (für den Benutzer-ERP-Datensatz).
   getUserAcknowledgements(userObjectId: number): Promise<Acknowledgement[]> {
     return this.get(`/api/v1/consent/acknowledgements/${userObjectId}`);
+  }
+
+  // ─── «Meine Dokumente»: Freigabe-Parteien (unterschreiben/bestätigen) ───────
+  getMyDocuments(): Promise<MySignoffDocument[]> {
+    return this.get('/api/v1/consent/my-documents');
+  }
+
+  // Als benannte Freigabe-Partei handeln (confirm|sign|reject|withdraw) – liefert die
+  // verbleibenden offenen Dokumente zurück.
+  actSignoff(signoffId: number, data: SignoffAction): Promise<MySignoffDocument[]> {
+    return this.post(`/api/v1/consent/signoffs/${signoffId}`, data);
   }
 
   // ─── Admin: Users ──────────────────────────────────────────────────────────
@@ -458,6 +470,17 @@ class ApiClient {
   // Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue)
   updateOrderDocument(objectId: number, data: DocumentUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/document`, data);
+  }
+
+  // Freigabe-Partei handelt inline am Auftrag (confirm|sign|reject|withdraw).
+  actOrderDocumentSignoff(objectId: number, signoffId: number, data: SignoffAction): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/document/signoff/${signoffId}`, data);
+  }
+
+  // Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar.
+  withdrawOrderDocument(objectId: number, stepId?: number | null): Promise<Order> {
+    const q = stepId != null ? `?step_id=${stepId}` : '';
+    return this.post(`/api/v1/erp/orders/${objectId}/document/withdraw${q}`, {});
   }
 
   // Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, FileDown, GripVertical } from 'lucide-react';
-import type { CompanySettings, DocumentContent, DocumentSection } from '@/types';
+import { Plus, Trash2, FileDown, GripVertical, Check } from 'lucide-react';
+import type { CompanySettings, DocumentContent, DocumentSection, SignoffView } from '@/types';
+import { attachmentUrl } from '@/lib/api';
 
 // Inexxio-Design-Tokens (Spiegel von styles/design-system/colors_and_type.css) – als
 // Inline-Werte, damit die Web-Ansicht PIXELGENAU dem PDF-Render entspricht.
@@ -37,11 +38,12 @@ function addressLines(company?: Partial<CompanySettings> | null): string[] {
 }
 
 // ─── Ansicht (identisch zum PDF): weisses A4-Blatt im Inexxio-Design ──────────────
-export function DocumentView({ content, objectNr, issuedAt, company }: {
+export function DocumentView({ content, objectNr, issuedAt, company, signoffs }: {
   content: DocumentContent | null | undefined;
   objectNr?: string | null;         // = Instanz-Objektnummer (die Dokumentennummer)
   issuedAt?: string | null;         // = Instanz-Freigabedatum
   company?: Partial<CompanySettings> | null;   // Briefkopf/Fusszeile (wie im PDF)
+  signoffs?: SignoffView[] | null;   // Freigaben/Unterschriften (DocuSign-Layer auf der Basis)
 }) {
   const c = content ?? emptyContent();
   const sections = c.sections ?? [];
@@ -103,6 +105,39 @@ export function DocumentView({ content, objectNr, issuedAt, company }: {
           </section>
         ))}
       </div>
+      {/* Freigaben/Unterschriften-Layer (auf die unveränderliche Basis gerendert, DocuSign-Prinzip). */}
+      {signoffs && signoffs.length > 0 && (
+        <div style={{ marginTop: 34, paddingTop: 16, borderTop: `2px solid ${INK}` }}>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: RED, marginBottom: 14 }}>
+            Freigaben
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+            {signoffs.map((s) => (
+              <div key={s.id} style={{ minWidth: 200, flex: '1 1 200px', maxWidth: 300 }}>
+                <div style={{ height: 60, display: 'flex', alignItems: 'flex-end', borderBottom: `1px solid ${INK}`, paddingBottom: 4 }}>
+                  {s.status === 'signed' && s.signature_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={attachmentUrl(s.signature_url)} alt="Unterschrift" style={{ maxHeight: 54, maxWidth: '100%', objectFit: 'contain' }} />
+                    : s.status === 'signed'
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#15803D', fontWeight: 700, fontSize: 13 }}><Check size={15} /> Bestätigt</span>
+                      : s.status === 'rejected'
+                        ? <span style={{ color: RED, fontWeight: 700, fontSize: 13 }}>Abgelehnt</span>
+                        : <span style={{ color: MUTED, fontStyle: 'italic', fontSize: 12 }}>ausstehend</span>}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 700, color: INK }}>{s.signer_name ?? `Objekt ${s.signer_object_id}`}</div>
+                <div style={{ fontSize: 11, color: MUTED }}>
+                  {s.action === 'sign' ? 'Unterschrift' : 'Bestätigung'}
+                  {s.acted_at ? ` · ${new Date(s.acted_at).toLocaleDateString('de-CH')}` : ''}
+                </div>
+                {s.status === 'rejected' && s.reason && (
+                  <div style={{ fontSize: 11, color: RED, marginTop: 2 }}>{s.reason}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Fusszeile (wie im PDF: «Firma · Dok. Nr»); Seitenzahlen entfallen im Web (kein Blattumbruch). */}
       {(company || objectNr) && (
         <div style={{ marginTop: 30, paddingTop: 10, borderTop: `1px solid ${HAIRLINE}`, fontSize: 11, color: MUTED, fontVariantNumeric: 'tabular-nums' }}>

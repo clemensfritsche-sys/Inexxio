@@ -17,10 +17,16 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import DocumentAcknowledgement, UserProfile
+from ..models import (
+    Article, ArticleProcessStep, Document, DocumentAcknowledgement, Order, UserProfile,
+)
 from . import legal
 from .admin import get_or_create_settings, log_audit
 from .events import emit
+
+# Sonder-„kind" für ein offenes Anerkennungs-Dokument (kein Rechtsdokument-Zeiger, sondern
+# ein released Dokument mit deklariertem Publikum). Version = seine Instanz-Objektnummer.
+AUDIENCE_KIND = "document"
 
 _KIND_LABELS = {
     "agb": "AGB", "datenschutz": "Datenschutzerklärung", "impressum": "Impressum",
@@ -68,16 +74,73 @@ def _has_ack(db: Session, user_id: int, kind: str, version: int) -> bool:
     )
 
 
+def _in_audience(user: UserProfile, step: ArticleProcessStep) -> bool:
+    """Gehört der Nutzer zum offenen **Anerkennungs-Publikum** dieses Dokument-Schritts?
+    'all' → jede angemeldete Rolle · 'roles' → Rolle in der Liste · 'persons' → Objektnummer
+    in der Liste. Kein Publikum deklariert → nein."""
+    aud = getattr(step, "doc_audience", None)
+    if aud == "all":
+        return True
+    if aud == "roles":
+        return bool(user.role and user.role in (step.doc_audience_roles or []))
+    if aud == "persons":
+        return user.object_id in {int(x) for x in (step.doc_audience_person_ids or [])}
+    return False
+
+
+def _audience_obligations(db: Session, user: UserProfile) -> list[dict]:
+    """Offene Anerkennungen des Nutzers aus **released Dokumenten mit Publikum** (nicht die
+    Rechtsdokument-Zeiger). Kanonisch: nur die aktuelle Fassung – ein Dokument, dessen Artikel
+    **ersetzt** wurde, ist superseded und wird übersprungen (die Nachfolge-Fassung fordert dann
+    ihre eigene, neue Anerkennung → Q2 «neue Version = sofort neu bestätigen»)."""
+    from .document import produced_instance
+    rows = (
+        db.query(Document, ArticleProcessStep)
+        .join(ArticleProcessStep, Document.step_id == ArticleProcessStep.id)
+        .filter(Document.done == True, Document.is_active == True,
+                ArticleProcessStep.doc_audience.isnot(None))
+        .all()
+    )
+    out: list[dict] = []
+    seen: set[int] = set()
+    for doc, step in rows:
+        if not _in_audience(user, step):
+            continue
+        if doc.article_id is not None:
+            art = db.query(Article).filter(Article.id == doc.article_id).first()
+            if art is not None and art.replaced_by_id is not None:
+                continue   # ersetzte Fassung – der Nachfolger fordert die Anerkennung
+        order = db.query(Order).filter(Order.id == doc.order_id).first()
+        inst = produced_instance(db, order) if order else None
+        if inst is None:
+            continue
+        version = inst.object_id
+        if version in seen or _has_ack(db, user.id, AUDIENCE_KIND, version):
+            continue
+        seen.add(version)
+        out.append({
+            "kind": AUDIENCE_KIND,
+            "title": (doc.content or {}).get("title") or "Dokument",
+            "object_number": version,
+            "document_date": inst.released_at,
+            "content": doc.content,
+        })
+    return out
+
+
 def pending_documents(db: Session, user: UserProfile) -> list[dict]:
-    """Alle für diesen Nutzer noch offenen Pflicht-Bestätigungen (aktuelle Version, ungeprüft)."""
+    """Alle für diesen Nutzer noch offenen Pflicht-Bestätigungen (aktuelle Version, ungeprüft):
+    (1) Rechtsdokument-Zeiger (AGB … hart verdrahtet) + (2) released Dokumente mit Publikum."""
     settings = get_or_create_settings(db)
     out: list[dict] = []
+    seen: set[int] = set()
     for kind in required_kinds(settings, user.role):
         resolved = legal.resolve(db, kind)
         if not resolved or not resolved.get("object_number"):
             continue   # kein gültiges Dokument hinterlegt → nichts zu bestätigen
         if _has_ack(db, user.id, kind, resolved["object_number"]):
             continue
+        seen.add(resolved["object_number"])
         out.append({
             "kind": kind,
             "title": _label(kind, resolved.get("content")),
@@ -85,19 +148,37 @@ def pending_documents(db: Session, user: UserProfile) -> list[dict]:
             "document_date": resolved.get("document_date"),
             "content": resolved.get("content"),
         })
+    # (2) Offene Anerkennungen aus released Dokumenten mit Publikum (dedupe gegen die Zeiger).
+    for item in _audience_obligations(db, user):
+        if item["object_number"] not in seen:
+            seen.add(item["object_number"])
+            out.append(item)
     return out
 
 
-def acknowledge(db: Session, user: UserProfile, kind: str) -> None:
+def acknowledge(db: Session, user: UserProfile, kind: str, object_number: int | None = None) -> None:
     """Die **aktuelle** Version von ``kind`` für den Nutzer als bestätigt festhalten
-    (idempotent). Committet."""
-    settings = get_or_create_settings(db)
-    if kind not in required_kinds(settings, user.role):
-        raise HTTPException(400, detail="Für dich ist keine Bestätigung dieses Dokuments erforderlich")
-    resolved = legal.resolve(db, kind)
-    if not resolved or not resolved.get("object_number"):
-        raise HTTPException(400, detail="Kein gültiges Dokument hinterlegt")
-    version = resolved["object_number"]
+    (idempotent). Committet.
+
+    Zwei Wege: ein **Rechtsdokument-Zeiger** (``kind`` = agb …, Version via ``legal.resolve``)
+    ODER ein **Publikums-Dokument** (``kind='document'`` + ``object_number`` der released
+    Instanz – muss eine offene Anerkennung des Nutzers sein)."""
+    if kind == AUDIENCE_KIND:
+        if object_number is None:
+            raise HTTPException(400, detail="Objektnummer des Dokuments fehlt")
+        version = int(object_number)
+        # Nur bestätigen, was tatsächlich offen (im Publikum) ist – oder bereits bestätigt (idempotent).
+        legit = any(o["object_number"] == version for o in _audience_obligations(db, user))
+        if not legit and not _has_ack(db, user.id, kind, version):
+            raise HTTPException(400, detail="Dieses Dokument ist für dich nicht zu bestätigen")
+    else:
+        settings = get_or_create_settings(db)
+        if kind not in required_kinds(settings, user.role):
+            raise HTTPException(400, detail="Für dich ist keine Bestätigung dieses Dokuments erforderlich")
+        resolved = legal.resolve(db, kind)
+        if not resolved or not resolved.get("object_number"):
+            raise HTTPException(400, detail="Kein gültiges Dokument hinterlegt")
+        version = resolved["object_number"]
     if _has_ack(db, user.id, kind, version):
         return   # schon bestätigt (idempotent)
     now = datetime.now(timezone.utc)

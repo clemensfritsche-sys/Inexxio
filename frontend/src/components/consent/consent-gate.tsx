@@ -59,7 +59,8 @@ export function ConsentGate() {
     if (!doc) return;
     setBusy(true); setErr(null);
     try {
-      const remaining = await api.acknowledgeDocument(doc.kind);
+      // Publikums-Dokument (kind='document') braucht die Objektnummer als Version.
+      const remaining = await api.acknowledgeDocument(doc.kind, doc.object_number);
       setPending(remaining);
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Bestätigung fehlgeschlagen');

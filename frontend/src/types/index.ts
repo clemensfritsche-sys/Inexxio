@@ -109,6 +109,16 @@ export type DocumentSection = components['schemas']['DocumentSection'];
 export type OrderDocument = NonNullable<OrderApi['document']>;
 export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
 
+// Dokument-Freigabe: endliche Freigabe-Parteien (Unterschriften-/Bestätigungs-Layer).
+export type SignoffView = components['schemas']['SignoffView'];
+export type SignoffAction = components['schemas']['SignoffAction'];
+export type MySignoffDocument = components['schemas']['MySignoffDocument'];
+export type DocSigner = components['schemas']['DocSigner'];
+export type DocSignAction = 'confirm' | 'sign';
+export type DocAudience = 'all' | 'roles' | 'persons';
+export type DocVisibility = 'public' | 'internal' | 'confidential';
+export type DocAudienceRole = 'customer' | 'supplier' | 'employee' | 'admin';
+
 // Hochgeladene Fremd-Dokumente (Belege/Anleitungen) – KI-Aufnahme + Reiter «Dokumente».
 export type ObjectDocument = components['schemas']['ObjectDocument'];
 export type DocumentAnalyzeResponse = components['schemas']['DocumentAnalyzeResponse'];
@@ -401,6 +411,12 @@ export interface ArticleProcessStepInput {
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;
+  doc_signers?: DocSigner[] | null;
+  sign_sequential?: boolean;
+  doc_audience?: DocAudience | null;
+  doc_audience_roles?: DocAudienceRole[] | null;
+  doc_audience_person_ids?: number[] | null;
+  doc_visibility?: DocVisibility;
 }
 
 export interface ArticleProcessStepUpdateInput {

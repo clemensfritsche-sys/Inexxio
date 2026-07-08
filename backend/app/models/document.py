@@ -38,7 +38,14 @@ class Document(Base, TimestampMixin):
     # Verfasster Inhalt (während der Ausführung) – Snapshot beim Ausstellen unveränderlich.
     content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
-    # «Ausgestellt» – erst dann gilt der Schritt als erledigt (analog Inspection.result).
+    # ZWEI Achsen (DocuSign-Prinzip): «ausgestellt» friert den Inhalt ein, «freigegeben»
+    # setzt zusätzlich alle Freigabe-Parteien voraus.
+    #  • ``issued`` – der Inhalt ist mit «Ausstellen» festgeschrieben (unveränderliche Basis).
+    #    Ab hier laufen die Unterschriften/Bestätigungen (``document_signoffs``).
+    #  • ``done`` – **vollständig freigegeben**: ausgestellt UND von ALLEN Freigabe-Parteien
+    #    signiert (ohne Parteien fällt beides bei «Ausstellen» zusammen – rückwärtskompatibel).
+    #    Erst ``done`` schliesst den Prozessschritt ab (``process._fact_status`` liest ``done``).
+    issued: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     done: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

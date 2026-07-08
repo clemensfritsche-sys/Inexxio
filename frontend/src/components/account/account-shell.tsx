@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { User, MapPin, FileText, Shield, Bell, Lock, ShoppingBag, Loader2 } from 'lucide-react';
+import { User, MapPin, FileText, FileSignature, Shield, Bell, Lock, ShoppingBag, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -13,8 +13,9 @@ import { SecuritySection } from './sections/security-section';
 import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
 import { OrdersSection } from './sections/orders-section';
+import { DocumentsSection } from './sections/documents-section';
 
-type SectionId = 'profile' | 'orders' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
+type SectionId = 'profile' | 'orders' | 'documents' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
 
 interface Props {
   profile: UserProfile | null;
@@ -54,6 +55,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     const base: { id: SectionId; label: string; icon: React.ElementType }[] = [
       { id: 'profile', label: 'Mein Profil', icon: User },
       { id: 'orders', label: 'Bestellungen & Abos', icon: ShoppingBag },
+      { id: 'documents', label: 'Meine Dokumente', icon: FileSignature },
       { id: 'contact', label: 'Adresse', icon: MapPin },
       { id: 'invoice', label: 'Rechnungsadresse', icon: FileText },
       { id: 'security', label: 'Sicherheit', icon: Shield },
@@ -76,6 +78,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
     switch (activeSection) {
       case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
       case 'orders': return <OrdersSection />;
+      case 'documents': return <DocumentsSection />;
       case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
       case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={isSupplier} />;
       case 'security': return <SecuritySection profile={profile} />;

@@ -822,6 +822,39 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Frontend: `/agb` + `/datenschutz` rendern `<LegalDocument kind=… fallback={…}>` (DocumentView inkl.
   Briefkopf), Admin → Systemkonfiguration → «Rechtstexte» (Artikelnummer je Typ). Erfüllt die
   AGB-Akzeptanz-Version geschenkt.
+- **Dokument-Freigabe & Pflichten (Unterschriften/Anerkennungen, DocuSign-Prinzip)**: Ein Dokument ist
+  eine **ganz normale Instanz** (unveränderte Statuse `quality`/`disposition`); der Prozessschritt
+  «Dokument» ist ein **Sub-Prozess** (wie `purchase`): **Entwurf → Ausgestellt (`documents.issued`, Inhalt
+  eingefroren, unveränderliche Basis) → Freigaben laufen → Vollständig freigegeben (`documents.done`) →
+  Instanz freigegeben, Auftrag abgeschlossen**. `done` wird NICHT im `_fact_status` erraten, sondern vom
+  Service gesetzt, sobald alle Parteien signiert haben (`document._maybe_complete`; ohne Parteien fällt es
+  bei «Ausstellen» zusammen → rückwärtskompatibel). **ZWEI Partei-Typen, am Schritt deklariert**
+  (`article_process_steps`, Migration 066): (1) **Freigabe-Parteien** – endliche, geordnete Liste
+  (`doc_signers` = [{signer_object_id, action `confirm`|`sign`}], `sign_sequential`), materialisiert bei
+  «Ausstellen» als **append-only Layer** `document_signoffs` (EINE Tabelle für bestätigen OHNE Bild +
+  unterschreiben MIT Bild). Erst wenn ALLE signiert haben, ist das Dokument freigegeben → **gated den
+  Auftragsabschluss** (terminiert immer, weil endlich). Nur die **benannte Person** (Objektnummer-Abgleich)
+  handelt; **sequenziell** = nur die kleinste offene `order_index` ist dran. Aktionen: sign/confirm/reject
+  (mit Grund)/withdraw (eigene Unterschrift zurückziehen); Personal kann die **Ausstellung zurücknehmen**
+  (`document.withdraw_issuance`, solange nicht `done`) → Inhalt wieder editierbar. (2) **Anerkennungs-
+  Publikum** – offen (`doc_audience` = all|roles|persons + `doc_audience_roles`/`_person_ids`), ein
+  **rollierendes, aktions-getriggertes Gate auf dem BEREITS freigegebenen Dokument** (`services/consent.
+  _audience_obligations` → `document_acknowledgements`, kind='document', Version = Instanz-Objektnummer) –
+  **blockiert den Auftrag NIE**, erscheint aber im **Consent-Gate-Modal** (jede Rolle). Kanonisch: ein
+  Dokument, dessen Artikel **ersetzt** wurde, ist superseded → der Nachfolger fordert die neue Anerkennung
+  (Q «neue Version = sofort neu bestätigen»). **Aufteilung Schritt↔Auftrag:** der Schritt deklariert die
+  STRUKTUR (Parteien-Slots, Reihenfolge, Publikum, `doc_visibility`); der Auftrag füllt INHALT + sammelt
+  die konkreten Unterschriften. **Lieferanten-Fähigkeits-Gate** (Offerte erst nach Bestätigung): über ein
+  `supplier_terms`-Dokument mit `doc_audience=roles=[supplier]` – das Consent-Gate blockiert den Lieferanten,
+  bis er anerkannt hat (kein Sonder-Check im Beschaffungs-Pfad). **Surfaces:** Prozess-Editor
+  (`process-steps.tsx: DocConfigEditor` – Parteien per SearchSelect + Drag&Drop + `confirm`/`sign` je Zeile,
+  sequenziell-Toggle, Publikum, Sichtbarkeit); Auftrags-Panel (`document-panel.tsx` – Ausstellen →
+  Parteien-Liste mit Inline-Signatur `SignaturePad`/Bestätigen/Ablehnen + Zurücknehmen); **«Meine Dokumente»**
+  (`account/sections/documents-section.tsx` – externe Parteien signieren im Konto, `GET/POST /consent/
+  {my-documents,signoffs/{id}}`); der **Freigabe-Layer wird auf das Dokument gerendert** (Web `DocumentView`
+  + PDF `document_render._signoffs_html`, Unterschrift-Bild als data-URI). Endpunkte am Auftrag
+  (`POST …/document/signoff/{id}`, `…/document/withdraw`). *Sichtbarkeit ist deklariert/angezeigt, aber noch
+  nicht als Lese-Zugriffsfilter erzwungen (Folgeschritt).*
 - **Meldebestand + Auto-Nachbestellung (E, «Nicht die Zeit soll bestellen, sondern der Bestand»)**:
   **Meldebestand** = `articles.safety_stock`; fällt der **freie** Bestand darunter, legt
   `services/replenishment.check_article` einen eigenständigen Nachschub-Auftrag (`orders.reason=

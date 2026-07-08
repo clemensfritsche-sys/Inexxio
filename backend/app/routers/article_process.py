@@ -22,6 +22,7 @@ from ..schemas.article_process_step import (
     ResourceLineView,
     StepReorder,
     normalize_capture_fields,
+    normalize_doc_signers,
 )
 from ..services.admin import log_audit
 from ..services.process_steps import sync_locked_movements
@@ -137,6 +138,18 @@ def _validate_resource_lines(db: Session, raw_lines: list | None) -> None:
             raise HTTPException(400, detail="Nur freigegebene Artikel sind als Ressource referenzierbar")
 
 
+def _validate_doc_signers(db: Session, signers: list | None) -> None:
+    """Jede deklarierte Freigabe-Partei muss eine aktive Person (Objektnummer) sein."""
+    for s in signers or []:
+        obj = getattr(s, "signer_object_id", None) if not isinstance(s, dict) else s.get("signer_object_id")
+        if obj is None:
+            continue
+        u = db.query(UserProfile).filter(
+            UserProfile.object_id == int(obj), UserProfile.is_active == True).first()
+        if not u:
+            raise HTTPException(400, detail=f"Freigabe-Partei {obj} ist keine aktive Person")
+
+
 def _active_steps(db: Session, owner: _Owner) -> list[ArticleProcessStep]:
     return (
         db.query(ArticleProcessStep)
@@ -192,10 +205,13 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         )
         position = (max_pos or 0) + 1
     is_resource = data.step_type == "resource"
+    is_document = data.step_type == "document"
     keeps_target = data.step_type == "movement"
     resource_raw = [l.model_dump() for l in (data.resource_lines or [])] if is_resource else None
     if is_resource:
         _validate_resource_lines(db, resource_raw)
+    if is_document:
+        _validate_doc_signers(db, data.doc_signers)
     step = ArticleProcessStep(
         **owner.new_step_kwargs(),
         position=position,
@@ -213,6 +229,13 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         target_location_type=data.target_location_type if keeps_target else None,
         target_location_id=data.target_location_id if keeps_target else None,
         resource_lines=resource_raw,
+        doc_signers=normalize_doc_signers(data.doc_signers) if is_document else None,
+        sign_sequential=bool(data.sign_sequential) if is_document else False,
+        doc_audience=data.doc_audience if is_document else None,
+        doc_audience_roles=(data.doc_audience_roles or None) if is_document else None,
+        doc_audience_person_ids=([int(x) for x in data.doc_audience_person_ids]
+                                 if data.doc_audience_person_ids else None) if is_document else None,
+        doc_visibility=(data.doc_visibility or "internal") if is_document else "internal",
     )
     db.add(step)
     db.flush()
@@ -267,6 +290,9 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
         payload["capture_fields"] = normalize_capture_fields(payload["capture_fields"])
     if "resource_lines" in payload:
         _validate_resource_lines(db, payload["resource_lines"])
+    if "doc_signers" in payload:
+        _validate_doc_signers(db, payload["doc_signers"])
+        payload["doc_signers"] = normalize_doc_signers(payload["doc_signers"])
     for key, value in payload.items():
         setattr(step, key, value)
     if step.mode == "supplier":

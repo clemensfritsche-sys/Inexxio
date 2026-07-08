@@ -46,6 +46,22 @@ class DocumentUpdate(BaseModel):
         return v
 
 
+class SignoffView(BaseModel):
+    """Eine Freigabe-Partei eines Dokuments (Anzeige im Auftrag / «Meine Dokumente»)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    signer_object_id: int
+    signer_name: Optional[str] = None
+    action: str = "sign"                      # confirm | sign
+    order_index: int = 0
+    status: str = "pending"                   # pending | signed | rejected
+    signature_url: Optional[str] = None
+    reason: Optional[str] = None
+    acted_at: Optional[datetime] = None
+
+
 class DocumentEmbed(BaseModel):
     """Eingebetteter Stand des Dokument-Schritts (im Auftrag).
 
@@ -55,8 +71,28 @@ class DocumentEmbed(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int = 0
-    done: bool = False
+    done: bool = False                         # vollständig freigegeben (ausgestellt + alle signiert)
+    issued: bool = False                       # Inhalt festgeschrieben (Unterschriften laufen)
     content: Optional[DocumentContent] = None
     object_number: Optional[int] = None       # = Instanz-Objektnummer (die Dokumentennummer)
     document_date: Optional[datetime] = None   # = instances.released_at
     created_by_name: Optional[str] = None
+    # Freigabe-Parteien (endlich, gated den Abschluss) + Deklaration vom Schritt.
+    signoffs: list[SignoffView] = []
+    sign_sequential: bool = False
+    visibility: str = "internal"
+
+
+class SignoffAction(BaseModel):
+    """Aktion einer Freigabe-Partei auf «ihr» Signoff (Unterschrift/Bestätigung/Ablehnung)."""
+
+    action: str = "sign"                       # confirm | sign | reject | withdraw
+    signature_url: Optional[str] = None        # Pflicht bei action='sign'
+    reason: Optional[str] = None               # Grund bei action='reject'
+
+    @field_validator("action")
+    @classmethod
+    def _action_ok(cls, v: str) -> str:
+        if v not in ("confirm", "sign", "reject", "withdraw"):
+            raise ValueError("action muss confirm, sign, reject oder withdraw sein")
+        return v
