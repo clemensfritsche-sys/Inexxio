@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import Disposal, Order
-from . import location_split, process
+from . import location_split, process, provisioning
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
@@ -46,6 +46,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
 
     scrapped = 0
     touched_articles: set[int] = set()
+    scrapped_whole: list = []   # ganz verschrottete Instanzen → Bereitstellungsort Schrottplatz
     for oid, qty in chosen.items():
         inst = by_obj.get(oid)
         if not inst:
@@ -59,6 +60,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             old = inst.disposition
             cut = to_qty(inst.quantity)
             inst.disposition = "scrapped"
+            scrapped_whole.append(inst)
             # ALLE Reservierungen lösen (nicht nur die dieses Auftrags): ein verschrottetes Teil
             # verlässt den Bestand endgültig und kann KEINEN Auftrag mehr beliefern. Hing es an
             # einem anderen Auftrag (z. B. eine Abweichung steuert eine für den Eltern-Verkauf
@@ -83,6 +85,12 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
                       "order": order.object_id})
         touched_articles.add(inst.article_id)
         scrapped += 1
+
+    # Bereitstellungsort «Schrottplatz»: die ganz verschrotteten Instanzen wandern an den
+    # Ausschuss-Lagerort (deklariert in event_types, ausgeführt vom EINEN Reconciler; no-op,
+    # wenn schon dort). Teil-Verschrottung bleibt am Lager (gute Restmenge). Keine
+    # herrenlosen Teile – der Ausschuss hat einen ehrlichen physischen Ort.
+    provisioning.send_to_scrapyard(db, scrapped_whole, actor_id)
 
     disp = process.fact_for_step(db, order, step)
     if not disp:

@@ -37,6 +37,20 @@ INSTANCE = "instance"   # bearbeitet eine konkrete, bestehende Instanz
 # dominiert eine Produktion, diese eine reine Instanz-Bearbeitung.
 SUBJECT_PRECEDENCE = (STOCK, PRODUCE, INSTANCE)
 
+# ─── Bereitstellungsort: wohin die Inputs/das Subjekt eines Schritts physisch müssen ──
+# «Bewegung wird ABGELEITET, nicht orchestriert»: jeder Schritttyp DEKLARIERT hier seinen
+# Bereitstellungsort. Ein einziger Reconciler (``services/provisioning.py``) vergleicht
+# Ist-Standort ↔ Soll und erzeugt die minimal nötige Bewegung – **no-op, wenn schon da**.
+# Heute laufen Wareneingang/Versand/Kunde über die gesperrten Pflicht-Bewegungen
+# (``services/process_steps.py``) und Verbrauch/Betriebsmittel über den Ressourcen-Schritt
+# (``services/resource.py``, Komponente → Produkt-Instanz / Werkzeug → Arbeitsplatz);
+# NEU über den Reconciler verdrahtet ist der **Schrottplatz** beim Verschrotten.
+PROV_NONE = "none"            # kein fester Ort (frei / self): Datenerfassung, Bewegung, Dokument
+PROV_RECEIVING = "receiving"  # Wareneingang            (Beschaffung → danach)
+PROV_CUSTOMER = "customer"    # Kunde                   (Verkauf → danach)
+PROV_PRODUCT = "product"      # Produkt-Instanz/Montageort (Ressource: Verbrauch; Werkzeug = Arbeitsplatz)
+PROV_SCRAPYARD = "scrapyard"  # Schrottplatz            (Verschrotten)
+
 # Vorzeichen der Bestandswirkung – für die Anreicherung der Domain-Events (Ledger).
 _DELTA_SIGN = {INCREASE: 1, DECREASE: -1, MOVE: 0, NEUTRAL: 0}
 
@@ -50,21 +64,22 @@ class EventType:
     polarity: str       # Wirkung auf den Bestand: increase | decrease | move | neutral
     subject_role: str   # was der Auftrag mit seinem Subjekt tut: produce | stock | instance
     fact: str           # Name des Fachmodells (Status-/Routing-Ableitung)
+    provisioning: str = PROV_NONE  # Bereitstellungsort: wohin das Subjekt/die Inputs physisch müssen
 
 
 # Reihenfolge = natürliche Lese-/Anzeigereihenfolge.
 REGISTRY: dict[str, EventType] = {
-    "purchase":   EventType("purchase",   "Beschaffung",    INCREASE, PRODUCE,  "PurchaseOrder"),
-    "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage"),
-    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection"),
-    "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement"),
-    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal"),
+    "purchase":   EventType("purchase",   "Beschaffung",    INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING),
+    "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
+    "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE),
+    "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
+    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal",      PROV_SCRAPYARD),
     # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
     # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
-    "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale"),
+    "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER),
     # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
     # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag
@@ -115,6 +130,12 @@ def polarity(step_type: str) -> str:
 def subject_role(step_type: str) -> str:
     et = REGISTRY.get(step_type)
     return et.subject_role if et else INSTANCE
+
+
+def provisioning(step_type: str) -> str:
+    """Deklarierter Bereitstellungsort eines Schritttyps (wohin sein Subjekt physisch muss)."""
+    et = REGISTRY.get(step_type)
+    return et.provisioning if et else PROV_NONE
 
 
 def delta_sign(step_type: str) -> int:

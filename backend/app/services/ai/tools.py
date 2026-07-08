@@ -515,6 +515,7 @@ def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
         "vat_method": s.vat_method, "vat_period": s.vat_period,
         "default_payment_days": s.default_payment_days,
         "default_receiving_location_id": _num(getattr(s, "default_receiving_location_id", None)),
+        "default_scrap_location_id": _num(getattr(s, "default_scrap_location_id", None)),
     }
 
 

@@ -2397,3 +2397,67 @@ def test_allocation_write_paths_lock_fifo_candidates():
 
     from app.services.sales import fulfill_intent
     assert "with_for_update" in _inspect.getsource(fulfill_intent)
+
+
+def test_provisioning_rule_book_declared():
+    """«Bereitstellungsort» ist je Schritttyp DEKLARIERT (SSOT im event_types-Regelwerk):
+    Beschaffung→Wareneingang, Verkauf→Kunde, Ressource→Produkt, Verschrotten→Schrottplatz,
+    Datenerfassung/Bewegung/Dokument→kein fester Ort."""
+    from app.domain import event_types as ev
+
+    assert ev.provisioning("purchase") == ev.PROV_RECEIVING
+    assert ev.provisioning("sale") == ev.PROV_CUSTOMER
+    assert ev.provisioning("resource") == ev.PROV_PRODUCT
+    assert ev.provisioning("scrap") == ev.PROV_SCRAPYARD
+    for t in ("inspection", "movement", "document"):
+        assert ev.provisioning(t) == ev.PROV_NONE
+    # Unbekannter Typ → neutral (kein fester Ort), kein Absturz
+    assert ev.provisioning("mystery") == ev.PROV_NONE
+
+
+def test_provisioning_reconciler_is_noop_when_already_there():
+    """Der EINE Reconciler bringt eine Instanz an ihren Bereitstellungsort und ist **no-op**,
+    wenn sie (ausschliesslich) schon dort liegt – sonst verlagert er die ganze Instanz
+    (verteilte Charge wird zusammengeführt)."""
+    import types as _types
+
+    from app.services import provisioning
+
+    inst = _types.SimpleNamespace(location_type="lagerplatz", location_id=100000010, locations=None)
+    assert provisioning.reconcile_to(inst, "lagerplatz", 100000010) is False   # schon da → no-op
+    assert provisioning.reconcile_to(inst, "lagerplatz", 100000020) is True     # woanders → bewegt
+    assert (inst.location_type, inst.location_id) == ("lagerplatz", 100000020)
+    # Verteilte Charge (Map gesetzt) am selben Skalar-Ort ist NICHT no-op (Zusammenführung nötig).
+    inst2 = _types.SimpleNamespace(location_type="lagerplatz", location_id=100000030,
+                                   locations={"100000030": {"t": "lagerplatz", "q": "5"},
+                                              "100000031": {"t": "lagerplatz", "q": "5"}})
+    assert provisioning.reconcile_to(inst2, "lagerplatz", 100000030) is True
+    assert inst2.locations is None                                            # zusammengeführt
+
+
+def test_scrap_sends_whole_scrapped_to_scrapyard():
+    """Verschrotten verdrahtet den Bereitstellungsort «Schrottplatz»: ``record_scrap`` sammelt
+    die GANZ verschrotteten Instanzen und ruft ``provisioning.send_to_scrapyard`` (Teil-
+    Verschrottung bleibt am Lager). Der Reconciler ist die EINE Bewegungs-Stelle."""
+    import inspect as _inspect
+
+    from app.services import scrap, provisioning
+
+    src = _inspect.getsource(scrap.record_scrap)
+    assert "send_to_scrapyard" in src and "scrapped_whole" in src
+    # send_to_scrapyard bewegt nur über den no-op-fähigen Reconciler.
+    yard_src = _inspect.getsource(provisioning.send_to_scrapyard)
+    assert "reconcile_to" in yard_src and "resolve_scrap_location" in yard_src
+    # Auto-Anlage/Persistenz des Schrottplatz-Lagerorts (idempotent, keine herrenlosen Teile).
+    resolve_src = _inspect.getsource(provisioning.resolve_scrap_location)
+    assert "default_scrap_location_id" in resolve_src and "Schrottplatz" in resolve_src
+
+
+def test_scrap_location_column_present():
+    """Der Ausschuss-Lagerort ist am Unternehmen konfigurierbar (Spalte + Schema)."""
+    from app.models import CompanySettings
+    from app.schemas.admin import CompanySettingsResponse, CompanySettingsUpdate
+
+    assert "default_scrap_location_id" in CompanySettings.__table__.columns
+    assert "default_scrap_location_id" in CompanySettingsResponse.model_fields
+    assert "default_scrap_location_id" in CompanySettingsUpdate.model_fields

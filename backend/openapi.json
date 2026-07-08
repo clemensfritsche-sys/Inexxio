@@ -8555,6 +8555,17 @@
             ],
             "title": "Default Receiving Location Id"
           },
+          "default_scrap_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Scrap Location Id"
+          },
           "shop_currencies": {
             "anyOf": [
               {
@@ -9022,6 +9033,17 @@
               }
             ],
             "title": "Default Receiving Location Id"
+          },
+          "default_scrap_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Scrap Location Id"
           },
           "shop_currencies": {
             "anyOf": [

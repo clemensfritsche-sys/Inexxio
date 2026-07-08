@@ -25,7 +25,7 @@ from ..schemas.resource import (
     ResourceCandidate, ResourceComponentPick, ResourceEmbed, ResourceLineExec,
     ResourcePlanItem, ResourceProductPlan,
 )
-from . import location_split, process
+from . import location_split, process, provisioning
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
@@ -205,13 +205,14 @@ def _use_tool(db: Session, tool: Instance, product: Instance, actor_id: int) -> 
 
     Es wird nur genutzt (kein Einbau, kein Lagerabgang), wandert aber an den
     Arbeitsort des Produkts – so ist nach dem Schritt sofort ersichtlich, wo das
-    Werkzeug/die Maschine zuletzt im Einsatz war."""
+    Werkzeug/die Maschine zuletzt im Einsatz war. Bereitstellungsort «Arbeitsplatz»:
+    der EINE Reconciler bringt es dorthin – **no-op, wenn schon da** (der häufige Fall)."""
     pt, pid = resolve_physical_location(db, product.location_type, product.location_id)
-    if pt and pid and (tool.location_type, tool.location_id) != (pt, pid):
-        log_audit(db, "instances", "location", f"{pt}:{pid}", actor_id,
-                  object_id=tool.object_id, old_value=f"{tool.location_type}:{tool.location_id}")
-        tool.location_type = pt
-        tool.location_id = pid
+    if pt and pid:
+        old = f"{tool.location_type}:{tool.location_id}"
+        if provisioning.reconcile_to(tool, pt, pid):
+            log_audit(db, "instances", "location", f"{pt}:{pid}", actor_id,
+                      object_id=tool.object_id, old_value=old)
 
 
 def record_resource(db: Session, order: Order, data, actor_id: int) -> ResourceUsage:

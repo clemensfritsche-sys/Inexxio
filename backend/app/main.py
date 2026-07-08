@@ -58,6 +58,7 @@ def _bootstrap_admin() -> None:
 _COLUMN_SAFETY_NET = (
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
     ("company_settings", "default_receiving_location_id", "BIGINT"),
+    ("company_settings", "default_scrap_location_id", "BIGINT"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "NUMERIC(14,3)"),
