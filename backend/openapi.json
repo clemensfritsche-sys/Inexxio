@@ -6100,25 +6100,6 @@
             ],
             "title": "Subtitle"
           },
-          "sections": {
-            "items": {
-              "$ref": "#/components/schemas/AiDocSection"
-            },
-            "type": "array",
-            "title": "Sections",
-            "default": []
-          }
-        },
-        "type": "object",
-        "title": "AiDocContent"
-      },
-      "AiDocSection": {
-        "properties": {
-          "heading": {
-            "type": "string",
-            "title": "Heading",
-            "default": ""
-          },
           "body": {
             "type": "string",
             "title": "Body",
@@ -6126,7 +6107,7 @@
           }
         },
         "type": "object",
-        "title": "AiDocSection"
+        "title": "AiDocContent"
       },
       "AiImageEditRequest": {
         "properties": {
@@ -9696,18 +9677,15 @@
             ],
             "title": "Subtitle"
           },
-          "sections": {
-            "items": {
-              "$ref": "#/components/schemas/DocumentSection"
-            },
-            "type": "array",
-            "title": "Sections",
-            "default": []
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
           }
         },
         "type": "object",
         "title": "DocumentContent",
-        "description": "Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte."
+        "description": "Inhalt eines Dokuments – Titel/Untertitel + **Markdown-Fliesstext** (``body``).\n\nDer Body ist Markdown (GitHub-Flavored): Überschriften, **fett**/*kursiv*, Aufzählungen,\nnummerierte Listen, Tabellen, Links, Bilder, Zitate, Code. So kann die KI reichhaltige\nDokumente erzeugen und der Mensch sie mit einer Werkzeugleiste bearbeiten. Web-Render via\nreact-markdown, PDF via markdown→HTML→WeasyPrint (einheitliches Inexxio-Design)."
       },
       "DocumentEmbed": {
         "properties": {
@@ -9815,23 +9793,6 @@
           "object_id"
         ],
         "title": "DocumentLinkInput"
-      },
-      "DocumentSection": {
-        "properties": {
-          "heading": {
-            "type": "string",
-            "title": "Heading",
-            "default": ""
-          },
-          "body": {
-            "type": "string",
-            "title": "Body",
-            "default": ""
-          }
-        },
-        "type": "object",
-        "title": "DocumentSection",
-        "description": "Ein Abschnitt: Überschrift (z. B. «§1 Geltungsbereich») + Fliesstext (mehrzeilig)."
       },
       "DocumentUpdate": {
         "properties": {

@@ -2137,19 +2137,6 @@ export interface components {
             /** Subtitle */
             subtitle?: string | null;
             /**
-             * Sections
-             * @default []
-             */
-            sections: components["schemas"]["AiDocSection"][];
-        };
-        /** AiDocSection */
-        AiDocSection: {
-            /**
-             * Heading
-             * @default
-             */
-            heading: string;
-            /**
              * Body
              * @default
              */
@@ -3192,7 +3179,12 @@ export interface components {
         };
         /**
          * DocumentContent
-         * @description Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte.
+         * @description Inhalt eines Dokuments – Titel/Untertitel + **Markdown-Fliesstext** (``body``).
+         *
+         *     Der Body ist Markdown (GitHub-Flavored): Überschriften, **fett**\/*kursiv*, Aufzählungen,
+         *     nummerierte Listen, Tabellen, Links, Bilder, Zitate, Code. So kann die KI reichhaltige
+         *     Dokumente erzeugen und der Mensch sie mit einer Werkzeugleiste bearbeiten. Web-Render via
+         *     react-markdown, PDF via markdown→HTML→WeasyPrint (einheitliches Inexxio-Design).
          */
         DocumentContent: {
             /**
@@ -3203,10 +3195,10 @@ export interface components {
             /** Subtitle */
             subtitle?: string | null;
             /**
-             * Sections
-             * @default []
+             * Body
+             * @default
              */
-            sections: components["schemas"]["DocumentSection"][];
+            body: string;
         };
         /**
          * DocumentEmbed
@@ -3268,22 +3260,6 @@ export interface components {
              * @default false
              */
             primary: boolean;
-        };
-        /**
-         * DocumentSection
-         * @description Ein Abschnitt: Überschrift (z. B. «§1 Geltungsbereich») + Fliesstext (mehrzeilig).
-         */
-        DocumentSection: {
-            /**
-             * Heading
-             * @default
-             */
-            heading: string;
-            /**
-             * Body
-             * @default
-             */
-            body: string;
         };
         /**
          * DocumentUpdate

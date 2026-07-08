@@ -16,7 +16,7 @@ import { useAutosave } from '@/lib/use-autosave';
 // Parteien; erst wenn ALLE signiert haben, ist das Dokument freigegeben (done). Nummer
 // (= Instanz-Objektnummer) und Datum (= Instanz-Freigabe) kommen aus dem Auftrag.
 function emptyContent(): DocumentContent {
-  return { title: '', subtitle: null, sections: [] };
+  return { title: '', subtitle: null, body: '' };
 }
 
 export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdated }: {

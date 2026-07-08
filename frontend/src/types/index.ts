@@ -105,7 +105,6 @@ export type OrderStep = OrderApi['steps'][number];
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.
 export type DocumentContent = components['schemas']['DocumentContent'];
-export type DocumentSection = components['schemas']['DocumentSection'];
 export type OrderDocument = NonNullable<OrderApi['document']>;
 export type DocumentUpdateInput = components['schemas']['DocumentUpdate'];
 

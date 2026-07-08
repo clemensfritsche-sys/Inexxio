@@ -36,14 +36,14 @@ export function AiWriteAssist({ current, onResult }: {
         ? {
             title: current.title ?? '',
             subtitle: current.subtitle ?? null,
-            sections: (current.sections ?? []).map((s) => ({ heading: s.heading ?? '', body: s.body ?? '' })),
+            body: current.body ?? '',
           }
         : null;
       const res = await api.aiWrite(text, payload);
       onResult({
         title: res.content.title ?? '',
         subtitle: res.content.subtitle ?? null,
-        sections: (res.content.sections ?? []).map((s) => ({ heading: s.heading ?? '', body: s.body ?? '' })),
+        body: res.content.body ?? '',
       });
       setInstruction('');
     } catch (e) {

@@ -22,8 +22,10 @@ class Document(Base, TimestampMixin):
     festgeschrieben. Analog zur Datenerfassung (``Inspection``): erst mit dem Abschluss ist
     der Schritt erledigt.
 
-    ``content``-Struktur (bewusst schlank, „Word"-artige Textdokumente):
-        {"title": str, "subtitle": str|None, "sections": [{"heading": str, "body": str}]}
+    ``content``-Struktur (Titel/Untertitel + **Markdown-Fliesstext**, „Word"-artige
+    Textdokumente – reichhaltig via GitHub-Flavored Markdown: Überschriften, fett,
+    Aufzählungen, Tabellen, Bilder):
+        {"title": str, "subtitle": str|None, "body": str}
     """
 
     __tablename__ = "documents"

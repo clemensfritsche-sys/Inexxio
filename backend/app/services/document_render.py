@@ -57,12 +57,28 @@ def _css_str(v) -> str:
         .replace("\n", " ").replace("\r", " ")
 
 
-def _paragraphs(body: str) -> str:
-    """Fliesstext eines Abschnitts in Absätze zerlegen (Leerzeilen/Zeilenumbrüche)."""
-    if not body:
+def _markdown_html(body: str, image_resolver=None) -> str:
+    """Markdown-Body → HTML fürs PDF (GFM-Tabellen, Listen, fett/kursiv, Bilder, Zitate, Code).
+
+    ``image_resolver`` (optional) bekommt jede Bild-URL und liefert eine WeasyPrint-taugliche
+    Quelle zurück (i. d. R. eine ``data:``-URI aus der Attachment-Ablage) – sonst kann
+    WeasyPrint auth-geschützte Attachment-URLs nicht laden."""
+    import re
+    import markdown as _md
+    if not (body or "").strip():
         return ""
-    blocks = [b.strip() for b in str(body).replace("\r\n", "\n").split("\n") if b.strip()]
-    return "".join(f"<p>{_esc(b)}</p>" for b in blocks)
+    out = _md.markdown(
+        str(body),
+        extensions=["tables", "fenced_code", "sane_lists", "nl2br"],
+        output_format="html",
+    )
+    if image_resolver is not None:
+        def _rw(m):
+            src = m.group(1)
+            resolved = image_resolver(src) or src
+            return f'src="{resolved}"'
+        out = re.sub(r'src="([^"]*)"', _rw, out)
+    return out
 
 
 def _fmt_date(value) -> str:
@@ -121,12 +137,13 @@ def _signoffs_html(signoffs: list[dict] | None) -> str:
 
 def render_pdf(content: dict, *, company: dict | None = None,
                object_id: Optional[int] = None, issued_at=None,
-               signoffs: list[dict] | None = None) -> bytes:
+               signoffs: list[dict] | None = None, image_resolver=None) -> bytes:
     """Ein Dokument (kanonischer ``content``) als markengetreues A4-PDF rendern.
 
     ``object_id`` = Instanz-Objektnummer (die Dokumentennummer), ``issued_at`` =
     Instanz-Freigabedatum. Beides kann beim Entwurf noch fehlen (Vorschau). ``signoffs`` =
-    Freigabe-Parteien (mit Unterschrift-Bild als data-URI) für den Freigabe-Block."""
+    Freigabe-Parteien (mit Unterschrift-Bild als data-URI). ``image_resolver`` löst Bild-URLs
+    im Markdown-Body zu WeasyPrint-tauglichen Quellen (data-URI) auf."""
     from weasyprint import HTML
 
     company = company or {}
@@ -138,18 +155,13 @@ def render_pdf(content: dict, *, company: dict | None = None,
 
     title = content.get("title") or "Dokument"
     subtitle = content.get("subtitle")
-    sections = content.get("sections") or []
 
     # Meta: Nummer = Instanz-Objektnummer, Datum = Instanz-Freigabe. Keine Version, kein «gültig ab».
     meta_bits = [f"Nr. {_obj_nr(object_id)}" if object_id else "Entwurf"]
     if issued_at:
         meta_bits.append(f"Datum {_fmt_date(issued_at)}")
 
-    sections_html = "".join(
-        f"<section class='clause'><h2>{_esc(s.get('heading') or '')}</h2>"
-        f"{_paragraphs(s.get('body') or '')}</section>"
-        for s in sections
-    )
+    body_html = _markdown_html(content.get("body") or "", image_resolver)
 
     # Fusszeile lebt in einem CSS-``content``-String → CSS-escapen (nicht HTML).
     company_name = company.get("company_name") or "Inexxio"
@@ -195,13 +207,29 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
   font-variant-numeric: tabular-nums; }}
 .meta span::before {{ content: ""; }}
 
-/* Abschnitte */
+/* Markdown-Body (fett, Listen, Tabellen, Bilder, Zitate, Code) */
 .body {{ margin-top: 30px; }}
-.clause {{ margin-bottom: 20px; }}
-.clause h2 {{ font-family: 'Inter Tight', sans-serif; font-weight: 700; font-size: 12.5pt;
-  color: {_INK}; letter-spacing: -0.01em; margin: 0 0 6px; break-after: avoid; }}
-.clause p {{ margin: 0 0 8px; }}
-.clause p:last-child {{ margin-bottom: 0; }}
+.md h1, .md h2, .md h3, .md h4 {{ font-family: 'Inter Tight', sans-serif; color: {_INK};
+  letter-spacing: -0.01em; break-after: avoid; }}
+.md h1 {{ font-size: 16pt; font-weight: 800; margin: 22px 0 8px; }}
+.md h2 {{ font-size: 13pt; font-weight: 700; margin: 20px 0 6px; }}
+.md h3 {{ font-size: 11.5pt; font-weight: 700; margin: 16px 0 5px; }}
+.md h4 {{ font-size: 10.5pt; font-weight: 700; margin: 14px 0 4px; }}
+.md p {{ margin: 0 0 8px; }}
+.md ul, .md ol {{ margin: 0 0 8px; padding-left: 20px; }}
+.md li {{ margin: 0 0 3px; }}
+.md strong {{ font-weight: 700; color: {_INK}; }}
+.md em {{ font-style: italic; }}
+.md a {{ color: {_RED}; text-decoration: none; }}
+.md blockquote {{ margin: 8px 0; padding: 4px 0 4px 14px; border-left: 3px solid {_HAIRLINE}; color: {_MUTED}; }}
+.md img {{ max-width: 100%; height: auto; margin: 8px 0; border-radius: 4px; }}
+.md code {{ font-family: monospace; font-size: 9pt; background: {_SAND}; padding: 1px 4px; border-radius: 3px; }}
+.md pre {{ background: {_SAND}; padding: 10px 12px; border-radius: 6px; break-inside: avoid; }}
+.md pre code {{ background: none; padding: 0; }}
+.md table {{ border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; break-inside: avoid; }}
+.md th, .md td {{ border: 1px solid {_HAIRLINE}; padding: 6px 9px; text-align: left; vertical-align: top; }}
+.md th {{ background: {_SAND}; font-weight: 700; color: {_INK}; }}
+.md hr {{ border: none; border-top: 1px solid {_HAIRLINE}; margin: 16px 0; }}
 
 .empty {{ color: {_MUTED}; font-style: italic; }}
 
@@ -232,7 +260,7 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
     <div class="meta">{''.join(f'<span>{_esc(m)}</span>' for m in meta_bits)}</div>
   </header>
   <div class="body">
-    {sections_html or '<p class="empty">Dieses Dokument hat noch keinen Inhalt.</p>'}
+    {f'<div class="md">{body_html}</div>' if body_html else '<p class="empty">Dieses Dokument hat noch keinen Inhalt.</p>'}
   </div>
   {_signoffs_html(signoffs)}
 </body></html>"""

@@ -2271,7 +2271,7 @@ def test_document_step_is_wired_end_to_end():
     assert "document" in OrderResponse.model_fields
     # Inhalts-Normalisierung ist tolerant (leerer Rohinhalt → wohlgeformte Struktur, kein Datum)
     norm = document.normalize_content(None)
-    assert norm["title"] == "" and norm["sections"] == [] and "document_date" not in norm
+    assert norm["title"] == "" and norm["body"] == "" and "document_date" not in norm
 
 
 def test_article_create_requires_only_name():
@@ -2302,7 +2302,9 @@ def test_document_pdf_renders_with_bundled_assets():
     assert document_render._LOGO_FILE.exists(), "Logo fehlt"
     from datetime import datetime, timezone
     pdf = document_render.render_pdf(
-        {"title": "Testdokument", "sections": [{"heading": "§1", "body": "Inhalt."}]},
+        {"title": "Testdokument",
+         "body": "## §1\n\nInhalt mit **fett**, *kursiv* und einer Liste:\n\n- Punkt A\n- Punkt B\n\n"
+                 "| Spalte | Wert |\n|---|---|\n| a | 1 |"},
         company={"company_name": "Inexxio AG", "street": "Industriestrasse", "street_nr": "12",
                  "zip_code": "8000", "city": "Zürich", "email": "info@inexxio.com"},
         object_id=100000123, issued_at=datetime(2026, 7, 5, tzinfo=timezone.utc),
@@ -2321,7 +2323,7 @@ def test_document_render_escapes_and_is_robust():
     # Adversariale Firmen-/Inhaltsdaten + überlanger Titel → gültiges PDF, kein Crash
     pdf = dr.render_pdf(
         {"title": "X" * 400, "subtitle": "<b>x</b>",
-         "sections": [{"heading": "<script>", "body": "a & b < c"}]},
+         "body": "## <script>alert(1)</script>\n\na & b < c\n\n- <img src=x onerror=1>"},
         company={"company_name": 'A & B "Co" \\ Ltd', "email": "<img src=x>",
                  "street": "<style>*{}</style>", "zip_code": "8000", "city": "Zürich"},
         object_id=100000123,

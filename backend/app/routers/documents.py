@@ -90,6 +90,7 @@ async def get_document_pdf(
         document_svc.normalize_content(doc.content),
         company=_company(db), object_id=obj_nr, issued_at=doc_date,
         signoffs=_signoff_render_data(db, doc),
+        image_resolver=lambda url: _signature_data_uri(db, url),
     )
     fname = f"Dokument-{str(obj_nr).zfill(9)}.pdf" if obj_nr else "Dokument-Entwurf.pdf"
     return _pdf_response(pdf, fname)

@@ -15,17 +15,16 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
-class DocumentSection(BaseModel):
-    """Ein Abschnitt: Überschrift (z. B. «§1 Geltungsbereich») + Fliesstext (mehrzeilig)."""
-    heading: str = ""
-    body: str = ""
-
-
 class DocumentContent(BaseModel):
-    """Inhalt eines Dokuments – Titel/Untertitel + geordnete Abschnitte."""
+    """Inhalt eines Dokuments – Titel/Untertitel + **Markdown-Fliesstext** (``body``).
+
+    Der Body ist Markdown (GitHub-Flavored): Überschriften, **fett**/*kursiv*, Aufzählungen,
+    nummerierte Listen, Tabellen, Links, Bilder, Zitate, Code. So kann die KI reichhaltige
+    Dokumente erzeugen und der Mensch sie mit einer Werkzeugleiste bearbeiten. Web-Render via
+    react-markdown, PDF via markdown→HTML→WeasyPrint (einheitliches Inexxio-Design)."""
     title: str = ""
     subtitle: Optional[str] = None
-    sections: list[DocumentSection] = []
+    body: str = ""
 
 
 class DocumentUpdate(BaseModel):

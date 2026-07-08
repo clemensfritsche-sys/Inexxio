@@ -55,15 +55,10 @@ class AiConfig(BaseModel):
 
 # ── Schreibhilfe (Dokumente-Prozessschrittmodul) ──────────────────────────────────
 
-class AiDocSection(BaseModel):
-    heading: str = ""
-    body: str = ""
-
-
 class AiDocContent(BaseModel):
     title: str = ""
     subtitle: Optional[str] = None
-    sections: list[AiDocSection] = []
+    body: str = ""   # Markdown
 
 
 class AiWriteRequest(BaseModel):

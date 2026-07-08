@@ -42,7 +42,7 @@ def test_pending_document_serialization():
     from app.schemas.consent import PendingDocument
     pd = PendingDocument.model_validate({
         "kind": "agb", "title": "AGB", "object_number": 100000123, "document_date": None,
-        "content": {"title": "AGB", "subtitle": None, "sections": [{"heading": "1", "body": "x"}]},
+        "content": {"title": "AGB", "subtitle": None, "body": "## 1\n\nx"},
     })
     assert pd.content.title == "AGB"
     assert PendingDocument.model_validate({"kind": "datenschutz", "title": "DS"}).content is None
