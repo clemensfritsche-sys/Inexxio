@@ -5,6 +5,7 @@ import { Mail, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { Field } from '../field';
 import { auth, updateEmailAddress } from '@/lib/firebase';
+import { PasskeysCard } from './passkeys-card';
 
 interface Props {
   profile: UserProfile;
@@ -154,6 +155,9 @@ export function SecuritySection({ profile }: Props) {
           )}
         </div>
       </div>
+
+      {/* Passkeys */}
+      <PasskeysCard />
 
     </div>
   );

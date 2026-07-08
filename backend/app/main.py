@@ -13,7 +13,7 @@ from .models import UserProfile
 from .routers import (
     admin, ai, article_process, articles, attachments, auth, consent, contact, documents,
     document_files, erp, events, health, instances, legal, maintenance, object_refs, orders,
-    sales, shop, storage_locations,
+    passkey, sales, shop, storage_locations,
 )
 
 settings = get_settings()
@@ -625,6 +625,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(passkey.router)
 app.include_router(consent.router)
 app.include_router(contact.router)
 app.include_router(admin.router)

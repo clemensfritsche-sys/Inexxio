@@ -24,6 +24,7 @@ from .document_link import DocumentLink
 from .document_blob import DocumentBlob
 from .attachment import Attachment
 from .storage_location import StorageLocation
+from .webauthn import WebAuthnCredential, WebAuthnChallenge
 from .ai import AiAction
 from .audit import AuditLog
 from .event import Event
@@ -36,5 +37,6 @@ __all__ = [
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
     "Document", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment", "StorageLocation",
+    "WebAuthnCredential", "WebAuthnChallenge",
     "AiAction", "AuditLog", "Event", "ObjectRef",
 ]

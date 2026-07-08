@@ -15,7 +15,7 @@ Mitarbeiter: ca. 10 | Artikel: ca. 1'000
 Frontend:  Next.js 14, TypeScript, App Router, Tailwind CSS, PWA
 Backend:   FastAPI (Python 3.12), SQLAlchemy 2.0, Pydantic v2, Alembic
 DB:        PostgreSQL 15 (Cloud SQL), universeller 9-stelliger Nummernkreis
-Auth:      Firebase Authentication (Magic Link + Google SSO + TOTP MFA für Admin)
+Auth:      Firebase Authentication (Magic Link + Google SSO + Passkeys/WebAuthn + TOTP MFA für Admin)
 Storage:   Google Cloud Storage
 Search:    Typesense (Phase 2)
 Email:     Gmail API (info.inexxio@gmail.com Phase 1 → @inexxio.com ab Phase 2)
@@ -841,6 +841,24 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   der Bindung erfasst, auf den Kind-Auftrag `subject_of_order_id` gepinnt, bei dessen Freigabe erneut
   reserviert). So läuft eine **wiederkehrende Wartung mit Prozess-im-Auftrag** vollständig weiter statt
   leer; ein reiner Erzeugungs-/Abo-Auftrag verhält sich unverändert (kein eigener Schritt → Artikel-Prozess).
+- **Passkeys / passwortlose Anmeldung (WebAuthn/FIDO2, `docs/passkeys.md`)**: Firebase hat keinen nativen
+  Passkey-Provider – die WebAuthn-Zeremonie läuft im Backend (`services/passkey.py`, `py_webauthn`), bei
+  Erfolg wird ein Firebase **Custom Token** ausgestellt (`signInWithCustomToken`) → ab da normale Firebase-
+  Session, restlicher Auth-Fluss unverändert. Modelle `webauthn_credentials`/`webauthn_challenges` (Migration
+  `065`), Endpunkte unter `/api/v1/auth/passkeys` (register/login options+verify, list, delete). **RP-ID +
+  Origin werden pro Request aus dem `Origin`-Header abgeleitet** und gegen `cors_origins` geprüft (multi-
+  domain: localhost/dev/prod ohne feste Verdrahtung); Challenges sind DB-basiert (Cloud-Run-sicher, einmalig,
+  5 min). Frontend: `lib/passkey.ts` + `@simplewebauthn/browser`, Login-Button «Mit Passkey anmelden»,
+  Konto → Sicherheit «Passkeys» (hinzufügen/benennen/entfernen). **Deployment-Hinweis:** der Cloud-Run-SA
+  braucht `roles/iam.serviceAccountTokenCreator` (Custom-Token-Signierung, siehe Doc).
+- **Cookie-/Einwilligungs-Layer (schlank, professionell, `docs/passkeys.md §2`)**: Erstanbieter-Consent
+  ohne Fremd-CMP. `lib/consent.ts` (eine Wahrheit, Cookie `inexxio_consent` + localStorage, versioniert,
+  6 Monate, Event-basiert); `components/consent/cookie-consent.tsx` (nicht blockierendes Banner +
+  Einstellungs-Dialog, ZWEI ehrliche Kategorien: **Notwendig** immer aktiv + **Statistik** optional,
+  «Ablehnen» = «Akzeptieren», keine Dark Patterns). **Plausible lädt erst mit Statistik-Einwilligung**
+  (`components/analytics/plausible.tsx`, Domain aus `plausible_domain`; CSP in `firebase.json` um
+  `plausible.io` erweitert). Footer-Link + Datenschutz-Button «Cookie-Einstellungen» (jederzeit
+  widerrufbar). Datenschutz-Seite (Ziffer 3) auf den realen, cookie-armen Footprint aktualisiert.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
