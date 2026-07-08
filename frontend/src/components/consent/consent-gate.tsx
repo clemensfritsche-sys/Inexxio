@@ -28,17 +28,31 @@ export function ConsentGate() {
 
   useEffect(() => {
     let cancelled = false;
+    async function refresh() {
+      try {
+        const list = await api.getPendingDocuments();
+        if (!cancelled) setPending(list);
+      } catch { if (!cancelled) setPending([]); }
+    }
     const unsub = onAuthChange(async (fbUser) => {
       if (!fbUser) { if (!cancelled) setPending([]); return; }
       try {
         const token = await fbUser.getIdToken();
         api.setToken(token);
-        const list = await api.getPendingDocuments();
-        if (!cancelled) setPending(list);
+        await refresh();
       } catch { if (!cancelled) setPending([]); }
     });
+    // Beim Zurückkehren auf den Tab neu prüfen: so erscheint eine neu veröffentlichte
+    // Anerkennungspflicht sofort (z. B. beim Testen mit einem zweiten Konto), ohne Neu-Login.
+    const onFocus = () => { void refresh(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
     api.getPublicSettings().then((s) => { if (!cancelled) setCompany(s); }).catch(() => {});
-    return () => { cancelled = true; unsub(); };
+    return () => {
+      cancelled = true; unsub();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, []);
 
   // Hintergrund-Scroll sperren, solange das Gate offen ist.

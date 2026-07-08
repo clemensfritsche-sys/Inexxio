@@ -5,10 +5,19 @@ import { Eraser, Check, Loader2, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
 
 /**
- * Digitale Unterschrift (wie bei Wix Studio): auf die Fläche zeichnen (Maus/Finger),
- * «Übernehmen» lädt sie als Bild-Attachment hoch und meldet die URL. Ist bereits eine
- * Unterschrift gesetzt (``value``), wird sie nur noch angezeigt.
+ * Digitale Unterschrift: auf die Fläche zeichnen (Maus/Finger), «Übernehmen» lädt sie als
+ * Bild-Attachment hoch und meldet die URL. Ist bereits eine Unterschrift gesetzt (``value``),
+ * wird sie nur noch angezeigt.
+ *
+ * **Festes Seitenverhältnis 3:1** (interne Auflösung 600×200) – die exportierte Unterschrift
+ * hat IMMER dieselbe Grösse/Proportion und wird überall (Dokument, PDF, Datenerfassung) gleich
+ * dargestellt. Der Hintergrund ist **weiss** (kein transparentes PNG mehr → kein schwarzer
+ * Balken nach der JPEG-Umwandlung im Backend).
  */
+const SIG_W = 600;   // interne Zeichenauflösung (px)
+const SIG_H = 200;   // 3:1
+const SIG_ASPECT = `${SIG_W} / ${SIG_H}`;
+
 export function SignaturePad({ value, onChange, disabled = false, signerHint }: {
   value: string | null;
   onChange: (url: string | null) => void;
@@ -21,22 +30,27 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Canvas auf Anzeigegrösse skalieren (scharfe Linien auf Retina).
+  // Weisser Grund + Stift-Setup (feste interne Auflösung → konstante Proportion).
+  function prime(ctx: CanvasRenderingContext2D) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, SIG_W, SIG_H);
+    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0f172a';
+  }
   useEffect(() => {
     const c = canvasRef.current;
     if (!c || value) return;
-    const ratio = window.devicePixelRatio || 1;
-    const rect = c.getBoundingClientRect();
-    c.width = rect.width * ratio;
-    c.height = rect.height * ratio;
     const ctx = c.getContext('2d');
-    if (ctx) { ctx.scale(ratio, ratio); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#0f172a'; }
+    if (ctx) prime(ctx);
   }, [value]);
 
+  // Zeigerkoordinaten (Anzeige) → interne Zeichenkoordinaten (600×200) umrechnen.
   function pos(e: React.PointerEvent) {
     const c = canvasRef.current!;
     const r = c.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    return {
+      x: ((e.clientX - r.left) / r.width) * SIG_W,
+      y: ((e.clientY - r.top) / r.height) * SIG_H,
+    };
   }
   function down(e: React.PointerEvent) {
     if (disabled) return;
@@ -55,7 +69,7 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
   function clear() {
     const c = canvasRef.current;
     if (!c) return;
-    c.getContext('2d')!.clearRect(0, 0, c.width, c.height);
+    prime(c.getContext('2d')!);
     dirty.current = false; setErr(null);
   }
 
@@ -76,7 +90,8 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={attachmentUrl(value)} alt="Unterschrift" style={{ height: 60, maxWidth: 240, objectFit: 'contain', border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff', padding: 4 }} />
+        <img src={attachmentUrl(value)} alt="Unterschrift"
+          style={{ width: 180, aspectRatio: SIG_ASPECT, objectFit: 'contain', border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff' }} />
         {!disabled && (
           <button type="button" onClick={() => onChange(null)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -90,9 +105,9 @@ export function SignaturePad({ value, onChange, disabled = false, signerHint }: 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {signerHint && <span style={{ fontSize: 11.5, color: 'var(--fg-4)' }}>{signerHint}</span>}
-      <canvas ref={canvasRef}
+      <canvas ref={canvasRef} width={SIG_W} height={SIG_H}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-        style={{ width: '100%', height: 130, border: '1px dashed var(--border-2)', borderRadius: 10, background: '#fff', touchAction: 'none', cursor: disabled ? 'not-allowed' : 'crosshair' }} />
+        style={{ width: '100%', maxWidth: 420, aspectRatio: SIG_ASPECT, border: '1px dashed var(--border-2)', borderRadius: 10, background: '#fff', touchAction: 'none', cursor: disabled ? 'not-allowed' : 'crosshair' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--fg-4)', flex: 1 }}>
           <PenLine size={13} /> Hier unterschreiben

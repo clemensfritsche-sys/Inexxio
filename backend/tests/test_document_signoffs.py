@@ -160,6 +160,39 @@ def test_pdf_render_accepts_signoffs_param():
     assert "signoffs=" in src
 
 
+def test_signature_transparency_flattened_to_white_not_black():
+    # Regression «schwarzer Balken»: ein transparentes PNG (dunkle Striche auf transparent,
+    # wie die gezeichnete Unterschrift) darf NICHT komplett schwarz werden.
+    from PIL import Image
+    from app.services.attachments import _flatten_to_rgb
+    img = Image.new("RGBA", (60, 20), (0, 0, 0, 0))     # voll transparent
+    img.putpixel((30, 10), (15, 23, 42, 255))            # ein dunkler Strich-Pixel
+    rgb = _flatten_to_rgb(img)
+    assert rgb.mode == "RGB"
+    assert rgb.getpixel((0, 0)) == (255, 255, 255)       # transparenter Grund → WEISS (nicht schwarz)
+    assert rgb.getpixel((30, 10))[0] < 60                # der Strich bleibt dunkel
+    # Ein Bild ohne Alpha bleibt unverändert konvertiert.
+    assert _flatten_to_rgb(Image.new("RGB", (4, 4), (200, 100, 50))).getpixel((0, 0)) == (200, 100, 50)
+
+
+def test_object_document_carries_signoffs():
+    # Das freigegebene Dokument (Reiter «Dokumente» / Instanz) trägt den Freigabe-Layer,
+    # damit die Unterschrift auch dort (nicht nur im Auftrags-Panel) sichtbar ist.
+    from app.schemas.document_file import ObjectDocument
+    assert "signoffs" in ObjectDocument.model_fields
+    import inspect as _inspect
+    from app.routers import document_files
+    assert "signoffs=document_svc.signoff_views" in _inspect.getsource(document_files._gen_entry)
+
+
+def test_passkey_name_auto_defaulted():
+    # Passkey-Name ist optional – ohne Eingabe wird serverseitig automatisch vergeben.
+    import inspect as _inspect
+    from app.services import passkey
+    src = _inspect.getsource(passkey.complete_registration)
+    assert 'f"Passkey {n + 1}"' in src
+
+
 def test_signoff_endpoints_wired():
     from app.routers import orders, consent as consent_router
     order_paths = {r.path for r in orders.router.routes}

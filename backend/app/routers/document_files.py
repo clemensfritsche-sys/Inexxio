@@ -237,6 +237,7 @@ def _gen_entry(db: Session, doc: Document, instance: Optional[Instance]) -> Obje
         quality=(instance.quality if instance else None),
         disposition=(instance.disposition if instance else None),
         reserved=bool(instance and (instance.reserved_quantity or 0) > 0),
+        signoffs=document_svc.signoff_views(db, doc),
     )
 
 

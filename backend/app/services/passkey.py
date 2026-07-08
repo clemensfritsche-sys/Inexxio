@@ -174,6 +174,13 @@ def complete_registration(
     transports = (credential.get("response") or {}).get("transports")
     dev_type = verified.credential_device_type
     device_type = getattr(dev_type, "value", None) or (str(dev_type) if dev_type else None)
+    # Name ist optional – ohne Eingabe automatisch vergeben (durchnummeriert), damit der
+    # Nutzer beim Hinzufügen nichts eintippen muss.
+    name = (device_name or "").strip()[:80]
+    if not name:
+        n = db.query(WebAuthnCredential).filter(
+            WebAuthnCredential.user_id == user.id, WebAuthnCredential.is_active == True).count()
+        name = f"Passkey {n + 1}"
     row = WebAuthnCredential(
         user_id=user.id,
         credential_id=credential_id,
@@ -181,7 +188,7 @@ def complete_registration(
         sign_count=verified.sign_count,
         rp_id=rp_id,
         transports=transports if isinstance(transports, list) else None,
-        device_name=(device_name or "").strip()[:80] or None,
+        device_name=name,
         device_type=device_type,
         backed_up=bool(verified.credential_backed_up),
         last_used_at=datetime.now(timezone.utc),

@@ -20,6 +20,22 @@ _MAX_UPLOAD_BYTES = 20 * 1024 * 1024   # 20 MB Rohupload-Limit (vor Verkleinerun
 _MAX_PIXELS = 40_000_000   # ~40 MP – Schutz vor Decompression-Bombs (kleine Datei, riesige Fläche)
 
 
+def _flatten_to_rgb(img):
+    """Ein Bild nach RGB bringen und dabei etwaige **Transparenz auf WEISS** legen.
+
+    Kritisch für gezeichnete Unterschriften: die stammen von einem transparenten Canvas
+    (dunkle Striche auf transparentem PNG). Ein direktes ``convert("RGB")`` würde die
+    transparenten Pixel zu **Schwarz** machen → die ganze Fläche wäre ein schwarzer Balken.
+    Darum die Transparenz vorher auf einen weissen Hintergrund komponieren."""
+    from PIL import Image
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        rgba = img.convert("RGBA")
+        bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        bg.alpha_composite(rgba)
+        return bg.convert("RGB")
+    return img.convert("RGB")
+
+
 def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | None) -> Attachment:
     """Rohes Bild normalisieren (EXIF/Grösse/JPEG) und als ``Attachment`` ablegen (flush,
     kein commit – der Aufrufer schliesst ab). Wirft 400 bei ungültigem Bild, 413 zu gross.
@@ -38,7 +54,7 @@ def store_image(db: Session, raw: bytes, filename: str | None, actor_id: int | N
         if w * h > _MAX_PIXELS:
             raise HTTPException(413, detail="Bildauflösung zu hoch")
         img = ImageOps.exif_transpose(img)   # Handy-Fotos korrekt drehen
-        img = img.convert("RGB")
+        img = _flatten_to_rgb(img)           # Transparenz auf WEISS (sonst schwarzer Balken)
         img.thumbnail((_MAX_EDGE, _MAX_EDGE))
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)

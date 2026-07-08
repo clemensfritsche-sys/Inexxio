@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from .document import SignoffView
+
 
 # ── Analyse (KI-Vorschlag) ────────────────────────────────────────────────────────
 
@@ -75,3 +77,5 @@ class ObjectDocument(BaseModel):
     quality: Optional[str] = None        # Instanz-Achse «ist es gut?» (pending|passed|failed)
     disposition: Optional[str] = None    # Instanz-Achse «wo ist es?» (in_process|in_stock|…)
     reserved: bool = False               # Instanz reserviert (für die Status-Badge)
+    # Freigaben/Unterschriften-Layer (nur kind='generated') – wird auf das Dokument gerendert.
+    signoffs: list[SignoffView] = []

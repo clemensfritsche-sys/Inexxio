@@ -180,7 +180,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           {genDoc && (
             <div style={{ marginBottom: 24 }}>
               <DocumentView content={genDoc.content as unknown as DocumentContent} company={company}
-                objectNr={fmtObjId(inst.object_id)} issuedAt={genDoc.created_at ?? null} />
+                objectNr={fmtObjId(inst.object_id)} issuedAt={genDoc.created_at ?? null} signoffs={genDoc.signoffs} />
             </div>
           )}
           <div style={S.glance}>

@@ -20,8 +20,6 @@ export function PasskeysCard() {
   const [loading, setLoading] = useState(true);
   const [supported, setSupported] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [showNameInput, setShowNameInput] = useState(false);
-  const [deviceName, setDeviceName] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -39,10 +37,9 @@ export function PasskeysCard() {
     setError('');
     setAdding(true);
     try {
-      const created = await registerPasskey(deviceName.trim() || undefined);
+      // Kein Name nötig – wird serverseitig automatisch vergeben (durchnummeriert).
+      const created = await registerPasskey();
       setPasskeys((prev) => [created, ...prev]);
-      setDeviceName('');
-      setShowNameInput(false);
     } catch (err: unknown) {
       if (!isPasskeyCancellation(err)) {
         setError(err instanceof Error ? err.message : 'Passkey konnte nicht hinzugefügt werden.');
@@ -138,53 +135,19 @@ export function PasskeysCard() {
               Dieser Browser unterstützt keine Passkeys. Bitte einen aktuellen Browser verwenden.
             </p>
           </div>
-        ) : showNameInput ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input
-              type="text"
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-              placeholder="Gerätename (z. B. «iPhone», optional)"
-              maxLength={80}
-              autoFocus
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #E2E8F0',
-                fontSize: 14, color: '#0F172A', outline: 'none',
-              }}
-            />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={handleAdd}
-                disabled={adding}
-                style={{
-                  padding: '8px 18px', borderRadius: 8, border: 'none', background: '#E51A14',
-                  color: '#fff', fontSize: 13, fontWeight: 600, cursor: adding ? 'wait' : 'pointer',
-                  opacity: adding ? 0.6 : 1,
-                }}
-              >
-                {adding ? 'Wird erstellt…' : 'Passkey erstellen'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowNameInput(false); setDeviceName(''); setError(''); }}
-                style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer' }}
-              >
-                Abbrechen
-              </button>
-            </div>
-          </div>
         ) : (
           <button
-            onClick={() => setShowNameInput(true)}
+            onClick={handleAdd}
+            disabled={adding}
             style={{
               alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 8,
               padding: '8px 16px', borderRadius: 8, border: '1px solid #E2E8F0', background: '#fff',
-              fontSize: 13, fontWeight: 500, color: '#374151', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, color: '#374151', cursor: adding ? 'wait' : 'pointer',
+              opacity: adding ? 0.6 : 1,
             }}
           >
             <Plus style={{ width: 15, height: 15 }} />
-            Passkey hinzufügen
+            {adding ? 'Wird erstellt…' : 'Passkey hinzufügen'}
           </button>
         )}
       </div>

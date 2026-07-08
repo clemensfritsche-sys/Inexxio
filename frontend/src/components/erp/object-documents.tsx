@@ -225,7 +225,7 @@ function DocumentPreview({ entry, onClose, onDownload }: {
             <div style={{ padding: 24, width: '100%', maxWidth: 820 }}>
               <DocumentView content={entry.content as unknown as DocumentContent} company={company}
                 objectNr={entry.object_number ? fmtObjId(entry.object_number) : null}
-                issuedAt={entry.created_at ?? null} />
+                issuedAt={entry.created_at ?? null} signoffs={entry.signoffs} />
             </div>
           ) : error ? (
             <div style={{ color: 'var(--fg-4)', fontSize: 13, textAlign: 'center', padding: 24 }}>{error}<br />Bitte stattdessen herunterladen.</div>

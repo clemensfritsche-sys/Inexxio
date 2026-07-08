@@ -11090,6 +11090,14 @@
             "type": "boolean",
             "title": "Reserved",
             "default": false
+          },
+          "signoffs": {
+            "items": {
+              "$ref": "#/components/schemas/SignoffView"
+            },
+            "type": "array",
+            "title": "Signoffs",
+            "default": []
           }
         },
         "type": "object",

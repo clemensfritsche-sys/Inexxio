@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FileText, FileDown, Hash, Send, PenLine, Check, X, RotateCcw, ShieldCheck } from 'lucide-react';
+import { FileText, FileDown, Hash, Send, PenLine, Check, X, RotateCcw, ShieldCheck, FileEdit, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, DocumentContent, SignoffView, UserProfile } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -124,6 +124,8 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
         )}
       />
 
+      {!locked && <DocStages issued={issued} done={done} />}
+
       {locked ? (
         <div style={{ fontSize: 13, color: '#6E6E73' }}>
           Dieser Schritt ist noch nicht an der Reihe – zuerst die vorherigen Schritte abschliessen.
@@ -173,6 +175,36 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
           </PrimaryButton>
         </>
       )}
+    </div>
+  );
+}
+
+// Sub-Prozess des Dokuments als Mini-Stepper: Erfassen → Freigaben einholen → Freigegeben.
+function DocStages({ issued, done }: { issued: boolean; done: boolean }) {
+  const cur = done ? 2 : issued ? 1 : 0;
+  const stages = [
+    { icon: FileEdit, label: 'Erfassen' },
+    { icon: PenLine, label: 'Freigaben einholen' },
+    { icon: CheckCircle2, label: 'Freigegeben' },
+  ];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+      {stages.map((s, i) => {
+        const isDone = i < cur;
+        const isCur = i === cur;
+        const color = isDone ? '#15803D' : isCur ? '#2563eb' : '#B8B5AE';
+        const bg = isDone ? '#DCFCE7' : isCur ? '#EFF6FF' : '#F5F4F1';
+        const Icon = isDone ? Check : s.icon;
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: bg, color }}>
+              <Icon size={13} />
+              <span style={{ fontSize: 11.5, fontWeight: isCur ? 700 : 600 }}>{s.label}</span>
+            </div>
+            {i < stages.length - 1 && <span style={{ width: 12, height: 1.5, background: '#E2E0DA' }} />}
+          </div>
+        );
+      })}
     </div>
   );
 }

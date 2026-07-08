@@ -3708,6 +3708,11 @@ export interface components {
              * @default false
              */
             reserved: boolean;
+            /**
+             * Signoffs
+             * @default []
+             */
+            signoffs: components["schemas"]["SignoffView"][];
         };
         /**
          * ObjectReference

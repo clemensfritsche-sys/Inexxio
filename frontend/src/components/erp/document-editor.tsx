@@ -114,10 +114,10 @@ export function DocumentView({ content, objectNr, issuedAt, company, signoffs }:
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
             {signoffs.map((s) => (
               <div key={s.id} style={{ minWidth: 200, flex: '1 1 200px', maxWidth: 300 }}>
-                <div style={{ height: 60, display: 'flex', alignItems: 'flex-end', borderBottom: `1px solid ${INK}`, paddingBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', borderBottom: `1px solid ${INK}`, paddingBottom: 4, minHeight: 62 }}>
                   {s.status === 'signed' && s.signature_url
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={attachmentUrl(s.signature_url)} alt="Unterschrift" style={{ maxHeight: 54, maxWidth: '100%', objectFit: 'contain' }} />
+                    ? <img src={attachmentUrl(s.signature_url)} alt="Unterschrift" style={{ width: 168, aspectRatio: '600 / 200', objectFit: 'contain' }} />
                     : s.status === 'signed'
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#15803D', fontWeight: 700, fontSize: 13 }}><Check size={15} /> Bestätigt</span>
                       : s.status === 'rejected'

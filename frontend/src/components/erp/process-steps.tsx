@@ -274,6 +274,35 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     } catch { /* ignore */ }
   }
 
+  // Freigabe-Deklaration eines BESTEHENDEN Dokument-Schritts ändern (Parteien/Publikum/
+  // Sichtbarkeit) – erlaubt es, die Anerkennungspflicht nachträglich zu setzen.
+  function beginEditDoc(s: ArticleProcessStep) {
+    if (!allUsers.length) api.getUsers().then(setAllUsers).catch(() => {});
+    setDocCfg({
+      signers: (s.doc_signers ?? []).map((x) => ({ signer_object_id: x.signer_object_id, action: (x.action as 'confirm' | 'sign') })),
+      sequential: !!s.sign_sequential,
+      audience: (s.doc_audience ?? '') as DocCfg['audience'],
+      roles: s.doc_audience_roles ?? [],
+      persons: s.doc_audience_person_ids ?? [],
+      visibility: (s.doc_visibility ?? 'internal') as DocCfg['visibility'],
+    });
+    setEditId(s.id);
+  }
+  async function saveDocCfg(stepId: number) {
+    try {
+      const updated = await api.updateStep(owner, ownerObjectId!, stepId, {
+        doc_signers: docCfg.signers.length ? docCfg.signers : null,
+        sign_sequential: docCfg.sequential,
+        doc_audience: docCfg.audience || null,
+        doc_audience_roles: docCfg.audience === 'roles' ? (docCfg.roles as DocAudienceRole[]) : null,
+        doc_audience_person_ids: docCfg.audience === 'persons' ? docCfg.persons : null,
+        doc_visibility: docCfg.visibility,
+      });
+      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
+      setEditId(null); setDocCfg(emptyDocCfg());
+    } catch (e) { setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen'); }
+  }
+
   async function persistOrder(orderedFull: ArticleProcessStep[]) {
     setSteps(orderedFull);  // optimistisch
     // Nur die frei sortierbaren (nicht-Pflicht) Schritte werden gesendet; der
@@ -417,6 +446,37 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   ) : (
                     <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                       {normalizeSharedFields(s.shared_fields).map((k) => <Chip key={k} label={fieldLabel(k)} on />)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Dokument: Freigabe-Deklaration (Parteien/Publikum/Sichtbarkeit) – nachträglich änderbar */}
+              {s.step_type === 'document' && (
+                <div style={cardBody}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
+                      <Lock size={12} /> Freigabe & Anerkennung
+                    </span>
+                    {!readOnly && (editId === s.id ? (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => saveDocCfg(s.id)} style={miniPrimary}><Check size={12} /> Speichern</button>
+                        <button onClick={() => { setEditId(null); setDocCfg(emptyDocCfg()); }} style={miniGhost}>Abbrechen</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => beginEditDoc(s)} style={miniGhost}>Ändern</button>
+                    ))}
+                  </div>
+                  {!readOnly && editId === s.id ? (
+                    <DocConfigEditor cfg={docCfg} onChange={setDocCfg} users={allUsers} />
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span>{(s.doc_signers?.length ?? 0) > 0
+                        ? `${s.doc_signers!.length} Freigabe-Partei${s.doc_signers!.length === 1 ? '' : 'en'}${s.sign_sequential ? ' · der Reihe nach' : ''}`
+                        : 'Keine Freigabe-Parteien (sofort freigegeben)'}</span>
+                      <span>{s.doc_audience
+                        ? `Anerkennung: ${s.doc_audience === 'all' ? 'alle Angemeldeten' : s.doc_audience === 'roles' ? (s.doc_audience_roles ?? []).join(', ') || 'Rollen' : 'bestimmte Personen'}`
+                        : 'Keine Anerkennungspflicht'}</span>
                     </div>
                   )}
                 </div>

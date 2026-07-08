@@ -436,6 +436,12 @@ export interface ArticleProcessStepUpdateInput {
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;
+  doc_signers?: DocSigner[] | null;
+  sign_sequential?: boolean;
+  doc_audience?: DocAudience | null;
+  doc_audience_roles?: DocAudienceRole[] | null;
+  doc_audience_person_ids?: number[] | null;
+  doc_visibility?: DocVisibility;
   is_active?: boolean;
 }
 
