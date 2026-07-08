@@ -231,7 +231,12 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
           return (
             <div key={i.id} style={{ border: `1px solid ${t ? '#bbf7d0' : '#f1f5f9'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
-              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind)}</span>
+              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                {instanceLabel(i.kind)}
+                {i.move_quantity != null && (
+                  <span style={{ marginLeft: 6, fontWeight: 700, color: '#0f172a' }}>· bewegt {i.move_quantity} Stk</span>
+                )}
+              </span>
               {t ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#16a34a' }}>
                   <CheckCircle2 size={13} /> Ziel {fmtObjId(tgtId)}

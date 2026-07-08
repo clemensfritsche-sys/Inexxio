@@ -6,11 +6,9 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
-from ..schemas.instance import InstanceLocation, InstanceMoveInput, InstanceOrderRef, InstanceResponse
+from ..schemas.instance import InstanceLocation, InstanceOrderRef, InstanceResponse
 from ..services import location_split
-from ..services.admin import log_audit
-from ..services.events import emit
-from ..services.locations import location_labels, physical_location_labels, validate_location
+from ..services.locations import location_labels, physical_location_labels
 from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -142,51 +140,3 @@ async def list_instance_orders(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     return [InstanceOrderRef(**r) for r in instance_orders(db, inst)]
-
-
-# Standort-Verbleibe, die eine Instanz endgültig aus dem Bestand nehmen – nicht mehr bewegbar.
-_TERMINAL_DISPOSITIONS = ("consumed", "sold", "scrapped")
-
-
-@router.post("/{object_id}/move", response_model=InstanceResponse)
-async def move_instance_part(
-    object_id: int,
-    data: InstanceMoveInput,
-    db: Session = Depends(get_db),
-    actor: UserProfile = Depends(require_employee),
-):
-    """Eine **Teilmenge** einer Charge an einen anderen Standort verlagern («ein Bewegen =
-    ein Task»): die Objektnummer bleibt, es entsteht KEINE neue Instanz. Für Einzelteile
-    (Menge 1) nur als Ganzes. Der Rest der Charge bleibt, wo er war."""
-    inst = (
-        db.query(Instance)
-        .filter(Instance.object_id == object_id, Instance.is_active == True)
-        .first()
-    )
-    if not inst:
-        raise HTTPException(404, detail="Instanz nicht gefunden")
-    if (inst.disposition or "") in _TERMINAL_DISPOSITIONS:
-        raise HTTPException(409, detail="Diese Instanz ist nicht mehr im Bestand und kann nicht bewegt werden.")
-
-    validate_location(db, data.location_type, data.location_id)
-    if data.location_type == "instance" and data.location_id == inst.object_id:
-        raise HTTPException(400, detail="Eine Instanz kann nicht in sich selbst liegen.")
-
-    from ..services.quantity import to_qty
-    qty = to_qty(data.quantity)
-    whole = qty >= to_qty(inst.quantity)
-    if inst.kind == "unit" and not whole:
-        raise HTTPException(400, detail="Ein Einzelteil kann nur als Ganzes bewegt werden.")
-
-    if whole and not inst.locations:
-        # Ganze (nicht verteilte) Instanz → einfacher Standortwechsel.
-        location_split.set_single(inst, data.location_type, data.location_id)
-    else:
-        location_split.move(inst, data.location_type, data.location_id, qty, data.from_location_id)
-
-    log_audit(db, "instances", "location", f"{data.location_type}:{data.location_id}",
-              actor.id, object_id=inst.object_id)
-    emit(db, "instance.moved", object_type="instance", object_id=inst.object_id, actor_id=actor.id)
-    db.commit()
-    db.refresh(inst)
-    return _denorm(db, [inst])[0]

@@ -13,7 +13,7 @@ import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
-import { InstanceMovePanel } from '@/components/erp/instance-move';
+import { InstanceLocationsCard } from '@/components/erp/instance-locations';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -38,10 +38,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   onBack: () => void;
   onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Anlage einer Abweichung)
 }) {
-  // Instanz lokal halten, damit eine Teilmengen-Verlagerung die Ansicht sofort aktualisiert
-  // (der Feed wird zusätzlich über onChanged nachgezogen).
-  const [inst, setInst] = useState<Instance>(record);
-  useEffect(() => { setInst(record); }, [record]);
+  const inst = record;
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
@@ -215,8 +212,8 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             )}
           </div>
 
-          {/* Standort & Teilmengen-Verlagerung (Charge auf mehrere Standorte verteilen) */}
-          <InstanceMovePanel instance={inst} onMoved={(u) => { setInst(u); onChanged?.(); }} />
+          {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
+          <InstanceLocationsCard instance={inst} />
           </>
           )}
 

@@ -15,7 +15,9 @@ from . import location_split, process
 from .admin import log_audit
 from .events import emit
 from .locations import validate_location
-from .subject import order_active_instances
+from .quantity import to_qty
+from .reservation import reserved_for
+from .subject import is_fixed_subject, order_active_instances
 
 
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
@@ -48,6 +50,15 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
         targets = [type("T", (), {"instance_id": i.object_id, "location_type": "user",
                                   "location_id": cust.object_id})() for i in instances]
 
+    # **Teilmengen-Bewegung ist auftragsgetrieben** (kein Ad-hoc an der Instanz): der Auftrag
+    # legt fest, WIE VIEL einer Charge bewegt wird. Ein Bestands-Auftrag über z. B. 10 Stück
+    # reserviert mengengenau 10 der 1000er-Charge (FIFO, ``subject._allocate_stock_for``); der
+    # Bewegungsschritt verlagert dann **genau diese reservierte Teilmenge** an das Ziel – der
+    # Rest der Charge bleibt, wo er war (die Objektnummer bleibt, keine neue Instanz). Ist der
+    # Auftrag über die GANZE Instanz (oder eine Erzeugung/Retoure/ein Kunden-Versand → keine
+    # Teil-Reservierung), wird sie als Ganzes eingelagert und eine verteilte Charge dabei wieder
+    # zusammengeführt (``location_split.set_single``).
+    partial_ok = not is_fixed_subject(order) and step.mode != "customer"
     by_obj = {i.object_id: i for i in instances}
     for t in targets:
         inst = by_obj.get(t.instance_id)
@@ -56,11 +67,14 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
         if t.location_type == "instance" and t.location_id == inst.object_id:
             raise HTTPException(400, detail="Eine Instanz kann nicht in sich selbst liegen")
         validate_location(db, t.location_type, t.location_id)
-        # Der Bewegungsschritt lagert die GANZE Instanz an einen Ort ein – eine zuvor
-        # verteilte Charge wird damit wieder konsistent zusammengeführt (Map gelöscht,
-        # Skalar gesetzt via location_split.set_single). Teilmengen-Verteilung läuft über
-        # den eigenständigen Instanz-Bewegen-Endpunkt (ein Bewegen = ein Task).
-        if (inst.location_type, inst.location_id) != (t.location_type, t.location_id) or inst.locations:
+        share = reserved_for(inst, order.id) if partial_ok else to_qty(0)
+        if to_qty(0) < share < to_qty(inst.quantity):
+            # Nur die vom Auftrag beanspruchte Teilmenge der Charge verlagern.
+            log_audit(db, "instances", "location", f"{t.location_type}:{t.location_id}",
+                      actor_id, object_id=inst.object_id,
+                      old_value=f"{share} Stk aus {inst.location_type}:{inst.location_id}")
+            location_split.move(inst, t.location_type, t.location_id, share)
+        elif (inst.location_type, inst.location_id) != (t.location_type, t.location_id) or inst.locations:
             log_audit(db, "instances", "location", f"{t.location_type}:{t.location_id}",
                       actor_id, object_id=inst.object_id,
                       old_value=f"{inst.location_type}:{inst.location_id}")

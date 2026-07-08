@@ -242,16 +242,21 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Lagerplatz/Person/Instanz),
     leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
     eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
-    **Charge auf mehrere Standorte verteilen (`services/location_split.py`, Migration `067`)**: Eine
-    Charge (z. B. 1000 Schrauben unter EINER Objektnummer) kann physisch auf mehrere Standorte verteilt
-    sein (300 → Band A, 700 → Band B) – **ohne Teilung der Instanz / ohne neue Objektnummer**, exakt nach
-    dem Vorbild von `reservations`: `instances.locations` = Map `{ziel_objektnr: {"t":typ,"q":menge}}`
-    (Summe = quantity). Ist die Charge an EINEM Ort → Map `NULL`, der Skalar `location_*` ist die Wahrheit;
-    verteilt → die Map ist die Wahrheit, der Skalar spiegelt die **grösste** Teilmenge (denormalisiert,
-    wie `reserved_for_order_id`). Verlagert wird per **Teilmengen-Bewegung** «ein Bewegen = ein Task»
-    (`POST /erp/instances/{id}/move` mit `quantity`+Ziel+optionaler Quelle) am Instanz-Detail
-    (`components/erp/instance-move.tsx`); der Bewegungs-**Schritt** lagert die GANZE Instanz ein
-    (`location_split.set_single`, führt eine verteilte Charge wieder zusammen). FIFO/Verbrauch/Reservierung
+    **Charge auf mehrere Standorte verteilen – AUFTRAGSGETRIEBEN (`services/location_split.py`, Migration
+    `067`)**: Eine Charge (z. B. 1000 Schrauben unter EINER Objektnummer) kann physisch auf mehrere
+    Standorte verteilt sein (990 @ Eingang, 10 @ Band A) – **ohne Teilung der Instanz / ohne neue
+    Objektnummer**, exakt nach dem Vorbild von `reservations`: `instances.locations` = Map
+    `{ziel_objektnr: {"t":typ,"q":menge}}` (Summe = quantity). Ein Ort → Map `NULL`, der Skalar
+    `location_*` ist die Wahrheit; verteilt → die Map ist die Wahrheit, der Skalar spiegelt die **grösste**
+    Teilmenge (denormalisiert, wie `reserved_for_order_id`). **Das Verteilen geschieht AUSSCHLIESSLICH über
+    einen regulären Auftrag + Bewegungsschritt, NICHT als Aktion an der Instanz:** ein Bestands-Auftrag über
+    z. B. 10 Stück reserviert mengengenau 10 der 1000er-Charge (FIFO, `subject._allocate_stock_for`); der
+    Bewegungsschritt verlagert **genau diese vom Auftrag reservierte Teilmenge** ans Ziel
+    (`movement.record_movement`: `share = reserved_for(inst, order)`, dann `location_split.move`), der Rest
+    bleibt liegen. GANZE Instanz / Erzeugung / Kunden-Versand / Retoure (keine Teil-Reservierung) →
+    `location_split.set_single` (führt eine verteilte Charge wieder zusammen). Das Panel zeigt die bewegte
+    Teilmenge (`InstanceEmbed.move_quantity`). Am **Instanz-Detail** ist die Verteilung nur **read-only**
+    sichtbar (`components/erp/instance-locations.tsx`) – kein Verlagern dort. FIFO/Verbrauch/Reservierung
     sind **standortunabhängig** und unberührt; Teil-Verschrottung/-Verbrauch ziehen die Verteilung per
     `location_split.reconcile` nach. «Wer liegt hier?» (`references.object_references`) findet eine Charge
     auch über ihre Teil-Slices (`locations ? '<objektnr>'`, GIN-Index).
