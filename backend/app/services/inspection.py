@@ -18,7 +18,6 @@ bleibt davon unberührt).
 """
 
 import hashlib
-from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -138,18 +137,10 @@ def record_inspection(db: Session, order: Order, data, actor) -> Inspection:
     actor_id = actor.id
     step = process.resolve_exec_step(db, order, "inspection", getattr(data, "step_id", None))
 
-    # «Bilderfassung»: genau ein Foto ist verlangt.
-    if getattr(step, "require_photo", False) and not (getattr(data, "photo_url", None) or "").strip():
-        raise HTTPException(400, detail="Bitte das verlangte Foto erfassen (Bilderfassung)")
-    # «Freigabe/Unterschrift»: Unterschrift vorhanden + Person berechtigt.
-    if getattr(step, "require_signature", False):
-        if not (getattr(data, "signature_url", None) or "").strip():
-            raise HTTPException(400, detail="Bitte die Datenerfassung mit einer Unterschrift freigeben")
-        allowed = [int(x) for x in (step.signer_ids or [])]
-        if allowed and actor.object_id not in allowed:
-            raise HTTPException(403, detail="Sie sind für die Freigabe dieses Schritts nicht berechtigt")
-
     fields = eval_fields(step)
+    # Bild-/Unterschrift-Felder sind EIGENE Erfassungsfelder (Feldtyp), keine übergeordnete
+    # Option: sie müssen je Stichprobe erfasst sein (Präsenz), zählen aber nicht ins Pass/Fail.
+    media_keys = [f.get("key") for f in fields if f.get("type") in ("photo", "signature")]
     targets = sample_targets(db, order, step)
     need = len(targets)
 
@@ -160,6 +151,9 @@ def record_inspection(db: Session, order: Order, data, actor) -> Inspection:
         vals = submitted.get((t["instance_id"], t["slot"]))
         if vals is None:
             raise HTTPException(400, detail="Bitte für jede aufgeführte Stichprobe die Daten erfassen")
+        for mk in media_keys:
+            if not (str(vals.get(mk) or "")).strip():
+                raise HTTPException(400, detail="Bitte alle verlangten Bild-/Unterschrift-Felder erfassen")
         all_ok = all_ok and evaluate(fields, vals)
         stored.append({"instance_id": t["instance_id"], "slot": t["slot"], "values": vals})
 
@@ -175,12 +169,6 @@ def record_inspection(db: Session, order: Order, data, actor) -> Inspection:
     insp.note = (data.note or "").strip() or None
     insp.samples = stored
     insp.inspector_id = actor_id
-    if getattr(step, "require_photo", False):
-        insp.photo_url = (getattr(data, "photo_url", None) or "").strip() or None
-    if getattr(step, "require_signature", False):
-        insp.signature_url = (getattr(data, "signature_url", None) or "").strip() or None
-        insp.signed_by = actor_id
-        insp.signed_at = datetime.now(timezone.utc)
 
     # Ungenügende Teil-Stichprobe → auf 100 % hochstufen, noch NICHT abschliessen.
     if decision == "escalate":

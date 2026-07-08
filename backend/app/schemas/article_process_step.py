@@ -13,7 +13,9 @@ from .movement import LOCATION_TYPES
 # Betriebsmittel zusammen; pro Zeile entscheidet ``mode`` (consume = verbraucht/FIFO/
 # Lagerabgang | tool = Betriebsmittel, nur genutzt) – Default consume.
 ALLOWED_MODES = ("supplier", "webshop")
-ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text")
+# Erfassungsfeld-Typen der Datenerfassung – Bild & Unterschrift sind EIGENE Feldtypen
+# (gleichrangig neben Soll-Ist/Gut-Schlecht/Text), keine übergeordneten Schritt-Optionen mehr.
+ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text", "photo", "signature")
 ALLOWED_RESOURCE_MODES = ("consume", "tool")
 ALLOWED_SIGN_ACTIONS = ("confirm", "sign")
 ALLOWED_AUDIENCE = ("all", "roles", "persons")
@@ -67,7 +69,8 @@ class CaptureField(BaseModel):
 
     key: str = ""
     label: str
-    type: str = "measure"            # measure (Soll-Ist) | bool (Gut/Schlecht) | text
+    # measure (Soll-Ist) | bool (Gut/Schlecht) | text | photo (Bild) | signature (Unterschrift)
+    type: str = "measure"
     target: Optional[float] = None   # Sollwert (measure)
     tolerance: Optional[float] = None  # ± Toleranz (measure)
     unit: Optional[str] = None
@@ -76,7 +79,7 @@ class CaptureField(BaseModel):
     @classmethod
     def _type_ok(cls, v: str) -> str:
         if v not in ALLOWED_CAPTURE_TYPES:
-            raise ValueError("Feldtyp muss measure, bool oder text sein")
+            raise ValueError(f"Feldtyp muss eine von {', '.join(ALLOWED_CAPTURE_TYPES)} sein")
         return v
 
     @field_validator("label")

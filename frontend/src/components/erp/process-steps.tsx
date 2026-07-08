@@ -21,7 +21,7 @@ function isValidWebshopUrl(v: string): boolean {
   }
 }
 
-type WField = { label: string; type: 'measure' | 'bool' | 'text'; target: string; tolerance: string; unit: string };
+type WField = { label: string; type: 'measure' | 'bool' | 'text' | 'photo' | 'signature'; target: string; tolerance: string; unit: string };
 // EIN Ressource-Schritt; pro Zeile ein Modus (Verbrauch | Betriebsmittel).
 type ResLine = { article_id: string; quantity: string; mode: ResourceMode };
 
@@ -66,10 +66,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   const [samplePercent, setSamplePercent] = useState('100');
   const [wfields, setWfields] = useState<WField[]>([]);
   // Datenerfassung – Bilderfassung + Freigabe/Unterschrift
-  const [reqPhoto, setReqPhoto] = useState(false);
-  const [photoInstr, setPhotoInstr] = useState('');
-  const [reqSig, setReqSig] = useState(false);
-  const [signerIds, setSignerIds] = useState<string[]>([]);   // Objektnummern zugelassener Unterzeichner
   const [docCfg, setDocCfg] = useState<DocCfg>(emptyDocCfg());   // «Dokument»-Freigabe-Deklaration
   const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
   const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
@@ -128,9 +124,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   useEffect(() => {
     if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
     if (adding === 'inspection') {
-      // Personen für die (optionale) Unterzeichner-Auswahl; Konfig für ein frisches Formular zurücksetzen.
-      api.getUsers().then(setAllUsers).catch(() => {});
-      setReqPhoto(false); setPhotoInstr(''); setReqSig(false); setSignerIds([]);
+      setWfields([]);   // frisches Formular
       return;
     }
     if (adding === 'document') {
@@ -233,10 +227,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
         shared_fields: type === 'purchase' ? shared : null,
         sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
-        require_photo: type === 'inspection' ? reqPhoto : false,
-        photo_instruction: type === 'inspection' && reqPhoto ? (photoInstr.trim() || null) : null,
-        require_signature: type === 'inspection' ? reqSig : false,
-        signer_ids: type === 'inspection' && reqSig ? signerIds.map(Number) : null,
+        // Bild/Unterschrift sind Feldtypen der Maske (kein Schritt-Flag mehr).
+        require_photo: false,
+        require_signature: false,
+        signer_ids: null,
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
         resource_lines: resourcePayload,
@@ -594,27 +588,11 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   <TextField label="Prüfumfang (% der Menge)" value={samplePercent} onChange={setSamplePercent}
                     required placeholder="z. B. 10" hint="Stichprobe: wie viel Prozent geprüft werden muss (1–100)" />
                   <CaptureFieldsEditor fields={wfields} onChange={setWfields} />
-
-                  {/* Bilderfassung – genau ein Foto je Schritt */}
-                  <OptionToggle checked={reqPhoto} onChange={setReqPhoto} label="Bilderfassung"
-                    hint="Der Prüfer muss genau EIN Foto aufnehmen." />
-                  {reqPhoto && (
-                    <TextField label="Was soll fotografiert werden?" value={photoInstr} onChange={setPhotoInstr}
-                      placeholder="z. B. Typenschild / Schadstelle / Messaufbau" />
-                  )}
-
-                  {/* Freigabe / Unterschrift */}
-                  <OptionToggle checked={reqSig} onChange={setReqSig} label="Freigabe / Unterschrift"
-                    hint="Der Abschluss muss mit einer digitalen Unterschrift freigegeben werden." />
-                  {reqSig && (
-                    <div>
-                      <Label>Berechtigte Unterzeichner</Label>
-                      <SignerSelect users={allUsers} value={signerIds} onChange={setSignerIds} />
-                      <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>
-                        Leer = jede eingeloggte Person darf unterschreiben (wird protokolliert). Sonst nur die gewählten Personen.
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span><strong>Bild</strong> und <strong>Unterschrift</strong> sind eigene Feldtypen –
+                      füge sie oben als Erfassungsfeld hinzu (gleichrangig neben Soll-Ist/Gut-Schlecht/Text).</span>
+                  </div>
                 </>
               )}
 
@@ -741,6 +719,8 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
                 <option value="measure">Soll-Ist</option>
                 <option value="bool">Gut/Schlecht</option>
                 <option value="text">Text</option>
+                <option value="photo">Bild</option>
+                <option value="signature">Unterschrift</option>
               </select>
               <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>
@@ -775,33 +755,6 @@ function OptionToggle({ checked, onChange, label, hint }: {
         {hint && <span style={{ display: 'block', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 1 }}>{hint}</span>}
       </span>
     </label>
-  );
-}
-
-// ─── Unterzeichner-Auswahl (Personen, die die Freigabe geben dürfen) ──────────
-function SignerSelect({ users, value, onChange }: {
-  users: UserProfile[]; value: string[]; onChange: (v: string[]) => void;
-}) {
-  const staff = users.filter((u) => (u.role === 'employee' || u.role === 'admin') && u.object_id != null);
-  function toggle(oid: string) {
-    onChange(value.includes(oid) ? value.filter((x) => x !== oid) : [...value, oid]);
-  }
-  if (staff.length === 0) return <div style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)' }}>Keine Personen verfügbar.</div>;
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {staff.map((u) => {
-        const oid = String(u.object_id);
-        const on = value.includes(oid);
-        return (
-          <button key={oid} type="button" onClick={() => toggle(oid)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
-              border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`, background: on ? 'var(--accent-soft)' : '#fff',
-              font: '600 12.5px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>
-            {on && <Check size={13} />} {userDisplayName(u)}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
