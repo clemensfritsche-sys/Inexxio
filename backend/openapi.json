@@ -120,6 +120,218 @@
         ]
       }
     },
+    "/api/v1/auth/passkeys/register/options": {
+      "post": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "Register Options",
+        "description": "Registrierungs-Optionen (Challenge) für ``navigator.credentials.create``.",
+        "operationId": "register_options_api_v1_auth_passkeys_register_options_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Register Options Api V1 Auth Passkeys Register Options Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/passkeys/register/verify": {
+      "post": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "Register Verify",
+        "description": "Registrierung abschliessen: Attestation prüfen und Passkey speichern.",
+        "operationId": "register_verify_api_v1_auth_passkeys_register_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegisterVerify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/passkeys": {
+      "get": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "List Passkeys",
+        "description": "Die registrierten Passkeys des angemeldeten Nutzers (Verwaltung im Konto).",
+        "operationId": "list_passkeys_api_v1_auth_passkeys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Passkeys Api V1 Auth Passkeys Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/passkeys/{passkey_id}": {
+      "delete": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "Delete Passkey",
+        "description": "Einen Passkey entfernen (Soft-Delete).",
+        "operationId": "delete_passkey_api_v1_auth_passkeys__passkey_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "passkey_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Passkey Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/passkeys/login/options": {
+      "post": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "Login Options",
+        "description": "Anmelde-Optionen (Challenge) für ``navigator.credentials.get`` – usernamelos.",
+        "operationId": "login_options_api_v1_auth_passkeys_login_options_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Login Options Api V1 Auth Passkeys Login Options Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/passkeys/login/verify": {
+      "post": {
+        "tags": [
+          "passkeys"
+        ],
+        "summary": "Login Verify",
+        "description": "Anmeldung abschliessen: Assertion prüfen → Firebase Custom Token zurückgeben.",
+        "operationId": "login_verify_api_v1_auth_passkeys_login_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginVerify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyLoginResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/consent/pending": {
       "get": {
         "tags": [
@@ -11546,6 +11758,122 @@
         },
         "type": "object",
         "title": "OrderUpdate"
+      },
+      "PasskeyLoginResult": {
+        "properties": {
+          "firebase_token": {
+            "type": "string",
+            "title": "Firebase Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "firebase_token"
+        ],
+        "title": "PasskeyLoginResult",
+        "description": "Erfolgreiche Passkey-Anmeldung → Firebase Custom Token für signInWithCustomToken."
+      },
+      "PasskeyLoginVerify": {
+        "properties": {
+          "credential": {
+            "type": "object",
+            "title": "Credential",
+            "description": "PublicKeyCredential (assertion) aus dem Browser"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyLoginVerify",
+        "description": "Abschluss der passwortlosen Anmeldung – die vom Browser erzeugte Assertion."
+      },
+      "PasskeyRegisterVerify": {
+        "properties": {
+          "credential": {
+            "type": "object",
+            "title": "Credential",
+            "description": "PublicKeyCredential (attestation) aus dem Browser"
+          },
+          "device_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Name",
+            "description": "Anzeigename ('iPhone', 'Laptop')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyRegisterVerify",
+        "description": "Abschluss der Passkey-Registrierung – das vom Browser erzeugte Credential."
+      },
+      "PasskeyResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "device_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Name"
+          },
+          "device_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Type"
+          },
+          "backed_up": {
+            "type": "boolean",
+            "title": "Backed Up",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at"
+        ],
+        "title": "PasskeyResponse",
+        "description": "Ein registrierter Passkey (Auflistung/Verwaltung im Konto). Ohne Krypto-Material."
       },
       "PaymentSimulate": {
         "properties": {

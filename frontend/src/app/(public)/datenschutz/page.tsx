@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { LegalDocument } from '@/components/public/legal-document';
+import { CookieSettingsButton } from '@/components/layout/cookie-settings-link';
 
 export const metadata: Metadata = {
   title: 'Datenschutzerklärung',
@@ -152,8 +153,10 @@ export default function DatenschutzPage() {
               <p className="mt-3">
                 <strong>Zweck:</strong> Verstehen, wie unsere Website genutzt wird, um sie zu
                 verbessern.<br />
-                <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
-                Interesse). Kein Cookie-Banner erforderlich.<br />
+                <strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. a DSGVO (Einwilligung) bzw.
+                Art. 6 Abs. 1 lit. f DSGVO (berechtigtes Interesse). Obwohl Plausible cookielos
+                arbeitet, laden wir das Skript erst, wenn Sie der Kategorie «Statistik» zustimmen
+                (siehe Ziffer 3). Ihre Einwilligung ist jederzeit widerrufbar.<br />
                 <strong>Anbieter:</strong> Plausible Analytics, Tallinn, Estland.
               </p>
             </SubSection>
@@ -173,41 +176,72 @@ export default function DatenschutzPage() {
             </SubSection>
           </Section>
 
-          <Section title="3. Cookies">
+          <Section title="3. Cookies &amp; Einwilligung">
             <p>
-              Wir verwenden nur technisch notwendige Cookies für den Betrieb der Website:
+              Inexxio ist bewusst «cookie-arm». Wir unterscheiden zwei Kategorien, die Sie beim
+              ersten Besuch selbst wählen und jederzeit ändern können:
+            </p>
+            <ul className="mt-3 space-y-2 text-slate-700">
+              <li>
+                <strong>Notwendig (immer aktiv):</strong> Anmeldung/Session, Warenkorb, die
+                Speicherung Ihrer Cookie-Einwilligung sowie – nur an der Kasse – die sichere
+                Zahlungsabwicklung über Stripe. Ohne diese funktioniert die Website nicht; eine
+                Einwilligung ist dafür rechtlich nicht erforderlich.
+              </li>
+              <li>
+                <strong>Statistik (optional):</strong> cookielose Reichweitenmessung mit Plausible
+                (siehe Ziffer 2.5). Wird nur nach Ihrer Zustimmung geladen.
+              </li>
+            </ul>
+            <p className="mt-4">
+              Ihre Einwilligung speichern wir in einem technisch notwendigen Erstanbieter-Cookie
+              (<span className="font-mono text-xs">inexxio_consent</span>, Laufzeit 6 Monate). Sie
+              können Ihre Wahl jederzeit anpassen: <CookieSettingsButton />.
+            </p>
+            <p className="mt-4">
+              Technisch notwendige Cookies bzw. lokale Speicher-Einträge im Überblick:
             </p>
             <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-2 text-left font-medium text-slate-600">Cookie</th>
+                    <th className="px-4 py-2 text-left font-medium text-slate-600">Name</th>
+                    <th className="px-4 py-2 text-left font-medium text-slate-600">Speicher</th>
                     <th className="px-4 py-2 text-left font-medium text-slate-600">Zweck</th>
                     <th className="px-4 py-2 text-left font-medium text-slate-600">Dauer</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-mono text-xs">session_token</td>
-                    <td className="px-4 py-3 text-slate-700">Authentifizierung</td>
-                    <td className="px-4 py-3 text-slate-600">Session</td>
+                    <td className="px-4 py-3 font-mono text-xs">inexxio_consent</td>
+                    <td className="px-4 py-3 text-slate-600">Cookie</td>
+                    <td className="px-4 py-3 text-slate-700">Speichert Ihre Cookie-Einwilligung</td>
+                    <td className="px-4 py-3 text-slate-600">6 Monate</td>
                   </tr>
                   <tr className="border-b border-slate-100">
-                    <td className="px-4 py-3 font-mono text-xs">lang</td>
-                    <td className="px-4 py-3 text-slate-700">Spracheinstellung</td>
-                    <td className="px-4 py-3 text-slate-600">1 Jahr</td>
+                    <td className="px-4 py-3 font-mono text-xs">inexxio_token / Firebase</td>
+                    <td className="px-4 py-3 text-slate-600">localStorage</td>
+                    <td className="px-4 py-3 text-slate-700">Anmeldung / Session</td>
+                    <td className="px-4 py-3 text-slate-600">bis zur Abmeldung</td>
+                  </tr>
+                  <tr className="border-b border-slate-100">
+                    <td className="px-4 py-3 font-mono text-xs">inexxio.cart.v1</td>
+                    <td className="px-4 py-3 text-slate-600">localStorage</td>
+                    <td className="px-4 py-3 text-slate-700">Warenkorb</td>
+                    <td className="px-4 py-3 text-slate-600">bis geleert</td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-mono text-xs">cart</td>
-                    <td className="px-4 py-3 text-slate-700">Warenkorb (Gäste)</td>
-                    <td className="px-4 py-3 text-slate-600">7 Tage</td>
+                    <td className="px-4 py-3 font-mono text-xs">__stripe_mid / __stripe_sid</td>
+                    <td className="px-4 py-3 text-slate-600">Cookie</td>
+                    <td className="px-4 py-3 text-slate-700">Betrugsprävention (nur an der Kasse)</td>
+                    <td className="px-4 py-3 text-slate-600">Session – 1 Jahr</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p className="mt-3 text-sm text-slate-600">
-              Es werden keine Tracking-Cookies gesetzt. Ein Cookie-Banner ist daher nicht
-              erforderlich.
+              Wir setzen keine Werbe- oder website­übergreifenden Tracking-Cookies. Nicht notwendige
+              Dienste (Statistik) werden erst nach Ihrer Einwilligung geladen.
             </p>
           </Section>
 

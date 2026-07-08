@@ -11,8 +11,14 @@ import type {
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
   AiConfig, AiChatMessage, AiChatResponse, AiProposal, AiDocContent, AiImageEditResponse,
-  ObjectDocument, DocumentAnalyzeResponse, DocumentConfirmInput,
+  ObjectDocument, DocumentAnalyzeResponse, DocumentConfirmInput, Passkey,
 } from '@/types';
+import type {
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+} from '@simplewebauthn/browser';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -116,6 +122,39 @@ class ApiClient {
 
   updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
     return this.patch('/api/v1/auth/me', data);
+  }
+
+  // ─── Passkeys (WebAuthn/FIDO2) ──────────────────────────────────────────────
+  // Registrierung/Verwaltung setzen eine Anmeldung voraus; die Anmeldung per
+  // Passkey selbst ist unauthentifiziert und liefert einen Firebase Custom Token.
+  passkeyRegisterOptions(): Promise<PublicKeyCredentialCreationOptionsJSON> {
+    return this.post('/api/v1/auth/passkeys/register/options', {});
+  }
+
+  passkeyRegisterVerify(
+    credential: RegistrationResponseJSON,
+    deviceName?: string,
+  ): Promise<Passkey> {
+    return this.post('/api/v1/auth/passkeys/register/verify', {
+      credential,
+      device_name: deviceName ?? null,
+    });
+  }
+
+  listPasskeys(): Promise<Passkey[]> {
+    return this.get('/api/v1/auth/passkeys');
+  }
+
+  deletePasskey(id: number): Promise<void> {
+    return this.delete(`/api/v1/auth/passkeys/${id}`);
+  }
+
+  passkeyLoginOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
+    return this.post('/api/v1/auth/passkeys/login/options', {});
+  }
+
+  passkeyLoginVerify(credential: AuthenticationResponseJSON): Promise<{ firebase_token: string }> {
+    return this.post('/api/v1/auth/passkeys/login/verify', { credential });
   }
 
   // ─── Consent-Gate: zu bestätigende Pflichtdokumente ─────────────────────────

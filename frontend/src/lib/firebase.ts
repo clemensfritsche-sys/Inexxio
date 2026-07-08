@@ -11,6 +11,7 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   signInWithPopup,
+  signInWithCustomToken,
   signOut,
   onIdTokenChanged,
   verifyBeforeUpdateEmail,
@@ -84,6 +85,16 @@ export async function completeMagicLink(): Promise<{ token: string; user: User }
 export async function signInWithGoogle(): Promise<{ token: string; user: User }> {
   if (!auth) throw new Error('Firebase not initialized');
   const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+  const token = await result.user.getIdToken();
+  return { token, user: result.user };
+}
+
+// Passkey-Anmeldung: Das Backend prüft die WebAuthn-Assertion und stellt einen
+// Firebase Custom Token aus. Damit wird hier eine ganz normale Firebase-Session
+// begründet – ab jetzt verhält sich alles wie bei Magic Link / Google.
+export async function signInWithPasskey(firebaseToken: string): Promise<{ token: string; user: User }> {
+  if (!auth) throw new Error('Firebase not initialized');
+  const result = await signInWithCustomToken(auth, firebaseToken);
   const token = await result.user.getIdToken();
   return { token, user: result.user };
 }

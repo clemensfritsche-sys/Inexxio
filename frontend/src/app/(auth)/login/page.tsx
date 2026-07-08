@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { KeyRound } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
+import { loginWithPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
 import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
@@ -43,11 +45,14 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>('input');
   const [error, setError] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [showPasskey, setShowPasskey] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
   const [variation, setVariation] = useState(1);
 
   useEffect(() => {
     setVariation(Math.floor(Math.random() * 3) + 1);
+    setShowPasskey(passkeySupported());
     // Store the ?from= param so verify page and Google login can redirect back
     const params = new URLSearchParams(window.location.search);
     const from = params.get('from');
@@ -55,6 +60,39 @@ export default function LoginPage() {
       localStorage.setItem(REDIRECT_KEY, from);
     }
   }, []);
+
+  // Gemeinsamer Abschluss für Token-basierte Logins (Google, Passkey): Token setzen,
+  // Profil (Rolle/Name) cachen und zur Ursprungsseite weiterleiten.
+  async function finishTokenLogin(token: string) {
+    api.setToken(token);
+    localStorage.setItem('inexxio_token', token);
+    try {
+      const profile = await api.getMe();
+      localStorage.setItem(ROLE_KEY, profile.role);
+      const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+      if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
+    } catch {
+      // role/name fetch failed — will retry on next page load
+    }
+    const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
+    localStorage.removeItem(REDIRECT_KEY);
+    router.push(redirect);
+  }
+
+  async function handlePasskeyLogin() {
+    if (passkeyLoading) return;
+    setError('');
+    setPasskeyLoading(true);
+    try {
+      const { token } = await loginWithPasskey();
+      await finishTokenLogin(token);
+    } catch (err: unknown) {
+      if (!isPasskeyCancellation(err)) {
+        setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+      }
+      setPasskeyLoading(false);
+    }
+  }
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -89,19 +127,7 @@ export default function LoginPage() {
     try {
       const { token } = await signInWithGoogle();
       settled = true;
-      api.setToken(token);
-      localStorage.setItem('inexxio_token', token);
-      try {
-        const profile = await api.getMe();
-        localStorage.setItem(ROLE_KEY, profile.role);
-        const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ');
-        if (fullName) localStorage.setItem('inexxio_user_fullname', fullName);
-      } catch {
-        // role/name fetch failed — will retry on next page load
-      }
-      const redirect = localStorage.getItem(REDIRECT_KEY) || '/';
-      localStorage.removeItem(REDIRECT_KEY);
-      router.push(redirect);
+      await finishTokenLogin(token);
     } catch (err: unknown) {
       settled = true;
       setGoogleLoading(false);
@@ -247,6 +273,27 @@ export default function LoginPage() {
                 )}
                 Mit Google anmelden
               </button>
+
+              {/* ── Passkey Button ── */}
+              {showPasskey && (
+                <button
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  className="ix-google-btn"
+                  style={{ marginTop: 12 }}
+                  type="button"
+                >
+                  {passkeyLoading ? (
+                    <span
+                      className="ix-spinner"
+                      style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
+                    />
+                  ) : (
+                    <KeyRound style={{ width: 16, height: 16, color: '#E51A14' }} aria-hidden />
+                  )}
+                  Mit Passkey anmelden
+                </button>
+              )}
 
               {/* ── Footer ── */}
               <p className="ix-login-footer">
