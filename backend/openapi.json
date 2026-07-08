@@ -3645,6 +3645,64 @@
         }
       }
     },
+    "/api/v1/erp/instances/{object_id}/move": {
+      "post": {
+        "tags": [
+          "instances"
+        ],
+        "summary": "Move Instance Part",
+        "description": "Eine **Teilmenge** einer Charge an einen anderen Standort verlagern («ein Bewegen =\nein Task»): die Objektnummer bleibt, es entsteht KEINE neue Instanz. Für Einzelteile\n(Menge 1) nur als Ganzes. Der Rest der Charge bleibt, wo er war.",
+        "operationId": "move_instance_part_api_v1_erp_instances__object_id__move_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMoveInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/objects/{object_id}/references": {
       "get": {
         "tags": [
@@ -10349,6 +10407,76 @@
         "title": "InstanceEmbed",
         "description": "Kurzform für die Einbettung in den Auftrag (Instanzen-/Bewegungs-Panel)."
       },
+      "InstanceLocation": {
+        "properties": {
+          "location_type": {
+            "type": "string",
+            "title": "Location Type"
+          },
+          "location_id": {
+            "type": "integer",
+            "title": "Location Id"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "location_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location_type",
+          "location_id",
+          "quantity"
+        ],
+        "title": "InstanceLocation",
+        "description": "Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).\nBei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag."
+      },
+      "InstanceMoveInput": {
+        "properties": {
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "location_type": {
+            "type": "string",
+            "title": "Location Type"
+          },
+          "location_id": {
+            "type": "integer",
+            "title": "Location Id"
+          },
+          "from_location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Location Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantity",
+          "location_type",
+          "location_id"
+        ],
+        "title": "InstanceMoveInput",
+        "description": "Eine Teilmengen-Verlagerung («ein Bewegen = ein Task»): ``quantity`` der Instanz\nvon ihrem (grössten bzw. angegebenen) Quellstandort auf das Ziel verlagern."
+      },
       "InstanceOrderRef": {
         "properties": {
           "object_id": {
@@ -10469,6 +10597,14 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceLocation"
+            },
+            "type": "array",
+            "title": "Locations",
+            "default": []
           },
           "reserved_for_order_id": {
             "anyOf": [

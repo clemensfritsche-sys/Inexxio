@@ -5,7 +5,7 @@ import type {
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, Acknowledgement, MySignoffDocument, SignoffAction,
-  Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Instance, InstanceOrderRef, InstanceMoveInput, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
@@ -535,6 +535,11 @@ class ApiClient {
   // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
   getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
     return this.get(`/api/v1/erp/instances/${objectId}/orders`);
+  }
+
+  // Teilmenge einer Charge an einen anderen Standort verlagern («ein Bewegen = ein Task»).
+  moveInstancePart(objectId: number, data: InstanceMoveInput): Promise<Instance> {
+    return this.post(`/api/v1/erp/instances/${objectId}/move`, data);
   }
 
   // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────

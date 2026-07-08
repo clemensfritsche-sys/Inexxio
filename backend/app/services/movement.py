@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Movement, Order
-from . import process
+from . import location_split, process
 from .admin import log_audit
 from .events import emit
 from .locations import validate_location
@@ -56,12 +56,15 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
         if t.location_type == "instance" and t.location_id == inst.object_id:
             raise HTTPException(400, detail="Eine Instanz kann nicht in sich selbst liegen")
         validate_location(db, t.location_type, t.location_id)
-        if (inst.location_type, inst.location_id) != (t.location_type, t.location_id):
+        # Der Bewegungsschritt lagert die GANZE Instanz an einen Ort ein – eine zuvor
+        # verteilte Charge wird damit wieder konsistent zusammengeführt (Map gelöscht,
+        # Skalar gesetzt via location_split.set_single). Teilmengen-Verteilung läuft über
+        # den eigenständigen Instanz-Bewegen-Endpunkt (ein Bewegen = ein Task).
+        if (inst.location_type, inst.location_id) != (t.location_type, t.location_id) or inst.locations:
             log_audit(db, "instances", "location", f"{t.location_type}:{t.location_id}",
                       actor_id, object_id=inst.object_id,
                       old_value=f"{inst.location_type}:{inst.location_id}")
-            inst.location_type = t.location_type
-            inst.location_id = t.location_id
+            location_split.set_single(inst, t.location_type, t.location_id)
 
     mv = process.fact_for_step(db, order, step)
     if not mv:

@@ -13,6 +13,7 @@ import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
+import { InstanceMovePanel } from '@/components/erp/instance-move';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -37,7 +38,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   onBack: () => void;
   onChanged?: () => void;   // Feed/Listen aktualisieren (z. B. nach Anlage einer Abweichung)
 }) {
-  const inst = record;
+  // Instanz lokal halten, damit eine Teilmengen-Verlagerung die Ansicht sofort aktualisiert
+  // (der Feed wird zusätzlich über onChanged nachgezogen).
+  const [inst, setInst] = useState<Instance>(record);
+  useEffect(() => { setInst(record); }, [record]);
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
@@ -70,6 +74,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
 
   const status = instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
   const LocIcon = LOCATION_META[(inst.location_type as LocationType)]?.icon ?? MapPin;
+  const distributed = (inst.locations?.length ?? 0) > 1;
 
   // Aufträge sortiert nach Zeitpunkt (an), Richtung umschaltbar.
   const sortedOrders = useMemo(() => {
@@ -190,9 +195,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             />
             <Tile
               icon={LocIcon} label="Standort"
-              value={inst.location_label ?? (inst.location_id != null ? 'Objekt' : 'Nicht festgelegt')}
-              sub={inst.location_id != null ? fmtObjId(inst.location_id) : undefined} subMono
-              onClick={inst.location_id != null ? () => nav?.(inst.location_id as number) : undefined}
+              hint={distributed ? 'Diese Charge liegt auf mehreren Standorten (siehe Karte «Standort»).' : undefined}
+              value={distributed ? 'Verteilt' : (inst.location_label ?? (inst.location_id != null ? 'Objekt' : 'Nicht festgelegt'))}
+              sub={distributed ? `${inst.locations?.length} Standorte` : (inst.location_id != null ? fmtObjId(inst.location_id) : undefined)} subMono={!distributed}
+              onClick={!distributed && inst.location_id != null ? () => nav?.(inst.location_id as number) : undefined}
             />
             <Tile
               icon={Package} label="Bestand" hint="Zählbar nur, wenn freigegeben und am Lager."
@@ -208,6 +214,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
           </div>
+
+          {/* Standort & Teilmengen-Verlagerung (Charge auf mehrere Standorte verteilen) */}
+          <InstanceMovePanel instance={inst} onMoved={(u) => { setInst(u); onChanged?.(); }} />
           </>
           )}
 

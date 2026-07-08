@@ -25,7 +25,7 @@ from ..schemas.resource import (
     ResourceCandidate, ResourceComponentPick, ResourceEmbed, ResourceLineExec,
     ResourcePlanItem, ResourceProductPlan,
 )
-from . import process
+from . import location_split, process
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
@@ -170,6 +170,9 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
             else:
                 # Teilentnahme aus einer Charge: Menge mindern, KEINE neue Instanz/Nummer.
                 consume_qty(cand, order.id, take)
+                # War die Charge auf mehrere Standorte verteilt, die Verteilung nachziehen
+                # (Summe wieder = quantity).
+                location_split.reconcile(cand)
                 log_audit(db, "instances", "quantity", str(cand.quantity), actor_id,
                           object_id=cand.object_id,
                           old_value=f"{cand.quantity + take} (− {take} verbaut in {product.object_id})")

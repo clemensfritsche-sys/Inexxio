@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
-from ..schemas.instance import InstanceOrderRef, InstanceResponse
-from ..services.locations import location_labels, physical_location_labels
+from ..schemas.instance import InstanceLocation, InstanceMoveInput, InstanceOrderRef, InstanceResponse
+from ..services import location_split
+from ..services.admin import log_audit
+from ..services.events import emit
+from ..services.locations import location_labels, physical_location_labels, validate_location
 from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -41,8 +44,14 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
     resv_ids = {r.reserved_for_order_id for r in rows if r.reserved_for_order_id}
     all_ord_ids = ord_ids | resv_ids
     ords = {o.id: o.object_id for o in db.query(Order).filter(Order.id.in_(all_ord_ids)).all()} if all_ord_ids else {}
-    # Standort-Labels **batch** auflösen (statt 1–2 Queries je Zeile, N+1 im Feed).
-    loc_keys = [(r.location_type, r.location_id) for r in rows]
+    # Standort-Verteilung je Instanz (Charge kann auf mehrere Orte verteilt sein) +
+    # ALLE Standort-Labels **batch** auflösen (scalar + jede Teilmenge), damit weder der
+    # Feed noch das Detail N+1-Queries auslöst.
+    dist_by_inst = {r.id: location_split.distribution(r) for r in rows}
+    loc_keys = {(r.location_type, r.location_id) for r in rows}
+    for dist in dist_by_inst.values():
+        loc_keys.update((d["location_type"], d["location_id"]) for d in dist)
+    loc_keys = list(loc_keys)
     loc_labels = location_labels(db, loc_keys)
     phys_labels = physical_location_labels(
         db, [k for k in loc_keys if k[0] == "instance"])
@@ -56,6 +65,14 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
         resp.location_label = loc_labels.get((r.location_type, r.location_id))
         if r.location_type == "instance":
             resp.physical_location_label = phys_labels.get((r.location_type, r.location_id))
+        resp.locations = [
+            InstanceLocation(
+                location_type=d["location_type"], location_id=d["location_id"],
+                quantity=d["quantity"],
+                location_label=loc_labels.get((d["location_type"], d["location_id"])),
+            )
+            for d in dist_by_inst.get(r.id, [])
+        ]
         out.append(resp)
     return out
 
@@ -125,3 +142,51 @@ async def list_instance_orders(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     return [InstanceOrderRef(**r) for r in instance_orders(db, inst)]
+
+
+# Standort-Verbleibe, die eine Instanz endgültig aus dem Bestand nehmen – nicht mehr bewegbar.
+_TERMINAL_DISPOSITIONS = ("consumed", "sold", "scrapped")
+
+
+@router.post("/{object_id}/move", response_model=InstanceResponse)
+async def move_instance_part(
+    object_id: int,
+    data: InstanceMoveInput,
+    db: Session = Depends(get_db),
+    actor: UserProfile = Depends(require_employee),
+):
+    """Eine **Teilmenge** einer Charge an einen anderen Standort verlagern («ein Bewegen =
+    ein Task»): die Objektnummer bleibt, es entsteht KEINE neue Instanz. Für Einzelteile
+    (Menge 1) nur als Ganzes. Der Rest der Charge bleibt, wo er war."""
+    inst = (
+        db.query(Instance)
+        .filter(Instance.object_id == object_id, Instance.is_active == True)
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, detail="Instanz nicht gefunden")
+    if (inst.disposition or "") in _TERMINAL_DISPOSITIONS:
+        raise HTTPException(409, detail="Diese Instanz ist nicht mehr im Bestand und kann nicht bewegt werden.")
+
+    validate_location(db, data.location_type, data.location_id)
+    if data.location_type == "instance" and data.location_id == inst.object_id:
+        raise HTTPException(400, detail="Eine Instanz kann nicht in sich selbst liegen.")
+
+    from ..services.quantity import to_qty
+    qty = to_qty(data.quantity)
+    whole = qty >= to_qty(inst.quantity)
+    if inst.kind == "unit" and not whole:
+        raise HTTPException(400, detail="Ein Einzelteil kann nur als Ganzes bewegt werden.")
+
+    if whole and not inst.locations:
+        # Ganze (nicht verteilte) Instanz → einfacher Standortwechsel.
+        location_split.set_single(inst, data.location_type, data.location_id)
+    else:
+        location_split.move(inst, data.location_type, data.location_id, qty, data.from_location_id)
+
+    log_audit(db, "instances", "location", f"{data.location_type}:{data.location_id}",
+              actor.id, object_id=inst.object_id)
+    emit(db, "instance.moved", object_type="instance", object_id=inst.object_id, actor_id=actor.id)
+    db.commit()
+    db.refresh(inst)
+    return _denorm(db, [inst])[0]

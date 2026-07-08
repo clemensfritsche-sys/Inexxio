@@ -77,6 +77,8 @@ _COLUMN_SAFETY_NET = (
     # Mengengenaue Reservierung ohne Instanz-Teilung
     ("instances", "reservations", "JSONB"),
     ("instances", "reserved_quantity", "NUMERIC(14,3) DEFAULT 0 NOT NULL"),
+    # Standort-Verteilung einer Charge ohne Instanz-Teilung (analog reservations)
+    ("instances", "locations", "JSONB"),
     ("storage_locations", "note", "VARCHAR(500)"),
     # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
     ("company_settings", "object_id", "BIGINT"),
@@ -271,6 +273,10 @@ _INDEX_SAFETY_NET = (
 _RAW_INDEX_SAFETY_NET = (
     "CREATE INDEX IF NOT EXISTS ix_instances_reservations "
     "ON instances USING gin (reservations jsonb_path_ops)",
+    # Standort-Verteilung: «wer liegt hier?» (locations ? '<objektnr>') – Default-jsonb_ops
+    # (nicht jsonb_path_ops), damit der has_key-Operator (?) den Index nutzt.
+    "CREATE INDEX IF NOT EXISTS ix_instances_locations "
+    "ON instances USING gin (locations)",
 )
 
 # Daten-Normalisierungen (idempotent), wenn keine Alembic-Migration lief.
