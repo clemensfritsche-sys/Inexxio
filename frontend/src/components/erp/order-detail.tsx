@@ -487,11 +487,21 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           <ArrowLeft size={14} /> Zurück
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: '#F1F5F9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: '#F1F5F9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
             <ClipboardList size={20} />
+            {!isCreate && record.reason === 'deviation' && (
+              <span title="Abweichungs-Auftrag" style={{ position: 'absolute', bottom: -3, right: -3, width: 17, height: 17, borderRadius: 999, background: '#fffbeb', border: '1px solid #fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={10} style={{ color: '#d97706' }} />
+              </span>
+            )}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Auftrag</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 7 }}>
+              Auftrag
+              {!isCreate && record.reason === 'deviation' && (
+                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '1px 7px', borderRadius: 999 }}>Abweichung</span>
+              )}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               {isCreate ? (
                 <StatusBadge cfg={orderStatusConfig('draft')} />

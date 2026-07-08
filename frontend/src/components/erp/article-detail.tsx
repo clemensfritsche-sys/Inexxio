@@ -164,20 +164,23 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   const computedWeight = record?.computed_weight_kg ?? null;
   const weightIsComputed = !isCreate && computedWeight != null;
 
-  // Pflicht ist nur der Name. Grösse/Gewicht sind optional – nur validieren, wenn befüllt.
+  // Pflichtfelder: Name, Mengeneinheit, Serialisierung, Grösse und Gewicht (Einheit/
+  // Serialisierung tragen einen Default). Format-Fehler nur zeigen, wenn befüllt (nicht
+  // aggressiv beim leeren Neuformular); die «leer»-Pflicht steuert das `valid`-Gate.
   const errs = {
     name: validateName(form.name),
     size: form.size.trim() ? validateSize(form.size) : null,
     weight: form.weight_kg.trim() ? validateWeight(form.weight_kg) : null,
   };
-  const valid = !errs.name && !errs.size && !errs.weight;
+  const missingCore = !form.name.trim() || !form.size.trim() || (!weightIsComputed && !form.weight_kg.trim());
+  const valid = !errs.name && !errs.size && !errs.weight && !missingCore;
 
-  // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird –
-  // statt des generischen «Pflichtfelder …». Namensgebung ist frei (kein Katalog mehr).
+  // Konkreter, handlungsleitender Grund, warum (noch) nicht gespeichert wird.
   const blockReason: string | null = valid ? null
-    : (!form.name.trim()
-        ? 'Bitte einen Artikelnamen eingeben.'
-        : errs.name || errs.size || errs.weight || 'Pflichtfelder ausfüllen: Name, Grösse, Gewicht');
+    : (!form.name.trim() ? 'Bitte einen Artikelnamen eingeben.'
+      : !form.size.trim() ? 'Bitte die Abmessungen angeben (Pflichtfeld).'
+      : (!weightIsComputed && !form.weight_kg.trim()) ? 'Bitte das Gewicht angeben (Pflichtfeld).'
+      : errs.name || errs.size || errs.weight || 'Pflichtfelder ausfüllen: Name, Grösse, Gewicht');
 
   const sig = signatureOf(form);
   const canSave = !locked && valid && sig !== savedSig && !saving;
@@ -361,46 +364,37 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
               <div style={SPEC.card}>
-                <SpecSection icon={FileText} title="Spezifikation"
-                  right={<SectionAddButton keys={SEC_STAMM} added={added} onAdd={addField} />}>
+                {/* Standardmässig NUR die Pflichtfelder (Name, Mengeneinheit, Serialisierung,
+                    Grösse, Gewicht). ALLE weiteren Spezifikationsfelder sind ausgeblendet und
+                    werden bei Bedarf über den EINEN allgemeinen «+»-Knopf hinzugefügt. */}
+                <SpecSection icon={FileText} title="Spezifikation" last
+                  right={<SectionAddButton keys={ALL_OPT} added={added} onAdd={addField} />}>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <NameField value={form.name} onChange={(v) => set('name', v)}
                       error={form.name.trim() ? errs.name : null} />
                   </div>
                   <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
                   <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
-                  {OPTIONAL_FIELDS.filter((f) => SEC_STAMM.includes(f.key) && added.includes(f.key)).map((f) => (
-                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
-                  ))}
-                </SpecSection>
-
-                <SpecSection icon={Box} title="Physische Eigenschaften">
-                  <EditField label="Abmessungen (mm)" value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" hint="Masse in mm, aufsteigend & mit 'x' getrennt – optional" error={form.size ? errs.size : null} />
+                  <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" hint="Masse in mm, aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
                   {weightIsComputed ? (
                     <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
                   ) : (
-                    <EditField label="Gewicht (kg)" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen – optional" error={form.weight_kg ? errs.weight : null} />
+                    <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
                   )}
-                </SpecSection>
-
-                <SpecSection icon={ShoppingCart} title="Beschaffung" last
-                  right={<SectionAddButton keys={SEC_BESCH} added={added} onAdd={addField} />}>
-                  {/* Bezugsquelle & Lieferant werden AUSSCHLIESSLICH im Beschaffungs-Prozessschritt
-                      gepflegt (one single source of truth) – hier nur reine Artikel-Attribute. */}
-                  <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
-                    Bezugsquelle &amp; Lieferant legst du im Reiter «Prozess» am Beschaffungs-Schritt fest.
-                  </div>
-                  <EditField label="Bestellnummer" value={form.supplier_article_number} onChange={(v) => set('supplier_article_number', v)} placeholder="Artikelnummer des Lieferanten" />
-                  <EditField label="CAD-/Onshape-Link" value={form.cad_url} onChange={(v) => set('cad_url', v)} placeholder="https://cad.onshape.com/…" />
+                  {/* Bei Bedarf hinzugefügte optionale Felder (über den «+»-Knopf oben). */}
+                  {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
+                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
+                  ))}
+                  {/* Auto-Werte read-only, nur wenn vorhanden. */}
                   {!isCreate && record!.lead_time_days_low != null && (
                     <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record!)} autoHint="Automatisch aus vorherigen Lieferungen" />
                   )}
                   {!isCreate && record!.landed_unit_cost != null && (
                     <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record!.landed_unit_cost)} unit="CHF" autoHint="Aus der letzten Freigabe" mono />
                   )}
-                  {OPTIONAL_FIELDS.filter((f) => SEC_BESCH.includes(f.key) && added.includes(f.key)).map((f) => (
-                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
-                  ))}
+                  <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
+                    Bezugsquelle &amp; Lieferant legst du im Reiter «Prozess» am Beschaffungs-Schritt fest.
+                  </div>
                 </SpecSection>
               </div>
             )}
@@ -660,10 +654,9 @@ function OptField({ f, form, onSet, onRemove }: {
   );
 }
 
-// Optionale Felder je Sektion (Kontext-Zuordnung): Stammdaten ↔ Oberfläche/Material,
-// Beschaffung ↔ MOQ/Sicherheitsbestand.
-const SEC_STAMM: OptKey[] = ['surface', 'material'];
-const SEC_BESCH: OptKey[] = ['min_order_qty', 'safety_stock'];
+// EIN allgemeiner «+»-Knopf bietet ALLE optionalen Spezifikationsfelder an – standardmässig
+// sind sie ausgeblendet und werden nur bei Bedarf hinzugefügt.
+const ALL_OPT: OptKey[] = OPTIONAL_FIELDS.map((f) => f.key);
 
 // Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, Akzent-Fokus).
 const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3 py-2.5 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft';

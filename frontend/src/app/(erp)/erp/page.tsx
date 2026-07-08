@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, Warehouse, ScanLine, X, Repeat, Loader2, Building2 } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, Warehouse, ScanLine, X, Repeat, Loader2, Building2, AlertTriangle } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { StatusBadge } from '@/components/erp/fields';
@@ -79,6 +79,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
+  // Abweichungs-Auftrag (Unter-Auftrag reason='deviation'): identisch zu handhaben wie ein
+  // regulärer Auftrag – nur ein dezentes Tag am Symbol (fürs spätere Audit).
+  const isDeviation = row.type === 'order' && row.data.reason === 'deviation';
 
   return (
     <button
@@ -95,12 +98,21 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         </div>
       ) : (
         <div
-          className={cn('w-9 h-9 flex-none flex items-center justify-center', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
+          className={cn('w-9 h-9 flex-none flex items-center justify-center relative', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
           style={{ background: meta.bg, color: meta.fg }}
         >
           {row.type === 'user'
             ? <span className="text-xs font-bold">{userInitials(title, row.data.email)}</span>
             : <TypeIcon size={17} />}
+          {isDeviation && (
+            <span
+              title="Abweichungs-Auftrag"
+              className="absolute -bottom-1 -right-1 flex items-center justify-center rounded-full"
+              style={{ width: 14, height: 14, background: '#fffbeb', border: '1px solid #fbbf24' }}
+            >
+              <AlertTriangle size={9} style={{ color: '#d97706' }} />
+            </span>
+          )}
         </div>
       )}
       <div className="min-w-0 flex-1">
