@@ -14,8 +14,8 @@ from app.services import location_split as ls
 
 
 def _inst(qty, lid=100000001, ltype="lagerplatz", locations=None, kind="batch"):
-    return Instance(quantity=Decimal(str(qty)), location_type=ltype, location_id=lid,
-                    locations=locations, kind=kind, article_id=1, order_id=1)
+    return Instance(object_id=100000050, quantity=Decimal(str(qty)), location_type=ltype,
+                    location_id=lid, locations=locations, kind=kind, article_id=1, order_id=1)
 
 
 def _dist(inst) -> dict:
@@ -65,6 +65,22 @@ def test_fractional_quantities_are_exact():
     i = _inst("2.5", ltype="lagerplatz")               # 2.5 kg
     ls.move(i, "lagerplatz", 100000002, "1.5")
     assert _dist(i) == {100000001: 1.0, 100000002: 1.5}
+
+
+def test_order_driven_partial_move_uses_reserved_quantity():
+    """Kern des Bewegungsschritts: ein Bestands-Auftrag über 10 Stück reserviert mengengenau
+    10 der 1000er-Charge; der Schritt verlagert GENAU diese reservierte Teilmenge – der Rest
+    bleibt. So entsteht die Verteilung ausschliesslich auftragsgetrieben (nicht an der Instanz)."""
+    from app.services.reservation import reserve, reserved_for
+
+    i = _inst(1000)                       # Charge @ Band-Eingang (100000001)
+    reserve(i, order_id=555, qty=10)      # Auftrag 555 will 10 Stück umlagern
+    share = reserved_for(i, 555)
+    assert share == Decimal("10")
+    # der Bewegungsschritt bewegt genau die vom Auftrag beanspruchte Teilmenge
+    ls.move(i, "lagerplatz", 100000002, share)
+    assert _dist(i) == {100000001: 990.0, 100000002: 10.0}
+    assert i.object_id == 100000050       # Objektnummer unverändert – keine neue Instanz
 
 
 def test_guards_reject_invalid_moves():

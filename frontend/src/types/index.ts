@@ -212,8 +212,6 @@ type InstanceApi = components['schemas']['InstanceResponse'];
 export type Instance = InstanceApi;
 // Eine Teilmenge einer Charge an einem Standort (Standort-Verteilung ohne Instanz-Teilung)
 export type InstanceLocation = components['schemas']['InstanceLocation'];
-// Teilmengen-Verlagerung («ein Bewegen = ein Task»)
-export type InstanceMoveInput = components['schemas']['InstanceMoveInput'];
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
 // Generischer Objekt-Verweis (Lagerplatz-Verwendung)
 export type ObjectReference = components['schemas']['ObjectReference'];

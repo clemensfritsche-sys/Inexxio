@@ -1239,28 +1239,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/instances/{object_id}/move": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Move Instance Part
-         * @description Eine **Teilmenge** einer Charge an einen anderen Standort verlagern («ein Bewegen =
-         *     ein Task»): die Objektnummer bleibt, es entsteht KEINE neue Instanz. Für Einzelteile
-         *     (Menge 1) nur als Ganzes. Der Rest der Charge bleibt, wo er war.
-         */
-        post: operations["move_instance_part_api_v1_erp_instances__object_id__move_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/objects/{object_id}/references": {
         parameters: {
             query?: never;
@@ -3477,11 +3455,14 @@ export interface components {
             location_label?: string | null;
             /** Physical Location Label */
             physical_location_label?: string | null;
+            /** Move Quantity */
+            move_quantity?: number | null;
         };
         /**
          * InstanceLocation
          * @description Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).
-         *     Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag.
+         *     Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –
+         *     die Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt.
          */
         InstanceLocation: {
             /** Location Type */
@@ -3492,21 +3473,6 @@ export interface components {
             quantity: number;
             /** Location Label */
             location_label?: string | null;
-        };
-        /**
-         * InstanceMoveInput
-         * @description Eine Teilmengen-Verlagerung («ein Bewegen = ein Task»): ``quantity`` der Instanz
-         *     von ihrem (grössten bzw. angegebenen) Quellstandort auf das Ziel verlagern.
-         */
-        InstanceMoveInput: {
-            /** Quantity */
-            quantity: number;
-            /** Location Type */
-            location_type: string;
-            /** Location Id */
-            location_id: number;
-            /** From Location Id */
-            from_location_id?: number | null;
         };
         /**
          * InstanceOrderRef
@@ -7601,41 +7567,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceOrderRef"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    move_instance_part_api_v1_erp_instances__object_id__move_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InstanceMoveInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstanceResponse"];
                 };
             };
             /** @description Validation Error */

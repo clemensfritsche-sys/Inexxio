@@ -3,34 +3,16 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from .movement import LOCATION_TYPES
-
 
 class InstanceLocation(BaseModel):
     """Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).
-    Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag."""
+    Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –
+    die Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt."""
 
     location_type: str
     location_id: int
     quantity: float
     location_label: Optional[str] = None   # vom Router denormalisiert
-
-
-class InstanceMoveInput(BaseModel):
-    """Eine Teilmengen-Verlagerung («ein Bewegen = ein Task»): ``quantity`` der Instanz
-    von ihrem (grössten bzw. angegebenen) Quellstandort auf das Ziel verlagern."""
-
-    quantity: float
-    location_type: str
-    location_id: int
-    from_location_id: Optional[int] = None   # Quell-Objektnummer (Default: grösste Teilmenge ≠ Ziel)
-
-    @field_validator("location_type")
-    @classmethod
-    def _loc_ok(cls, v: str) -> str:
-        if v not in LOCATION_TYPES:
-            raise ValueError(f"Standort-Typ muss eine von {', '.join(LOCATION_TYPES)} sein")
-        return v
 
 
 class InstanceResponse(BaseModel):
@@ -116,3 +98,7 @@ class InstanceEmbed(BaseModel):
     location_id: Optional[int] = None
     location_label: Optional[str] = None   # vom Router denormalisiert
     physical_location_label: Optional[str] = None  # physischer Ort bei Einbau (instance-Kette)
+    # Wie viel dieser (Chargen-)Instanz der Auftrag bewegt: die vom Auftrag reservierte
+    # Teilmenge, wenn er nur EINEN Teil der Charge betrifft (z. B. 10 von 1000); sonst NULL
+    # (= ganze Instanz). Nur zur Anzeige im Bewegungs-Panel (vom Router denormalisiert).
+    move_quantity: Optional[float] = None

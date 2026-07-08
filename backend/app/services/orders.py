@@ -382,12 +382,19 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
     loc_keys = [(i.location_type, i.location_id) for i in instances]
     loc_labels = location_labels(db, loc_keys)
     phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
+    from .quantity import to_qty
+    from .reservation import reserved_for
     instance_embeds: list[InstanceEmbed] = []
     for i in instances:
         emb = InstanceEmbed.model_validate(i)
         emb.location_label = loc_labels.get((i.location_type, i.location_id))
         if i.location_type == "instance":
             emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
+        # Betrifft der Auftrag nur eine Teilmenge dieser Charge (z. B. 10 von 1000), die
+        # reservierte Menge fürs Bewegungs-Panel mitgeben (sonst NULL = ganze Instanz).
+        share = reserved_for(i, order.id)
+        if to_qty(0) < share < to_qty(i.quantity):
+            emb.move_quantity = float(share)
         instance_embeds.append(emb)
     resp.instances = instance_embeds
 
