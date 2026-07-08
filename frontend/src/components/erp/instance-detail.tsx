@@ -300,8 +300,8 @@ function Tile({ icon: Icon, label, hint, value, sub, subMono, wide, onClick }: {
 
 // ── Styles (Inexxio Design System Tokens via CSS-Vars) ─────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  dhead: { position: 'sticky', top: 0, zIndex: 5, background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border-1)', padding: '22px 28px', flexShrink: 0 },
-  dheadTop: { display: 'flex', alignItems: 'flex-start', gap: 16 },
+  dhead: { position: 'sticky', top: 0, zIndex: 5, background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border-1)', padding: '20px clamp(14px, 4vw, 28px)', flexShrink: 0 },
+  dheadTop: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },
   dico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#E9EDEC', color: '#5E6B66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
   eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
   dtitle: { font: '800 28px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)' },
@@ -313,8 +313,8 @@ const S: Record<string, React.CSSProperties> = {
   idbtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
   statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
-  body: { padding: '26px 28px 40px', maxWidth: 980 },
-  glance: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 30 },
+  body: { padding: '24px clamp(14px, 4vw, 28px) 40px', maxWidth: 980 },
+  glance: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 1, background: 'var(--border-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 30 },
   tile: { background: '#fff', padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start', border: 'none', width: '100%', font: 'inherit' },
   tileWide: { gridColumn: '1 / -1' },
   tileLink: { cursor: 'pointer' },
