@@ -9,9 +9,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import { FileText, PenLine, Check, X, Loader2, Clock, ShieldCheck } from 'lucide-react';
+import { FileText, PenLine, Check, X, Loader2, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { MySignoffDocument, PendingDocument, CompanySettings } from '@/types';
+import type { MySignoffDocument, MyHistoryDocument, PendingDocument, CompanySettings } from '@/types';
 import { DocumentView } from '@/components/erp/document-editor';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -19,6 +19,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 export function DocumentsSection() {
   const [docs, setDocs] = useState<MySignoffDocument[]>([]);
   const [acks, setAcks] = useState<PendingDocument[]>([]);
+  const [history, setHistory] = useState<MyHistoryDocument[]>([]);
   const [company, setCompany] = useState<Partial<CompanySettings> | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -26,6 +27,7 @@ export function DocumentsSection() {
     Promise.all([
       api.getMyDocuments().then(setDocs).catch(() => setDocs([])),
       api.getPendingDocuments().then(setAcks).catch(() => setAcks([])),
+      api.getMyDocumentHistory().then(setHistory).catch(() => setHistory([])),
     ]).finally(() => setLoading(false));
     api.getPublicSettings().then(setCompany).catch(() => {});
   }, []);
@@ -34,7 +36,7 @@ export function DocumentsSection() {
     return <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg-4)', fontSize: 14 }}><Loader2 size={16} className="animate-spin" /> Wird geladen…</div>;
   }
 
-  const nothing = docs.length === 0 && acks.length === 0;
+  const nothing = docs.length === 0 && acks.length === 0 && history.length === 0;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
       <div>
@@ -68,6 +70,39 @@ export function DocumentsSection() {
               onDone={(remaining) => setDocs(remaining)} />
           ))}
         </section>
+      )}
+
+      {history.length > 0 && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <GroupTitle icon={CheckCircle2} label="Erledigt" hint="Von Ihnen unterschriebene, bestätigte und anerkannte Dokumente." />
+          {history.map((h, i) => <HistoryCard key={i} item={h} company={company} />)}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function HistoryCard({ item, company }: { item: MyHistoryDocument; company: Partial<CompanySettings> | null }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border: '1px solid var(--border-1)', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: '#DCFCE7', color: '#15803D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <CheckCircle2 size={18} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ font: '600 14px var(--font-body)', color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+          <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>
+            {item.label}{item.acted_at ? ` · ${new Date(item.acted_at).toLocaleDateString('de-CH')}` : ''}
+            {item.object_number != null ? ` · ${fmtObjId(item.object_number)}` : ''}
+          </div>
+        </div>
+        {item.content && <button onClick={() => setOpen((v) => !v)} style={ghost}>{open ? 'Schliessen' : 'Ansehen'}</button>}
+      </div>
+      {open && item.content && (
+        <div style={{ padding: 16, background: 'var(--bg-2)' }}>
+          <DocumentView content={item.content} objectNr={item.object_number ? fmtObjId(item.object_number) : null} issuedAt={item.acted_at} company={company} />
+        </div>
       )}
     </div>
   );

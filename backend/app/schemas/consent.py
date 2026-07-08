@@ -29,6 +29,18 @@ class MySignoffDocument(BaseModel):
     content: Optional[DocumentContent] = None
 
 
+class MyHistoryDocument(BaseModel):
+    """Ein **erledigter** Dokument-Vorgang des Nutzers («Meine Dokumente → Erledigt»):
+    eigene Unterschrift/Bestätigung (kind='signoff') oder Anerkennung (kind='ack')."""
+
+    kind: str                                    # signoff | ack
+    title: str
+    object_number: Optional[int] = None
+    acted_at: Optional[datetime] = None
+    label: str = ""                              # Unterschrieben | Bestätigt | Anerkannt
+    content: Optional[DocumentContent] = None
+
+
 class AcknowledgeRequest(BaseModel):
     kind: str
     object_number: Optional[int] = None   # bei kind='document' (Publikums-Dokument) die Version

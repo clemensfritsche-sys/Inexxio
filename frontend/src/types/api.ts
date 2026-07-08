@@ -258,6 +258,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/consent/my-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My History
+         * @description Erledigte Dokument-Vorgänge des Nutzers (Unterschriften/Bestätigungen + Anerkennungen)
+         *     – damit ein bereits akzeptiertes/unterschriebenes Dokument in «Meine Dokumente» sichtbar bleibt.
+         */
+        get: operations["my_history_api_v1_consent_my_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/consent/acknowledgements/{user_object_id}": {
         parameters: {
             query?: never;
@@ -3633,6 +3654,27 @@ export interface components {
             carrier?: string | null;
         };
         /**
+         * MyHistoryDocument
+         * @description Ein **erledigter** Dokument-Vorgang des Nutzers («Meine Dokumente → Erledigt»):
+         *     eigene Unterschrift/Bestätigung (kind='signoff') oder Anerkennung (kind='ack').
+         */
+        MyHistoryDocument: {
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Object Number */
+            object_number?: number | null;
+            /** Acted At */
+            acted_at?: string | null;
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            content?: components["schemas"]["DocumentContent"] | null;
+        };
+        /**
          * MySignoffDocument
          * @description Ein Dokument, auf das ICH als **Freigabe-Partei** noch handeln muss («Meine Dokumente»).
          */
@@ -5665,6 +5707,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_history_api_v1_consent_my_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyHistoryDocument"][];
                 };
             };
         };

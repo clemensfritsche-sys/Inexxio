@@ -12,7 +12,7 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.consent import (
-    Acknowledgement, AcknowledgeRequest, MySignoffDocument, PendingDocument,
+    Acknowledgement, AcknowledgeRequest, MyHistoryDocument, MySignoffDocument, PendingDocument,
 )
 from ..schemas.document import SignoffAction
 from ..services import consent
@@ -63,6 +63,16 @@ async def act_signoff(
     signoff = document_svc.get_signoff(db, signoff_id)
     document_svc.act_on_signoff(db, signoff, data, current_user)
     return document_svc.my_pending_signoffs(db, current_user)
+
+
+@router.get("/my-history", response_model=list[MyHistoryDocument])
+async def my_history(
+    current_user: UserProfile = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Erledigte Dokument-Vorgänge des Nutzers (Unterschriften/Bestätigungen + Anerkennungen)
+    – damit ein bereits akzeptiertes/unterschriebenes Dokument in «Meine Dokumente» sichtbar bleibt."""
+    return consent.my_document_history(db, current_user)
 
 
 @router.get("/acknowledgements/{user_object_id}", response_model=list[Acknowledgement])

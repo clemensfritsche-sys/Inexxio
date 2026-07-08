@@ -193,6 +193,17 @@ def test_passkey_name_auto_defaulted():
     assert 'f"Passkey {n + 1}"' in src
 
 
+def test_my_history_endpoint_wired():
+    # «Meine Dokumente → Erledigt»: bereits unterschriebene/anerkannte Dokumente bleiben sichtbar.
+    from app.services import consent
+    assert hasattr(consent, "my_document_history")
+    from app.routers import consent as consent_router
+    assert "/api/v1/consent/my-history" in {r.path for r in consent_router.router.routes}
+    from app.schemas.consent import MyHistoryDocument
+    for f in ("kind", "title", "object_number", "acted_at", "label", "content"):
+        assert f in MyHistoryDocument.model_fields
+
+
 def test_signoff_endpoints_wired():
     from app.routers import orders, consent as consent_router
     order_paths = {r.path for r in orders.router.routes}

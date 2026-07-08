@@ -507,6 +507,37 @@
         }
       }
     },
+    "/api/v1/consent/my-history": {
+      "get": {
+        "tags": [
+          "consent"
+        ],
+        "summary": "My History",
+        "description": "Erledigte Dokument-Vorgänge des Nutzers (Unterschriften/Bestätigungen + Anerkennungen)\n– damit ein bereits akzeptiertes/unterschriebenes Dokument in «Meine Dokumente» sichtbar bleibt.",
+        "operationId": "my_history_api_v1_consent_my_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyHistoryDocument"
+                  },
+                  "type": "array",
+                  "title": "Response My History Api V1 Consent My History Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/consent/acknowledgements/{user_object_id}": {
       "get": {
         "tags": [
@@ -10856,6 +10887,63 @@
         "type": "object",
         "title": "MovementUpdate",
         "description": "Erfassung des Bewegungsschritts: je Instanz ein Zielstandort + Notiz.\n\nBei einem Versand zum Kunden (outbound) optional Sendungsverfolgung."
+      },
+      "MyHistoryDocument": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "object_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Number"
+          },
+          "acted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acted At"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "content": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentContent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title"
+        ],
+        "title": "MyHistoryDocument",
+        "description": "Ein **erledigter** Dokument-Vorgang des Nutzers («Meine Dokumente → Erledigt»):\neigene Unterschrift/Bestätigung (kind='signoff') oder Anerkennung (kind='ack')."
       },
       "MySignoffDocument": {
         "properties": {

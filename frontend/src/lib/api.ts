@@ -4,7 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument, Acknowledgement, MySignoffDocument, SignoffAction,
+  PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -176,6 +176,11 @@ class ApiClient {
   // ─── «Meine Dokumente»: Freigabe-Parteien (unterschreiben/bestätigen) ───────
   getMyDocuments(): Promise<MySignoffDocument[]> {
     return this.get('/api/v1/consent/my-documents');
+  }
+
+  // Erledigte Dokument-Vorgänge (unterschrieben/bestätigt/anerkannt) – für die «Erledigt»-Liste.
+  getMyDocumentHistory(): Promise<MyHistoryDocument[]> {
+    return this.get('/api/v1/consent/my-history');
   }
 
   // Als benannte Freigabe-Partei handeln (confirm|sign|reject|withdraw) – liefert die

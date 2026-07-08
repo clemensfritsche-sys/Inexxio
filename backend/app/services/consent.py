@@ -195,6 +195,57 @@ def acknowledge(db: Session, user: UserProfile, kind: str, object_number: int | 
     db.commit()
 
 
+def my_document_history(db: Session, user: UserProfile) -> list[dict]:
+    """Alle **erledigten** Dokument-Vorgänge des Nutzers – für «Meine Dokumente» (damit ein
+    bereits akzeptiertes/unterschriebenes Dokument sichtbar bleibt, nicht nur die offenen):
+    (1) eigene Unterschriften/Bestätigungen als **Partei**, (2) eigene **Anerkennungen** als
+    Publikum. Jeweils mit Inhalt zum Nachlesen."""
+    from ..models import DocumentSignoff, Instance
+    from .document import instance_document_embeds, render_meta
+    out: list[dict] = []
+    # (1) Erledigte Freigaben (als benannte Partei)
+    signed = (
+        db.query(DocumentSignoff)
+        .filter(DocumentSignoff.signer_object_id == user.object_id,
+                DocumentSignoff.status == "signed", DocumentSignoff.is_active == True)
+        .order_by(DocumentSignoff.id.desc()).all()
+    )
+    for so in signed:
+        doc = db.query(Document).filter(
+            Document.id == so.document_id, Document.is_active == True).first()
+        if not doc:
+            continue
+        order = db.query(Order).filter(Order.id == so.order_id).first()
+        obj_nr, _ = render_meta(db, order) if order else (None, None)
+        out.append({
+            "kind": "signoff",
+            "title": (doc.content or {}).get("title") or "Dokument",
+            "object_number": obj_nr,
+            "acted_at": so.acted_at,
+            "label": "Unterschrieben" if so.action == "sign" else "Bestätigt",
+            "content": doc.content,
+        })
+    # (2) Erledigte Anerkennungen (als Publikum) – Inhalt aus der Versions-Instanz.
+    for r in acknowledgements_for(db, user):
+        version = r["version_object_id"]
+        content = None
+        inst = db.query(Instance).filter(Instance.object_id == version).first()
+        if inst is not None:
+            embeds = instance_document_embeds(db, inst)
+            if embeds and embeds[0].content is not None:
+                content = embeds[0].content.model_dump()
+        out.append({
+            "kind": "ack",
+            "title": r["title"],
+            "object_number": version,
+            "acted_at": r["accepted_at"],
+            "label": "Anerkannt",
+            "content": content,
+        })
+    out.sort(key=lambda x: (x["acted_at"] is not None, x["acted_at"]), reverse=True)
+    return out
+
+
 def acknowledgements_for(db: Session, user: UserProfile) -> list[dict]:
     """Alle Bestätigungen eines Nutzers (neueste zuerst) – für den Benutzer-ERP-Datensatz
     («AGB akzeptiert am … · Stand Objektnummer …»)."""
