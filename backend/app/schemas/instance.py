@@ -1,7 +1,36 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from .movement import LOCATION_TYPES
+
+
+class InstanceLocation(BaseModel):
+    """Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).
+    Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag."""
+
+    location_type: str
+    location_id: int
+    quantity: float
+    location_label: Optional[str] = None   # vom Router denormalisiert
+
+
+class InstanceMoveInput(BaseModel):
+    """Eine Teilmengen-Verlagerung («ein Bewegen = ein Task»): ``quantity`` der Instanz
+    von ihrem (grössten bzw. angegebenen) Quellstandort auf das Ziel verlagern."""
+
+    quantity: float
+    location_type: str
+    location_id: int
+    from_location_id: Optional[int] = None   # Quell-Objektnummer (Default: grösste Teilmenge ≠ Ziel)
+
+    @field_validator("location_type")
+    @classmethod
+    def _loc_ok(cls, v: str) -> str:
+        if v not in LOCATION_TYPES:
+            raise ValueError(f"Standort-Typ muss eine von {', '.join(LOCATION_TYPES)} sein")
+        return v
 
 
 class InstanceResponse(BaseModel):
@@ -22,8 +51,20 @@ class InstanceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Standort-Verteilung (vom Router denormalisiert): bei EINEM Ort ein Eintrag, bei einer
+    # verteilten Charge mehrere (300 @ Band A · 700 @ Band B). Summe = quantity.
+    locations: list[InstanceLocation] = []
+
     reserved_for_order_id: Optional[int] = None
     reserved_quantity: float = 0   # mengengenau reservierte Menge (0 = frei)
+
+    # Das Modell-Attribut ``locations`` ist die rohe JSONB-Map (dict) – die Antwort trägt
+    # aber die denormalisierte Liste. Beim ``model_validate`` die rohe dict/None auf ``[]``
+    # normalisieren; der Router füllt danach die effektive Verteilung ein.
+    @field_validator("locations", mode="before")
+    @classmethod
+    def _loc_list(cls, v):
+        return v if isinstance(v, list) else []
 
     # Denormalisiert vom Router
     order_object_id: Optional[int] = None

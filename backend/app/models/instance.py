@@ -52,6 +52,19 @@ class Instance(Base, TimestampMixin):
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
+    # **Standort-Verteilung** – exakt nach dem Vorbild von ``reservations`` (mengengenau,
+    # OHNE Teilung der Instanz / ohne neue Objektnummer). Eine Charge von 1000 Schrauben
+    # kann physisch auf mehrere Standorte verteilt sein (300 @ Band A, 700 @ Band B) und
+    # trägt trotzdem EINE Objektnummer (die Teile sind alle mit ihr beschriftet). Die Map
+    # ist nach **Objektnummer** des Ziels geschlüsselt (global eindeutig → «wer liegt hier?»
+    # per has_key), Wert = {"t": <lagerplatz|user|instance>, "q": <menge-string>}:
+    #   locations = {"100000123": {"t": "lagerplatz", "q": "300"}, ...}   Summe = quantity.
+    # Ist die Charge an EINEM Ort (Normalfall) → Map NULL, der Skalar ``location_*`` ist die
+    # Wahrheit. Verteilt → die Map ist die Wahrheit, der Skalar spiegelt die grösste Teilmenge
+    # (denormalisiert, wie ``reserved_for_order_id`` die Einzel-Reservierung spiegelt).
+    # Einzige Schreibstelle: ``services/location_split.py``.
+    locations: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+
     # Reservierung – **mengengenau, ohne Teilung der Instanz** (die Objektnummer bleibt
     # IMMER erhalten – physisch sind die Teile mit dieser Nummer beschriftet):
     #   reservations      = {auftrag_db_id: menge}  – wer wie viel dieser Instanz beansprucht

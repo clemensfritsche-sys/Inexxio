@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import Disposal, Order
-from . import process
+from . import location_split, process
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
@@ -71,6 +71,9 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             # Teil-Verschrottung einer Charge: nur die Menge sinkt (keine Teilung/neue Nummer),
             # überschüssige Reservierungen werden getrimmt (Recovery) – analog Ressourcen-Teilentnahme.
             cut = reduce_quantity(inst, qty)
+            # Verteilte Charge: nach dem Mengen-Abgang die Standort-Verteilung nachziehen
+            # (grösste Teilmenge zuerst gekürzt), damit die Summe wieder = quantity ist.
+            location_split.reconcile(inst)
             log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
                       object_id=inst.object_id,
                       old_value=f"{(inst.quantity or 0) + cut} (− {cut} verschrottet)")

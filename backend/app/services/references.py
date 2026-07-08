@@ -115,9 +115,17 @@ def object_references(db: Session, object_id: int) -> list[dict]:
     Neueste zuerst. EIN Query je Bezugsart (kein N+1). Andere Rückverweis-Arten (z. B.
     Auftrags-Historie einer Instanz) laufen bewusst über ``instance_orders``."""
     refs: list[dict] = []
+    # Verortet ist eine Instanz hier, wenn ihr **skalarer** Standort diese Objektnummer ist
+    # ODER ihre **Verteilungs-Map** eine Teilmenge hier führt (Charge auf mehrere Orte verteilt).
     insts = (
         db.query(Instance)
-        .filter(Instance.is_active == True, Instance.location_id == object_id)
+        .filter(
+            Instance.is_active == True,
+            or_(
+                Instance.location_id == object_id,
+                Instance.locations.has_key(str(object_id)),
+            ),
+        )
         .all()
     )
     steps = (
@@ -128,10 +136,16 @@ def object_references(db: Session, object_id: int) -> list[dict]:
     )
     art_ids = {i.article_id for i in insts} | {s.article_id for s in steps if s.article_id}
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
+    from . import location_split
     for i in insts:
         art = arts.get(i.article_id)
         name = art.name if art else "Instanz"
-        refs.append({"kind": f"{name} · verortet", "ref_type": "instance",
+        # Menge, die HIER liegt (die ganze Instanz oder – bei einer verteilten Charge –
+        # nur die Teilmenge an dieser Objektnummer).
+        here = next((d["quantity"] for d in location_split.distribution(i)
+                     if d["location_id"] == object_id), None)
+        qty = f"{here:g} " if here is not None else ""
+        refs.append({"kind": f"{name} · {qty}verortet", "ref_type": "instance",
                      "object_id": i.object_id, "label": _obj_nr(i.object_id or 0),
                      "at": i.updated_at})
 
