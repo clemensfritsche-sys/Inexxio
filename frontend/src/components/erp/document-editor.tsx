@@ -17,6 +17,9 @@ const MUTED = '#6E6E73';
 const HAIRLINE = '#E9E7E1';
 const SAND = '#F4F3F0';
 const DISPLAY = "'Inter Tight', 'Inter', 'Helvetica Neue', Arial, sans-serif";
+// A4-Seitenbreite bei 96 dpi (210 mm) – die Vorschau ist auf dieses Blatt-Format begrenzt,
+// damit man sofort sieht, was aufs echte Dokument passt (WYSIWYG mit dem PDF-Render).
+const A4_WIDTH = 794;
 
 function emptyContent(): DocumentContent {
   return { title: '', subtitle: null, body: '' };
@@ -53,10 +56,12 @@ const MD: Components = {
   // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
   img: (p) => <img style={{ maxWidth: '100%', height: 'auto', margin: '10px 0', borderRadius: 6 }} {...p} />,
   code: (p) => <code style={{ fontFamily: 'monospace', fontSize: 12.5, background: SAND, padding: '1px 5px', borderRadius: 4 }} {...p} />,
-  pre: (p) => <pre style={{ background: SAND, padding: '12px 14px', borderRadius: 8, overflowX: 'auto', margin: '10px 0' }} {...p} />,
-  table: (p) => <div style={{ overflowX: 'auto', margin: '12px 0' }}><table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13.5 }} {...p} /></div>,
-  th: (p) => <th style={{ border: `1px solid ${HAIRLINE}`, padding: '7px 10px', textAlign: 'left', background: SAND, fontWeight: 700, color: INK }} {...p} />,
-  td: (p) => <td style={{ border: `1px solid ${HAIRLINE}`, padding: '7px 10px', textAlign: 'left', verticalAlign: 'top' }} {...p} />,
+  pre: (p) => <pre style={{ background: SAND, padding: '12px 14px', borderRadius: 8, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', margin: '10px 0' }} {...p} />,
+  // table-layout:fixed + Wortumbruch → die Tabelle passt IMMER in die (A4-)Blattbreite,
+  // egal wie viele/breite Spalten; kein horizontaler Überlauf mehr (WYSIWYG mit dem PDF).
+  table: (p) => <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed', fontSize: 13, margin: '12px 0' }} {...p} />,
+  th: (p) => <th style={{ border: `1px solid ${HAIRLINE}`, padding: '6px 9px', textAlign: 'left', background: SAND, fontWeight: 700, color: INK, overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...p} />,
+  td: (p) => <td style={{ border: `1px solid ${HAIRLINE}`, padding: '6px 9px', textAlign: 'left', verticalAlign: 'top', overflowWrap: 'anywhere', wordBreak: 'break-word' }} {...p} />,
 };
 
 // ─── Ansicht (nah am PDF): weisses A4-Blatt im Inexxio-Design ─────────────────────
@@ -75,7 +80,7 @@ export function DocumentView({ content, objectNr, issuedAt, company, signoffs }:
   const companyName = company?.company_name || 'Inexxio';
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 12, padding: 'clamp(20px, 5vw, 44px)', boxShadow: '0 1px 3px rgba(16,14,12,0.05)', color: BODY, fontSize: 14, lineHeight: 1.62 }}>
+    <div style={{ width: '100%', maxWidth: A4_WIDTH, marginLeft: 'auto', marginRight: 'auto', background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 12, padding: 'clamp(20px, 5vw, 48px)', boxShadow: '0 1px 3px rgba(16,14,12,0.05)', color: BODY, fontSize: 14, lineHeight: 1.62, overflowWrap: 'anywhere' }}>
       {(company || addr.length > 0) && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 24, paddingBottom: 12, borderBottom: `2px solid ${INK}`, marginBottom: 28, flexWrap: 'wrap' }}>
           {company?.logo_url

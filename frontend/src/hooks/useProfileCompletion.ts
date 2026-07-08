@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-type SectionId = 'profile' | 'contact' | 'invoice';
+type SectionId = 'profile' | 'contact' | 'invoice' | 'documents';
 
 interface RequiredField {
   section: SectionId;
@@ -43,12 +43,21 @@ export interface ProfileCompletion {
   missingBySection: Partial<Record<SectionId, number>>;
 }
 
-export function useProfileCompletion(profile: UserProfile | null): ProfileCompletion {
+/**
+ * ``openDocuments`` = Anzahl **ausstehender** Dokument-Pflichten des Nutzers (offene
+ * Unterschriften/Bestätigungen + zu bestätigende Anerkennungen). Sie zählen wie fehlende
+ * Pflichtangaben: solange etwas aussteht, ist das Profil **nicht vollständig** (der Nutzer
+ * ist damit ohnehin blockiert, bis er handelt). Sie erscheinen als Fehlbetrag im Abschnitt
+ * «documents» («Meine Dokumente»).
+ */
+export function useProfileCompletion(profile: UserProfile | null, openDocuments = 0): ProfileCompletion {
   return useMemo(() => {
     if (!profile) return { percentage: 0, completedCount: 0, totalCount: 0, missingBySection: {} };
 
     const applicable = REQUIRED.filter((r) => !r.condition || r.condition(profile));
-    const totalCount = applicable.length;
+    const open = Math.max(0, openDocuments);
+    const totalCount = applicable.length + open;
+    // Ausstehende Dokumente sind per Definition NICHT erledigt → nur die Felder zählen als erledigt.
     const completedCount = applicable.filter((r) => isFilled(profile, r.field)).length;
     const percentage = totalCount === 0 ? 100 : Math.round((completedCount / totalCount) * 100);
 
@@ -58,7 +67,8 @@ export function useProfileCompletion(profile: UserProfile | null): ProfileComple
         missingBySection[r.section] = (missingBySection[r.section] ?? 0) + 1;
       }
     }
+    if (open > 0) missingBySection['documents'] = open;
 
     return { percentage, completedCount, totalCount, missingBySection };
-  }, [profile]);
+  }, [profile, openDocuments]);
 }

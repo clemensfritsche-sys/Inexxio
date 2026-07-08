@@ -209,6 +209,8 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
 
 /* Markdown-Body (fett, Listen, Tabellen, Bilder, Zitate, Code) */
 .body {{ margin-top: 30px; }}
+/* Nichts darf breiter als der Satzspiegel werden: lange Wörter/URLs brechen um. */
+.md {{ overflow-wrap: break-word; word-wrap: break-word; }}
 .md h1, .md h2, .md h3, .md h4 {{ font-family: 'Inter Tight', sans-serif; color: {_INK};
   letter-spacing: -0.01em; break-after: avoid; }}
 .md h1 {{ font-size: 16pt; font-weight: 800; margin: 22px 0 8px; }}
@@ -224,10 +226,15 @@ h1 {{ font-family: 'Inter Tight', sans-serif; font-weight: 800; font-size: 25pt;
 .md blockquote {{ margin: 8px 0; padding: 4px 0 4px 14px; border-left: 3px solid {_HAIRLINE}; color: {_MUTED}; }}
 .md img {{ max-width: 100%; height: auto; margin: 8px 0; border-radius: 4px; }}
 .md code {{ font-family: monospace; font-size: 9pt; background: {_SAND}; padding: 1px 4px; border-radius: 3px; }}
-.md pre {{ background: {_SAND}; padding: 10px 12px; border-radius: 6px; break-inside: avoid; }}
+.md pre {{ background: {_SAND}; padding: 10px 12px; border-radius: 6px; break-inside: avoid;
+  white-space: pre-wrap; overflow-wrap: break-word; }}
 .md pre code {{ background: none; padding: 0; }}
-.md table {{ border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 9.5pt; break-inside: avoid; }}
-.md th, .md td {{ border: 1px solid {_HAIRLINE}; padding: 6px 9px; text-align: left; vertical-align: top; }}
+/* table-layout:fixed → die Spalten teilen sich die A4-Breite, Zellinhalt bricht um; die Tabelle
+   kann NIE breiter als der Satzspiegel werden (kein Überlauf/Beschnitt über den Rand hinaus). */
+.md table {{ border-collapse: collapse; width: 100%; table-layout: fixed; margin: 10px 0;
+  font-size: 9.5pt; break-inside: avoid; }}
+.md th, .md td {{ border: 1px solid {_HAIRLINE}; padding: 6px 9px; text-align: left;
+  vertical-align: top; overflow-wrap: break-word; word-wrap: break-word; }}
 .md th {{ background: {_SAND}; font-weight: 700; color: {_INK}; }}
 .md hr {{ border: none; border-top: 1px solid {_HAIRLINE}; margin: 16px 0; }}
 

@@ -892,6 +892,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   + PDF `document_render._signoffs_html`, Unterschrift-Bild als data-URI). Endpunkte am Auftrag
   (`POST …/document/signoff/{id}`, `…/document/withdraw`). *Sichtbarkeit ist deklariert/angezeigt, aber noch
   nicht als Lese-Zugriffsfilter erzwungen (Folgeschritt).*
+  - **Ausstehende Pflicht-Unterschriften senken die Profil-Vollständigkeit**: `useProfileCompletion`
+    nimmt jetzt die Zahl **offener** Dokument-Pflichten (ausstehende Unterschriften/Bestätigungen +
+    Anerkennungen, aus `/consent/my-documents` + `/consent/pending`) und zählt sie wie fehlende
+    Pflichtfelder → das Profil zeigt **nicht «vollständig»**, solange etwas aussteht (Badge am Reiter
+    «Meine Dokumente»). `account-shell` lädt die Zahl und aktualisiert live über das Fenster-Event
+    `inexxio:documents-changed` (von `documents-section` nach jeder Aktion gefeuert).
+  - **Dokument-Vorschau ist auf A4 begrenzt & überlaufsicher**: `DocumentView` rendert ein Blatt mit
+    fester A4-Breite (`A4_WIDTH=794px`, zentriert, WYSIWYG mit dem PDF); Tabellen nutzen
+    `table-layout:fixed` + Wortumbruch (Web **und** PDF `document_render`), lange Wörter/URLs/Code
+    brechen um – **nichts kann breiter als der Satzspiegel werden** (kein horizontaler Überlauf/
+    Beschnitt, auch bei KI-generierten breiten Tabellen).
 - **Meldebestand + Auto-Nachbestellung (E, «Nicht die Zeit soll bestellen, sondern der Bestand»)**:
   **Meldebestand** = `articles.safety_stock`; fällt der **freie** Bestand darunter, legt
   `services/replenishment.check_article` einen eigenständigen Nachschub-Auftrag (`orders.reason=

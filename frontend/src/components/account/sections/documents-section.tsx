@@ -133,6 +133,7 @@ function AckCard({ ack, company, onDone }: {
     try {
       await api.acknowledgeDocument(ack.kind, ack.object_number);
       onDone();
+      window.dispatchEvent(new Event('inexxio:documents-changed'));   // Profil-Vollständigkeit live nachziehen
     } catch (e) { setErr(e instanceof Error ? e.message : 'Bestätigung fehlgeschlagen'); }
     finally { setBusy(false); }
   }
@@ -187,6 +188,7 @@ function SignoffCard({ doc, company, onDone }: {
         reason: action === 'reject' ? (reason.trim() || null) : null,
       });
       onDone(remaining);
+      window.dispatchEvent(new Event('inexxio:documents-changed'));   // Profil-Vollständigkeit live nachziehen
     } catch (e) { setErr(e instanceof Error ? e.message : 'Aktion fehlgeschlagen'); }
     finally { setBusy(false); }
   }

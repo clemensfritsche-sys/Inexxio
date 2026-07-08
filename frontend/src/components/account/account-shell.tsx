@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { User, MapPin, FileText, FileSignature, Shield, Bell, Lock, ShoppingBag, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
+import { api } from '@/lib/api';
 import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
@@ -46,7 +47,25 @@ function CompletionRing({ percentage }: { percentage: number }) {
 export function AccountShell({ profile, isLoading, onSave }: Props) {
   const [activeSection, setActiveSection] = useState<SectionId>('profile');
   const isMobile = useIsMobile(768);
-  const completion = useProfileCompletion(profile);
+
+  // Ausstehende Dokument-Pflichten (offene Unterschriften/Bestätigungen + Anerkennungen).
+  // Sie senken die Profil-Vollständigkeit und erscheinen als Badge bei «Meine Dokumente» –
+  // solange etwas aussteht, ist das Profil nicht vollständig (und der Nutzer ohnehin blockiert).
+  const [openDocs, setOpenDocs] = useState(0);
+  useEffect(() => {
+    if (!profile) { setOpenDocs(0); return; }
+    let cancelled = false;
+    const load = () => Promise.all([
+      api.getMyDocuments().then((d) => d.filter((x) => x.status !== 'rejected').length).catch(() => 0),
+      api.getPendingDocuments().then((a) => a.length).catch(() => 0),
+    ]).then(([s, a]) => { if (!cancelled) setOpenDocs(s + a); });
+    load();
+    const onChanged = () => load();
+    window.addEventListener('inexxio:documents-changed', onChanged);
+    return () => { cancelled = true; window.removeEventListener('inexxio:documents-changed', onChanged); };
+  }, [profile?.email]);
+
+  const completion = useProfileCompletion(profile, openDocs);
 
   const isEmployee = profile?.role === 'employee';
   const isSupplier = profile?.role === 'supplier';
@@ -89,6 +108,12 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
 
   const totalMissing = completion.totalCount - completion.completedCount;
   const pctColor = completion.percentage === 100 ? '#16a34a' : completion.percentage >= 60 ? '#f59e0b' : '#E51A14';
+  const docMissing = completion.missingBySection.documents ?? 0;
+  const fieldMissing = totalMissing - docMissing;
+  const missingParts: string[] = [];
+  if (fieldMissing > 0) missingParts.push(`${fieldMissing} Pflichtfeld${fieldMissing !== 1 ? 'er' : ''}`);
+  if (docMissing > 0) missingParts.push(`${docMissing} Dokument${docMissing !== 1 ? 'e' : ''}`);
+  const missingLabel = missingParts.length ? `${missingParts.join(' · ')} offen` : '';
 
   if (isMobile) {
     return (
@@ -224,11 +249,9 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
                 Profil {completion.percentage === 100 ? 'vollständig' : `${completion.percentage}% vollständig`}
               </p>
               {totalMissing > 0 ? (
-                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>
-                  {totalMissing} Pflichtfeld{totalMissing !== 1 ? 'er' : ''} fehlen
-                </p>
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0' }}>{missingLabel}</p>
               ) : (
-                <p style={{ fontSize: 11, color: '#16a34a', margin: '2px 0 0' }}>Alle Pflichtfelder ausgefüllt</p>
+                <p style={{ fontSize: 11, color: '#16a34a', margin: '2px 0 0' }}>Alles erledigt</p>
               )}
             </div>
           </div>
