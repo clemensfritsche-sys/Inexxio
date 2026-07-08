@@ -130,17 +130,8 @@ export type PendingDocument = components['schemas']['PendingDocument'];
 // Erfolgte Bestätigung (am Benutzer-ERP-Datensatz sichtbar).
 export type Acknowledgement = components['schemas']['Acknowledgement'];
 
-// Registrierter Passkey (WebAuthn/FIDO2) – Kontoverwaltung. Spiegelt das Backend-
-// Schema `PasskeyResponse` (siehe backend/app/schemas/passkey.py); beim nächsten
-// OpenAPI-Dump kann dies auf components['schemas']['PasskeyResponse'] umgestellt werden.
-export interface Passkey {
-  id: number;
-  device_name: string | null;
-  device_type: string | null;
-  backed_up: boolean;
-  created_at: string;
-  last_used_at: string | null;
-}
+// Registrierter Passkey (WebAuthn/FIDO2) – Kontoverwaltung (ohne Krypto-Material).
+export type Passkey = components['schemas']['PasskeyResponse'];
 export type OrderInstance = NonNullable<OrderApi['instances']>[number];
 export type OrderResource = NonNullable<OrderApi['resource']>;
 export type OrderResourceLine = OrderResource['lines'][number];
