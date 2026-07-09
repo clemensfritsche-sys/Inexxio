@@ -2228,6 +2228,18 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
+            /** Fixed Location Lat */
+            fixed_location_lat?: number | string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: number | string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2706,6 +2718,18 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
+            /** Fixed Location Lat */
+            fixed_location_lat?: number | string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: number | string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
