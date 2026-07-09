@@ -44,7 +44,7 @@ export function AddressAutocomplete({
   id?: string;
   country?: string;   // optionale Länder-Vorfilterung (ISO-2), z. B. 'CH'
 }) {
-  const { loaded } = useGoogleMaps(apiKey);
+  const { loaded, error } = useGoogleMaps(apiKey);
   const inputRef = useRef<HTMLInputElement>(null);
   const acRef = useRef<google.maps.places.Autocomplete | null>(null);
   const onPickRef = useRef(onPick);
@@ -87,6 +87,11 @@ export function AddressAutocomplete({
         onKeyDown={(e) => { if (e.key === 'Enter' && document.querySelector('.pac-container:not([style*="display: none"])')) e.preventDefault(); }}
       />
       <MapPin size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+      {error === 'auth' && (
+        <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+          Adress-Vorschläge nicht verfügbar (Google »Places API« nicht freigeschaltet) – Adresse manuell eingeben.
+        </p>
+      )}
     </div>
   );
 }
