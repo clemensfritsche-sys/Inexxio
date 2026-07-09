@@ -424,7 +424,7 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={{ fontSize: 11.5, color: '#94a3b8' }}>
-              Kein Versand-Anbieter konfiguriert (EASYPOST_API_KEY) – Carrier & Tracking manuell erfassen:
+              Kein Versand-Anbieter konfiguriert (SHIPPO_API_KEY) – Carrier & Tracking manuell erfassen:
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Carrier (z. B. Post CH)"

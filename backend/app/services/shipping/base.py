@@ -1,5 +1,5 @@
 """Versand-Bridge (ADR 005) – ein Interface, hinter dem der Carrier-Aggregator
-(**easypost**: Rate-Shopping über viele Carrier + Label-Kauf, Self-Serve wie Stripe)
+(**shippo**: Rate-Shopping über viele Carrier + Label-Kauf, Self-Serve wie Stripe)
 und **manual** (Carrier/Tracking von Hand – ohne Key nie kaputt) liegen.
 
 - ``rates`` liefert Angebote (Preis/Laufzeit je Carrier-Service) für Adressen + Paket,

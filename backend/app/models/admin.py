@@ -55,12 +55,6 @@ class CompanySettings(Base):
     # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
     # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
     default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-    # Betriebs-Geofence (ADR 005 «Versand wird abgeleitet»): Mittelpunkt + Radius des
-    # Betriebsgeländes. Ein Bewegungs-Ziel AUSSERHALB → externer Transport (Versand).
-    # Ohne Geofence gilt: Lagerplätze = innen, Kunden/Lieferanten = aussen (Rollen-Regel).
-    site_latitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6))
-    site_longitude: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6))
-    site_radius_m: Mapped[Optional[int]] = mapped_column(Integer)
 
     # ── Shop / Verkauf ──────────────────────────────────────────────────────────
     # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung

@@ -1,12 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen , Truck } from 'lucide-react';
+import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen  } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { useMapsApiKey } from '@/components/erp/use-maps-key';
+
+const ISO_TO_NAME: Record<string, string> = {
+  CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
+  IT: 'Italien', LI: 'Liechtenstein',
+};
 
 type OrgTab = 'stamm' | 'docs';
 
@@ -27,6 +34,21 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<OrgTab>('stamm');
+  const [addrSearch, setAddrSearch] = useState('');
+  const mapsKey = useMapsApiKey();
+
+  // Google-Places-Auswahl → Firmenadresse (Strasse/PLZ/Ort/Land) auf einmal übernehmen.
+  function applyCompanyAddress(a: AutoAddress) {
+    setForm((prev) => ({
+      ...prev,
+      street: a.street || prev.street,
+      zip: a.zip || prev.zip,
+      city: a.city || prev.city,
+      country: (a.country && ISO_TO_NAME[a.country]) || prev.country,
+    }));
+    setDirty(true);
+    setAddrSearch(a.street || addrSearch);
+  }
 
   useEffect(() => {
     setForm({}); setDirty(false); setError(null);
@@ -105,6 +127,11 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
         {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ display: 'block', font: '500 12px var(--font-body)', color: 'var(--fg-3)', marginBottom: 4 }}>Adresse suchen (Google)</label>
+            <AddressAutocomplete apiKey={mapsKey} value={addrSearch} onChange={setAddrSearch}
+              onPick={applyCompanyAddress} placeholder="Firmenadresse tippen – füllt Strasse/PLZ/Ort/Land" />
+          </div>
           <Field label="Firmenname" val={v('company_name')} onChange={set('company_name')} span2 />
           <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />
           <Field label="Land" val={v('country')} onChange={set('country')} />
@@ -156,16 +183,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="Google Maps API Key" val={v('google_maps_api_key')} onChange={set('google_maps_api_key')} span2 />
         </Sec>
 
-        <Sec title="Logistik & Versand (Betriebs-Geofence)" editable icon={Truck}>
-          <Field label="Breitengrad (Mittelpunkt)" val={v('site_latitude') != null ? String(v('site_latitude')) : ''} onChange={set('site_latitude')} />
-          <Field label="Längengrad (Mittelpunkt)" val={v('site_longitude') != null ? String(v('site_longitude')) : ''} onChange={set('site_longitude')} />
-          <Field label="Radius (Meter)" val={v('site_radius_m') != null ? String(v('site_radius_m')) : ''} onChange={set('site_radius_m')} />
-          <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
-            Bewegungs-Ziele <strong>ausserhalb</strong> dieses Kreises gelten als externer Transport →
-            das Bewegen-Modul leitet automatisch einen <strong>Versand</strong> ab (Tarifvergleich, Label).
-            Ohne Geofence gilt: Firmen-Lagerplätze = intern, Kunden/Lieferanten = extern. Leer = nur Rollen-Regel.
-          </div>
-        </Sec>
 
         <Sec title="AGB & Datenschutz (Website-Rechtstexte)" editable icon={FileText}>
           <Field label="AGB · Artikelnummer" val={legalDocs.agb != null ? String(legalDocs.agb) : ''} onChange={setLegal('agb')} />

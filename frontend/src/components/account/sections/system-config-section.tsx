@@ -22,7 +22,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_discount_percent: null, default_discount_days: null, oss_active: false,
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
-  default_receiving_location_id: null, site_latitude: null, site_longitude: null, site_radius_m: null,
+  default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
   legal_documents: null, legal_ack_config: null,
@@ -190,9 +190,6 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         saved={saved === 'logistics'} saving={saving === 'logistics'}
         onSave={(d) => saveSection('logistics', {
           default_receiving_location_id: d.default_receiving_location_id ? Number(d.default_receiving_location_id) : null,
-          site_latitude: d.site_latitude ? Number(d.site_latitude) : null,
-          site_longitude: d.site_longitude ? Number(d.site_longitude) : null,
-          site_radius_m: d.site_radius_m ? Number(d.site_radius_m) : null,
         })}>
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
           <PackageSearch className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
@@ -206,14 +203,6 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Wareneingang · Lagerplatz-Nr." name="default_receiving_location_id" type="number"
             defaultValue={s.default_receiving_location_id ?? ''} placeholder="z. B. 100000200" hint="Standard-Lieferadresse" />
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Field label="Geofence · Breitengrad" name="site_latitude"
-            defaultValue={s.site_latitude ?? ''} placeholder="z. B. 47.376900" hint="Mittelpunkt Betriebsgelände" />
-          <Field label="Geofence · Längengrad" name="site_longitude"
-            defaultValue={s.site_longitude ?? ''} placeholder="z. B. 8.541700" />
-          <Field label="Geofence · Radius (m)" name="site_radius_m" type="number"
-            defaultValue={s.site_radius_m ?? ''} placeholder="300" hint="Ziel ausserhalb → Versand wird abgeleitet" />
         </div>
       </SettingsCard>
 

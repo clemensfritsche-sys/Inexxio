@@ -63,12 +63,13 @@ class Settings(BaseSettings):
     # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
     stripe_tax_enabled: bool = False
     # ── Logistik / Versand ────────────────────────────────────────────────────────
-    # Carrier-Aggregator (Rate-Shopping + Label-Kauf): 'easypost' aktiviert sich von
-    # selbst, sobald EASYPOST_API_KEY gesetzt ist (Self-Serve wie Stripe: Test-Key sofort,
-    # Pay-per-Label, ohne Carrier-Verträge startbar). Ohne Key läuft der 'manual'-Fallback
-    # (Carrier/Tracking von Hand erfassen) – nie kaputt.
-    easypost_api_key: str = ""
-    easypost_api_url: str = "https://api.easypost.com/v2"
+    # Carrier-Aggregator (Rate-Shopping + Label-Kauf): 'shippo' aktiviert sich von selbst,
+    # sobald SHIPPO_API_KEY gesetzt ist (Self-Serve wie Stripe: Test-Key sofort sichtbar
+    # nach Registrierung, Pay-per-Label, keine Vertrags-Eintrittsbarriere; solide EU-
+    # Carrier-Abdeckung). Ohne Key läuft der 'manual'-Fallback (Carrier/Tracking von Hand
+    # erfassen) – nie kaputt. Der Anbieter ist hinter dem Gateway austauschbar.
+    shippo_api_key: str = ""
+    shippo_api_url: str = "https://api.goshippo.com"
 
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.

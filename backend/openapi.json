@@ -8987,39 +8987,6 @@
             ],
             "title": "Default Receiving Location Id"
           },
-          "site_latitude": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Latitude"
-          },
-          "site_longitude": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Longitude"
-          },
-          "site_radius_m": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Radius M"
-          },
           "shop_currencies": {
             "anyOf": [
               {
@@ -9487,45 +9454,6 @@
               }
             ],
             "title": "Default Receiving Location Id"
-          },
-          "site_latitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Latitude"
-          },
-          "site_longitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Longitude"
-          },
-          "site_radius_m": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Radius M"
           },
           "shop_currencies": {
             "anyOf": [

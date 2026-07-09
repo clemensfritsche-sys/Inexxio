@@ -1,7 +1,7 @@
 """Logistik/Versand (ADR 005): «Versand wird abgeleitet, nicht bestellt».
 
 DB-lose Tests (SimpleNamespace/Fake-Query, wie die übrigen Suiten): Klassifikation
-(Rollen-Regel + Geofence), Paket-Schätzung aus Artikel-Daten, EasyPost-Rate-Parsing,
+(Rolle + Adress-Vergleich, ohne Geofence), Paket-Schätzung aus Artikel-Daten, Shippo-Rate-Parsing,
 Verdrahtung (Modell/Schema/Endpunkte/Registry) und ein kleiner End-to-End-Durchlauf
 der Ableitung (Kunde → extern/outbound, Abholung → inbound, intern → kein Versand).
 """
@@ -37,7 +37,7 @@ class _DB:
 def test_haversine_and_iso2_and_dimensions():
     from app.services import logistics as lg
 
-    # Zürich HB → Bern (~95 km) – die Geofence-Basis rechnet real.
+    # Zürich HB → Bern (~95 km) – Distanz-Helfer rechnet real.
     d = lg.haversine_m(47.3769, 8.5417, 46.9480, 7.4474)
     assert 90_000 < d < 100_000
     assert lg.haversine_m(47.0, 8.0, 47.0, 8.0) == 0.0
@@ -49,32 +49,27 @@ def test_haversine_and_iso2_and_dimensions():
     assert lg.parse_dimensions_cm("Ø 12") is None and lg.parse_dimensions_cm(None) is None
 
 
-def test_classification_role_rule_and_geofence():
-    """Personen nach ROLLE (Kunde/Lieferant = aussen, Mitarbeiter = innen – funktioniert ohne
-    Geofence); Lagerplätze nach GPS gegen den Betriebs-Geofence (ohne Geofence = innen)."""
+def test_location_kind_and_same_place():
+    """Ownership per ROLLE (Kunde/Lieferant = extern, Mitarbeiter/Lagerplatz = intern) und
+    Adress-Vergleich (normalisiert Strasse+PLZ+Ort+Land) – die Basis der Geofence-losen
+    Versand-Ableitung."""
     from app.models import StorageLocation, UserProfile
     from app.services import logistics as lg
 
-    no_fence = SimpleNamespace(site_latitude=None, site_longitude=None, site_radius_m=None)
-    fence = SimpleNamespace(site_latitude=Decimal("47.3769"), site_longitude=Decimal("8.5417"),
-                            site_radius_m=300)
+    assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="customer")}), "user", 1) == "external_person"
+    assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="supplier")}), "user", 1) == "external_person"
+    assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="employee")}), "user", 1) == "internal"
+    assert lg.location_kind(_DB({StorageLocation: SimpleNamespace()}), "lagerplatz", 2) == "internal"
+    assert lg.location_kind(_DB({}), None, None) == "unknown"
+    assert lg.location_kind(_DB({UserProfile: None}), "user", 9) == "unknown"
 
-    customer = SimpleNamespace(role="customer")
-    employee = SimpleNamespace(role="employee")
-    assert lg.classify_target(_DB({UserProfile: customer}), no_fence, "user", 1) == "outside"
-    assert lg.classify_target(_DB({UserProfile: employee}), no_fence, "user", 1) == "inside"
-
-    near = SimpleNamespace(latitude=Decimal("47.3770"), longitude=Decimal("8.5418"))   # ~13 m
-    far = SimpleNamespace(latitude=Decimal("46.9480"), longitude=Decimal("7.4474"))    # Bern
-    no_gps = SimpleNamespace(latitude=None, longitude=None)
-    assert lg.classify_target(_DB({StorageLocation: near}), fence, "lagerplatz", 2) == "inside"
-    assert lg.classify_target(_DB({StorageLocation: far}), fence, "lagerplatz", 2) == "outside"
-    # Ohne Geofence bzw. ohne GPS gilt der Firmen-Lagerplatz als auf dem Gelände.
-    assert lg.classify_target(_DB({StorageLocation: far}), no_fence, "lagerplatz", 2) == "inside"
-    assert lg.classify_target(_DB({StorageLocation: no_gps}), fence, "lagerplatz", 2) == "inside"
-    # Unbekanntes/leeres Ziel → unknown (kein Versand-Rauschen).
-    assert lg.classify_target(_DB({}), fence, None, None) == "unknown"
-    assert lg.classify_target(_DB({UserProfile: None}), fence, "user", 9) == "unknown"
+    a = {"street1": "Bahnhofstrasse 1", "zip": "8000", "city": "Zürich", "country": "CH"}
+    b = {"street1": "bahnhofstrasse 1", "zip": "8000", "city": "zürich", "country": "ch"}
+    c = {"street1": "Andere 2", "zip": "3000", "city": "Bern", "country": "CH"}
+    assert lg.same_place(a, b) is True          # normalisiert gleich (Gross/Klein, Leerzeichen)
+    assert lg.same_place(a, c) is False         # anderer Ort
+    assert lg.same_place(a, None) is False
+    assert lg.same_place({"zip": "", "city": ""}, {"zip": "", "city": ""}) is False   # ohne Adresse nicht «gleich»
 
 
 def test_parcels_from_article_data_with_hazmat():
@@ -100,56 +95,54 @@ def test_parcels_from_article_data_with_hazmat():
     assert hazmat2 is False and parcels2[0]["weight_kg"] == lg.DEFAULT_WEIGHT_KG
 
 
-def test_small_end_to_end_derivation():
-    """Kleiner E2E-Durchlauf der Ableitung (ohne DB/Netz):
-    (1) Ziel = Kunde → extern/outbound (Versand); (2) Quelle = Lieferant, Ziel = Firmen-
-    Lagerplatz → extern/inbound (Abholung); (3) intern → kein externer Transport."""
-    from app.models import CompanySettings, StorageLocation, UserProfile
+def test_classify_movement_address_based():
+    """E2E-Ableitung OHNE Geofence: (1) Ziel Kunde → extern/outbound; (2) Ware beim
+    Lieferanten, Ziel internes Lager → extern/inbound (Abholung); (3) Ziel-Lagerplatz OHNE
+    Adresse → innerbetrieblich; (4) freies Ziel (kein Standort) → unknown (keine Box)."""
+    from app.models import StorageLocation, UserProfile
     from app.services import logistics as lg
 
-    fence = SimpleNamespace(site_latitude=None, site_longitude=None, site_radius_m=None)
-
-    # (1) Versand zum Kunden: Schritt-Ziel = Person (Kunde), Instanzen im Haus (standortlos).
-    step_out = SimpleNamespace(mode="supplier", target_location_type="user", target_location_id=77)
-    db1 = _DB({UserProfile: SimpleNamespace(role="customer"), CompanySettings: fence})
+    no_addr = SimpleNamespace(name="L", address_street=None, address_zip=None,
+                              address_city=None, address_country=None)
     inst_home = [SimpleNamespace(location_type=None, location_id=None)]
-    out = lg.classify_movement(db1, SimpleNamespace(), step_out, inst_home)
+
+    # (1) Ziel = Kunde (externe Rolle) → extern/outbound.
+    step_cust = SimpleNamespace(mode="supplier", target_location_type="user", target_location_id=77)
+    out = lg.classify_movement(_DB({UserProfile: SimpleNamespace(role="customer")}),
+                               SimpleNamespace(), step_cust, inst_home)
     assert out["transport_class"] == "outside" and out["direction"] == "outbound"
 
-    # (2) Abholung beim Lieferanten: Instanzen liegen bei einer externen Person,
-    # Ziel = Firmen-Lagerplatz (innen) → inbound (Rücktransport über dieselbe Engine).
+    # (2) Quelle = Lieferant (Ware liegt dort), Ziel = internes Lager → extern/inbound.
     step_in = SimpleNamespace(mode="supplier", target_location_type="lagerplatz", target_location_id=5)
-    db2 = _DB({UserProfile: SimpleNamespace(role="supplier"),
-               StorageLocation: SimpleNamespace(latitude=None, longitude=None),
-               CompanySettings: fence})
-    inst_at_supplier = [SimpleNamespace(location_type="user", location_id=88)]
-    inb = lg.classify_movement(db2, SimpleNamespace(), step_in, inst_at_supplier)
+    db2 = _DB({UserProfile: SimpleNamespace(role="supplier"), StorageLocation: no_addr})
+    inb = lg.classify_movement(db2, SimpleNamespace(), step_in,
+                               [SimpleNamespace(location_type="user", location_id=88)])
     assert inb["transport_class"] == "outside" and inb["direction"] == "inbound"
 
-    # (3) Interner Umlagerungs-Schritt: Ziel = Firmen-Lagerplatz, Quelle im Haus → intern.
-    db3 = _DB({StorageLocation: SimpleNamespace(latitude=None, longitude=None), CompanySettings: fence})
-    internal = lg.classify_movement(db3, SimpleNamespace(), step_in, inst_home)
-    assert internal["transport_class"] == "inside" and internal["direction"] == "outbound"
+    # (3) Ziel = Lagerplatz OHNE Adresse, Quelle im Haus → innerbetrieblich (kein Versand).
+    internal = lg.classify_movement(_DB({StorageLocation: no_addr}), SimpleNamespace(), step_in, inst_home)
+    assert internal["transport_class"] == "inside"
+
+    # (4) Freies Ziel (kein Standort hinterlegt) → unknown → keine Versand-Box.
+    step_free = SimpleNamespace(mode="supplier", target_location_type=None, target_location_id=None)
+    unk = lg.classify_movement(_DB({}), SimpleNamespace(), step_free, inst_home)
+    assert unk["transport_class"] == "unknown"
 
 
-def test_easypost_rate_parsing_and_provider_fallback():
-    """Der EasyPost-Adapter übersetzt Rate-Objekte tolerant ins neutrale Format (inkl.
-    cm/kg → inch/oz-Umrechnung); ohne EASYPOST_API_KEY ist der Provider 'manual'
-    (kein Rate-Shopping, nie kaputt)."""
+def test_shippo_rate_parsing_and_provider_fallback():
+    """Der Shippo-Adapter übersetzt Rate-Objekte tolerant ins neutrale Format (Shippo
+    rechnet nativ in cm/kg – keine Umrechnung nötig); ohne SHIPPO_API_KEY ist der
+    Provider 'manual' (kein Rate-Shopping, nie kaputt)."""
     from app.services import shipping
-    from app.services.shipping.easypost import _parcel_payload, _parse_rate
+    from app.services.shipping.shippo import _parse_rate
 
-    ok = _parse_rate({"id": "rate_1", "carrier": "DHLExpress", "rate": "12.50",
-                      "currency": "chf", "delivery_days": 2, "service": "ExpressWorldwide"})
-    assert ok == {"rate_id": "rate_1", "carrier": "DHLExpress", "service": "ExpressWorldwide",
-                  "amount": 12.5, "currency": "CHF", "days": 2, "provider_rate_id": "rate_1"}
-    assert _parse_rate({"id": "", "rate": "1"}) is None          # ohne id unbrauchbar
-    assert _parse_rate({"id": "x", "rate": "kaputt"}) is None    # ohne Preis unbrauchbar
-
-    # Einheiten: EasyPost rechnet in inches/oz – 30×20×15 cm / 2.9 kg wird korrekt gewandelt.
-    p = _parcel_payload({"weight_kg": 2.9, "length_cm": 30, "width_cm": 20, "height_cm": 15})
-    assert p == {"length": 11.8, "width": 7.9, "height": 5.9, "weight": 102.3}
-    assert _parcel_payload({})["weight"] >= 1.0                  # nie ein 0-oz-Paket
+    ok = _parse_rate({"object_id": "r1", "provider": "Swiss Post", "amount": "12.50",
+                      "currency": "chf", "estimated_days": 2,
+                      "servicelevel": {"name": "PostPac Priority"}})
+    assert ok == {"rate_id": "r1", "carrier": "Swiss Post", "service": "PostPac Priority",
+                  "amount": 12.5, "currency": "CHF", "days": 2, "provider_rate_id": "r1"}
+    assert _parse_rate({"object_id": "", "amount": "1"}) is None      # ohne id unbrauchbar
+    assert _parse_rate({"object_id": "x", "amount": "kaputt"}) is None  # ohne Preis unbrauchbar
 
     assert shipping.provider_name() == "manual"      # Testumgebung ohne Key
     provider = shipping.get_provider()
@@ -160,7 +153,7 @@ def test_easypost_rate_parsing_and_provider_fallback():
 def test_shipping_wiring_end_to_end():
     """Verdrahtung: Shipment-Modell (Fachzeile ohne eigene Nummer), transport_mode am
     Schritt (Whitelist), ShipmentEmbed im Bewegungs-Embed, Endpunkte am Auftrag,
-    Geofence-Spalten am Unternehmen, Gefahrgut am Artikel."""
+    Gefahrgut am Artikel (Geofence entfernt – adress-basiert)."""
     import inspect as _inspect
 
     from app.models import Article, ArticleProcessStep, CompanySettings, Shipment
@@ -181,7 +174,7 @@ def test_shipping_wiring_end_to_end():
     assert "transport_mode" in ArticleProcessStepUpdate.model_fields
     assert "is_hazmat" in Article.__table__.columns
     for c in ("site_latitude", "site_longitude", "site_radius_m"):
-        assert c in CompanySettings.__table__.columns
+        assert c not in CompanySettings.__table__.columns   # Geofence entfernt (adress-basiert)
     assert "shipment" in MovementEmbed.model_fields
     assert {"transport_class", "direction", "rates", "provider_ready"} <= set(ShipmentEmbed.model_fields)
     paths = {r.path for r in orders_router.router.routes}

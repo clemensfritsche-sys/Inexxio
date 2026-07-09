@@ -29,6 +29,7 @@ export function MapPicker({ apiKey, lat, lng, onPick, readOnly = false }: {
   const mapAvailable = !!apiKey && !error;
 
   const mapEl = useRef<HTMLDivElement>(null);
+  const searchEl = useRef<HTMLInputElement>(null);
   const map = useRef<google.maps.Map | null>(null);
   const marker = useRef<google.maps.Marker | null>(null);
   const geocoder = useRef<google.maps.Geocoder | null>(null);
@@ -82,6 +83,21 @@ export function MapPicker({ apiKey, lat, lng, onPick, readOnly = false }: {
         placeMarker(p, false);
         reverseGeocode(p);
       });
+      // Adress-Suche (Google Places): tippen → Vorschlag wählen → Pin + Adresse übernehmen.
+      if (searchEl.current && google.maps.places) {
+        const ac = new google.maps.places.Autocomplete(searchEl.current, {
+          fields: ['address_components', 'geometry'], types: ['address'],
+        });
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          const loc = place.geometry?.location;
+          if (!loc) return;
+          const p = { lat: loc.lat(), lng: loc.lng() };
+          placeMarker(p, true);
+          onPickRef.current(p.lat, p.lng,
+            place.address_components ? parseAddress(place.address_components) : undefined);
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
@@ -145,6 +161,11 @@ export function MapPicker({ apiKey, lat, lng, onPick, readOnly = false }: {
 
       {mapAvailable ? (
         <>
+          {!readOnly && (
+            <input ref={searchEl} placeholder="Adresse suchen – Vorschlag setzt Pin + füllt die Adresse"
+              autoComplete="off"
+              style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13, marginBottom: 8, boxSizing: 'border-box', outline: 'none' }} />
+          )}
           <div ref={mapEl} style={{ width: '100%', height: 260, borderRadius: 10, border: '1px solid #E2E8F0', background: '#F1F5F9' }} />
           {!loaded && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Karte lädt…</div>}
         </>

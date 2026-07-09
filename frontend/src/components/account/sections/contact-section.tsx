@@ -6,6 +6,10 @@ import type { UserProfile } from '@/types';
 import { Field, SelectField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
+import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { useMapsApiKey } from '@/components/erp/use-maps-key';
+
+const KNOWN_COUNTRIES = new Set(['CH', 'DE', 'AT', 'FR', 'IT', 'LI']);
 
 interface Form {
   phone: string;
@@ -57,9 +61,21 @@ export function ContactSection({ profile, onSave }: Props) {
   }, [profile.id, profile]);
 
   const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const mapsKey = useMapsApiKey();
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  // Google-Places-Auswahl → Strasse/PLZ/Ort/Land auf einmal übernehmen (Autofill).
+  function applyAddress(a: AutoAddress) {
+    setForm((prev) => ({
+      ...prev,
+      address_line1: a.street || prev.address_line1,
+      postal_code: a.zip || prev.postal_code,
+      city: a.city || prev.city,
+      country: a.country && KNOWN_COUNTRIES.has(a.country) ? a.country : prev.country,
+    }));
   }
 
   return (
@@ -78,7 +94,15 @@ export function ContactSection({ profile, onSave }: Props) {
         <div style={{ height: 1, background: '#F1F5F9' }} />
 
         <div className="grid grid-cols-1 gap-4">
-          <Field label="Strasse und Hausnummer" value={form.address_line1} onChange={(v) => set('address_line1', v)} placeholder="Musterstrasse 12" required={!form.address_line1.trim()} onEnter={saveNow} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+              Strasse und Hausnummer
+              {!form.address_line1.trim() && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+            </label>
+            <AddressAutocomplete apiKey={mapsKey} value={form.address_line1}
+              onChange={(v) => set('address_line1', v)} onPick={applyAddress} placeholder="Adresse suchen (z. B. Musterstrasse 12, Zürich)" />
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Adresse eintippen und Vorschlag wählen – PLZ/Ort/Land werden automatisch ergänzt.</p>
+          </div>
           <Field label="Adresszusatz" value={form.address_line2} onChange={(v) => set('address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
         </div>
         <div className="grid grid-cols-2 gap-4">

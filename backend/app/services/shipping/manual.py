@@ -3,7 +3,7 @@
 Der Versand-Beleg existiert trotzdem (Klassifikation/Adressen/Pakete), aber Tarife/
 Label kommen nicht automatisch – das Personal erfasst Carrier, Tracking-Nummer und
 Kosten von Hand (``PATCH …/shipment``). So funktioniert der Prozess vollständig ohne
-externen Dienst und rüstet sich selbst auf, sobald ``EASYPOST_API_KEY`` gesetzt wird.
+externen Dienst und rüstet sich selbst auf, sobald ``SHIPPO_API_KEY`` gesetzt wird.
 """
 
 from fastapi import HTTPException
@@ -22,5 +22,5 @@ class ManualShipping(ShippingProvider):
         raise HTTPException(
             503,
             detail="Kein Versand-Anbieter konfiguriert – Carrier/Tracking bitte manuell erfassen "
-                   "(oder EASYPOST_API_KEY hinterlegen).",
+                   "(oder SHIPPO_API_KEY hinterlegen).",
         )

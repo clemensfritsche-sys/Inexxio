@@ -35,7 +35,7 @@ class Shipment(Base, TimestampMixin):
     # draft → quoted (Raten geladen) → purchased (Label gekauft) → done (Bewegung
     # quittiert) | cancelled. 'manual'/'self' überspringen quoted/purchased.
     status: Mapped[str] = mapped_column(String(12), default="draft", nullable=False)
-    # Ausführender Provider: 'easypost' (Aggregator) | 'manual' (von Hand) | 'self' (Selbst-
+    # Ausführender Provider: 'shippo' (Aggregator) | 'manual' (von Hand) | 'self' (Selbst-
     # transport, kein Carrier). Snapshot des zur Laufzeit aufgelösten Providers.
     provider: Mapped[str] = mapped_column(String(12), default="manual", nullable=False)
     # Per-Auftrag-Override des Transport-Modus (auto | carrier | self | none); leer = der

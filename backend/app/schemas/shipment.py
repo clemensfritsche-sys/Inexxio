@@ -44,7 +44,7 @@ class ShipmentEmbed(BaseModel):
     direction: str = "outbound"          # outbound | inbound
     transport_mode: str = "auto"         # effektiver Modus (Shipment-Override ≻ Schritt)
     status: str = "draft"                # draft | quoted | purchased | done | cancelled
-    provider: str = "manual"             # easypost | manual | self
+    provider: str = "manual"             # shippo | manual | self
     provider_ready: bool = False         # Aggregator konfiguriert (Rate-Shopping möglich)?
 
     from_label: Optional[str] = None     # Anzeige: Absender (kompakt)

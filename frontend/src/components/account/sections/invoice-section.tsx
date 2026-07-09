@@ -6,6 +6,10 @@ import type { UserProfile } from '@/types';
 import { Field, SelectField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
+import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { useMapsApiKey } from '@/components/erp/use-maps-key';
+
+const KNOWN_COUNTRIES = new Set(['CH', 'DE', 'AT', 'FR', 'IT', 'LI']);
 
 interface Form {
   invoice_same_as_shipping: boolean;
@@ -102,9 +106,20 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
   }, [company_name, first_name, last_name, address_line1, address_line2, city, postal_code, country]);
 
   const { status, errorMsg, saveNow } = useAutosave(form, (v) => onSave(v as Partial<UserProfile>), 3000, resetKey);
+  const mapsKey = useMapsApiKey();
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function applyAddress(a: AutoAddress) {
+    setForm((prev) => ({
+      ...prev,
+      invoice_address_line1: a.street || prev.invoice_address_line1,
+      invoice_postal_code: a.zip || prev.invoice_postal_code,
+      invoice_city: a.city || prev.invoice_city,
+      invoice_country: a.country && KNOWN_COUNTRIES.has(a.country) ? a.country : prev.invoice_country,
+    }));
   }
 
   function handleSameAsShipping(on: boolean) {
@@ -167,7 +182,18 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
           <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} readOnly={disabled} required={!disabled && !form.invoice_first_name.trim()} onEnter={saveNow} />
           <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} readOnly={disabled} required={!disabled && !form.invoice_last_name.trim()} onEnter={saveNow} />
           <div className="col-span-2">
-            <Field label="Strasse und Hausnummer" value={form.invoice_address_line1} onChange={(v) => set('invoice_address_line1', v)} readOnly={disabled} required={!disabled && !form.invoice_address_line1.trim()} onEnter={saveNow} />
+            {disabled ? (
+              <Field label="Strasse und Hausnummer" value={form.invoice_address_line1} onChange={(v) => set('invoice_address_line1', v)} readOnly onEnter={saveNow} />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+                  Strasse und Hausnummer
+                  {!form.invoice_address_line1.trim() && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+                </label>
+                <AddressAutocomplete apiKey={mapsKey} value={form.invoice_address_line1}
+                  onChange={(v) => set('invoice_address_line1', v)} onPick={applyAddress} placeholder="Adresse suchen…" />
+              </div>
+            )}
           </div>
           <div className="col-span-2">
             <Field label="Adresszusatz" value={form.invoice_address_line2} onChange={(v) => set('invoice_address_line2', v)} placeholder="c/o, Postfach…" readOnly={disabled} onEnter={saveNow} />

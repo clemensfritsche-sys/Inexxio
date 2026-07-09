@@ -17,7 +17,8 @@ function loadScript(apiKey: string): Promise<void> {
   loadPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement('script');
     script.id = 'google-maps-js';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
+    // ``places`` für die Adress-Autovervollständigung (AddressAutocomplete); ``weekly`` = aktuell.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&libraries=places`;
     script.async = true;
     script.defer = true;
     script.onload = () => (isReady() ? resolve() : reject(new Error('Google Maps nicht verfügbar')));

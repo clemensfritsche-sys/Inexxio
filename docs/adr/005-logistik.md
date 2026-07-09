@@ -1,6 +1,6 @@
 # ADR 005 – Logistik/Versand: «Versand wird abgeleitet, nicht bestellt»
 
-Status: umgesetzt (Slice 1+2) · Datum: 2026-07-09
+Status: umgesetzt (Slice 1+2, Shippo, adress-basiert) · Datum: 2026-07-09
 
 ## Kontext
 
@@ -13,21 +13,25 @@ sollen **maximal automatisiert** sein – ohne dass interne Umlagerungen oder So
 
 ### 1. Ableitung statt Orchestrierung (eine Klassifikation)
 
-Jeder Bewegungs-Schritt wird klassifiziert (`services/logistics.classify_movement`):
+Jeder Bewegungs-Schritt wird klassifiziert (`services/logistics.classify_movement`) –
+**adress-basiert, KEIN Geofence** (bewusst einfach: «von A nach B mit anderer Adresse →
+Versand, sonst innerbetrieblich»):
 
-- **Personen nach Rolle**: Kunde/Lieferant = aussen, Mitarbeiter/Admin/KI = innen.
-  Funktioniert OHNE Geofence – deckt die Versand-Hauptfälle ab Tag 1 ab.
-- **Lagerplätze nach GPS** gegen den **Betriebs-Geofence** (Mittelpunkt + Radius am
-  Unternehmens-Datensatz, `company_settings.site_latitude/longitude/radius_m`,
-  Default-Radius 300 m). Ohne Geofence/GPS gilt der Firmen-Lagerplatz als «innen».
+- **Personen nach Rolle** (`location_kind`): Kunde/Lieferant = extern, Mitarbeiter/Admin/KI
+  = intern. Ziel externe Person → extern/outbound; Quelle externe Person → extern/inbound.
+- **Ziel ohne Standort/Adresse → innerbetrieblich** (kein Versand). Genau die Regel des
+  Nutzers: hat der Zielstandort keine Adresse, ist es interner Transport.
+- **Zwei interne Orte** (Lagerplatz/Instanz/Mitarbeiter): Versand NUR, wenn **beide eine
+  Adresse tragen und sich unterscheiden** (`same_place`, normalisierter Vergleich) –
+  Mehr-Standort-Transport. Gleiche/keine Adresse → innerbetrieblich.
 - **Instanz-Ziele** werden über die physische Standort-Kette aufgelöst
   (`resolve_physical_location`) und dann klassifiziert.
-- **Richtung**: Ziel aussen → `outbound` (wir versenden); Quelle aussen, Ziel innen →
-  `inbound` (Abholung beim Lieferanten / Kunden-Retoure) – **dieselbe Engine** für den
-  Rückversand.
+- **Richtung**: `outbound` (wir versenden) bzw. `inbound` (Abholung Lieferant /
+  Kunden-Retoure) – **dieselbe Engine** für den Rückversand.
 
-Klassifizierbar ist ein Schritt mit bekanntem Ziel (Pflicht-Versand zum Kunden,
-Vorgabe-Ziel am Schritt). Frei wählbare Ziele bleiben ohne Versand-Box (interner Alltag).
+Der frühere Betriebs-Geofence (`company_settings.site_*`, Migration 071) ist damit
+**entfallen** (Migration 072 droppt die Spalten). Adressen werden per Google-Places-Autofill
+gepflegt (`components/erp/address-autocomplete.tsx`), was den Adressvergleich zuverlässig macht.
 
 ### 2. Long-Tail über EIN Feld: `transport_mode`
 
@@ -46,14 +50,15 @@ Pakete werden **aus den Artikel-Daten geschätzt** (Gewicht × Menge, Grösse-St
 mm→cm; Fallback Standardkarton) – kaum manueller Input. **Gefahrgut** ist ein optionales
 Artikel-Spezifikationsfeld (`articles.is_hazmat`) und erscheint als Warnung am Versand.
 
-### 4. Carrier-Aggregator: **EasyPost**, hinter einem Gateway
+### 4. Carrier-Aggregator: **Shippo**, hinter einem Gateway
 
 `services/shipping/` (exakt das Payments-Muster): `base.ShippingProvider` →
-**easypost** (Rate-Shopping + Label-Kauf, aktiviert sich selbst über `EASYPOST_API_KEY`)
-| **manual** (ohne Key: Carrier/Tracking von Hand – nie kaputt). EasyPost-Wahl:
-Self-Serve wie Stripe (Test-Key sofort, Pay-per-Label, keine Vertrags-Eintrittsbarriere),
-sauberstes REST-API, 100+ Carrier international. Adapter rechnet cm/kg → inch/oz;
-Kauf über `POST /v2/shipments/{id}/buy`. Sendcloud/Shippo wären Drop-in-Adapter.
+**shippo** (Rate-Shopping + Label-Kauf, aktiviert sich selbst über `SHIPPO_API_KEY`)
+| **manual** (ohne Key: Carrier/Tracking von Hand – nie kaputt). Shippo-Wahl:
+Self-Serve wie Stripe (Test-Key sofort nach Registrierung sichtbar, Pay-per-Label, keine
+Vertrags-Eintrittsbarriere), sauberes REST-API, solide EU-Carrier-Abdeckung. Rechnet nativ
+in cm/kg; Rates kommen inline am Shipment, Kauf über `POST /transactions/` (Rate-Objektnummer).
+EasyPost/Sendcloud wären Drop-in-Adapter.
 
 ### 5. Best-Offer-Policy: günstigster Default, Schnellster als Hinweis
 

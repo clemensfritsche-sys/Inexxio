@@ -1,19 +1,20 @@
 """Logistik/Versand (ADR 005): «Versand wird ABGELEITET, nicht bestellt».
 
 Der Bewegungs-Schritt kennt Quelle und Ziel jeder Instanz. Dieses Modul leitet daraus
-die **Transportklasse** ab und führt – nur wenn ein externer, physischer Transport
-nötig ist – den Versand-Lebenszyklus (Rate-Shopping → Label-Kauf → Tracking):
+die **Transportklasse** ab – **adress-basiert, KEIN Geofence** (bewusst einfach & universell)
+– und führt, nur wenn ein externer, physischer Transport nötig ist, den Versand-Lebenszyklus
+(Rate-Shopping → Label-Kauf → Tracking):
 
-  1. Ziel **innerhalb** des Betriebs (Geofence/Firmen-Lagerplatz)  → intern, kein Versand.
-  2. Ziel = **externe Person** (Kunde/Lieferant)                    → extern (Rollen-Regel,
-     funktioniert OHNE Geofence – Mitarbeiter sind innen, Externe aussen).
-  3. Ziel-Lagerplatz **ausserhalb** des Geofence-Radius             → extern.
-  4. Instanz-Ziele werden über die physische Standort-Kette aufgelöst
-     (``locations.resolve_physical_location``) und dann klassifiziert.
+  1. Ziel = **externe Person** (Kunde/Lieferant, per Rolle)         → extern, outbound.
+  2. Quelle = externe Person (Ware liegt beim Kunden/Lieferanten)  → extern, inbound
+     (Abholung beim Lieferanten / Kunden-Retoure – Rücktransport über DIESELBE Engine).
+  3. Ziel **ohne bekannten Standort/Adresse**                       → innerbetrieblich (kein Versand).
+  4. Zwei **interne** Orte: Versand NUR, wenn beide eine **Adresse** tragen und sich
+     **unterscheiden** (Mehr-Standort-Transport A→B). Gleiche/keine Adresse → innerbetrieblich.
 
-**Richtung**: Quelle innen → aussen = ``outbound`` (wir versenden); Quelle aussen →
-innen = ``inbound`` (Abholung beim Lieferanten / Kunden-Retoure – Rücktransport über
-DIESELBE Engine). Der **Transport-Modus** (auto | carrier | self | none) ist am Schritt
+So braucht es keinen Geofence: «von A nach B mit anderer Adresse → Versand, sonst intern».
+Instanz-Ziele werden über die physische Standort-Kette aufgelöst (``resolve_physical_location``).
+Der **Transport-Modus** (auto | carrier | self | none) ist am Schritt
 deklariert und je Auftrag am Versand-Beleg übersteuerbar (Long-Tail-Ausnahmen: selbst
 bringen/abholen, nie versenden) – maximale Automatik bei voller Abbildbarkeit.
 
@@ -39,8 +40,6 @@ from .events import emit
 from .locations import resolve_physical_location
 from .quantity import to_qty
 
-# Ohne konfigurierten Radius gilt dieser Default (Betriebsgelände eines KMU).
-DEFAULT_SITE_RADIUS_M = 300
 # Paket-Fallback, wenn der Artikel keine (parsebare) Grösse trägt (cm).
 DEFAULT_PARCEL_CM = (30, 20, 15)
 DEFAULT_WEIGHT_KG = 0.5
@@ -88,24 +87,30 @@ def _settings(db: Session) -> CompanySettings | None:
     return db.query(CompanySettings).filter(CompanySettings.id == 1).first()
 
 
-def _inside_geofence(settings: CompanySettings | None, lat, lng) -> bool | None:
-    """GPS-Punkt gegen den Betriebs-Geofence prüfen; None = Geofence nicht konfiguriert."""
-    if not settings or settings.site_latitude is None or settings.site_longitude is None:
-        return None
-    if lat is None or lng is None:
-        return None
-    radius = settings.site_radius_m or DEFAULT_SITE_RADIUS_M
-    dist = haversine_m(float(settings.site_latitude), float(settings.site_longitude),
-                       float(lat), float(lng))
-    return dist <= radius
+def _norm(v) -> str:
+    """Adress-Bestandteil normalisieren (Klein, ohne Sonderzeichen) für den Vergleich."""
+    return re.sub(r"[^a-z0-9]", "", str(v or "").lower())
 
 
-def classify_target(db: Session, settings: CompanySettings | None,
-                    ltype: str | None, lid: int | None) -> str:
-    """Ein Standort-Ziel klassifizieren: 'inside' | 'outside' | 'unknown'.
+def _has_address(a: dict | None) -> bool:
+    """Trägt der Adress-Snapshot echte Angaben (PLZ oder Ort)? «—»/leer zählt nicht."""
+    if not a:
+        return False
+    return bool((a.get("zip") or "").strip() or (a.get("city") or "").strip())
 
-    Personen nach **Rolle** (funktioniert ohne Geofence), Lagerplätze nach **GPS**
-    (ohne Geofence/GPS gilt der Firmen-Lagerplatz als innen), Instanzen über die
+
+def same_place(a: dict | None, b: dict | None) -> bool:
+    """Zwei Adress-Snapshots als **gleicher Ort** werten (Strasse+PLZ+Ort+Land normalisiert)."""
+    if not _has_address(a) or not _has_address(b):
+        return False
+    ka = (_norm(a.get("street1")), _norm(a.get("zip")), _norm(a.get("city")), _norm(a.get("country")))
+    kb = (_norm(b.get("street1")), _norm(b.get("zip")), _norm(b.get("city")), _norm(b.get("country")))
+    return ka == kb
+
+
+def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
+    """Ownership eines Standort-Ziels: 'external_person' (Kunde/Lieferant) |
+    'internal' (Lagerplatz/Mitarbeiter/Firma) | 'unknown'. Instanzen über die
     physische Standort-Kette."""
     if not ltype or lid is None:
         return "unknown"
@@ -113,22 +118,14 @@ def classify_target(db: Session, settings: CompanySettings | None,
         pt, pid = resolve_physical_location(db, ltype, lid)
         if (pt, pid) == (ltype, lid):        # Kette endet in sich selbst → unbekannt
             return "unknown"
-        return classify_target(db, settings, pt, pid)
+        return location_kind(db, pt, pid)
     if ltype == "user":
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
         if not u:
             return "unknown"
-        return "inside" if (u.role or "") in _INTERNAL_ROLES else "outside"
-    if ltype == "lagerplatz":
-        loc = db.query(StorageLocation).filter(StorageLocation.object_id == lid).first()
-        if not loc:
-            return "unknown"
-        fenced = _inside_geofence(settings, loc.latitude, loc.longitude)
-        if fenced is None:
-            return "inside"    # Konvention: Firmen-Lagerplatz ohne Geofence/GPS = auf dem Gelände
-        return "inside" if fenced else "outside"
-    if ltype == "company":
-        return "inside"
+        return "internal" if (u.role or "") in _INTERNAL_ROLES else "external_person"
+    if ltype in ("lagerplatz", "company"):
+        return "internal"
     return "unknown"
 
 
@@ -149,27 +146,41 @@ def effective_target(db: Session, order: Order, step: ArticleProcessStep) -> tup
 
 def classify_movement(db: Session, order: Order, step: ArticleProcessStep,
                       instances: list[Instance]) -> dict:
-    """Transportklasse + Richtung eines Bewegungs-Schritts ableiten.
+    """Transportklasse + Richtung eines Bewegungs-Schritts ableiten – **adress-basiert,
+    ohne Geofence**. Rückgabe: {"transport_class": inside|outside|unknown,
+    "direction": outbound|inbound, "target": (typ, id)}.
 
-    Rückgabe: {"transport_class": inside|outside|unknown, "direction": outbound|inbound,
-    "target": (typ, id)}. Richtung: Ziel aussen → outbound; Ziel innen, aber Quelle
-    (physischer Ist-Standort der Instanzen) aussen → inbound (Abholung/Retoure)."""
-    settings = _settings(db)
+    Regeln (einfach & universell):
+      • Ziel = **externe Person** (Kunde/Lieferant)            → extern, outbound.
+      • Quelle = externe Person (Ware liegt beim Kunden/Lief.) → extern, inbound (Abholung/Retoure).
+      • Ziel ohne bekannten Standort/Adresse                   → intern (kein Versand).
+      • Zwei interne Orte: Versand NUR, wenn **beide eine Adresse tragen und sich
+        UNTERSCHEIDEN** (Mehr-Standort-Transport). Gleiche/keine Adresse → **innerbetrieblich**.
+    """
     t_type, t_id = effective_target(db, order, step)
-    target_class = classify_target(db, settings, t_type, t_id)
+    tgt_kind = location_kind(db, t_type, t_id)
 
-    src_outside = False
+    # Quelle = physischer Ist-Standort der ersten verorteten Instanz.
+    s_type = s_id = None
     for inst in instances[:20]:                      # Schutz: grosse Aufträge kappen
         pt, pid = resolve_physical_location(db, inst.location_type, inst.location_id)
-        if classify_target(db, settings, pt, pid) == "outside":
-            src_outside = True
+        if pt and pid:
+            s_type, s_id = pt, pid
             break
+    src_kind = location_kind(db, s_type, s_id)
 
-    if target_class == "outside":
+    if tgt_kind == "external_person":
         return {"transport_class": "outside", "direction": "outbound", "target": (t_type, t_id)}
-    if target_class == "inside" and src_outside:
+    if src_kind == "external_person":
         return {"transport_class": "outside", "direction": "inbound", "target": (t_type, t_id)}
-    return {"transport_class": target_class, "direction": "outbound", "target": (t_type, t_id)}
+    if tgt_kind == "unknown":
+        return {"transport_class": "unknown", "direction": "outbound", "target": (t_type, t_id)}
+    # Beide intern → Adress-Vergleich (Mehr-Standort). Ziel ohne Adresse = innerbetrieblich.
+    tgt_addr = target_address(db, t_type, t_id)
+    src_addr = target_address(db, s_type, s_id)
+    if _has_address(tgt_addr) and _has_address(src_addr) and not same_place(src_addr, tgt_addr):
+        return {"transport_class": "outside", "direction": "outbound", "target": (t_type, t_id)}
+    return {"transport_class": "inside", "direction": "outbound", "target": (t_type, t_id)}
 
 
 # ─── Pakete aus den Artikel-Daten (kaum manueller Input) ─────────────────────────
@@ -330,7 +341,7 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
         raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Person/Lagerplatz) pflegen")
     provider = shipping.get_provider()
     if not provider.supports_rates:
-        raise HTTPException(503, detail="Kein Versand-Anbieter konfiguriert (EASYPOST_API_KEY) – Carrier/Tracking manuell erfassen")
+        raise HTTPException(503, detail="Kein Versand-Anbieter konfiguriert (SHIPPO_API_KEY) – Carrier/Tracking manuell erfassen")
     result = provider.rates(ship.address_from, ship.address_to, ship.parcels or [])
     raw = result.get("rates") or []
     if not raw:

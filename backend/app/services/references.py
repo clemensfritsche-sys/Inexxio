@@ -117,10 +117,14 @@ def object_references(db: Session, object_id: int) -> list[dict]:
     refs: list[dict] = []
     # Verortet ist eine Instanz hier, wenn ihr **skalarer** Standort diese Objektnummer ist
     # ODER ihre **Verteilungs-Map** eine Teilmenge hier führt (Charge auf mehrere Orte verteilt).
+    # **Verschrottetes zählt NIE als «liegt hier»**: eine verschrottete Instanz hat keinen realen
+    # Halter mehr (der Endzustand `scrapped` IST die Wo-Aussage) – auch ein evtl. noch nicht
+    # bereinigter Alt-Standort (`location_id`) soll den Lagerplatz nicht mehr belegen.
     insts = (
         db.query(Instance)
         .filter(
             Instance.is_active == True,
+            Instance.disposition != "scrapped",
             or_(
                 Instance.location_id == object_id,
                 Instance.locations.has_key(str(object_id)),

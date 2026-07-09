@@ -651,3 +651,8 @@
 .erp-actbtn-danger:not(:disabled):hover { background: var(--danger-bg); }
 .erp-actbtn-neutral { background: #fff; border-color: var(--border-2); color: var(--fg-2); }
 .erp-actbtn-neutral:not(:disabled):hover { background: var(--bg-2); }
+
+/* Google-Places-Autovervollständigung: Vorschlagsliste über Dialoge/Panels legen
+   (Google rendert .pac-container an document.body; Default-z-index reicht nicht in Modals). */
+.pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }
+.pac-item { padding: 6px 10px; font-size: 13px; cursor: pointer; }

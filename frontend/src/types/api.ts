@@ -2956,12 +2956,6 @@ export interface components {
             google_maps_api_key: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /** Site Latitude */
-            site_latitude?: string | null;
-            /** Site Longitude */
-            site_longitude?: string | null;
-            /** Site Radius M */
-            site_radius_m?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -3046,12 +3040,6 @@ export interface components {
             google_maps_api_key?: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /** Site Latitude */
-            site_latitude?: number | string | null;
-            /** Site Longitude */
-            site_longitude?: number | string | null;
-            /** Site Radius M */
-            site_radius_m?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
