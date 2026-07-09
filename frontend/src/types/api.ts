@@ -2559,6 +2559,18 @@ export interface components {
             safety_stock?: string | null;
             /** Reorder Target */
             reorder_target?: string | null;
+            /** Fixed Location Lat */
+            fixed_location_lat?: string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /**
              * Procurement Mode
              * @default supplier

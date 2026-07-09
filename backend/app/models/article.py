@@ -55,6 +55,17 @@ class Article(Base, TimestampMixin):
     # freigegebenen Artikel-Prozess voraus (produzierbar/beschaffbar).
     reorder_target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)
 
+    # ── Fixierter Standort (optionales Spezifikationsfeld) ──────────────────────────
+    # Funktioniert exakt wie die Standort-Definition am Lagerplatz-Datensatz: GPS-Koordinaten
+    # + per Reverse-Geocoding gefüllte Adresse (Strasse/PLZ/Ort/Land). Rein deskriptiv am
+    # Artikel hinterlegt – der feste geografische Ort, an dem dieser Artikel verortet ist.
+    fixed_location_lat: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6), nullable=True)
+    fixed_location_lng: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6), nullable=True)
+    fixed_location_street: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    fixed_location_zip: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    fixed_location_city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    fixed_location_country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
     # ── Beschaffungsquelle (Teil der Spezifikation, friert bei Freigabe ein) ───────────
     # WO dieser Artikel beschafft wird, gehört zur Produktspezifikation – nicht in jeden
     # einzelnen Beschaffungs-Prozessschritt. Der ``purchase``-Schritt bleibt der Auslöser und
