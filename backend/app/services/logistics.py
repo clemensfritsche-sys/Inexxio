@@ -345,18 +345,26 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
     result = provider.rates(ship.address_from, ship.address_to, ship.parcels or [])
     raw = result.get("rates") or []
     if not raw:
-        # Leere Tarifliste ist KEIN Absturz – der Anbieter erklärt den Grund in ``messages``
-        # (fast immer: in der Testumgebung ist kein Carrier-Konto mit dieser Herkunft
-        # verbunden). Diesen Grund dem Nutzer zeigen, statt ihn zu verschlucken.
+        # Leere Tarifliste ist KEIN Absturz – der Anbieter erklärt den Grund in ``messages``.
+        # Sind alle Meldungen «Herkunft/Service-Area nicht unterstützt» (der Normalfall in der
+        # Shippo-Testumgebung: die geteilten Test-Carrier versenden nur ab US/DE/FR/UK/ES, es gibt
+        # kein CH-Test-Konto), fassen wir das lesbar zusammen statt 15 Carrier-Zeilen zu zeigen.
         msgs = result.get("messages") or []
         origin = (ship.address_from or {}).get("country") or "?"
-        detail = "Keine Versand-Tarife geliefert."
-        if msgs:
-            detail += " Anbieter-Hinweis: " + " · ".join(msgs)
+        joined = " ".join(msgs).lower()
+        coverage = bool(msgs) and any(
+            k in joined for k in ("support", "service area", "origin", "restricted", "outside of"))
+        if coverage:
+            detail = (f"Keine Versand-Tarife: kein verbundenes Carrier-Konto bedient die Herkunft «{origin}». "
+                      "In der Shippo-Testumgebung versenden die geteilten Test-Carrier nur ab US/DE/FR/UK/ES "
+                      "– es gibt kein Schweizer Test-Konto. Für den Echtbetrieb ein eigenes CH-Carrier-Konto "
+                      "(z. B. Swiss Post/DHL) in Shippo verbinden; zum Ausprobieren eine unterstützte "
+                      "Herkunft verwenden.")
+        elif msgs:
+            detail = "Keine Versand-Tarife geliefert. Anbieter-Hinweis: " + " · ".join(msgs)
         else:
-            detail += (f" Vermutlich ist kein Carrier-Konto mit Herkunft »{origin}« verbunden – "
-                       "in Shippo unter »Carriers« ein Konto mit dieser Herkunft aktivieren "
-                       "(Testumgebung: z. B. DHL Express).")
+            detail = (f"Keine Versand-Tarife geliefert – vermutlich ist kein Carrier-Konto mit Herkunft "
+                      f"«{origin}» verbunden (in Shippo unter «Carriers» aktivieren).")
         raise HTTPException(502, detail=detail)
     ship.provider_shipment_id = result.get("provider_shipment_id")
     raw.sort(key=lambda r: r["amount"])
