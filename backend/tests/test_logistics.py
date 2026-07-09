@@ -220,6 +220,23 @@ def test_shipping_wiring_end_to_end():
     assert 'ship.status == "purchased"' in _inspect.getsource(logistics.buy)
 
 
+def test_new_shipment_needs_explicit_draft_status():
+    """Regression (Empfänger-Adresse unvollständig beim ERSTEN Tarif-Abruf): der Spalten-
+    Default 'draft' greift erst beim Flush – ein frisch konstruierter Shipment hat status
+    None. ``ensure_shipment`` MUSS ihn darum EXPLIZIT auf 'draft' setzen, sonst überspringt
+    der Adress-Block (`if ship.status in ('draft','quoted')`) das Setzen von address_to,
+    obwohl die Panel-Vorschau die Adresse live anzeigt."""
+    import inspect as _inspect
+
+    from app.models import Shipment
+    from app.services import logistics
+
+    # Prämisse: ohne expliziten Wert ist status VOR dem Flush None (nicht 'draft').
+    assert Shipment(order_id=1, step_id=1).status is None
+    # Fix: ensure_shipment legt den Beleg mit status='draft' an → Adress-Block läuft sofort.
+    assert 'status="draft"' in _inspect.getsource(logistics.ensure_shipment)
+
+
 def test_quote_marks_cheapest_default_and_fastest_hint():
     """Best-Offer-Policy: der GÜNSTIGSTE Tarif ist die Default-Auswahl (cheapest=True),
     der schnellste wird als Alternative markiert (fastest=True) – geprüft an der

@@ -311,8 +311,12 @@ def ensure_shipment(db: Session, order: Order, step: ArticleProcessStep,
     cls = classify_movement(db, order, step, instances)
     ship = _get_shipment(db, order, step)
     if not ship:
+        # ``status`` EXPLIZIT setzen: der Spalten-Default 'draft' greift erst beim Flush,
+        # der Adress-Block unten läuft aber DAVOR – ohne dies bliebe ``status`` None, der
+        # Block würde übersprungen und ``address_to`` NULL («Empfänger-Adresse unvollständig»
+        # beim ersten Tarif-Abruf, obwohl die Vorschau die Adresse live zeigt).
         ship = Shipment(order_id=order.id, step_id=step.id, created_by=actor_id,
-                        provider=shipping.provider_name())
+                        status="draft", provider=shipping.provider_name())
         db.add(ship)
     if ship.status in ("draft", "quoted"):
         settings = _settings(db)
