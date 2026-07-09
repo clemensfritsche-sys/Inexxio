@@ -147,7 +147,39 @@ def test_shippo_rate_parsing_and_provider_fallback():
     assert shipping.provider_name() == "manual"      # Testumgebung ohne Key
     provider = shipping.get_provider()
     assert provider.supports_rates is False
-    assert provider.rates({}, {}, []) == {"provider_shipment_id": None, "rates": []}
+    assert provider.rates({}, {}, []) == {"provider_shipment_id": None, "rates": [], "messages": []}
+
+
+def test_shippo_messages_surfaced():
+    """Bei leerer Tarifliste ist Shippos ``messages``-Array die einzige Erklärung
+    (z. B. »Herkunftsland nicht unterstützt«, wenn in der Testumgebung nur ein
+    US-Carrier verbunden ist). Der Adapter reicht sie lesbar & dedupliziert durch."""
+    from app.services.shipping.shippo import _messages
+
+    raw = [
+        {"source": "USPS", "code": "origin", "text": "The origin country CH is not supported."},
+        {"source": "USPS", "code": "origin", "text": "The origin country CH is not supported."},  # Dublette
+        {"text": "Please connect a carrier account."},
+        "roher String",
+    ]
+    assert _messages(raw) == [
+        "USPS: The origin country CH is not supported.",
+        "Please connect a carrier account.",
+        "roher String",
+    ]
+    assert _messages(None) == [] and _messages([]) == []
+
+
+def test_quote_surfaces_provider_messages():
+    """``logistics.quote`` verschluckt eine leere Tarifliste NICHT: der Anbieter-Hinweis
+    (oder ein Herkunfts-Hinweis) landet in der Fehlermeldung – geprüft an der Quelle."""
+    import inspect as _inspect
+
+    from app.services import logistics
+
+    src = _inspect.getsource(logistics.quote)
+    assert 'result.get("messages")' in src          # Hinweise werden gelesen
+    assert "Anbieter-Hinweis" in src or "Carrier-Konto" in src  # und dem Nutzer gezeigt
 
 
 def test_shipping_wiring_end_to_end():

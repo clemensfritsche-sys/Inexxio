@@ -44,6 +44,28 @@ def _parse_rate(r: dict) -> dict | None:
     }
 
 
+def _messages(raw) -> list[str]:
+    """Shippo-Hinweise (warum keine/weniger Tarife) in lesbare Strings bringen –
+    z. B. »USPS: The origin country is not supported«. Diese Meldungen sind bei
+    einer leeren Tarifliste die einzige Erklärung; sie dürfen nicht verloren gehen."""
+    out: list[str] = []
+    for m in raw or []:
+        if isinstance(m, dict):
+            src = str(m.get("source") or "").strip()
+            txt = str(m.get("text") or m.get("code") or "").strip()
+            out.append(f"{src}: {txt}" if src and txt else (txt or src))
+        elif m:
+            out.append(str(m))
+    # Duplikate stabil entfernen (Shippo wiederholt dieselbe Meldung je Carrier).
+    seen: set[str] = set()
+    uniq = []
+    for m in out:
+        if m and m not in seen:
+            seen.add(m)
+            uniq.append(m)
+    return uniq
+
+
 class ShippoShipping(ShippingProvider):
     name = "shippo"
     supports_rates = True
@@ -87,7 +109,11 @@ class ShippoShipping(ShippingProvider):
         }
         data = self._post("/shipments/", payload)
         rates = [x for x in (_parse_rate(r) for r in data.get("rates") or []) if x]
-        return {"provider_shipment_id": str(data.get("object_id") or "") or None, "rates": rates}
+        return {
+            "provider_shipment_id": str(data.get("object_id") or "") or None,
+            "rates": rates,
+            "messages": _messages(data.get("messages")),
+        }
 
     def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
         # Shippo kauft direkt gegen die Rate-Objektnummer (kein Shipment-Kauf-Endpunkt).

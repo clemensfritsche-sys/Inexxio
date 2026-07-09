@@ -19,9 +19,11 @@ class ShippingProvider(ABC):
     @abstractmethod
     def rates(self, address_from: dict, address_to: dict, parcels: list[dict]) -> dict:
         """Angebote laden. Rückgabe: {"provider_shipment_id": str|None, "rates": [
-        {rate_id, carrier, service, amount, currency, days, provider_rate_id}]} –
-        amount als float, unsortiert (Sortierung macht der Aufrufer). Wirft
-        HTTPException bei Provider-Fehlern."""
+        {rate_id, carrier, service, amount, currency, days, provider_rate_id}],
+        "messages": [str]} – amount als float, unsortiert (Sortierung macht der
+        Aufrufer). ``messages`` erklärt eine leere Tarifliste (z. B. »Herkunftsland
+        nicht unterstützt«) und wird dem Nutzer gezeigt. Wirft HTTPException bei
+        echten Provider-/Netzwerkfehlern (HTTP ≥ 400)."""
 
     @abstractmethod
     def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:

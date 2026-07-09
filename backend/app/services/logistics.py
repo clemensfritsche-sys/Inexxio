@@ -345,7 +345,19 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
     result = provider.rates(ship.address_from, ship.address_to, ship.parcels or [])
     raw = result.get("rates") or []
     if not raw:
-        raise HTTPException(502, detail="Der Versand-Anbieter hat keine Tarife geliefert")
+        # Leere Tarifliste ist KEIN Absturz – der Anbieter erklärt den Grund in ``messages``
+        # (fast immer: in der Testumgebung ist kein Carrier-Konto mit dieser Herkunft
+        # verbunden). Diesen Grund dem Nutzer zeigen, statt ihn zu verschlucken.
+        msgs = result.get("messages") or []
+        origin = (ship.address_from or {}).get("country") or "?"
+        detail = "Keine Versand-Tarife geliefert."
+        if msgs:
+            detail += " Anbieter-Hinweis: " + " · ".join(msgs)
+        else:
+            detail += (f" Vermutlich ist kein Carrier-Konto mit Herkunft »{origin}« verbunden – "
+                       "in Shippo unter »Carriers« ein Konto mit dieser Herkunft aktivieren "
+                       "(Testumgebung: z. B. DHL Express).")
+        raise HTTPException(502, detail=detail)
     ship.provider_shipment_id = result.get("provider_shipment_id")
     raw.sort(key=lambda r: r["amount"])
     fastest = min((r for r in raw if r.get("days") is not None),

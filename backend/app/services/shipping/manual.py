@@ -16,7 +16,8 @@ class ManualShipping(ShippingProvider):
     supports_rates = False
 
     def rates(self, address_from: dict, address_to: dict, parcels: list[dict]) -> dict:
-        return {"provider_shipment_id": None, "rates": []}   # kein Rate-Shopping – manuelle Erfassung
+        # kein Rate-Shopping – manuelle Erfassung
+        return {"provider_shipment_id": None, "rates": [], "messages": []}
 
     def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
         raise HTTPException(
