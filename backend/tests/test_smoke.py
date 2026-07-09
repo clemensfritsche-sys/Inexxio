@@ -2401,14 +2401,14 @@ def test_allocation_write_paths_lock_fifo_candidates():
 
 def test_provisioning_rule_book_declared():
     """«Bereitstellungsort» ist je Schritttyp DEKLARIERT (SSOT im event_types-Regelwerk):
-    Beschaffung→Wareneingang, Verkauf→Kunde, Ressource→Produkt, Verschrotten→Schrottplatz,
-    Datenerfassung/Bewegung/Dokument→kein fester Ort."""
+    Beschaffung→Wareneingang, Verkauf→Kunde, Ressource→Produkt, Verschrotten→standortlos
+    (kein Halter mehr), Datenerfassung/Bewegung/Dokument→kein fester Ort."""
     from app.domain import event_types as ev
 
     assert ev.provisioning("purchase") == ev.PROV_RECEIVING
     assert ev.provisioning("sale") == ev.PROV_CUSTOMER
     assert ev.provisioning("resource") == ev.PROV_PRODUCT
-    assert ev.provisioning("scrap") == ev.PROV_SCRAPYARD
+    assert ev.provisioning("scrap") == ev.PROV_NOWHERE
     for t in ("inspection", "movement", "document"):
         assert ev.provisioning(t) == ev.PROV_NONE
     # Unbekannter Typ → neutral (kein fester Ort), kein Absturz
@@ -2435,29 +2435,31 @@ def test_provisioning_reconciler_is_noop_when_already_there():
     assert inst2.locations is None                                            # zusammengeführt
 
 
-def test_scrap_sends_whole_scrapped_to_scrapyard():
-    """Verschrotten verdrahtet den Bereitstellungsort «Schrottplatz»: ``record_scrap`` sammelt
-    die GANZ verschrotteten Instanzen und ruft ``provisioning.send_to_scrapyard`` (Teil-
-    Verschrottung bleibt am Lager). Der Reconciler ist die EINE Bewegungs-Stelle."""
+def test_scrap_makes_whole_instance_locationless():
+    """Verschrotten macht die GANZ verschrottete Instanz **standortlos** (ein Standort ist
+    immer ein realer Halter – Lagerplatz/Person/Instanz –, den Ausschuss nicht mehr hat).
+    ``record_scrap`` ruft dafür ``location_split.clear``; kein Schrottplatz-Lagerort mehr
+    (``send_to_scrapyard``/``resolve_scrap_location`` sind entfernt)."""
     import inspect as _inspect
 
-    from app.services import scrap, provisioning
+    from app.services import scrap, provisioning, location_split
 
     src = _inspect.getsource(scrap.record_scrap)
-    assert "send_to_scrapyard" in src and "scrapped_whole" in src
-    # send_to_scrapyard bewegt nur über den no-op-fähigen Reconciler.
-    yard_src = _inspect.getsource(provisioning.send_to_scrapyard)
-    assert "reconcile_to" in yard_src and "resolve_scrap_location" in yard_src
-    # Auto-Anlage/Persistenz des Schrottplatz-Lagerorts (idempotent, keine herrenlosen Teile).
-    resolve_src = _inspect.getsource(provisioning.resolve_scrap_location)
-    assert "default_scrap_location_id" in resolve_src and "Schrottplatz" in resolve_src
+    assert "location_split.clear" in src
+    assert "send_to_scrapyard" not in src and "scrapyard" not in src
+    # Die Schrottplatz-Maschinerie ist vollständig entfernt.
+    assert not hasattr(provisioning, "send_to_scrapyard")
+    assert not hasattr(provisioning, "resolve_scrap_location")
+    # clear() macht standortlos (Skalar + Verteilungs-Map).
+    clear_src = _inspect.getsource(location_split.clear)
+    assert "location_type = None" in clear_src and "locations = None" in clear_src
 
 
-def test_scrap_location_column_present():
-    """Der Ausschuss-Lagerort ist am Unternehmen konfigurierbar (Spalte + Schema)."""
+def test_scrap_location_column_removed():
+    """Der Ausschuss-Lagerort ist entfernt – kein Schrottplatz-Setting mehr am Unternehmen."""
     from app.models import CompanySettings
     from app.schemas.admin import CompanySettingsResponse, CompanySettingsUpdate
 
-    assert "default_scrap_location_id" in CompanySettings.__table__.columns
-    assert "default_scrap_location_id" in CompanySettingsResponse.model_fields
-    assert "default_scrap_location_id" in CompanySettingsUpdate.model_fields
+    assert "default_scrap_location_id" not in CompanySettings.__table__.columns
+    assert "default_scrap_location_id" not in CompanySettingsResponse.model_fields
+    assert "default_scrap_location_id" not in CompanySettingsUpdate.model_fields

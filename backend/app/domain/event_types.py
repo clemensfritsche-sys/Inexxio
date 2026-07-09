@@ -43,13 +43,16 @@ SUBJECT_PRECEDENCE = (STOCK, PRODUCE, INSTANCE)
 # Ist-Standort ↔ Soll und erzeugt die minimal nötige Bewegung – **no-op, wenn schon da**.
 # Heute laufen Wareneingang/Versand/Kunde über die gesperrten Pflicht-Bewegungen
 # (``services/process_steps.py``) und Verbrauch/Betriebsmittel über den Ressourcen-Schritt
-# (``services/resource.py``, Komponente → Produkt-Instanz / Werkzeug → Arbeitsplatz);
-# NEU über den Reconciler verdrahtet ist der **Schrottplatz** beim Verschrotten.
+# (``services/resource.py``, Komponente → Produkt-Instanz / Werkzeug → Arbeitsplatz).
+# **Verschrotten** hat KEINEN Bereitstellungsort: ein verschrottetes Teil verlässt den
+# Bestand endgültig – ein Standort ist immer ein realer Halter (Lagerplatz/Person/Instanz),
+# und einen solchen hat Ausschuss nicht mehr. Der Endzustand ``disposition='scrapped'`` IST
+# die «Wo»-Aussage; die Instanz wird beim Verschrotten **standortlos** (siehe services/scrap.py).
 PROV_NONE = "none"            # kein fester Ort (frei / self): Datenerfassung, Bewegung, Dokument
 PROV_RECEIVING = "receiving"  # Wareneingang            (Beschaffung → danach)
 PROV_CUSTOMER = "customer"    # Kunde                   (Verkauf → danach)
 PROV_PRODUCT = "product"      # Produkt-Instanz/Montageort (Ressource: Verbrauch; Werkzeug = Arbeitsplatz)
-PROV_SCRAPYARD = "scrapyard"  # Schrottplatz            (Verschrotten)
+PROV_NOWHERE = "nowhere"      # kein Halter mehr → standortlos (Verschrotten: raus aus dem Bestand)
 
 # Vorzeichen der Bestandswirkung – für die Anreicherung der Domain-Events (Ledger).
 _DELTA_SIGN = {INCREASE: 1, DECREASE: -1, MOVE: 0, NEUTRAL: 0}
@@ -73,7 +76,7 @@ REGISTRY: dict[str, EventType] = {
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
-    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal",      PROV_SCRAPYARD),
+    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal",      PROV_NOWHERE),
     # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
     # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird

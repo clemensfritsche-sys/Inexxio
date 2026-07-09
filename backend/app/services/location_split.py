@@ -116,6 +116,16 @@ def set_single(inst: Instance, location_type: str, location_id: int) -> None:
     inst.locations = None
 
 
+def clear(inst: Instance) -> None:
+    """Instanz **standortlos** machen (Skalar + Verteilungs-Map löschen). EINE Stelle für
+    «kein Halter mehr»: beim Verschrotten verlässt das Teil den Bestand endgültig – ein
+    Standort ist immer ein realer Halter (Lagerplatz/Person/Instanz), den Ausschuss nicht
+    mehr hat. Der Endzustand ``disposition='scrapped'`` trägt die «Wo»-Aussage."""
+    inst.location_type = None
+    inst.location_id = None
+    inst.locations = None
+
+
 def move(inst: Instance, to_type: str, to_id: int, qty, from_id: int | None = None) -> None:
     """``qty`` einer (Chargen-)Instanz von einem Quellstandort auf ``to_id`` verlagern.
 

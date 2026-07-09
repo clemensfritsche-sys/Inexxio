@@ -2873,8 +2873,6 @@ export interface components {
             google_maps_api_key: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /** Default Scrap Location Id */
-            default_scrap_location_id?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -2959,8 +2957,6 @@ export interface components {
             google_maps_api_key?: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
-            /** Default Scrap Location Id */
-            default_scrap_location_id?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */

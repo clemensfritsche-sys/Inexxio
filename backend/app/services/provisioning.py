@@ -11,16 +11,15 @@ Ist-Standort ↔ Soll vergleicht und die minimal nötige Bewegung erzeugt:
 
 Heute laufen Wareneingang/Versand/Kunde über die gesperrten Pflicht-Bewegungen
 (``services/process_steps.py``) und Verbrauch/Betriebsmittel über den Ressourcen-Schritt
-(``services/resource.py`` – Komponente → Produkt-Instanz, Werkzeug → Arbeitsplatz). NEU
-über diesen Reconciler verdrahtet ist der **Schrottplatz**: verschrottete (ganze)
-Instanzen wandern automatisch an den Ausschuss-Lagerort (no-op, wenn schon dort).
+(``services/resource.py`` – Komponente → Produkt-Instanz, Werkzeug → Arbeitsplatz).
+
+**Verschrotten** hat KEINEN Bereitstellungsort (``PROV_NOWHERE``): ein verschrottetes Teil
+verlässt den Bestand endgültig und wird **standortlos** – das erledigt ``services/scrap.py``
+über ``location_split.clear`` (kein eigener Schrottplatz-Lagerort mehr).
 """
 
-from sqlalchemy.orm import Session
-
-from ..models import CompanySettings, Instance, StorageLocation
+from ..models import Instance
 from . import location_split
-from .objects import next_object_id
 
 
 def reconcile_to(inst: Instance, to_type: str, to_id: int) -> bool:
@@ -35,51 +34,3 @@ def reconcile_to(inst: Instance, to_type: str, to_id: int) -> bool:
         return False   # schon am Ziel → no-op
     location_split.set_single(inst, to_type, to_id)
     return True
-
-
-def resolve_scrap_location(db: Session) -> int:
-    """Objektnummer des Ausschuss-/Schrott-Lagerplatzes.
-
-    Konfigurierbar über ``company_settings.default_scrap_location_id``; fehlt der Eintrag
-    (oder zeigt er ins Leere), wird EINMALIG ein Lagerplatz «Schrottplatz» angelegt und die
-    Nummer am Unternehmen hinterlegt (idempotent – «keine herrenlosen Teile»). Committet NICHT."""
-    settings = db.query(CompanySettings).first()
-    configured = getattr(settings, "default_scrap_location_id", None) if settings else None
-    if configured:
-        exists = (
-            db.query(StorageLocation.id)
-            .filter(StorageLocation.object_id == configured, StorageLocation.is_active == True)
-            .first()
-        )
-        if exists:
-            return int(configured)
-    loc = StorageLocation(
-        object_id=next_object_id(db, "storage_location"), status="released",
-        name="Schrottplatz", code="SCHROTT",
-        note="Automatisch angelegt für Ausschuss/Verschrottung.",
-    )
-    db.add(loc)
-    db.flush()
-    if settings:
-        settings.default_scrap_location_id = loc.object_id
-    return int(loc.object_id)
-
-
-def send_to_scrapyard(db: Session, instances: list[Instance], actor_id: int) -> int:
-    """Verschrottete (ganze) Instanzen an den Schrottplatz bringen – no-op, wenn schon dort.
-
-    Der Aufrufer übergibt nur die im aktuellen Vorgang GANZ verschrotteten Instanzen: eine
-    **Teil-Verschrottung** lässt die gute Restmenge am Lager, wird also NICHT verlagert.
-    Gibt die Zahl tatsächlich bewegter Instanzen zurück. Committet NICHT."""
-    if not instances:
-        return 0
-    from .admin import log_audit
-    scrap_id = resolve_scrap_location(db)
-    moved = 0
-    for inst in instances:
-        old = f"{inst.location_type}:{inst.location_id}"
-        if reconcile_to(inst, "lagerplatz", scrap_id):
-            log_audit(db, "instances", "location", f"lagerplatz:{scrap_id}", actor_id,
-                      object_id=inst.object_id, old_value=old)
-            moved += 1
-    return moved

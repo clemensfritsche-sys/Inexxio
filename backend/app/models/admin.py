@@ -55,10 +55,6 @@ class CompanySettings(Base):
     # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
     # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
     default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-    # Ausschuss-/Schrott-Lagerort (Bereitstellungsort «Schrottplatz»): verschrottete
-    # Instanzen wandern hierhin. Fehlt der Eintrag, legt der Reconciler automatisch einen
-    # Lagerplatz «Schrottplatz» an und hinterlegt ihn hier (services/provisioning.py).
-    default_scrap_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
 
     # ── Shop / Verkauf ──────────────────────────────────────────────────────────
     # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
