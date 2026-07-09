@@ -64,6 +64,11 @@ class ArticleProcessStep(Base, TimestampMixin):
     # der Lagerist entscheidet beim Ausführen frei je Instanz.
     target_location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     target_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    # Transport-Modus der Bewegung (ADR 005, deklarierter Default; per Auftrag über
+    # ``shipments.transport_mode`` übersteuerbar): 'auto' (abgeleitet: extern → Versand) |
+    # 'carrier' (immer Versand) | 'self' (Selbsttransport, kein Carrier) | 'none' (nie Versand).
+    transport_mode: Mapped[str] = mapped_column(
+        String(10), default="auto", server_default="auto", nullable=False)
 
     # Konfiguration «resource» (Ressource): Liste der benötigten Ressourcen je
     # Operation – [{article_id, quantity, mode}], mode ∈ consume | tool.

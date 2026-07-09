@@ -1162,6 +1162,68 @@ export interface paths {
         patch: operations["update_order_movement_api_v1_erp_orders__object_id__movement_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/shipment/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Order Shipment
+         * @description Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt.
+         *     Der Versand-Beleg entsteht dabei idempotent; günstigster Tarif = Default-Auswahl.
+         */
+        post: operations["quote_order_shipment_api_v1_erp_orders__object_id__shipment_quote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/shipment/buy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Buy Order Shipment
+         * @description Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer (idempotent).
+         */
+        post: operations["buy_order_shipment_api_v1_erp_orders__object_id__shipment_buy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/shipment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Shipment
+         * @description Versand: Transport-Modus je Auftrag übersteuern (auto/carrier/self/none) bzw.
+         *     manuelle Versanddaten erfassen (Carrier, Tracking, Kosten – manual-Provider).
+         */
+        patch: operations["update_order_shipment_api_v1_erp_orders__object_id__shipment_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/orders/{object_id}/resource": {
         parameters: {
             query?: never;
@@ -2228,6 +2290,8 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
             /** Fixed Location Lat */
             fixed_location_lat?: number | string | null;
             /** Fixed Location Lng */
@@ -2367,6 +2431,11 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
+            /**
+             * Transport Mode
+             * @default auto
+             */
+            transport_mode: string;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
             /** Doc Signers */
@@ -2447,6 +2516,11 @@ export interface components {
             /** Target Location Id */
             target_location_id?: number | null;
             /**
+             * Transport Mode
+             * @default auto
+             */
+            transport_mode: string;
+            /**
              * Resource Lines
              * @default []
              */
@@ -2522,6 +2596,8 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
+            /** Transport Mode */
+            transport_mode?: string | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
             /** Doc Signers */
@@ -2571,6 +2647,11 @@ export interface components {
             safety_stock?: string | null;
             /** Reorder Target */
             reorder_target?: string | null;
+            /**
+             * Is Hazmat
+             * @default false
+             */
+            is_hazmat: boolean;
             /** Fixed Location Lat */
             fixed_location_lat?: string | null;
             /** Fixed Location Lng */
@@ -2718,6 +2799,8 @@ export interface components {
             safety_stock?: number | string | null;
             /** Reorder Target */
             reorder_target?: number | string | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
             /** Fixed Location Lat */
             fixed_location_lat?: number | string | null;
             /** Fixed Location Lng */
@@ -2873,6 +2956,12 @@ export interface components {
             google_maps_api_key: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
+            /** Site Latitude */
+            site_latitude?: string | null;
+            /** Site Longitude */
+            site_longitude?: string | null;
+            /** Site Radius M */
+            site_radius_m?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -2957,6 +3046,12 @@ export interface components {
             google_maps_api_key?: string | null;
             /** Default Receiving Location Id */
             default_receiving_location_id?: number | null;
+            /** Site Latitude */
+            site_latitude?: number | string | null;
+            /** Site Longitude */
+            site_longitude?: number | string | null;
+            /** Site Radius M */
+            site_radius_m?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -3652,6 +3747,7 @@ export interface components {
             target_location_label?: string | null;
             /** Mode */
             mode?: string | null;
+            shipment?: components["schemas"]["ShipmentEmbed"] | null;
         };
         /**
          * MovementTarget
@@ -4779,6 +4875,158 @@ export interface components {
             note?: string | null;
             /** Step Id */
             step_id?: number | null;
+        };
+        /**
+         * ShipmentBuyRequest
+         * @description Gewähltes Angebot kaufen → Label + Tracking.
+         */
+        ShipmentBuyRequest: {
+            /** Rate Id */
+            rate_id: string;
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
+         * ShipmentEmbed
+         * @description Eingebetteter Versand-Stand eines Bewegungs-Schritts (im Auftrag).
+         */
+        ShipmentEmbed: {
+            /**
+             * Id
+             * @default 0
+             */
+            id: number;
+            /**
+             * Exists
+             * @default false
+             */
+            exists: boolean;
+            /**
+             * Transport Class
+             * @default unknown
+             */
+            transport_class: string;
+            /**
+             * Direction
+             * @default outbound
+             */
+            direction: string;
+            /**
+             * Transport Mode
+             * @default auto
+             */
+            transport_mode: string;
+            /**
+             * Status
+             * @default draft
+             */
+            status: string;
+            /**
+             * Provider
+             * @default manual
+             */
+            provider: string;
+            /**
+             * Provider Ready
+             * @default false
+             */
+            provider_ready: boolean;
+            /** From Label */
+            from_label?: string | null;
+            /** To Label */
+            to_label?: string | null;
+            /**
+             * Parcels
+             * @default []
+             */
+            parcels: Record<string, never>[];
+            /**
+             * Hazmat
+             * @default false
+             */
+            hazmat: boolean;
+            /**
+             * Rates
+             * @default []
+             */
+            rates: components["schemas"]["ShipmentRate"][];
+            /** Chosen Rate Id */
+            chosen_rate_id?: string | null;
+            /** Carrier */
+            carrier?: string | null;
+            /** Service */
+            service?: string | null;
+            /** Label Url */
+            label_url?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Tracking Url */
+            tracking_url?: string | null;
+            /** Cost Amount */
+            cost_amount?: string | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * ShipmentQuoteRequest
+         * @description Tarife laden (Rate-Shopping) für den Versand eines Bewegungs-Schritts.
+         */
+        ShipmentQuoteRequest: {
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
+         * ShipmentRate
+         * @description Ein Angebot aus dem Rate-Shopping (Snapshot, unveränderlich).
+         */
+        ShipmentRate: {
+            /** Rate Id */
+            rate_id: string;
+            /** Carrier */
+            carrier: string;
+            /** Service */
+            service?: string | null;
+            /** Amount */
+            amount: number;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
+            /** Days */
+            days?: number | null;
+            /**
+             * Cheapest
+             * @default false
+             */
+            cheapest: boolean;
+            /**
+             * Fastest
+             * @default false
+             */
+            fastest: boolean;
+        };
+        /**
+         * ShipmentUpdate
+         * @description Transport-Modus übersteuern bzw. manuelle Versanddaten erfassen (manual/self).
+         */
+        ShipmentUpdate: {
+            /** Step Id */
+            step_id?: number | null;
+            /** Transport Mode */
+            transport_mode?: string | null;
+            /** Carrier */
+            carrier?: string | null;
+            /** Tracking Number */
+            tracking_number?: string | null;
+            /** Cost Amount */
+            cost_amount?: number | null;
+            /** Cost Currency */
+            cost_currency?: string | null;
+            /** Note */
+            note?: string | null;
         };
         /**
          * ShopCheckout
@@ -7512,6 +7760,111 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MovementUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quote_order_shipment_api_v1_erp_orders__object_id__shipment_quote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipmentQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    buy_order_shipment_api_v1_erp_orders__object_id__shipment_buy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipmentBuyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_order_shipment_api_v1_erp_orders__object_id__shipment_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShipmentUpdate"];
             };
         };
         responses: {

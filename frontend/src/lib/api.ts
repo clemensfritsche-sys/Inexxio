@@ -3,7 +3,7 @@ import type {
   ArticleProcessStep, ArticleProcessStepInput, ArticleProcessStepUpdateInput,
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
-  MovementUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
+  MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
@@ -498,6 +498,21 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}/movement`, data);
   }
 
+  // Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt
+  quoteOrderShipment(objectId: number, stepId?: number | null): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/shipment/quote`, { step_id: stepId ?? null });
+  }
+
+  // Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer
+  buyOrderShipment(objectId: number, rateId: string, stepId?: number | null): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/shipment/buy`, { rate_id: rateId, step_id: stepId ?? null });
+  }
+
+  // Versand: Transport-Modus übersteuern bzw. manuelle Versanddaten erfassen
+  updateOrderShipment(objectId: number, data: ShipmentUpdateInput): Promise<Order> {
+    return this.patch(`/api/v1/erp/orders/${objectId}/shipment`, data);
+  }
+
   // Schritt «Ressource»: Verbrauch (FIFO) + Betriebsmittel erfassen
   updateOrderResource(objectId: number, data: ResourceUpdateInput): Promise<Order> {
     return this.patch(`/api/v1/erp/orders/${objectId}/resource`, data);
@@ -748,6 +763,9 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
     default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
+    site_latitude: s.site_latitude != null ? Number(s.site_latitude) : null,
+    site_longitude: s.site_longitude != null ? Number(s.site_longitude) : null,
+    site_radius_m: (s.site_radius_m as number | null) ?? null,
     shop_currencies: (s.shop_currencies as string[] | null) ?? ['CHF', 'EUR', 'USD'],
     shop_country_currency: (s.shop_country_currency as Record<string, string> | null) ?? null,
     shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',

@@ -15,6 +15,7 @@ from .instance import Instance
 from .instance_order_link import InstanceOrderLink
 from .inspection import Inspection
 from .movement import Movement
+from .shipment import Shipment
 from .disposal import Disposal
 from .resource_usage import ResourceUsage
 from .document import Document
@@ -35,7 +36,7 @@ __all__ = [
     "TimestampMixin", "CompanySettings", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
-    "Instance", "InstanceOrderLink", "Inspection", "Movement", "Disposal", "ResourceUsage",
+    "Instance", "InstanceOrderLink", "Inspection", "Movement", "Shipment", "Disposal", "ResourceUsage",
     "Document", "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment", "StorageLocation",
     "WebAuthnCredential", "WebAuthnChallenge",

@@ -8,6 +8,7 @@ from ..schemas.disposal import ScrapUpdate
 from ..schemas.document import DocumentUpdate, SignoffAction
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
+from ..schemas.shipment import ShipmentBuyRequest, ShipmentQuoteRequest, ShipmentUpdate
 from ..schemas.order import (
     OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
     OrderResponse, OrderSummary, OrderUpdate,
@@ -22,6 +23,7 @@ from ..services.document import (
 )
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
+from ..services import logistics
 from ..services.movement import record_movement
 from ..services.scrap import record_scrap
 from ..services.objects import next_object_id
@@ -792,6 +794,67 @@ async def update_order_movement(
     record_movement(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
+
+
+@router.post("/{object_id}/shipment/quote", response_model=OrderResponse)
+async def quote_order_shipment(
+    object_id: int,
+    data: ShipmentQuoteRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt.
+    Der Versand-Beleg entsteht dabei idempotent; günstigster Tarif = Default-Auswahl."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    step = process.resolve_exec_step(db, order, "movement", data.step_id)
+    logistics.quote(db, order, step, _shipment_instances(db, order, step), current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/shipment/buy", response_model=OrderResponse)
+async def buy_order_shipment(
+    object_id: int,
+    data: ShipmentBuyRequest,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer (idempotent)."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    step = process.resolve_exec_step(db, order, "movement", data.step_id)
+    logistics.buy(db, order, step, data.rate_id, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/shipment", response_model=OrderResponse)
+async def update_order_shipment(
+    object_id: int,
+    data: ShipmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Versand: Transport-Modus je Auftrag übersteuern (auto/carrier/self/none) bzw.
+    manuelle Versanddaten erfassen (Carrier, Tracking, Kosten – manual-Provider)."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    step = process.resolve_exec_step(db, order, "movement", data.step_id)
+    logistics.apply_update(db, order, step, _shipment_instances(db, order, step), data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+def _shipment_instances(db: Session, order, step) -> list:
+    """Die Instanzen, die dieser Bewegungs-Schritt physisch bewegt (Paket-/Gefahrgut-Basis)
+    – dieselbe Auswahlregel wie ``movement.record_movement`` (Pflicht-Versand/Retoure
+    nehmen auch VERKAUFTE Instanzen mit)."""
+    from ..services.subject import is_return, order_active_instances, order_instances
+    if is_return(order) or step.mode == "customer":
+        return [i for i in order_instances(db, order)
+                if (i.disposition or "") not in ("scrapped", "consumed")]
+    return order_active_instances(db, order)
 
 
 @router.patch("/{object_id}/resource", response_model=OrderResponse)

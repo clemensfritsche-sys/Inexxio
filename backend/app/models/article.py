@@ -47,6 +47,9 @@ class Article(Base, TimestampMixin):
     min_order_qty: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # MOQ
     safety_stock: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)  # Sicherheitsbestand = Meldebestand (E)
     supplier_article_number: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Lieferanten-Artikelnummer
+    # Gefahrgut (optionales Spezifikationsfeld): fliesst als Warnung in den Versand (ADR 005)
+    # – ein Paket mit Gefahrgut braucht Spezialbehandlung beim Carrier.
+    is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # ── Meldebestand / Auto-Nachbestellung (E) ─────────────────────────────────────
     # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter

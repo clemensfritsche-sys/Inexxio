@@ -2,6 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from .shipment import ShipmentEmbed
+
 # Ein Standort ist immer ein Datensatzobjekt mit 9-stelliger Nummer:
 #   lagerplatz → StorageLocation
 #   user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
@@ -65,3 +67,6 @@ class MovementEmbed(BaseModel):
     # VERKAUFTE Instanzen bewegbar). Das Frontend spiegelt damit exakt die Backend-Regel,
     # statt sie über den Ziel-Typ zu erraten (Ursache «Instanz gehört nicht zu diesem Auftrag»).
     mode: Optional[str] = None
+    # Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg dieses Schritts.
+    # Nur gesetzt, wenn die Bewegung ein klassifizierbares Ziel hat (sonst None → keine Box).
+    shipment: Optional[ShipmentEmbed] = None

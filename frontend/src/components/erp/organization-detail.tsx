@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen } from 'lucide-react';
+import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen , Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
@@ -154,6 +154,17 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="Plausible Domain" val={v('plausible_domain')} onChange={set('plausible_domain')} />
           <Field label="hCaptcha Site Key" val={v('hcaptcha_site_key')} onChange={set('hcaptcha_site_key')} />
           <Field label="Google Maps API Key" val={v('google_maps_api_key')} onChange={set('google_maps_api_key')} span2 />
+        </Sec>
+
+        <Sec title="Logistik & Versand (Betriebs-Geofence)" editable icon={Truck}>
+          <Field label="Breitengrad (Mittelpunkt)" val={v('site_latitude') != null ? String(v('site_latitude')) : ''} onChange={set('site_latitude')} />
+          <Field label="Längengrad (Mittelpunkt)" val={v('site_longitude') != null ? String(v('site_longitude')) : ''} onChange={set('site_longitude')} />
+          <Field label="Radius (Meter)" val={v('site_radius_m') != null ? String(v('site_radius_m')) : ''} onChange={set('site_radius_m')} />
+          <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
+            Bewegungs-Ziele <strong>ausserhalb</strong> dieses Kreises gelten als externer Transport →
+            das Bewegen-Modul leitet automatisch einen <strong>Versand</strong> ab (Tarifvergleich, Label).
+            Ohne Geofence gilt: Firmen-Lagerplätze = intern, Kunden/Lieferanten = extern. Leer = nur Rollen-Regel.
+          </div>
         </Sec>
 
         <Sec title="AGB & Datenschutz (Website-Rechtstexte)" editable icon={FileText}>

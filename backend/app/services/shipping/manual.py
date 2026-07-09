@@ -1,0 +1,26 @@
+"""Manueller Versand-Fallback: kein Aggregator konfiguriert.
+
+Der Versand-Beleg existiert trotzdem (Klassifikation/Adressen/Pakete), aber Tarife/
+Label kommen nicht automatisch – das Personal erfasst Carrier, Tracking-Nummer und
+Kosten von Hand (``PATCH …/shipment``). So funktioniert der Prozess vollständig ohne
+externen Dienst und rüstet sich selbst auf, sobald ``EASYPOST_API_KEY`` gesetzt wird.
+"""
+
+from fastapi import HTTPException
+
+from .base import ShippingProvider
+
+
+class ManualShipping(ShippingProvider):
+    name = "manual"
+    supports_rates = False
+
+    def rates(self, address_from: dict, address_to: dict, parcels: list[dict]) -> dict:
+        return {"provider_shipment_id": None, "rates": []}   # kein Rate-Shopping – manuelle Erfassung
+
+    def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
+        raise HTTPException(
+            503,
+            detail="Kein Versand-Anbieter konfiguriert – Carrier/Tracking bitte manuell erfassen "
+                   "(oder EASYPOST_API_KEY hinterlegen).",
+        )

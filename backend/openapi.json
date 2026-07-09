@@ -3380,6 +3380,180 @@
         }
       }
     },
+    "/api/v1/erp/orders/{object_id}/shipment/quote": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Quote Order Shipment",
+        "description": "Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt.\nDer Versand-Beleg entsteht dabei idempotent; günstigster Tarif = Default-Auswahl.",
+        "operationId": "quote_order_shipment_api_v1_erp_orders__object_id__shipment_quote_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentQuoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/shipment/buy": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Buy Order Shipment",
+        "description": "Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer (idempotent).",
+        "operationId": "buy_order_shipment_api_v1_erp_orders__object_id__shipment_buy_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentBuyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/shipment": {
+      "patch": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Update Order Shipment",
+        "description": "Versand: Transport-Modus je Auftrag übersteuern (auto/carrier/self/none) bzw.\nmanuelle Versanddaten erfassen (Carrier, Tracking, Kosten – manual-Provider).",
+        "operationId": "update_order_shipment_api_v1_erp_orders__object_id__shipment_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShipmentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/erp/orders/{object_id}/resource": {
       "patch": {
         "tags": [
@@ -6412,6 +6586,17 @@
             ],
             "title": "Reorder Target"
           },
+          "is_hazmat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Hazmat"
+          },
           "fixed_location_lat": {
             "anyOf": [
               {
@@ -6922,6 +7107,11 @@
             ],
             "title": "Target Location Id"
           },
+          "transport_mode": {
+            "type": "string",
+            "title": "Transport Mode",
+            "default": "auto"
+          },
           "resource_lines": {
             "anyOf": [
               {
@@ -7160,6 +7350,11 @@
             ],
             "title": "Target Location Id"
           },
+          "transport_mode": {
+            "type": "string",
+            "title": "Transport Mode",
+            "default": "auto"
+          },
           "resource_lines": {
             "items": {
               "$ref": "#/components/schemas/ResourceLineView"
@@ -7395,6 +7590,17 @@
               }
             ],
             "title": "Target Location Id"
+          },
+          "transport_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport Mode"
           },
           "resource_lines": {
             "anyOf": [
@@ -7632,6 +7838,11 @@
               }
             ],
             "title": "Reorder Target"
+          },
+          "is_hazmat": {
+            "type": "boolean",
+            "title": "Is Hazmat",
+            "default": false
           },
           "fixed_location_lat": {
             "anyOf": [
@@ -8161,6 +8372,17 @@
               }
             ],
             "title": "Reorder Target"
+          },
+          "is_hazmat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Hazmat"
           },
           "fixed_location_lat": {
             "anyOf": [
@@ -8765,6 +8987,39 @@
             ],
             "title": "Default Receiving Location Id"
           },
+          "site_latitude": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Latitude"
+          },
+          "site_longitude": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Longitude"
+          },
+          "site_radius_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Radius M"
+          },
           "shop_currencies": {
             "anyOf": [
               {
@@ -9232,6 +9487,45 @@
               }
             ],
             "title": "Default Receiving Location Id"
+          },
+          "site_latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Latitude"
+          },
+          "site_longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Longitude"
+          },
+          "site_radius_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Radius M"
           },
           "shop_currencies": {
             "anyOf": [
@@ -11018,6 +11312,16 @@
               }
             ],
             "title": "Mode"
+          },
+          "shipment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShipmentEmbed"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -14200,6 +14504,383 @@
         "type": "object",
         "title": "ScrapUpdate",
         "description": "Erfassung des Verschrottungsschritts: die zu verschrottenden Instanzen + optionale\nNotiz/Grund. Mindestens eine Instanz.\n\n``items`` erlaubt je Instanz eine **Teilmenge** (Charge teilverschrotten); ``instance_ids``\nbleibt die Kurzform «ganze Instanz(en)» (beide Wege werden gemischt zusammengeführt)."
+      },
+      "ShipmentBuyRequest": {
+        "properties": {
+          "rate_id": {
+            "type": "string",
+            "title": "Rate Id"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rate_id"
+        ],
+        "title": "ShipmentBuyRequest",
+        "description": "Gewähltes Angebot kaufen → Label + Tracking."
+      },
+      "ShipmentEmbed": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "default": 0
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "default": false
+          },
+          "transport_class": {
+            "type": "string",
+            "title": "Transport Class",
+            "default": "unknown"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction",
+            "default": "outbound"
+          },
+          "transport_mode": {
+            "type": "string",
+            "title": "Transport Mode",
+            "default": "auto"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "draft"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "manual"
+          },
+          "provider_ready": {
+            "type": "boolean",
+            "title": "Provider Ready",
+            "default": false
+          },
+          "from_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Label"
+          },
+          "to_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Label"
+          },
+          "parcels": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Parcels",
+            "default": []
+          },
+          "hazmat": {
+            "type": "boolean",
+            "title": "Hazmat",
+            "default": false
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/ShipmentRate"
+            },
+            "type": "array",
+            "title": "Rates",
+            "default": []
+          },
+          "chosen_rate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen Rate Id"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "label_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Url"
+          },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "tracking_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Url"
+          },
+          "cost_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Amount"
+          },
+          "cost_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Currency"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "ShipmentEmbed",
+        "description": "Eingebetteter Versand-Stand eines Bewegungs-Schritts (im Auftrag)."
+      },
+      "ShipmentQuoteRequest": {
+        "properties": {
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "title": "ShipmentQuoteRequest",
+        "description": "Tarife laden (Rate-Shopping) für den Versand eines Bewegungs-Schritts."
+      },
+      "ShipmentRate": {
+        "properties": {
+          "rate_id": {
+            "type": "string",
+            "title": "Rate Id"
+          },
+          "carrier": {
+            "type": "string",
+            "title": "Carrier"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days"
+          },
+          "cheapest": {
+            "type": "boolean",
+            "title": "Cheapest",
+            "default": false
+          },
+          "fastest": {
+            "type": "boolean",
+            "title": "Fastest",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "rate_id",
+          "carrier",
+          "amount"
+        ],
+        "title": "ShipmentRate",
+        "description": "Ein Angebot aus dem Rate-Shopping (Snapshot, unveränderlich)."
+      },
+      "ShipmentUpdate": {
+        "properties": {
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          },
+          "transport_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transport Mode"
+          },
+          "carrier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carrier"
+          },
+          "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tracking Number"
+          },
+          "cost_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Amount"
+          },
+          "cost_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Currency"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "ShipmentUpdate",
+        "description": "Transport-Modus übersteuern bzw. manuelle Versanddaten erfassen (manual/self)."
       },
       "ShopCheckout": {
         "properties": {

@@ -228,6 +228,7 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         photo_instruction=((data.photo_instruction or "").strip() or None) if data.step_type == "inspection" else None,
         target_location_type=data.target_location_type if keeps_target else None,
         target_location_id=data.target_location_id if keeps_target else None,
+        transport_mode=(data.transport_mode or "auto") if data.step_type == "movement" else "auto",
         resource_lines=resource_raw,
         doc_signers=normalize_doc_signers(data.doc_signers) if is_document else None,
         sign_sequential=bool(data.sign_sequential) if is_document else False,

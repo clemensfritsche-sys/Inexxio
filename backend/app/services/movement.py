@@ -89,6 +89,14 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     # Versand zum Kunden (outbound): optionale Sendungsverfolgung.
     mv.tracking_number = (getattr(data, "tracking_number", None) or "").strip() or None
     mv.carrier = (getattr(data, "carrier", None) or "").strip() or None
+    # Versand-Beleg (ADR 005) abschliessen: das Quittieren der Bewegung IST die physische
+    # Übergabe (purchased → done); Tracking/Carrier aus dem gekauften Label übernehmen,
+    # wenn der Lagerist nichts eigenes erfasst hat.
+    from . import logistics
+    ship = logistics.complete_for_movement(db, order, step)
+    if ship:
+        mv.tracking_number = mv.tracking_number or ship.tracking_number
+        mv.carrier = mv.carrier or ship.carrier
     db.flush()
 
     log_audit(db, "movements", None, "Bewegung erfasst", actor_id, object_id=order.object_id)

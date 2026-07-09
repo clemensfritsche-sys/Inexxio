@@ -418,6 +418,30 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Automatik ist **standardmässig an** (der physische Vollzug bleibt beim Bewegungs-Schritt scan-quittiert;
   no-ops laufen still durch). *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige Montage sind über
   denselben Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten bleibt Backlog.*
+- **Logistik/Versand — «Versand wird ABGELEITET, nicht bestellt» (ADR 005, `docs/adr/005-logistik.md`,
+  Migration `071`)**: der Bewegungs-Schritt kennt Quelle+Ziel → EINE Klassifikation
+  (`services/logistics.classify_movement`) leitet die Transportklasse ab: **Personen nach Rolle**
+  (Kunde/Lieferant = aussen, Mitarbeiter = innen – funktioniert ohne Geofence), **Lagerplätze nach GPS**
+  gegen den **Betriebs-Geofence** (am Unternehmens-Datensatz: `company_settings.site_latitude/longitude/
+  radius_m`, ERP «Unternehmen» → «Logistik & Versand» + Admin-Karte «Lager & Logistik»; Default-Radius
+  300 m), Instanz-Ziele über die physische Kette. **Richtung**: Ziel aussen → outbound; Quelle aussen →
+  inbound (**Abholung Lieferant / Kunden-Retoure = DIESELBE Engine**). Long-Tail über EIN Feld
+  `transport_mode` (auto | carrier | self | none) – am Schritt deklariert, **je Auftrag am Beleg
+  übersteuerbar** (`shipments.transport_mode`, Artikel-Prozess wird nie mutiert); digitale Payloads sind
+  bewusst KEIN Fall. **Versand-Beleg `shipments`** (Fachzeile je Bewegungs-Schritt, KEINE eigene Nummer):
+  Adress-Snapshots (Firma ↔ Ziel-Person/-Lagerplatz, Länder → ISO-2), **Paket-Schätzung aus Artikel-Daten**
+  (Gewicht×Menge, Grösse mm→cm, Fallback-Karton), Gefahrgut-Warnung (`articles.is_hazmat`, optionales
+  Spez-Feld «Gefahrgut»), Rate-Snapshot, Label, Tracking, Kosten; Status draft→quoted→purchased→done.
+  **Carrier-Aggregator = EasyPost** hinter dem Gateway-Muster (`services/shipping/`: base/easypost/manual,
+  exakt wie payments): aktiviert sich selbst über `EASYPOST_API_KEY` (Self-Serve wie Stripe, Pay-per-Label;
+  Adapter rechnet cm/kg→inch/oz, Kauf via `/v2/shipments/{id}/buy`); ohne Key läuft `manual`
+  (Carrier/Tracking von Hand – nie kaputt). **Best-Offer: günstigster = Default-Auswahl, Schnellster als
+  Hinweis** (`logistics.quote` markiert cheapest/fastest). Endpunkte am Auftrag: `POST …/shipment/quote|buy`,
+  `PATCH …/shipment`; Embed fährt im Bewegungs-Embed mit (`MovementEmbed.shipment`, Versand-Box im
+  `movement-panel.tsx`: Klasse-Chip, Modus-Select, Tarifliste, Label-PDF, manuelle Erfassung).
+  `record_movement` schliesst den Beleg (purchased→done) und übernimmt Tracking in die Bewegung – **der
+  physische Vollzug bleibt scan-quittiert**. *Bewusst NICHT gebaut: Tracking-Webhooks, Carrier-Pickup-
+  Orders, Multi-Parcel, Zoll-Dokumente, Versandkosten-Weiterverrechnung an den Kunden.*
   - **Unterdeckung → EINE Formel & zwei Deckungs-Wege für ALLE Auftragsarten** (`services/recovery.py`,
     `process._subject_shortfalls`): Kann ein Auftrag sein Soll nicht (mehr) erfüllen – weil eine reservierte
     Instanz **ausgesteuert** wurde (Abweichung verschrottet ein verkauftes/reserviertes Teil) ODER weil ein

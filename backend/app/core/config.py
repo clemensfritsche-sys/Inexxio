@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     # Stripe Tax (automatic_tax) am Checkout. NUR aktivieren, wenn im Stripe-Dashboard
     # eingerichtet (Sitz-Adresse + Registrierung) – sonst schlägt die Checkout-Erstellung fehl.
     stripe_tax_enabled: bool = False
+    # ── Logistik / Versand ────────────────────────────────────────────────────────
+    # Carrier-Aggregator (Rate-Shopping + Label-Kauf): 'easypost' aktiviert sich von
+    # selbst, sobald EASYPOST_API_KEY gesetzt ist (Self-Serve wie Stripe: Test-Key sofort,
+    # Pay-per-Label, ohne Carrier-Verträge startbar). Ohne Key läuft der 'manual'-Fallback
+    # (Carrier/Tracking von Hand erfassen) – nie kaputt.
+    easypost_api_key: str = ""
+    easypost_api_url: str = "https://api.easypost.com/v2"
+
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
     fx_source_url: str = "https://api.exchangerate.host/latest"

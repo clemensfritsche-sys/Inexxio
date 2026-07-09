@@ -45,6 +45,7 @@ export interface ArticleInput {
   size?: string | null;
   weight_kg?: string | null;
   // Optionale Stammdaten (dynamische Feldliste, nur bei Bedarf)
+  is_hazmat?: boolean | null;
   material?: string | null;
   cad_url?: string | null;
   surface?: string | null;
@@ -181,6 +182,20 @@ export interface MovementUpdateInput {
   targets: MovementTargetInput[];
   note?: string | null;
   step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
+}
+
+// Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg am Bewegungs-Schritt.
+export type ShipmentEmbed = components['schemas']['ShipmentEmbed'];
+export type ShipmentRate = components['schemas']['ShipmentRate'];
+export type TransportMode = 'auto' | 'carrier' | 'self' | 'none';
+export interface ShipmentUpdateInput {
+  step_id?: number | null;
+  transport_mode?: TransportMode | null;
+  carrier?: string | null;
+  tracking_number?: string | null;
+  cost_amount?: number | null;
+  cost_currency?: string | null;
+  note?: string | null;
 }
 
 // Verschrotten: zu verschrottende Instanzen + optionale Notiz. ``items`` erlaubt je Instanz
@@ -582,6 +597,10 @@ export interface CompanySettings {
   hcaptcha_site_key: string | null;
   google_maps_api_key: string | null;
   default_receiving_location_id: number | null;
+  // Betriebs-Geofence (ADR 005): Mittelpunkt + Radius des Betriebsgeländes
+  site_latitude: number | null;
+  site_longitude: number | null;
+  site_radius_m: number | null;
   // Shop / Verkauf
   shop_currencies: string[];
   shop_country_currency: Record<string, string> | null;

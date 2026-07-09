@@ -152,6 +152,7 @@ class ArticleCreate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
+    is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
     # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None
@@ -262,6 +263,7 @@ class ArticleUpdate(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E
+    is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
     # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None
@@ -377,6 +379,7 @@ class ArticleResponse(BaseModel):
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
+    is_hazmat: bool = False                     # Gefahrgut (Versand-Warnung, ADR 005)
     # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None

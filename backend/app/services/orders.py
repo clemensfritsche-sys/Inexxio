@@ -211,7 +211,7 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
 
 
 def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
-                    mv: Movement | None) -> MovementEmbed:
+                    mv: Movement | None, instances: list | None = None) -> MovementEmbed:
     me = MovementEmbed(id=mv.id if mv else 0, done=mv is not None, note=mv.note if mv else None)
     me.mode = step.mode                      # 'customer' = Pflicht-Versand (nur dann sold bewegbar)
     me.target_location_type = step.target_location_type
@@ -230,6 +230,17 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     if mv and mv.moved_by_id:
         me.moved_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
+    # Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg dieses Schritts.
+    # Dieselbe Instanz-Auswahl wie record_movement (Pflicht-Versand/Retoure inkl. sold).
+    from .subject import is_return, order_active_instances, order_instances
+    if instances is None:
+        if is_return(order) or step.mode == "customer":
+            instances = [i for i in order_instances(db, order)
+                         if (i.disposition or "") not in ("scrapped", "consumed")]
+        else:
+            instances = order_active_instances(db, order)
+    from . import logistics
+    me.shipment = logistics.build_embed(db, order, step, instances)
     return me
 
 

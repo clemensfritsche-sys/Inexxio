@@ -177,6 +177,13 @@ _COLUMN_SAFETY_NET = (
     ("inspections", "signed_by", "BIGINT"),
     ("inspections", "signed_at", "TIMESTAMP WITH TIME ZONE"),
     ("inspections", "photo_url", "VARCHAR(300)"),
+    # Logistik/Versand (ADR 005): Gefahrgut-Flag, Betriebs-Geofence, Transport-Modus.
+    # Die shipments-TABELLE legt create_all() an; hier nur nachgezogene Spalten.
+    ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("company_settings", "site_latitude", "NUMERIC(9,6)"),
+    ("company_settings", "site_longitude", "NUMERIC(9,6)"),
+    ("company_settings", "site_radius_m", "INTEGER"),
+    ("article_process_steps", "transport_mode", "VARCHAR(10) DEFAULT 'auto' NOT NULL"),
 )
 
 # Bruchmengen (Migration 055): Mengen-Spalten müssen NUMERIC(14,3) sein, nicht INTEGER –

@@ -54,14 +54,14 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'dokumente', label: 'Dokumente', icon: FolderOpen },
 ];
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target';
+type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'is_hazmat';
 // Der «Fixierte Standort» ist ebenfalls ein optionales Spezifikationsfeld – aber kein simples
 // Textfeld, sondern (exakt wie am Lagerplatz) ein GPS-/Adressblock. Deshalb ein eigener Key.
 type AddKey = OptKey | 'fixed_location';
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
-  reorder_target: string;
+  reorder_target: string; is_hazmat: string;
   // Fixierter Standort (optional): GPS + reverse-geocodierte Adresse – exakt wie am Lagerplatz.
   fixed_lat: string; fixed_lng: string;
   fixed_street: string; fixed_zip: string; fixed_city: string; fixed_country: string;
@@ -70,7 +70,7 @@ type Form = {
 };
 
 // Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen)
-const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placeholder: string; hint?: string }[] = [
+const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?: boolean; placeholder: string; hint?: string }[] = [
   { key: 'material', label: 'Material', placeholder: 'z. B. Stahl 1.4301' },
   { key: 'cad_url', label: 'CAD-Link', placeholder: 'https://…', hint: 'Link zur CAD-Datei/Zeichnung' },
   { key: 'surface', label: 'Oberfläche', placeholder: 'z. B. verzinkt, eloxiert' },
@@ -78,12 +78,13 @@ const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; placehol
   { key: 'min_order_qty', label: 'MOQ (Mindestbestellmenge)', numeric: true, placeholder: 'z. B. 50' },
   { key: 'safety_stock', label: 'Meldebestand (Sicherheitsbestand)', numeric: true, placeholder: 'z. B. 20', hint: 'Fällt der freie Bestand darunter, wird automatisch nachbestellt.' },
   { key: 'reorder_target', label: 'Zielbestand (Nachbestellung)', numeric: true, placeholder: 'z. B. 100', hint: 'Auf diese Menge wird bei Nachbestellung aufgefüllt (leer = Meldebestand).' },
+  { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '', hint: 'Fliesst als Warnung in den Versand – Pakete mit Gefahrgut brauchen Spezialbehandlung.' },
 ];
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    reorder_target: '',
+    reorder_target: '', is_hazmat: '',
     fixed_lat: '', fixed_lng: '', fixed_street: '', fixed_zip: '', fixed_city: '', fixed_country: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
@@ -96,6 +97,7 @@ function seedFrom(record: Article | null): Form {
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     reorder_target: record.reorder_target != null ? String(record.reorder_target) : '',
+    is_hazmat: record.is_hazmat ? 'ja' : '',
     fixed_lat: record.fixed_location_lat != null ? String(record.fixed_location_lat) : '',
     fixed_lng: record.fixed_location_lng != null ? String(record.fixed_location_lng) : '',
     fixed_street: record.fixed_location_street ?? '', fixed_zip: record.fixed_location_zip ?? '',
@@ -117,7 +119,7 @@ function signatureOf(form: Form): string {
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
-    reorder_target: form.reorder_target.trim(),
+    reorder_target: form.reorder_target.trim(), is_hazmat: form.is_hazmat,
     fixed_lat: form.fixed_lat.trim(), fixed_lng: form.fixed_lng.trim(),
     fixed_street: form.fixed_street.trim(), fixed_zip: form.fixed_zip.trim(),
     fixed_city: form.fixed_city.trim(), fixed_country: form.fixed_country.trim(),
@@ -289,6 +291,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
         min_order_qty: form.min_order_qty.trim() || null,
         safety_stock: form.safety_stock.trim() || null,
         reorder_target: form.reorder_target.trim() || null,
+        is_hazmat: form.is_hazmat === 'ja',
         // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
         fixed_location_lat: form.fixed_lat.trim() || null,
         fixed_location_lng: form.fixed_lng.trim() || null,
@@ -709,7 +712,14 @@ function OptField({ f, form, onSet, onRemove }: {
           <Trash2 size={13} />
         </button>
       </div>
-      <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
+      {f.boolean ? (
+        <select value={form[f.key] === 'ja' ? 'ja' : ''} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS}>
+          <option value="">Nein</option>
+          <option value="ja">Ja</option>
+        </select>
+      ) : (
+        <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
+      )}
       {f.hint && <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{f.hint}</div>}
     </div>
   );
