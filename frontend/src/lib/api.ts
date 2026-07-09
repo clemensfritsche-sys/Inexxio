@@ -748,7 +748,6 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
     default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
-    default_scrap_location_id: (s.default_scrap_location_id as number | null) ?? null,
     shop_currencies: (s.shop_currencies as string[] | null) ?? ['CHF', 'EUR', 'USD'],
     shop_country_currency: (s.shop_country_currency as Record<string, string> | null) ?? null,
     shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',

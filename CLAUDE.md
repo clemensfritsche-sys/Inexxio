@@ -396,25 +396,28 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     der Registry); Abschluss-Marker `disposals` (keine eigene Nummer). Nur im **Auftrags-Ablauf** zulässig
     (nicht im Artikel-Prozess). Durchfaller sind im Panel vorausgewählt. **«Ersatz»** = Komposition aus
     `scrap` (defektes Teil raus) + Beschaffung/Bestand (neues herein) – kein monolithischer Schritt.
-    **Ausschuss → Schrottplatz (Bereitstellungsort, Migration 068):** die GANZ verschrotteten Instanzen
-    wandern automatisch an den Ausschuss-Lagerort (`services/provisioning.send_to_scrapyard`, no-op wenn
-    schon dort; Teil-Verschrottung bleibt am Lager). Der Lagerort ist konfigurierbar
-    (`company_settings.default_scrap_location_id`, Admin → Systemkonfiguration → «Lager & Logistik»); fehlt
-    er, legt der Reconciler EINMALIG einen Lagerplatz «Schrottplatz» an und hinterlegt ihn – keine
-    herrenlosen Teile, voller physischer Ort für Ausschuss.
+    **Ausschuss ist STANDORTLOS (Migration 070, kehrt 068 um):** die GANZ verschrottete Instanz verliert
+    beim Verschrotten ihren Standort (`location_split.clear` in `services/scrap.py`) – ein Standort ist immer
+    ein realer **Halter** (Lagerplatz/Person/Instanz), den Ausschuss nicht mehr hat; der Endzustand
+    `disposition='scrapped'` IST die «Wo»-Aussage. So findet «wer liegt hier» (`references`) ein
+    verschrottetes Teil korrekt nicht mehr. **Kein Schrottplatz-Lagerort mehr** (`provisioning.
+    send_to_scrapyard`/`resolve_scrap_location` + `company_settings.default_scrap_location_id` entfernt).
+    Teil-Verschrottung lässt die gute Restmenge am Lager (Standort bleibt).
 - **Bereitstellungsort — «Bewegung wird ABGELEITET, nicht orchestriert»** (`domain/event_types.py`
   `provisioning`, `services/provisioning.py`): jeder Schritttyp DEKLARIERT seinen Bereitstellungsort (wohin
   sein Subjekt/seine Inputs physisch müssen) — Beschaffung→Wareneingang, Verkauf→Kunde, Ressource→Produkt-
-  Instanz/Arbeitsplatz, Verschrotten→Schrottplatz, Datenerfassung/Bewegung/Dokument→kein fester Ort. Der
+  Instanz/Arbeitsplatz, **Verschrotten→standortlos** (`PROV_NOWHERE`, kein Halter mehr),
+  Datenerfassung/Bewegung/Dokument→kein fester Ort. Der
   EINE Reconciler `provisioning.reconcile_to(inst, typ, id)` vergleicht Ist↔Soll und bringt die **ganze**
   Instanz ans Ziel — **no-op, wenn schon da**; Teilmengen/Chargen laufen weiter auftragsgetrieben über den
   Bewegungs-Schritt (`location_split.move`). Wareneingang/Versand/Kunde laufen wie gehabt über die
   gesperrten Pflicht-Bewegungen (`services/process_steps.py`), Verbrauch/Betriebsmittel über den
   Ressourcen-Schritt (Komponente → Produkt-Instanz via `_relocate`; Werkzeug → Arbeitsplatz via `_use_tool`,
-  jetzt über denselben Reconciler, no-op wenn schon da); NEU verdrahtet ist der **Schrottplatz**. Automatik
-  ist **standardmässig an** (der physische Vollzug bleibt beim Bewegungs-Schritt scan-quittiert; no-ops
-  laufen still durch). *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige Montage sind über denselben
-  Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten bleibt Backlog.*
+  jetzt über denselben Reconciler, no-op wenn schon da). **Verschrotten** hat KEINEN Bereitstellungsort
+  (`PROV_NOWHERE`): die Instanz wird standortlos (`location_split.clear`), kein Schrottplatz-Reconcile mehr.
+  Automatik ist **standardmässig an** (der physische Vollzug bleibt beim Bewegungs-Schritt scan-quittiert;
+  no-ops laufen still durch). *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige Montage sind über
+  denselben Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten bleibt Backlog.*
   - **Unterdeckung → EINE Formel & zwei Deckungs-Wege für ALLE Auftragsarten** (`services/recovery.py`,
     `process._subject_shortfalls`): Kann ein Auftrag sein Soll nicht (mehr) erfüllen – weil eine reservierte
     Instanz **ausgesteuert** wurde (Abweichung verschrottet ein verkauftes/reserviertes Teil) ODER weil ein
