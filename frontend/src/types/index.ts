@@ -52,6 +52,13 @@ export interface ArticleInput {
   min_order_qty?: string | null;
   safety_stock?: string | null;
   reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
+  // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+  fixed_location_lat?: string | null;
+  fixed_location_lng?: string | null;
+  fixed_location_street?: string | null;
+  fixed_location_zip?: string | null;
+  fixed_location_city?: string | null;
+  fixed_location_country?: string | null;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
   procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;

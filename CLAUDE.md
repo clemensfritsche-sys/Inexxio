@@ -365,8 +365,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `company_settings.article_names` ist **vollständig entfernt** (Modell/Schema/API + Admin-UI) –
   Vorschläge stammen ausschliesslich aus echten Artikelnamen.
 - **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
-  (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand). Im
-  Stammdaten-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden gespeichert/angezeigt.
+  (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand) sowie
+  **Fixierter Standort** (`fixed_location_*`, Migration 069): GPS-Koordinaten + reverse-geocodierte
+  Adresse – **exakt die Standort-Definition des Lagerplatz-Datensatzes** (`MapPicker` + Adressblock,
+  `google_maps_api_key`). Rein deskriptiv am Artikel; friert wie die übrige Spezifikation bei der
+  Freigabe ein. Im Spezifikation-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden
+  gespeichert/angezeigt.
 - **Durchlaufzeit** je Artikel (read-only, analog Preisspanne): kürzeste–längste Zeit zwischen Freigabe
   (`orders.released_at`) und Abschluss (`orders.completed_at`) über erledigte Aufträge
   (`ArticleResponse.lead_time_days_low/high`, berechnet in `routers/articles.py`).
