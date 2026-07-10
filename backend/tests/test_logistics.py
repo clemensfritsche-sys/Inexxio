@@ -182,6 +182,52 @@ def test_quote_surfaces_provider_messages():
     assert "Anbieter-Hinweis" in src or "Carrier-Konto" in src  # und dem Nutzer gezeigt
 
 
+def test_sendcloud_adapter_parsing():
+    """Sendcloud-Adapter: Strasse→(Strasse, Hausnr.) für das getrennte Sendcloud-Feld und
+    Versandart→neutrale Rate (Preis fürs Zielland, tolerant); der Provider ist registriert."""
+    from app.services import shipping
+    from app.services.shipping.sendcloud import _parse_method, _split_street
+
+    assert _split_street("Löwenstrasse 24") == ("Löwenstrasse", "24")
+    assert _split_street("Heubühel 11a") == ("Heubühel", "11a")
+    assert _split_street("Postfach") == ("Postfach", "")
+
+    m = {"id": 8, "name": "Swiss Post Priority", "carrier": "swiss_post",
+         "min_weight": "0.001", "max_weight": "30.000",
+         "countries": [{"iso_2": "AT", "price": 12.9}, {"iso_2": "DE", "price": 15.0}]}
+    assert _parse_method(m, "AT", "CHF") == {
+        "rate_id": "8", "carrier": "swiss_post", "service": "Swiss Post Priority",
+        "amount": 12.9, "currency": "CHF", "days": None, "provider_rate_id": "8"}
+    assert _parse_method({"name": "x"}, "AT", "EUR") is None      # ohne id unbrauchbar
+    assert "sendcloud" in shipping._PROVIDERS
+
+
+def test_provider_selection_precedence(monkeypatch):
+    """Auswahl-Logik: 'auto' bevorzugt Sendcloud (beide Keys) ≻ Shippo (Key) ≻ manual;
+    ein expliziter Wert übersteuert – so laufen beide Adapter parallel im Code."""
+    from types import SimpleNamespace
+
+    from app.services import shipping
+
+    def fake(**kw):
+        base = dict(shipping_provider="auto", sendcloud_public_key="", sendcloud_secret_key="",
+                    shippo_api_key="")
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    monkeypatch.setattr(shipping, "get_settings",
+                        lambda: fake(sendcloud_public_key="p", sendcloud_secret_key="s", shippo_api_key="k"))
+    assert shipping.provider_name() == "sendcloud"          # Sendcloud ≻ Shippo
+    monkeypatch.setattr(shipping, "get_settings", lambda: fake(shippo_api_key="k"))
+    assert shipping.provider_name() == "shippo"             # nur Shippo-Key
+    monkeypatch.setattr(shipping, "get_settings", lambda: fake())
+    assert shipping.provider_name() == "manual"             # nichts konfiguriert
+    monkeypatch.setattr(shipping, "get_settings",
+                        lambda: fake(shipping_provider="shippo", sendcloud_public_key="p",
+                                     sendcloud_secret_key="s", shippo_api_key="k"))
+    assert shipping.provider_name() == "shippo"             # expliziter Override trotz Sendcloud
+
+
 def test_shipping_wiring_end_to_end():
     """Verdrahtung: Shipment-Modell (Fachzeile ohne eigene Nummer), transport_mode am
     Schritt (Whitelist), ShipmentEmbed im Bewegungs-Embed, Endpunkte am Auftrag,

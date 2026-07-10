@@ -402,7 +402,10 @@ def buy(db: Session, order: Order, step: ArticleProcessStep, rate_id: str,
     if not rate:
         raise HTTPException(400, detail="Unbekannter Tarif – bitte Tarife neu laden")
     provider = shipping.get_provider()
-    result = provider.buy(ship.provider_shipment_id, rate.get("provider_rate_id") or rate_id)
+    result = provider.buy(
+        {"provider_shipment_id": ship.provider_shipment_id, "address_from": ship.address_from,
+         "address_to": ship.address_to, "parcels": ship.parcels or []},
+        rate.get("provider_rate_id") or rate_id)
     ship.chosen_rate_id = rate_id
     ship.carrier = rate.get("carrier")
     ship.service = rate.get("service")

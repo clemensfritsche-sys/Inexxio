@@ -115,8 +115,10 @@ class ShippoShipping(ShippingProvider):
             "messages": _messages(data.get("messages")),
         }
 
-    def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
-        # Shippo kauft direkt gegen die Rate-Objektnummer (kein Shipment-Kauf-Endpunkt).
+    def buy(self, shipment: dict, provider_rate_id: str) -> dict:
+        # Shippo kauft direkt gegen die Rate-Objektnummer (kein Shipment-Kauf-Endpunkt);
+        # der übrige Kontext (Adresse/Paket) steckt schon in der Rate und wird ignoriert.
+        provider_shipment_id = (shipment or {}).get("provider_shipment_id")
         data = self._post("/transactions/",
                           {"rate": provider_rate_id, "label_file_type": "PDF", "async": False})
         if (data.get("status") or "").upper() not in ("SUCCESS", "QUEUED"):

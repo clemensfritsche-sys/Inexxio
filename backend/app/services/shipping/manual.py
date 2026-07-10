@@ -19,7 +19,7 @@ class ManualShipping(ShippingProvider):
         # kein Rate-Shopping – manuelle Erfassung
         return {"provider_shipment_id": None, "rates": [], "messages": []}
 
-    def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
+    def buy(self, shipment: dict, provider_rate_id: str) -> dict:
         raise HTTPException(
             503,
             detail="Kein Versand-Anbieter konfiguriert – Carrier/Tracking bitte manuell erfassen "

@@ -26,6 +26,11 @@ class ShippingProvider(ABC):
         echten Provider-/Netzwerkfehlern (HTTP ≥ 400)."""
 
     @abstractmethod
-    def buy(self, provider_shipment_id: str | None, provider_rate_id: str) -> dict:
-        """Das Angebot kaufen. Rückgabe: {label_url, tracking_number, tracking_url,
-        provider_shipment_id}. Wirft HTTPException bei Provider-Fehlern."""
+    def buy(self, shipment: dict, provider_rate_id: str) -> dict:
+        """Das gewählte Angebot kaufen → Label + Tracking.
+
+        ``shipment`` trägt den Kontext, den manche Anbieter erst beim Kauf brauchen:
+        {"provider_shipment_id", "address_from", "address_to", "parcels"}. Shippo kauft
+        allein gegen die Rate-Objektnummer (ignoriert den Rest); Sendcloud legt hier das
+        Paket (Adresse + Gewicht + Methode) an. Rückgabe: {label_url, tracking_number,
+        tracking_url, provider_shipment_id}. Wirft HTTPException bei Provider-Fehlern."""

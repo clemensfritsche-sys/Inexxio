@@ -1,6 +1,6 @@
 # ADR 005 – Logistik/Versand: «Versand wird abgeleitet, nicht bestellt»
 
-Status: umgesetzt (Slice 1+2, Shippo, adress-basiert) · Datum: 2026-07-09
+Status: umgesetzt (Slice 1+2, Sendcloud-Default + Shippo-Fallback, adress-basiert) · Datum: 2026-07-10
 
 ## Kontext
 
@@ -50,15 +50,26 @@ Pakete werden **aus den Artikel-Daten geschätzt** (Gewicht × Menge, Grösse-St
 mm→cm; Fallback Standardkarton) – kaum manueller Input. **Gefahrgut** ist ein optionales
 Artikel-Spezifikationsfeld (`articles.is_hazmat`) und erscheint als Warnung am Versand.
 
-### 4. Carrier-Aggregator: **Shippo**, hinter einem Gateway
+### 4. Carrier-Aggregator: **Sendcloud** (Default), Shippo als Fallback – hinter EINEM Gateway
 
 `services/shipping/` (exakt das Payments-Muster): `base.ShippingProvider` →
-**shippo** (Rate-Shopping + Label-Kauf, aktiviert sich selbst über `SHIPPO_API_KEY`)
-| **manual** (ohne Key: Carrier/Tracking von Hand – nie kaputt). Shippo-Wahl:
-Self-Serve wie Stripe (Test-Key sofort nach Registrierung sichtbar, Pay-per-Label, keine
-Vertrags-Eintrittsbarriere), sauberes REST-API, solide EU-Carrier-Abdeckung. Rechnet nativ
-in cm/kg; Rates kommen inline am Shipment, Kauf über `POST /transactions/` (Rate-Objektnummer).
-EasyPost/Sendcloud wären Drop-in-Adapter.
+**sendcloud** | **shippo** | **manual**. Auswahl über `shipping_provider` (`auto` =
+Sendcloud ≻ Shippo ≻ manual): der aktive Provider ergibt sich aus den vorhandenen Secrets;
+beide Adapter koexistieren im Code.
+
+- **sendcloud** (EMPFOHLEN): europäischer Aggregator mit **nativer Herkunft Schweiz**
+  (Swiss Post/DPD/DHL ab CH). Self-serve API-Keys (Public + Secret, HTTP-Basic), ohne
+  eigenen Carrier-Vertrag über Sendclouds Tarife startbar, **kostenlose Test-Labels**
+  («Unstamped letter»). Rate-Shopping über `GET /shipping_methods` (Preis je Zielland),
+  Label über `POST /parcels`. Rechnet nativ in kg.
+- **shippo** (Fallback): US-zentriert – die geteilten Gratis-Carrier können **CH-Herkunft
+  NICHT** (praktisch bewiesen: alle meldeten „origin not supported"). Ab CH nur mit
+  **eigenem Carrier-Konto** (DHL Express/UPS/…) + **Live-Token**. Bleibt als Adapter erhalten.
+- **manual** (ohne Keys): Carrier/Tracking von Hand – nie kaputt.
+
+**Warum Sendcloud statt Shippo für eine Schweizer AG:** Shippos Sandbox deckt CH-Herkunft
+prinzipiell nicht ab; Sendcloud tut es nativ und lässt sich gratis testen. EasyPost/nShift
+wären weitere Drop-in-Adapter.
 
 ### 5. Best-Offer-Policy: günstigster Default, Schnellster als Hinweis
 

@@ -70,6 +70,20 @@ class Settings(BaseSettings):
     # erfassen) – nie kaputt. Der Anbieter ist hinter dem Gateway austauschbar.
     shippo_api_key: str = ""
     shippo_api_url: str = "https://api.goshippo.com"
+    # Sendcloud (europäischer Aggregator MIT nativer Schweiz-Herkunft: Swiss Post, DPD,
+    # DHL … – Shippos Gratis-Carrier können CH-Herkunft NICHT). Zwei Schlüssel (HTTP-Basic:
+    # Public = User, Secret = Passwort), self-serve im Sendcloud-Panel erzeugbar; ohne
+    # eigenen Carrier-Vertrag über Sendclouds Tarife startbar, Test-Labels («Unstamped
+    # letter») kostenlos. Aktiviert sich selbst, sobald beide Keys gesetzt sind.
+    sendcloud_public_key: str = ""
+    sendcloud_secret_key: str = ""
+    sendcloud_api_url: str = "https://panel.sendcloud.sc/api/v2"
+    # Anzeige-Währung der Sendcloud-Tarife (das Panel liefert nicht immer eine Währung mit).
+    sendcloud_currency: str = "EUR"
+    # Aktiver Versand-Provider: 'auto' (bevorzugt Sendcloud, dann Shippo, dann manual) |
+    # 'sendcloud' | 'shippo' | 'manual'. Erlaubt, beide Adapter im Code zu halten und den
+    # aktiven per Konfiguration zu wählen (heute Sendcloud; Shippo bleibt als Fallback).
+    shipping_provider: str = "auto"
 
     # Kostenlose FX-Quelle (Tageskurs) – exchangerate.host-Format ({"rates": {...}},
     # Basis CHF). Schlägt der Abruf fehl, wird der letzte bekannte Kurs verwendet.
