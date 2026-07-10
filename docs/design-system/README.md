@@ -20,6 +20,7 @@
 | **`frontend/public/brand/`** | Echte Marken-Assets für die App: `inexxio-logo.svg` (bevorzugt), `favicon.svg`, `inexxio-logo.png`. Produktiv nutzbar. |
 | `docs/design-system/reference/` | Read-only Referenz: Instanz-Detail-Mockups (`mockups/*.dc.html`), Referenz-React-Komponenten (`components/`), Website-UI-Kit (`ui-kit-website/`), Design-Specimens (`preview/`), offizielle Claude-Design-Skill (`inexxio-design.SKILL.md`), Token-Manifest. Vorlage, **nicht** direkt importieren. |
 | `.claude/skills/inexxio-design-system/SKILL.md` | Auto-Skill: legt jeder künftigen Claude-Session bei UI-Arbeit diese Regeln vor. |
+| **`.mcp.json`** (Repo-Wurzel) | Projekt-Scope-MCP-Konfiguration: registriert den **`claude-design`**-Server (`https://api.anthropic.com/v1/design/mcp`) für **jede** Claude-Code-Session in diesem Repo. Damit zieht Claude den Claude-Design-Export direkt statt ihn manuell zu kopieren (§5). |
 
 > **Marketing-Bildmaterial** (Interior-Renders `room1–7.png`, `hero_scan.png`,
 > `city_bw.png`, `og_hero.png`, zusammen ~9 MB) ist **bewusst nicht** im Repo — es
@@ -82,15 +83,37 @@ konvergiert die App verlustfrei aufs System.
 
 ## 5. Neuen Claude-Design-Export übernehmen (Re-Sync)
 
-Wenn du in Claude Design weiterarbeitest und neu exportierst:
+Das Design-System ist der in den Code übernommene Export aus **Claude Design**
+(claude.ai/design). Für den Re-Sync ist der **`claude-design`**-MCP-Server in
+`.mcp.json` (Repo-Wurzel) registriert – **jede** Claude-Code-Session in diesem Repo
+bekommt ihn automatisch (einmalige Bestätigung «MCP-Server dieses Projekts vertrauen»).
+
+### 5.1 Über den `claude-design`-MCP (bevorzugt)
+
+Der Server bildet die Claude-Design-Projekte auf Lese-/Schreib-Operationen ab
+(`list_projects`, `list_files`, `get_file`, `write_files` …), gebunden an deinen
+**claude.ai-Login**; der erste Zugriff fragt einmalig nach der Freigabe von
+Design-System-Zugriff für den Login (OAuth). Abgleich **inkrementell, eine Komponente
+nach der anderen** – nie als Voll-Ersatz. Konkret für Inexxio: die kanonische
+Token-Datei und die Referenz-/Doku-Dateien unter `docs/design-system/` aus dem Projekt
+ziehen, dann §5.3.
+
+Ausserhalb dieses Repos (persönlicher Scope) lässt sich derselbe Server per CLI
+hinzufügen:
+`claude mcp add --transport http claude-design https://api.anthropic.com/v1/design/mcp`
+
+### 5.2 Manuell (Fallback / was dabei passiert)
 
 1. Die kanonische Token-Datei ersetzen:
    `cp <export>/…/colors_and_type.css frontend/src/styles/design-system/colors_and_type.css`
 2. Referenz-/Doku-Dateien in `docs/design-system/` aktualisieren (Foundations,
    Mockups, Manifest).
-3. `cd frontend && npm run build` – der Build ist der Wächter (fehlende Tokens fallen
-   sofort auf). Tokens sind nach **Name** stabil; nur Werte ändern sich → kein
-   Komponenten-Refactor nötig.
+
+### 5.3 Danach immer
+
+`cd frontend && npm run build` – der Build ist der Wächter (fehlende Tokens fallen
+sofort auf). Tokens sind nach **Name** stabil; nur Werte ändern sich → kein
+Komponenten-Refactor nötig.
 
 ## 6. „Instanz Detail"-Redesign (nächster konkreter Schritt)
 

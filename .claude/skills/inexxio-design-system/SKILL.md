@@ -61,5 +61,7 @@ Nicht neu erfinden: `frontend/src/components/erp/fields.tsx` liefert `StatusBadg
 u. a. Diese Bausteine nutzen (und schrittweise auf die Tokens ziehen), statt Eigenbau.
 
 ## Neuen Claude-Design-Export übernehmen
+Der **`claude-design`**-MCP-Server (registriert in `.mcp.json`, Repo-Wurzel) zieht den
+Export aus Claude Design direkt – inkrementell abgleichen (Details: README §5). Danach:
 `colors_and_type.css` ersetzen → Referenz/Doku in `docs/design-system/` aktualisieren
 → `cd frontend && npm run build` (Build = Wächter). Tokens sind nach Namen stabil.
