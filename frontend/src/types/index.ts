@@ -196,6 +196,11 @@ export interface ShipmentUpdateInput {
   cost_amount?: number | null;
   cost_currency?: string | null;
   note?: string | null;
+  // Phase-0-Fracht: Sendungsart übersteuern + Fracht-Last/Incoterm/Abholtermin.
+  kind?: 'parcel' | 'freight' | null;
+  load?: Record<string, unknown> | null;
+  incoterm?: string | null;
+  pickup_date?: string | null;
 }
 
 // Verschrotten: zu verschrottende Instanzen + optionale Notiz. ``items`` erlaubt je Instanz

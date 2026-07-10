@@ -43,6 +43,19 @@ class Shipment(Base, TimestampMixin):
     # damit ein Auftrag den Artikel-Prozess nicht mutiert.
     transport_mode: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
 
+    # ── Sendungsart (Phase 0 Fracht, ADR 005) ────────────────────────────────────
+    # parcel (Paket → Aggregator/Rate-Shopping) | freight (Stückgut/Palette → manuell/
+    # Spediteur, RFQ offline). Bei Anlage aus der Last (Gewicht/Volumen) ABGELEITET, am
+    # Beleg übersteuerbar (kein Artikel-Prozess-Mutieren).
+    kind: Mapped[str] = mapped_column(String(12), default="parcel", server_default="parcel", nullable=False)
+    # Fracht-Last (statt Paket-Maße): {pallets, pallet_type, loading_meters, volume_m3,
+    # gross_weight_kg, stackable}. Bei Paket NULL (dann zählen ``parcels``).
+    load: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Incoterm (international, Fracht): EXW | FCA | CPT | CIP | DAP | DPU | DDP.
+    incoterm: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    # Wunsch-Abholtermin (ISO YYYY-MM-DD) – bei Fracht relevant (Pickup mit Termin).
+    pickup_date: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+
     # Adress-Snapshots (beim Quote eingefroren; Format siehe services/logistics.py).
     address_from: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     address_to: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)

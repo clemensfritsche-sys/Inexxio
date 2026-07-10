@@ -83,8 +83,30 @@ Das Label ist die vorbereitende Carrier-/Geld-Seite; die **Bewegung** bleibt der
 physische Vollzug (Scan). `record_movement` schliesst den Beleg (purchased → done) und
 übernimmt Tracking/Carrier in die Bewegung, wenn nichts Eigenes erfasst wurde.
 
+### 7. Paket ≠ Fracht: `shipment_kind` (Phase 0, Migration 073)
+
+Palette/Stückgut ist KEIN Parallelsystem, sondern eine **Erweiterung derselben
+Abstraktion**. Der Beleg trägt eine **Sendungsart** `kind` (`parcel` | `freight`):
+
+- **Abgeleitet** aus der Last (`logistics.build_load` schätzt Bruttogewicht/Volumen/
+  Paletten/Lademeter; `derive_kind`: > 31,5 kg ODER > 0,20 m³ → `freight`), am Beleg
+  **übersteuerbar** (`ShipmentUpdate.kind`, kein Artikel-Prozess-Mutieren).
+- **Paket** → Aggregator-Rate-Shopping (Sendcloud) wie gehabt.
+- **Fracht** → **manuell/Spediteur** (RFQ offline): `quote` lehnt Paket-Rate-Shopping ab;
+  das Panel zeigt statt Paketmaßen die **Last** (Paletten/Lademeter/Bruttogewicht) +
+  **Incoterm** + **Abholtermin** und erfasst Spediteur/Tracking/Kosten von Hand. Der
+  Beleg-Lebenszyklus (draft→purchased→done) + Scan-Vollzug bleiben unverändert.
+- **Papiere** (Frachtbrief/CMR, Packliste) laufen über das bestehende **Dokument-Modul**
+  (Reiter «Dokumente» je Objekt) – keine neue Mechanik.
+
+**Phase 1 (später):** digitaler Fracht-Adapter (Cargoson/Spedity) als Drop-in-Provider
+(instant LTL-Tarife) hinter demselben Gateway; **Phase 2:** See/Luft (Freightos/WebCargo)
++ Zoll-Dokumente. Der per-Schritt deklarierte Sendungsart-Default ist bewusst noch nicht
+gebaut (Ableitung + Beleg-Override genügen Phase 0).
+
 ## Bewusst NICHT gebaut (dokumentierte Erweiterungen)
 
 Tracking-Webhooks (Status-Events vom Carrier), Pickup-Orders (Abholauftrag beim Carrier
 – heute: inbound-Label/manuelle Organisation), Multi-Parcel-Splits, Versandkosten-
-Verrechnung an den Kunden, Zoll-Dokumente (customs_info) für Übersee.
+Verrechnung an den Kunden, Zoll-Dokumente (customs_info) für Übersee, **digitaler Fracht-
+Tarif-Provider (Phase 1) + See/Luft (Phase 2)**.

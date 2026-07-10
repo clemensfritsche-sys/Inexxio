@@ -44,6 +44,14 @@ from .quantity import to_qty
 DEFAULT_PARCEL_CM = (30, 20, 15)
 DEFAULT_WEIGHT_KG = 0.5
 
+# Phase-0-Fracht: Schwelle Paket ↔ Stückgut. Darüber ist Paket-Rate-Shopping unrealistisch
+# → Fracht (Palette/Lademeter, manuell/Spediteur). Grobe, bewusst einfache Kennzahlen.
+PARCEL_MAX_KG = 31.5          # gängige Paket-Obergrenze der Carrier
+PARCEL_MAX_VOLUME_M3 = 0.20   # ~ grösserer Karton; darüber palettiert
+PALLET_MAX_KG = 700.0         # Tragfähigkeit je EUR-Palette (Schätzung)
+PALLET_VOLUME_M3 = 0.8        # nutzbares Volumen je EUR-Palette (~120×80×85 cm)
+PALLET_LOADING_METERS = 0.4   # Lademeter je EUR-Palette (2 nebeneinander = 1 LM)
+
 # Rollen, die zum Betrieb gehören (Ziel «Person» ist dann ein interner Handover).
 _INTERNAL_ROLES = ("employee", "admin", "ai")
 
@@ -226,6 +234,53 @@ def build_parcels(db: Session, instances: list[Instance]) -> tuple[list[dict], b
     return [parcel], hazmat
 
 
+def _instance_volume_m3(art) -> float:
+    """Einzel-Volumen (m³) aus der Artikel-Grösse; 0, wenn nicht parsebar."""
+    d = parse_dimensions_cm(getattr(art, "size", None))
+    return (d[0] * d[1] * d[2]) / 1_000_000.0 if d else 0.0
+
+
+def build_load(db: Session, instances: list[Instance]) -> dict:
+    """Fracht-Last aus den bewegten Instanzen schätzen (Phase 0): Gesamt-Bruttogewicht,
+    Volumen, Paletten (Max aus Gewichts-/Volumenbedarf) und Lademeter. Bewusst grob –
+    der Spediteur bzw. die manuelle Erfassung präzisiert."""
+    art_ids = {i.article_id for i in instances if i.article_id}
+    articles = {
+        a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()
+    } if art_ids else {}
+    total_kg = Decimal("0")
+    total_vol = 0.0
+    for inst in instances:
+        art = articles.get(inst.article_id)
+        if not art:
+            continue
+        qty = to_qty(inst.quantity or 1)
+        if art.weight_kg is not None:
+            total_kg += Decimal(str(art.weight_kg)) * qty
+        total_vol += _instance_volume_m3(art) * float(qty)
+    gross = float(total_kg)
+    if gross > 0 or total_vol > 0:
+        pallets = max(1, math.ceil(max(gross / PALLET_MAX_KG, total_vol / PALLET_VOLUME_M3)))
+    else:
+        pallets = 1
+    return {
+        "pallets": pallets,
+        "pallet_type": "EUR",
+        "loading_meters": round(pallets * PALLET_LOADING_METERS, 2),
+        "volume_m3": round(total_vol, 3),
+        "gross_weight_kg": round(gross, 3),
+        "stackable": True,
+    }
+
+
+def derive_kind(gross_weight_kg: float, volume_m3: float) -> str:
+    """Sendungsart aus der Last ableiten: über der Paket-Obergrenze (Gewicht ODER Volumen)
+    → 'freight' (Stückgut/Palette), sonst 'parcel'."""
+    if gross_weight_kg > PARCEL_MAX_KG or volume_m3 > PARCEL_MAX_VOLUME_M3:
+        return "freight"
+    return "parcel"
+
+
 # ─── Adress-Snapshots ─────────────────────────────────────────────────────────────
 
 def _addr_company(settings: CompanySettings | None) -> dict:
@@ -310,13 +365,16 @@ def ensure_shipment(db: Session, order: Order, step: ArticleProcessStep,
     Label gekauft ist. Committet NICHT."""
     cls = classify_movement(db, order, step, instances)
     ship = _get_shipment(db, order, step)
+    parcels, hazmat = build_parcels(db, instances)
+    load = build_load(db, instances)
     if not ship:
-        # ``status`` EXPLIZIT setzen: der Spalten-Default 'draft' greift erst beim Flush,
-        # der Adress-Block unten läuft aber DAVOR – ohne dies bliebe ``status`` None, der
-        # Block würde übersprungen und ``address_to`` NULL («Empfänger-Adresse unvollständig»
-        # beim ersten Tarif-Abruf, obwohl die Vorschau die Adresse live zeigt).
+        # ``status`` + ``kind`` EXPLIZIT setzen: die Spalten-Defaults greifen erst beim Flush,
+        # der Block unten läuft aber DAVOR – ohne dies bliebe ``status`` None (Adressen würden
+        # übersprungen) bzw. ``kind`` None. Die Sendungsart wird bei der Anlage aus der Last
+        # abgeleitet (Gewicht/Volumen → parcel|freight), danach am Beleg übersteuerbar.
         ship = Shipment(order_id=order.id, step_id=step.id, created_by=actor_id,
-                        status="draft", provider=shipping.provider_name())
+                        status="draft", provider=shipping.provider_name(),
+                        kind=derive_kind(load["gross_weight_kg"], load["volume_m3"]))
         db.add(ship)
     if ship.status in ("draft", "quoted"):
         settings = _settings(db)
@@ -327,9 +385,11 @@ def ensure_shipment(db: Session, order: Order, step: ArticleProcessStep,
         other = target_address(db, t_type, t_id)
         ship.address_from = company if outbound else other
         ship.address_to = other if outbound else company
-        parcels, hazmat = build_parcels(db, instances)
         ship.parcels = parcels
         ship.hazmat = hazmat
+        # Last nur bei Fracht führen (die geschätzte grundieren; manuelle Verfeinerung
+        # bleibt via apply_update erhalten). ``kind`` selbst bleibt (Override sticky).
+        ship.load = {**load, **(ship.load or {})} if ship.kind == "freight" else None
         ship.provider = shipping.provider_name()
     db.flush()
     return ship
@@ -341,6 +401,10 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
     ship = ensure_shipment(db, order, step, instances, actor_id)
     if ship.status not in ("draft", "quoted"):
         raise HTTPException(409, detail="Für diesen Versand ist bereits ein Label gekauft")
+    if ship.kind == "freight":
+        raise HTTPException(400, detail="Fracht (Stückgut/Palette) läuft nicht über das Paket-"
+                            "Rate-Shopping – Spediteur anfragen und Carrier/Tracking/Kosten "
+                            "manuell erfassen (Instant-Fracht-Tarif folgt als Phase 1).")
     if not ship.address_to or not ship.address_from:
         raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Person/Lagerplatz) pflegen")
     provider = shipping.get_provider()
@@ -435,6 +499,20 @@ def apply_update(db: Session, order: Order, step: ArticleProcessStep,
     Manuelle Erfassung (Carrier + Tracking) markiert den Versand als ``purchased`` –
     derselbe Endzustand wie der Label-Kauf, nur ohne Aggregator."""
     ship = ensure_shipment(db, order, step, instances, actor_id)
+    # Sendungsart übersteuern (Paket ↔ Fracht) – Last passend nachziehen.
+    if data.kind is not None and data.kind != ship.kind:
+        old_kind = ship.kind
+        ship.kind = data.kind
+        ship.load = build_load(db, instances) if ship.kind == "freight" else None
+        log_audit(db, "shipments", "kind", data.kind, actor_id,
+                  object_id=order.object_id, old_value=old_kind)
+    # Fracht-Last manuell verfeinern (Merge über die geschätzte).
+    if data.load is not None:
+        ship.load = {**(ship.load or {}), **data.load}
+    if data.incoterm is not None:
+        ship.incoterm = data.incoterm or None
+    if data.pickup_date is not None:
+        ship.pickup_date = data.pickup_date or None
     if data.transport_mode is not None:
         old = ship.transport_mode
         ship.transport_mode = data.transport_mode
@@ -508,14 +586,18 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         cost_amount=ship.cost_amount if ship else None,
         cost_currency=ship.cost_currency if ship else None,
         note=ship.note if ship else None,
+        kind=(ship.kind if ship else "parcel"),
+        incoterm=(ship.incoterm if ship else None),
+        pickup_date=(ship.pickup_date if ship else None),
     )
     if ship:
         emb.parcels = ship.parcels or []
+        emb.load = ship.load
         emb.rates = [ShipmentRate(**r) for r in (ship.rates or [])]
         emb.from_label = _addr_label(ship.address_from)
         emb.to_label = _addr_label(ship.address_to)
     else:
-        # Vorschau ohne Beleg: Adressen/Pakete live ableiten (kein Schreiben im GET).
+        # Vorschau ohne Beleg: Adressen/Pakete/Last live ableiten (kein Schreiben im GET).
         settings = _settings(db)
         t_type, t_id = cls["target"]
         company = _addr_company(settings)
@@ -526,4 +608,7 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         parcels, hazmat = build_parcels(db, instances)
         emb.parcels = parcels
         emb.hazmat = hazmat
+        load = build_load(db, instances)
+        emb.kind = derive_kind(load["gross_weight_kg"], load["volume_m3"])
+        emb.load = load if emb.kind == "freight" else None
     return emb

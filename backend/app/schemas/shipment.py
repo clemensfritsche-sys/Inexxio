@@ -18,6 +18,12 @@ from pydantic import BaseModel, ConfigDict, field_validator
 #   none    → nie ein Versand (z. B. rein organisatorische Bewegung)
 ALLOWED_TRANSPORT_MODES = ("auto", "carrier", "self", "none")
 
+# Sendungsart (Phase 0 Fracht): parcel (Paket → Aggregator/Rate-Shopping) | freight
+# (Stückgut/Palette → manuell/Spediteur). Abgeleitet aus der Last, am Beleg übersteuerbar.
+ALLOWED_SHIPMENT_KINDS = ("parcel", "freight")
+# Incoterms 2020 (international, Fracht) – die gängigsten.
+ALLOWED_INCOTERMS = ("EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FOB", "CFR", "CIF")
+
 
 class ShipmentRate(BaseModel):
     """Ein Angebot aus dem Rate-Shopping (Snapshot, unveränderlich)."""
@@ -47,9 +53,14 @@ class ShipmentEmbed(BaseModel):
     provider: str = "manual"             # shippo | manual | self
     provider_ready: bool = False         # Aggregator konfiguriert (Rate-Shopping möglich)?
 
+    kind: str = "parcel"                 # parcel (Paket) | freight (Stückgut/Palette, Phase 0)
+    incoterm: Optional[str] = None       # Fracht/international (EXW, FCA, DAP, DDP …)
+    pickup_date: Optional[str] = None    # Wunsch-Abholtermin (ISO YYYY-MM-DD), Fracht
+
     from_label: Optional[str] = None     # Anzeige: Absender (kompakt)
     to_label: Optional[str] = None       # Anzeige: Empfänger (kompakt)
     parcels: list[dict] = []             # [{weight_kg, length_cm, width_cm, height_cm}]
+    load: Optional[dict] = None          # Fracht-Last {pallets, loading_meters, volume_m3, …}
     hazmat: bool = False                 # Gefahrgut an Bord (Warnung/Spezialversand)
 
     rates: list[ShipmentRate] = []
@@ -87,6 +98,11 @@ class ShipmentUpdate(BaseModel):
     cost_amount: Optional[float] = None
     cost_currency: Optional[str] = None
     note: Optional[str] = None
+    # Phase-0-Fracht: Sendungsart übersteuern + Fracht-Last/Incoterm/Abholtermin verfeinern.
+    kind: Optional[str] = None
+    load: Optional[dict] = None
+    incoterm: Optional[str] = None
+    pickup_date: Optional[str] = None
 
     @field_validator("transport_mode")
     @classmethod
@@ -95,6 +111,25 @@ class ShipmentUpdate(BaseModel):
             return None
         if v not in ALLOWED_TRANSPORT_MODES:
             raise ValueError(f"Transport-Modus muss eine von {', '.join(ALLOWED_TRANSPORT_MODES)} sein")
+        return v
+
+    @field_validator("kind")
+    @classmethod
+    def _kind_ok(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if v not in ALLOWED_SHIPMENT_KINDS:
+            raise ValueError(f"Sendungsart muss eine von {', '.join(ALLOWED_SHIPMENT_KINDS)} sein")
+        return v
+
+    @field_validator("incoterm")
+    @classmethod
+    def _incoterm_ok(cls, v: Optional[str]) -> Optional[str]:
+        if not v:
+            return None
+        v = v.strip().upper()
+        if v not in ALLOWED_INCOTERMS:
+            raise ValueError(f"Incoterm muss eine von {', '.join(ALLOWED_INCOTERMS)} sein")
         return v
 
     @field_validator("cost_currency")

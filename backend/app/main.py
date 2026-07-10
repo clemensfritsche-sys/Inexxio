@@ -181,6 +181,11 @@ _COLUMN_SAFETY_NET = (
     # Die shipments-TABELLE legt create_all() an; hier nur nachgezogene Spalten.
     ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ("article_process_steps", "transport_mode", "VARCHAR(10) DEFAULT 'auto' NOT NULL"),
+    # Phase-0-Fracht: Sendungsart + Last am Versand-Beleg (parcel|freight).
+    ("shipments", "kind", "VARCHAR(12) DEFAULT 'parcel' NOT NULL"),
+    ("shipments", "load", "JSONB"),
+    ("shipments", "incoterm", "VARCHAR(8)"),
+    ("shipments", "pickup_date", "VARCHAR(10)"),
 )
 
 # Bruchmengen (Migration 055): Mengen-Spalten müssen NUMERIC(14,3) sein, nicht INTEGER –

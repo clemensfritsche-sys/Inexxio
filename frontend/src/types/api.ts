@@ -4919,6 +4919,15 @@ export interface components {
              * @default false
              */
             provider_ready: boolean;
+            /**
+             * Kind
+             * @default parcel
+             */
+            kind: string;
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Pickup Date */
+            pickup_date?: string | null;
             /** From Label */
             from_label?: string | null;
             /** To Label */
@@ -4928,6 +4937,8 @@ export interface components {
              * @default []
              */
             parcels: Record<string, never>[];
+            /** Load */
+            load?: Record<string, never> | null;
             /**
              * Hazmat
              * @default false
@@ -5015,6 +5026,14 @@ export interface components {
             cost_currency?: string | null;
             /** Note */
             note?: string | null;
+            /** Kind */
+            kind?: string | null;
+            /** Load */
+            load?: Record<string, never> | null;
+            /** Incoterm */
+            incoterm?: string | null;
+            /** Pickup Date */
+            pickup_date?: string | null;
         };
         /**
          * ShopCheckout

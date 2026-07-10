@@ -228,6 +228,43 @@ def test_provider_selection_precedence(monkeypatch):
     assert shipping.provider_name() == "shippo"             # expliziter Override trotz Sendcloud
 
 
+def test_freight_load_and_kind_derivation():
+    """Phase-0-Fracht: die Last (Gewicht/Volumen) wird geschätzt und daraus die
+    Sendungsart abgeleitet – schwer/voluminös → 'freight', klein → 'parcel'."""
+    from app.models import Article
+    from app.services import logistics as lg
+
+    heavy = SimpleNamespace(id=1, weight_kg=Decimal("120"), size="800x1200x1000", is_hazmat=False)
+    db = _DB({Article: [heavy]})
+    load = lg.build_load(db, [SimpleNamespace(article_id=1, quantity=Decimal("3"))])   # 360 kg
+    assert load["gross_weight_kg"] == 360.0 and load["pallets"] >= 1
+    assert {"pallets", "loading_meters", "volume_m3", "gross_weight_kg", "stackable"} <= set(load)
+    assert lg.derive_kind(load["gross_weight_kg"], load["volume_m3"]) == "freight"
+    # Schwellen: klein → parcel; grosses Volumen (auch bei kleinem Gewicht) → freight.
+    assert lg.derive_kind(2.0, 0.01) == "parcel"
+    assert lg.derive_kind(0.0, 0.5) == "freight"
+    # Ohne Artikel-Daten: eine Palette, kein Absturz.
+    empty = lg.build_load(_DB({Article: []}), [SimpleNamespace(article_id=9, quantity=1)])
+    assert empty["pallets"] == 1 and empty["gross_weight_kg"] == 0.0
+
+
+def test_freight_wiring_and_quote_guard():
+    """Verdrahtung Phase-0-Fracht: Modell-/Schema-/Update-Felder vorhanden; ``quote``
+    lehnt Fracht ab (kein Paket-Rate-Shopping für Paletten)."""
+    import inspect as _inspect
+
+    from app.models import Shipment
+    from app.schemas.shipment import ALLOWED_SHIPMENT_KINDS, ShipmentEmbed, ShipmentUpdate
+    from app.services import logistics
+
+    assert ALLOWED_SHIPMENT_KINDS == ("parcel", "freight")
+    fields = {"kind", "load", "incoterm", "pickup_date"}
+    assert fields <= set(Shipment.__table__.columns.keys())
+    assert fields <= set(ShipmentEmbed.model_fields)
+    assert fields <= set(ShipmentUpdate.model_fields)
+    assert 'kind == "freight"' in _inspect.getsource(logistics.quote)
+
+
 def test_shipping_wiring_end_to_end():
     """Verdrahtung: Shipment-Modell (Fachzeile ohne eigene Nummer), transport_mode am
     Schritt (Whitelist), ShipmentEmbed im Bewegungs-Embed, Endpunkte am Auftrag,

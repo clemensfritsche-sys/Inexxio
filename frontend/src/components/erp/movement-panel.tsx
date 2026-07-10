@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine, Truck, AlertTriangle, FileDown, Loader2, Zap } from 'lucide-react';
+import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine, Truck, AlertTriangle, FileDown, Loader2, Zap, Boxes } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, StorageLocation, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
@@ -293,6 +293,16 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
   const [carrier, setCarrier] = useState(sp.carrier ?? '');
   const [tracking, setTracking] = useState(sp.tracking_number ?? '');
 
+  // Phase-0-Fracht: Sendungsart + Last (Paletten/Lademeter/Gewicht/Incoterm/Abholung).
+  const isFreight = sp.kind === 'freight';
+  const load = (sp.load ?? {}) as { pallets?: number; loading_meters?: number; volume_m3?: number; gross_weight_kg?: number; pallet_type?: string; stackable?: boolean };
+  const [pallets, setPallets] = useState(load.pallets != null ? String(load.pallets) : '');
+  const [lm, setLm] = useState(load.loading_meters != null ? String(load.loading_meters) : '');
+  const [grossKg, setGrossKg] = useState(load.gross_weight_kg != null ? String(load.gross_weight_kg) : '');
+  const [incoterm, setIncoterm] = useState(sp.incoterm ?? '');
+  const [pickup, setPickup] = useState(sp.pickup_date ?? '');
+  const [cost, setCost] = useState(sp.cost_amount != null ? String(sp.cost_amount) : '');
+
   const mode = (sp.transport_mode ?? 'auto') as TransportMode;
   const external = sp.transport_class === 'outside';
   const wantsCarrier = (mode === 'auto' && external) || mode === 'carrier';
@@ -311,6 +321,21 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
   }
   const oid = order.object_id as number;
   const setMode = (m: TransportMode) => run('mode', () => api.updateOrderShipment(oid, { step_id: stepId ?? null, transport_mode: m }));
+  const setKind = (k: 'parcel' | 'freight') => run('kind', () => api.updateOrderShipment(oid, { step_id: stepId ?? null, kind: k }));
+  const saveFreight = () => run('freight', () => api.updateOrderShipment(oid, {
+    step_id: stepId ?? null,
+    load: {
+      ...load,
+      pallets: pallets ? Number(pallets) : undefined,
+      loading_meters: lm ? Number(lm) : undefined,
+      gross_weight_kg: grossKg ? Number(grossKg) : undefined,
+    },
+    incoterm: incoterm || null,
+    pickup_date: pickup || null,
+    carrier: carrier.trim() || null,
+    tracking_number: tracking.trim() || null,
+    cost_amount: cost ? Number(cost) : null,
+  }));
 
   const classChip = external
     ? { label: inbound ? 'Extern · Abholung' : 'Extern · Versand', bg: '#FEF3C7', fg: '#B45309' }
@@ -331,12 +356,27 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
           </span>
         )}
         {!readOnly && (
-          <select value={mode} disabled={busy !== null}
-            onChange={(e) => setMode(e.target.value as TransportMode)}
-            title="Transport-Modus dieses Auftrags (Ausnahmen: selbst bringen/abholen, nie versenden)"
-            style={{ marginLeft: 'auto', fontSize: 11.5, padding: '4px 6px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#475569' }}>
-            {(Object.keys(MODE_LABEL) as TransportMode[]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
-          </select>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {/* Sendungsart: Paket ↔ Fracht (Stückgut/Palette) – abgeleitet, hier übersteuerbar */}
+            <div style={{ display: 'flex', borderRadius: 7, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+              {(['parcel', 'freight'] as const).map((k) => {
+                const on = (sp.kind ?? 'parcel') === k;
+                return (
+                  <button key={k} type="button" disabled={busy !== null} onClick={() => !on && setKind(k)}
+                    title={k === 'freight' ? 'Stückgut/Palette – manuell/Spediteur' : 'Paket – Rate-Shopping'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '4px 8px', border: 'none', cursor: busy ? 'wait' : 'pointer', background: on ? '#0f172a' : '#fff', color: on ? '#fff' : '#64748b' }}>
+                    {k === 'freight' ? <Boxes size={11} /> : <Truck size={11} />}{k === 'freight' ? 'Fracht' : 'Paket'}
+                  </button>
+                );
+              })}
+            </div>
+            <select value={mode} disabled={busy !== null}
+              onChange={(e) => setMode(e.target.value as TransportMode)}
+              title="Transport-Modus dieses Auftrags (Ausnahmen: selbst bringen/abholen, nie versenden)"
+              style={{ fontSize: 11.5, padding: '4px 6px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: '#475569' }}>
+              {(Object.keys(MODE_LABEL) as TransportMode[]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
+            </select>
+          </div>
         )}
       </div>
 
@@ -344,7 +384,9 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
         <div style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
           {sp.from_label && <div><strong style={{ color: '#475569' }}>Von</strong> {sp.from_label}</div>}
           {sp.to_label && <div><strong style={{ color: '#475569' }}>An</strong> {sp.to_label}</div>}
-          {parcel && (
+          {isFreight ? (
+            <div><strong style={{ color: '#475569' }}>Last</strong> ~{load.gross_weight_kg ?? '?'} kg · {load.pallets ?? '?'} {load.pallet_type ?? 'EUR'}-Palette(n){load.loading_meters != null ? ` · ${load.loading_meters} Lademeter` : ''} <span style={{ color: '#94a3b8' }}>(geschätzt)</span></div>
+          ) : parcel && (
             <div><strong style={{ color: '#475569' }}>Paket</strong> ~{parcel.weight_kg} kg · {parcel.length_cm}×{parcel.width_cm}×{parcel.height_cm} cm <span style={{ color: '#94a3b8' }}>(aus Artikel-Daten geschätzt)</span></div>
           )}
         </div>
@@ -379,7 +421,39 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
       )}
 
       {!readOnly && wantsCarrier && !purchased && (
-        sp.provider_ready ? (
+        isFreight ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11.5, color: '#64748b', lineHeight: 1.5 }}>
+              Stückgut/Palette – <strong>Spediteur anfragen</strong> (Offerte), dann Carrier/Tracking/Kosten erfassen. Frachtbrief &amp; Papiere über den Reiter «Dokumente».
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(108px, 1fr))', gap: 6 }}>
+              <label style={freightLbl}>Paletten
+                <input value={pallets} onChange={(e) => setPallets(e.target.value)} type="number" min={0} style={freightInp} /></label>
+              <label style={freightLbl}>Lademeter
+                <input value={lm} onChange={(e) => setLm(e.target.value)} type="number" min={0} step="0.1" style={freightInp} /></label>
+              <label style={freightLbl}>Brutto (kg)
+                <input value={grossKg} onChange={(e) => setGrossKg(e.target.value)} type="number" min={0} step="0.1" style={freightInp} /></label>
+              <label style={freightLbl}>Incoterm
+                <select value={incoterm} onChange={(e) => setIncoterm(e.target.value)} style={freightInp}>
+                  <option value="">–</option>
+                  {['EXW', 'FCA', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP', 'FOB', 'CFR', 'CIF'].map((t) => <option key={t} value={t}>{t}</option>)}
+                </select></label>
+              <label style={freightLbl}>Abholung
+                <input value={pickup} onChange={(e) => setPickup(e.target.value)} type="date" style={freightInp} /></label>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <input value={carrier} onChange={(e) => setCarrier(e.target.value)} placeholder="Spediteur/Carrier (z. B. Planzer)"
+                style={{ flex: '1 1 150px', fontSize: 12.5, padding: '7px 9px', borderRadius: 7, border: '1px solid #E2E8F0' }} />
+              <input value={tracking} onChange={(e) => setTracking(e.target.value)} placeholder="Sendungs-/Tracking-Nr."
+                style={{ flex: '1 1 140px', fontSize: 12.5, padding: '7px 9px', borderRadius: 7, border: '1px solid #E2E8F0' }} />
+              <input value={cost} onChange={(e) => setCost(e.target.value)} type="number" min={0} step="0.05" placeholder="Kosten"
+                style={{ flex: '0 1 100px', fontSize: 12.5, padding: '7px 9px', borderRadius: 7, border: '1px solid #E2E8F0' }} />
+              <button onClick={saveFreight} disabled={busy !== null} style={shipBtn('#0f172a')}>
+                {busy === 'freight' ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Fracht erfassen
+              </button>
+            </div>
+          </div>
+        ) : sp.provider_ready ? (
           <>
             {sp.rates.length === 0 ? (
               <button onClick={() => run('quote', () => api.quoteOrderShipment(oid, stepId ?? null))} disabled={busy !== null}
@@ -452,6 +526,16 @@ function shipBtn(color: string, outline = false): React.CSSProperties {
     color: outline ? color : '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
   };
 }
+
+// Fracht-Last-Feld (Phase 0): kompaktes Label über Eingabe.
+const freightLbl: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 600,
+  color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.03em',
+};
+const freightInp: React.CSSProperties = {
+  fontSize: 12.5, padding: '6px 8px', borderRadius: 7, border: '1px solid #E2E8F0',
+  background: '#fff', color: '#0f172a', textTransform: 'none', letterSpacing: 'normal', fontWeight: 400,
+};
 
 function CurrentLocation({ instance }: { instance: OrderInstance }) {
   if (!instance.location_label) return <span style={{ fontSize: 11, color: '#cbd5e1' }}>noch nicht festgelegt</span>;

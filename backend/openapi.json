@@ -14500,6 +14500,33 @@
             "title": "Provider Ready",
             "default": false
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "parcel"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "pickup_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pickup Date"
+          },
           "from_label": {
             "anyOf": [
               {
@@ -14529,6 +14556,17 @@
             "type": "array",
             "title": "Parcels",
             "default": []
+          },
+          "load": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load"
           },
           "hazmat": {
             "type": "boolean",
@@ -14804,6 +14842,50 @@
               }
             ],
             "title": "Note"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "load": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load"
+          },
+          "incoterm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoterm"
+          },
+          "pickup_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pickup Date"
           }
         },
         "type": "object",
