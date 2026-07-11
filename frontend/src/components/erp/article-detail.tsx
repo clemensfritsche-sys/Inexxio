@@ -19,7 +19,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, ErrorText, SaveIndicator } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -416,43 +416,49 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} mapsApiKey={mapsApiKey} />
             ) : (
               <div style={SPEC.card}>
+                {/* Karten-Kopf «Spezifikation» + «+»-Knopf (nur Entwurf) für optionale Felder. */}
+                <CardHead right={<SectionAddButton added={added} onAdd={addField} />} />
                 {/* Standardmässig NUR die Pflichtfelder (Name, Mengeneinheit, Serialisierung,
-                    Grösse, Gewicht). ALLE weiteren Spezifikationsfelder sind ausgeblendet und
-                    werden bei Bedarf über den EINEN allgemeinen «+»-Knopf hinzugefügt. */}
-                <SpecSection icon={FileText} title="Spezifikation" last
-                  right={<SectionAddButton added={added} onAdd={addField} />}>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <NameField value={form.name} onChange={(v) => set('name', v)}
-                      error={form.name.trim() ? errs.name : null} />
+                    Grösse, Gewicht) – Name über volle Breite, dann zwei gepaarte Zeilen. ALLE
+                    weiteren Felder sind ausgeblendet und werden über den «+»-Knopf ergänzt. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                  <NameField value={form.name} onChange={(v) => set('name', v)}
+                    error={form.name.trim() ? errs.name : null} />
+                  <div style={GRID2}>
+                    <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
+                    <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
                   </div>
-                  <IconPick label="Mengeneinheit" required value={form.unit} onChange={(v) => set('unit', v)} options={UNIT_PICK} />
-                  <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
-                  <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" hint="Masse in mm, aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
-                  {weightIsComputed ? (
-                    <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
-                  ) : (
-                    <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
+                  <div style={GRID2}>
+                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" hint="Masse in mm, aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
+                    {weightIsComputed ? (
+                      <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
+                    ) : (
+                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
+                    )}
+                  </div>
+                  {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
+                  {(added.length > 0 || (!isCreate && (record!.lead_time_days_low != null || record!.landed_unit_cost != null))) && (
+                    <div style={SPEC.grid}>
+                      {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
+                        <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
+                      ))}
+                      {/* Fixierter Standort (GPS + Adresse, exakt wie am Lagerplatz) – volle Breite. */}
+                      {added.includes('fixed_location') && (
+                        <FixedLocationField mapsApiKey={mapsApiKey} form={form} onSet={set}
+                          onPick={pickFixedLocation} onRemove={() => removeField('fixed_location')} />
+                      )}
+                      {!isCreate && record!.lead_time_days_low != null && (
+                        <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record!)} autoHint="Automatisch aus vorherigen Lieferungen" />
+                      )}
+                      {!isCreate && record!.landed_unit_cost != null && (
+                        <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record!.landed_unit_cost)} unit="CHF" autoHint="Aus der letzten Freigabe" mono />
+                      )}
+                    </div>
                   )}
-                  {/* Bei Bedarf hinzugefügte optionale Felder (über den «+»-Knopf oben). */}
-                  {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
-                    <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
-                  ))}
-                  {/* Fixierter Standort (GPS + Adresse, exakt wie am Lagerplatz) – volle Breite. */}
-                  {added.includes('fixed_location') && (
-                    <FixedLocationField mapsApiKey={mapsApiKey} form={form} onSet={set}
-                      onPick={pickFixedLocation} onRemove={() => removeField('fixed_location')} />
-                  )}
-                  {/* Auto-Werte read-only, nur wenn vorhanden. */}
-                  {!isCreate && record!.lead_time_days_low != null && (
-                    <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record!)} autoHint="Automatisch aus vorherigen Lieferungen" />
-                  )}
-                  {!isCreate && record!.landed_unit_cost != null && (
-                    <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record!.landed_unit_cost)} unit="CHF" autoHint="Aus der letzten Freigabe" mono />
-                  )}
-                  <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
+                  <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
                     Bezugsquelle &amp; Lieferant legst du im Reiter «Prozess» am Beschaffungs-Schritt fest.
                   </div>
-                </SpecSection>
+                </div>
               </div>
             )}
           </div>
@@ -565,7 +571,7 @@ function NameField({ value, onChange, error }: {
 
   return (
     <div ref={boxRef} style={{ position: 'relative' }}>
-      <Label required>Name</Label>
+      <FieldLabel required>Name</FieldLabel>
       <input
         value={value}
         maxLength={ARTICLE_NAME_MAX_LENGTH}
@@ -580,7 +586,7 @@ function NameField({ value, onChange, error }: {
           <AlertTriangle size={11} /> Ein Artikel mit diesem Namen besteht bereits ({exact.count}×) – ggf. wiederverwenden.
         </div>
       ) : (
-        <div style={{ marginTop: 4, fontSize: 11, color: '#94a3b8' }}>
+        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--fg-4)' }}>
           Frei wählbar (max. {ARTICLE_NAME_MAX_LENGTH} Zeichen). Vorschläge helfen, Dubletten zu vermeiden.
         </div>
       )}
@@ -623,23 +629,45 @@ const SERIAL_PICK = [
   { value: 'batch', label: 'Charge', icon: Layers },
 ];
 const SPEC = {
-  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '28px 30px' } as React.CSSProperties,
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '26px 44px' } as React.CSSProperties,
+  // Design `.card`: warme Fläche, Haarlinie, sanfter Schatten, 20-px-Radius.
+  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-sm)', padding: '26px 30px 28px' } as React.CSSProperties,
+  // Design `.rgrid`: auto-fit-Werteraster; `min(100%, …)` kollabiert auf Mobile sauber.
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '26px 40px' } as React.CSSProperties,
 };
 
-// Abschnitts-Kopf (getöntes Symbol + Versalien-Titel + Haarlinie + optionaler rechter Slot,
-// z. B. «+ Feld hinzufügen») – EIN Look über alle Sektionen.
-function SpecSection({ icon: Icon, title, last, right, children }: {
-  icon: React.ElementType; title: string; last?: boolean; right?: React.ReactNode; children: React.ReactNode;
+// Design `.grid2`: Zwei-Spalten-Raster für gepaarte Eingaben (Einheit/Serialisierung,
+// Abmessungen/Gewicht) – kollabiert auf Mobile auf eine Spalte.
+const GRID2: React.CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '22px 40px',
+};
+
+// Karten-Kopf (Design `.card-h`): grosses getöntes Symbol + Titel «Spezifikation» +
+// optionaler rechter Slot («+ Feld hinzufügen», nur im Entwurf). Keine Haarlinie – die
+// Trennlinien tragen erst die Lese-Unterabschnitte.
+function CardHead({ right }: { right?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+        <FileText size={17} />
+      </span>
+      <h2 style={{ font: '800 18px var(--font-display)', letterSpacing: '-.01em', margin: 0, flex: 1, color: 'var(--fg-1)' }}>Spezifikation</h2>
+      {right && <span style={{ flex: 'none' }}>{right}</span>}
+    </div>
+  );
+}
+
+// Lese-Unterabschnitt (Design `.rsec` + `.rsec-h`): 32-px-Symbol + Titel (h3) über einer
+// Haarlinie, darunter das Werte-Raster. Gliedert die freigegebene Spezifikation.
+function SubSection({ icon: Icon, title, children }: {
+  icon: React.ElementType; title: string; children: React.ReactNode;
 }) {
   return (
-    <div style={{ marginBottom: last ? 0 : 40 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 12, marginBottom: 24, borderBottom: '1px solid var(--border-1)' }}>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, paddingBottom: 14, margin: '18px 0 20px', borderBottom: '1px solid var(--border-1)' }}>
         <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-          <Icon size={17} />
+          <Icon size={16} />
         </span>
-        <span style={{ font: '800 14px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>{title}</span>
-        {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
+        <h3 style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', margin: 0, color: 'var(--fg-1)' }}>{title}</h3>
       </div>
       <div style={SPEC.grid}>{children}</div>
     </div>
@@ -706,7 +734,7 @@ function OptField({ f, form, onSet, onRemove }: {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Label>{f.label}</Label>
+        <FieldLabel>{f.label}</FieldLabel>
         <button type="button" onClick={() => onRemove(f.key)} title="Feld entfernen"
           style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0, marginBottom: 6 }}>
           <Trash2 size={13} />
@@ -765,14 +793,24 @@ function FixedLocationField({ mapsApiKey, form, onSet, onPick, onRemove }: {
 function LocInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <Label>{label}</Label>
+      <FieldLabel>{label}</FieldLabel>
       <input value={value} onChange={(e) => onChange(e.target.value)} className={FIN_CLS} />
     </div>
   );
 }
 
-// Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, Akzent-Fokus).
-const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3 py-2.5 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft';
+// Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, 14/12-Padding, Akzent-Fokus mit 3-px-Ring).
+const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3.5 py-3 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-[3px] focus:ring-accent-soft';
+
+// Feld-Label (Design `.lbl`): Versalien, enges Tracking, gedämpftes Grau; Pflicht-Stern in
+// Marken-Rot. Lokal in der Spezifikation verwendet (das geteilte `Label` bleibt unangetastet).
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label style={{ display: 'block', font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)', marginBottom: 9 }}>
+      {children}{required && <span style={{ color: 'var(--inexxio-red)' }}> *</span>}
+    </label>
+  );
+}
 
 function linkHost(href: string): string {
   try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
@@ -792,27 +830,27 @@ function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, link 
   mono?: boolean; full?: boolean; autoHint?: string; link?: string;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
       {Icon && (
-        <span style={{ width: 22, height: 22, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', marginTop: 1 }}>
+        <span style={{ width: 22, height: 22, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', marginTop: 2 }}>
           <Icon size={18} />
         </span>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)' }}>{label}</div>
+        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)' }}>{label}</div>
         {link ? (
           <a href={link} target="_blank" rel="noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 3, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
             {linkHost(link)} <ExternalLink size={13} />
           </a>
         ) : (
-          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 3, lineHeight: 1.35, ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14 } : null) }}>
-            {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 4 }}>{unit}</span>}
+          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
+            {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
           </div>
         )}
         {autoHint && (
-          <div style={{ marginTop: 5, display: 'inline-flex', alignItems: 'center', gap: 4, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>
-            <Sparkles size={11} /> {autoHint}
+          <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, font: '500 12px var(--font-body)', color: 'var(--fg-4)' }}>
+            <Sparkles size={12} /> {autoHint}
           </div>
         )}
       </div>
@@ -827,11 +865,11 @@ function EditField({ label, value, onChange, placeholder, hint, error, required,
 }) {
   return (
     <div style={{ gridColumn: full ? '1 / -1' : undefined }}>
-      <Label required={required}>{label}</Label>
+      <FieldLabel required={required}>{label}</FieldLabel>
       <input value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
         className={FIN_CLS} style={error ? { borderColor: '#fca5a5' } : undefined} />
       {error ? <ErrorText msg={error} /> : hint ? (
-        <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>
+        <div style={{ marginTop: 8, font: '500 12.5px var(--font-body)', color: 'var(--fg-4)' }}>{hint}</div>
       ) : null}
     </div>
   );
@@ -844,16 +882,17 @@ function IconPick({ label, value, onChange, options, required }: {
 }) {
   return (
     <div>
-      <Label required={required}>{label}</Label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <FieldLabel required={required}>{label}</FieldLabel>
+      {/* Design `.chips`/`.chip`: Symbol + Wort, r-md, aktiv = Akzent-Füllung. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
         {options.map((o) => {
           const on = value === o.value; const Icon = o.icon;
           return (
             <button key={o.value} type="button" onClick={() => onChange(o.value)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px 7px 10px', borderRadius: 'var(--r-pill)', cursor: 'pointer', transition: 'all .13s',
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 15px', borderRadius: 'var(--r-md)', cursor: 'pointer', transition: 'all .13s',
                 border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`, background: on ? 'var(--accent-soft)' : '#fff' }}>
-              <Icon size={15} style={{ color: on ? 'var(--accent-ink)' : 'var(--fg-4)' }} />
-              <b style={{ font: '700 12.5px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>{o.label}</b>
+              <Icon size={16} style={{ color: on ? 'var(--accent-ink)' : 'var(--fg-4)' }} />
+              <b style={{ font: '600 14px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>{o.label}</b>
             </button>
           );
         })}
@@ -877,34 +916,39 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
     || form.fixed_street.trim() !== '' || form.fixed_city.trim() !== '';
   return (
     <div style={SPEC.card}>
-      <SpecSection icon={FileText} title="Spezifikation" last={!hasPhysical && !hasProcurement && !hasFixedLoc}>
-        <ReadField icon={Tag} label="Artikelname" value={record.name} full />
-        <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
-        <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
-        {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
-        {has('material') && <ReadField icon={Layers} label="Material" value={form.material} />}
-      </SpecSection>
+      {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
+      <CardHead />
+      {/* Basis-Gruppe ohne eigenen Unter-Kopf – der Karten-Kopf trägt sie (Design `.rsec` #1). */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ ...SPEC.grid, paddingTop: 2 }}>
+          <ReadField icon={Tag} label="Artikelname" value={record.name} full />
+          <ReadField icon={Ruler} label="Mengeneinheit" value={unitLabel(record.unit)} />
+          <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
+          {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
+          {has('material') && <ReadField icon={Layers} label="Material" value={form.material} />}
+        </div>
+      </div>
       {hasPhysical && (
-        <SpecSection icon={Box} title="Physische Eigenschaften" last={!hasProcurement}>
+        <SubSection icon={Box} title="Physische Eigenschaften">
           {record.size && <ReadField icon={Scaling} label="Abmessungen" value={record.size} unit="mm" mono />}
           {(weightIsComputed || record.weight_kg != null) && (
             <ReadField icon={Weight} label="Gewicht" value={weightIsComputed ? fmtWeight(computedWeight!) : String(record.weight_kg)}
               unit={weightIsComputed ? 'kg (berechnet)' : 'kg'} mono />
           )}
-        </SpecSection>
+        </SubSection>
       )}
       {hasProcurement && (
-        <SpecSection icon={ShoppingCart} title="Beschaffung" last={!hasFixedLoc}>
+        <SubSection icon={ShoppingCart} title="Beschaffung">
           {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
           {record.lead_time_days_low != null && <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record)} autoHint="Automatisch aus vorherigen Lieferungen" />}
           {record.landed_unit_cost != null && <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record.landed_unit_cost)} unit="CHF" mono />}
           {has('min_order_qty') && <ReadField icon={Package} label="Mindestbestellmenge" value={form.min_order_qty} mono />}
           {has('safety_stock') && <ReadField icon={Shield} label="Sicherheitsbestand" value={form.safety_stock} mono />}
           {has('cad_url') && <ReadField icon={Link2} label="CAD-Link" link={form.cad_url} full />}
-        </SpecSection>
+        </SubSection>
       )}
       {hasFixedLoc && (
-        <SpecSection icon={MapPin} title="Fixierter Standort" last>
+        <SubSection icon={MapPin} title="Fixierter Standort">
           <div style={{ gridColumn: '1 / -1' }}>
             <MapPicker apiKey={mapsApiKey} lat={fixedLat} lng={fixedLng} onPick={() => {}} readOnly />
           </div>
@@ -916,7 +960,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
           {fixedLat != null && fixedLng != null && (
             <ReadField icon={Scaling} label="GPS" value={`${fixedLat.toFixed(5)}, ${fixedLng.toFixed(5)}`} mono />
           )}
-        </SpecSection>
+        </SubSection>
       )}
     </div>
   );
