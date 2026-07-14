@@ -583,8 +583,16 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
             base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
             mode="shop",
         ))
-    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden).
+    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden). FIX: als **gesperrter
+    # Pflicht-Versand** (locked + mode='customer') – exakt wie ihn ``sync_locked_movements``
+    # für einen ERP-Verkauf erzeugt. Ohne die Markierung galt die Locked-Ausnahme der
+    # Fehlmengen-Prüfung (``process.step_shortfalls``) nicht: nach der Zahlung war die Ware
+    # «verkauft» (aus dem freien Bestand weg), der Versand-Schritt dadurch dauerhaft
+    # «blockiert» und der Shop-Auftrag konnte NIE versendet/abgeschlossen werden. Zudem
+    # erzwingt erst mode='customer' das feste Ziel «Kunde des Verkaufs» (movement.record_
+    # movement überschreibt die Ziel-Eingaben) statt eines frei wählbaren Ziels.
     db.add(ArticleProcessStep(order_id=order.id, position=100, step_type="movement",
+                              locked=True, mode="customer",
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()
@@ -721,8 +729,13 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
             # Auftrag committet, aber ``lines[].order_id`` noch NULL, und der Stripe-Retry
             # hätte eine Dublette (zweiter Auftrag + bezahlter Beleg) erzeugt.
             _store_lines(intent, lines)
-            done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
+            # FIX (Reihenfolge): Nachschub VOR dem Verbuchen der Zahlung dimensionieren.
+            # ``finalize_paid`` → ``sell_order_subjects`` verbraucht die reservierte Teilmenge
+            # (in_stock → sold); danach zählte sie in ``order_shortfalls`` nicht mehr als
+            # gesichert und der Nachschub wurde auf die VOLLE Menge statt der Fehlmenge
+            # dimensioniert (Phantom-Produktion bei teilweise vorrätigen make-Artikeln).
             supply.ensure_supply(db, order, customer.id)
+            done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
     intent.status = "completed"
     _store_lines(intent, lines)
     db.commit()
@@ -805,6 +818,41 @@ def _customer_return_status(db: Session, order, sale, requested: bool | None = N
         return {"returnable": False, "return_requested": False, "return_deadline": None}
     from .customer_returns import return_status
     return return_status(db, order, sale, requested=requested)
+
+
+def reap_stale_intents(db: Session, actor_id: int | None = None, max_age_hours: int = 24) -> int:
+    """**Intent-Reaper**: verlassene Checkout-Intents aufräumen (Reservierungs-Leak schliessen).
+
+    Ein nie bezahlter, nie abgebrochener Intent hält seine stock-Reservierung sonst
+    unbegrenzt: beim **manual**-Provider gibt es gar kein Ablauf-Ereignis, bei Stripe kann
+    der ``checkout.session.expired``-Webhook verloren gehen. Alles Ältere als
+    ``max_age_hours`` (Default 24 h = Stripe-Session-Lebensdauer) wird über den regulären
+    ``cancel_intent``-Pfad storniert (idempotent; eine zwischenzeitlich doch eingegangene
+    Zahlung ist durch den Status-Guard in ``fulfill_intent``/``cancel_intent`` geschützt –
+    beide prüfen unter ``with_for_update``)."""
+    from datetime import timedelta
+
+    from ..models import CheckoutIntent
+    from .admin import log_audit
+    from .events import emit
+    cutoff = utcnow() - timedelta(hours=max_age_hours)
+    stale = (
+        db.query(CheckoutIntent)
+        .filter(CheckoutIntent.status == "pending", CheckoutIntent.created_at < cutoff)
+        .with_for_update()
+        .all()
+    )
+    n = 0
+    for intent in stale:
+        cancel_intent(db, intent)   # löst stock-Reservierungen, committet
+        emit(db, "checkout.intent_reaped", object_type="order", object_id=None,
+             payload={"intent_id": intent.id, "provider": intent.provider}, actor_id=actor_id)
+        n += 1
+    if n:
+        log_audit(db, "checkout_intents", None, f"{n} verlassene Checkout-Intent(s) storniert",
+                  actor_id)
+        db.commit()
+    return n
 
 
 def cancel_intent(db: Session, intent) -> None:

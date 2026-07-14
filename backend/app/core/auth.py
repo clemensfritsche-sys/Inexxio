@@ -75,22 +75,28 @@ def _verify_firebase_token(token: str) -> dict:
 
 
 def _resolve_user(db: Session, uid: str, email: str, decoded: dict, request: Request) -> UserProfile:
-    """Load the profile for this identity, handling Firebase-UID resets, else provision one."""
-    user = db.query(UserProfile).filter(
-        UserProfile.firebase_uid == uid, UserProfile.is_active == True
-    ).first()
-    if user:
-        return user
+    """Load the profile for this identity, handling Firebase-UID resets, else provision one.
 
-    # Firebase was reset: same email, new UID → reattach existing profile
-    if email:
-        user = db.query(UserProfile).filter(
-            UserProfile.email == email, UserProfile.is_active == True
-        ).first()
-        if user:
+    **Deaktiviert = gesperrt, NICHT neu:** ein deaktivierter Benutzer (Soft-Delete) bekommt
+    beim Re-Login KEIN frisches Profil mehr, sondern 403. Vorher entstand still ein neues
+    Profil mit NEUER Objektnummer – sämtliche objektnummern-basierten Referenzen der alten
+    Identität (Signoffs, Publikum, Kunde/Lieferant von Aufträgen) verwaisten und der
+    «gelöschte» Benutzer war einfach wieder drin. Reaktivieren ist eine bewusste
+    Admin-Aktion (POST /admin/users/{id}/reactivate)."""
+    user = db.query(UserProfile).filter(UserProfile.firebase_uid == uid).first()
+    if user is None and email:
+        # Firebase was reset: same email, new UID → reattach existing profile
+        user = db.query(UserProfile).filter(UserProfile.email == email).first()
+        if user is not None and user.is_active:
             user.firebase_uid = uid
             db.commit()
-            return user
+    if user is not None:
+        if not user.is_active:
+            raise HTTPException(
+                status_code=403,
+                detail="Dieses Konto wurde deaktiviert. Bitte an die Administration wenden.",
+            )
+        return user
 
     return _create_user(db, uid, email, decoded, _detect_language(request))
 

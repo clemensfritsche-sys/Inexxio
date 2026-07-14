@@ -729,8 +729,10 @@ def test_scrapped_instances_excluded_from_processing_and_completion():
     assert set(subject.TERMINAL_DISPOSITIONS) == {"scrapped", "sold", "consumed"}
     src = _inspect.getsource(subject.order_active_instances)
     assert "TERMINAL_DISPOSITIONS" in src
-    # Verarbeitungs-Pfade nutzen die AKTIVE Liste (nicht die volle)
-    assert "order_active_instances" in _inspect.getsource(movement.record_movement)
+    # Verarbeitungs-Pfade nutzen die AKTIVE Liste (nicht die volle); die Bewegung über
+    # die EINE Auswahlregel movable_instances (Review 2026-07).
+    assert "movable_instances" in _inspect.getsource(movement.record_movement)
+    assert "order_active_instances" in _inspect.getsource(movement.movable_instances)
     assert "order_active_instances" in _inspect.getsource(resource) \
         and "order_instances(" not in _inspect.getsource(resource)
     insp_src = _inspect.getsource(inspection)
@@ -1392,7 +1394,9 @@ def test_abort_is_reversible_and_supply_not_special_cased():
     rv = _inspect.getsource(deviation.revoke)
     assert 'status != "draft"' in rv                  # nur Entwurf rücknehmbar
     assert "abort_into_id = None" in rv               # ausstehender Abbruch gelöscht
-    assert "subject_of_order_id = None" in rv         # Instanzen ans Original zurück
+    # Instanzen ans Original zurück – hält der Eltern noch eine Reservierung, wandert die
+    # Subjekt-Bindung dorthin ZURÜCK statt auf None (Review 2026-07).
+    assert "inst.subject_of_order_id = (" in rv and "reserved_for" in rv
     # Endpoint delegiert an revoke.
     assert "deviation.revoke(" in _inspect.getsource(orders.revoke_followup)
     # Keine Nachschub-Sonderbehandlung mehr beim Abbruch.

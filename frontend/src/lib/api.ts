@@ -208,6 +208,12 @@ class ApiClient {
     return this.delete(`/api/v1/admin/users/${userId}`);
   }
 
+  /** Deaktivierten Benutzer reaktivieren – die bewusste Admin-Umkehr des Soft-Delete
+   *  (die Identität/Objektnummer bleibt; beim Login wird ein Deaktivierter abgewiesen). */
+  reactivateUser(userId: number): Promise<{ reactivated: boolean }> {
+    return this.post(`/api/v1/admin/users/${userId}/reactivate`, {});
+  }
+
   // ─── Admin: Settings ───────────────────────────────────────────────────────
 
   getSettings(): Promise<CompanySettings> {
@@ -769,7 +775,6 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     payments_provider: (s.payments_provider as string | null) ?? null,
     pricing_zone_factors: (s.pricing_zone_factors as Record<string, number> | null) ?? null,
     legal_documents: (s.legal_documents as Record<string, number> | null) ?? null,
-    legal_ack_config: (s.legal_ack_config as Record<string, string[]> | null) ?? null,
   };
 }
 

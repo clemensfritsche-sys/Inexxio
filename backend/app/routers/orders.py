@@ -5,7 +5,7 @@ from ..core.auth import get_current_user, require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, OrderLine, UserProfile
 from ..schemas.disposal import ScrapUpdate
-from ..schemas.document import DocumentUpdate, SignoffAction
+from ..schemas.document import DocumentUpdate, SignerSubstitution, SignoffAction
 from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.shipment import ShipmentBuyRequest, ShipmentQuoteRequest, ShipmentUpdate
@@ -19,7 +19,7 @@ from ..schemas.sale import SaleUpdate
 from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.document import (
-    act_on_signoff, get_signoff, record_document, withdraw_issuance,
+    act_on_signoff, get_signoff, record_document, substitute_signer, withdraw_issuance,
 )
 from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
@@ -393,7 +393,7 @@ async def get_order(
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
     _ensure_step_facts(db, order, user)   # fehlende Beschaffungs-/Verkaufsbelege nachziehen
-    return to_order_response(db, order)
+    return to_order_response(db, order, viewer=user)
 
 
 @router.patch("/{object_id}", response_model=OrderResponse)
@@ -681,12 +681,19 @@ async def update_order_purchase(
     order = visible_orders(db, user).filter(Order.object_id == object_id).first()
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
+    # Lieferanten-Fähigkeits-Gate serverseitig (Backstop zum Consent-Modal): ein Lieferant
+    # mit offenen Pflicht-Bestätigungen (z. B. ``supplier_terms``-Publikums-Dokument) kann
+    # nicht offerieren/bestätigen – auch nicht per direktem API-Aufruf. Personal bleibt
+    # frei (interne Arbeit wird nicht durch das Kunden-/Lieferanten-Gate blockiert).
+    if user.role == "supplier":
+        from ..services import consent as consent_svc
+        consent_svc.assert_acknowledged(db, user)
     _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "purchase", data.step_id)
     pos = process.facts_for_step(db, order, step)
     apply_purchase_update_bulk(db, pos, data, user)
     db.refresh(order)
-    return to_order_response(db, order)
+    return to_order_response(db, order, viewer=user)
 
 
 @router.patch("/{object_id}/sale", response_model=OrderResponse)
@@ -762,7 +769,7 @@ async def act_order_document_signoff(
         raise HTTPException(404, detail="Freigabe-Partei gehört nicht zu diesem Auftrag")
     act_on_signoff(db, signoff, data, current_user)
     db.refresh(order)
-    return to_order_response(db, order)
+    return to_order_response(db, order, viewer=current_user)
 
 
 @router.post("/{object_id}/document/withdraw", response_model=OrderResponse)
@@ -777,6 +784,24 @@ async def withdraw_order_document(
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
     withdraw_issuance(db, order, step_id, current_user)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/document/substitute-signer", response_model=OrderResponse)
+async def substitute_order_document_signer(
+    object_id: int,
+    data: SignerSubstitution,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """**Freigabe-Partei ersetzen** (Personal, auditiert) – auch am LAUFENDEN Auftrag: das
+    offene (pending/abgelehnte) Signoff wandert auf eine neue, aktive Person; Position und
+    Aktion bleiben. Bereits geleistete Unterschriften sind unveränderlich. So braucht ein
+    Auftrag, dessen benannte Partei ausfällt, keinen Abbruch mehr."""
+    order = _get_staff_order(db, object_id)
+    substitute_signer(db, order, data.step_id, data.old_signer_object_id,
+                      data.new_signer_object_id, current_user)
     db.refresh(order)
     return to_order_response(db, order)
 
@@ -848,13 +873,9 @@ async def update_order_shipment(
 
 def _shipment_instances(db: Session, order, step) -> list:
     """Die Instanzen, die dieser Bewegungs-Schritt physisch bewegt (Paket-/Gefahrgut-Basis)
-    – dieselbe Auswahlregel wie ``movement.record_movement`` (Pflicht-Versand/Retoure
-    nehmen auch VERKAUFTE Instanzen mit)."""
-    from ..services.subject import is_return, order_active_instances, order_instances
-    if is_return(order) or step.mode == "customer":
-        return [i for i in order_instances(db, order)
-                if (i.disposition or "") not in ("scrapped", "consumed")]
-    return order_active_instances(db, order)
+    – die EINE Auswahlregel der Ausführung (``movement.movable_instances``)."""
+    from ..services.movement import movable_instances
+    return movable_instances(db, order, step)
 
 
 @router.patch("/{object_id}/resource", response_model=OrderResponse)

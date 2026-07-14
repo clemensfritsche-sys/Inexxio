@@ -20,22 +20,57 @@ from .reservation import reserved_for
 from .subject import is_fixed_subject, order_active_instances
 
 
+def movable_instances(db: Session, order: Order, step) -> list:
+    """Die Instanzen, die dieser Bewegungs-Schritt physisch bewegt – die EINE Auswahlregel
+    für Ausführung (``record_movement``), Embed (``orders._movement_embed``) und Versand-Beleg
+    (Paket-/Gefahrgut-Basis).
+
+    * **Retoure** (reason='return'): genau die **verkauften** Instanzen (die Ware kommt
+      zurück). Chargen-**Slices** (Teilmengen-Verkauf: die Instanz besteht weiter, nur eine
+      Teilmenge kommt zurück) werden NICHT umgelagert – die Rest-Charge bleibt am Lager,
+      die Rückgabe bucht die Teilmenge mengengenau zurück (``process.return_subjects_to_stock``).
+    * **Pflicht-Versand zum Kunden** (mode='customer'): nur was wirklich zum Kunden geht –
+      verkaufte (``sold``) und im Prozess befindliche eigene (``in_process``, make) Instanzen
+      sowie ganz für diesen Auftrag reservierte Lager-Instanzen (Deckung). FIX: eine
+      ``in_stock``-Instanz OHNE volle Reservierung ist der **unverkaufte Rest** (z. B. der
+      Rest einer teilverkauften Charge – der Verkauf hat seine Teilmenge bereits abgebucht)
+      und bleibt am Lager; vorher wurde die ganze Rest-Charge per ``set_single`` zum Kunden
+      «bewegt» und stand danach fälschlich als freier Bestand beim Kunden.
+    * sonst: nur aktive Instanzen (verschrottet/verkauft/verbaut sind «raus»)."""
+    from .subject import is_return, order_instances
+    if is_return(order):
+        return [i for i in order_instances(db, order) if (i.disposition or "") == "sold"]
+    if getattr(step, "mode", None) == "customer":
+        out = []
+        for i in order_instances(db, order):
+            d = i.disposition or "in_process"
+            if d in ("scrapped", "consumed"):
+                continue
+            if d == "in_stock" and reserved_for(i, order.id) < to_qty(i.quantity):
+                continue   # unverkaufter (Rest-)Bestand – bleibt am Lager
+            out.append(i)
+        return out
+    return order_active_instances(db, order)
+
+
 def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
 
-    # Bewegbare Instanzen: normal nur aktive (verschrottet/verbaut sind endgültig «raus»).
-    # **Verkaufte** Instanzen bleiben aber bewegbar, wenn die Bewegung sie physisch bewegt:
-    # der **Pflicht-Versand zum Kunden** (mode='customer', die eben verkaufte Ware geht raus)
-    # und die **Retoure** (reason='return', die verkaufte Ware kommt zurück). Sonst sind sold
-    # Teile «raus».
-    from .subject import is_return, order_instances
-    if is_return(order) or step.mode == "customer":
-        instances = [i for i in order_instances(db, order)
-                     if (i.disposition or "") not in ("scrapped", "consumed")]
-    else:
-        instances = order_active_instances(db, order)
+    from .subject import is_return
+    instances = movable_instances(db, order, step)
     if not instances:
-        raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
+        # Teilmengen-Charge: der verkaufte Anteil hat KEINE eigene Instanz (FIFO-Teil-
+        # entnahme senkt nur die Menge) – physisch geht er beim Pflicht-Versand trotzdem
+        # raus bzw. kommt bei der Retoure zurück. Der Schritt wird dann als reine
+        # Quittierung abgeschlossen (nichts umzulagern), statt dauerhaft mit 409 zu
+        # blockieren; den Slice-Rückfluss bucht ``process.return_subjects_to_stock``.
+        if is_return(order):
+            sold_something = bool(process.sold_amounts_for_order(db, order.parent_order_id))
+        else:
+            sold_something = (step.mode == "customer"
+                              and bool(process.sold_amounts_for_order(db, order.object_id)))
+        if not sold_something:
+            raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
     # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei – es geht IMMER
     # an den Kunden des Verkaufs. Die Ziel-Eingaben des Clients werden dafür überschrieben

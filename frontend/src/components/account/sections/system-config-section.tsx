@@ -25,7 +25,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
-  legal_documents: null, legal_ack_config: null,
+  legal_documents: null,
 };
 
 export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings) => void } = {}) {

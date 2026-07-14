@@ -61,8 +61,20 @@ export default function BenutzerPage() {
       await api.deactivateUser(userId);
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: false } : u)));
       setActiveMenu(null);
+    } catch (e) {
+      // Der Server blockiert die Deaktivierung z. B. bei offenen Dokument-Freigaben –
+      // den konkreten Grund zeigen statt einer generischen Meldung.
+      setError(e instanceof Error ? e.message : 'Fehler beim Deaktivieren des Benutzers.');
+    }
+  }
+
+  async function reactivateUser(userId: number) {
+    try {
+      await api.reactivateUser(userId);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: true } : u)));
+      setActiveMenu(null);
     } catch {
-      setError('Fehler beim Deaktivieren des Benutzers.');
+      setError('Fehler beim Reaktivieren des Benutzers.');
     }
   }
 
@@ -207,14 +219,22 @@ export default function BenutzerPage() {
                                   {user.role === role && <span className="ml-auto text-xs">✓</span>}
                                 </button>
                               ))}
-                              <div className="my-1 border-t border-slate-100" />
-                              <button
-                                onClick={() => deactivateUser(user.id)}
-                                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                                disabled={!user.is_active}
-                              >
-                                Deaktivieren
-                              </button>
+                              <div className="my-1 border-t border-border-1" />
+                              {user.is_active ? (
+                                <button
+                                  onClick={() => deactivateUser(user.id)}
+                                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-danger hover:bg-danger-bg transition-colors"
+                                >
+                                  Deaktivieren
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => reactivateUser(user.id)}
+                                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-success hover:bg-success-bg transition-colors"
+                                >
+                                  Reaktivieren
+                                </button>
+                              )}
                             </div>
                           </div>
                         )}

@@ -57,6 +57,24 @@ def requested_return_parents(db: Session, order_object_ids: set[int]) -> set[int
     }
 
 
+def _return_subjects(db: Session, order: Order) -> list:
+    """Die Subjekt-Instanzen einer Retoure zu dieser Bestellung: **ganz verkaufte**
+    Instanzen (``disposition='sold'``) PLUS Instanzen, aus denen dieser Verkauf eine
+    **Teilmenge** abgebucht hat (Chargen-Slice, aus dem Event-Strom via
+    ``process.sold_amounts_for_order`` – die Teilmenge hat keine eigene Instanz).
+    Damit ist auch der Teilmengen-Verkauf einer Charge retournierbar: die Rückgabe
+    bucht die Menge in die Original-Charge zurück (``process.return_subjects_to_stock``)."""
+    from . import process
+    insts = order_instances(db, order)
+    subjects = [i for i in insts if i.disposition == "sold"]
+    have = {i.object_id for i in subjects}
+    slice_ids = set(process.sold_amounts_for_order(db, order.object_id).keys()) - have
+    for i in insts:
+        if i.object_id in slice_ids and i.disposition != "scrapped":
+            subjects.append(i)
+    return subjects
+
+
 def return_status(db: Session, order: Order, sale: Sale,
                   requested: bool | None = None) -> dict:
     """Retoure-Status einer Bestellung aus Kundensicht: ist sie retournierbar, bis wann,
@@ -67,12 +85,12 @@ def return_status(db: Session, order: Order, sale: Sale,
         requested = _existing_return(db, order) is not None
     if requested:
         return {"returnable": False, "return_requested": True, "return_deadline": deadline}
-    # Günstige Checks zuerst – der Instanz-Scan läuft nur noch für Bestellungen, die
-    # überhaupt im Rückgabefenster liegen (bounded), nicht für die ganze Historie.
+    # Günstige Checks zuerst – der Instanz-/Event-Scan läuft nur noch für Bestellungen,
+    # die überhaupt im Rückgabefenster liegen (bounded), nicht für die ganze Historie.
     ok = (
         sale.kind == "sale" and not order.reason and order.status == "completed"
         and (deadline is None or date.today() <= deadline)
-        and any(i.disposition == "sold" for i in order_instances(db, order))
+        and bool(_return_subjects(db, order))
     )
     return {"returnable": bool(ok), "return_requested": False, "return_deadline": deadline}
 
@@ -80,7 +98,15 @@ def return_status(db: Session, order: Order, sale: Sale,
 def request_return(db: Session, order_object_id: int, customer_id: int, reason: str | None) -> Order:
     """Eine Kunden-Retoure zu einer abgeschlossenen Bestellung anlegen (Unter-Auftrag + Ablauf).
     Committet NICHT (der Aufrufer schliesst ab)."""
-    order = db.query(Order).filter(Order.object_id == order_object_id, Order.is_active == True).first()
+    # Row-Lock auf die Bestellung: der Idempotenz-Check («bereits eine Retoure angefragt»)
+    # ist sonst ein Check-then-Act – ein Doppelklick legte zwei Retoure-Unteraufträge auf
+    # dieselben verkauften Instanzen an.
+    order = (
+        db.query(Order)
+        .filter(Order.object_id == order_object_id, Order.is_active == True)
+        .with_for_update()
+        .first()
+    )
     if not order:
         raise HTTPException(404, detail="Bestellung nicht gefunden")
     sale = _customer_sale(db, order, customer_id)
@@ -92,16 +118,16 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
     if not st["returnable"]:
         raise HTTPException(400, detail="Diese Bestellung ist nicht (mehr) retournierbar")
 
-    sold = [i for i in order_instances(db, order) if i.disposition == "sold"]
+    subjects = _return_subjects(db, order)   # ganz verkaufte + Chargen-Slices
     ret = Order(
         object_id=next_object_id(db, "order"), status="draft",
-        article_id=order.article_id, quantity=len(sold),
+        article_id=order.article_id, quantity=len(subjects),
         parent_order_id=order.object_id, reason="return",
         title=(f"Retoure: {reason.strip()}" if (reason and reason.strip()) else f"Retoure zu {order.object_id}"),
     )
     db.add(ret)
     db.flush()
-    for inst in sold:
+    for inst in subjects:
         inst.subject_of_order_id = ret.id
         record_link(db, inst.object_id, ret.id)
     # Üblichen Ablauf gleich anlegen, damit das Personal nur noch ausführen muss:
@@ -112,6 +138,7 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
     sync_locked_movements(db, order_id=ret.id)
     log_audit(db, "orders", None, f"Kunden-Retoure zu {order.object_id}", customer_id, object_id=ret.object_id)
     emit(db, "order.customer_return_requested", object_type="order", object_id=ret.object_id,
-         payload={"parent": order.object_id, "reason": reason, "instances": [i.object_id for i in sold]},
+         payload={"parent": order.object_id, "reason": reason,
+                  "instances": [i.object_id for i in subjects]},
          actor_id=customer_id)
     return ret

@@ -21,13 +21,18 @@ from .subject import order_active_instances, record_link
 
 
 def open_deviations(db: Session, parent: Order) -> list[Order]:
-    """Aktive (Entwurf/freigegeben) Abweichungs-Unteraufträge eines Auftrags."""
+    """Aktive (Entwurf/freigegeben) Abweichungs-Unteraufträge eines Auftrags.
+
+    FIX: NUR ``reason='deviation'`` zählt – ohne den Filter zählten auch Nachschub-
+    (``supply``) und Retoure-Kinder als «offene Abweichung», wodurch die Auto-Abweichung
+    nach fehlgeschlagener Datenerfassung still übersprungen wurde, sobald z. B. ein
+    Nachschub-Unter-Auftrag lief (Durchfaller blieben dann ohne Auflösungs-Workflow)."""
     if not parent.object_id:
         return []
     return (
         db.query(Order)
         .filter(Order.parent_order_id == parent.object_id, Order.is_active == True,
-                Order.status.in_(("draft", "released")))
+                Order.reason == "deviation", Order.status.in_(("draft", "released")))
         .order_by(Order.object_id)
         .all()
     )
@@ -160,10 +165,16 @@ def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
             409, detail="Nur ein noch nicht freigegebener Folgeauftrag kann zurückgenommen werden.")
     parent = db.query(Order).filter(Order.object_id == followup.parent_order_id).first()
     # Vorgemerkte Instanzen ans Original zurückgeben (Bindung + Verarbeitungs-Link lösen).
+    # FIX: hält der Eltern-Auftrag noch eine Reservierung auf der Instanz (Bestands-Subjekt),
+    # wandert die Subjekt-Bindung dorthin ZURÜCK statt auf None – «läuft unverändert weiter»
+    # heisst auch: ``chosen_subjects(parent)`` sieht seine Instanzen wieder.
+    from .reservation import reserved_for
     for inst in db.query(Instance).filter(
         Instance.subject_of_order_id == followup.id, Instance.is_active == True
     ).all():
-        inst.subject_of_order_id = None
+        inst.subject_of_order_id = (
+            parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
+        )
     for link in db.query(InstanceOrderLink).filter(
         InstanceOrderLink.order_id == followup.id, InstanceOrderLink.is_active == True
     ).all():

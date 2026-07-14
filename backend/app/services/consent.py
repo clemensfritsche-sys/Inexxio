@@ -2,9 +2,10 @@
 
 Ein Pflichtdokument ist versioniert – seine „Version" ist die **Objektnummer der aktuell
 gültigen Dokument-Instanz** (aufgelöst über ``services/legal.resolve``, das der Artikel-/
-``replaced_by_id``-Kette folgt). Welche Arten von WEM bestätigt werden müssen, steht am
-Unternehmen (``company_settings.legal_ack_config`` = ``{kind: [Rollen]}``, ``"all"`` = jede
-Rolle). Wer welche Version wann bestätigt hat, liegt in ``document_acknowledgements``.
+``replaced_by_id``-Kette folgt). Welche Arten bestätigt werden müssen, ist **hart
+verdrahtet** (``MUST_ACKNOWLEDGE_KINDS``, jede Rolle); Rollen-/Personen-Publikum läuft
+über die Dokument-Schritte (``doc_audience``). Wer welche Version wann bestätigt hat,
+liegt in ``document_acknowledgements``.
 
 Ein Nutzer hat für eine ``kind`` **offenen Bedarf**, wenn (a) seine Rolle im Geltungsbereich
 liegt, (b) ein gültiges Dokument auflösbar ist und (c) er die **aktuelle** Version noch nicht
@@ -46,20 +47,17 @@ def _label(kind: str, content: dict | None) -> str:
     return _KIND_LABELS.get(kind, kind.replace("_", " ").upper())
 
 
-def _config(settings) -> dict:
-    return settings.legal_ack_config or {}
-
-
 def _role_in_scope(role: str | None, roles) -> bool:
     return bool(roles) and ("all" in roles or (role is not None and role in roles))
 
 
 def required_kinds(settings, role: str | None) -> list[str]:
     """Die Dokument-Arten, die bestätigt werden müssen – **hart verdrahtet** (``MUST_ACKNOWLEDGE_
-    KINDS``), für **jede** Rolle gleich. ``settings``/``role`` bleiben in der Signatur (Tests/
-    künftige Rollen-Feinsteuerung), werden aktuell aber nicht ausgewertet. Ob tatsächlich etwas
-    zu bestätigen ist, entscheidet erst die Auflösung eines gültigen Dokuments (siehe
-    ``pending_documents``)."""
+    KINDS``), für **jede** Rolle gleich (das frühere ``legal_ack_config`` ist entfernt; Rollen-
+    Feinsteuerung läuft über das Dokument-Publikum ``doc_audience``). ``settings``/``role``
+    bleiben in der Signatur (stabile Aufrufer/Tests), werden aber nicht ausgewertet. Ob
+    tatsächlich etwas zu bestätigen ist, entscheidet erst die Auflösung eines gültigen
+    Dokuments (siehe ``pending_documents``)."""
     return list(MUST_ACKNOWLEDGE_KINDS)
 
 
@@ -88,30 +86,69 @@ def _in_audience(user: UserProfile, step: ArticleProcessStep) -> bool:
     return False
 
 
+def _superseded_by_released_doc(db: Session, article_id: int) -> bool:
+    """Ist die Fassung dieses Artikels durch eine **wirklich in Kraft getretene** Nachfolge-
+    Fassung abgelöst? – d. h. ein Nachfolger in der ``replaced_by_id``-Kette hat bereits ein
+    **freigegebenes** Dokument (``done``).
+
+    FIX: Vorher genügte ein gesetztes ``replaced_by_id`` – also bereits der Klick auf
+    «Ersetzen» (Nachfolger = Entwurf OHNE ausgestelltes Dokument). Damit verlor die noch
+    gültige Fassung ihre Anerkennungspflicht, obwohl die neue noch gar nicht existierte
+    (Consent-Lücke bis zur Freigabe des Nachfolgers – analog behandelt ``legal.resolve``
+    einen beleglosen Nachfolger als «noch nicht massgeblich»). Zyklensicher."""
+    art = db.query(Article).filter(Article.id == article_id).first()
+    seen: set[int] = set()
+    while art is not None and art.replaced_by_id is not None and art.id not in seen:
+        seen.add(art.id)
+        art = db.query(Article).filter(Article.object_id == art.replaced_by_id).first()
+        if art is None:
+            break
+        has_done_doc = (
+            db.query(Document.id)
+            .join(ArticleProcessStep, Document.step_id == ArticleProcessStep.id)
+            .filter(Document.article_id == art.id, Document.done == True,
+                    Document.is_active == True, ArticleProcessStep.is_active == True,
+                    ArticleProcessStep.doc_audience.isnot(None))
+            .first()
+        )
+        if has_done_doc:
+            return True
+    return False
+
+
 def _audience_obligations(db: Session, user: UserProfile) -> list[dict]:
     """Offene Anerkennungen des Nutzers aus **released Dokumenten mit Publikum** (nicht die
     Rechtsdokument-Zeiger). Kanonisch: nur die aktuelle Fassung – ein Dokument, dessen Artikel
-    **ersetzt** wurde, ist superseded und wird übersprungen (die Nachfolge-Fassung fordert dann
-    ihre eigene, neue Anerkennung → Q2 «neue Version = sofort neu bestätigen»)."""
-    from .document import produced_instance
+    durch eine Fassung MIT freigegebenem Dokument **ersetzt** wurde, ist superseded und wird
+    übersprungen (die Nachfolge-Fassung fordert dann ihre eigene, neue Anerkennung)."""
+    from ..models import Instance
     rows = (
         db.query(Document, ArticleProcessStep)
         .join(ArticleProcessStep, Document.step_id == ArticleProcessStep.id)
         .filter(Document.done == True, Document.is_active == True,
+                ArticleProcessStep.is_active == True,
                 ArticleProcessStep.doc_audience.isnot(None))
         .all()
     )
+    # Publikum zuerst filtern, dann die Versions-Instanzen **batch** laden (statt je Dokument
+    # zwei Queries – /consent/pending pollt jeder eingeloggte Nutzer, N+1 skaliert schlecht).
+    hits = [(doc, step) for doc, step in rows if _in_audience(user, step)]
+    order_ids = {doc.order_id for doc, _ in hits if doc.order_id is not None}
+    inst_by_order: dict[int, Instance] = {}
+    if order_ids:
+        for inst in (
+            db.query(Instance)
+            .filter(Instance.order_id.in_(order_ids), Instance.is_active == True)
+            .order_by(Instance.order_id, Instance.object_id)
+            .all()
+        ):
+            inst_by_order.setdefault(inst.order_id, inst)   # kleinste Nummer je Auftrag
     out: list[dict] = []
     seen: set[int] = set()
-    for doc, step in rows:
-        if not _in_audience(user, step):
-            continue
-        if doc.article_id is not None:
-            art = db.query(Article).filter(Article.id == doc.article_id).first()
-            if art is not None and art.replaced_by_id is not None:
-                continue   # ersetzte Fassung – der Nachfolger fordert die Anerkennung
-        order = db.query(Order).filter(Order.id == doc.order_id).first()
-        inst = produced_instance(db, order) if order else None
+    for doc, step in hits:
+        if doc.article_id is not None and _superseded_by_released_doc(db, doc.article_id):
+            continue   # ersetzte Fassung – die NEUE Fassung fordert die Anerkennung
+        inst = inst_by_order.get(doc.order_id)
         if inst is None:
             continue
         version = inst.object_id
@@ -154,6 +191,25 @@ def pending_documents(db: Session, user: UserProfile) -> list[dict]:
             seen.add(item["object_number"])
             out.append(item)
     return out
+
+
+def assert_acknowledged(db: Session, user: UserProfile) -> None:
+    """**Serverseitiges Consent-Gate** für kritische Geschäftsaktionen: offene
+    Pflicht-Bestätigungen (AGB-Zeiger + Publikums-Anerkennungen, z. B. das
+    Lieferanten-Gate ``supplier_terms``) blockieren mit 403 – das blockierende
+    Frontend-Modal ist damit nicht mehr per direktem API-Aufruf umgehbar.
+
+    Bewusst NUR an verpflichtenden Aktionen verdrahtet (Shop-Checkout, Retoure-Anfrage,
+    Lieferanten-Offerte) – Lesen, Konto-Verwaltung und das Bestätigen selbst bleiben
+    frei (sonst könnte niemand die Bestätigung nachholen)."""
+    pending = pending_documents(db, user)
+    if pending:
+        titles = ", ".join(f"«{p['title']}»" for p in pending[:3])
+        raise HTTPException(
+            403,
+            detail=f"Bestätigung erforderlich: {titles} zuerst lesen und akzeptieren "
+                   "(Konto → Meine Dokumente), dann diese Aktion wiederholen.",
+        )
 
 
 def acknowledge(db: Session, user: UserProfile, kind: str, object_number: int | None = None) -> None:

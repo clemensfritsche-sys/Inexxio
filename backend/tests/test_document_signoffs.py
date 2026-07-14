@@ -128,12 +128,16 @@ def test_audience_scope_pure():
 
 
 def test_audience_supersede_and_dedupe_in_source():
-    # Kanonisch (Q2): ein ersetzter Artikel wird übersprungen (Nachfolger fordert neue Anerkennung);
+    # Kanonisch (Q2): ein ersetzter Artikel wird übersprungen (Nachfolger fordert neue
+    # Anerkennung) – aber erst, wenn der Nachfolger WIRKLICH in Kraft ist (freigegebenes
+    # Dokument), nicht schon beim Entwurf (Review 2026-07: sonst Consent-Lücke);
     # gegen die Rechtsdokument-Zeiger wird per Objektnummer dedupliziert.
     from app.services import consent
     src = inspect.getsource(consent._audience_obligations)
-    assert "replaced_by_id is not None" in src
+    assert "_superseded_by_released_doc" in src
     assert "continue" in src
+    chain = inspect.getsource(consent._superseded_by_released_doc)
+    assert "replaced_by_id" in chain and "done == True" in chain
     ack_src = inspect.getsource(consent.acknowledge)
     assert "AUDIENCE_KIND" in ack_src
 

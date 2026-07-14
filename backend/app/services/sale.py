@@ -272,10 +272,34 @@ def _issue_refund(db: Session, credit: Sale) -> None:
     Rechnung/QR offline). Idempotent (kein zweiter Refund, wenn schon eine ``stripe_refund_id``)."""
     if credit.stripe_refund_id:
         return
+    # Doppel-Refund-Schutz: die Gutschrift-Zeile sperren und den Refund-Stand unter der
+    # Sperre FRISCH lesen. Ohne Lock sahen zwei gleichzeitige «Erstatten»-Requests beide
+    # ``stripe_refund_id IS NULL`` und lösten ZWEI Stripe-Refunds gegen denselben
+    # PaymentIntent aus (bei Teil-Erstattungen doppelt ausbezahlt).
+    committed = (
+        db.query(Sale.stripe_refund_id)
+        .filter(Sale.id == credit.id)
+        .with_for_update()
+        .first()
+    )
+    if committed is not None and committed[0]:
+        credit.stripe_refund_id = committed[0]
+        return
     orig = (db.query(Sale).filter(Sale.id == credit.original_sale_id).first()
             if credit.original_sale_id else None)
     from .payments import get_provider
-    result = get_provider(db).refund(db, orig, credit)
+    # Geld-Sicherung: lief der Original-Verkauf über Stripe (PaymentIntent vorhanden),
+    # MUSS der Refund über Stripe laufen – ein zwischenzeitlich auf «manual» gewechselter
+    # Provider würde die Gutschrift sonst still als «erstattet» markieren, ohne dass je
+    # Geld zurückfliesst.
+    provider = get_provider(db)
+    if orig is not None and orig.stripe_payment_intent_id and provider.name != "stripe":
+        raise HTTPException(
+            409,
+            detail="Der Original-Verkauf wurde über Stripe bezahlt – die Erstattung braucht den "
+                   "Stripe-Provider (STRIPE_SECRET_KEY konfigurieren), sonst fliesst kein Geld zurück.",
+        )
+    result = provider.refund(db, orig, credit)
     if result and result.get("refund_id"):
         credit.stripe_refund_id = result["refund_id"]
         credit.stripe_snapshot = result.get("snapshot")

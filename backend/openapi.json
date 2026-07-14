@@ -926,6 +926,52 @@
         }
       }
     },
+    "/api/v1/admin/users/{user_id}/reactivate": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reactivate User",
+        "description": "Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des\nSoft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;\nein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt.",
+        "operationId": "reactivate_user_api_v1_admin_users__user_id__reactivate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/audit-log": {
       "get": {
         "tags": [
@@ -3298,6 +3344,64 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/document/substitute-signer": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Substitute Order Document Signer",
+        "description": "**Freigabe-Partei ersetzen** (Personal, auditiert) – auch am LAUFENDEN Auftrag: das\noffene (pending/abgelehnte) Signoff wandert auf eine neue, aktive Person; Position und\nAktion bleiben. Bereits geleistete Unterschriften sind unveränderlich. So braucht ein\nAuftrag, dessen benannte Partei ausfällt, keinen Abbruch mehr.",
+        "operationId": "substitute_order_document_signer_api_v1_erp_orders__object_id__document_substitute_signer_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignerSubstitution"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5783,7 +5887,7 @@
           "maintenance"
         ],
         "summary": "Run Sweep",
-        "description": "Alle Artikel auf ihren Meldebestand prüfen und fehlenden Bestand nachbestellen.",
+        "description": "Meldebestände prüfen/nachbestellen + verlassene Checkout-Intents stornieren.",
         "operationId": "run_sweep_api_v1_erp_maintenance_sweep_post",
         "responses": {
           "200": {
@@ -9049,17 +9153,6 @@
               }
             ],
             "title": "Legal Documents"
-          },
-          "legal_ack_config": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Legal Ack Config"
           }
         },
         "type": "object",
@@ -9523,17 +9616,6 @@
               }
             ],
             "title": "Legal Documents"
-          },
-          "legal_ack_config": {
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Legal Ack Config"
           }
         },
         "type": "object",
@@ -15166,6 +15248,36 @@
         "title": "ShortfallInstance",
         "description": "Eine freie, freigegebene Instanz am Lager, mit der sich eine Fehlmenge decken liesse\n(«Andere Instanz wählen»)."
       },
+      "SignerSubstitution": {
+        "properties": {
+          "old_signer_object_id": {
+            "type": "integer",
+            "title": "Old Signer Object Id"
+          },
+          "new_signer_object_id": {
+            "type": "integer",
+            "title": "New Signer Object Id"
+          },
+          "step_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_signer_object_id",
+          "new_signer_object_id"
+        ],
+        "title": "SignerSubstitution",
+        "description": "Personal ersetzt eine deklarierte Freigabe-Partei am LAUFENDEN Auftrag (auditiert):\ndas offene (pending/abgelehnte) Signoff wandert auf die neue Person – Reihenfolge-\nPosition und Aktion (confirm/sign) bleiben; bereits geleistete Unterschriften nie."
+      },
       "SignoffAction": {
         "properties": {
           "action": {
@@ -16089,11 +16201,16 @@
           "reordered": {
             "type": "integer",
             "title": "Reordered"
+          },
+          "reaped_intents": {
+            "type": "integer",
+            "title": "Reaped Intents"
           }
         },
         "type": "object",
         "required": [
-          "reordered"
+          "reordered",
+          "reaped_intents"
         ],
         "title": "SweepResult"
       },
