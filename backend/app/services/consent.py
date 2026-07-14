@@ -88,16 +88,47 @@ def _in_audience(user: UserProfile, step: ArticleProcessStep) -> bool:
     return False
 
 
+def _superseded_by_released_doc(db: Session, article_id: int) -> bool:
+    """Ist die Fassung dieses Artikels durch eine **wirklich in Kraft getretene** Nachfolge-
+    Fassung abgelöst? – d. h. ein Nachfolger in der ``replaced_by_id``-Kette hat bereits ein
+    **freigegebenes** Dokument (``done``).
+
+    FIX: Vorher genügte ein gesetztes ``replaced_by_id`` – also bereits der Klick auf
+    «Ersetzen» (Nachfolger = Entwurf OHNE ausgestelltes Dokument). Damit verlor die noch
+    gültige Fassung ihre Anerkennungspflicht, obwohl die neue noch gar nicht existierte
+    (Consent-Lücke bis zur Freigabe des Nachfolgers – analog behandelt ``legal.resolve``
+    einen beleglosen Nachfolger als «noch nicht massgeblich»). Zyklensicher."""
+    art = db.query(Article).filter(Article.id == article_id).first()
+    seen: set[int] = set()
+    while art is not None and art.replaced_by_id is not None and art.id not in seen:
+        seen.add(art.id)
+        art = db.query(Article).filter(Article.object_id == art.replaced_by_id).first()
+        if art is None:
+            break
+        has_done_doc = (
+            db.query(Document.id)
+            .join(ArticleProcessStep, Document.step_id == ArticleProcessStep.id)
+            .filter(Document.article_id == art.id, Document.done == True,
+                    Document.is_active == True, ArticleProcessStep.is_active == True,
+                    ArticleProcessStep.doc_audience.isnot(None))
+            .first()
+        )
+        if has_done_doc:
+            return True
+    return False
+
+
 def _audience_obligations(db: Session, user: UserProfile) -> list[dict]:
     """Offene Anerkennungen des Nutzers aus **released Dokumenten mit Publikum** (nicht die
     Rechtsdokument-Zeiger). Kanonisch: nur die aktuelle Fassung – ein Dokument, dessen Artikel
-    **ersetzt** wurde, ist superseded und wird übersprungen (die Nachfolge-Fassung fordert dann
-    ihre eigene, neue Anerkennung → Q2 «neue Version = sofort neu bestätigen»)."""
+    durch eine Fassung MIT freigegebenem Dokument **ersetzt** wurde, ist superseded und wird
+    übersprungen (die Nachfolge-Fassung fordert dann ihre eigene, neue Anerkennung)."""
     from .document import produced_instance
     rows = (
         db.query(Document, ArticleProcessStep)
         .join(ArticleProcessStep, Document.step_id == ArticleProcessStep.id)
         .filter(Document.done == True, Document.is_active == True,
+                ArticleProcessStep.is_active == True,
                 ArticleProcessStep.doc_audience.isnot(None))
         .all()
     )
@@ -106,10 +137,8 @@ def _audience_obligations(db: Session, user: UserProfile) -> list[dict]:
     for doc, step in rows:
         if not _in_audience(user, step):
             continue
-        if doc.article_id is not None:
-            art = db.query(Article).filter(Article.id == doc.article_id).first()
-            if art is not None and art.replaced_by_id is not None:
-                continue   # ersetzte Fassung – der Nachfolger fordert die Anerkennung
+        if doc.article_id is not None and _superseded_by_released_doc(db, doc.article_id):
+            continue   # ersetzte Fassung – die NEUE Fassung fordert die Anerkennung
         order = db.query(Order).filter(Order.id == doc.order_id).first()
         inst = produced_instance(db, order) if order else None
         if inst is None:

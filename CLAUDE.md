@@ -187,6 +187,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   + totes i18n (`frontend/messages/`, next-intl war nie installiert) entfernt. Wording
   kanonisch (Spezifikation/Charge/Instanz/Lagerplatz). Responsive: Inline-Grids kollabieren
   auf Mobile, Warenkorb auf Tokens + umbrechend, Touch-Ziele ≥40px, Freiraum fürs KI-Widget.
+- **Architektur-/Logik-Review (Juli 2026, `docs/review-2026-07.md`)**: systematische Prüfung auf
+  Zirkularitäten/Blockaden/Logiklücken; 15 Befunde sofort behoben. Kernpunkte: (1) **Shop-Versand
+  repariert** – der Shop-Verkaufsauftrag legte seinen Versandschritt OHNE `locked`/`mode='customer'`
+  an → nach Zahlung dauerhaft «blockiert», kein Shop-Auftrag konnte je versendet werden (Fix +
+  Datenreparatur Migration `074`); (2) **«verkauft durch DIESEN Auftrag» zählt als GELIEFERT**
+  (`process.sold_amounts_for_order` aus dem Event-Strom) statt als «verloren» – vorher Phantom-
+  Fehlmengen nach Zahlung (Nachschub auf volle Menge dimensioniert, Chargen-Retoure kam mit Menge 1
+  statt der verkauften Menge zurück; NACH Verkauf verschrottete Instanzen bleiben ehrlich fehlend);
+  (3) **Kunden-Versand bewegt nur Verkauftes/Eigenes** (`movement.movable_instances`, EINE Auswahl-
+  regel für Ausführung/Embed/Versand-Beleg) – vorher wanderte der unverkaufte Rest einer teilverkauf-
+  ten Charge zum Kunden; reine Teilmengen-Sendung quittiert ohne Umlagerung statt 409; (4) **Kopier-
+  Vollständigkeit**: `_copy_steps` (Ersetzen/Wiederkehr) kopiert jetzt `doc_signers`/`sign_sequential`/
+  `doc_audience*`/`doc_visibility`/`transport_mode`, `duplicate_article` auch `is_hazmat`/`reorder_
+  target`/`fixed_location_*`/Beschaffungsquelle (vorher: Consent-Lücke + Freigabe-Gate-Bruch beim
+  Nachfolger); (5) **Unterschriften-Deadlocks**: Ausstellen prüft aktive Parteien, Admin-Deaktivierung
+  blockiert bei offenen Signoffs, abgelehntes Signoff bleibt für den Eigentümer re-aktionabel und hält
+  die sequenzielle Position; (6) **Consent-Supersede erst bei in Kraft getretener Nachfolge**
+  (freigegebenes Dokument, nicht schon beim Entwurf-Nachfolger); (7) **Auto-Abweichung** wird nicht
+  mehr von offenen Nachschub-Kindern unterdrückt (`open_deviations` filtert `reason='deviation'`);
+  (8) **steckengebliebene Nachbestellung** (fehlgeschlagener Schritt) unterdrückt Auto-Nachbestellung
+  nicht mehr (Stockout-Schutz); (9) **Race-Fixes**: Row-Locks in `release_order` (Doppel-Freigabe →
+  doppelte Instanzen), `recovery.cover_from_stock` (Instanz-Wahl), `_issue_refund` (Doppel-Refund;
+  zudem: Stripe-bezahlter Verkauf verlangt Stripe-Provider für die Erstattung), Kunden-Retoure
+  (Doppelklick); Scrap prüft Meldebestand VOR dem Abschluss (keine Nachbestell-Kette). Grosse
+  Folgethemen (nicht gefixt, siehe `docs/review-2026-07.md`): Teilmengen-Verkauf einer Charge ist
+  physisch nicht repräsentiert; fehlgeschlagener Schritt ist terminal (nur Abbruch); Consent-Gate nur
+  im Frontend erzwungen; Benutzer-Deaktivierung/Re-Login-Identität; CheckoutIntent-Reaper.
 - **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
   Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
   `position`). Schritt-Status wird aus der Fachtabelle abgeleitet (keine Orchestrierungstabelle);
@@ -214,9 +241,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse**
-    kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); beim
-    **Wareneingang («received») ist der aktuelle Lagerort Pflichteingabe** des Bestellers
-    (`receiving_location_id`) – dorthin wechseln die Instanzen (`services/purchase.py`).
+    kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); den
+    realen Wareneingangs-Ort setzt die **gesperrte Pflicht-Bewegung «Wareneingang»** nach der
+    Beschaffung (`process_steps.sync_locked_movements`) – NICHT mehr die Bestellung selbst
+    (`purchase_orders.receiving_location_id` ist Alt-Spalte, `apply_update` ignoriert das Feld).
     **Bezugsquelle wird IM PROZESSSCHRITT definiert** (max. Flexibilität – ein Prozess darf mehrere
     `purchase`-Schritte mit UNTERSCHIEDLICHEN Lieferanten/Quellen haben, was ein reines Artikel-Feld
     nicht abbilden kann): am Schritt `article_process_steps.mode` (supplier|webshop) +
@@ -326,9 +354,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   erste Bewegungs-Schritt. `LOCATION_TYPES` = lagerplatz/user/instance (Anzeige via
   `locations.location_labels`, NULL toleriert). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
   ganzzahlig – Bruchmengen für kg/m²/l/m³ wären ein separater Decimal-Umbau der Bestands-Engine).
-  Beim **Wareneingang («received»)** gibt der Besteller den **aktuellen Lagerort verpflichtend** an
-  (`purchase_orders.receiving_location_id`); fehlt eine Vorgabe, wird automatisch ein Lagerplatz
-  «Wareneingang» angelegt (`services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt
+  Den **Wareneingangs-Ort** setzt die gesperrte Pflicht-Bewegung «Wareneingang» nach der Beschaffung
+  (nicht mehr die Bestellung; `purchase_orders.receiving_location_id` ist Alt-Spalte); fehlt eine
+  Vorgabe, wird automatisch ein Lagerplatz «Wareneingang» angelegt
+  (`services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt
   verteilt von dort weiter. Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name);
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).

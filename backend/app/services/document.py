@@ -100,17 +100,42 @@ def record_document(db: Session, order: Order, data: DocumentUpdate, actor_id: i
 
 def _create_signoffs(db: Session, order: Order, doc: Document, step: ArticleProcessStep) -> None:
     """Beim Ausstellen die deklarierten Freigabe-Parteien (``step.doc_signers``) als offene
-    Signoffs materialisieren (idempotent: existieren schon welche, nichts tun)."""
+    Signoffs materialisieren (idempotent: existieren schon welche, nichts tun).
+
+    FIX (Deadlock-Schutz): eine deklarierte Partei muss ein **aktiver** Benutzer sein –
+    nur die benannte Person darf handeln (Objektnummer-Abgleich), und eine deaktivierte
+    kann sich nie mehr anmelden. Ohne die Prüfung entstünde ein Signoff, das NIEMAND
+    erfüllen kann → das Dokument (und damit der Auftrag) wäre für immer blockiert
+    (auch «Ausstellung zurücknehmen» + erneut ausstellen reproduziert dieselben Parteien,
+    denn die Schritt-Definition ist nach der Freigabe eingefroren)."""
     have = db.query(DocumentSignoff.id).filter(
         DocumentSignoff.document_id == doc.id, DocumentSignoff.is_active == True).first()
     if have:
         return
-    for idx, entry in enumerate(step.doc_signers or []):
+    entries: list[tuple[int, str]] = []
+    for entry in (step.doc_signers or []):
         try:
             signer_obj = int(entry.get("signer_object_id"))
         except (TypeError, ValueError, AttributeError):
             continue
         action = entry.get("action") if entry.get("action") in ("confirm", "sign") else "sign"
+        entries.append((signer_obj, action))
+    if entries:
+        active_objs = {
+            u.object_id for u in db.query(UserProfile).filter(
+                UserProfile.object_id.in_({e[0] for e in entries}),
+                UserProfile.is_active == True).all()
+        }
+        dead = sorted({obj for obj, _ in entries if obj not in active_objs})
+        if dead:
+            nrs = ", ".join(str(d) for d in dead)
+            raise HTTPException(
+                409,
+                detail=f"Ausstellen nicht möglich: Freigabe-Partei {nrs} ist deaktiviert/nicht "
+                       "vorhanden – niemand könnte diese Unterschrift je leisten. Bitte den "
+                       "Auftrag abbrechen und den Prozess mit gültigen Parteien neu aufsetzen.",
+            )
+    for idx, (signer_obj, action) in enumerate(entries):
         db.add(DocumentSignoff(
             document_id=doc.id, order_id=order.id, signer_object_id=signer_obj,
             action=action, order_index=idx, status="pending",
@@ -160,12 +185,19 @@ def _signoff_step(db: Session, doc: Document) -> Optional[ArticleProcessStep]:
 
 def _assert_actionable(db: Session, doc: Document, signoff: DocumentSignoff) -> None:
     """Sequenzielles Signieren erzwingen: ist die Reihenfolge gefordert, darf nur die
-    Partei mit dem kleinsten ``order_index`` unter den noch offenen (pending) handeln."""
+    Partei mit dem kleinsten ``order_index`` unter den noch **unerledigten** handeln.
+
+    FIX: «unerledigt» = pending ODER rejected (vorher nur pending). Zwei Folgen der alten
+    Regel: (a) die ablehnende Partei selbst war in einer Sackgasse – ihr eigenes Signoff war
+    nicht mehr «pending», jede erneute Aktion (nach Klärung doch signieren) endete in 409;
+    (b) die NÄCHSTE Partei rückte am abgelehnten Signoff vorbei und konnte VOR der Klärung
+    signieren – die deklarierte Reihenfolge war verletzt. Eine Ablehnung hält jetzt die
+    Position, bis sie geklärt ist (erneut handeln oder Personal nimmt die Ausstellung zurück)."""
     step = _signoff_step(db, doc)
     if not step or not getattr(step, "sign_sequential", False):
         return
-    pending = [r for r in signoffs_for(db, doc) if r.status == "pending"]
-    if pending and signoff.id != min(pending, key=lambda r: (r.order_index, r.id)).id:
+    open_rows = [r for r in signoffs_for(db, doc) if r.status in ("pending", "rejected")]
+    if open_rows and signoff.id != min(open_rows, key=lambda r: (r.order_index, r.id)).id:
         raise HTTPException(409, detail="Eine andere Partei muss zuerst unterschreiben (Reihenfolge)")
 
 
@@ -366,8 +398,10 @@ def my_pending_signoffs(db: Session, user: UserProfile) -> list[dict]:
         step = _signoff_step(db, doc)
         actionable = True
         if step is not None and getattr(step, "sign_sequential", False):
-            pending = [r for r in signoffs_for(db, doc) if r.status == "pending"]
-            actionable = bool(pending) and so.id == min(pending, key=lambda r: (r.order_index, r.id)).id
+            # Spiegel von ``_assert_actionable``: pending UND rejected zählen als unerledigt –
+            # die ablehnende Partei bleibt handlungsfähig (Sackgassen-Fix).
+            open_rows = [r for r in signoffs_for(db, doc) if r.status in ("pending", "rejected")]
+            actionable = bool(open_rows) and so.id == min(open_rows, key=lambda r: (r.order_index, r.id)).id
         out.append({
             "signoff_id": so.id,
             "object_number": obj_nr,

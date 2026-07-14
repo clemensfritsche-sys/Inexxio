@@ -583,8 +583,16 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
             base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
             mode="shop",
         ))
-    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden).
+    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden). FIX: als **gesperrter
+    # Pflicht-Versand** (locked + mode='customer') – exakt wie ihn ``sync_locked_movements``
+    # für einen ERP-Verkauf erzeugt. Ohne die Markierung galt die Locked-Ausnahme der
+    # Fehlmengen-Prüfung (``process.step_shortfalls``) nicht: nach der Zahlung war die Ware
+    # «verkauft» (aus dem freien Bestand weg), der Versand-Schritt dadurch dauerhaft
+    # «blockiert» und der Shop-Auftrag konnte NIE versendet/abgeschlossen werden. Zudem
+    # erzwingt erst mode='customer' das feste Ziel «Kunde des Verkaufs» (movement.record_
+    # movement überschreibt die Ziel-Eingaben) statt eines frei wählbaren Ziels.
     db.add(ArticleProcessStep(order_id=order.id, position=100, step_type="movement",
+                              locked=True, mode="customer",
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()
@@ -721,8 +729,13 @@ def fulfill_intent(db: Session, intent, snapshot: dict | None = None) -> int:
             # Auftrag committet, aber ``lines[].order_id`` noch NULL, und der Stripe-Retry
             # hätte eine Dublette (zweiter Auftrag + bezahlter Beleg) erzeugt.
             _store_lines(intent, lines)
-            done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
+            # FIX (Reihenfolge): Nachschub VOR dem Verbuchen der Zahlung dimensionieren.
+            # ``finalize_paid`` → ``sell_order_subjects`` verbraucht die reservierte Teilmenge
+            # (in_stock → sold); danach zählte sie in ``order_shortfalls`` nicht mehr als
+            # gesichert und der Nachschub wurde auf die VOLLE Menge statt der Fehlmenge
+            # dimensioniert (Phantom-Produktion bei teilweise vorrätigen make-Artikeln).
             supply.ensure_supply(db, order, customer.id)
+            done += _finalize_order_sales(order, release_order=False)   # bereits freigegeben
     intent.status = "completed"
     _store_lines(intent, lines)
     db.commit()

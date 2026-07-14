@@ -80,7 +80,15 @@ def return_status(db: Session, order: Order, sale: Sale,
 def request_return(db: Session, order_object_id: int, customer_id: int, reason: str | None) -> Order:
     """Eine Kunden-Retoure zu einer abgeschlossenen Bestellung anlegen (Unter-Auftrag + Ablauf).
     Committet NICHT (der Aufrufer schliesst ab)."""
-    order = db.query(Order).filter(Order.object_id == order_object_id, Order.is_active == True).first()
+    # Row-Lock auf die Bestellung: der Idempotenz-Check («bereits eine Retoure angefragt»)
+    # ist sonst ein Check-then-Act – ein Doppelklick legte zwei Retoure-Unteraufträge auf
+    # dieselben verkauften Instanzen an.
+    order = (
+        db.query(Order)
+        .filter(Order.object_id == order_object_id, Order.is_active == True)
+        .with_for_update()
+        .first()
+    )
     if not order:
         raise HTTPException(404, detail="Bestellung nicht gefunden")
     sale = _customer_sale(db, order, customer_id)

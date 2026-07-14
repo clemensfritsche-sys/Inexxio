@@ -848,13 +848,9 @@ async def update_order_shipment(
 
 def _shipment_instances(db: Session, order, step) -> list:
     """Die Instanzen, die dieser Bewegungs-Schritt physisch bewegt (Paket-/Gefahrgut-Basis)
-    – dieselbe Auswahlregel wie ``movement.record_movement`` (Pflicht-Versand/Retoure
-    nehmen auch VERKAUFTE Instanzen mit)."""
-    from ..services.subject import is_return, order_active_instances, order_instances
-    if is_return(order) or step.mode == "customer":
-        return [i for i in order_instances(db, order)
-                if (i.disposition or "") not in ("scrapped", "consumed")]
-    return order_active_instances(db, order)
+    – die EINE Auswahlregel der Ausführung (``movement.movable_instances``)."""
+    from ..services.movement import movable_instances
+    return movable_instances(db, order, step)
 
 
 @router.patch("/{object_id}/resource", response_model=OrderResponse)

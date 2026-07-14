@@ -105,12 +105,14 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
               object_id=order.object_id)
     emit(db, "scrap.recorded", object_type="order", object_id=order.object_id,
          payload={"count": scrapped}, actor_id=actor_id)
-    process.recompute_completion(db, order)
-    # Bestandsabgang → Meldebestand prüfen (Auto-Nachbestellung, E). Verschrottung ist ein
-    # klarer Stock-Drop; sinkt der freie Bestand unter den Meldebestand, entsteht Nachschub.
+    # Bestandsabgang → Meldebestand prüfen (Auto-Nachbestellung, E) – bewusst VOR
+    # ``recompute_completion``: schliesst der Scrap DIESEN Auftrag ab und ist er selbst die
+    # Nachbestellung des Artikels, sähe der Idempotenz-Check ihn sonst nicht mehr als «offen»
+    # und legte direkt eine weitere Nachbestellung an (Kette bei Prozessen mit Scrap-Schritt).
     from .replenishment import check_article
     for art_id in touched_articles:
         check_article(db, art_id, actor_id)
+    process.recompute_completion(db, order)
     db.commit()
     db.refresh(disp)
     return disp

@@ -219,7 +219,15 @@ def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id:
             require_signature=s.require_signature, signer_ids=s.signer_ids,
             require_photo=s.require_photo, photo_instruction=s.photo_instruction,
             target_location_type=s.target_location_type, target_location_id=s.target_location_id,
+            transport_mode=s.transport_mode,
             resource_lines=s.resource_lines,
+            # FIX: Dokument-Konfiguration (Migration 066) mitkopieren – ohne diese Felder
+            # verlor «Ersetzen» (neue Fassung eines Rechts-/Publikums-Dokuments!) und die
+            # Wiederkehr (_spawn_recurrence) still die Freigabe-Parteien, das Anerkennungs-
+            # Publikum und die Sichtbarkeit: der Nachfolger hätte NIE mehr gated.
+            doc_signers=s.doc_signers, sign_sequential=s.sign_sequential,
+            doc_audience=s.doc_audience, doc_audience_roles=s.doc_audience_roles,
+            doc_audience_person_ids=s.doc_audience_person_ids, doc_visibility=s.doc_visibility,
         ))
     db.flush()
 
@@ -234,6 +242,16 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
         material=src.material, cad_url=src.cad_url, surface=src.surface,
         min_order_qty=src.min_order_qty, safety_stock=src.safety_stock,
         supplier_article_number=src.supplier_article_number,
+        # FIX: restliche Spezifikations-/Steuerfelder mitkopieren – vorher verlor der
+        # Nachfolger still Gefahrgut-Flag, Zielbestand, den fixierten Standort und v. a.
+        # die Beschaffungsquelle (Artikel-Default) – ein purchase-Artikel liess sich dann
+        # ohne Neueingabe nicht mehr freigeben (has_source-Gate).
+        is_hazmat=src.is_hazmat, reorder_target=src.reorder_target,
+        fixed_location_lat=src.fixed_location_lat, fixed_location_lng=src.fixed_location_lng,
+        fixed_location_street=src.fixed_location_street, fixed_location_zip=src.fixed_location_zip,
+        fixed_location_city=src.fixed_location_city, fixed_location_country=src.fixed_location_country,
+        procurement_mode=src.procurement_mode, default_supplier_id=src.default_supplier_id,
+        default_webshop_url=src.default_webshop_url,
     )
     db.add(new)
     db.flush()

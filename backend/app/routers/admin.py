@@ -138,6 +138,30 @@ async def deactivate_user(
         raise HTTPException(404, detail="User not found")
     if user.role == "ai":
         raise HTTPException(409, detail="Die System-KI kann nicht deaktiviert werden (Abschalten via KI-Konfiguration)")
+    # Deadlock-Schutz: hat der Benutzer noch OFFENE Dokument-Freigaben (pending/rejected
+    # Signoffs auf ausgestellten, nicht abgeschlossenen Dokumenten), würde seine
+    # Deaktivierung diese Aufträge dauerhaft blockieren – nur die benannte Person darf
+    # unterschreiben, und eine deaktivierte kann sich nie mehr anmelden. Erst die
+    # Unterschriften klären (signieren / Ausstellung zurücknehmen), dann deaktivieren.
+    if user.object_id is not None:
+        from ..models import Document, DocumentSignoff
+        blocking = (
+            db.query(DocumentSignoff.id)
+            .join(Document, DocumentSignoff.document_id == Document.id)
+            .filter(DocumentSignoff.signer_object_id == user.object_id,
+                    DocumentSignoff.is_active == True,
+                    DocumentSignoff.status.in_(("pending", "rejected")),
+                    Document.is_active == True, Document.issued == True,
+                    Document.done == False)
+            .count()
+        )
+        if blocking:
+            raise HTTPException(
+                409,
+                detail=f"Benutzer hat noch {blocking} offene Dokument-Freigabe(n) "
+                       "(Unterschrift/Bestätigung ausstehend) – zuerst klären (signieren oder "
+                       "die Ausstellung zurücknehmen), sonst blockieren diese Aufträge für immer.",
+            )
     log_audit(db, "user_profiles", "is_active", "false", current_user.id,
               object_id=user_id, old_value="true")
     user.is_active = False

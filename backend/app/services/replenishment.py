@@ -20,29 +20,37 @@ zweiter angelegt.
 from sqlalchemy.orm import Session
 
 from ..models import Article, Order
-from . import inventory
+from . import inventory, process
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
-from .processes import article_steps
 from decimal import Decimal
 
 from .quantity import to_qty, ZERO
 
-
-def _can_supply(db: Session, article: Article) -> bool:
-    """Nachbestellbar nur, wenn der Artikel **freigegeben** ist UND einen **Prozess** hat."""
-    return article.status == "released" and bool(article_steps(db, article.id))
+# EINE Definition von «automatisch beschaffbar» (statt zweier identischer Kopien).
+from .supply import _can_supply
 
 
 def _open_replenishment(db: Session, article_id: int) -> Order | None:
-    """Läuft bereits ein Nachschub für diesen Artikel? (Idempotenz)."""
-    return (
+    """Läuft bereits ein Nachschub für diesen Artikel? (Idempotenz).
+
+    FIX: Eine **steckengebliebene** Nachbestellung zählt NICHT mehr als «offen»: ein
+    fehlgeschlagener Schritt (abgelehnte Beschaffung, endgültig durchgefallene Prüfung)
+    ist nicht erneut ausführbar – der Auftrag bleibt für immer ``released`` und hätte
+    sonst JEDE künftige Auto-Nachbestellung dieses Artikels still unterdrückt
+    (schleichender Stockout ohne Fehler). Ein solcher Auftrag braucht menschliche
+    Klärung (Abbruch); der Bestand darf derweil regulär nachbestellt werden."""
+    candidates = (
         db.query(Order)
         .filter(Order.reason == "replenishment", Order.article_id == article_id,
                 Order.is_active == True, Order.status.in_(("draft", "released")))
-        .first()
+        .all()
     )
+    for order in candidates:
+        if not any(s["state"] == "failed" for s in process.order_step_infos(db, order)):
+            return order
+    return None
 
 
 def _reorder_qty(article: Article, free) -> Decimal:

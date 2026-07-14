@@ -64,9 +64,14 @@ def cover_from_stock(db: Session, order: Order, actor_id: int,
     covered = ZERO
     if instance_object_ids:
         chosen = list(dict.fromkeys(instance_object_ids))
+        # FIX: Row-Lock auch im «bestimmte Instanz wählen»-Pfad – wie in JEDEM anderen
+        # Allokations-Schreibpfad (``fifo_candidates(lock=True)``). Ohne Sperre ist
+        # ``free_qty``-Prüfung + ``reserve`` ein Check-then-Act: zwei gleichzeitige
+        # Deckungen derselben Instanz reservieren doppelt (Überverkauf).
         rows = {
             i.object_id: i for i in db.query(Instance).filter(
-                Instance.object_id.in_(chosen), Instance.is_active == True).all()
+                Instance.object_id.in_(chosen), Instance.is_active == True)
+            .with_for_update().all()
         }
         for oid in chosen:
             inst = rows.get(oid)

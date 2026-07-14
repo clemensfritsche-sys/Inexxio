@@ -304,6 +304,34 @@ def has_step(db: Session, order: Order, step_type: str) -> bool:
 # (``services/supply.py``); pinnt er bei Abschluss seine Stück an den Eltern, wird der
 # Schritt bei der nächsten Auswertung von selbst wieder ``active``.
 
+def sold_amounts_for_order(db: Session, order_object_id: int | None) -> dict[int, Decimal]:
+    """Bereits **durch diesen Auftrag verkaufte** Mengen je Instanz ({instanz_objektnr: menge}),
+    rekonstruiert aus dem Event-Strom (der ökonomischen Wahrheit): ``sell_order_subjects``
+    schreibt je Abgang ein ``inventory.decreased``-Event auf die Instanz mit ``payload.order``
+    = Auftrags-Objektnummer (Verschrottung trägt ``reason='scrapped'`` und zählt NICHT).
+
+    Zwei Nutzer: (a) ``_subject_shortfalls`` – eine von DIESEM Auftrag verkaufte Menge ist
+    **geliefert**, nicht «verloren» (sonst meldete ein bezahlter Verkauf eine Phantom-
+    Fehlmenge und Nachschub/Deckung würden doppelt produzieren); (b) die **Retoure** – eine
+    voll konsumierte Chargen-Instanz (Menge 0) kennt ihre verkaufte Menge selbst nicht mehr."""
+    from ..models import Event
+    if not order_object_id:
+        return {}
+    out: dict[int, Decimal] = {}
+    rows = (
+        db.query(Event)
+        .filter(Event.event_type == "inventory.decreased", Event.object_type == "instance",
+                Event.payload["order"].astext == str(order_object_id))
+        .all()
+    )
+    for ev in rows:
+        payload = ev.payload or {}
+        if payload.get("reason") or ev.object_id is None:
+            continue   # Verschrottung u. ä. – kein Verkaufs-Abgang
+        out[ev.object_id] = out.get(ev.object_id, ZERO) + to_qty(payload.get("quantity", 0))
+    return out
+
+
 def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     """Fehlmenge(n) des **Subjekts** je Artikel ({article_id: qty}) – **EINE Formel für
     ALLE Auftragsarten** (kein ``subject_kind``-Sonderpfad): ``Soll − Gesichert``.
@@ -351,6 +379,27 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
         if (inst.reservations or {}).get(str(order.id)):
             continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
         secured[inst.article_id] = secured.get(inst.article_id, ZERO) + to_qty(inst.quantity)
+    # FIX: was DIESER Auftrag bereits **verkauft** hat, ist GELIEFERT – nicht «verloren».
+    # Ohne diesen Anteil meldete ein bezahlter Verkauf (Reservierung verbraucht, Ware sold)
+    # die volle Menge als Fehlmenge: nicht-gesperrte Folgeschritte blockierten dauerhaft und
+    # «Nachschub anlegen»/Shop-Retry hätten die schon gelieferte Menge NOCHMALS produziert.
+    # (Ein durch eine Abweichung ausgesteuertes Teil bleibt dagegen ehrlich eine Fehlmenge:
+    # Verschrottung zählt hier nicht, und fremdverkaufte Instanzen tragen einen anderen
+    # ``payload.order``.)
+    sold = sold_amounts_for_order(db, order.object_id)
+    if sold:
+        insts = {
+            i.object_id: i
+            for i in db.query(Instance).filter(Instance.object_id.in_(sold.keys())).all()
+        }
+        for obj_id, qty in sold.items():
+            inst = insts.get(obj_id)
+            # Eine NACH dem Verkauf verschrottete Instanz (Abweichung: Kundenware vor dem
+            # Versand zerstört) ist NICHT geliefert – ihre Fehlmenge wird ehrlich wieder
+            # sichtbar (Deckungs-Wege wie gehabt).
+            if inst is None or inst.disposition == "scrapped":
+                continue
+            secured[inst.article_id] = secured.get(inst.article_id, ZERO) + qty
     return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
 
 
@@ -528,12 +577,17 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     from .subject import is_return, order_instances
     if not is_return(order):
         return
+    # FIX: die zurückkommende Menge einer voll konsumierten Chargen-Instanz (Menge 0, sold)
+    # ist ihre unter dem ORIGINAL-Verkauf abgebuchte Menge (Event-Strom) – nicht pauschal 1.
+    # Eine 5-kg-Charge kam sonst als 1 kg zurück (stiller Bestandsverlust). Fallback 1 deckt
+    # Einzelteile/Altdaten ohne Events (jede Einzelteil-Instanz ist genau 1 Stück).
+    sold_amounts = sold_amounts_for_order(db, order.parent_order_id)
     for inst in order_instances(db, order):
         if inst.disposition != "sold" or inst.quality == "failed":
             continue
         if inst.location_type != "lagerplatz":
             continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-        back = max(to_qty(inst.quantity), ONE)   # FIFO-verkaufte Einheit hat qty 0 → auf 1 setzen
+        back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
         inst.quantity = back
         inst.disposition = "in_stock"
         inst.quality = "passed"

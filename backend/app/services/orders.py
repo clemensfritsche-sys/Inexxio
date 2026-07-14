@@ -51,6 +51,16 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     from .resource import reserve_resources
     if order.status != "draft":
         return
+    # Nebenläufigkeits-Schutz (Doppelklick/Request-Retry): den Auftrag sperren und den
+    # Status unter der Sperre FRISCH lesen (nur die Spalte – KEIN ``refresh``, das bei
+    # autoflush=False ungeflushte Feld-Änderungen des Aufrufers verwerfen würde). Ohne
+    # Lock sahen zwei gleichzeitige Freigaben beide «draft» und ein produce-Auftrag
+    # erzeugte seine Instanzen DOPPELT (``create_instances_for_order`` prüft nur
+    # committete Zeilen; kein Unique-Key auf order_id).
+    committed = db.query(Order.status).filter(Order.id == order.id).with_for_update().first()
+    if committed is not None and committed[0] != "draft":
+        db.expire(order, ["status"])   # Spiegel: nächster Zugriff liest den echten Stand
+        return
     order.status = "released"
     if order.released_at is None:
         order.released_at = utcnow()   # Start der Durchlaufzeit
@@ -231,14 +241,10 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
         me.moved_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
     # Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg dieses Schritts.
-    # Dieselbe Instanz-Auswahl wie record_movement (Pflicht-Versand/Retoure inkl. sold).
-    from .subject import is_return, order_active_instances, order_instances
+    # EXAKT dieselbe Instanz-Auswahl wie die Ausführung (movement.movable_instances).
     if instances is None:
-        if is_return(order) or step.mode == "customer":
-            instances = [i for i in order_instances(db, order)
-                         if (i.disposition or "") not in ("scrapped", "consumed")]
-        else:
-            instances = order_active_instances(db, order)
+        from .movement import movable_instances
+        instances = movable_instances(db, order, step)
     from . import logistics
     me.shipment = logistics.build_embed(db, order, step, instances)
     return me
