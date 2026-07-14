@@ -168,8 +168,16 @@ def _pinned_net(db: Session, price: ArticlePrice, currency: str,
     net = charm_round(net_chf / rate, currency) if rate > 0 else charm_round(net_chf, currency)
     pins[currency] = {"net": str(net), "rate": str(rate), "base": str(net_chf)}
     price.pinned = pins
+    # Pin persistieren – aber NIE fremde, halbfertige Änderungen des Aufrufers mit-committen:
+    # der Preis-View ist ein LESE-Pfad. Hat die Session ausser dem Pin noch etwas im Puffer,
+    # wird nur geflusht (der Aufrufer schliesst seine Transaktion selbst ab); nur auf den
+    # reinen GET-Pfaden (Shop-Listing/Detail, die selbst nie committen) committet der Pin.
     try:
-        db.commit()   # Pin persistieren (innerhalb des Tages stabil, wie der FX-Tageskurs)
+        others = [o for o in (set(db.dirty) | set(db.new) | set(db.deleted)) if o is not price]
+        if others:
+            db.flush()
+        else:
+            db.commit()
     except Exception:
         db.rollback()
     return net

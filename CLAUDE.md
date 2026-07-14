@@ -210,10 +210,20 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   nicht mehr (Stockout-Schutz); (9) **Race-Fixes**: Row-Locks in `release_order` (Doppel-Freigabe →
   doppelte Instanzen), `recovery.cover_from_stock` (Instanz-Wahl), `_issue_refund` (Doppel-Refund;
   zudem: Stripe-bezahlter Verkauf verlangt Stripe-Provider für die Erstattung), Kunden-Retoure
-  (Doppelklick); Scrap prüft Meldebestand VOR dem Abschluss (keine Nachbestell-Kette). Grosse
-  Folgethemen (nicht gefixt, siehe `docs/review-2026-07.md`): Teilmengen-Verkauf einer Charge ist
-  physisch nicht repräsentiert; fehlgeschlagener Schritt ist terminal (nur Abbruch); Consent-Gate nur
-  im Frontend erzwungen; Benutzer-Deaktivierung/Re-Login-Identität; CheckoutIntent-Reaper.
+  (Doppelklick); Scrap prüft Meldebestand VOR dem Abschluss (keine Nachbestell-Kette).
+  **Folgethemen-Umsetzung (gleicher Monat, `docs/review-2026-07.md §3`)**: Slice-Retouren
+  (Teilmengen-Verkauf einer Charge ist retournierbar – Subjekte aus `process.sold_amounts_for_order`,
+  Rückfluss mengengenau in die Original-Charge, event-idempotent, erst nach quittierter Rückgabe-
+  Bewegung); Consent-Gate serverseitig (`consent.assert_acknowledged` an Checkout/Retoure/Lieferanten-
+  Offerte); `doc_visibility` als Lese-Zugriffsfilter + **Parteien-Substitution** am laufenden Auftrag
+  (`POST …/document/substitute-signer`); Benutzer-Identität (deaktiviert = 403 beim Login statt
+  stiller Neuanlage; `POST /admin/users/{id}/reactivate` + FE-Knopf); **CheckoutIntent-Reaper** im
+  Wartungs-Sweep (verlassene Warenkörbe geben Reservierungen nach 24 h frei); **Produktabo-Auto-
+  Fulfillment** (`invoice.paid` released den Wiederkehr-Entwurf und verbucht die Zahlung);
+  `legal_ack_config` entfernt (Migration 075); Kleinigkeiten (Preis-Pin committet keine fremden
+  Änderungen mehr, Publikums-Obligationen ohne N+1, Refund-Ablehnung bei Alt-Beleg ohne Snapshot im
+  Mehrpositionen-Fall). **Einzig offen aus dem Review: «fehlgeschlagener Schritt ist terminal»**
+  (bewusst zurückgestellt – braucht ein «Schritt wiederholen»-Design).
 - **Generische Auftrags-Prozess-Engine** (`services/process.py`): Der Auftrag führt eine geordnete
   Liste von Prozessschritten (`article_process_steps`, pro Artikel optional & frei sortierbar via
   `position`). Schritt-Status wird aus der Fachtabelle abgeleitet (keine Orchestrierungstabelle);
@@ -381,8 +391,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `GET /consent/acknowledgements/{user_object_id}`). `GET /consent/pending` liefert offene Bestätigungen,
   `POST /consent/acknowledge` quittiert. Frontend: **blockierendes Modal** `components/consent/consent-
   gate.tsx` (in ERP-, Konto- und Public/Shop-Layout gemountet, self-contained via `onAuthChange`) – zeigt
-  je ein Dokument mit «gelesen + akzeptieren», bis nichts mehr offen ist. *(`legal_ack_config` bleibt als
-  Spalte für künftige Rollen-Feinsteuerung, aktuell ungenutzt.)*
+  je ein Dokument mit «gelesen + akzeptieren», bis nichts mehr offen ist. **Serverseitig erzwungen**
+  (`consent.assert_acknowledged`, 403) an den kritischen Aktionen: Shop-Checkout, Retoure-Anfrage,
+  Lieferanten-Offerte (`PATCH …/purchase`, nur Rolle supplier) – das Modal ist kein reines UI-Gate mehr.
+  *(Die nie ausgewertete Spalte `legal_ack_config` ist entfernt (Migration 075); Rollen-Feinsteuerung
+  läuft über das Dokument-Publikum `doc_audience`.)*
 - **Artikelnamen (frei + intelligente Vorschläge, KI-unabhängig)**: Namen sind **frei wählbar**
   (kein Katalog-Zwang mehr), aber auf **`NAME_MAX_LENGTH=32` Zeichen** gekappt (zentral in
   `schemas/article.py: clean_article_name`, Frontend `maxLength`). Beim Tippen schlägt das System
@@ -630,8 +643,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     keine Doppeleingabe) – `stripe_provider._profile_shipping`.
   - **Zwei Abo-Typen** (`article_prices.sub_type`, gespiegelt nach `orders.recurrence_kind`):
     **usage** = Nutzungsabo (Zugang/Miete, einmalige Erfüllung) | **product** = Produktabo
-    (wiederkehrende Lieferung; Folge-Fulfillment je Zyklus via `invoice.paid`-Hook = dokumentierte
-    Erweiterung). Beide ohne Enddatum, aktiv kündbar (Customer Portal).
+    (wiederkehrende Lieferung; **Auto-Fulfillment je Zyklus umgesetzt**: `invoice.paid` gibt den von
+    `_spawn_recurrence` angelegten Entwurfs-Nachfolger frei und verbucht seinen Verkauf als bezahlt –
+    idempotent, Zyklus 1/Retries treffen den bereits bezahlten Auftrag; `ensure_supply` deckt
+    make-Artikel). Beide ohne Enddatum, aktiv kündbar (Customer Portal).
   - **Vereinfachung**: Steuerklasse (Stripe Tax übernimmt), Sichtbarkeit «Verborgen»/unlisted und
     DE/EN-Umschalter im Verkauf-Reiter **entfernt** (einsprachig, KI-Übersetzung später).
   - **Bedarf → Nachschub: EIN Unter-Auftrag-Mechanismus** (ADR 003, Migration `044`, ersetzt die
@@ -958,8 +973,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`account/sections/documents-section.tsx` – externe Parteien signieren im Konto, `GET/POST /consent/
   {my-documents,signoffs/{id}}`); der **Freigabe-Layer wird auf das Dokument gerendert** (Web `DocumentView`
   + PDF `document_render._signoffs_html`, Unterschrift-Bild als data-URI). Endpunkte am Auftrag
-  (`POST …/document/signoff/{id}`, `…/document/withdraw`). *Sichtbarkeit ist deklariert/angezeigt, aber noch
-  nicht als Lese-Zugriffsfilter erzwungen (Folgeschritt).*
+  (`POST …/document/signoff/{id}`, `…/document/withdraw`). **Sichtbarkeit ist als Lese-Zugriffsfilter
+  erzwungen** (`orders._doc_content_visible`): Nicht-Personal sieht den Dokument-Inhalt im Auftrags-Embed
+  nur nach `doc_visibility` (public → jeder | parties → Parteien/Publikum | internal → nur Personal);
+  eine benannte Partei liest IMMER (man kann nicht unterschreiben, was man nicht sieht).
+  **Parteien-Substitution am laufenden Auftrag** (`POST …/document/substitute-signer`, Personal,
+  auditiert): das offene (pending/abgelehnte) Signoff wandert auf eine neue aktive Person – Position/
+  Aktion bleiben, geleistete Unterschriften nie; fällt eine Partei aus, braucht der Auftrag keinen
+  Abbruch mehr.
   - **Ausstehende Pflicht-Unterschriften senken die Profil-Vollständigkeit**: `useProfileCompletion`
     nimmt jetzt die Zahl **offener** Dokument-Pflichten (ausstehende Unterschriften/Bestätigungen +
     Anerkennungen, aus `/consent/my-documents` + `/consent/pending`) und zählt sie wie fehlende
@@ -1016,7 +1037,7 @@ eingebettete Kasse/Warenkorb inkl. Mehrpositionen-Verkauf (Fehlbestand + Nachsch
 Sandbox testen (`docs/stripe-setup.md`); Retoure/Erstattung als Normalauftrag (verkaufte Instanzen unter
 «Instanz wählen» → Bewegung zurück + Gutschrift im `sale`-Modul inkl. Stripe-Refund; Kulanz ohne Rücknahme)
 in der Sandbox end-to-end prüfen; Abo-Mindestlaufzeit/
-Kündigungs-Cooldown in der Praxis prüfen; Auto-Fulfillment je Produktabo-Zyklus (`invoice.paid`-Hook);
+Kündigungs-Cooldown + Produktabo-Auto-Fulfillment (`invoice.paid`) in der Praxis prüfen;
 Custom-Auftrag-UX verfeinern; Instanz = vollständige Ereignis-Historie; Scan-Quittierung im Wareneingang &
 beim Verschrotten; E-Mail (Gmail API); Stripe Terminal für Vor-Ort-Zahlung (payment_method='terminal',
 Phase 2+, aktuell nur vorgemerkt).

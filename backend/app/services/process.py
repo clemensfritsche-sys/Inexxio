@@ -574,21 +574,53 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     **Lagerplatz** gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS
     bewegt (Kulanz: der Kunde behält die Ware) → sie bleibt 'sold' (nur Geld zurück).
     Durchgefallene (quality='failed', z. B. defekt) bleiben gesperrt und werden verschrottet."""
+    from ..models import Event
     from .subject import is_return, order_instances
     if not is_return(order):
         return
-    # FIX: die zurückkommende Menge einer voll konsumierten Chargen-Instanz (Menge 0, sold)
-    # ist ihre unter dem ORIGINAL-Verkauf abgebuchte Menge (Event-Strom) – nicht pauschal 1.
-    # Eine 5-kg-Charge kam sonst als 1 kg zurück (stiller Bestandsverlust). Fallback 1 deckt
-    # Einzelteile/Altdaten ohne Events (jede Einzelteil-Instanz ist genau 1 Stück).
+    # Die zurückkommende Menge ist die unter dem ORIGINAL-Verkauf abgebuchte Menge
+    # (Event-Strom) – nicht pauschal 1: eine 5-kg-Charge kam sonst als 1 kg zurück.
+    # Fallback 1 deckt Einzelteile/Altdaten ohne Events (jede Einzelteil-Instanz = 1 Stück).
     sold_amounts = sold_amounts_for_order(db, order.parent_order_id)
+
+    def _already_restocked(inst) -> bool:
+        """Idempotenz-Marker: der Rückfluss DIESER Retoure in DIESE Instanz wurde bereits
+        gebucht (das ``inventory.increased``-Event mit reason='return' ist der Beleg)."""
+        for ev in db.query(Event).filter(
+            Event.event_type == "inventory.increased", Event.object_type == "instance",
+            Event.object_id == inst.object_id,
+            Event.payload["order"].astext == str(order.object_id),
+        ).all():
+            if (ev.payload or {}).get("reason") == "return":
+                return True
+        return False
+
+    # Chargen-Slice (Teilmengen-Verkauf): erst buchen, wenn die Rückgabe-Bewegung
+    # quittiert ist (die Ware ist physisch wieder da) – die Slice-Instanz selbst wird
+    # dabei NICHT bewegt (sie war nie weg; die Teilmenge fliesst in sie zurück).
+    movement_done = (
+        db.query(Movement.id)
+        .filter(Movement.order_id == order.id, Movement.is_active == True)
+        .first() is not None
+    )
     for inst in order_instances(db, order):
-        if inst.disposition != "sold" or inst.quality == "failed":
+        if inst.quality == "failed" or (inst.disposition or "") in ("scrapped", "consumed"):
             continue
-        if inst.location_type != "lagerplatz":
-            continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-        back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
-        inst.quantity = back
+        if inst.disposition == "sold":
+            # Ganz verkaufte Instanz: Rückkehr = Bewegung an einen Lagerplatz.
+            if inst.location_type != "lagerplatz":
+                continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
+            back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
+            inst.quantity = back
+        else:
+            # **Chargen-Slice**: der Original-Verkauf hat eine TEILMENGE dieser (weiterhin
+            # bestehenden) Instanz abgebucht – die Teilmenge hat keine eigene Instanz. Die
+            # Rückgabe bucht sie mengengenau in die Original-Charge zurück (Objektnummer
+            # bleibt die physische Wahrheit). Event-idempotent (Abschluss ruft erneut).
+            back = sold_amounts.get(inst.object_id, ZERO)
+            if back <= 0 or not movement_done or _already_restocked(inst):
+                continue
+            inst.quantity = to_qty(inst.quantity) + back
         inst.disposition = "in_stock"
         inst.quality = "passed"
         inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager

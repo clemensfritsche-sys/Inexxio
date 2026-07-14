@@ -80,8 +80,10 @@ class Sale(Base, TimestampMixin):
     fx_date: Mapped[Optional[date]] = mapped_column(Date)
     tax_class: Mapped[Optional[str]] = mapped_column(String(16))
 
-    # Stripe-Beleg: PaymentIntent + voller Snapshot von Stripe (Settlement-Betrag in CHF,
-    # Steuer, sowie die dem Kunden präsentierte Lokalwährung via Adaptive Pricing).
+    # Stripe-Beleg: PaymentIntent + voller Snapshot von Stripe. **Settlement = die Währung
+    # der Stripe-Session**: mit Adaptive Pricing (keine feste Session-Währung) ist das die
+    # LOKALWÄHRUNG des Kunden, nicht zwingend CHF – alle Folge-Rechnungen (Teil-Erstattung
+    # ``frac`` × ``line_gross``) rechnen konsistent in DIESER gespeicherten Währung.
     # {"settlement":{"currency","total","tax"},"presentment":{"currency","total"},
     #  "payment_intent","mode","tax_rate"} – Stripe ist die Quelle der Wahrheit.
     stripe_payment_intent_id: Mapped[Optional[str]] = mapped_column(String(80), index=True)

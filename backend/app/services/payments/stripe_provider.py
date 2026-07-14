@@ -20,7 +20,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
-from ...models import CheckoutIntent, Order, UserProfile
+from ...models import CheckoutIntent, Order, Sale, UserProfile
 from .. import sales as sales_svc
 from ..events import emit
 from .base import PaymentProvider
@@ -234,17 +234,40 @@ class StripeProvider(PaymentProvider):
 
     def _on_invoice_paid(self, db: Session, invoice) -> CheckoutIntent | None:
         """Wiederkehrende Verrechnung läuft in Stripe (Quelle der Wahrheit) – wir spiegeln.
-        Beim **Produktabo** wäre hier das Folge-Fulfillment je Zyklus zu erzeugen; beim
-        **Nutzungsabo** (Zugang/Miete) ist nichts zu liefern. Das eigentliche Erzeugen des
-        Folgeauftrags ist die dokumentierte nächste Erweiterung (TODO-Hook unten)."""
+
+        **Produktabo (kind='product'): Auto-Fulfillment je Zyklus.** ``_spawn_recurrence``
+        legt beim Abschluss eines Zyklus den Folge-Auftrag als **Entwurf** an (mit kopiertem
+        Ablauf: Verkauf + Pflicht-Versand). Die bezahlte Abo-Rechnung gibt diesen Entwurf
+        frei und verbucht seinen Verkauf als bezahlt – die Ware geht wie gewohnt über den
+        Versand-Schritt raus. Idempotent: die Erst-Rechnung (Zyklus 1) trifft den bereits
+        bezahlten Original-Auftrag (kein Entwurf am Kettenende → nichts zu tun), Webhook-
+        Retries treffen einen bereits freigegebenen Folge-Auftrag. Ist der VORHERIGE Zyklus
+        noch nicht abgeschlossen (noch kein Entwurf gespawnt), wird nur das Event vermerkt –
+        der Abschluss des Vorgängers zieht den Folge-Auftrag nach (nächster Zyklus greift).
+        Beim **Nutzungsabo** (Zugang/Miete) ist nichts zu liefern."""
         sub_id = _get(invoice, "subscription")
         order = (db.query(Order).filter(Order.stripe_subscription_id == sub_id).first()
                  if sub_id else None)
         kind = order.recurrence_kind if order else None
+        fulfilled_object_id = None
+        if order is not None and kind == "product":
+            from .. import sale as sale_svc, supply
+            from ..orders import release_order
+            chain = sales_svc.recurrence_chain(db, order)
+            current = chain[-1] if chain else None
+            if (current is not None and current.status == "draft"
+                    and current.recurrence_active):
+                release_order(db, current, None)             # Ablauf starten (Verkauf+Versand)
+                supply.ensure_supply(db, current, None)      # Fehlmenge → Nachschub (make-Artikel)
+                db.flush()
+                for s in db.query(Sale).filter(Sale.order_id == current.id,
+                                               Sale.is_active == True).all():
+                    sale_svc.finalize_paid(db, s, stripe=None, release_order=False)
+                fulfilled_object_id = current.object_id
         emit(db, "stripe.invoice_paid", object_type="order",
              object_id=order.object_id if order else None,
-             payload={"subscription": sub_id, "recurrence_kind": kind})
-        # TODO(Erweiterung): kind == 'product' → Folge-Fulfillment-Auftrag je Zyklus erzeugen.
+             payload={"subscription": sub_id, "recurrence_kind": kind,
+                      "fulfilled_order": fulfilled_object_id})
         db.commit()
         return None
 
@@ -326,7 +349,24 @@ class StripeProvider(PaymentProvider):
             charged = int(_get(pi, "amount") or 0)
             if line_gross > 0:
                 amount = int((line_gross * 100 * frac).to_integral_value())
-            else:   # Alt-Beleg ohne Snapshot: bisheriges Verhalten (Anteil am ganzen PI)
+            else:
+                # Alt-Beleg ohne Snapshot: der Anteil lässt sich nur am GANZEN PaymentIntent
+                # rechnen. Bei einem Mehrpositionen-Kauf würde die volle Gutschrift EINER
+                # Position so den gesamten Kaufbetrag erstatten (Überzahlung) → ablehnen und
+                # auf die manuelle Erstattung im Stripe-Dashboard verweisen.
+                sibling = (
+                    db.query(Sale.id)
+                    .filter(Sale.order_id == original_sale.order_id, Sale.kind == "sale",
+                            Sale.id != original_sale.id, Sale.is_active == True)
+                    .first()
+                )
+                if sibling is not None:
+                    raise HTTPException(
+                        409,
+                        detail="Alt-Beleg ohne Positions-Snapshot bei Mehrpositionen-Kauf – der "
+                               "anteilige Betrag ist nicht sicher bestimmbar. Bitte die Erstattung "
+                               "manuell im Stripe-Dashboard ausführen.",
+                    )
                 amount = int((Decimal(charged) * frac).to_integral_value())
             if 0 < amount < charged:
                 params["amount"] = amount

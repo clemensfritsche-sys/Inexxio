@@ -25,7 +25,10 @@ def movable_instances(db: Session, order: Order, step) -> list:
     für Ausführung (``record_movement``), Embed (``orders._movement_embed``) und Versand-Beleg
     (Paket-/Gefahrgut-Basis).
 
-    * **Retoure** (reason='return'): auch **verkaufte** Instanzen (die Ware kommt zurück).
+    * **Retoure** (reason='return'): genau die **verkauften** Instanzen (die Ware kommt
+      zurück). Chargen-**Slices** (Teilmengen-Verkauf: die Instanz besteht weiter, nur eine
+      Teilmenge kommt zurück) werden NICHT umgelagert – die Rest-Charge bleibt am Lager,
+      die Rückgabe bucht die Teilmenge mengengenau zurück (``process.return_subjects_to_stock``).
     * **Pflicht-Versand zum Kunden** (mode='customer'): nur was wirklich zum Kunden geht –
       verkaufte (``sold``) und im Prozess befindliche eigene (``in_process``, make) Instanzen
       sowie ganz für diesen Auftrag reservierte Lager-Instanzen (Deckung). FIX: eine
@@ -36,8 +39,7 @@ def movable_instances(db: Session, order: Order, step) -> list:
     * sonst: nur aktive Instanzen (verschrottet/verkauft/verbaut sind «raus»)."""
     from .subject import is_return, order_instances
     if is_return(order):
-        return [i for i in order_instances(db, order)
-                if (i.disposition or "") not in ("scrapped", "consumed")]
+        return [i for i in order_instances(db, order) if (i.disposition or "") == "sold"]
     if getattr(step, "mode", None) == "customer":
         out = []
         for i in order_instances(db, order):
@@ -57,12 +59,16 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     from .subject import is_return
     instances = movable_instances(db, order, step)
     if not instances:
-        # Pflicht-Versand einer Teilmengen-Charge: der verkaufte Anteil hat KEINE eigene
-        # Instanz (FIFO-Teilentnahme senkt nur die Menge) – physisch geht er trotzdem raus.
-        # Der Schritt wird dann als reine Quittierung abgeschlossen (nichts umzulagern),
-        # statt den Auftrag mit 409 dauerhaft zu blockieren.
-        sold_something = (step.mode == "customer"
-                          and bool(process.sold_amounts_for_order(db, order.object_id)))
+        # Teilmengen-Charge: der verkaufte Anteil hat KEINE eigene Instanz (FIFO-Teil-
+        # entnahme senkt nur die Menge) – physisch geht er beim Pflicht-Versand trotzdem
+        # raus bzw. kommt bei der Retoure zurück. Der Schritt wird dann als reine
+        # Quittierung abgeschlossen (nichts umzulagern), statt dauerhaft mit 409 zu
+        # blockieren; den Slice-Rückfluss bucht ``process.return_subjects_to_stock``.
+        if is_return(order):
+            sold_something = bool(process.sold_amounts_for_order(db, order.parent_order_id))
+        else:
+            sold_something = (step.mode == "customer"
+                              and bool(process.sold_amounts_for_order(db, order.object_id)))
         if not sold_something:
             raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 

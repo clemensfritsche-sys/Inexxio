@@ -260,12 +260,34 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
     return de
 
 
+def _doc_content_visible(db: Session, step: ArticleProcessStep, doc, viewer) -> bool:
+    """**Sichtbarkeit als Lese-Zugriffsfilter** (nicht mehr nur Deklaration): darf dieser
+    Betrachter den Dokument-INHALT sehen? Personal (und interne Aufrufer ohne Viewer)
+    immer; sonst nach ``doc_visibility``: public → jeder | parties → benannte
+    Freigabe-Parteien + Anerkennungs-Publikum | internal (Default) → nur Personal."""
+    if viewer is None or viewer.role in _STAFF_ROLES:
+        return True
+    # Eine benannte Freigabe-Partei liest IMMER (man kann nicht unterschreiben, was man
+    # nicht sieht) – unabhängig von der deklarierten Sichtbarkeitsstufe.
+    if doc is not None:
+        from .document import signoffs_for
+        if any(r.signer_object_id == viewer.object_id for r in signoffs_for(db, doc)):
+            return True
+    vis = getattr(step, "doc_visibility", None) or "internal"
+    if vis == "public":
+        return True
+    if vis == "parties":
+        from .consent import _in_audience
+        return _in_audience(viewer, step)
+    return False
+
+
 def _document_embed(db: Session, order: Order, step: ArticleProcessStep,
-                    doc) -> DocumentEmbed:
+                    doc, viewer=None) -> DocumentEmbed:
     """Eingebetteter Stand des Dokument-Schritts. Der Inhalt wird während der Ausführung
     verfasst; Nummer (= Instanz-Objektnummer) und Datum (= Instanz-Freigabe) kommen aus der
     vom Auftrag erzeugten Instanz. Vor der Freigabe existiert noch keine Fachzeile → leerer,
-    editierbarer Entwurf."""
+    editierbarer Entwurf. Für Nicht-Personal filtert ``doc_visibility`` den Inhalt."""
     from .document import _enrich_embed, creator_name, normalize_content, render_meta
     obj_nr, doc_date = render_meta(db, order)
     if doc is not None:
@@ -274,6 +296,9 @@ def _document_embed(db: Session, order: Order, step: ArticleProcessStep,
         emb.object_number = obj_nr
         emb.document_date = doc_date
         _enrich_embed(db, doc, emb)               # Freigabe-Parteien + Sichtbarkeit/Reihenfolge
+        if not _doc_content_visible(db, step, doc, viewer):
+            emb.content = None                    # Inhalt (und Parteien-Detail) verbergen
+            emb.signoffs = []
         return emb
     # Vorgabe-Deklaration schon im leeren Entwurf zeigen (Sichtbarkeit/Reihenfolge vom Schritt).
     return DocumentEmbed(
@@ -356,9 +381,13 @@ def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si
     ]
 
 
-def to_order_response(db: Session, order: Order) -> OrderResponse:
+def to_order_response(db: Session, order: Order, viewer: UserProfile | None = None) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
-    dem passenden Ausführungs-Embed (Mehr-Operationen-Routing)."""
+    dem passenden Ausführungs-Embed (Mehr-Operationen-Routing).
+
+    ``viewer``: der anfragende Nutzer, wenn der Endpoint auch Nicht-Personal bedient
+    (Lieferant/Kunde) – filtert dann den Dokument-Inhalt nach ``doc_visibility``.
+    ``None`` = interner/Personal-Aufruf (ungefiltert)."""
     resp = OrderResponse.model_validate(order)
     resp.deviations, resp.supply_orders, resp.returns, resp.paused = _order_sub_orders(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
@@ -478,7 +507,7 @@ def to_order_response(db: Session, order: Order) -> OrderResponse:
             if done:
                 by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
         elif step.step_type == "document":
-            emb = _document_embed(db, order, step, fact)
+            emb = _document_embed(db, order, step, fact, viewer=viewer)
             si.document = emb
             first.setdefault("document", emb)
             if done:

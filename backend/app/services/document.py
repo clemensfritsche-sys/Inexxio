@@ -256,6 +256,65 @@ def act_on_signoff(db: Session, signoff: DocumentSignoff, data, user: UserProfil
     return order
 
 
+def substitute_signer(db: Session, order: Order, step_id: int | None,
+                      old_object_id: int, new_object_id: int, user: UserProfile) -> Order:
+    """**Parteien-Substitution am laufenden Auftrag** (Personal, auditiert): das noch
+    offene (pending/abgelehnte) Signoff der bisherigen Partei wandert auf eine neue,
+    **aktive** Person – Reihenfolge-Position und Aktion (confirm/sign) bleiben erhalten.
+
+    Wirkt auf den **materialisierten** Freigabe-Layer des Auftrags (``document_signoffs``),
+    NICHT auf die eingefrorene Schritt-Deklaration (Artikel-Prozess bleibt unangetastet;
+    «der Schritt deklariert die Struktur, der Auftrag sammelt die konkreten Unterschriften»).
+    Vervollständigt die Deadlock-Guards: verlässt eine benannte Person das Unternehmen,
+    muss der Auftrag nicht mehr abgebrochen werden. Bereits geleistete Unterschriften
+    sind unveränderlich (nie substituierbar). Committet."""
+    step = None
+    for d in process.order_step_defs(db, order):
+        if d.step_type == "document" and (step_id is None or d.id == step_id):
+            step = d
+            break
+    if step is None:
+        raise HTTPException(404, detail="Dokument-Schritt nicht gefunden")
+    doc = (
+        db.query(Document)
+        .filter(Document.order_id == order.id, Document.step_id == step.id,
+                Document.is_active == True).first()
+    )
+    if not doc or not doc.issued:
+        raise HTTPException(409, detail="Dieses Dokument ist (noch) nicht ausgestellt – "
+                            "Parteien werden erst beim Ausstellen materialisiert")
+    if doc.done:
+        raise HTTPException(409, detail="Dokument ist bereits vollständig freigegeben")
+    new_user = db.query(UserProfile).filter(
+        UserProfile.object_id == new_object_id, UserProfile.is_active == True).first()
+    if not new_user:
+        raise HTTPException(400, detail="Die neue Partei ist kein aktiver Benutzer")
+    target = next(
+        (r for r in signoffs_for(db, doc)
+         if r.signer_object_id == old_object_id and r.status in ("pending", "rejected")),
+        None,
+    )
+    if target is None:
+        raise HTTPException(
+            409, detail="Für diese Person gibt es kein offenes Signoff (bereits signiert "
+                        "oder nicht Partei) – nur offene Freigaben sind substituierbar")
+    if any(r.signer_object_id == new_object_id and r.id != target.id
+           for r in signoffs_for(db, doc)):
+        raise HTTPException(409, detail="Die neue Partei ist bereits Freigabe-Partei dieses Dokuments")
+    target.signer_object_id = new_object_id
+    target.status = "pending"       # eine Ablehnung der alten Partei gilt nicht für die neue
+    target.reason = None
+    target.acted_at = None
+    target.acted_by = None
+    db.flush()
+    log_audit(db, "document_signoffs", "signer_object_id", str(new_object_id), user.id,
+              object_id=order.object_id, old_value=str(old_object_id))
+    emit(db, "document.signoff.substituted", object_type="order", object_id=order.object_id,
+         payload={"old": old_object_id, "new": new_object_id}, actor_id=user.id)
+    db.commit()
+    return order
+
+
 def withdraw_issuance(db: Session, order: Order, step_id: int | None, user: UserProfile) -> Order:
     """Die Ausstellung **zurücknehmen** (Personal): der Inhalt wird wieder editierbar, alle
     Signoffs verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist –

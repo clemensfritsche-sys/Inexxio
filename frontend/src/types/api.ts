@@ -447,6 +447,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/{user_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate User
+         * @description Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des
+         *     Soft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;
+         *     ein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt.
+         */
+        post: operations["reactivate_user_api_v1_admin_users__user_id__reactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit-log": {
         parameters: {
             query?: never;
@@ -1136,6 +1158,29 @@ export interface paths {
          *     Freigabe-Parteien verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist.
          */
         post: operations["withdraw_order_document_api_v1_erp_orders__object_id__document_withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/orders/{object_id}/document/substitute-signer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Substitute Order Document Signer
+         * @description **Freigabe-Partei ersetzen** (Personal, auditiert) – auch am LAUFENDEN Auftrag: das
+         *     offene (pending/abgelehnte) Signoff wandert auf eine neue, aktive Person; Position und
+         *     Aktion bleiben. Bereits geleistete Unterschriften sind unveränderlich. So braucht ein
+         *     Auftrag, dessen benannte Partei ausfällt, keinen Abbruch mehr.
+         */
+        post: operations["substitute_order_document_signer_api_v1_erp_orders__object_id__document_substitute_signer_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1969,7 +2014,7 @@ export interface paths {
         put?: never;
         /**
          * Run Sweep
-         * @description Alle Artikel auf ihren Meldebestand prüfen und fehlenden Bestand nachbestellen.
+         * @description Meldebestände prüfen/nachbestellen + verlassene Checkout-Intents stornieren.
          */
         post: operations["run_sweep_api_v1_erp_maintenance_sweep_post"];
         delete?: never;
@@ -2971,8 +3016,6 @@ export interface components {
             pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
-            /** Legal Ack Config */
-            legal_ack_config?: Record<string, never> | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -3052,8 +3095,6 @@ export interface components {
             pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
-            /** Legal Ack Config */
-            legal_ack_config?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -5160,6 +5201,20 @@ export interface components {
             quantity: number;
         };
         /**
+         * SignerSubstitution
+         * @description Personal ersetzt eine deklarierte Freigabe-Partei am LAUFENDEN Auftrag (auditiert):
+         *     das offene (pending/abgelehnte) Signoff wandert auf die neue Person – Reihenfolge-
+         *     Position und Aktion (confirm/sign) bleiben; bereits geleistete Unterschriften nie.
+         */
+        SignerSubstitution: {
+            /** Old Signer Object Id */
+            old_signer_object_id: number;
+            /** New Signer Object Id */
+            new_signer_object_id: number;
+            /** Step Id */
+            step_id?: number | null;
+        };
+        /**
          * SignoffAction
          * @description Aktion einer Freigabe-Partei auf «ihr» Signoff (Unterschrift/Bestätigung/Ablehnung).
          */
@@ -5411,6 +5466,8 @@ export interface components {
         SweepResult: {
             /** Reordered */
             reordered: number;
+            /** Reaped Intents */
+            reaped_intents: number;
         };
         /** UploadResult */
         UploadResult: {
@@ -6285,6 +6342,37 @@ export interface operations {
         };
     };
     deactivate_user_api_v1_admin_users__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reactivate_user_api_v1_admin_users__user_id__reactivate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7734,6 +7822,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    substitute_order_document_signer_api_v1_erp_orders__object_id__document_substitute_signer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignerSubstitution"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

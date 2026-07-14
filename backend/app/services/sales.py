@@ -820,6 +820,41 @@ def _customer_return_status(db: Session, order, sale, requested: bool | None = N
     return return_status(db, order, sale, requested=requested)
 
 
+def reap_stale_intents(db: Session, actor_id: int | None = None, max_age_hours: int = 24) -> int:
+    """**Intent-Reaper**: verlassene Checkout-Intents aufräumen (Reservierungs-Leak schliessen).
+
+    Ein nie bezahlter, nie abgebrochener Intent hält seine stock-Reservierung sonst
+    unbegrenzt: beim **manual**-Provider gibt es gar kein Ablauf-Ereignis, bei Stripe kann
+    der ``checkout.session.expired``-Webhook verloren gehen. Alles Ältere als
+    ``max_age_hours`` (Default 24 h = Stripe-Session-Lebensdauer) wird über den regulären
+    ``cancel_intent``-Pfad storniert (idempotent; eine zwischenzeitlich doch eingegangene
+    Zahlung ist durch den Status-Guard in ``fulfill_intent``/``cancel_intent`` geschützt –
+    beide prüfen unter ``with_for_update``)."""
+    from datetime import timedelta
+
+    from ..models import CheckoutIntent
+    from .admin import log_audit
+    from .events import emit
+    cutoff = utcnow() - timedelta(hours=max_age_hours)
+    stale = (
+        db.query(CheckoutIntent)
+        .filter(CheckoutIntent.status == "pending", CheckoutIntent.created_at < cutoff)
+        .with_for_update()
+        .all()
+    )
+    n = 0
+    for intent in stale:
+        cancel_intent(db, intent)   # löst stock-Reservierungen, committet
+        emit(db, "checkout.intent_reaped", object_type="order", object_id=None,
+             payload={"intent_id": intent.id, "provider": intent.provider}, actor_id=actor_id)
+        n += 1
+    if n:
+        log_audit(db, "checkout_intents", None, f"{n} verlassene Checkout-Intent(s) storniert",
+                  actor_id)
+        db.commit()
+    return n
+
+
 def cancel_intent(db: Session, intent) -> None:
     """Checkout abgebrochen/abgelaufen: schon reservierte (stock-) Aufträge auflösen.
     make-Positionen haben (noch) keinen Auftrag – nichts zu tun. Idempotent."""

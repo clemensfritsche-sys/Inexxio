@@ -169,6 +169,27 @@ async def deactivate_user(
     return {"deactivated": True}
 
 
+@router.post("/users/{user_id}/reactivate")
+async def reactivate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Einen deaktivierten Benutzer **reaktivieren** – die bewusste Admin-Umkehr des
+    Soft-Delete. Die Identität (Objektnummer, Historie, Referenzen) bleibt dieselbe;
+    ein deaktivierter Benutzer wird beim Login abgewiesen statt still neu angelegt."""
+    user = db.query(UserProfile).filter(UserProfile.id == user_id).first()
+    if not user:
+        raise HTTPException(404, detail="User not found")
+    if user.is_active:
+        return {"reactivated": False}   # bereits aktiv (idempotent)
+    log_audit(db, "user_profiles", "is_active", "true", current_user.id,
+              object_id=user_id, old_value="false")
+    user.is_active = True
+    db.commit()
+    return {"reactivated": True}
+
+
 # ─── Audit log ────────────────────────────────────────────────────────────────
 
 @router.get("/audit-log")

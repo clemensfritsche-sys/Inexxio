@@ -610,7 +610,5 @@ export interface CompanySettings {
   pricing_zone_factors: Record<string, number> | null;
   // Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
   legal_documents: Record<string, number> | null;
-  // Bestätigungspflicht je Dokument-Art (Consent-Gate): {"agb": ["all"], …}
-  legal_ack_config: Record<string, string[]> | null;
 }
 

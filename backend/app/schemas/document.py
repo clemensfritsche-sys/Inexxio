@@ -82,6 +82,16 @@ class DocumentEmbed(BaseModel):
     visibility: str = "internal"
 
 
+class SignerSubstitution(BaseModel):
+    """Personal ersetzt eine deklarierte Freigabe-Partei am LAUFENDEN Auftrag (auditiert):
+    das offene (pending/abgelehnte) Signoff wandert auf die neue Person – Reihenfolge-
+    Position und Aktion (confirm/sign) bleiben; bereits geleistete Unterschriften nie."""
+
+    old_signer_object_id: int
+    new_signer_object_id: int
+    step_id: Optional[int] = None              # Mehr-Operationen-Routing (mehrere Dokument-Schritte)
+
+
 class SignoffAction(BaseModel):
     """Aktion einer Freigabe-Partei auf «ihr» Signoff (Unterschrift/Bestätigung/Ablehnung)."""
 

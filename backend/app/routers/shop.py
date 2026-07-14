@@ -16,7 +16,7 @@ from ..models import Article, CheckoutIntent, CompanySettings, Order, Sale, User
 from ..schemas.shop import (
     CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct, ShopReturnRequest,
 )
-from ..services import sales as sales_svc
+from ..services import consent as consent_svc, sales as sales_svc
 from ..services.payments import get_provider, provider_name
 
 router = APIRouter(prefix="/api/v1/shop", tags=["shop"])
@@ -89,6 +89,9 @@ def checkout(
     # Kunde (Firebase Magic Link) ist immer der Käufer.
     user: UserProfile = Depends(get_current_user),
 ):
+    # Serverseitiges Consent-Gate (Backstop zum blockierenden Frontend-Modal): ein Kauf
+    # setzt die akzeptierten Pflichtdokumente (AGB …) voraus – auch per direktem API-Call.
+    consent_svc.assert_acknowledged(db, user)
     intent, result = sales_svc.checkout(db, data.items, user)
     return ShopCheckoutResult(
         token=str(intent.id),
@@ -199,6 +202,7 @@ async def request_return(order_object_id: int, data: ShopReturnRequest,
     Retoure-Unter-Auftrag an (verkaufte Instanzen als Subjekt) und gleich den üblichen Ablauf
     (Wareneingang + Gutschrift). Das Personal verarbeitet ihn im ERP; der Kunde sieht den Status."""
     from ..services import customer_returns
+    consent_svc.assert_acknowledged(db, user)   # Backstop zum Frontend-Consent-Modal
     ret = customer_returns.request_return(db, order_object_id, user.id, data.reason)
     db.commit()
     db.refresh(ret)
