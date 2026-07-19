@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
   Boxes, ArrowLeft, FileText, MapPin, Package, CalendarDays, History,
-  ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert,
+  ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert, ClipboardPlus,
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -44,6 +44,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
   const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
+  const [orderBusy, setOrderBusy] = useState(false);
   const [tab, setTab] = useState<InstTab>('spec');
   // Ist diese Instanz ein erstelltes Dokument, IST sie dieses Dokument – wir zeigen den
   // Inhalt direkt in der Spezifikation (die «Essenz» dieser digitalen Instanz).
@@ -117,6 +118,33 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     }
   }
 
+  // Shortcut «Auftrag»: aus dieser Instanz direkt einen Auftrag auslösen, der auf **genau
+  // sie** wirkt (bewegen, prüfen, verschrotten, verkaufen …). Sinnvoll, sobald sie am Lager
+  // freigegeben ist (in_stock) oder verkauft ist (→ Retoure). Der Auftrag entsteht als
+  // Entwurf mit der Instanz als fixiertem Subjekt; den Ablauf wählt der Nutzer dort.
+  const canOrderInstance = (inst.quality === 'passed' && inst.disposition === 'in_stock')
+    || inst.disposition === 'sold';
+
+  async function createOrderShortcut() {
+    if (!canOrderInstance || inst.object_id == null || inst.article_id == null || orderBusy) return;
+    setOrderBusy(true);
+    setDevErr(null);
+    try {
+      const qty = inst.quantity && inst.quantity > 0 ? inst.quantity : 1;
+      const order = await api.createOrder({ article_id: inst.article_id, quantity: qty });
+      if (order.object_id != null) {
+        await api.updateOrder(order.object_id,
+          { instance_object_ids: [inst.object_id], expected_updated_at: order.updated_at });
+        onChanged?.();
+        nav?.(order.object_id);
+      }
+    } catch (e) {
+      setDevErr(e instanceof Error ? e.message : 'Auftrag konnte nicht angelegt werden');
+    } finally {
+      setOrderBusy(false);
+    }
+  }
+
   const StatusIcon = status.icon;
 
   return (
@@ -137,6 +165,15 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
                 onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
                 <QrCode size={15} />
+              </button>
+              {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
+              <button className="erp-idbtn" data-tip-pos="bottom"
+                data-tip={canOrderInstance ? 'Auftrag auf diese Instanz anlegen' : 'Auftrag möglich, sobald die Instanz am Lager (freigegeben) oder verkauft ist'}
+                aria-label="Auftrag auf diese Instanz anlegen"
+                disabled={!canOrderInstance || orderBusy}
+                style={canOrderInstance ? { color: 'var(--accent)' } : undefined}
+                onClick={createOrderShortcut}>
+                {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
               </button>
               <button
                 className="erp-idbtn erp-idbtn-flag"

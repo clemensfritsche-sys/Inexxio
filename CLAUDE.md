@@ -468,9 +468,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Lieferant / Kunden-Retoure = DIESELBE Engine**); **Ziel ohne Standort/Adresse → innerbetrieblich**; zwei
   **interne** Orte → Versand NUR bei belegten, **unterschiedlichen** Adressen (Mehr-Standort). Instanz-Ziele
   über die physische Kette (`resolve_physical_location`); `location_kind` (Ownership) + `same_place`
-  (normalisierter Adressvergleich) sind die Bausteine. Long-Tail über EIN Feld `transport_mode`
-  (auto | carrier | self | none) – am Schritt deklariert, **je Auftrag am Beleg übersteuerbar**
-  (`shipments.transport_mode`, Artikel-Prozess wird nie mutiert); digitale Payloads sind bewusst KEIN Fall.
+  (normalisierter Adressvergleich) sind die Bausteine. **Transport = EINE Wahl mit drei Optionen**
+  `transport_mode` ∈ **internal** (innerbetrieblich, kein Carrier – Vollzug per Scan) | **parcel** (Paket) |
+  **freight** (Stückgut/Palette): `logistics.recommend_mode` leitet aus Transportklasse + geschätzter Last
+  die **Empfehlung** ab (vorgewählte Default-Auswahl, IMMER frei übersteuerbar am Beleg
+  `shipments.transport_mode`). Die frühere **Doppelung Modus×Sendungsart** und die Werte
+  `auto/carrier/self/none` sind **entfernt** (Migration `076`); die interne `kind`-Spalte (parcel|freight)
+  spiegelt nur noch den Modus (freight ⟺ 'freight'). Der Artikel-Prozess wird nie mutiert (die Alt-Spalte
+  `article_process_steps.transport_mode` bleibt, wird zur Laufzeit ignoriert); digitale Payloads = KEIN Fall.
   **Versand-Beleg `shipments`** (Fachzeile je Bewegungs-Schritt, KEINE eigene Nummer): Adress-Snapshots
   (Firma ↔ Ziel-Person/-Lagerplatz, Länder → ISO-2), **Paket-Schätzung aus Artikel-Daten** (Gewicht×Menge,
   Grösse mm→cm, Fallback-Karton), Gefahrgut-Warnung (`articles.is_hazmat`, optionales Spez-Feld «Gefahrgut»),
@@ -481,8 +486,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Anbieter jederzeit austauschbar (EasyPost/Sendcloud = Drop-in-Adapter). **Best-Offer: günstigster =
   Default-Auswahl, Schnellster als Hinweis** (`logistics.quote` markiert cheapest/fastest). Endpunkte am
   Auftrag: `POST …/shipment/quote|buy`, `PATCH …/shipment`; Embed fährt im Bewegungs-Embed mit
-  (`MovementEmbed.shipment`, Versand-Box im `movement-panel.tsx`: Klasse-Chip, Modus-Select, Tarifliste,
-  Label-PDF, manuelle Erfassung). `record_movement` schliesst den Beleg (purchased→done) und übernimmt
+  (`MovementEmbed.shipment`, Versand-Box im `movement-panel.tsx`: **3-Wege-Umschalter Im Betrieb | Paket |
+  Fracht** mit markierter Empfehlung, Extern-/Gefahrgut-Chip, Tarifliste, Label-PDF, manuelle Erfassung;
+  bei «Im Betrieb» keine Carrier-Maschinerie – nur Scan-Hinweis). `record_movement` schliesst den Beleg
+  (purchased→done) und übernimmt
   Tracking – **der physische Vollzug bleibt scan-quittiert**. *Bewusst NICHT gebaut: Tracking-Webhooks,
   Carrier-Pickup-Orders, Multi-Parcel, Zoll-Dokumente, Versandkosten-Weiterverrechnung.*
 - **Adress-Autofill (Google Places) + verschrottet = standortlos**: alle editierbaren Adressfelder nutzen
@@ -1029,6 +1036,27 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`components/analytics/plausible.tsx`, Domain aus `plausible_domain`; CSP in `firebase.json` um
   `plausible.io` erweitert). Footer-Link + Datenschutz-Button «Cookie-Einstellungen» (jederzeit
   widerrufbar). Datenschutz-Seite (Ziffer 3) auf den realen, cookie-armen Footprint aktualisiert.
+- **UX-/Konsistenz-Runde (Juli 2026, deployt)**: (1) **KI-Artikelanlage validiert wie das Formular** –
+  `ai/tools._clean_article_fields` schickt jede von der KI angelegte/aktualisierte Artikel-Spez durch die
+  **echten** Pydantic-Validatoren (`schemas/article`: `clean_article_name`/`normalize_size`/`validate_weight`,
+  Einheiten/Serialisierung-Whitelist); Fehler kommen als `{error,hint}` zurück → die KI korrigiert sich
+  selbst (kein «15cm» mehr, Grösse mm/aufsteigend/×-getrennt, Gewicht in kg). Neues rechte-gescoptes
+  Read-Tool `article_name_suggestions` (Dubletten vermeiden statt neu erfinden); Tool-Schemas + Prompt
+  (`registry.PROMPT_VERSION`) präzisiert. (2) **Status-Töne vereinheitlicht** über `lib/status-flow.TONE`
+  (pending=amber/warning, info=slate/accent, done=grün/success, danger=rot, inactive=grau): **Auftrag «In
+  Bearbeitung» ist jetzt amber** – exakt der Ton der Instanz «Im Prozess»; Artikel/Prozess/Lagerplatz/
+  Beschaffung/Verkauf ziehen dieselbe Palette (nur terminal Verbraucht/Verkauft behalten violett/petrol,
+  kein Semantik-Token). (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
+  angeboten» ist weg – Foto/Unterschrift sind reine `capture_fields`-Typen, der unbedingte `PhotoCapture`-
+  Block je Probe ist entfernt. (4) **Auftrag-Shortcut**: kleiner Kopf-Knopf «Auftrag anlegen» am
+  freigegebenen **Artikel** (neben Deaktivieren/Ersetzen) und an der **Instanz** (neben Abweichung) – legt
+  den Auftrag an, fixiert bei der Instanz gleich diese als Subjekt, und springt hin (`ClipboardPlus`,
+  `erp-idbtn`). (5) **Auftrag-Detail entschlackt**: die Subjektart-Zeile («Herstellung – erzeugt Instanzen»)
+  und der Abschluss-Text sind entfernt; die **Abweichung** ist jetzt – wie an der Instanz – ein kleiner
+  Flag-Knopf im Detail-Kopf (`erp-idbtn-flag`) statt einer Karte mitten im Feld. (6) **Bewegung/Versand**:
+  siehe ADR-005-Bullet – der frühere «komisch differenzierte» Split (Klasse-Chip + auto/carrier/self/none-
+  Select + Paket/Fracht-Toggle) ist EIN **3-Wege-Umschalter Im Betrieb | Paket | Fracht** mit markierter,
+  abgeleiteter Empfehlung.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

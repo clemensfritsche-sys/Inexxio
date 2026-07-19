@@ -4942,9 +4942,14 @@ export interface components {
             direction: string;
             /**
              * Transport Mode
-             * @default auto
+             * @default internal
              */
             transport_mode: string;
+            /**
+             * Recommended Mode
+             * @default internal
+             */
+            recommended_mode: string;
             /**
              * Status
              * @default draft
@@ -5067,8 +5072,6 @@ export interface components {
             cost_currency?: string | null;
             /** Note */
             note?: string | null;
-            /** Kind */
-            kind?: string | null;
             /** Load */
             load?: Record<string, never> | null;
             /** Incoterm */

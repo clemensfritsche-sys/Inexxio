@@ -5,9 +5,10 @@ import {
   Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
   Ruler, ShoppingCart, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
   Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
-  MapPin,
+  MapPin, ClipboardPlus, Loader2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useErpNav } from '@/components/erp/obj-id';
 import type { Article, ArticleInput, ArticleStatus, ArticleUnit, ArticleSerialization, ArticleNameSuggestion, UserProfile, OrdersMode } from '@/types';
 import { ARTICLE_NAME_MAX_LENGTH } from '@/types';
 import {
@@ -146,8 +147,26 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
   onRefresh?: () => void;          // Feed nach Inaktiv/Ersetzen aktualisieren (Kaskade)
 }) {
   const isCreate = record === null;
+  const nav = useErpNav();   // Sprung zum neu angelegten Auftrag (Shortcut-Knopf)
   const [tab, setTab] = useState<TabKey>('spezifikation');
   const [dialog, setDialog] = useState<'deactivate' | null>(null);
+  const [orderBusy, setOrderBusy] = useState(false);
+
+  // Shortcut «Auftrag»: aus einem freigegebenen Artikel direkt einen Auftrags-ENTWURF
+  // auslösen und dorthin springen (Menge/Prozess füllt der Nutzer im Auftrag).
+  async function createOrderShortcut() {
+    if (isCreate || record == null || record.status !== 'released' || orderBusy) return;
+    setOrderBusy(true);
+    try {
+      const order = await api.createOrder({ article_id: record.id, quantity: 1 });
+      onRefresh?.();
+      if (order.object_id != null) nav?.(order.object_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Auftrag konnte nicht angelegt werden');
+    } finally {
+      setOrderBusy(false);
+    }
+  }
   // Optimistic Locking: zuletzt bekannter Stand; wird nach jedem Speichern aktualisiert.
   const verRef = useRef<string | null>(record?.updated_at ?? null);
   const [form, setForm] = useState<Form>(() => seedFrom(record));
@@ -355,6 +374,15 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                     onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
                     <QrCode size={15} />
                   </button>
+                  {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
+                      auslösen (nur freigegebene Artikel sind auftragsfähig). */}
+                  {record.status === 'released' && (
+                    <button className="erp-idbtn" data-tip="Auftrag anlegen" data-tip-pos="bottom"
+                      aria-label="Auftrag zu diesem Artikel anlegen" disabled={orderBusy}
+                      style={{ color: 'var(--accent)' }} onClick={createOrderShortcut}>
+                      {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
+                    </button>
+                  )}
                   {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer (Claude-Design):
                       nur bei freigegebenem Artikel, öffnet den Dialog (mit «Ersetzen»-Option). */}
                   {record.status === 'released' && (

@@ -14,9 +14,11 @@ die **Transportklasse** ab – **adress-basiert, KEIN Geofence** (bewusst einfac
 
 So braucht es keinen Geofence: «von A nach B mit anderer Adresse → Versand, sonst intern».
 Instanz-Ziele werden über die physische Standort-Kette aufgelöst (``resolve_physical_location``).
-Der **Transport-Modus** (auto | carrier | self | none) ist am Schritt
-deklariert und je Auftrag am Versand-Beleg übersteuerbar (Long-Tail-Ausnahmen: selbst
-bringen/abholen, nie versenden) – maximale Automatik bei voller Abbildbarkeit.
+Aus Klasse **und** geschätzter Last leitet ``recommend_mode`` **einen** Transport-Modus als
+Empfehlung ab – **internal** (innerbetrieblich, kein Carrier) | **parcel** (Paket) |
+**freight** (Stückgut/Palette). Diese Empfehlung ist die vorgewählte Default-Auswahl und je
+Auftrag am Versand-Beleg frei übersteuerbar (``shipments.transport_mode``) – der Nutzer wählt
+IMMER zwischen den drei Optionen, die Ableitung nimmt ihm nur die Vorauswahl ab.
 
 Best-Offer-Policy: **günstigster** Tarif ist die Default-Auswahl; der **schnellste**
 wird als Alternative ausgewiesen (``ShipmentRate.cheapest/fastest``).
@@ -281,6 +283,15 @@ def derive_kind(gross_weight_kg: float, volume_m3: float) -> str:
     return "parcel"
 
 
+def recommend_mode(cls: dict, load: dict) -> str:
+    """Empfohlener Transport-Modus (Default-Auswahl, IMMER übersteuerbar): verlangt die
+    Klassifikation keinen externen Transport → **internal** (innerbetrieblich); sonst je
+    geschätzter Last **parcel** (Paket) oder **freight** (Stückgut/Palette)."""
+    if cls.get("transport_class") != "outside":
+        return "internal"
+    return derive_kind(load.get("gross_weight_kg", 0.0), load.get("volume_m3", 0.0))
+
+
 # ─── Adress-Snapshots ─────────────────────────────────────────────────────────────
 
 def _addr_company(settings: CompanySettings | None) -> dict:
@@ -499,13 +510,21 @@ def apply_update(db: Session, order: Order, step: ArticleProcessStep,
     Manuelle Erfassung (Carrier + Tracking) markiert den Versand als ``purchased`` –
     derselbe Endzustand wie der Label-Kauf, nur ohne Aggregator."""
     ship = ensure_shipment(db, order, step, instances, actor_id)
-    # Sendungsart übersteuern (Paket ↔ Fracht) – Last passend nachziehen.
-    if data.kind is not None and data.kind != ship.kind:
-        old_kind = ship.kind
-        ship.kind = data.kind
+    # Transport-Modus setzen – EINE Achse (internal | parcel | freight). Der Modus ist
+    # autoritativ und leitet die interne Sendungsart (``kind``) ab: 'freight' führt eine
+    # Fracht-Last, 'parcel' die Paketmasse, 'internal' keinen Carrier (kein Versand).
+    if data.transport_mode is not None and data.transport_mode != ship.transport_mode:
+        old = ship.transport_mode
+        ship.transport_mode = data.transport_mode
+        ship.kind = "freight" if data.transport_mode == "freight" else "parcel"
         ship.load = build_load(db, instances) if ship.kind == "freight" else None
-        log_audit(db, "shipments", "kind", data.kind, actor_id,
-                  object_id=order.object_id, old_value=old_kind)
+        log_audit(db, "shipments", "transport_mode", data.transport_mode, actor_id,
+                  object_id=order.object_id, old_value=old)
+        if data.transport_mode == "internal" and ship.status == "quoted":
+            # Innerbetrieblich → kein Carrier: offene Angebots-Daten verwerfen (ein bereits
+            # gekauftes Label bliebe erhalten).
+            ship.rates = None
+            ship.status = "draft"
     # Fracht-Last manuell verfeinern (Merge über die geschätzte).
     if data.load is not None:
         ship.load = {**(ship.load or {}), **data.load}
@@ -513,16 +532,6 @@ def apply_update(db: Session, order: Order, step: ArticleProcessStep,
         ship.incoterm = data.incoterm or None
     if data.pickup_date is not None:
         ship.pickup_date = data.pickup_date or None
-    if data.transport_mode is not None:
-        old = ship.transport_mode
-        ship.transport_mode = data.transport_mode
-        log_audit(db, "shipments", "transport_mode", data.transport_mode, actor_id,
-                  object_id=order.object_id, old_value=old)
-        if data.transport_mode in ("self", "none"):
-            # Kein Carrier → offene Angebots-Daten verwerfen (Label bleibt, falls gekauft).
-            if ship.status == "quoted":
-                ship.rates = None
-                ship.status = "draft"
     if data.carrier is not None:
         ship.carrier = data.carrier.strip() or None
     if data.tracking_number is not None:
@@ -556,16 +565,16 @@ def complete_for_movement(db: Session, order: Order, step: ArticleProcessStep) -
 
 def build_embed(db: Session, order: Order, step: ArticleProcessStep,
                 instances: list[Instance]) -> ShipmentEmbed | None:
-    """Versand-Stand für das Bewegungs-Embed. ``None``, wenn es nichts Versand-
-    Relevantes gibt (frei wählbares Ziel ohne Beleg + Modus auto) – kein UI-Rauschen."""
+    """Versand-Stand für das Bewegungs-Embed. Für einen Bewegungs-Schritt IMMER vorhanden –
+    der Nutzer wählt stets zwischen **innerbetrieblich / Paket / Fracht**; der abgeleitete
+    Modus (``recommended_mode``) ist nur die vorgewählte Empfehlung. Ein am Beleg gesetzter
+    Modus (``ship.transport_mode``) übersteuert die Empfehlung."""
     ship = _get_shipment(db, order, step)
     cls = classify_movement(db, order, step, instances)
-    mode = (ship.transport_mode if ship and ship.transport_mode else None) or step.transport_mode or "auto"
-    has_target = cls["target"][0] is not None
-    if ship is None and mode == "auto" and (not has_target or cls["transport_class"] != "outside"):
-        return None      # nichts abzuleiten und nichts erfasst → keine Box
-    if ship is None and mode == "none":
-        return None
+    load = build_load(db, instances)
+    recommended = recommend_mode(cls, load)
+    mode = (ship.transport_mode if ship and ship.transport_mode else None) or recommended
+    kind = "freight" if mode == "freight" else "parcel"
 
     emb = ShipmentEmbed(
         id=ship.id if ship else 0,
@@ -573,6 +582,7 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         transport_class=cls["transport_class"],
         direction=(ship.direction if ship else cls["direction"]),
         transport_mode=mode,
+        recommended_mode=recommended,
         status=ship.status if ship else "draft",
         provider=(ship.provider if ship else shipping.provider_name()),
         provider_ready=shipping.get_provider().supports_rates,
@@ -586,13 +596,13 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         cost_amount=ship.cost_amount if ship else None,
         cost_currency=ship.cost_currency if ship else None,
         note=ship.note if ship else None,
-        kind=(ship.kind if ship else "parcel"),
+        kind=kind,
         incoterm=(ship.incoterm if ship else None),
         pickup_date=(ship.pickup_date if ship else None),
     )
     if ship:
         emb.parcels = ship.parcels or []
-        emb.load = ship.load
+        emb.load = ship.load if kind == "freight" else None
         emb.rates = [ShipmentRate(**r) for r in (ship.rates or [])]
         emb.from_label = _addr_label(ship.address_from)
         emb.to_label = _addr_label(ship.address_to)
@@ -608,7 +618,5 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         parcels, hazmat = build_parcels(db, instances)
         emb.parcels = parcels
         emb.hazmat = hazmat
-        load = build_load(db, instances)
-        emb.kind = derive_kind(load["gross_weight_kg"], load["volume_m3"])
-        emb.load = load if emb.kind == "freight" else None
+        emb.load = load if kind == "freight" else None
     return emb

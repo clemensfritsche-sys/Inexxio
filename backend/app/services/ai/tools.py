@@ -215,39 +215,88 @@ def _t_my_orders(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 # ─── Schreib-Tools (erweiterte Autonomie: Entwürfe direkt, Kritisches als Vorschlag) ─
 
-def _t_create_article_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
-    """Artikel-ENTWURF anlegen – derselbe Pfad wie ``POST /articles`` (reversibel,
-    Status draft). Attribution: KI (Audit/Event), Mensch als Delegations-Kontext."""
-    from ...schemas.article import clean_article_name
-    try:
-        # Frei wählbar, aber auf die maximale Länge gekappt (kurze, listentaugliche Namen).
-        name = clean_article_name(args.get("name"), required=True)
-    except ValueError:
-        return {"error": "Name ist Pflicht"}
+def _t_article_name_suggestions(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Bereits verwendete/ähnliche Artikelnamen zu einer Bezeichnung (lexikalisch, ohne KI) –
+    damit die KI **vor** dem Anlegen prüft, ob ein passender Name schon existiert (Dubletten
+    vermeiden). Liefert je Vorschlag Name + wie oft er vorkommt (``count``) + Ähnlichkeit."""
+    from ...services import article_names
+    q = str(args.get("query") or "").strip()
+    limit = min(int(args.get("limit") or 8), 20)
+    return [s.model_dump() for s in article_names.suggest(db, q, limit)]
 
-    def _dec(key: str) -> Decimal | None:
-        v = args.get(key)
-        if v in (None, ""):
-            return None
+
+def _clean_article_fields(args: dict) -> tuple[dict, str | None]:
+    """KI-Eingaben für einen Artikel gegen **dieselben Regeln** normalisieren/prüfen wie
+    der HTTP-Pfad (``schemas/article.py``). So wird ein falsch formatierter Wert (z. B.
+    Grösse «15cm» oder «15 cm») mit einer **klaren Fehlermeldung** abgelehnt, die die KI im
+    nächsten Schritt selbst korrigieren kann – statt roh in der DB zu landen. Liefert die
+    geprüften Felder (nur die übergebenen – teilupdate-tauglich) ODER eine Fehlermeldung.
+
+    Enthält NIE das Pflicht-`name`-Gate für ein Teilupdate: der Aufrufer entscheidet, ob
+    ein fehlender Name ein Fehler ist (Anlage) oder erlaubt (Änderung)."""
+    from ...schemas.article import (
+        ALLOWED_SERIALIZATION, ALLOWED_UNITS, clean_article_name, normalize_size, validate_weight,
+    )
+    out: dict = {}
+    if args.get("name") is not None:
         try:
-            return Decimal(str(v))
-        except InvalidOperation:
-            return None
+            out["name"] = clean_article_name(str(args["name"]), required=True)
+        except ValueError as e:
+            return {}, str(e)
+    if args.get("unit"):
+        if args["unit"] not in ALLOWED_UNITS:
+            return {}, f"Einheit muss eine von {', '.join(ALLOWED_UNITS)} sein"
+        out["unit"] = args["unit"]
+    if args.get("serialization"):
+        if args["serialization"] not in ALLOWED_SERIALIZATION:
+            return {}, "Serialisierung muss 'unit' (Einzelteil) oder 'batch' (Charge) sein"
+        out["serialization"] = args["serialization"]
+    if args.get("size") not in (None, ""):
+        try:
+            out["size"] = normalize_size(str(args["size"]))   # mm, aufsteigend, 'x'-getrennt
+        except ValueError as e:
+            return {}, str(e)
+    if args.get("weight_kg") not in (None, ""):
+        try:
+            out["weight_kg"] = validate_weight(Decimal(str(args["weight_kg"])))
+        except (ValueError, InvalidOperation):
+            return {}, ("Gewicht muss eine Zahl in kg sein (> 0, max. 3 Nachkommastellen), "
+                        "z. B. 2.5 – ohne Einheit im Wert")
+    for f in ("material", "cad_url", "surface", "supplier_article_number"):
+        if args.get(f) not in (None, ""):
+            out[f] = str(args[f]).strip() or None
+    for f in ("min_order_qty", "safety_stock"):
+        if args.get(f) not in (None, ""):
+            try:
+                out[f] = Decimal(str(args[f]))
+            except InvalidOperation:
+                return {}, f"Ungültiger Zahlenwert für {f}"
+    return out, None
+
+
+def _t_create_article_draft(db: Session, p: AiPrincipal, args: dict) -> Any:
+    """Artikel-ENTWURF anlegen – mit **denselben Feld-Validierungen** wie ``POST /articles``
+    (reversibel, Status draft). Attribution: KI (Audit/Event), Mensch als Delegations-Kontext."""
+    if not str(args.get("name") or "").strip():
+        return {"error": "Name ist Pflicht"}
+    fields, err = _clean_article_fields(args)
+    if err:
+        return {"error": err, "hint": "Bitte das genannte Feld korrigieren und erneut anlegen."}
 
     article = Article(
         object_id=next_object_id(db, "article"),
         status="draft",
-        name=name,
-        unit=(args.get("unit") or "Stk"),
-        serialization=(args.get("serialization") or "unit"),
-        size=args.get("size") or None,
-        weight_kg=_dec("weight_kg"),
-        material=args.get("material") or None,
-        cad_url=args.get("cad_url") or None,
-        surface=args.get("surface") or None,
-        supplier_article_number=args.get("supplier_article_number") or None,
-        min_order_qty=_dec("min_order_qty"),
-        safety_stock=_dec("safety_stock"),
+        name=fields["name"],
+        unit=fields.get("unit", "Stk"),
+        serialization=fields.get("serialization", "unit"),
+        size=fields.get("size"),
+        weight_kg=fields.get("weight_kg"),
+        material=fields.get("material"),
+        cad_url=fields.get("cad_url"),
+        surface=fields.get("surface"),
+        supplier_article_number=fields.get("supplier_article_number"),
+        min_order_qty=fields.get("min_order_qty"),
+        safety_stock=fields.get("safety_stock"),
     )
     db.add(article)
     db.flush()
@@ -537,36 +586,21 @@ def _t_audit_log(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 
 def _t_update_article(db: Session, p: AiPrincipal, args: dict) -> Any:
-    """Felder eines Artikel-ENTWURFS ändern (Name, Material, Gewicht …). Nur im Entwurf."""
+    """Felder eines Artikel-ENTWURFS ändern (Name, Material, Gewicht …). Nur im Entwurf –
+    mit **denselben Feld-Validierungen** wie am Detailfenster (Grösse mm/aufsteigend, Gewicht kg …)."""
     a = db.query(Article).filter(Article.object_id == int(args["object_id"]), Article.is_active == True).first()
     if not a:
         return {"error": "Artikel nicht gefunden"}
     if a.status != "draft":
         return {"error": f"Artikel ist '{a.status}' – nur Entwürfe sind editierbar (sonst «Ersetzen»)"}
-    from ...schemas.article import clean_article_name
-    text_fields = ("name", "unit", "serialization", "size", "material", "cad_url", "surface",
-                   "supplier_article_number")
-    qty_fields = ("weight_kg", "min_order_qty", "safety_stock")
-    changed = []
-    for f in text_fields:
-        if f in args and args[f] is not None:
-            if f == "name":
-                try:
-                    setattr(a, f, clean_article_name(str(args[f]), required=True))
-                except ValueError as e:
-                    return {"error": str(e)}
-            else:
-                setattr(a, f, str(args[f]).strip() or None)
-            changed.append(f)
-    for f in qty_fields:
-        if f in args and args[f] not in (None, ""):
-            try:
-                setattr(a, f, Decimal(str(args[f])))
-                changed.append(f)
-            except InvalidOperation:
-                return {"error": f"Ungültiger Zahlenwert für {f}"}
-    if not changed:
+    fields, err = _clean_article_fields(args)   # gleiche Regeln wie die Anlage
+    if err:
+        return {"error": err, "hint": "Bitte das genannte Feld korrigieren und erneut ändern."}
+    if not fields:
         return {"error": "Keine gültigen Felder zum Ändern übergeben"}
+    for f, v in fields.items():
+        setattr(a, f, v)
+    changed = list(fields.keys())
     log_audit(db, "articles", ",".join(changed), "per KI geändert", p.actor.id, object_id=a.object_id)
     emit(db, "ai.article_updated", object_type="article", object_id=a.object_id,
          payload={"fields": changed, "on_behalf_of": p.effective.id}, actor_id=p.actor.id)
@@ -926,12 +960,27 @@ _DEFINITIONS: dict[str, dict] = {
         "Die eigenen Shop-Bestellungen der angemeldeten Person (Status, Betrag).",
         {},
     ),
+    "article_name_suggestions": _tool(
+        "article_name_suggestions",
+        "Bereits verwendete/ähnliche Artikelnamen zu einer Bezeichnung finden (Dubletten "
+        "vermeiden). IMMER vor create_article_draft aufrufen: passt ein vorhandener Name gut, "
+        "diesen wiederverwenden; sonst einen neuen kurzen Namen wählen.",
+        {"query": {"type": "string", "description": "Kernbezeichnung, z. B. «Schraubendreher»"},
+         "limit": {"type": "integer"}},
+        ["query"],
+    ),
     "create_article_draft": _tool(
         "create_article_draft",
-        "Einen neuen Artikel als ENTWURF anlegen (reversibel). Nur wenn die Person das ausdrücklich möchte.",
-        {"name": {"type": "string"}, "unit": {"type": "string", "enum": ["Stk", "m", "kg", "l"]},
-         "serialization": {"type": "string", "enum": ["unit", "batch"]},
-         "size": {"type": "string"}, "weight_kg": {"type": "string"},
+        "Einen neuen Artikel als ENTWURF anlegen (reversibel). Nur wenn die Person das "
+        "ausdrücklich möchte. Fülle ALLE ableitbaren Felder – die Formate werden serverseitig "
+        "geprüft; ein Fehler kommt als Meldung zurück, die du korrigieren kannst.",
+        {"name": {"type": "string", "description": "Kurz & prägnant, max. 32 Zeichen (nicht der lange Shop-Titel)"},
+         "unit": {"type": "string", "enum": ["Stk", "mm", "m2", "m3", "kg", "l"],
+                  "description": "Mengeneinheit: Stk (Stück), mm, m2 (m²), m3 (m³), kg, l"},
+         "serialization": {"type": "string", "enum": ["unit", "batch"],
+                           "description": "unit = Einzelteil (ganze Stück), batch = Charge (auch Bruchmengen)"},
+         "size": {"type": "string", "description": "Abmessungen in MILLIMETER, aufsteigend, mit 'x' getrennt – z. B. «3x40x600». KEINE Einheit im Wert (nicht «15cm»); cm/inch vorher in mm umrechnen."},
+         "weight_kg": {"type": "string", "description": "Gewicht in KG als Dezimalzahl (> 0, max. 3 Nachkommastellen), z. B. «2.5». Nur die Zahl, ohne «kg»."},
          "material": {"type": "string"}, "surface": {"type": "string"}, "cad_url": {"type": "string"},
          "supplier_article_number": {"type": "string", "description": "z. B. Hersteller-/Shop-Artikelnummer, ASIN"},
          "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
@@ -940,11 +989,13 @@ _DEFINITIONS: dict[str, dict] = {
     "update_article": _tool(
         "update_article",
         "Felder eines Artikel-ENTWURFS ändern (Name, Einheit, Material, Gewicht, Oberfläche, "
-        "Lieferanten-Artikelnummer …). Nur im Entwurf.",
+        "Lieferanten-Artikelnummer …). Nur im Entwurf. Formate wie bei create_article_draft.",
         {"object_id": {"type": "integer"}, "name": {"type": "string"},
-         "unit": {"type": "string", "enum": ["Stk", "m", "kg", "l"]},
+         "unit": {"type": "string", "enum": ["Stk", "mm", "m2", "m3", "kg", "l"]},
          "serialization": {"type": "string", "enum": ["unit", "batch"]},
-         "size": {"type": "string"}, "weight_kg": {"type": "string"}, "material": {"type": "string"},
+         "size": {"type": "string", "description": "Abmessungen in mm, aufsteigend, 'x'-getrennt (z. B. 3x40x600) – keine Einheit im Wert"},
+         "weight_kg": {"type": "string", "description": "Gewicht in kg (> 0, max. 3 Nachkommastellen), nur die Zahl"},
+         "material": {"type": "string"},
          "cad_url": {"type": "string"}, "surface": {"type": "string"},
          "supplier_article_number": {"type": "string"},
          "min_order_qty": {"type": "string"}, "safety_stock": {"type": "string"}},
@@ -1037,6 +1088,7 @@ _EXECUTORS: dict[str, ToolFn] = {
     "company_info": _t_company_info,
     "audit_log": _t_audit_log,
     "fetch_web_page": _t_fetch_web_page,
+    "article_name_suggestions": _t_article_name_suggestions,
     "create_article_draft": _t_create_article_draft,
     "update_article": _t_update_article,
     "add_article_step": _t_add_article_step,
@@ -1053,15 +1105,15 @@ _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
               "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
               "list_users", "get_user", "storage_locations", "company_info", "audit_log", "fetch_web_page",
-              "create_article_draft", "update_article", "add_article_step", "propose_release_article",
-              "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
-              "propose_release_order"),
+              "article_name_suggestions", "create_article_draft", "update_article", "add_article_step",
+              "propose_release_article", "create_order_draft", "get_order_steps", "add_order_step",
+              "set_order_instances", "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
                  "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
                  "list_users", "get_user", "storage_locations", "company_info", "fetch_web_page",
-                 "create_article_draft", "update_article", "add_article_step", "propose_release_article",
-                 "create_order_draft", "get_order_steps", "add_order_step", "set_order_instances",
-                 "propose_release_order"),
+                 "article_name_suggestions", "create_article_draft", "update_article", "add_article_step",
+                 "propose_release_article", "create_order_draft", "get_order_steps", "add_order_step",
+                 "set_order_instances", "propose_release_order"),
     "supplier": ("list_orders", "get_order", "open_page"),
     "customer": ("shop_products", "my_orders", "open_page"),
     # Autonome KI-Läufe (ohne Delegation): nur lesen – bewusst eng.

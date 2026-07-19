@@ -14565,7 +14565,12 @@
           "transport_mode": {
             "type": "string",
             "title": "Transport Mode",
-            "default": "auto"
+            "default": "internal"
+          },
+          "recommended_mode": {
+            "type": "string",
+            "title": "Recommended Mode",
+            "default": "internal"
           },
           "status": {
             "type": "string",
@@ -14924,17 +14929,6 @@
               }
             ],
             "title": "Note"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
           },
           "load": {
             "anyOf": [

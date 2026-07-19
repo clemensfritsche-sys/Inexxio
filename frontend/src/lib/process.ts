@@ -1,7 +1,7 @@
 import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
-import type { StatusCfg } from '@/lib/status-flow';
+import { TONE, type StatusCfg } from '@/lib/status-flow';
 
 export const STEP_META: Record<StepType, { label: string; icon: React.ElementType }> = {
   purchase:   { label: 'Beschaffung',    icon: ShoppingCart },
@@ -75,13 +75,16 @@ export function toStepperState(state: string): StepState {
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
 // am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
 // nur die Darstellung fasst beides zu einem Status zusammen.
+// Töne aus den geteilten Design-Tokens (TONE). «Im Prozess» = amber-orange – exakt der
+// gleiche Ton wie ein Auftrag «In Bearbeitung». Verbraucht/Verkauft behalten ihren eigenen,
+// terminal-eindeutigen Ton (violett/petrol), da es dafür keinen Semantik-Token gibt.
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
-  in_process: { label: 'Im Prozess',   color: '#d97706', bg: '#fffbeb', icon: Clock },
-  in_stock:   { label: 'Freigegeben',  color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
-  reserved:   { label: 'Reserviert',   color: '#2563eb', bg: '#eff6ff', icon: Lock },
-  failed:     { label: 'Gesperrt',     color: '#dc2626', bg: '#fef2f2', icon: XCircle },
+  in_process: { label: 'Im Prozess',   ...TONE.pending,  icon: Clock },
+  in_stock:   { label: 'Freigegeben',  ...TONE.done,     icon: CheckCircle2 },
+  reserved:   { label: 'Reserviert',   ...TONE.info,     icon: Lock },
+  failed:     { label: 'Gesperrt',     ...TONE.danger,   icon: XCircle },
   consumed:   { label: 'Verbraucht',   color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
-  scrapped:   { label: 'Verschrottet', color: '#475569', bg: '#f1f5f9', icon: Trash2 },
+  scrapped:   { label: 'Verschrottet', ...TONE.inactive, icon: Trash2 },
   sold:       { label: 'Verkauft',     color: '#0d9488', bg: '#f0fdfa', icon: Banknote },
 };
 
