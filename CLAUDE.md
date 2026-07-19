@@ -1026,8 +1026,25 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Origin werden pro Request aus dem `Origin`-Header abgeleitet** und gegen `cors_origins` geprüft (multi-
   domain: localhost/dev/prod ohne feste Verdrahtung); Challenges sind DB-basiert (Cloud-Run-sicher, einmalig,
   5 min). Frontend: `lib/passkey.ts` + `@simplewebauthn/browser`, Login-Button «Mit Passkey anmelden»,
-  Konto → Sicherheit «Passkeys» (hinzufügen/benennen/entfernen). **Deployment-Hinweis:** der Cloud-Run-SA
+  Konto → Sicherheit «Passkeys» (hinzufügen/entfernen). **Deployment-Hinweis:** der Cloud-Run-SA
   braucht `roles/iam.serviceAccountTokenCreator` (Custom-Token-Signierung, siehe Doc).
+- **Login-UX «state of the art, schlank & reibungslos» (Juli 2026)**: Der Anmelde-Flow ist auf Passkey-
+  first getrimmt (Vorbild: SBB). (1) **Passkey-Autofill / Conditional UI** (`lib/passkey.
+  loginWithPasskeyAutofill`, `passkeyAutofillSupported`, `cancelPasskeyAutofill`): das E-Mail-Feld trägt
+  `autocomplete="email webauthn"`, beim Laden startet **still** eine `mediation:'conditional'`-Zeremonie
+  (`useBrowserAutofill:true`) → der Passkey erscheint DIREKT im Autofill-Dropdown, ein Tap + Face/Touch ID
+  meldet an, ganz ohne Knopf (Backend war schon usernameless: `login_options` ohne `allowCredentials`,
+  `resident_key=REQUIRED`). Abbruch beim Verlassen via `WebAuthnAbortService`. (2) **Login-Seite reduziert**:
+  zufällige `ix-var`-Optikvarianten entfernt, `Fingerprint`-Symbol statt `KeyRound`, Passkey-Knopf **über**
+  Google (der schnelle Weg), dezenter Hinweis unter dem Feld; `Magic Link`→«Anmeldelink senden».
+  (3) **Post-Login-Nudge** (`components/auth/passkey-nudge.tsx`, in ERP-/Konto-/Public-Layout gemountet wie
+  das ConsentGate, aber **nicht** blockierend): direkt nach einem Login OHNE Passkey ein dezenter,
+  wegklickbarer Anstoss «In Sekunden anmelden – Passkey einrichten» (nutzen-, nicht angst-orientiert; der
+  stärkste Adoptions-Hebel). Erscheint NUR, wenn Plattform-Authenticator vorhanden **und** 0 Passkeys
+  **und** kein Cooldown (localStorage `inexxio_passkey_nudge`: 30 Tage Ruhe nach «Später», max. 3×, dann
+  nie mehr). (4) **Freundlicher Gerätename** aus dem User-Agent (iPhone/Mac/Windows-PC …) statt «Passkey 1»
+  (`friendlyDeviceName`). (5) **Verify-Seite + Konto-Sicherheit** auf Design-Tokens + einheitlichen
+  Karten-Look migriert; erster Passkey = roter CTA «Passkey einrichten», weitere dezent.
 - **Cookie-/Einwilligungs-Layer (schlank, professionell, `docs/passkeys.md §2`)**: Erstanbieter-Consent
   ohne Fremd-CMP. `lib/consent.ts` (eine Wahrheit, Cookie `inexxio_consent` + localStorage, versioniert,
   6 Monate, Event-basiert); `components/consent/cookie-consent.tsx` (nicht blockierendes Banner +

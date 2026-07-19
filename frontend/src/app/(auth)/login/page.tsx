@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { KeyRound } from 'lucide-react';
+import { Fingerprint } from 'lucide-react';
 import type { FirebaseError } from 'firebase/app';
 import { sendMagicLink, signInWithGoogle } from '@/lib/firebase';
-import { loginWithPasskey, passkeySupported, isPasskeyCancellation } from '@/lib/passkey';
+import {
+  loginWithPasskey, loginWithPasskeyAutofill, cancelPasskeyAutofill,
+  passkeySupported, passkeyAutofillSupported, isPasskeyCancellation,
+} from '@/lib/passkey';
 import { api } from '@/lib/api';
 
 type Step = 'input' | 'loading' | 'sent';
@@ -48,10 +51,8 @@ export default function LoginPage() {
   const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [showPasskey, setShowPasskey] = useState(false);
   const [sentEmail, setSentEmail] = useState('');
-  const [variation, setVariation] = useState(1);
 
   useEffect(() => {
-    setVariation(Math.floor(Math.random() * 3) + 1);
     setShowPasskey(passkeySupported());
     // Store the ?from= param so verify page and Google login can redirect back
     const params = new URLSearchParams(window.location.search);
@@ -59,6 +60,27 @@ export default function LoginPage() {
     if (from && from !== '/login' && !from.startsWith('/login/')) {
       localStorage.setItem(REDIRECT_KEY, from);
     }
+  }, []);
+
+  // Passkey-Autofill (Conditional UI): still im Hintergrund starten, sobald der Browser es
+  // unterstützt. Der Passkey erscheint dann direkt im Autofill-Dropdown des E-Mail-Feldes –
+  // ein Tap auf den Vorschlag (+ Face/Touch ID) meldet an, ganz ohne Knopfdruck. Der Promise
+  // bleibt offen, bis der Nutzer im Autofill wählt; beim Verlassen der Seite wird abgebrochen.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!(await passkeyAutofillSupported())) return;
+      try {
+        const { token } = await loginWithPasskeyAutofill();
+        if (!cancelled) await finishTokenLogin(token);
+      } catch (err: unknown) {
+        if (!cancelled && !isPasskeyCancellation(err)) {
+          setError(err instanceof Error ? err.message : 'Passkey-Anmeldung fehlgeschlagen.');
+        }
+      }
+    })();
+    return () => { cancelled = true; cancelPasskeyAutofill(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Gemeinsamer Abschluss für Token-basierte Logins (Google, Passkey): Token setzen,
@@ -146,7 +168,7 @@ export default function LoginPage() {
       <div className="ix-login-bg" />
 
       <div className="ix-login-lightbox">
-        <div className={`ix-login-card ix-var-${variation}`}>
+        <div className="ix-login-card">
 
           {step === 'sent' ? (
             /* ── Success State ── */
@@ -225,7 +247,7 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="sie@unternehmen.ch"
                     required
-                    autoComplete="email"
+                    autoComplete="email webauthn"
                     autoFocus
                     disabled={step === 'loading'}
                   />
@@ -242,15 +264,44 @@ export default function LoginPage() {
                       Wird gesendet…
                     </>
                   ) : (
-                    'Magic Link senden'
+                    'Anmeldelink senden'
                   )}
                 </button>
               </form>
 
-              {/* ── Google Divider ── */}
-              <div className="ix-divider" style={{ marginTop: 20, marginBottom: 12 }}>
+              {/* Passkey-Hinweis: der Passkey erscheint direkt im Autofill des Feldes oben. */}
+              {showPasskey && (
+                <p className="ix-passkey-hint">
+                  <Fingerprint aria-hidden />
+                  Haben Sie einen Passkey? Er wird direkt im Feld oben angeboten – oder unten wählen.
+                </p>
+              )}
+
+              {/* ── Divider ── */}
+              <div className="ix-divider" style={{ marginTop: 18, marginBottom: 12 }}>
                 <span>oder</span>
               </div>
+
+              {/* ── Passkey Button (der schnellste Weg – über Google) ── */}
+              {showPasskey && (
+                <button
+                  onClick={handlePasskeyLogin}
+                  disabled={passkeyLoading}
+                  className="ix-google-btn ix-passkey-btn"
+                  style={{ marginBottom: 12 }}
+                  type="button"
+                >
+                  {passkeyLoading ? (
+                    <span
+                      className="ix-spinner"
+                      style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
+                    />
+                  ) : (
+                    <Fingerprint style={{ width: 18, height: 18, color: 'var(--inexxio-red)' }} aria-hidden />
+                  )}
+                  Mit Passkey anmelden
+                </button>
+              )}
 
               {/* ── Google Button ── */}
               <button
@@ -273,27 +324,6 @@ export default function LoginPage() {
                 )}
                 Mit Google anmelden
               </button>
-
-              {/* ── Passkey Button ── */}
-              {showPasskey && (
-                <button
-                  onClick={handlePasskeyLogin}
-                  disabled={passkeyLoading}
-                  className="ix-google-btn"
-                  style={{ marginTop: 12 }}
-                  type="button"
-                >
-                  {passkeyLoading ? (
-                    <span
-                      className="ix-spinner"
-                      style={{ borderColor: 'rgba(0,0,0,0.15)', borderTopColor: '#555' }}
-                    />
-                  ) : (
-                    <KeyRound style={{ width: 16, height: 16, color: '#E51A14' }} aria-hidden />
-                  )}
-                  Mit Passkey anmelden
-                </button>
-              )}
 
               {/* ── Footer ── */}
               <p className="ix-login-footer">

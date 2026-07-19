@@ -61,10 +61,39 @@ Fehlt die Rolle, liefert `…/passkeys/login/verify` einen klaren 500er
 
 ### Frontend
 
-* `lib/passkey.ts` – `registerPasskey`, `loginWithPasskey`, Support-Checks.
+* `lib/passkey.ts` – `registerPasskey`, `loginWithPasskey`, `loginWithPasskeyAutofill`,
+  `passkeyAutofillSupported`, `cancelPasskeyAutofill`, `friendlyDeviceName`, Support-Checks.
 * `lib/firebase.ts: signInWithPasskey` – Custom Token → Firebase-Session.
 * Login-Seite: Button **„Mit Passkey anmelden"** (nur wenn der Browser WebAuthn kann).
-* Konto → Sicherheit: Karte **„Passkeys"** (hinzufügen, benennen, entfernen).
+* Konto → Sicherheit: Karte **„Passkeys"** (hinzufügen, entfernen).
+
+#### Passkey-Autofill (Conditional UI) — der reibungslose Weg
+
+Das E-Mail-Feld der Login-Seite trägt `autocomplete="email webauthn"`. Beim Laden startet die
+Seite — sofern `browserSupportsWebAuthnAutofill()` — **still im Hintergrund** eine
+Authentifizierungs-Zeremonie mit `useBrowserAutofill: true` (`mediation: 'conditional'`). Der
+Passkey erscheint dann **direkt im Autofill-Dropdown** des Feldes; ein Tap auf den Vorschlag
+(+ Face/Touch ID) meldet an — **ohne Knopfdruck**. Das funktioniert, weil das Backend bereits
+usernameless ist (`login_options` ohne `allowCredentials`, Registrierung mit
+`resident_key=REQUIRED` → discoverable credentials). Beim Verlassen der Seite bzw. beim Klick
+auf den expliziten Passkey-Knopf wird die laufende Autofill-Zeremonie über
+`WebAuthnAbortService.cancelCeremony()` abgebrochen.
+
+#### Post-Login-Nudge (Adoption)
+
+`components/auth/passkey-nudge.tsx` — ein **nicht** blockierender Anstoss, direkt nach einem Login
+**ohne** Passkey einen einzurichten (stärkster Adoptions-Hebel; nutzen-, nicht angst-orientiert).
+Selbst-enthalten über `onAuthChange` (wie das ConsentGate), in ERP-/Konto-/Public-Layout gemountet.
+Erscheint NUR, wenn ein Plattform-Authenticator vorhanden ist **und** der Nutzer 0 Passkeys hat
+**und** kein Cooldown greift (localStorage `inexxio_passkey_nudge`: 30 Tage Ruhe nach „Später",
+max. 3×, danach nie mehr; „eingerichtet" schaltet ihn dauerhaft ab). Positioniert unten-links
+(Desktop) bzw. über dem KI-Widget (Mobile), damit es das KI-Widget unten-rechts nicht verdeckt.
+
+#### Freundlicher Gerätename
+
+Ohne expliziten Namen leitet `friendlyDeviceName()` aus dem User-Agent einen lesbaren Default ab
+(iPhone / iPad / Mac / Windows-PC / Android-Gerät / Chromebook / Linux-Gerät) — statt eines
+nichtssagenden „Passkey 1". (Ein serverseitiges Umbenennen existiert bewusst nicht — reduziert.)
 
 ---
 
