@@ -276,33 +276,109 @@
 .ix-login-footer a { color: var(--fg-3); text-underline-offset: 3px; }
 .ix-login-footer a:hover { color: var(--ix-red); }
 
-/* Variations */
-.ix-var-1 .ix-email-input:focus { transform: scale(1.015); }
-.ix-var-1 .ix-submit-btn:hover:not(:disabled) { animation: ix-bounce 0.55s cubic-bezier(0.34,1.56,0.64,1); }
-@keyframes ix-bounce {
-  0%,100% { transform: translateY(-2px); }
-  50%      { transform: translateY(-10px); }
+/* Passkey-Hinweis (dezent, unter dem E-Mail-Feld) */
+.ix-passkey-hint {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font: 400 12px/1.45 var(--font-body);
+  color: var(--fg-3);
 }
-.ix-var-2 .ix-submit-btn::before {
-  content: "";
+.ix-passkey-hint svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  color: var(--inexxio-red);
+}
+/* Passkey-Knopf: wie der Google-Knopf, aber mit dezent rot getönter Kontur (der schnelle Weg) */
+.ix-passkey-btn { border-color: rgba(229,26,20,0.28); }
+.ix-passkey-btn:hover:not(:disabled) {
+  border-color: var(--inexxio-red);
+  background: rgba(229,26,20,0.03);
+}
+
+/* ── Passkey-Nudge (nicht blockierender Post-Login-Anstoss) ─────────────── */
+.ix-passkey-nudge {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 9000;                    /* unter dem ConsentGate (10000), über dem Inhalt */
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  background: var(--bg-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  box-shadow: 0 16px 44px rgba(14,14,16,0.16);
+  animation: ix-nudge-in 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes ix-nudge-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  /* Mobil: über dem KI-Widget (unten rechts) einschweben, volle Breite mit Rand. */
+  .ix-passkey-nudge { left: 12px; right: 12px; bottom: 84px; width: auto; max-width: none; }
+}
+.ix-nudge-close {
   position: absolute;
-  inset: 0;
-  background: rgba(255,255,255,0);
-  border-radius: var(--r-pill);
-  transition: background 0.4s;
+  top: 8px; right: 8px;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border: none; background: none; border-radius: var(--r-sm);
+  color: var(--fg-4); cursor: pointer;
 }
-.ix-var-2 .ix-submit-btn:hover:not(:disabled)::before { background: rgba(255,255,255,0.18); }
-.ix-var-3 .ix-email-input:focus { transform: perspective(800px) rotateX(1.5deg); }
-.ix-var-3 .ix-submit-btn::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle, rgba(255,255,255,0.35), transparent);
-  border-radius: var(--r-pill);
-  transform: scale(0);
-  transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1);
+.ix-nudge-close:hover { background: var(--bg-3); color: var(--fg-2); }
+.ix-nudge-icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  background: rgba(229,26,20,0.08);
+  color: var(--inexxio-red);
 }
-.ix-var-3 .ix-submit-btn:hover:not(:disabled)::after { transform: scale(1); }
+.ix-nudge-body { min-width: 0; flex: 1; padding-right: 14px; }
+.ix-nudge-title {
+  font: 700 14px/1.3 var(--font-display);
+  letter-spacing: -0.01em;
+  color: var(--fg-1);
+}
+.ix-nudge-text {
+  margin: 4px 0 0;
+  font: 400 12.5px/1.5 var(--font-body);
+  color: var(--fg-3);
+}
+.ix-nudge-err {
+  margin: 8px 0 0;
+  font: 400 12px/1.45 var(--font-body);
+  color: var(--inexxio-red);
+}
+.ix-nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ix-nudge-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  border: none; border-radius: var(--r-pill);
+  background: var(--inexxio-red); color: #fff;
+  font: 600 13px var(--font-body); cursor: pointer;
+  transition: background 0.15s;
+}
+.ix-nudge-primary:hover:not(:disabled) { background: var(--ix-red-deep); }
+.ix-nudge-primary:disabled { opacity: 0.6; cursor: default; }
+.ix-nudge-later {
+  padding: 8px 12px;
+  border: none; background: none; border-radius: var(--r-sm);
+  color: var(--fg-3); font: 500 13px var(--font-body); cursor: pointer;
+}
+.ix-nudge-later:hover:not(:disabled) { color: var(--fg-1); }
 
 /* ── Public Site Utilities ───────────────────────────────── */
 .ix-wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px; }

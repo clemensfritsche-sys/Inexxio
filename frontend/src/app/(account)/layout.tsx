@@ -8,6 +8,7 @@ import { Navbar } from '@/components/layout/navbar';
 import { Footer } from '@/components/layout/footer';
 import { AiAssistant } from '@/components/ai/assistant';
 import { ConsentGate } from '@/components/consent/consent-gate';
+import { PasskeyNudge } from '@/components/auth/passkey-nudge';
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -48,6 +49,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       <Footer />
       <AiAssistant context="Kundenkonto" />
       <ConsentGate />
+      <PasskeyNudge />
     </>
   );
 }
