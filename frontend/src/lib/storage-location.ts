@@ -1,11 +1,11 @@
 import { FilePen, CheckCircle2, Ban } from 'lucide-react';
 import type { StorageLocationStatus } from '@/types';
-import type { StatusCfg } from '@/lib/status-flow';
+import { TONE, type StatusCfg } from '@/lib/status-flow';
 
 export const STORAGE_STATUS: Record<StorageLocationStatus, StatusCfg> = {
-  draft:    { label: 'Entwurf',     color: '#d97706', bg: '#fffbeb', icon: FilePen },
-  released: { label: 'Freigegeben', color: '#16a34a', bg: '#f0fdf4', icon: CheckCircle2 },
-  inactive: { label: 'Inaktiv',     color: '#64748b', bg: '#f1f5f9', icon: Ban },
+  draft:    { label: 'Entwurf',     ...TONE.pending,  icon: FilePen },
+  released: { label: 'Freigegeben', ...TONE.done,     icon: CheckCircle2 },
+  inactive: { label: 'Inaktiv',     ...TONE.inactive, icon: Ban },
 };
 
 export function storageStatusConfig(status: string): StatusCfg {

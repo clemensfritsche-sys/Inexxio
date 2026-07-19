@@ -11,6 +11,8 @@ import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { printObjectLabel } from '@/components/scan/object-label';
+import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
@@ -70,13 +72,6 @@ function demandSig(articleId: string, quantity: string, date: string | null): st
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-// Abgeleitete Subjektart des Auftrags (kein Modus-Flag) – für die Anzeige.
-function subjectRoleLabel(role: string | null | undefined): string {
-  // Ein Unter-Auftrag, der auf vorhandene Instanzen wirkt, ist eine Bestands-Operation –
-  // KEINE eigene «Abweichung»-Art (Status/Art bleiben für alle Aufträge einheitlich).
-  return role === 'stock' || role === 'deviation' || role === 'return' ? 'Operation am Bestand' : 'Herstellung – erzeugt Instanzen';
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
@@ -513,10 +508,28 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
             </div>
           </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>
-              {isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Kleine Kopf-Aktionen wie bei Instanz/Artikel: Etikett + «Abweichung melden»
+                (Flag). Die grosse Karte im Detailfenster entfällt – EIN einheitliches UI. */}
+            {!isCreate && record.object_id != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+                  onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
+                  <QrCode size={15} />
+                </button>
+                {canReportDeviation && (
+                  <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichung melden (Defekt / Nacharbeit / Reklamation)" data-tip-pos="bottom"
+                    aria-label="Abweichung melden" disabled={deviationBusy} onClick={reportDeviation}>
+                    {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
+              <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>
+                {isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}
+              </div>
             </div>
           </div>
         </div>
@@ -636,12 +649,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             </div>
           </div>
         )}
-        {isCompleted && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
-            <CheckCircle2 size={16} /> Auftrag abgeschlossen – alle Prozessschritte erledigt.
-          </div>
-        )}
-
         {/* Bedarf – Einzel-Artikel (wie gewohnt: Artikel + Menge) ODER, sobald mindestens
             eine weitere Position hinzugefügt wurde, die Liste der Positionen. Weitere
             Positionen lassen sich JEDERZEIT ergänzen (auch nach dem ersten Speichern). */}
@@ -706,7 +713,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 </>
               )}
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
-              <Row k="Art" v={subjectRoleLabel(record?.subject_role)} />
             </>
           )}
         </div>
@@ -730,32 +736,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
         {record && <OrderInstances order={record} />}
 
-        {/* Abweichung melden – Unterauftrag auf den Instanzen dieses Auftrags (Defekt,
-            Nacharbeit, Reklamation – EIN Konzept). Erst nach Freigabe der Abweichung scharf. */}
-        {canReportDeviation && (
-          <>
-            <SectionTitle icon={AlertTriangle}>Abweichung</SectionTitle>
-            <div style={cardStyle}>
-              <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
-                Weicht die Realität vom Prozess ab (Defekt, Nacharbeit, Reklamation)? Eröffne eine{' '}
-                <strong style={{ color: '#0f172a' }}>Abweichung</strong> – einen Unterauftrag auf
-                den Instanzen dieses Auftrags. Du legst dort fest, was geschieht, und gibst sie frei.
-              </div>
-              {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
-              <button type="button" onClick={reportDeviation} disabled={deviationBusy}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  alignSelf: 'flex-start', padding: '9px 16px', borderRadius: 8,
-                  border: '1px solid #fbbf24', background: deviationBusy ? '#fef3c7' : '#fffbeb',
-                  color: '#b45309', fontSize: 13, fontWeight: 700,
-                  cursor: deviationBusy ? 'default' : 'pointer',
-                }}>
-                {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
-                Abweichung melden
-              </button>
-            </div>
-          </>
-        )}
+        {/* «Abweichung melden» sitzt jetzt als kleiner Flag-Knopf im Kopf (analog Instanz) –
+            keine eigene Karte mehr im Detailfenster. */}
 
         {/* Unter-Auftrag (Entwurf): Subjekt/Bedarf stehen fest (oben gelistet) – KEINE
             Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren, dann freigeben. Abweichung =

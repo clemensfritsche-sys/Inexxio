@@ -187,7 +187,8 @@ export interface MovementUpdateInput {
 // Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg am Bewegungs-Schritt.
 export type ShipmentEmbed = components['schemas']['ShipmentEmbed'];
 export type ShipmentRate = components['schemas']['ShipmentRate'];
-export type TransportMode = 'auto' | 'carrier' | 'self' | 'none';
+// EINE Transport-Achse: innerbetrieblich | Paket | Fracht (die Sendungsart folgt dem Modus).
+export type TransportMode = 'internal' | 'parcel' | 'freight';
 export interface ShipmentUpdateInput {
   step_id?: number | null;
   transport_mode?: TransportMode | null;
@@ -196,8 +197,7 @@ export interface ShipmentUpdateInput {
   cost_amount?: number | null;
   cost_currency?: string | null;
   note?: string | null;
-  // Phase-0-Fracht: Sendungsart übersteuern + Fracht-Last/Incoterm/Abholtermin.
-  kind?: 'parcel' | 'freight' | null;
+  // Fracht (Modus 'freight'): Last/Incoterm/Abholtermin verfeinern.
   load?: Record<string, unknown> | null;
   incoterm?: string | null;
   pickup_date?: string | null;

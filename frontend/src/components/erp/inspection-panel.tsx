@@ -53,12 +53,6 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
     samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = { ...(s.values as Record<string, Val>) }; });
     return init;
   });
-  // Foto-Belege je Stichprobe (Attachment-URLs).
-  const [photos, setPhotos] = useState<Record<string, string[]>>(() => {
-    const init: Record<string, string[]> = {};
-    samples.forEach((s) => { init[sKey(s.instance_id, s.slot)] = [...(s.photos ?? [])]; });
-    return init;
-  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scan = useScan();
@@ -114,7 +108,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
           else if (f.type === 'bool') out[f.key] = v === true;
           else out[f.key] = v ?? '';
         });
-        return { instance_id: s.instance_id, slot: s.slot, values: out, photos: photos[key] ?? [] };
+        return { instance_id: s.instance_id, slot: s.slot, values: out, photos: [] };
       });
       onOrderUpdated(await api.updateOrderInspection(order.object_id as number, {
         samples: payload, note: null, step_id: stepId ?? null,
@@ -178,16 +172,13 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
                   <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
                   {!done && (ok ? <CheckCircle2 size={15} style={{ color: '#16a34a' }} /> : <XCircle size={15} style={{ color: '#cbd5e1' }} />)}
                 </div>
+                {/* Nur die konfigurierten Erfassungsfelder – Bild UND Unterschrift sind eigene
+                    Feldtypen (CaptureRow rendert sie). KEIN unbedingtes Foto-Feld mehr: wer nur
+                    eine Unterschrift konfiguriert hat, bekommt auch NUR die Unterschrift. */}
                 {fields.map((f) => (
                   <CaptureRow key={f.key} field={f} value={values[key]?.[f.key]} ok={fieldOk(f, values[key]?.[f.key])}
                     readOnly={done} onChange={(v) => setVal(key, f.key, v)} />
                 ))}
-                <PhotoCapture
-                  label="Fotos"
-                  value={photos[key] ?? []}
-                  disabled={done}
-                  onChange={(urls) => setPhotos((p) => ({ ...p, [key]: urls }))}
-                />
               </div>
             );
           })}

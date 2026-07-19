@@ -11,15 +11,18 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-# Transport-Modus (deklariert am Schritt, je Auftrag am Shipment übersteuerbar):
-#   auto    → abgeleitet: Ziel extern → Versand, sonst nichts (Default)
-#   carrier → immer Versand (auch wenn die Ableitung «intern» sagt)
-#   self    → Selbsttransport (bringen/abholen) – protokolliert, kein Carrier
-#   none    → nie ein Versand (z. B. rein organisatorische Bewegung)
-ALLOWED_TRANSPORT_MODES = ("auto", "carrier", "self", "none")
+# Transport-Modus – EINE Achse (ersetzt die frühere Doppelung «Modus × Sendungsart»).
+# Der Bewegungs-Schritt bringt Instanzen an ihr Ziel; WIE transportiert wird, ist genau
+# eine Wahl mit drei Optionen:
+#   internal → innerbetrieblich: kein Carrier/Versand – die Übergabe wird per Scan quittiert
+#   parcel   → Paket: Aggregator/Rate-Shopping bzw. Carrier/Tracking manuell erfasst
+#   freight  → Stückgut/Palette: Spediteur, manuell (Fracht-Last, Incoterm, Abholung)
+# Der passende Modus wird ABGELEITET (Adress-Klassifikation + geschätzte Last) und als
+# Empfehlung vorgewählt – ist aber IMMER frei übersteuerbar (Shipment-Override).
+ALLOWED_TRANSPORT_MODES = ("internal", "parcel", "freight")
 
-# Sendungsart (Phase 0 Fracht): parcel (Paket → Aggregator/Rate-Shopping) | freight
-# (Stückgut/Palette → manuell/Spediteur). Abgeleitet aus der Last, am Beleg übersteuerbar.
+# Interne Sendungsart (Spiegel des Modus, für Paket-Masse vs. Fracht-Last): parcel | freight.
+# Wird aus ``transport_mode`` abgeleitet (freight ⟺ Modus 'freight'), nicht mehr separat gewählt.
 ALLOWED_SHIPMENT_KINDS = ("parcel", "freight")
 # Incoterms 2020 (international, Fracht) – die gängigsten.
 ALLOWED_INCOTERMS = ("EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FOB", "CFR", "CIF")
@@ -48,7 +51,8 @@ class ShipmentEmbed(BaseModel):
     # Live-Ableitung: intern | extern | unknown (+ Richtung bei extern)
     transport_class: str = "unknown"
     direction: str = "outbound"          # outbound | inbound
-    transport_mode: str = "auto"         # effektiver Modus (Shipment-Override ≻ Schritt)
+    transport_mode: str = "internal"     # effektiver Modus (Override ≻ Empfehlung)
+    recommended_mode: str = "internal"   # abgeleitete Empfehlung (internal|parcel|freight)
     status: str = "draft"                # draft | quoted | purchased | done | cancelled
     provider: str = "manual"             # shippo | manual | self
     provider_ready: bool = False         # Aggregator konfiguriert (Rate-Shopping möglich)?
@@ -98,8 +102,8 @@ class ShipmentUpdate(BaseModel):
     cost_amount: Optional[float] = None
     cost_currency: Optional[str] = None
     note: Optional[str] = None
-    # Phase-0-Fracht: Sendungsart übersteuern + Fracht-Last/Incoterm/Abholtermin verfeinern.
-    kind: Optional[str] = None
+    # Fracht (Modus 'freight'): Last/Incoterm/Abholtermin verfeinern. Die Sendungsart selbst
+    # wird nicht mehr separat gewählt, sondern folgt dem Transport-Modus (freight ⟺ 'freight').
     load: Optional[dict] = None
     incoterm: Optional[str] = None
     pickup_date: Optional[str] = None
@@ -111,15 +115,6 @@ class ShipmentUpdate(BaseModel):
             return None
         if v not in ALLOWED_TRANSPORT_MODES:
             raise ValueError(f"Transport-Modus muss eine von {', '.join(ALLOWED_TRANSPORT_MODES)} sein")
-        return v
-
-    @field_validator("kind")
-    @classmethod
-    def _kind_ok(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return None
-        if v not in ALLOWED_SHIPMENT_KINDS:
-            raise ValueError(f"Sendungsart muss eine von {', '.join(ALLOWED_SHIPMENT_KINDS)} sein")
         return v
 
     @field_validator("incoterm")

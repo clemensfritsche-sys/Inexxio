@@ -1,17 +1,17 @@
 import { Clock, CheckCircle2, FileText, Banknote, Ban } from 'lucide-react';
-import type { StatusCfg } from '@/lib/status-flow';
+import { TONE, type StatusCfg } from '@/lib/status-flow';
 import type { PNode } from '@/components/erp/purchase-progress';
 
 // Verkauf (kaufmännisches Spiegelbild der Beschaffung):
-// Angefragt → Bestätigt → Verrechnet → Bezahlt   (+ Storniert)
+// Angefragt → Bestätigt → Verrechnet → Bezahlt   (+ Storniert). Töne aus den Tokens.
 export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'cancelled';
 
 export const SALE_STATUS: Record<SaleStatus, StatusCfg> = {
-  requested: { label: 'Angefragt',  color: '#d97706', bg: '#fffbeb', icon: Clock },
-  confirmed: { label: 'Bestätigt',  color: '#2563eb', bg: '#eff6ff', icon: CheckCircle2 },
-  invoiced:  { label: 'Verrechnet', color: '#7c3aed', bg: '#f5f3ff', icon: FileText },
-  paid:      { label: 'Bezahlt',    color: '#0f766e', bg: '#f0fdfa', icon: Banknote },
-  cancelled: { label: 'Storniert',  color: '#dc2626', bg: '#fef2f2', icon: Ban },
+  requested: { label: 'Angefragt',  ...TONE.pending, icon: Clock },
+  confirmed: { label: 'Bestätigt',  ...TONE.info,    icon: CheckCircle2 },
+  invoiced:  { label: 'Verrechnet', ...TONE.info,    icon: FileText },
+  paid:      { label: 'Bezahlt',    ...TONE.done,    icon: Banknote },
+  cancelled: { label: 'Storniert',  ...TONE.danger,  icon: Ban },
 };
 
 export function saleStatusConfig(status: string): StatusCfg {

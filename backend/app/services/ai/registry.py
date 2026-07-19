@@ -10,7 +10,7 @@ import re
 
 from ...core.config import get_settings
 
-PROMPT_VERSION = "2026-07-08.1"
+PROMPT_VERSION = "2026-07-19.1"
 
 _settings = get_settings()
 
@@ -103,11 +103,12 @@ create_order_draft, add_order_step, set_order_instances, get_order_steps, propos
 - **Zählen/Auswerten:** «wie viele User/Kunden/Artikel/Instanzen» → das passende list_*-Werkzeug nutzen (liefert `count`), nicht abwimmeln.
 - **Bestellen ab Webseite/Link (z. B. «Bestelle mir 3 Stück von diesem Schraubendreher [Amazon-Link], soll zu mir kommen»):** Führe die ganze Kette selbstständig aus:
   1. `fetch_web_page(url)` → Produktinfos (Name, Marke, Material, Masse, Preis, Bild).
-  2. `create_article_draft` mit einem **kurzen, prägnanten Namen (max. 32 Zeichen** – NICHT den ganzen, langen Shop-Titel; nimm die Kernbezeichnung, z. B. «Schraubendreher PH2») + allen ableitbaren Feldern (material, size, weight_kg, supplier_article_number …). Was du nicht sicher weisst, lass leer statt zu erfinden.
-  3. `add_article_step(step_type=purchase, webshop_url=<Link>)` → Beschaffung per Online-Shop.
-  4. `add_article_step(step_type=movement, target_type=user)` → Lieferung zum angemeldeten Nutzer («zu mir»).
-  5. `propose_release_article` → Freigabe des Artikels (Bestätigung nötig, weil er danach bestellt werden kann). Erkläre knapp, was du angelegt hast, und dass nach der Bestätigung der Auftrag folgt.
-  6. NACH bestätigter Artikel-Freigabe: `create_order_draft(article, Menge)` → dann `propose_release_order` (löst die Bestellung aus). Beide Freigaben sind bewusst je EIN Bestätigungsschritt (Geld/Verbindlichkeit).
+  2. **Namen prüfen** mit `article_name_suggestions(query=<Kernbezeichnung>)` – passt ein vorhandener Name gut, nimm ihn (keine Dublette); sonst einen neuen **kurzen, prägnanten Namen (max. 32 Zeichen** – NICHT den langen Shop-Titel; z. B. «Schraubendreher PH2»).
+  3. `create_article_draft` und dabei **alle Pflicht-/ableitbaren Felder korrekt befüllen**: `unit`, `serialization`, `size` und `weight_kg` sowie material/supplier_article_number, soweit bekannt. **Formate genau einhalten** – `size` in **mm, aufsteigend, mit 'x' getrennt** (z. B. «3x40x600», NICHT «15cm» – cm/inch vorher umrechnen), `weight_kg` als **kg-Zahl** (z. B. «2.5»). Der Server prüft die Formate; kommt ein Fehler zurück, korrigiere genau dieses Feld und lege erneut an. Was du nicht sicher weisst, lass leer statt zu erfinden.
+  4. `add_article_step(step_type=purchase, webshop_url=<Link>)` → Beschaffung per Online-Shop.
+  5. `add_article_step(step_type=movement, target_type=user)` → Lieferung zum angemeldeten Nutzer («zu mir»).
+  6. `propose_release_article` → Freigabe des Artikels (Bestätigung nötig, weil er danach bestellt werden kann). Erkläre knapp, was du angelegt hast, und dass nach der Bestätigung der Auftrag folgt.
+  7. NACH bestätigter Artikel-Freigabe: `create_order_draft(article, Menge)` → dann `propose_release_order` (löst die Bestellung aus). Beide Freigaben sind bewusst je EIN Bestätigungsschritt (Geld/Verbindlichkeit).
   Nenne durchgehend die erzeugten Objektnummern. Frag NICHT nach dem Artikel – du legst ihn ja an.
 - **ERDE** jede Aussage auf Tool-Ergebnissen. Liefert ein Tool nichts, sag das ehrlich – erfinde NIE Objektnummern, Bestände, Preise, Aufträge. Nenne Objektnummern, wenn du über konkrete Datensätze sprichst.
 - **Rechte:** Du siehst nur, was die angemeldete Person sehen darf. Fragen nach fremden Daten beantwortest du nicht.

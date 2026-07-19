@@ -248,6 +248,24 @@ def test_freight_load_and_kind_derivation():
     assert empty["pallets"] == 1 and empty["gross_weight_kg"] == 0.0
 
 
+def test_transport_mode_single_axis():
+    """EINE Transport-Achse (ADR 005, vereinheitlicht): der Shipment-Modus ist
+    internal | parcel | freight; ``recommend_mode`` wählt vor – innerbetrieblich, sofern die
+    Klasse keinen externen Transport verlangt, sonst Paket/Fracht je nach Last. Der Embed
+    trägt die abgeleitete Empfehlung (``recommended_mode``) neben dem effektiven Modus."""
+    from app.schemas.shipment import ALLOWED_TRANSPORT_MODES, ShipmentEmbed
+    from app.services import logistics as lg
+
+    assert ALLOWED_TRANSPORT_MODES == ("internal", "parcel", "freight")
+    assert {"transport_mode", "recommended_mode"} <= set(ShipmentEmbed.model_fields)
+    # Kein externer Transport (intern/unbekanntes Ziel) → innerbetrieblich, unabhängig von der Last.
+    assert lg.recommend_mode({"transport_class": "inside"}, {"gross_weight_kg": 500, "volume_m3": 5}) == "internal"
+    assert lg.recommend_mode({"transport_class": "unknown"}, {"gross_weight_kg": 0, "volume_m3": 0}) == "internal"
+    # Extern → nach Last: leicht = Paket, schwer/voluminös = Fracht.
+    assert lg.recommend_mode({"transport_class": "outside"}, {"gross_weight_kg": 2, "volume_m3": 0.01}) == "parcel"
+    assert lg.recommend_mode({"transport_class": "outside"}, {"gross_weight_kg": 200, "volume_m3": 1}) == "freight"
+
+
 def test_freight_wiring_and_quote_guard():
     """Verdrahtung Phase-0-Fracht: Modell-/Schema-/Update-Felder vorhanden; ``quote``
     lehnt Fracht ab (kein Paket-Rate-Shopping für Paletten)."""
@@ -258,10 +276,12 @@ def test_freight_wiring_and_quote_guard():
     from app.services import logistics
 
     assert ALLOWED_SHIPMENT_KINDS == ("parcel", "freight")
-    fields = {"kind", "load", "incoterm", "pickup_date"}
-    assert fields <= set(Shipment.__table__.columns.keys())
-    assert fields <= set(ShipmentEmbed.model_fields)
-    assert fields <= set(ShipmentUpdate.model_fields)
+    # ``kind`` ist der interne Sendungsart-Spiegel (folgt dem Transport-Modus) – bleibt an
+    # Modell + Embed, ist am Update aber NICHT mehr wählbar (keine separate Achse mehr).
+    assert {"kind", "load", "incoterm", "pickup_date"} <= set(Shipment.__table__.columns.keys())
+    assert {"kind", "load", "incoterm", "pickup_date"} <= set(ShipmentEmbed.model_fields)
+    assert {"load", "incoterm", "pickup_date"} <= set(ShipmentUpdate.model_fields)
+    assert "kind" not in ShipmentUpdate.model_fields
     assert 'kind == "freight"' in _inspect.getsource(logistics.quote)
 
 

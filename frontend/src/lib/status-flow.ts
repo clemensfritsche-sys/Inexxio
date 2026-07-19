@@ -23,6 +23,24 @@ export interface StatusAction {
   hint?: string;
 }
 
+// ─── Semantische Status-Töne (token-basiert) ─────────────────────────────────
+// EINE Quelle für ALLE Datensatz-Status (Artikel/Auftrag/Instanz/Lagerplatz/
+// Beschaffung/Verkauf). Farbe = Bedeutung, konsequent über die ganze App:
+//   pending  = offen / in Arbeit / im Prozess   → amber-orange (--warning)
+//   info     = aktiv / informativ / reserviert  → slate (--accent)
+//   done     = erledigt / freigegeben / am Lager → grün (--success)
+//   danger   = Fehler / gesperrt / abgelehnt    → rot (--danger)
+//   inactive = inaktiv / verschrottet           → warmes Grau
+// Werte kommen ausschliesslich aus den Design-Tokens (colors_and_type.css) –
+// keine hartkodierten Hex-Farben mehr in den Status-Configs.
+export const TONE: Record<'pending' | 'info' | 'done' | 'danger' | 'inactive', { color: string; bg: string }> = {
+  pending:  { color: 'var(--warning)',    bg: 'var(--warning-bg)' },
+  info:     { color: 'var(--accent-ink)', bg: 'var(--accent-soft)' },
+  done:     { color: 'var(--success)',    bg: 'var(--success-bg)' },
+  danger:   { color: 'var(--danger)',     bg: 'var(--danger-bg)' },
+  inactive: { color: 'var(--fg-3)',       bg: 'var(--bg-3)' },
+};
+
 // Ersetzen (kein Versionieren): «replace» legt einen Nachfolger an und verknüpft.
 // `canReactivate`/`canReplace` erlauben typspezifische Abweichungen (z. B. Auftrag
 // ohne Reaktivieren).
