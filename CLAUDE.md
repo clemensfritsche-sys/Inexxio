@@ -401,7 +401,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   und liess trotzdem **jeden** Aufruf von `GET /erp/instances/{id}` mit 500 auflaufen. Der Test
   prüft über `symtable` (stdlib) je Modul, dass jeder als **global** aufgelöste Name nach dem
   Import wirklich existiert – und dass **jedes** Modul unter `app/` importierbar ist. Das ist
-  die Python-Entsprechung zu ESLint, die im Backend gefehlt hat.
+  die Python-Entsprechung zu ESLint, die im Backend gefehlt hat. Gemeldet wird nur, was
+  **gelesen und nirgends gebunden** ist: Python 3.12 inlinet Comprehensions (PEP 709), womit
+  `[k for k, m in KATALOG]` auf Modulebene `k`/`m` in die Symboltabelle legt, obwohl sie nie
+  Modul-Attribut werden – gebunden und darum harmlos (CI läuft 3.12, lokal 3.11; die Regel ist
+  über 3.11/3.12/3.13 gegengeprüft). Ein **Selbsttest** hält den Wächter scharf: er muss die
+  Bug-Form melden und die Comprehension-Form durchlassen – ein Wächter, der nie anschlägt, ist
+  von einem kaputten nicht zu unterscheiden.
 - **Verbauen setzt den Standort über die EINE Schreibstelle** (`resource._relocate` →
   `location_split.set_single`): eine Komponente wandert beim Einbau auf die Produkt-Instanz
   (und damit über die Kette physisch mit ihr mit). Vorher wurde `location_type`/`location_id`
