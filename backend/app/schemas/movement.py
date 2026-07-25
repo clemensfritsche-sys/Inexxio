@@ -1,35 +1,26 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
-from .place import Place
 from .shipment import ShipmentEmbed
 
-# Ein Standort ist ein **Halter**. Vier Arten – drei davon Datensatzobjekte mit 9-stelliger
-# Objektnummer, die vierte (`place`) eine Adresse direkt auf der Instanz:
-#   place    → Adresse/GPS inline (KEINE Objektnummer)          ← das «Blatt» der Kette
-#   user     → UserProfile (Mitarbeiter, Lieferant, Kunde)
-#   instance → andere Instanz (Behälter, Palette, Maschine, LKW)
-#   company  → das Unternehmen selbst (Betriebsadresse)
-# Ein **benannter Platz** (Regal A, Wareneingang) ist eine Instanz, die andere Instanzen hält –
-# das ersetzt den früheren eigenständigen `lagerplatz`-Datensatztyp.
-LOCATION_TYPES = ("place", "user", "instance", "company")
-
-# Halter, die eine Objektnummer tragen – nur auf sie ist eine Charge mengengenau
-# **verteilbar** (``services/location_split.py`` schlüsselt nach Objektnummer).
-ADDRESSABLE_LOCATION_TYPES = ("user", "instance", "company")
+# Ein Standort ist immer ein Datensatzobjekt mit 9-stelliger Nummer:
+#   lagerplatz → StorageLocation
+#   user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
+#   instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
+# Gültige **Bewegungsziele**. «company» (das Unternehmen selbst) ist bewusst NICHT dabei: es ist
+# nur der START-Standort neu erzeugter Instanzen (nie ein Bewegungsziel). Die Anzeige eines
+# company-Standorts übernimmt `services/locations.py` (location_labels), die Vergabe die
+# Serialisierung – so gibt es nie standortlose Instanzen, ohne die Ziel-Validierung zu lockern.
+LOCATION_TYPES = ("lagerplatz", "user", "instance")
 
 
 class MovementTarget(BaseModel):
-    """Zielstandort einer einzelnen Instanz.
-
-    Entweder ein Datensatzobjekt (``location_id`` = Objektnummer) ODER – bei
-    ``location_type='place'`` – ein **Ort** (Adresse/GPS in ``place``, ohne Objektnummer)."""
+    """Zielstandort einer einzelnen Instanz (per Objektnummer adressiert)."""
 
     instance_id: int          # object_id der zu bewegenden Instanz
     location_type: str
-    location_id: Optional[int] = None   # Objektnummer des Zielobjekts (nicht bei 'place')
-    place: Optional[Place] = None       # nur bei 'place': Adresse/GPS
+    location_id: int          # object_id des Zielobjekts
 
     @field_validator("location_type")
     @classmethod
@@ -37,19 +28,6 @@ class MovementTarget(BaseModel):
         if v not in LOCATION_TYPES:
             raise ValueError(f"Standort-Typ muss eine von {', '.join(LOCATION_TYPES)} sein")
         return v
-
-    @model_validator(mode="after")
-    def _target_complete(self):
-        """Genau EINE Adressierung: Ort → ``place``, sonst → ``location_id``."""
-        if self.location_type == "place":
-            if self.place is None:
-                raise ValueError("Für einen Ort ist eine Adresse bzw. ein Standort erforderlich")
-            self.location_id = None
-        else:
-            if self.location_id is None:
-                raise ValueError("Für dieses Ziel ist eine Objektnummer erforderlich")
-            self.place = None
-        return self
 
 
 class MovementUpdate(BaseModel):
@@ -81,12 +59,10 @@ class MovementEmbed(BaseModel):
     tracking_number: Optional[str] = None
     carrier: Optional[str] = None
 
-    # Vorgabe-Ziel aus der Prozessdefinition (optional; vom Router denormalisiert).
-    # Bei einem Vorgabe-**Ort** ist ``target_location_id`` NULL und ``target_place`` gesetzt.
+    # Vorgabe-Ziel aus der Prozessdefinition (optional; vom Router denormalisiert)
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
     target_location_label: Optional[str] = None
-    target_place: Optional[dict] = None
     # Bewegungs-Modus des Schritts: 'customer' = Pflicht-Versand zum Kunden (nur dann sind
     # VERKAUFTE Instanzen bewegbar). Das Frontend spiegelt damit exakt die Backend-Regel,
     # statt sie über den Ziel-Typ zu erraten (Ursache «Instanz gehört nicht zu diesem Auftrag»).

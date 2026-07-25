@@ -26,6 +26,7 @@ import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
@@ -55,14 +56,16 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 ];
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'is_hazmat';
-// Ein Artikel trägt bewusst KEINEN Standort mehr (der frühere «Fixierte Standort» mit
-// Karten-Picker ist entfernt): der Artikel ist die Spezifikation, WO etwas liegt sagt die
-// **Instanz**. Darum ist die Feldliste wieder deckungsgleich mit den optionalen Textfeldern.
-type AddKey = OptKey;
+// Der «Fixierte Standort» ist ebenfalls ein optionales Spezifikationsfeld – aber kein simples
+// Textfeld, sondern (exakt wie am Lagerplatz) ein GPS-/Adressblock. Deshalb ein eigener Key.
+type AddKey = OptKey | 'fixed_location';
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
   reorder_target: string; is_hazmat: string;
+  // Fixierter Standort (optional): GPS + reverse-geocodierte Adresse – exakt wie am Lagerplatz.
+  fixed_lat: string; fixed_lng: string;
+  fixed_street: string; fixed_zip: string; fixed_city: string; fixed_country: string;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
   procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
@@ -83,6 +86,7 @@ function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
     reorder_target: '', is_hazmat: '',
+    fixed_lat: '', fixed_lng: '', fixed_street: '', fixed_zip: '', fixed_city: '', fixed_country: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
   return {
@@ -95,6 +99,10 @@ function seedFrom(record: Article | null): Form {
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     reorder_target: record.reorder_target != null ? String(record.reorder_target) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
+    fixed_lat: record.fixed_location_lat != null ? String(record.fixed_location_lat) : '',
+    fixed_lng: record.fixed_location_lng != null ? String(record.fixed_location_lng) : '',
+    fixed_street: record.fixed_location_street ?? '', fixed_zip: record.fixed_location_zip ?? '',
+    fixed_city: record.fixed_location_city ?? '', fixed_country: record.fixed_location_country ?? '',
     procurement_mode: record.procurement_mode ?? 'supplier',
     default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
     default_webshop_url: record.default_webshop_url ?? '',
@@ -113,6 +121,9 @@ function signatureOf(form: Form): string {
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
     reorder_target: form.reorder_target.trim(), is_hazmat: form.is_hazmat,
+    fixed_lat: form.fixed_lat.trim(), fixed_lng: form.fixed_lng.trim(),
+    fixed_street: form.fixed_street.trim(), fixed_zip: form.fixed_zip.trim(),
+    fixed_city: form.fixed_city.trim(), fixed_country: form.fixed_country.trim(),
     procurement_mode: form.procurement_mode,
     default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
     default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
@@ -174,7 +185,11 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
     const s = seedFrom(record);
-    return OPTIONAL_FIELDS.filter((f) => s[f.key].trim() !== '').map((f) => f.key);
+    const keys: AddKey[] = OPTIONAL_FIELDS.filter((f) => s[f.key].trim() !== '').map((f) => f.key);
+    if (s.fixed_lat.trim() || s.fixed_lng.trim() || s.fixed_street.trim() || s.fixed_city.trim()) {
+      keys.push('fixed_location');
+    }
+    return keys;
   });
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -184,7 +199,24 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
   function addField(key: AddKey) { setAdded((a) => (a.includes(key) ? a : [...a, key])); }
   function removeField(key: AddKey) {
     setAdded((a) => a.filter((k) => k !== key));
-    set(key, '');
+    if (key === 'fixed_location') {
+      setForm((p) => ({ ...p, fixed_lat: '', fixed_lng: '', fixed_street: '', fixed_zip: '', fixed_city: '', fixed_country: '' }));
+    } else {
+      set(key, '');
+    }
+  }
+
+  // «Fixierter Standort»: GPS-Pick spiegelt Koordinaten + (falls vorhanden) reverse-geocodierte
+  // Adresse ins Formular – exakt wie am Lagerplatz (`handlePick`).
+  function pickFixedLocation(la: number, ln: number, address?: ParsedAddress) {
+    setForm((p) => ({
+      ...p,
+      fixed_lat: la.toFixed(6), fixed_lng: ln.toFixed(6),
+      fixed_street: address?.street || p.fixed_street,
+      fixed_zip: address?.zip || p.fixed_zip,
+      fixed_city: address?.city || p.fixed_city,
+      fixed_country: address?.country || p.fixed_country,
+    }));
   }
 
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
@@ -280,6 +312,12 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
         reorder_target: form.reorder_target.trim() || null,
         is_hazmat: form.is_hazmat === 'ja',
         // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+        fixed_location_lat: form.fixed_lat.trim() || null,
+        fixed_location_lng: form.fixed_lng.trim() || null,
+        fixed_location_street: form.fixed_street.trim() || null,
+        fixed_location_zip: form.fixed_zip.trim() || null,
+        fixed_location_city: form.fixed_city.trim() || null,
+        fixed_location_country: form.fixed_country.trim() || null,
         // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
         procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
         default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
@@ -433,6 +471,10 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                         <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
                       ))}
                       {/* Fixierter Standort (GPS + Adresse, exakt wie am Lagerplatz) – volle Breite. */}
+                      {added.includes('fixed_location') && (
+                        <FixedLocationField mapsApiKey={mapsApiKey} form={form} onSet={set}
+                          onPick={pickFixedLocation} onRemove={() => removeField('fixed_location')} />
+                      )}
                       {!isCreate && record!.lead_time_days_low != null && (
                         <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record!)} autoHint="Automatisch aus vorherigen Lieferungen" />
                       )}
@@ -664,6 +706,7 @@ function SubSection({ icon: Icon, title, children }: {
 // (GPS-/Adressblock). EIN Menü im Sektions-Kopf bietet alle noch nicht sichtbaren Felder an.
 const ADD_MENU: { key: AddKey; label: string; hint?: string }[] = [
   ...OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label, hint: f.hint })),
+  { key: 'fixed_location', label: 'Fixierter Standort', hint: 'Fester GPS-Standort + Adresse (wie am Lagerplatz)' },
 ];
 
 // «Feld hinzufügen» als kleines +-Symbol (Hover-Tooltip) im Sektions-Kopf → Dropdown der
@@ -740,19 +783,50 @@ function OptField({ f, form, onSet, onRemove }: {
 
 // Optionales Feld «Fixierter Standort»: GPS-Karte + reverse-geocodierte Adresse – exakt wie
 // die Standort-Definition am Lagerplatz-Datensatz. Volle Breite (Karte + Adressblock).
-function linkHost(href: string): string {
-  try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
+function FixedLocationField({ mapsApiKey, form, onSet, onPick, onRemove }: {
+  mapsApiKey: string | null;
+  form: Form;
+  onSet: (k: keyof Form, v: string) => void;
+  onPick: (lat: number, lng: number, address?: ParsedAddress) => void;
+  onRemove: () => void;
+}) {
+  const lat = form.fixed_lat.trim() ? Number(form.fixed_lat) : null;
+  const lng = form.fixed_lng.trim() ? Number(form.fixed_lng) : null;
+  return (
+    <div style={{ gridColumn: '1 / -1' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: '700 13px var(--font-body)', color: 'var(--fg-1)' }}>
+          <MapPin size={14} style={{ color: 'var(--fg-4)' }} /> Fixierter Standort
+        </span>
+        <button type="button" onClick={onRemove} title="Feld entfernen"
+          style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0 }}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <MapPicker apiKey={mapsApiKey} lat={lat} lng={lng} onPick={onPick} />
+        <div style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>Adresse (wird aus Karte/GPS ermittelt, anpassbar):</div>
+        <LocInput label="Strasse & Nr." value={form.fixed_street} onChange={(v) => onSet('fixed_street', v)} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
+          <LocInput label="PLZ" value={form.fixed_zip} onChange={(v) => onSet('fixed_zip', v)} />
+          <LocInput label="Ort" value={form.fixed_city} onChange={(v) => onSet('fixed_city', v)} />
+        </div>
+        <LocInput label="Land" value={form.fixed_country} onChange={(v) => onSet('fixed_country', v)} />
+      </div>
+    </div>
+  );
 }
 
-function leadRangeText(r: Article): string {
-  const lo = r.lead_time_days_low; const hi = r.lead_time_days_high;
-  if (lo == null && hi == null) return '—';
-  const same = lo == null || hi == null || Number(lo) === Number(hi);
-  return same ? formatDuration((lo ?? hi) as number) : `${formatDuration(lo as number)} – ${formatDuration(hi as number)}`;
+// Kleines Adress-Eingabefeld (Overline-Label + `.fin`-Input) für den Fixierten Standort.
+function LocInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={FIN_CLS} />
+    </div>
+  );
 }
 
-// Read-only-Feld (Design-`.frow`): kleines Symbol + Versalien-Overline + kräftiger Wert.
-// Optional Einheit/mono, Link («Öffnen») oder ⓘ-Auto-Hinweis (abgeleiteter Wert).
 // Eingabefeld-Klasse analog Design-`.fin` (Rand border-2, r-md, 14/12-Padding, Akzent-Fokus mit 3-px-Ring).
 const FIN_CLS = 'w-full rounded-ds-md border border-border-2 bg-white px-3.5 py-3 text-[15px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-[3px] focus:ring-accent-soft';
 
@@ -766,6 +840,19 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   );
 }
 
+function linkHost(href: string): string {
+  try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
+}
+
+function leadRangeText(r: Article): string {
+  const lo = r.lead_time_days_low; const hi = r.lead_time_days_high;
+  if (lo == null && hi == null) return '—';
+  const same = lo == null || hi == null || Number(lo) === Number(hi);
+  return same ? formatDuration((lo ?? hi) as number) : `${formatDuration(lo as number)} – ${formatDuration(hi as number)}`;
+}
+
+// Read-only-Feld (Design-`.frow`): kleines Symbol + Versalien-Overline + kräftiger Wert.
+// Optional Einheit/mono, Link («Öffnen») oder ⓘ-Auto-Hinweis (abgeleiteter Wert).
 function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, link }: {
   icon?: React.ElementType; label: string; value?: React.ReactNode; unit?: string;
   mono?: boolean; full?: boolean; autoHint?: string; link?: string;
@@ -851,6 +938,10 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
   const hasProcurement = has('supplier_article_number') || has('cad_url') || has('min_order_qty')
     || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
+  const fixedLat = form.fixed_lat.trim() ? Number(form.fixed_lat) : null;
+  const fixedLng = form.fixed_lng.trim() ? Number(form.fixed_lng) : null;
+  const hasFixedLoc = fixedLat != null || fixedLng != null
+    || form.fixed_street.trim() !== '' || form.fixed_city.trim() !== '';
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
@@ -884,6 +975,21 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
           {has('cad_url') && <ReadField icon={Link2} label="CAD-Link" link={form.cad_url} full />}
         </SubSection>
       )}
+      {hasFixedLoc && (
+        <SubSection icon={MapPin} title="Fixierter Standort">
+          <div style={{ gridColumn: '1 / -1' }}>
+            <MapPicker apiKey={mapsApiKey} lat={fixedLat} lng={fixedLng} onPick={() => {}} readOnly />
+          </div>
+          {form.fixed_street.trim() && <ReadField icon={MapPin} label="Strasse" value={form.fixed_street} />}
+          {(form.fixed_zip.trim() || form.fixed_city.trim()) && (
+            <ReadField icon={Boxes} label="PLZ / Ort" value={`${form.fixed_zip} ${form.fixed_city}`.trim()} />
+          )}
+          {form.fixed_country.trim() && <ReadField icon={ExternalLink} label="Land" value={form.fixed_country} />}
+          {fixedLat != null && fixedLng != null && (
+            <ReadField icon={Scaling} label="GPS" value={`${fixedLat.toFixed(5)}, ${fixedLng.toFixed(5)}`} mono />
+          )}
+        </SubSection>
+      )}
     </div>
   );
 }
@@ -891,6 +997,7 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
 // Symbole für die optionalen Felder (im Sektions-«+»-Menü).
 const MENU_ICON: Record<string, React.ElementType> = {
   material: Layers, surface: Sparkles, min_order_qty: Package, safety_stock: Shield,
+  fixed_location: MapPin,
 };
 
 function formatDuration(days: number): string {

@@ -13,7 +13,7 @@ from .models import UserProfile
 from .routers import (
     admin, ai, article_process, articles, attachments, auth, consent, contact, documents,
     document_files, erp, events, health, instances, legal, maintenance, object_refs, orders,
-    passkey, sales, shop,
+    passkey, sales, shop, storage_locations,
 )
 
 settings = get_settings()
@@ -57,6 +57,7 @@ def _bootstrap_admin() -> None:
 # create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
 _COLUMN_SAFETY_NET = (
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
+    ("company_settings", "default_receiving_location_id", "BIGINT"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "NUMERIC(14,3)"),
@@ -78,9 +79,11 @@ _COLUMN_SAFETY_NET = (
     ("instances", "reserved_quantity", "NUMERIC(14,3) DEFAULT 0 NOT NULL"),
     # Standort-Verteilung einer Charge ohne Instanz-Teilung (analog reservations)
     ("instances", "locations", "JSONB"),
+    ("storage_locations", "note", "VARCHAR(500)"),
     # Unternehmen als nummerierter ERP-Datensatz (universelle Objektnummer)
     ("company_settings", "object_id", "BIGINT"),
     ("inspections", "escalated", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("purchase_orders", "receiving_location_id", "BIGINT"),
     ("instances", "released_at", "TIMESTAMP WITH TIME ZONE"),
     ("article_process_steps", "resource_lines", "JSONB"),
     # Optionale Artikel-Stammdaten (dynamische Feldliste)
@@ -107,6 +110,7 @@ _COLUMN_SAFETY_NET = (
     # Ersetzen statt Versionierung: Nachfolger-Objektnummer (alt → neu)
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),
+    ("storage_locations", "replaced_by_id", "BIGINT"),
     # Prozess am Artikel ODER am Auftrag (kein Prozess-Objekt mehr)
     ("article_process_steps", "order_id", "BIGINT"),
     ("instances", "subject_of_order_id", "BIGINT"),
@@ -675,6 +679,7 @@ app.include_router(article_process.router)
 app.include_router(orders.router)
 app.include_router(instances.router)
 app.include_router(object_refs.router)
+app.include_router(storage_locations.router)
 app.include_router(sales.router)
 app.include_router(shop.router)
 app.include_router(events.router)

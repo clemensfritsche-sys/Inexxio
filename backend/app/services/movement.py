@@ -14,7 +14,7 @@ from ..models import Movement, Order
 from . import location_split, process
 from .admin import log_audit
 from .events import emit
-from .locations import place_label, validate_location
+from .locations import validate_location
 from .quantity import to_qty
 from .reservation import reserved_for
 from .subject import is_fixed_subject, order_active_instances
@@ -83,8 +83,7 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
             raise HTTPException(
                 400, detail="Der Kunde dieses Verkaufs ist noch nicht gesetzt – bitte zuerst den Verkauf bestätigen")
         targets = [type("T", (), {"instance_id": i.object_id, "location_type": "user",
-                                  "location_id": cust.object_id, "place": None})()
-                   for i in instances]
+                                  "location_id": cust.object_id})() for i in instances]
 
     # **Teilmengen-Bewegung ist auftragsgetrieben** (kein Ad-hoc an der Instanz): der Auftrag
     # legt fest, WIE VIEL einer Charge bewegt wird. Ein Bestands-Auftrag über z. B. 10 Stück
@@ -102,24 +101,19 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
             raise HTTPException(400, detail=f"Instanz {t.instance_id} gehört nicht zu diesem Auftrag")
         if t.location_type == "instance" and t.location_id == inst.object_id:
             raise HTTPException(400, detail="Eine Instanz kann nicht in sich selbst liegen")
-        # Der Ort kommt als Pydantic-Modell (schemas/place.Place) bzw. bereits als dict.
-        t_place = t.place.as_dict() if hasattr(t.place, "as_dict") else (t.place or None)
-        validate_location(db, t.location_type, t.location_id, t_place)
-        target_desc = f"{t.location_type}:{t.location_id or place_label(t_place) or '?'}"
+        validate_location(db, t.location_type, t.location_id)
         share = reserved_for(inst, order.id) if partial_ok else to_qty(0)
         if to_qty(0) < share < to_qty(inst.quantity):
-            # Nur die vom Auftrag beanspruchte Teilmenge der Charge verlagern. Auf einen
-            # **Ort** ist das bewusst nicht möglich (er hält immer die ganze Menge) –
-            # ``location_split.move`` weist das mit einer klaren Meldung ab.
-            log_audit(db, "instances", "location", target_desc,
+            # Nur die vom Auftrag beanspruchte Teilmenge der Charge verlagern.
+            log_audit(db, "instances", "location", f"{t.location_type}:{t.location_id}",
                       actor_id, object_id=inst.object_id,
                       old_value=f"{share} Stk aus {inst.location_type}:{inst.location_id}")
             location_split.move(inst, t.location_type, t.location_id, share)
-        elif not location_split.is_at(inst, t.location_type, t.location_id, t_place):
-            log_audit(db, "instances", "location", target_desc,
+        elif (inst.location_type, inst.location_id) != (t.location_type, t.location_id) or inst.locations:
+            log_audit(db, "instances", "location", f"{t.location_type}:{t.location_id}",
                       actor_id, object_id=inst.object_id,
                       old_value=f"{inst.location_type}:{inst.location_id}")
-            location_split.set_target(inst, t.location_type, t.location_id, t_place)
+            location_split.set_single(inst, t.location_type, t.location_id)
 
     mv = process.fact_for_step(db, order, step)
     if not mv:

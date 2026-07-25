@@ -5,16 +5,11 @@ einer Instanz ist physisch (Etikett/QR an den Teilen) und darf sich **nie** änd
 Charge wird **nie** in eine zweite Instanz mit eigener Nummer aufgeteilt. Statt zu teilen,
 merkt sich die **eine** Instanz eine **Standort→Menge-Map** (``instances.locations``):
 
-    locations = {"100000123": {"t": "instance", "q": "300"},   # Behälter «Band A»
-                 "100000124": {"t": "instance", "q": "700"}}    # Behälter «Band B»  (Σ = quantity)
+    locations = {"100000123": {"t": "lagerplatz", "q": "300"},   # Band A
+                 "100000124": {"t": "lagerplatz", "q": "700"}}    # Band B   (Summe = quantity)
 
 Geschlüsselt nach **Objektnummer** des Ziels (global eindeutig → «wer liegt hier?» per
-``locations ? '<objektnr>'``). **Verteilbar sind darum nur Halter MIT Objektnummer**
-(Instanz/Person/Unternehmen); ein ``place`` (reine Adresse) hält per Definition die ganze
-(Rest-)Menge. Das ist keine Einschränkung, sondern die ehrliche Abbildung: eine Adresse
-kann zwei Plätze am selben Standort gar nicht unterscheiden – wer innerhalb eines
-Standorts verteilen will, nutzt **Behälter-Instanzen** (die tragen eine Nummer und ein
-Etikett). Ist die Charge an EINEM Ort (Normalfall) → Map ``None``,
+``locations ? '<objektnr>'``). Ist die Charge an EINEM Ort (Normalfall) → Map ``None``,
 der Skalar ``location_type/location_id`` ist die Wahrheit. Verteilt → die Map ist die
 Wahrheit, der Skalar spiegelt die **grösste** Teilmenge (denormalisiert, wie
 ``reserved_for_order_id`` die Einzel-Reservierung spiegelt).
@@ -24,7 +19,6 @@ und ausschliesslich über ``services/quantity.py`` gerechnet. Dies ist die EINE 
 für die Verteilung.
 """
 
-import re
 from decimal import Decimal
 
 from fastapi import HTTPException
@@ -48,15 +42,11 @@ def _load_map(inst: Instance) -> dict[int, Slice]:
 
 
 def _seed_from_scalar(inst: Instance) -> dict[int, Slice]:
-    """Arbeitsverteilung: die Map, sonst die ganze Menge am skalaren Standort.
-
-    Ein **Ort** (``location_type='place'``) hat keine Objektnummer und kann daher nicht
-    Schlüssel der Verteilung sein – er hält per Definition die ganze (Rest-)Menge und
-    ergibt hier eine leere Verteilung."""
+    """Arbeitsverteilung: die Map, sonst die ganze Menge am skalaren Standort."""
     m = _load_map(inst)
     if m:
         return _trim(m, to_qty(inst.quantity))
-    if inst.location_id is not None and inst.location_type and inst.location_type != "place":
+    if inst.location_id is not None and inst.location_type:
         return {int(inst.location_id): (inst.location_type, to_qty(inst.quantity))}
     return {}
 
@@ -100,11 +90,8 @@ def _write(inst: Instance, m: dict[int, Slice]) -> None:
 
 def distribution(inst: Instance) -> list[dict]:
     """Effektive Standort-Verteilung (auf ``quantity`` abgeglichen) als Liste –
-    ``[{location_type, location_id, quantity}]``. Bei EINEM Standort ein Eintrag; ohne
+    ``[{location_type, location_id, quantity}]``. Bei EINEM Ort ein Eintrag; ohne
     Standort leer. Reine Ableitung (schreibt nicht)."""
-    if inst.location_type == "place":
-        # Ein Ort hält immer die ganze Menge (keine Objektnummer → nicht verteilbar).
-        return [{"location_type": "place", "location_id": None, "quantity": float(to_qty(inst.quantity))}]
     m = _seed_from_scalar(inst)
     return [
         {"location_type": t, "location_id": oid, "quantity": float(q)}
@@ -121,54 +108,12 @@ def reconcile(inst: Instance) -> None:
 
 
 def set_single(inst: Instance, location_type: str, location_id: int) -> None:
-    """Ganze Instanz an EINEN objektbasierten Standort – Map löschen, Skalar setzen. Für die
+    """Ganze Instanz an EINEN Standort – Map löschen, Skalar setzen. Für die
     (ganzheitliche) Bewegungs-Schritt-Einlagerung, damit eine vorher verteilte Charge
     wieder konsistent an einem Ort steht."""
     inst.location_type = location_type
     inst.location_id = int(location_id)
-    inst.place = None
     inst.locations = None
-
-
-def set_place(inst: Instance, place: dict) -> None:
-    """Ganze Instanz an einen **Ort** (Adresse/GPS, keine Objektnummer). Ein Ort hält immer
-    die ganze (Rest-)Menge – eine bestehende Verteilung wird dabei zusammengeführt."""
-    inst.location_type = "place"
-    inst.location_id = None
-    inst.place = place
-    inst.locations = None
-
-
-def place_key(place: dict | None) -> tuple:
-    """Vergleichsschlüssel eines Orts (normalisiert) – zwei Orte gelten als derselbe,
-    wenn Bezeichnung + Adresse übereinstimmen. Ein Ort hat keine Objektnummer, darum
-    ist DAS seine Identität."""
-    p = place or {}
-    def n(v) -> str:
-        return re.sub(r"[^a-z0-9]", "", str(v or "").lower())
-    return (n(p.get("name")), n(p.get("street1")), n(p.get("zip")),
-            n(p.get("city")), n(p.get("country")))
-
-
-def is_at(inst: Instance, ltype: str | None, lid: int | None, place: dict | None = None) -> bool:
-    """Liegt die Instanz **ausschliesslich** an genau diesem Standort? (Ist↔Soll-Vergleich –
-    berücksichtigt den Ort, dessen Identität die Adresse ist, nicht eine Nummer.)"""
-    if inst.locations:
-        return False          # verteilt → nie «vollständig am Ziel»
-    if inst.location_type != ltype:
-        return False
-    if ltype == "place":
-        return place_key(inst.place) == place_key(place)
-    return inst.location_id == lid
-
-
-def set_target(inst: Instance, ltype: str, lid: int | None, place: dict | None = None) -> None:
-    """Die GANZE Instanz an einen Standort setzen – die EINE Stelle, die zwischen
-    objektbasiertem Halter und Ort unterscheidet."""
-    if ltype == "place":
-        set_place(inst, place or {})
-    else:
-        set_single(inst, ltype, int(lid))
 
 
 def clear(inst: Instance) -> None:
@@ -187,16 +132,6 @@ def move(inst: Instance, to_type: str, to_id: int, qty, from_id: int | None = No
     Ein Bewegen = ein Task (Variante b): der Rest bleibt, wo er war. Quelle = ``from_id``
     (falls angegeben), sonst die grösste Teilmenge ≠ Ziel. Die Objektnummer bleibt IMMER;
     es entsteht KEINE neue Instanz. Wirft bei ungültiger Menge/Quelle (HTTP 400/409)."""
-    if to_type == "place":
-        # Ein Ort trägt keine Objektnummer und kann darum nicht Schlüssel der Verteilung
-        # sein. Fachlich ist das auch richtig: eine Adresse unterscheidet zwei Plätze am
-        # selben Standort nicht («Band A» und «Wareneingang» haben dieselbe Anschrift).
-        # Wer eine Teilmenge getrennt führen will, bewegt sie auf eine Behälter-Instanz.
-        raise HTTPException(
-            400,
-            detail="Eine Teilmenge lässt sich nicht auf einen Ort verlagern – ein Ort hält "
-                   "immer die ganze Menge. Für Teilmengen eine Behälter-Instanz als Ziel wählen.",
-        )
     q = to_qty(qty)
     if q <= 0:
         raise HTTPException(400, detail="Zu verlagernde Menge muss grösser als 0 sein.")

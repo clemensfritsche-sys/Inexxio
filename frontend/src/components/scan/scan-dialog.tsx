@@ -16,6 +16,7 @@ const THROTTLE_MS = 1200;
 
 // Symbol + Bezeichnung je erwartetem Objekttyp («was scanne ich jetzt?»).
 const KIND_META: Record<ScanKind, { icon: React.ElementType; label: string }> = {
+  lagerplatz: { icon: Warehouse, label: 'Lagerplatz' },
   user:       { icon: UserIcon,  label: 'Person' },
   instance:   { icon: Boxes,     label: 'Instanz' },
   article:    { icon: Package,   label: 'Artikel' },

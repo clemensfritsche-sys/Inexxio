@@ -29,7 +29,7 @@ from . import location_split, process, provisioning
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
-from .locations import _obj_nr, resolve_physical_location, resolve_physical_place
+from .locations import _obj_nr, resolve_physical_location
 from .quantity import ZERO, qty_sum, to_qty
 from .reservation import consume as consume_qty, free_qty, release, reserve
 from .subject import order_active_instances
@@ -133,9 +133,8 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
     """Komponente in die Produkt-Instanz einbauen (Lagerabgang + Verbrauch)."""
     log_audit(db, "instances", "location", f"instance:{product.object_id}", actor_id,
               object_id=inst.object_id, old_value=f"{inst.location_type}:{inst.location_id}")
-    # Über die EINE Schreibstelle setzen – so werden ein alter Ort (``place``) und eine
-    # bestehende Verteilung (``locations``) mit zurückgesetzt statt stehen zu bleiben.
-    location_split.set_single(inst, "instance", product.object_id)
+    inst.location_type = "instance"
+    inst.location_id = product.object_id
     inst.disposition = "consumed"   # Verbleib: verbaut (Qualität bleibt unverändert)
 
 
@@ -208,16 +207,11 @@ def _use_tool(db: Session, tool: Instance, product: Instance, actor_id: int) -> 
     Arbeitsort des Produkts – so ist nach dem Schritt sofort ersichtlich, wo das
     Werkzeug/die Maschine zuletzt im Einsatz war. Bereitstellungsort «Arbeitsplatz»:
     der EINE Reconciler bringt es dorthin – **no-op, wenn schon da** (der häufige Fall)."""
-    if product.location_type == "place":
-        pt, pid, pplace = "place", None, product.place
-    else:
-        pt, pid = resolve_physical_location(db, product.location_type, product.location_id)
-        pplace = resolve_physical_place(db, product.location_type, product.location_id) \
-            if pt == "place" else None
-    if (pt and pid) or (pt == "place" and pplace):
+    pt, pid = resolve_physical_location(db, product.location_type, product.location_id)
+    if pt and pid:
         old = f"{tool.location_type}:{tool.location_id}"
-        if provisioning.reconcile_to(tool, pt, pid, pplace):
-            log_audit(db, "instances", "location", f"{pt}:{pid or ''}", actor_id,
+        if provisioning.reconcile_to(tool, pt, pid):
+            log_audit(db, "instances", "location", f"{pt}:{pid}", actor_id,
                       object_id=tool.object_id, old_value=old)
 
 

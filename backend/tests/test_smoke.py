@@ -4,7 +4,7 @@ import pytest
 from app.core.config import get_settings
 from app.routers import (
     admin, article_process, articles, auth, contact, erp, health,
-    orders,
+    orders, storage_locations,
 )
 
 
@@ -18,6 +18,7 @@ def test_routers_importable():
     assert hasattr(articles, "router")
     assert hasattr(article_process, "router")
     assert hasattr(orders, "router")
+    assert hasattr(storage_locations, "router")
     assert hasattr(auth, "router")
     assert hasattr(contact, "router")
     assert hasattr(erp, "router")
@@ -28,7 +29,7 @@ def test_models_exposed_from_package():
     """Models are re-exported from the package regardless of their file."""
     from app.models import (
         Article, ArticleProcessStep, AuditLog, CompanySettings,
-        Order, PurchaseOrder, UserProfile,
+        Order, PurchaseOrder, StorageLocation, UserProfile,
     )
 
     assert UserProfile.__tablename__ == "user_profiles"
@@ -36,6 +37,7 @@ def test_models_exposed_from_package():
     assert ArticleProcessStep.__tablename__ == "article_process_steps"
     assert Order.__tablename__ == "orders"
     assert PurchaseOrder.__tablename__ == "purchase_orders"
+    assert StorageLocation.__tablename__ == "storage_locations"
     assert AuditLog.__tablename__ == "audit_log"
     assert CompanySettings.__tablename__ == "company_settings"
     # Das nie verdrahtete Notification-Modell ist entfernt (Cleanup 2026-07).
@@ -93,6 +95,7 @@ def test_object_id_allocator_shared_across_types():
     assert objects.UserProfile.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Article.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Order.object_id in objects._OBJECT_ID_COLUMNS
+    assert objects.StorageLocation.object_id in objects._OBJECT_ID_COLUMNS
     assert objects.Instance.object_id in objects._OBJECT_ID_COLUMNS
     # Bestellungen laufen unter der Auftragsnummer → KEINE eigene Objektnummer
     assert not hasattr(objects, "PurchaseOrder")
@@ -284,17 +287,9 @@ def test_movement_step_target_config():
     assert free.target_location_type is None and free.target_location_id is None
 
     # Festes Ziel
-    fixed = ArticleProcessStepCreate(step_type="movement", target_location_type="instance", target_location_id=100_000_500)
-    assert fixed.target_location_type == "instance"
+    fixed = ArticleProcessStepCreate(step_type="movement", target_location_type="lagerplatz", target_location_id=100_000_500)
+    assert fixed.target_location_type == "lagerplatz"
     assert fixed.target_location_id == 100_000_500
-
-    # Vorgabe-**Ort**: Adresse statt Objektnummer (der Ort trägt keine Nummer)
-    at_place = ArticleProcessStepCreate(
-        step_type="movement", target_location_type="place",
-        target_place={"name": "Aussenlager", "zip": "8000", "city": "Zürich"})
-    assert at_place.target_location_id is None and at_place.target_place.city == "Zürich"
-    with pytest.raises(ValueError):      # Ort ohne Adresse ist bedeutungslos
-        ArticleProcessStepCreate(step_type="movement", target_location_type="place")
 
     # Zielobjekt ohne Typ → wird verworfen
     dangling = ArticleProcessStepCreate(step_type="movement", target_location_id=100_000_500)
@@ -305,31 +300,16 @@ def test_movement_step_target_config():
 
 
 def test_movement_target_validates_location_type():
-    """Ein Standort ist ein **Halter**: place | user | instance | company.
-
-    Ein Ort (`place`) wird über seine **Adresse** adressiert (keine Objektnummer), alle
-    anderen über die Objektnummer – genau EINE der beiden Angaben ist gültig."""
+    """Ein Zielstandort muss lagerplatz | user | instance sein."""
     import pytest
 
     from app.schemas.movement import LOCATION_TYPES, MovementTarget
 
-    assert set(LOCATION_TYPES) == {"place", "user", "instance", "company"}
-    ok = MovementTarget(instance_id=100_000_010, location_type="instance", location_id=100_000_002)
-    assert ok.location_type == "instance" and ok.place is None
-    # Unternehmen ist jetzt ein gültiges Bewegungsziel (früher nur Start-Standort)
-    assert MovementTarget(instance_id=1, location_type="company", location_id=100_000_003).location_id
-
-    # Ort: Adresse statt Nummer
-    at_place = MovementTarget(instance_id=1, location_type="place",
-                              place={"street1": "Musterstrasse 1", "zip": "8000", "city": "Zürich"})
-    assert at_place.location_id is None and at_place.place.city == "Zürich"
-
+    assert set(LOCATION_TYPES) == {"lagerplatz", "user", "instance"}
+    ok = MovementTarget(instance_id=100_000_010, location_type="lagerplatz", location_id=100_000_002)
+    assert ok.location_type == "lagerplatz"
     with pytest.raises(ValueError):
         MovementTarget(instance_id=1, location_type="strasse", location_id=2)
-    with pytest.raises(ValueError):      # Ort ohne Adresse
-        MovementTarget(instance_id=1, location_type="place")
-    with pytest.raises(ValueError):      # objektbasiertes Ziel ohne Nummer
-        MovementTarget(instance_id=1, location_type="instance")
 
 
 def test_movement_in_process_engine():
@@ -395,6 +375,15 @@ def test_article_name_similarity_recognizes_shared_stem():
     # Unverwandte Namen bleiben unter der Schwelle (kein Rausch-Vorschlag).
     assert _similarity("Welle", "Dichtung") < _MIN_SCORE
     assert _similarity("Bolzen", "Schraubendreher") < _MIN_SCORE
+
+
+def test_storage_location_has_note():
+    """Lagerplatz trägt eine optionale Bemerkung (Spalte bleibt, UI entfernt)."""
+    from app.models import StorageLocation
+    from app.schemas.storage_location import StorageLocationCreate
+
+    assert hasattr(StorageLocation, "note")
+    assert "note" in StorageLocationCreate.model_fields
 
 
 def test_order_step_info_carries_completion():
@@ -486,24 +475,20 @@ def test_inspection_model_and_embed_have_escalated():
     assert "escalated" in InspectionEmbed.model_fields
 
 
-def test_purchase_receiving_address_is_the_company():
-    """Lieferadresse/Wareneingang = **Firmenadresse** (kein Lagerplatz-Zeiger mehr).
-
-    Die Alt-Spalten ``purchase_orders.receiving_location_id`` und
-    ``company_settings.default_receiving_location_id`` sind entfallen; wohin die Ware im
-    Haus geht, setzt danach die gesperrte Pflicht-Bewegung «Wareneingang»."""
-    import inspect as _inspect
-
-    from app.models import CompanySettings, PurchaseOrder
+def test_purchase_step_defines_receiving_location():
+    """Lieferadresse/Wareneingang wird im Beschaffungsschritt geführt (PO + Embed)."""
+    from app.models import PurchaseOrder
     from app.schemas.purchase_order import PurchaseEmbed
-    from app.services import orders as orders_svc
 
-    assert not hasattr(PurchaseOrder, "receiving_location_id")
-    assert not hasattr(CompanySettings, "default_receiving_location_id")
-    # Das Label kommt aus den Firmen-Stammdaten, nicht mehr aus einem Standort-Datensatz.
-    src = _inspect.getsource(orders_svc._receiving_label)
-    assert "company_name" in src and "lagerplatz" not in src
-    assert "receiving_location_label" in PurchaseEmbed.model_fields
+    assert hasattr(PurchaseOrder, "receiving_location_id")
+    assert "receiving_location_id" in PurchaseEmbed.model_fields
+
+
+def test_storage_location_references_callable():
+    """Lagerplatz hat einen Verwendungsnachweis (lagernde Instanzen + Artikel-Referenzen)."""
+    from app.services import references
+
+    assert callable(references.storage_location_references)
 
 
 def test_resource_line_schema_validates():
@@ -959,7 +944,7 @@ def test_object_registry_wired():
     # Das Prozessschritt-Dokument trägt KEINE eigene Nummer (Nummer = Instanz); ein
     # hochgeladenes Dokument (``DocumentFile``, Typ ``document``) hingegen schon.
     assert set(objects._TYPE_MODELS) == {
-        "user", "article", "order", "instance", "organization", "document"}
+        "user", "article", "order", "instance", "storage_location", "organization", "document"}
     assert callable(objects.resolve_object_type) and callable(objects.backfill_registry)
 
 
@@ -985,16 +970,16 @@ def test_deactivation_replace_wired():
     import pytest as _pytest
     from app.services import deactivation
     from app.schemas.deactivation import DeactivateRequest
-    from app.models import Article, Order
+    from app.models import Article, Order, StorageLocation
 
     for f in ("consume_parents", "article_impact", "deactivate_article",
-              "cancel_order_effects",
-              "duplicate_article", "duplicate_order"):
+              "cancel_order_effects", "storage_location_in_use",
+              "duplicate_article", "duplicate_order", "duplicate_storage_location"):
         assert hasattr(deactivation, f)
     # Reaktivieren von Artikeln ist entfallen (inaktiv ist endgültig).
     assert not hasattr(deactivation, "article_reactivation_blocker")
     # replaced_by_id auf allen drei Datensatztypen
-    for m in (Article, Order):
+    for m in (Article, Order, StorageLocation):
         assert hasattr(m, "replaced_by_id")
     # orders_mode-Validierung
     assert DeactivateRequest().orders_mode == "phase_out"
@@ -2194,7 +2179,7 @@ def test_credit_mode_derived_from_subject_with_stripe_refund():
 def test_disposition_flips_at_step_completion():
     """Der Label-Wechsel passiert, wann er wirklich geschieht (step-basiert, idempotent):
     - Verkauf **bezahlt** → in_stock→sold (``sell_order_subjects``, aufgerufen bei sale-paid).
-    - Retoure-**Bewegung** an einen eigenen Halter → sold→in_stock (``return_subjects_to_stock``,
+    - Retoure-**Bewegung** an einen Lagerplatz → sold→in_stock (``return_subjects_to_stock``,
       aufgerufen in ``movement.record_movement``); Kulanz (nicht bewegt) bleibt sold.
     Eine Gutschrift (kind='credit') bucht KEINEN Verkaufs-Abgang."""
     import inspect as _inspect
@@ -2203,7 +2188,7 @@ def test_disposition_flips_at_step_completion():
     sell = _inspect.getsource(process.sell_order_subjects)
     assert "is_return(order)" in sell and 'inst.disposition = "sold"' in sell
     ret = _inspect.getsource(process.return_subjects_to_stock)
-    assert 'inst.disposition = "in_stock"' in ret and 'location_kind(db, inst.location_type' in ret
+    assert 'inst.disposition = "in_stock"' in ret and 'inst.location_type != "lagerplatz"' in ret
     # sale-paid ruft sell_order_subjects (nur kind='sale'):
     trans = _inspect.getsource(sale_svc._apply_transition)
     assert "sell_order_subjects" in trans and 'not is_credit' in trans
@@ -2442,24 +2427,15 @@ def test_provisioning_reconciler_is_noop_when_already_there():
 
     from app.services import provisioning
 
-    inst = _types.SimpleNamespace(location_type="instance", location_id=100000010,
-                                  locations=None, place=None)
-    assert provisioning.reconcile_to(inst, "instance", 100000010) is False   # schon da → no-op
-    assert provisioning.reconcile_to(inst, "instance", 100000020) is True     # woanders → bewegt
-    assert (inst.location_type, inst.location_id) == ("instance", 100000020)
+    inst = _types.SimpleNamespace(location_type="lagerplatz", location_id=100000010, locations=None)
+    assert provisioning.reconcile_to(inst, "lagerplatz", 100000010) is False   # schon da → no-op
+    assert provisioning.reconcile_to(inst, "lagerplatz", 100000020) is True     # woanders → bewegt
+    assert (inst.location_type, inst.location_id) == ("lagerplatz", 100000020)
     # Verteilte Charge (Map gesetzt) am selben Skalar-Ort ist NICHT no-op (Zusammenführung nötig).
-    inst2 = _types.SimpleNamespace(location_type="instance", location_id=100000030, place=None,
-                                   locations={"100000030": {"t": "instance", "q": "5"},
-                                              "100000031": {"t": "instance", "q": "5"}})
-    assert provisioning.reconcile_to(inst2, "instance", 100000030) is True
-
-    # **Ort**: Identität ist die Adresse, nicht eine Objektnummer → no-op bei gleicher Adresse.
-    zurich = {"name": "Aussenlager", "zip": "8000", "city": "Zürich"}
-    inst3 = _types.SimpleNamespace(location_type="place", location_id=None,
-                                   locations=None, place=dict(zurich))
-    assert provisioning.reconcile_to(inst3, "place", None, dict(zurich)) is False
-    assert provisioning.reconcile_to(inst3, "place", None, {"city": "Bern", "zip": "3000"}) is True
-    assert inst3.place["city"] == "Bern" and inst3.location_id is None
+    inst2 = _types.SimpleNamespace(location_type="lagerplatz", location_id=100000030,
+                                   locations={"100000030": {"t": "lagerplatz", "q": "5"},
+                                              "100000031": {"t": "lagerplatz", "q": "5"}})
+    assert provisioning.reconcile_to(inst2, "lagerplatz", 100000030) is True
     assert inst2.locations is None                                            # zusammengeführt
 
 

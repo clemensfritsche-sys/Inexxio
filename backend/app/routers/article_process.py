@@ -228,7 +228,6 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
         photo_instruction=((data.photo_instruction or "").strip() or None) if data.step_type == "inspection" else None,
         target_location_type=data.target_location_type if keeps_target else None,
         target_location_id=data.target_location_id if keeps_target else None,
-        target_place=(data.target_place.as_dict() if data.target_place else None) if keeps_target else None,
         transport_mode=(data.transport_mode or "auto") if data.step_type == "movement" else "auto",
         resource_lines=resource_raw,
         doc_signers=normalize_doc_signers(data.doc_signers) if is_document else None,
@@ -276,17 +275,13 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
     if step.locked:
         if step.target_location_type == "user":
             raise HTTPException(400, detail="Versand zum Lieferanten ist fix – nicht editierbar")
-        if set(payload) - {"target_location_type", "target_location_id", "target_place"}:
+        if set(payload) - {"target_location_type", "target_location_id"}:
             raise HTTPException(400, detail="Bei dieser Pflicht-Bewegung ist nur das Ziel editierbar")
         ttype = payload.get("target_location_type")
-        # Der Wareneingang darf an jeden **eigenen** Halter gehen (Ort/Behälter/Unternehmen) –
-        # nur an eine Person nicht (das wäre ein Versand, kein Wareneingang).
-        if ttype not in (None, "place", "instance", "company"):
-            raise HTTPException(
-                400, detail="Wareneingang-Ziel muss ein Ort, ein Behälter oder das Unternehmen sein")
+        if ttype not in (None, "lagerplatz"):
+            raise HTTPException(400, detail="Wareneingang-Ziel muss ein Lagerplatz sein")
         step.target_location_type = ttype
         step.target_location_id = payload.get("target_location_id") if ttype else None
-        step.target_place = payload.get("target_place") if ttype == "place" else None
         db.commit()
         db.refresh(step)
         return _to_response(db, step)
