@@ -33,6 +33,7 @@ from ...domain import event_types
 from ...models import (
     Article, ArticleProcessStep, Event, Instance, Order, StorageLocation, UserProfile,
 )
+from .. import address
 from ..admin import log_audit
 from ..events import emit
 from ..inventory import in_stock_clauses
@@ -558,7 +559,7 @@ def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
     s = get_or_create_settings(db)
     return {
         "object_id": _num(s.object_id), "company_name": s.company_name, "legal_form": s.legal_form,
-        "address": " ".join(x for x in [s.street, s.street_nr, s.zip_code, s.city, s.country] if x),
+        "address": address.one_line(address.of_company(s)),
         "uid_number": s.uid_number, "vat_number": s.vat_number,
         "email": s.email, "phone": s.phone, "website": s.website,
         "vat_method": s.vat_method, "vat_period": s.vat_period,

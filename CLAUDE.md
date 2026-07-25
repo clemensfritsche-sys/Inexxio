@@ -372,6 +372,29 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
   **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
   Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
+- **Adressen: EINE Darstellung** (`services/address.py`): Person, Unternehmen und Lagerplatz
+  tragen historisch **verschiedene Spaltennamen** (`address_line1`/`postal_code` an der Person
+  vs. `street`+`street_nr`/`zip_code` am Unternehmen). Dieses Modul ist die eine Stelle, die
+  das übersetzt – kanonische Form `{name,street1,street2,zip,city,state,country,email,phone}`
+  (identisch mit dem Versand-Adress-Snapshot). `of_user(u, ship|invoice|home)` kapselt den
+  **Rückfall auf die Wohnadresse** (stand vorher an jeder Aufrufstelle einzeln ausgeschrieben),
+  `of_company`/`of_storage` die jeweilige Herkunft; dazu `one_line` (Anzeige), `lines`
+  (Briefkopf/Etikett), `same` (normalisierter Ortsvergleich) und `iso2`. Es delegieren:
+  `logistics` (`_addr_user`/`_addr_company`/`_addr_storage`/`same_place`/`iso2`),
+  `document_render` (Briefkopf), `payments/stripe_provider` (Liefer-/Rechnungsadresse; die
+  Stripe-Feldnamen bleiben, nur die Fallback-Logik ist zentral) und `ai/tools` (Firmen-Info).
+- **Standort-Kette «wo genau?»** (`locations.location_chain`, `InstanceResponse.location_path`):
+  liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Lagerplatz → **Anschrift**
+  (`location_type='address'`, ohne Objektnummer). Zyklensicher, auf 10 Stationen begrenzt, und
+  bewusst **nur im Instanz-Detail** gefüllt (ein Datensatz, ≤10 Auflösungen) – Feeds bleiben bei
+  den Batch-Labels. Frontend: `components/erp/location-path.tsx` rendert sie als eingerückte
+  Kette im bestehenden Karten-Design (Stationen klickbar, die Anschrift nicht – sie ist kein
+  Datensatz); erscheint erst ab echter Verschachtelung, sonst genügt die Standort-Kachel.
+- **Verbauen setzt den Standort über die EINE Schreibstelle** (`resource._relocate` →
+  `location_split.set_single`): eine Komponente wandert beim Einbau auf die Produkt-Instanz
+  (und damit über die Kette physisch mit ihr mit). Vorher wurde `location_type`/`location_id`
+  direkt zugewiesen – eine zuvor auf mehrere Standorte **verteilte Charge behielt dabei ihre
+  veraltete `locations`-Map** und galt gleichzeitig als verbaut UND anteilig woanders liegend.
 - **Generischer Rückverweis «wer zeigt auf mich» je Objektnummer** (`services/references.object_references`,
   `GET /erp/objects/{id}/references`): was aktuell an einer Objektnummer **verortet** ist (`instances.
   location_id == id`, ohne Typ-Filter – Objektnummern sind global eindeutig) + referenzierende

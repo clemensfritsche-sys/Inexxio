@@ -144,6 +144,79 @@ def validate_location(db: Session, ltype: str, lid: int) -> None:
         raise HTTPException(400, detail="Zielstandort nicht gefunden")
 
 
+def location_chain(db: Session, ltype: str | None, lid: int | None,
+                   max_depth: int = 10) -> list[dict]:
+    """Die **volle Standort-Kette** von innen nach aussen – die Antwort auf «wo genau?».
+
+    Beispiel für eine Schraube in einem Behälter in einer Halle::
+
+        [{instance  100000007 · Behälter},
+         {lagerplatz 100000003 · Halle Nord},
+         {address    —         · Musterstrasse 1, 8000 Zürich}]
+
+    Jeder Eintrag: ``{location_type, location_id, label, address}``. Die Kette folgt
+    ``instance``→``instance``-Verschachtelungen bis zu einem physischen Halter und hängt –
+    falls dieser eine Adresse trägt (Lagerplatz, Person, Unternehmen) – einen abschliessenden
+    ``address``-Eintrag an. Sie endet ausserdem bei einem Zyklus oder ``max_depth``.
+
+    Bewusst nur für **Detail**-Ansichten gedacht (ein Datensatz, ≤ 10 Auflösungen); Feeds
+    nutzen weiterhin die Batch-Labels."""
+    from . import address as addr_mod
+
+    out: list[dict] = []
+    seen: set[tuple[str, int]] = set()
+    cur_type, cur_id = ltype, lid
+
+    while cur_type and cur_id is not None and len(out) < max_depth:
+        if (cur_type, cur_id) in seen:
+            break                        # Zyklus-Schutz (A liegt in B, B liegt in A)
+        seen.add((cur_type, cur_id))
+        out.append({
+            "location_type": cur_type,
+            "location_id": cur_id,
+            "label": location_label(db, cur_type, cur_id),
+            "address": None,
+        })
+        if cur_type != "instance":
+            break                        # physischer Halter erreicht
+        host = (
+            db.query(Instance)
+            .filter(Instance.object_id == cur_id, Instance.is_active == True)
+            .first()
+        )
+        if not host:
+            break
+        cur_type, cur_id = host.location_type, host.location_id
+
+    # Abschluss: die Adresse des äussersten Halters (das geografische «Blatt»).
+    if out:
+        last = out[-1]
+        a = _holder_address(db, last["location_type"], last["location_id"])
+        line = addr_mod.one_line(a) if a else None
+        if line and addr_mod.has_content(a):
+            out.append({"location_type": "address", "location_id": None,
+                        "label": line, "address": a})
+    return out
+
+
+def _holder_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:
+    """Adresse eines Halters (Lagerplatz/Person/Unternehmen) in kanonischer Form."""
+    from . import address as addr_mod
+    from ..models import CompanySettings as _CS, StorageLocation as _SL
+    if not ltype or lid is None:
+        return None
+    if ltype == "lagerplatz":
+        loc = db.query(_SL).filter(_SL.object_id == lid).first()
+        return addr_mod.of_storage(loc) if loc else None
+    if ltype == "user":
+        u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
+        return addr_mod.of_user(u, "ship") if u else None
+    if ltype == "company":
+        c = db.query(_CS).filter(_CS.object_id == lid).first()
+        return addr_mod.of_company(c) if c else None
+    return None
+
+
 def resolve_physical_location(
     db: Session, ltype: str | None, lid: int | None, _depth: int = 0
 ) -> tuple[str | None, int | None]:

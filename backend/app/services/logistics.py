@@ -36,7 +36,7 @@ from ..models import (
     StorageLocation, UserProfile,
 )
 from ..schemas.shipment import ShipmentEmbed, ShipmentRate
-from . import shipping
+from . import address, shipping
 from .admin import log_audit
 from .events import emit
 from .locations import resolve_physical_location
@@ -57,30 +57,9 @@ PALLET_LOADING_METERS = 0.4   # Lademeter je EUR-Palette (2 nebeneinander = 1 LM
 # Rollen, die zum Betrieb gehören (Ziel «Person» ist dann ein interner Handover).
 _INTERNAL_ROLES = ("employee", "admin", "ai")
 
-# Länder-Namen → ISO-2 (tolerant; Carrier-APIs verlangen ISO-Codes).
-_COUNTRY_ISO2 = {
-    "schweiz": "CH", "switzerland": "CH", "suisse": "CH", "ch": "CH",
-    "deutschland": "DE", "germany": "DE", "de": "DE",
-    "österreich": "AT", "oesterreich": "AT", "austria": "AT", "at": "AT",
-    "frankreich": "FR", "france": "FR", "fr": "FR",
-    "italien": "IT", "italy": "IT", "it": "IT",
-    "liechtenstein": "LI", "li": "LI",
-    "usa": "US", "vereinigte staaten": "US", "united states": "US", "us": "US",
-    "grossbritannien": "GB", "united kingdom": "GB", "uk": "GB", "gb": "GB",
-    "niederlande": "NL", "netherlands": "NL", "nl": "NL",
-    "belgien": "BE", "belgium": "BE", "be": "BE",
-    "spanien": "ES", "spain": "ES", "es": "ES",
-}
-
-
-def iso2(country: str | None) -> str:
-    """Ländername → ISO-2 (tolerant); Default CH (Sitz des Unternehmens)."""
-    c = (country or "").strip().lower()
-    if not c:
-        return "CH"
-    if c in _COUNTRY_ISO2:
-        return _COUNTRY_ISO2[c]
-    return c.upper() if len(c) == 2 else "CH"
+# Länder-Normalisierung lebt in ``services/address.py`` (eine Wahrheit für alle
+# Adress-Verwender); hier als Alias, damit bestehende Aufrufer unverändert bleiben.
+iso2 = address.iso2
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -97,25 +76,14 @@ def _settings(db: Session) -> CompanySettings | None:
     return db.query(CompanySettings).filter(CompanySettings.id == 1).first()
 
 
-def _norm(v) -> str:
-    """Adress-Bestandteil normalisieren (Klein, ohne Sonderzeichen) für den Vergleich."""
-    return re.sub(r"[^a-z0-9]", "", str(v or "").lower())
-
-
 def _has_address(a: dict | None) -> bool:
     """Trägt der Adress-Snapshot echte Angaben (PLZ oder Ort)? «—»/leer zählt nicht."""
-    if not a:
-        return False
-    return bool((a.get("zip") or "").strip() or (a.get("city") or "").strip())
+    return address.has_content(a)
 
 
 def same_place(a: dict | None, b: dict | None) -> bool:
     """Zwei Adress-Snapshots als **gleicher Ort** werten (Strasse+PLZ+Ort+Land normalisiert)."""
-    if not _has_address(a) or not _has_address(b):
-        return False
-    ka = (_norm(a.get("street1")), _norm(a.get("zip")), _norm(a.get("city")), _norm(a.get("country")))
-    kb = (_norm(b.get("street1")), _norm(b.get("zip")), _norm(b.get("city")), _norm(b.get("country")))
-    return ka == kb
+    return address.same(a, b)
 
 
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
@@ -294,50 +262,23 @@ def recommend_mode(cls: dict, load: dict) -> str:
 
 # ─── Adress-Snapshots ─────────────────────────────────────────────────────────────
 
+# Adress-Aufbau ist zentral in ``services/address.py`` (EINE Darstellung für Person,
+# Unternehmen und Lagerplatz) – hier nur noch dünne Aliase für die Lesbarkeit.
 def _addr_company(settings: CompanySettings | None) -> dict:
-    s = settings
-    return {
-        "name": (s.company_name if s else None) or "Inexxio",
-        "street1": " ".join(x for x in [s.street if s else None, s.street_nr if s else None] if x) or "—",
-        "zip": (s.zip_code if s else None) or "",
-        "city": (s.city if s else None) or "",
-        "country": iso2(s.country if s else None),
-        "email": (s.email if s else None) or None,
-        "phone": (s.phone if s else None) or None,
-    }
+    return address.of_company(settings) if settings else address.make(name="Inexxio")
 
 
 def _addr_user(u: UserProfile) -> dict:
     """Empfänger-Adresse einer Person: Lieferadresse (ship_*) vor Wohnadresse."""
-    street = u.ship_address_line1 or u.address_line1 or "—"
-    return {
-        "name": (u.company_name or "").strip() or f"{u.first_name or ''} {u.last_name or ''}".strip() or (u.email or "Empfänger"),
-        "street1": street,
-        "zip": u.ship_postal_code or u.postal_code or "",
-        "city": u.ship_city or u.city or "",
-        "country": iso2(u.ship_country or u.country),
-        "email": u.email or None,
-        "phone": u.phone or None,
-    }
+    return address.of_user(u, "ship")
 
 
 def _addr_storage(loc: StorageLocation) -> dict:
-    return {
-        "name": loc.name or "Lagerplatz",
-        "street1": loc.address_street or "—",
-        "zip": loc.address_zip or "",
-        "city": loc.address_city or "",
-        "country": iso2(loc.address_country),
-        "email": None, "phone": None,
-    }
+    return address.of_storage(loc)
 
 
 def _addr_label(a: dict | None) -> str | None:
-    if not a:
-        return None
-    bits = [a.get("name"), a.get("street1"), " ".join(x for x in [a.get("zip"), a.get("city")] if x),
-            a.get("country")]
-    return " · ".join(str(b) for b in bits if b and b != "—") or None
+    return address.one_line(a)
 
 
 def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:

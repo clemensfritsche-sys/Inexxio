@@ -14,6 +14,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
+from . import address
+
 _ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 _FONT_DIR = _ASSET_DIR / "fonts"
 _LOGO_FILE = _ASSET_DIR / "img" / "inexxio-logo.png"
@@ -93,8 +95,12 @@ def _obj_nr(object_id: Optional[int]) -> str:
 
 def _address_lines(company: dict) -> list[str]:
     """Saubere, mehrzeilige Firmen-Anschrift für den Briefkopf (nur befüllte Zeilen)."""
-    street = " ".join(str(x) for x in [company.get("street"), company.get("street_nr")] if x)
-    place = " ".join(str(x) for x in [company.get("zip_code"), company.get("city")] if x)
+    # Strassen-/Ort-Zusammenbau zentral (services/address) – identisch zu Etikett & Versand.
+    addr = address.make(
+        street1=address._join(company.get("street"), company.get("street_nr")),
+        zip=company.get("zip_code"), city=company.get("city"))
+    street = "" if addr["street1"] == address.DASH else addr["street1"]
+    place = " ".join(x for x in [addr["zip"], addr["city"]] if x)
     contact = " · ".join(str(x) for x in [company.get("email"), company.get("phone")] if x)
     ids = " · ".join(str(x) for x in [
         f"UID {company.get('uid_number')}" if company.get("uid_number") else None,

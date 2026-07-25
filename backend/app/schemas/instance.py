@@ -15,6 +15,17 @@ class InstanceLocation(BaseModel):
     location_label: Optional[str] = None   # vom Router denormalisiert
 
 
+class LocationHop(BaseModel):
+    """Eine Station der Standort-Kette (von innen nach aussen).
+
+    ``location_type='address'`` markiert den abschliessenden geografischen Eintrag –
+    er trägt keine Objektnummer, sondern die Anschrift."""
+
+    location_type: str
+    location_id: Optional[int] = None
+    label: Optional[str] = None
+
+
 class InstanceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +68,9 @@ class InstanceResponse(BaseModel):
     # Instanz tatsächlich liegt – die Komponente «wandert» mit ihr mit.
     physical_location_label: Optional[str] = None
     reserved_for_order_object_id: Optional[int] = None
+    # **Standort-Kette** (nur im Detail gefüllt, nicht im Feed): Instanz → Behälter →
+    # Lagerplatz → Anschrift. Beantwortet «wo genau liegt das?» in einem Blick.
+    location_path: list[LocationHop] = []
 
 
 class ObjectReference(BaseModel):

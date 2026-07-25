@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...models import CheckoutIntent, Order, Sale, UserProfile
-from .. import sales as sales_svc
+from .. import address, sales as sales_svc
 from ..events import emit
 from .base import PaymentProvider
 
@@ -55,12 +55,17 @@ def _addr(line1, line2, city, postal, state, country) -> dict | None:
     }
 
 
+def _from_canonical(a: dict) -> dict | None:
+    """Kanonische Adresse (``services/address``) → Stripe-Adressobjekt (eigene Feldnamen)."""
+    return _addr(None if a["street1"] == address.DASH else a["street1"], a.get("street2"),
+                 a.get("city"), a.get("zip"), a.get("state"), a.get("country"))
+
+
 def _profile_shipping(u: UserProfile) -> dict | None:
-    """Lieferadresse aus dem Profil als Stripe-``shipping``-Objekt (oder None)."""
-    addr = _addr(u.ship_address_line1 or u.address_line1,
-                 u.ship_address_line2 or u.address_line2,
-                 u.ship_city or u.city, u.ship_postal_code or u.postal_code,
-                 u.ship_state_region or u.state_region, u.ship_country or u.country or "CH")
+    """Lieferadresse aus dem Profil als Stripe-``shipping``-Objekt (oder None).
+
+    Der Rückfall Lieferadresse → Wohnadresse liegt zentral in ``services/address``."""
+    addr = _from_canonical(address.of_user(u, "ship"))
     if not addr:
         return None
     return {"name": u.ship_name or _full_name(u) or u.email, "address": addr}
@@ -68,10 +73,7 @@ def _profile_shipping(u: UserProfile) -> dict | None:
 
 def _profile_billing(u: UserProfile) -> dict | None:
     """Rechnungsadresse aus dem Profil als Stripe-``address``-Objekt (Fallback: Kontaktadresse)."""
-    return _addr(u.invoice_address_line1 or u.address_line1,
-                 u.invoice_address_line2 or u.address_line2,
-                 u.invoice_city or u.city, u.invoice_postal_code or u.postal_code,
-                 u.state_region, u.invoice_country or u.country or "CH")
+    return _from_canonical(address.of_user(u, "invoice"))
 
 
 def _ensure_customer(db: Session, stripe, user: UserProfile) -> str:

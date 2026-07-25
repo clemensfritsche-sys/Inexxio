@@ -8,7 +8,7 @@ from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
 from ..schemas.instance import InstanceLocation, InstanceOrderRef, InstanceResponse
 from ..services import location_split
-from ..services.locations import location_labels, physical_location_labels
+from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -118,7 +118,13 @@ async def get_instance(
     )
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
-    return _denorm(db, [inst])[0]
+    resp = _denorm(db, [inst])[0]
+    # Die volle Kette gibt es nur im **Detail** (ein Datensatz, ≤ 10 Auflösungen) –
+    # der Feed bleibt bei den Batch-Labels, damit er schnell bleibt.
+    resp.location_path = [
+        LocationHop(**hop) for hop in location_chain(db, inst.location_type, inst.location_id)
+    ]
+    return resp
 
 
 # Kein eigener Dokumente-Endpunkt je Instanz mehr: der Reiter «Dokumente» läuft für
