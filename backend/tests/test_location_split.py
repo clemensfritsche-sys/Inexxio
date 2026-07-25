@@ -199,3 +199,71 @@ def test_consumed_component_relocates_via_the_single_write_path():
     src = _inspect.getsource(resource._relocate)
     assert "location_split.set_single" in src
     assert 'inst.location_id = product.object_id' not in src   # kein Direktzugriff mehr
+
+
+def test_location_chain_survives_every_holder_shape():
+    """Die Kette muss JEDE Standort-Form aushalten, die in echten Daten vorkommt –
+    auch verwaiste Zeiger (Halter gelöscht) und unbekannte Typen aus Altbeständen.
+    Keine davon darf werfen; im Zweifel ist die Kette kurz, aber nie kaputt."""
+    from types import SimpleNamespace
+
+    from app.models import CompanySettings, Instance, StorageLocation, UserProfile
+    from app.services import locations as loc
+
+    platz = SimpleNamespace(name="Halle Nord", address_street="Musterstrasse 1",
+                            address_zip="8000", address_city="Zürich", address_country="Schweiz")
+    person = SimpleNamespace(company_name=None, first_name="Anna", last_name="Muster",
+                             email="a@b.ch", phone=None, city="Bern", postal_code="3000",
+                             address_line1="Weg 2", country="CH",
+                             display_name="Anna Muster")
+    firma = SimpleNamespace(company_name="Inexxio AG", street="Bahnhofstr", street_nr="5",
+                            zip_code="8001", city="Zürich", country="Schweiz",
+                            email=None, phone=None)
+
+    class _Q:
+        def __init__(self, r): self._r = r
+        def filter(self, *a, **k): return self
+        def first(self): return self._r
+
+    def _db(*, instance=None, storage=None, user=None, company=None):
+        class _DB:
+            def query(self, model, *rest):
+                return _Q({Instance: instance, StorageLocation: storage,
+                           UserProfile: user, CompanySettings: company}.get(model))
+        return _DB()
+
+    behaelter = SimpleNamespace(object_id=100000007, location_type="lagerplatz",
+                                location_id=100000003, is_active=True)
+
+    cases = [
+        # (db, start-typ, start-id, erwartete Stationstypen)
+        (_db(instance=behaelter, storage=platz), "instance", 100000007,
+         ["instance", "lagerplatz", "address"]),
+        (_db(storage=platz), "lagerplatz", 100000003, ["lagerplatz", "address"]),
+        (_db(), None, None, []),                              # standortlos
+        (_db(), "lagerplatz", 100000999, ["lagerplatz"]),     # Halter gelöscht
+        (_db(), "instance", 100000998, ["instance"]),         # Instanz-Halter gelöscht
+        (_db(user=person), "user", 100000050, ["user", "address"]),
+        (_db(company=firma), "company", 100000060, ["company", "address"]),
+        (_db(), "wolke", 100000003, ["wolke"]),               # unbekannter Alt-Typ
+        (_db(storage=platz), "lagerplatz", None, []),         # Typ ohne Nummer
+    ]
+    for db, ltype, lid, expected in cases:
+        chain = loc.location_chain(db, ltype, lid)
+        assert [h["location_type"] for h in chain] == expected, (ltype, lid)
+
+
+def test_broken_chain_never_takes_down_the_instance_record():
+    """Die Kette ist Dekoration, nicht der Datensatz: scheitert ihre Auflösung, bleibt
+    die Instanz lesbar (leere Kette) – statt das Detail mit einem 500 zu blockieren."""
+    from types import SimpleNamespace
+
+    from app.routers.instances import safe_location_path
+
+    class _ExplodingDB:
+        def query(self, *a, **k):
+            raise RuntimeError("relation \"storage_locations\" does not exist")
+
+    inst = SimpleNamespace(object_id=100000455, location_type="lagerplatz",
+                           location_id=100000003)
+    assert safe_location_path(_ExplodingDB(), inst) == []

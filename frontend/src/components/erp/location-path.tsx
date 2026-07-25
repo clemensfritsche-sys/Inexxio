@@ -26,21 +26,27 @@ export type LocationHop = {
 };
 
 export function LocationPathCard({ path, self }: {
-  path: LocationHop[];
+  path: LocationHop[] | null | undefined;
   /** Objektnummer der Instanz selbst – als Startpunkt der Kette gezeigt. */
   self?: number | null;
 }) {
   const nav = useErpNav();
+  // Die Kette ist eine abgeleitete Dekoration – sie darf das Instanz-Detail unter keinen
+  // Umständen zerlegen. Darum defensiv: nur brauchbare Stationen (mit Typ) rendern und
+  // alles andere still verwerfen, statt auf ein Feld zu vertrauen.
+  const hops = Array.isArray(path)
+    ? path.filter((h): h is LocationHop => !!h && typeof h.location_type === 'string')
+    : [];
   // Ohne echte Verschachtelung (nur unmittelbarer Halter) lohnt die Karte nicht – die
   // Standort-Kachel oben sagt dann bereits alles.
-  if (path.length < 2) return null;
+  if (hops.length < 2) return null;
 
   return (
     <div style={ST.card}>
       <div style={ST.head}>
         <MapPin size={16} style={{ color: 'var(--fg-3)' }} />
         <h3 style={ST.title}>Standort · Kette</h3>
-        <span style={ST.pill}>{path.length} Stationen</span>
+        <span style={ST.pill}>{hops.length} Stationen</span>
       </div>
 
       <ol style={ST.list}>
@@ -51,7 +57,7 @@ export function LocationPathCard({ path, self }: {
             <span style={ST.nr}>{fmtObjId(self)}</span>
           </li>
         )}
-        {path.map((hop, i) => {
+        {hops.map((hop, i) => {
           const isAddress = hop.location_type === 'address';
           const Icon = isAddress
             ? MapPin

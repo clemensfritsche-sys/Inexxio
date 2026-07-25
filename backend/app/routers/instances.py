@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import String, cast, or_
@@ -6,10 +8,17 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
-from ..schemas.instance import InstanceLocation, InstanceOrderRef, InstanceResponse
+from ..schemas.instance import (
+    InstanceLocation,
+    InstanceOrderRef,
+    InstanceResponse,
+    LocationHop,
+)
 from ..services import location_split
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
 
@@ -105,6 +114,28 @@ async def count_instances(
     return CountResponse(count=int(q.count()))
 
 
+def safe_location_path(db: Session, inst: Instance) -> list[LocationHop]:
+    """Standort-Kette fürs Detail – **niemals fatal**.
+
+    Die Kette ist eine *abgeleitete Dekoration*, nicht der Datensatz: sie löst fremde
+    Halter auf (Lagerplatz/Person/Unternehmen, über mehrere Stufen) und kann dabei an
+    Altdaten scheitern, die die Instanz selbst gar nicht braucht. Ein Auflösungsfehler
+    darf den Datensatz deshalb NIE unlesbar machen – er kostet die Kette, nicht die
+    Instanz. Der echte Fehler geht mit Objektnummer ins Log, statt still zu verschwinden.
+    """
+    try:
+        return [
+            LocationHop(**hop)
+            for hop in location_chain(db, inst.location_type, inst.location_id)
+        ]
+    except Exception:
+        logger.exception(
+            "Standort-Kette für Instanz %s (%s:%s) nicht auflösbar – Detail ohne Kette",
+            inst.object_id, inst.location_type, inst.location_id,
+        )
+        return []
+
+
 @router.get("/{object_id}", response_model=InstanceResponse)
 async def get_instance(
     object_id: int,
@@ -119,11 +150,7 @@ async def get_instance(
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
     resp = _denorm(db, [inst])[0]
-    # Die volle Kette gibt es nur im **Detail** (ein Datensatz, ≤ 10 Auflösungen) –
-    # der Feed bleibt bei den Batch-Labels, damit er schnell bleibt.
-    resp.location_path = [
-        LocationHop(**hop) for hop in location_chain(db, inst.location_type, inst.location_id)
-    ]
+    resp.location_path = safe_location_path(db, inst)
     return resp
 
 
