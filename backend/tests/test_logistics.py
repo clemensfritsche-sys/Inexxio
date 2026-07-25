@@ -53,13 +53,14 @@ def test_location_kind_and_same_place():
     """Ownership per ROLLE (Kunde/Lieferant = extern, Mitarbeiter/Lagerplatz = intern) und
     Adress-Vergleich (normalisiert Strasse+PLZ+Ort+Land) – die Basis der Geofence-losen
     Versand-Ableitung."""
-    from app.models import StorageLocation, UserProfile
+    from app.models import UserProfile
     from app.services import logistics as lg
 
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="customer")}), "user", 1) == "external_person"
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="supplier")}), "user", 1) == "external_person"
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="employee")}), "user", 1) == "internal"
-    assert lg.location_kind(_DB({StorageLocation: SimpleNamespace()}), "lagerplatz", 2) == "internal"
+    assert lg.location_kind(_DB({}), "place", None) == "internal"        # Ort = eigener Standort
+    assert lg.location_kind(_DB({}), "company", 3) == "internal"
     assert lg.location_kind(_DB({}), None, None) == "unknown"
     assert lg.location_kind(_DB({UserProfile: None}), "user", 9) == "unknown"
 
@@ -96,37 +97,59 @@ def test_parcels_from_article_data_with_hazmat():
 
 
 def test_classify_movement_address_based():
-    """E2E-Ableitung OHNE Geofence: (1) Ziel Kunde → extern/outbound; (2) Ware beim
-    Lieferanten, Ziel internes Lager → extern/inbound (Abholung); (3) Ziel-Lagerplatz OHNE
-    Adresse → innerbetrieblich; (4) freies Ziel (kein Standort) → unknown (keine Box)."""
-    from app.models import StorageLocation, UserProfile
+    """E2E-Ableitung OHNE Geofence, mit den vier Halter-Arten: (1) Ziel Kunde →
+    extern/outbound; (2) Ware beim Lieferanten, Ziel eigener Behälter → extern/inbound
+    (Abholung); (3) Ziel **Ort** ohne Adresse, Quelle im Haus → innerbetrieblich;
+    (4) freies Ziel → unknown (keine Box); (5) Ziel-**Ort** mit ANDERER Adresse als die
+    Quelle → Versand (Mehr-Standort, rein adress-basiert)."""
+    from app.models import CompanySettings, UserProfile
     from app.services import logistics as lg
 
-    no_addr = SimpleNamespace(name="L", address_street=None, address_zip=None,
-                              address_city=None, address_country=None)
-    inst_home = [SimpleNamespace(location_type=None, location_id=None)]
+    inst_home = [SimpleNamespace(location_type=None, location_id=None, place=None)]
 
     # (1) Ziel = Kunde (externe Rolle) → extern/outbound.
-    step_cust = SimpleNamespace(mode="supplier", target_location_type="user", target_location_id=77)
+    step_cust = SimpleNamespace(mode="supplier", target_location_type="user",
+                                target_location_id=77, target_place=None)
     out = lg.classify_movement(_DB({UserProfile: SimpleNamespace(role="customer")}),
                                SimpleNamespace(), step_cust, inst_home)
     assert out["transport_class"] == "outside" and out["direction"] == "outbound"
 
-    # (2) Quelle = Lieferant (Ware liegt dort), Ziel = internes Lager → extern/inbound.
-    step_in = SimpleNamespace(mode="supplier", target_location_type="lagerplatz", target_location_id=5)
-    db2 = _DB({UserProfile: SimpleNamespace(role="supplier"), StorageLocation: no_addr})
+    # (2) Quelle = Lieferant (Ware liegt dort), Ziel = eigener Behälter → extern/inbound.
+    step_in = SimpleNamespace(mode="supplier", target_location_type="instance",
+                              target_location_id=5, target_place=None)
+    db2 = _DB({UserProfile: SimpleNamespace(role="supplier")})
     inb = lg.classify_movement(db2, SimpleNamespace(), step_in,
-                               [SimpleNamespace(location_type="user", location_id=88)])
+                               [SimpleNamespace(location_type="user", location_id=88, place=None)])
     assert inb["transport_class"] == "outside" and inb["direction"] == "inbound"
 
-    # (3) Ziel = Lagerplatz OHNE Adresse, Quelle im Haus → innerbetrieblich (kein Versand).
-    internal = lg.classify_movement(_DB({StorageLocation: no_addr}), SimpleNamespace(), step_in, inst_home)
+    # (3) Ziel = **Ort** ohne verwertbare Adresse, Quelle im Haus → innerbetrieblich.
+    step_place = SimpleNamespace(mode="supplier", target_location_type="place",
+                                 target_location_id=None, target_place={"name": "Halle"})
+    internal = lg.classify_movement(_DB({}), SimpleNamespace(), step_place, inst_home)
     assert internal["transport_class"] == "inside"
+    # Das Ziel trägt den Ort mit (dritte Tupel-Stelle) – ohne Objektnummer.
+    assert internal["target"] == ("place", None, {"name": "Halle"})
 
     # (4) Freies Ziel (kein Standort hinterlegt) → unknown → keine Versand-Box.
-    step_free = SimpleNamespace(mode="supplier", target_location_type=None, target_location_id=None)
+    step_free = SimpleNamespace(mode="supplier", target_location_type=None,
+                                target_location_id=None, target_place=None)
     unk = lg.classify_movement(_DB({}), SimpleNamespace(), step_free, inst_home)
     assert unk["transport_class"] == "unknown"
+
+    # (5) Ort → Ort mit UNTERSCHIEDLICHER Adresse = Mehr-Standort-Transport → Versand.
+    step_far = SimpleNamespace(mode="supplier", target_location_type="place",
+                               target_location_id=None,
+                               target_place={"zip": "3000", "city": "Bern"})
+    src_zurich = [SimpleNamespace(location_type="place", location_id=None,
+                                  place={"zip": "8000", "city": "Zürich"})]
+    far = lg.classify_movement(_DB({CompanySettings: None}), SimpleNamespace(), step_far, src_zurich)
+    assert far["transport_class"] == "outside"
+    # Gleiche Adresse → innerbetrieblich (kein Transport).
+    step_same = SimpleNamespace(mode="supplier", target_location_type="place",
+                                target_location_id=None,
+                                target_place={"zip": "8000", "city": "Zürich"})
+    near = lg.classify_movement(_DB({CompanySettings: None}), SimpleNamespace(), step_same, src_zurich)
+    assert near["transport_class"] == "inside"
 
 
 def test_shippo_rate_parsing_and_provider_fallback():

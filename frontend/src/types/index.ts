@@ -53,13 +53,6 @@ export interface ArticleInput {
   min_order_qty?: string | null;
   safety_stock?: string | null;
   reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
-  // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
-  fixed_location_lat?: string | null;
-  fixed_location_lng?: string | null;
-  fixed_location_street?: string | null;
-  fixed_location_zip?: string | null;
-  fixed_location_city?: string | null;
-  fixed_location_country?: string | null;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (vom purchase-Schritt geerbt)
   procurement_mode?: ProcessStepMode | null;
   default_supplier_id?: number | null;
@@ -169,13 +162,27 @@ export interface ResourceUpdateInput {
 // Verbrauch je Produkt-Instanz (welche Komponenten-Instanz wird wohin verbaut)
 export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
 
-// Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
-export type LocationType = 'lagerplatz' | 'user' | 'instance' | 'company';
+// Standort einer Instanz = **Halter**. Drei Arten sind Datensatzobjekte (Objektnummer),
+// «place» ist eine Adresse/GPS direkt an der Instanz (KEINE Nummer) – das «Blatt» der Kette.
+// Ein benannter Platz (Regal A, LKW 1) ist eine Instanz, die andere Instanzen hält.
+export type LocationType = 'place' | 'user' | 'instance' | 'company';
+
+/** Ein **Ort**: freie Bezeichnung + Adresse + optionale Koordinaten (Form = Versand-Adresse). */
+export interface Place {
+  name?: string | null;
+  street1?: string | null;
+  zip?: string | null;
+  city?: string | null;
+  country?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}
 
 export interface MovementTargetInput {
-  instance_id: number;       // object_id der Instanz
+  instance_id: number;              // object_id der Instanz
   location_type: LocationType;
-  location_id: number;       // object_id des Zielobjekts
+  location_id?: number | null;      // object_id des Zielobjekts (nicht bei 'place')
+  place?: Place | null;             // nur bei 'place': Adresse/GPS
 }
 
 export interface MovementUpdateInput {
@@ -241,7 +248,7 @@ export type Instance = InstanceApi;
 // Eine Teilmenge einer Charge an einem Standort (Standort-Verteilung ohne Instanz-Teilung)
 export type InstanceLocation = components['schemas']['InstanceLocation'];
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
-// Generischer Objekt-Verweis (Lagerplatz-Verwendung)
+// Generischer Objekt-Verweis («wer zeigt auf mich»)
 export type ObjectReference = components['schemas']['ObjectReference'];
 // Auftrag, der eine Instanz angefasst hat (Instanz = Summe aller Prozesse)
 export type InstanceOrderRef = components['schemas']['InstanceOrderRef'];
@@ -484,71 +491,15 @@ export interface PurchaseOrderUpdateInput {
   lead_time_days?: number | null;
   payment_terms_days?: number | null;
   tracking_number?: string | null;
-  receiving_location_id?: number | null;   // Pflicht beim Wareneingang («received»)
   step_id?: number | null;                 // Mehr-Operationen-Routing
   article_id?: number | null;              // Mehrpositionen: welche Position (bei >1 Bestellung)
-}
-
-// ─── Storage Location (Lagerplatz) ────────────────────────────────────────────
-
-export type StorageLocationStatus = 'draft' | 'released' | 'inactive';
-export type StorageLocationType = 'rack' | 'pallet' | 'floor' | 'drawer' | 'picking' | 'external';
-
-type StorageLocationApi = components['schemas']['StorageLocationResponse'];
-
-export type StorageLocation = Omit<StorageLocationApi, 'status'> & {
-  status: StorageLocationStatus;
-};
-
-export interface StorageLocationInput {
-  code?: string | null;
-  location_type?: string | null;
-  note?: string | null;
-  max_load_kg?: number | string | null;
-  width_mm?: number | null;
-  depth_mm?: number | null;
-  height_mm?: number | null;
-  is_dry?: boolean;
-  is_tempered?: boolean;
-  is_hazmat?: boolean;
-  is_blocked?: boolean;
-  latitude?: number | string | null;
-  longitude?: number | string | null;
-  address_street?: string | null;
-  address_zip?: string | null;
-  address_city?: string | null;
-  address_country?: string | null;
-}
-
-export interface StorageLocationUpdateInput {
-  status?: StorageLocationStatus;
-  name?: string;
-  code?: string | null;
-  location_type?: string | null;
-  note?: string | null;
-  max_load_kg?: number | string | null;
-  width_mm?: number | null;
-  depth_mm?: number | null;
-  height_mm?: number | null;
-  is_dry?: boolean;
-  is_tempered?: boolean;
-  is_hazmat?: boolean;
-  is_blocked?: boolean;
-  latitude?: number | string | null;
-  longitude?: number | string | null;
-  address_street?: string | null;
-  address_zip?: string | null;
-  address_city?: string | null;
-  address_country?: string | null;
-  is_active?: boolean;
-  expected_updated_at?: string | null;   // Optimistic Locking
 }
 
 // ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
 // Reklamationen sind KEIN eigener Typ mehr: eine «Abweichung» ist ein Auftrag mit
 // parent_order_id (Unterauftrag) – siehe Order.parent_order_id / abort_into_id.
 
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'organization';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 // ─── KI-Layer (ADR 004) ───────────────────────────────────────────────────────
 
@@ -601,7 +552,6 @@ export interface CompanySettings {
   plausible_domain: string | null;
   hcaptcha_site_key: string | null;
   google_maps_api_key: string | null;
-  default_receiving_location_id: number | null;
   // Shop / Verkauf
   shop_currencies: string[];
   shop_country_currency: Record<string, string> | null;

@@ -22,15 +22,16 @@ from ..models import Instance
 from . import location_split
 
 
-def reconcile_to(inst: Instance, to_type: str, to_id: int) -> bool:
-    """Die GANZE Instanz an (``to_type``, ``to_id``) bringen. **No-op**, wenn sie
-    (ausschliesslich) schon dort liegt. Gibt zurück, ob tatsächlich bewegt wurde.
+def reconcile_to(inst: Instance, to_type: str, to_id: int | None,
+                 to_place: dict | None = None) -> bool:
+    """Die GANZE Instanz an das Ziel bringen. **No-op**, wenn sie (ausschliesslich) schon
+    dort liegt. Gibt zurück, ob tatsächlich bewegt wurde.
 
     Das ist der eine «Ist ↔ Soll»-Abgleich: eine verteilte Charge wird dabei am Ziel
-    wieder zusammengeführt (``location_split.set_single``). Teilmengen-Bewegungen laufen
-    bewusst NICHT hierüber, sondern auftragsgetrieben über den Bewegungs-Schritt."""
-    to_id = int(to_id)
-    if (inst.location_type, inst.location_id) == (to_type, to_id) and not inst.locations:
+    wieder zusammengeführt. Teilmengen-Bewegungen laufen bewusst NICHT hierüber, sondern
+    auftragsgetrieben über den Bewegungs-Schritt. Ein **Ort** (``to_type='place'``) wird
+    über seine Adresse identifiziert, nicht über eine Objektnummer."""
+    if location_split.is_at(inst, to_type, to_id, to_place):
         return False   # schon am Ziel → no-op
-    location_split.set_single(inst, to_type, to_id)
+    location_split.set_target(inst, to_type, to_id, to_place)
     return True

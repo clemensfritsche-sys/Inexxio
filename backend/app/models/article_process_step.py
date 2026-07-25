@@ -60,10 +60,12 @@ class ArticleProcessStep(Base, TimestampMixin):
         Boolean, default=False, server_default="false", nullable=False)
     photo_instruction: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
 
-    # Konfiguration «movement» (Bewegung): optionales Vorgabe-Ziel. Beides NULL =
-    # der Lagerist entscheidet beim Ausführen frei je Instanz.
+    # Konfiguration «movement» (Bewegung): optionales Vorgabe-Ziel. Alles NULL =
+    # der Lagerist entscheidet beim Ausführen frei je Instanz. Halter-Arten:
+    # place (Adresse in ``target_place``, ohne Nummer) | user | instance | company.
     target_location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     target_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    target_place: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     # Transport-Modus der Bewegung (ADR 005, deklarierter Default; per Auftrag über
     # ``shipments.transport_mode`` übersteuerbar): 'auto' (abgeleitet: extern → Versand) |
     # 'carrier' (immer Versand) | 'self' (Selbsttransport, kein Carrier) | 'none' (nie Versand).

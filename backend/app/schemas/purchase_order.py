@@ -23,7 +23,6 @@ class PurchaseOrderUpdate(BaseModel):
     payment_terms_days: Optional[int] = None
     tracking_number: Optional[str] = None
     # Aktueller Lagerort beim Wareneingang (Pflicht beim Übergang auf «received»)
-    receiving_location_id: Optional[int] = None
     # Mehr-Operationen-Routing: welcher Beschaffungs-Schritt (mehrere gleichartige möglich).
     step_id: Optional[int] = None
     # Mehrpositionen-Auftrag: bei >1 Bestellung unter demselben Schritt legt dies fest,
@@ -100,7 +99,6 @@ class PurchaseEmbed(BaseModel):
     ordered_at: Optional[datetime]
     landed_unit_cost: Optional[Decimal]
     webshop_url: Optional[str]
-    receiving_location_id: Optional[int] = None
 
     created_at: datetime
     updated_at: datetime

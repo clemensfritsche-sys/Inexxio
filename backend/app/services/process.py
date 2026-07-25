@@ -607,8 +607,13 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
         if inst.quality == "failed" or (inst.disposition or "") in ("scrapped", "consumed"):
             continue
         if inst.disposition == "sold":
-            # Ganz verkaufte Instanz: Rückkehr = Bewegung an einen Lagerplatz.
-            if inst.location_type != "lagerplatz":
+            # Ganz verkaufte Instanz: Rückkehr = Bewegung an einen Standort, der **uns**
+            # gehört (Ort / Unternehmen / eigener Behälter / Mitarbeiter). Früher war das
+            # hart auf den `lagerplatz`-Datensatz geprüft; jetzt entscheidet die Ownership
+            # (``logistics.location_kind``) – dieselbe Regel, die auch der Versand nutzt,
+            # und sie trägt automatisch alle vier Halter-Arten.
+            from .logistics import location_kind
+            if location_kind(db, inst.location_type, inst.location_id) != "internal":
                 continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
             back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
             inst.quantity = back

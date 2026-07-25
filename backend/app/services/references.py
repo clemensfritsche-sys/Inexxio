@@ -5,8 +5,12 @@
   Aufträge angestossen. Pro Auftrag werden die Rollen gesammelt (was er mit der
   Instanz tat), sortiert nach der **tatsächlichen Aktionszeit** an der Instanz –
   jüngste zuerst (NICHT nach Objektnummer/Anlage-Reihenfolge).
-* ``storage_location_references`` – lagernde Instanzen + Artikel, die einen
-  Lagerplatz referenzieren.
+
+* ``object_references`` – generisch «wer zeigt auf mich»: was an einer Objektnummer
+  **verortet** ist (Instanzen, auch als Chargen-Teilmenge) + referenzierende
+  Prozessschritte. Bewusst OHNE Typ-Filter – Objektnummern sind global eindeutig.
+  Instanzen an einem reinen **Ort** (Adresse ohne Objektnummer) erscheinen hier
+  naturgemäss nicht; ihr Halter ist kein Objekt.
 """
 
 from datetime import datetime
@@ -16,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Article, ArticleProcessStep, Inspection, Instance, InstanceOrderLink, Order,
-    ResourceUsage, StorageLocation,
+    ResourceUsage,
 )
 from .locations import _obj_nr
 
@@ -165,7 +169,3 @@ def object_references(db: Session, object_id: int) -> list[dict]:
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs
 
-
-def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
-    """Verwendung eines Lagerplatzes = generischer Rückverweis auf seine Objektnummer."""
-    return object_references(db, loc.object_id)
