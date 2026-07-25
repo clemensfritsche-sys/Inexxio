@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CameraOff, Check, AlertTriangle, X, Search, ScanLine, Warehouse, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
+import { Camera, CameraOff, Check, AlertTriangle, X, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
   type ScanCandidate, type ScanKind, type ScanStep, type ScanRequest,
@@ -16,7 +16,7 @@ const THROTTLE_MS = 1200;
 
 // Symbol + Bezeichnung je erwartetem Objekttyp («was scanne ich jetzt?»).
 const KIND_META: Record<ScanKind, { icon: React.ElementType; label: string }> = {
-  lagerplatz: { icon: Warehouse, label: 'Lagerplatz' },
+  company: { icon: Building2, label: 'Unternehmen' },
   user:       { icon: UserIcon,  label: 'Person' },
   instance:   { icon: Boxes,     label: 'Instanz' },
   article:    { icon: Package,   label: 'Artikel' },

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine, Truck, AlertTriangle, FileDown, Loader2, Zap, Boxes, Warehouse, Package } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, LocationType, Order, StorageLocation, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
+import type { Instance, LocationType, Order, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
 import type { ScanCandidate, ScanKind, ScanStep } from '@/lib/scan';
 import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
@@ -13,10 +13,10 @@ import { ObjId } from '@/components/erp/obj-id';
 import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
-// Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). «company» hat keinen
-// scannbaren Kind → undefined (generischer Prompt, manuelle Eingabe/Suche).
+// Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). Unbekannte/veraltete Typen
+// ergeben undefined (generischer Prompt) – der Dialog ist dagegen gehärtet.
 const SRC_SCAN_KIND: Record<string, ScanKind | undefined> = {
-  lagerplatz: 'lagerplatz', user: 'user', instance: 'instance',
+  user: 'user', instance: 'instance', company: 'company',
 };
 
 
@@ -47,7 +47,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   );
   const scan = useScan();
 
-  const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
+  const [company, setCompany] = useState<{ objectId: number; name: string } | null>(null);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [targets, setTargets] = useState<Record<number, string>>({});   // instanceObjId → "type:id"
@@ -60,35 +60,37 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   const hasFixedTarget = !!fixedType && !!fixedId;
 
   // Auswahllisten NUR für die **freie** Zielwahl laden. Bei festem Ziel (z. B. Pflicht-Versand
-  // zum Kunden) werden sie nicht gebraucht – das spart das Laden aller Instanzen/Lagerplätze/
-  // Personen (spürbar schneller, gerade nach dem Verkauf mit fixem Kunden-Ziel).
+  // zum Kunden) werden sie nicht gebraucht – das spart das Laden aller Instanzen/Personen
+  // (spürbar schneller, gerade nach dem Verkauf mit fixem Kunden-Ziel).
   useEffect(() => {
     if (stepState === 'locked' || done || hasFixedTarget) return;
-    Promise.allSettled([api.getStorageLocations(), api.getUsers(), api.getInstances()])
-      .then(([sl, us, inst]) => {
-        if (sl.status === 'fulfilled') setStorageLocs(sl.value);
+    Promise.allSettled([api.getUsers(), api.getInstances(), api.getPublicSettings()])
+      .then(([us, inst, co]) => {
         if (us.status === 'fulfilled') setUsers(us.value);
         if (inst.status === 'fulfilled') setAllInstances(inst.value);
+        if (co.status === 'fulfilled' && co.value.object_id != null) {
+          setCompany({ objectId: co.value.object_id, name: co.value.company_name || 'Im Betrieb' });
+        }
         setListsReady(true);
       });
   }, [stepState, done, hasFixedTarget]);
-  // Ohne festen Zielort braucht der Zielort-Scan die Auswahllisten (Lagerplätze/Personen/
+  // Ohne festen Zielort braucht der Zielort-Scan die Auswahllisten (Personen/
   // Instanzen). Sind sie noch nicht geladen, hätte der letzte Scan-Schritt KEINE Kandidaten
   // → er zeigte nichts an. Darum den Scan erst freigeben, wenn die Listen bereit sind
   // (bei festem Zielort sofort – der kommt aus dem Schritt selbst).
   const scanReady = (!!fixedType && !!fixedId) || listsReady;
   const ownObjIds = useMemo(() => new Set(instances.map((i) => i.object_id)), [instances]);
 
-  // Gültige Zielorte (für freie Zielwahl): Lagerplätze, Personen, andere Instanzen.
+  // Gültige Zielorte (für freie Zielwahl): Personen, andere Instanzen (Behälter/Palette/
+  // Maschine) und das Unternehmen selbst («im Betrieb» – der Ersatz für den früheren
+  // Lagerplatz-Datensatz, ohne eigenen Datensatztyp).
   const targetType = useMemo(() => new Map<number, LocationType>(), []);
   const targetCandidates = useMemo<ScanCandidate[]>(() => {
     targetType.clear();
     const out: ScanCandidate[] = [];
-    if (!fixedType || fixedType === 'lagerplatz') {
-      storageLocs.filter((l) => l.status === 'released' && l.object_id != null).forEach((l) => {
-        targetType.set(l.object_id as number, 'lagerplatz');
-        out.push({ objectId: l.object_id as number, label: `Lagerplatz` });
-      });
+    if ((!fixedType || fixedType === 'company') && company) {
+      targetType.set(company.objectId, 'company');
+      out.push({ objectId: company.objectId, label: `Im Betrieb · ${company.name}` });
     }
     if (!fixedType || fixedType === 'user') {
       users.filter((u) => u.object_id != null).forEach((u) => {
@@ -103,7 +105,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       });
     }
     return out;
-  }, [storageLocs, users, allInstances, ownObjIds, fixedType, targetType]);
+  }, [company, users, allInstances, ownObjIds, fixedType, targetType]);
 
   // Eine Instanz scannen: aktueller Standort → Instanz → Zielstandort (validiert),
   // danach automatisch zur nächsten offenen Instanz; sind alle erfasst → buchen.
@@ -149,7 +151,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       steps,
       onComplete: (ids) => {
         const targetObjId = ids[ids.length - 1];
-        const type = fixedType ?? targetType.get(targetObjId) ?? 'lagerplatz';
+        const type = fixedType ?? targetType.get(targetObjId) ?? 'instance';
         const nextAcc = { ...acc, [iid]: `${type}:${targetObjId}` };
         setTargets(nextAcc);
         runSequence(queue.slice(1), nextAcc);

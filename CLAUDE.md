@@ -185,7 +185,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Shop-Handler mit FX-/Stripe-Calls als `def` (kein Event-Loop-Blocking). Tote Endpunkte
   (`GET /shop/session/{id}`, `GET …/sales/audience`, `GET /erp/instances/{id}/documents`)
   + totes i18n (`frontend/messages/`, next-intl war nie installiert) entfernt. Wording
-  kanonisch (Spezifikation/Charge/Instanz/Lagerplatz). Responsive: Inline-Grids kollabieren
+  kanonisch (Spezifikation/Charge/Instanz/Standort). Responsive: Inline-Grids kollabieren
   auf Mobile, Warenkorb auf Tokens + umbrechend, Touch-Ziele ≥40px, Freiraum fürs KI-Widget.
 - **Architektur-/Logik-Review (Juli 2026, `docs/review-2026-07.md`)**: systematische Prüfung auf
   Zirkularitäten/Blockaden/Logiklücken; 15 Befunde sofort behoben. Kernpunkte: (1) **Shop-Versand
@@ -275,9 +275,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     (`inspections.escalated`); erst bei vollem Umfang endgültig `failed`, dann je Instanz bewertet (Charge
     als Ganzes). Durchfaller → `instances.quality='failed'` (`services/inspection.py`).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
-    Standort (`instances.location_type` ∈ lagerplatz|user|instance + `location_id` = Objektnummer des
+    Standort (`instances.location_type` ∈ user|instance|company + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
-    optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Lagerplatz/Person/Instanz),
+    optionales Vorgabe-Ziel am Schritt – **ein** kombiniertes Auswahlfeld (Person/Instanz/Unternehmen),
     leer = Standort nicht definiert/frei wählbar. Abschluss-Marker = `movements` (analog inspection, keine
     eigene Nummer); Standorte direkt auf den Instanzen (`services/movement.py`, `services/locations.py`).
     **Charge auf mehrere Standorte verteilen – AUFTRAGSGETRIEBEN (`services/location_split.py`, Migration
@@ -350,7 +350,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`/api/v1/erp/instances`, read-only Detail). Prozessdefinition im BPMN-Stil (Typ-Auswahl beim
   Hinzufügen, Drag&Drop-Reihenfolge, Start/Ende-Knoten).
 - Status als **Prozess** (kein Dropdown): Entwurf →[Freigeben]→ Freigegeben →[Deaktivieren]→ Inaktiv
-  (→[Reaktivieren]); gilt für Artikel/Auftrag/Lagerplatz (`lib/status-flow.ts`, `StatusFlow`)
+  (→[Reaktivieren]); gilt für Artikel/Auftrag (`lib/status-flow.ts`, `StatusFlow`)
 - Frontend: Artikel-«Prozess»-Reiter (Schritttypen hinzufügen/sortieren), **Bestand**-Reiter zeigt die
   Instanzen. Auftrag heisst starr «Auftrag», nur **freigegebene** Artikel referenzierbar, Menge mit
   Artikel-Einheit, Wunsch-Liefertermin optional (Default «Schnellstmöglich»), Bedarf nach Freigabe
@@ -358,21 +358,35 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Auftrag-Stepper** über alle Schritte (Schlüssel = Schritt-id, mehrere gleichartige möglich) + Panel
   des gewählten Schritts (Beschaffung/Datenerfassung/Bewegung/Ressource); Lieferant sieht nur die
   Beschaffung seiner Aufträge.
-- **Standorte**: eine Instanz **kann** einen Standort haben – **standortlos ist erlaubt** (kein
-  erzwungener Firmen-Default mehr; `serialization._initial_location` gibt `NULL` zurück, ausser die
-  Lieferanten-Beschaffung ist der erste Schritt → Start beim **Lieferanten**). Den realen Ort setzt der
-  erste Bewegungs-Schritt. `LOCATION_TYPES` = lagerplatz/user/instance (Anzeige via
-  `locations.location_labels`, NULL toleriert). Mengeneinheiten: Stk/mm/m²/**m³**/kg/l (Mengen sind aktuell
-  ganzzahlig – Bruchmengen für kg/m²/l/m³ wären ein separater Decimal-Umbau der Bestands-Engine).
-  Den **Wareneingangs-Ort** setzt die gesperrte Pflicht-Bewegung «Wareneingang» nach der Beschaffung
-  (nicht mehr die Bestellung; `purchase_orders.receiving_location_id` ist Alt-Spalte); fehlt eine
-  Vorgabe, wird automatisch ein Lagerplatz «Wareneingang» angelegt
-  (`services/locations.py: resolve_receiving_location`). Der **Bewegungs**-Schritt
-  verteilt von dort weiter. Lagerplätze werden überall über die **Objektnummer** angesprochen (kein Name);
-  freigegebene Lagerplätze zeigen die Karte read-only; optionale **Bemerkung** (`note`) je Lagerplatz; Reiter
-  **Verwendung** listet lagernde Instanzen + referenzierende Artikel (`/storage-locations/{id}/references`).
-  Standard-Lieferadresse: Admin → Systemkonfiguration → «Lieferadresse / Wareneingang».
-- **Adressen: EINE Darstellung** (`services/address.py`): Person, Unternehmen und Lagerplatz
+- **Standorte – der Datensatztyp «Lagerplatz» ist ERSATZLOS entfallen** (Juli 2026): ein Lagerplatz
+  war ein eigener Datensatz mit Feed, Detailfenster, Status-Fluss, Adresse, Massen, Traglast und
+  Flags – und **kein einziges** dieser Felder trug Logik (Nachweis: ausserhalb von Modell/Schema
+  tauchten sie nur in der Kopierfunktion des «Ersetzen» auf). Faktisch war er eine **Objektnummer
+  mit Namen**. Entfernt sind: Modell/Schema/Router `storage_locations`, Feed-Typ + Detailfenster,
+  `storage_location_in_use`/`duplicate_storage_location`, `storage_location_references`,
+  `address.of_storage`, das KI-Tool `storage_locations`, `company_settings.default_receiving_
+  location_id` und `purchase_orders.receiving_location_id`.
+  **Ein Standort ist nur noch ein Halter:** `LOCATION_TYPES` = **user | instance | company**
+  (`company` = «im Betrieb», Adresse aus den Firmen-Stammdaten – der Ersatz für den internen
+  Lagerort; ein benannter Platz/Behälter ist eine ganz normale **Instanz**). **Standortlos bleibt
+  ein regulärer Zustand** (`serialization._initial_location` gibt `NULL` zurück, ausser die
+  Lieferanten-Beschaffung ist der erste Schritt → Start beim **Lieferanten**).
+  **Gelesen wird tolerant, geprüft nur beim Schreiben:** `location_label`/`location_labels` lösen
+  einen unbekannten/veralteten Typ (Altbestand `'lagerplatz'`) zu `None` = «kein Standort» auf –
+  nur `validate_location` und die Pydantic-Validatoren weisen ihn ab. Darum kann Altbestand keine
+  Ansicht zerlegen (auf echtem PostgreSQL über alle Detail-/Feed-Endpunkte verifiziert).
+  Zwei Stellen trugen echte Bedeutung und wurden dabei **besser**: die **Lieferadresse** für den
+  Lieferanten ist jetzt die **Firmenadresse** statt einer Lagerplatz-Objektnummer (`orders._receiving_
+  label`), und `logistics.target_address` hat endlich einen `company`-Zweig (vorher hätte ein
+  Firmen-Ziel «Empfänger-Adresse unvollständig» ergeben). **Kern-Fix im gleichen Zug:**
+  `process.return_subjects_to_stock` erkannte die Rückkehr einer Retoure an `location_type ==
+  'lagerplatz'` – mit dem Wegfall des Typs hätte das **nie mehr** zugetroffen und keine Retoure
+  wäre je wieder eingebucht worden; jetzt gilt «die Instanz liegt **nicht mehr beim Kunden**»
+  (Kunde vom **Original-Verkauf**, da die Retoure selbst nur `kind='credit'`-Belege trägt).
+  Mengeneinheiten: Stk/mm/m²/**m³**/kg/l. Den **Wareneingangs-Ort** setzt weiterhin die gesperrte
+  Pflicht-Bewegung «Wareneingang» nach der Beschaffung (Ziel: Behälter-Instanz, Unternehmen oder
+  offen); der **Bewegungs**-Schritt verteilt von dort weiter.
+- **Adressen: EINE Darstellung** (`services/address.py`): Person und Unternehmen
   tragen historisch **verschiedene Spaltennamen** (`address_line1`/`postal_code` an der Person
   vs. `street`+`street_nr`/`zip_code` am Unternehmen). Dieses Modul ist die eine Stelle, die
   das übersetzt – kanonische Form `{name,street1,street2,zip,city,state,country,email,phone}`
@@ -384,7 +398,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `document_render` (Briefkopf), `payments/stripe_provider` (Liefer-/Rechnungsadresse; die
   Stripe-Feldnamen bleiben, nur die Fallback-Logik ist zentral) und `ai/tools` (Firmen-Info).
 - **Standort-Kette «wo genau?»** (`locations.location_chain`, `InstanceResponse.location_path`):
-  liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Lagerplatz → **Anschrift**
+  liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Unternehmen → **Anschrift**
   (`location_type='address'`, ohne Objektnummer). Zyklensicher, auf 10 Stationen begrenzt, und
   bewusst **nur im Instanz-Detail** gefüllt (ein Datensatz, ≤10 Auflösungen) – Feeds bleiben bei
   den Batch-Labels. Frontend: `components/erp/location-path.tsx` rendert sie als eingerückte
@@ -416,7 +430,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Generischer Rückverweis «wer zeigt auf mich» je Objektnummer** (`services/references.object_references`,
   `GET /erp/objects/{id}/references`): was aktuell an einer Objektnummer **verortet** ist (`instances.
   location_id == id`, ohne Typ-Filter – Objektnummern sind global eindeutig) + referenzierende
-  Prozessschritte. Reiter **«Verwendung»** generisch an Benutzer/Instanz/Lagerplatz (Frontend
+  Prozessschritte. Reiter **«Verwendung»** generisch an Benutzer/Instanz (Frontend
   `components/erp/object-references.tsx`); `storage_location_references` delegiert darauf. AGB/Datenschutz-
   Artikelnummer wird auch **am ERP-Unternehmens-Datensatz** gepflegt (`organization-detail`, Sektion
   «AGB & Datenschutz»), nicht nur Admin → Einstellungen.
@@ -450,7 +464,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
   (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand) sowie
   **Fixierter Standort** (`fixed_location_*`, Migration 069): GPS-Koordinaten + reverse-geocodierte
-  Adresse – **exakt die Standort-Definition des Lagerplatz-Datensatzes** (`MapPicker` + Adressblock,
+  Adresse – rein deskriptiv am Artikel (`MapPicker` + Adressblock,
   `google_maps_api_key`). Rein deskriptiv am Artikel; friert wie die übrige Spezifikation bei der
   Freigabe ein. Im Spezifikation-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden
   gespeichert/angezeigt.
@@ -481,7 +495,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     `scrap` (defektes Teil raus) + Beschaffung/Bestand (neues herein) – kein monolithischer Schritt.
     **Ausschuss ist STANDORTLOS (Migration 070, kehrt 068 um):** die GANZ verschrottete Instanz verliert
     beim Verschrotten ihren Standort (`location_split.clear` in `services/scrap.py`) – ein Standort ist immer
-    ein realer **Halter** (Lagerplatz/Person/Instanz), den Ausschuss nicht mehr hat; der Endzustand
+    ein realer **Halter** (Person/Instanz/Unternehmen), den Ausschuss nicht mehr hat; der Endzustand
     `disposition='scrapped'` IST die «Wo»-Aussage. So findet «wer liegt hier» (`references`) ein
     verschrottetes Teil korrekt nicht mehr. **Kein Schrottplatz-Lagerort mehr** (`provisioning.
     send_to_scrapyard`/`resolve_scrap_location` + `company_settings.default_scrap_location_id` entfernt).
@@ -518,7 +532,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   spiegelt nur noch den Modus (freight ⟺ 'freight'). Der Artikel-Prozess wird nie mutiert (die Alt-Spalte
   `article_process_steps.transport_mode` bleibt, wird zur Laufzeit ignoriert); digitale Payloads = KEIN Fall.
   **Versand-Beleg `shipments`** (Fachzeile je Bewegungs-Schritt, KEINE eigene Nummer): Adress-Snapshots
-  (Firma ↔ Ziel-Person/-Lagerplatz, Länder → ISO-2), **Paket-Schätzung aus Artikel-Daten** (Gewicht×Menge,
+  (Firma ↔ Ziel-Person/-Halter, Länder → ISO-2), **Paket-Schätzung aus Artikel-Daten** (Gewicht×Menge,
   Grösse mm→cm, Fallback-Karton), Gefahrgut-Warnung (`articles.is_hazmat`, optionales Spez-Feld «Gefahrgut»),
   Rate-Snapshot, Label, Tracking, Kosten; Status draft→quoted→purchased→done. **Carrier-Aggregator = Shippo**
   hinter dem Gateway-Muster (`services/shipping/`: base/shippo/manual, exakt wie payments): aktiviert sich
@@ -537,7 +551,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Google-Places-Autovervollständigung (`components/erp/address-autocomplete.tsx` + `use-maps-key.ts`;
   Loader mit `libraries=places`) – Strasse tippen, Vorschlag wählen → Strasse/PLZ/Ort/Land (+Koordinaten)
   automatisch. Verdrahtet in Profil-Adresse/Rechnungsadresse, Unternehmens-Stammdaten und als Suchfeld im
-  `MapPicker` (Lagerplatz/Artikel-Fixstandort). **Bugfix:** eine **verschrottete** Instanz zählt NIE mehr als
+  `MapPicker` (Artikel-Fixstandort). **Bugfix:** eine **verschrottete** Instanz zählt NIE mehr als
   «liegt hier» (`references.object_references` filtert `disposition != 'scrapped'`; Migration `072` nullt den
   Alt-Standort bereits verschrotteter Instanzen).
   - **Unterdeckung → EINE Formel & zwei Deckungs-Wege für ALLE Auftragsarten** (`services/recovery.py`,
@@ -636,7 +650,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `restrict`+`candidates` (Lookup; Code ausserhalb des ERP → Fehlermeldung). **Prozess-Quittierung
   per Scan ist verbindlich:** Bewegung (aktueller Standort → Instanz → Zielstandort), Ressource
   (Produkt-Instanz → Komponente; Betriebsmittel), Datenerfassung (Instanz vor Erfassung).
-  Etikettendruck via `ObjectLabel` (`qrcode.react`) an Instanz & Lagerplatz; Feed-Button «Scannen»
+  Etikettendruck via `ObjectLabel` (`qrcode.react`) an der Instanz; Feed-Button «Scannen»
   öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 - **Verkauf / Shop (MVP, am Artikel – kein eigenes «Angebot»-Objekt)**: Der Verkauf ist eine dritte,
   bewusst **lebende** Ebene am Artikel (analog `landed_unit_cost`): `articles.sales_published/
@@ -849,7 +863,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
       Kunden) sind von der Subjekt-Fehlmengen-Prüfung **ausgenommen** (`step_shortfalls`, `not step.locked`),
       sonst würde der Versand blockiert, sobald die Ware «verkauft» (aus dem freien Bestand «weg») ist.
     - **Rückgabe-Bewegung durch → «freigegeben»**: `process.return_subjects_to_stock` (sold→in_stock, Menge
-      auf ≥1) wird bei der **Bewegung** an einen Lagerplatz aufgerufen (`movement.record_movement`), nicht
+      auf ≥1) wird bei der **Bewegung** weg vom Kunden aufgerufen (`movement.record_movement`), nicht
       erst am Auftragsende. Movement/Scrap nehmen bei einer Retoure (bzw. Versand: Ziel=Person) auch
       **verkaufte** Instanzen auf. **Kulanz** (Ware NICHT bewegt) → bleibt `sold`, nur Geld zurück.
     - `_finalize_subjects` beim Abschluss ist nur noch das **Sicherheitsnetz** (ruft beide Helfer idempotent).
@@ -870,7 +884,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Pflicht-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
   Serverseitig erzwungen (`movement.record_movement` überschreibt die Ziel-Eingaben) UND im Embed als festes
   Ziel gezeigt (`orders._movement_embed`) – der Lagerist kann kein falsches Ziel wählen. Weil das Ziel fest
-  ist, lädt das Movement-Panel **keine** Lagerplatz-/Personen-/Instanz-Listen mehr (`movement-panel.tsx:
+  ist, lädt das Movement-Panel **keine** Personen-/Instanz-Listen mehr (`movement-panel.tsx:
   hasFixedTarget` → spürbar schneller, gerade direkt nach dem Verkauf).
 - **KI-Layer (ADR 004, `docs/adr/004-ki-layer.md` – VOR KI-Arbeit lesen)**: vier dünne Schichten in
   `backend/app/services/ai/`. (1) **Gateway** (`gateway.py`): provider-agnostisch – **Vertex-EU Default**
@@ -937,7 +951,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`GET /erp/objects/{id}/documents`, generisch über die Objektnummer): vereint hochgeladene Dateien
   (via Links) UND die im Schritt «Dokument» erzeugten Dokumente. Frontend: `components/erp/object-
   documents.tsx` (`ObjectDocuments` + Upload-/Analyse-/Bestätigungs-Dialog, Kamera-Aufnahme), eingebunden
-  in ALLE Detailansichten (Artikel/Auftrag/Instanz/Benutzer/Lagerplatz/Unternehmen). **RAG (semantische
+  in ALLE Detailansichten (Artikel/Auftrag/Instanz/Benutzer/Unternehmen). **RAG (semantische
   Suche über den `extracted_text`) ist bewusst im Backlog** – der weiche Start deckt «Objekt bekannt →
   Text am Objekt» ab; korpusweite Suche kommt später über das geplante Typesense. Ohne konfigurierte KI
   läuft das Modul weiter (Titel = Dateiname, manuelle Zuordnung). Migration `059`.
@@ -959,7 +973,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 > Kredit-Modus** (`kind='credit'` aus dem Subjekt abgeleitet + Stripe-Refund), Ware über die **Bewegung**.
 > Festes Subjekt wie eine Abweichung, aber OHNE Eltern-Pause. Kein separater `refund`-Schritt mehr).
 > **Label-Wechsel step-basiert** (wann es wirklich passiert): Verkauf bezahlt → sold; Rückgabe-Bewegung an
-> einen Lagerplatz → in_stock; Kulanz (nicht bewegt) → bleibt sold. **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
+> weg vom Kunden → in_stock; Kulanz (nicht bewegt) → bleibt sold. **Bedarf→Nachschub (ADR 003):** ein ungedeckter Bedarf
 > macht den Schritt `blocked` (abgeleitet); `supply.ensure_supply` legt rekursiv/idempotent/zyklensicher
 > Nachschub-Unteraufträge an (Artikel-Prozess), die bei Abschluss an den Eltern **gepinnt** werden.
 > **Verkauf/Shop** (MVP) lebt am Artikel (Profil + `article_prices` + Audience); **nur Basispreis CHF**
@@ -1102,7 +1116,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Read-Tool `article_name_suggestions` (Dubletten vermeiden statt neu erfinden); Tool-Schemas + Prompt
   (`registry.PROMPT_VERSION`) präzisiert. (2) **Status-Töne vereinheitlicht** über `lib/status-flow.TONE`
   (pending=amber/warning, info=slate/accent, done=grün/success, danger=rot, inactive=grau): **Auftrag «In
-  Bearbeitung» ist jetzt amber** – exakt der Ton der Instanz «Im Prozess»; Artikel/Prozess/Lagerplatz/
+  Bearbeitung» ist jetzt amber** – exakt der Ton der Instanz «Im Prozess»; Artikel/Prozess/
   Beschaffung/Verkauf ziehen dieselbe Palette (nur terminal Verbraucht/Verkauft behalten violett/petrol,
   kein Semantik-Token). (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
   angeboten» ist weg – Foto/Unterschrift sind reine `capture_fields`-Typen, der unbedingte `PhotoCapture`-

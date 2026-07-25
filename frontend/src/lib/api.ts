@@ -5,7 +5,7 @@ import type {
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
-  Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
+  Instance, InstanceOrderRef, ObjectReference,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
@@ -566,34 +566,6 @@ class ApiClient {
   // Aufträge, die diese Instanz angefasst haben (Herkunft zuerst)
   getInstanceOrders(objectId: number): Promise<InstanceOrderRef[]> {
     return this.get(`/api/v1/erp/instances/${objectId}/orders`);
-  }
-
-  // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
-
-  getStorageLocations(): Promise<StorageLocation[]> {
-    return this.get('/api/v1/erp/storage-locations');
-  }
-
-  getStorageLocation(objectId: number): Promise<StorageLocation> {
-    return this.get(`/api/v1/erp/storage-locations/${objectId}`);
-  }
-
-  createStorageLocation(data: StorageLocationInput): Promise<StorageLocation> {
-    return this.post('/api/v1/erp/storage-locations', data);
-  }
-
-  updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
-    return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
-  }
-
-  // Ersetzen: Duplikat (Entwurf) anlegen, verknüpfen, Original inaktiv (nur wenn leer)
-  replaceStorageLocation(objectId: number): Promise<StorageLocation> {
-    return this.post(`/api/v1/erp/storage-locations/${objectId}/replace`, {});
-  }
-
-  // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
-  getStorageLocationReferences(objectId: number): Promise<ObjectReference[]> {
-    return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
   }
 
   // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).

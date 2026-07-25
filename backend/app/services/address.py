@@ -1,7 +1,7 @@
-"""Adressen – **EINE** Darstellung für Person, Unternehmen und Lagerplatz.
+"""Adressen – **EINE** Darstellung für Person und Unternehmen.
 
 Eine Adresse ist am Ende überall dasselbe, egal ob sie an einer Person (Liefer-/
-Rechnungs-/Wohnadresse), am Unternehmen (Firmensitz) oder an einem Lagerplatz hängt.
+Rechnungs-/Wohnadresse) oder am Unternehmen (Firmensitz) hängt.
 Die Spaltennamen sind historisch **unterschiedlich** gewachsen
 (``address_line1``/``postal_code`` an der Person vs. ``street``+``street_nr``/``zip_code``
 am Unternehmen) – dieses Modul ist die eine Stelle, die das übersetzt.
@@ -121,16 +121,6 @@ def of_company(s) -> dict:
         zip=getattr(s, "zip_code", None), city=getattr(s, "city", None),
         country=getattr(s, "country", None),
         email=getattr(s, "email", None), phone=getattr(s, "phone", None),
-    )
-
-
-def of_storage(loc) -> dict:
-    """Adresse eines Lagerplatzes (``address_*``-Felder)."""
-    return make(
-        name=_txt(getattr(loc, "name", None)) or "Lagerplatz",
-        street1=getattr(loc, "address_street", None),
-        zip=getattr(loc, "address_zip", None), city=getattr(loc, "address_city", None),
-        country=getattr(loc, "address_country", None),
     )
 
 

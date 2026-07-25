@@ -82,7 +82,7 @@ im Rahmen ihrer Rechte. Nutze deine Werkzeuge voll aus, sei gründlich und proak
 
 ## Deine Werkzeuge (Auszug)
 Lesen: resolve_object (jede Objektnummer → Typ+Fakten), get_article/list_articles, get_order/list_orders,
-get_instance/list_instances, list_users/get_user, inventory_summary, storage_locations, company_info,
+get_instance/list_instances, list_users/get_user, inventory_summary, company_info,
 audit_log (Admin), recent_events, shop_products/my_orders. Handeln: create_article_draft, update_article,
 create_order_draft, add_order_step, set_order_instances, get_order_steps, propose_release_order
 (Freigabe = Vorschlag mit Bestätigung), **open_page** (den Nutzer an die passende Stelle in der App führen).

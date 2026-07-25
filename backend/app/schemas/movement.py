@@ -4,15 +4,17 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 from .shipment import ShipmentEmbed
 
-# Ein Standort ist immer ein Datensatzobjekt mit 9-stelliger Nummer:
-#   lagerplatz → StorageLocation
-#   user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
-#   instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
-# Gültige **Bewegungsziele**. «company» (das Unternehmen selbst) ist bewusst NICHT dabei: es ist
-# nur der START-Standort neu erzeugter Instanzen (nie ein Bewegungsziel). Die Anzeige eines
-# company-Standorts übernimmt `services/locations.py` (location_labels), die Vergabe die
-# Serialisierung – so gibt es nie standortlose Instanzen, ohne die Ziel-Validierung zu lockern.
-LOCATION_TYPES = ("lagerplatz", "user", "instance")
+# Ein Standort ist immer ein **Halter** – ein Datensatzobjekt mit 9-stelliger Nummer:
+#   user     → UserProfile (Mitarbeiter, Lieferant, Kunde)
+#   instance → andere Instanz (Behälter, Palette, Maschine, LKW)
+#   company  → das Unternehmen selbst («im Betrieb», Adresse aus den Firmen-Stammdaten)
+#
+# Der frühere Typ **lagerplatz** ist ersatzlos entfallen: ein Lagerplatz war ein eigener
+# Datensatztyp, dessen Felder (Masse, Traglast, Flags, Adresse) nirgends Logik trugen. Wer
+# einen benannten Platz braucht, führt ihn als **Instanz** (ein Behälter ist ein Ding, das
+# man besitzt); wer keinen braucht, lässt den Standort offen – **standortlos ist erlaubt**
+# und im ganzen System ein regulärer Zustand (NULL = «noch nicht festgelegt»).
+LOCATION_TYPES = ("user", "instance", "company")
 
 
 class MovementTarget(BaseModel):

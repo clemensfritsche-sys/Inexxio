@@ -48,7 +48,7 @@ class Instance(Base, TimestampMixin):
 
     # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
     # Der Standort ist stets ein Datensatzobjekt mit Nummer:
-    #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
+    #   user → UserProfile | instance → andere Instanz (Behälter) | company → Unternehmen
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
 
@@ -57,8 +57,8 @@ class Instance(Base, TimestampMixin):
     # kann physisch auf mehrere Standorte verteilt sein (300 @ Band A, 700 @ Band B) und
     # trägt trotzdem EINE Objektnummer (die Teile sind alle mit ihr beschriftet). Die Map
     # ist nach **Objektnummer** des Ziels geschlüsselt (global eindeutig → «wer liegt hier?»
-    # per has_key), Wert = {"t": <lagerplatz|user|instance>, "q": <menge-string>}:
-    #   locations = {"100000123": {"t": "lagerplatz", "q": "300"}, ...}   Summe = quantity.
+    # per has_key), Wert = {"t": <user|instance|company>, "q": <menge-string>}:
+    #   locations = {"100000123": {"t": "instance", "q": "300"}, ...}   Summe = quantity.
     # Ist die Charge an EINEM Ort (Normalfall) → Map NULL, der Skalar ``location_*`` ist die
     # Wahrheit. Verteilt → die Map ist die Wahrheit, der Skalar spiegelt die grösste Teilmenge
     # (denormalisiert, wie ``reserved_for_order_id`` die Einzel-Reservierung spiegelt).

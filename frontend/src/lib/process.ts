@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, Warehouse, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, FileText, Building2 } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
@@ -15,7 +15,6 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
 
 // Standort-Typen (Bewegung): Label + Icon
 export const LOCATION_META: Record<LocationType, { label: string; icon: React.ElementType }> = {
-  lagerplatz: { label: 'Lagerplatz', icon: Warehouse },
   user:       { label: 'Person',     icon: UserIcon },
   instance:   { label: 'Instanz',    icon: Boxes },
   company:    { label: 'Unternehmen', icon: Building2 },

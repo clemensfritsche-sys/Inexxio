@@ -278,8 +278,10 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
         if set(payload) - {"target_location_type", "target_location_id"}:
             raise HTTPException(400, detail="Bei dieser Pflicht-Bewegung ist nur das Ziel editierbar")
         ttype = payload.get("target_location_type")
-        if ttype not in (None, "lagerplatz"):
-            raise HTTPException(400, detail="Wareneingang-Ziel muss ein Lagerplatz sein")
+        # Wareneingang: jeder gültige Halter (Instanz/Unternehmen) oder offen. NICHT 'user'
+        # – das ist die Kennung des Pflicht-Versands zum Lieferanten (siehe process_steps).
+        if ttype not in (None, "instance", "company"):
+            raise HTTPException(400, detail="Wareneingang-Ziel muss ein Behälter oder das Unternehmen sein")
         step.target_location_type = ttype
         step.target_location_id = payload.get("target_location_id") if ttype else None
         db.commit()

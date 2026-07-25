@@ -69,16 +69,16 @@ class InstanceResponse(BaseModel):
     physical_location_label: Optional[str] = None
     reserved_for_order_object_id: Optional[int] = None
     # **Standort-Kette** (nur im Detail gefüllt, nicht im Feed): Instanz → Behälter →
-    # Lagerplatz → Anschrift. Beantwortet «wo genau liegt das?» in einem Blick.
+    # Behälter → Anschrift. Beantwortet «wo genau liegt das?» in einem Blick.
     location_path: list[LocationHop] = []
 
 
 class ObjectReference(BaseModel):
     """Ein Verweis auf ein Objekt (Verwendungsnachweis) – generisch wiederverwendet,
-    z. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes."""
+    z. B. für die an einem Objekt lagernden Instanzen / referenzierenden Artikel."""
 
     kind: str          # menschenlesbare Rolle des Verweises
-    ref_type: str      # order | instance | article | lagerplatz | user
+    ref_type: str      # order | instance | article | user
     object_id: int
     label: str
     at: datetime

@@ -53,7 +53,7 @@ export interface ArticleInput {
   min_order_qty?: string | null;
   safety_stock?: string | null;
   reorder_target?: string | null;      // Zielbestand nach Nachbestellung (E)
-  // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+  // Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
   fixed_location_lat?: string | null;
   fixed_location_lng?: string | null;
   fixed_location_street?: string | null;
@@ -170,7 +170,7 @@ export interface ResourceUpdateInput {
 export type OrderResourceProduct = NonNullable<OrderResource['products']>[number];
 
 // Standort einer Instanz (Bewegung) – immer ein Datensatzobjekt mit Nummer
-export type LocationType = 'lagerplatz' | 'user' | 'instance' | 'company';
+export type LocationType = 'user' | 'instance' | 'company';
 
 export interface MovementTargetInput {
   instance_id: number;       // object_id der Instanz
@@ -241,7 +241,7 @@ export type Instance = InstanceApi;
 // Eine Teilmenge einer Charge an einem Standort (Standort-Verteilung ohne Instanz-Teilung)
 export type InstanceLocation = components['schemas']['InstanceLocation'];
 // qc_status in zwei orthogonale Achsen getrennt (siehe Backend domain/event_types):
-// Generischer Objekt-Verweis (Lagerplatz-Verwendung)
+// Generischer Objekt-Verweis («Verwendung» je Objektnummer)
 export type ObjectReference = components['schemas']['ObjectReference'];
 // Auftrag, der eine Instanz angefasst hat (Instanz = Summe aller Prozesse)
 export type InstanceOrderRef = components['schemas']['InstanceOrderRef'];
@@ -489,66 +489,7 @@ export interface PurchaseOrderUpdateInput {
   article_id?: number | null;              // Mehrpositionen: welche Position (bei >1 Bestellung)
 }
 
-// ─── Storage Location (Lagerplatz) ────────────────────────────────────────────
-
-export type StorageLocationStatus = 'draft' | 'released' | 'inactive';
-export type StorageLocationType = 'rack' | 'pallet' | 'floor' | 'drawer' | 'picking' | 'external';
-
-type StorageLocationApi = components['schemas']['StorageLocationResponse'];
-
-export type StorageLocation = Omit<StorageLocationApi, 'status'> & {
-  status: StorageLocationStatus;
-};
-
-export interface StorageLocationInput {
-  code?: string | null;
-  location_type?: string | null;
-  note?: string | null;
-  max_load_kg?: number | string | null;
-  width_mm?: number | null;
-  depth_mm?: number | null;
-  height_mm?: number | null;
-  is_dry?: boolean;
-  is_tempered?: boolean;
-  is_hazmat?: boolean;
-  is_blocked?: boolean;
-  latitude?: number | string | null;
-  longitude?: number | string | null;
-  address_street?: string | null;
-  address_zip?: string | null;
-  address_city?: string | null;
-  address_country?: string | null;
-}
-
-export interface StorageLocationUpdateInput {
-  status?: StorageLocationStatus;
-  name?: string;
-  code?: string | null;
-  location_type?: string | null;
-  note?: string | null;
-  max_load_kg?: number | string | null;
-  width_mm?: number | null;
-  depth_mm?: number | null;
-  height_mm?: number | null;
-  is_dry?: boolean;
-  is_tempered?: boolean;
-  is_hazmat?: boolean;
-  is_blocked?: boolean;
-  latitude?: number | string | null;
-  longitude?: number | string | null;
-  address_street?: string | null;
-  address_zip?: string | null;
-  address_city?: string | null;
-  address_country?: string | null;
-  is_active?: boolean;
-  expected_updated_at?: string | null;   // Optimistic Locking
-}
-
-// ─── Unified ERP record (Universal Feed) ──────────────────────────────────────
-// Reklamationen sind KEIN eigener Typ mehr: eine «Abweichung» ist ein Auftrag mit
-// parent_order_id (Unterauftrag) – siehe Order.parent_order_id / abort_into_id.
-
-export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'storage_location' | 'organization';
+export type ErpRecordType = 'user' | 'article' | 'order' | 'instance' | 'organization';
 
 // ─── KI-Layer (ADR 004) ───────────────────────────────────────────────────────
 

@@ -6,8 +6,8 @@ flankiert das System jeden ``purchase``-Schritt automatisch mit Pflicht-Bewegung
 (``locked=True``):
 
 - **nach** der Beschaffung immer eine Bewegung (Wareneingang bzw. Rückversand) –
-  ihr Ziel ist **konfigurierbar** wie bei einer regulären Bewegung (fester
-  Lagerplatz → per Scan erzwungen; leer → frei beim Einlagern),
+  ihr Ziel ist **konfigurierbar** wie bei einer regulären Bewegung (festes Ziel
+  → per Scan erzwungen; leer → frei beim Einlagern),
 - **vor** einer Lieferanten-Beschaffung, wenn sie nicht der erste Schritt ist, ein
   **Versand zum Lieferanten** (Stichwort Lohnveredelung) – das Ziel ist **fix der
   Lieferant** der Beschaffung (per Scan erzwungen, nicht editierbar).
@@ -15,7 +15,7 @@ flankiert das System jeden ``purchase``-Schritt automatisch mit Pflicht-Bewegung
 Die Pflicht-Bewegungen sind nicht löschbar und werden bei jeder Strukturänderung
 neu abgeleitet/positioniert (idempotent, selbstheilend). Unterscheidung der beiden
 Rollen über das Ziel: Versand trägt ein **user**-Ziel (Lieferant), Wareneingang ein
-**lagerplatz**-Ziel oder keines.
+Ziel anderer Art (Instanz/Unternehmen) oder keines.
 """
 
 from sqlalchemy.orm import Session
@@ -78,7 +78,7 @@ def sync_locked_movements(db: Session, *, article_id: int | None = None,
 
     # Rollen-getrennte Pools (positionsunabhängig): Versand-zum-Kunden ist via
     # mode='customer' getaggt; Versand-zum-Lieferanten trägt ein user-Ziel; Wareneingang
-    # ein Lagerplatz-Ziel oder keines. So gehen Ziele beim Re-Sync nicht verloren.
+    # ein Ziel anderer Art oder keines. So gehen Ziele beim Re-Sync nicht verloren.
     versandkunde_pool = [s for s in locked if s.mode == "customer"]
     versand_pool = [s for s in locked if s.mode != "customer" and s.target_location_type == "user"]
     wareneingang_pool = [s for s in locked if s.mode != "customer" and s.target_location_type != "user"]

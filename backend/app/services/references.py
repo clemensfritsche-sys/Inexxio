@@ -5,8 +5,6 @@
   Aufträge angestossen. Pro Auftrag werden die Rollen gesammelt (was er mit der
   Instanz tat), sortiert nach der **tatsächlichen Aktionszeit** an der Instanz –
   jüngste zuerst (NICHT nach Objektnummer/Anlage-Reihenfolge).
-* ``storage_location_references`` – lagernde Instanzen + Artikel, die einen
-  Lagerplatz referenzieren.
 """
 
 from datetime import datetime
@@ -16,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Article, ArticleProcessStep, Inspection, Instance, InstanceOrderLink, Order,
-    ResourceUsage, StorageLocation,
+    ResourceUsage,
 )
 from .locations import _obj_nr
 
@@ -104,12 +102,12 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
 
 
 def object_references(db: Session, object_id: int) -> list[dict]:
-    """**Wer zeigt auf diese Objektnummer?** – generisch für JEDEN Objekttyp (Lagerplatz,
+    """**Wer zeigt auf diese Objektnummer?** – generisch für JEDEN Objekttyp (Instanz,
     Person, Behälter-Instanz, Unternehmen). Weil Objektnummern global eindeutig sind,
     identifiziert ``location_id == object_id`` den Standort zweifelsfrei – ohne Typ-Filter:
 
     * **verortete Instanzen** – alles, was aktuell an dieser Objektnummer liegt (bei einer
-      Person gehaltene Teile, in einem Behälter/Lagerplatz gelagerte Instanzen …);
+      Person gehaltene Teile, in einem Behälter gelagerte Instanzen …);
     * **Prozessschritte**, die sie als Ziel/Lieferadresse referenzieren (Artikel-Prozess).
 
     Neueste zuerst. EIN Query je Bezugsart (kein N+1). Andere Rückverweis-Arten (z. B.
@@ -119,7 +117,7 @@ def object_references(db: Session, object_id: int) -> list[dict]:
     # ODER ihre **Verteilungs-Map** eine Teilmenge hier führt (Charge auf mehrere Orte verteilt).
     # **Verschrottetes zählt NIE als «liegt hier»**: eine verschrottete Instanz hat keinen realen
     # Halter mehr (der Endzustand `scrapped` IST die Wo-Aussage) – auch ein evtl. noch nicht
-    # bereinigter Alt-Standort (`location_id`) soll den Lagerplatz nicht mehr belegen.
+    # bereinigter Alt-Standort (`location_id`) soll den Halter nicht mehr belegen.
     insts = (
         db.query(Instance)
         .filter(
@@ -164,8 +162,3 @@ def object_references(db: Session, object_id: int) -> list[dict]:
 
     refs.sort(key=lambda r: r["at"], reverse=True)
     return refs
-
-
-def storage_location_references(db: Session, loc: StorageLocation) -> list[dict]:
-    """Verwendung eines Lagerplatzes = generischer Rückverweis auf seine Objektnummer."""
-    return object_references(db, loc.object_id)

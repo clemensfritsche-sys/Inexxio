@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ...domain import event_types
 from ...models import (
-    Article, ArticleProcessStep, Event, Instance, Order, StorageLocation, UserProfile,
+    Article, ArticleProcessStep, Event, Instance, Order, UserProfile,
 )
 from .. import address
 from ..admin import log_audit
@@ -493,25 +493,9 @@ def _t_get_user(db: Session, p: AiPrincipal, args: dict) -> Any:
     }
 
 
-def _t_storage_locations(db: Session, p: AiPrincipal, args: dict) -> Any:
-    """Lagerplätze/Standorte auflisten (für Bewegungen). Optional Suchbegriff."""
-    q = db.query(StorageLocation).filter(StorageLocation.is_active == True)
-    needle = (args.get("query") or "").strip().lower()
-    rows = q.order_by(StorageLocation.object_id.desc()).limit(80).all()
-    out = []
-    for s in rows:
-        if needle and needle not in (s.name or "").lower() and needle not in str(s.object_id or ""):
-            continue
-        out.append({"object_id": _num(s.object_id), "name": s.name, "status": s.status,
-                    "city": s.address_city, "note": s.note})
-        if len(out) >= _LIMIT:
-            break
-    return {"count": len(out), "locations": out}
-
-
 def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Universelle Objektnummer auflösen: sagt, WAS die Nummer ist (Artikel/Auftrag/
-    Instanz/Benutzer/Lagerplatz) und liefert die Kernfakten. Erster Griff bei jeder
+    Instanz/Benutzer) und liefert die Kernfakten. Erster Griff bei jeder
     9-stelligen Zahl, deren Art unklar ist."""
     from ..objects import resolve_object_type
     oid = int(args["object_id"])
@@ -527,9 +511,6 @@ def _t_resolve_object(db: Session, p: AiPrincipal, args: dict) -> Any:
         detail = _t_get_instance(db, p, {"object_id": oid})
     elif t == "user":
         detail = _t_get_user(db, p, {"object_id": oid})
-    elif t == "storage_location":
-        s = db.query(StorageLocation).filter(StorageLocation.object_id == oid).first()
-        detail = {"name": s.name, "status": s.status} if s else {}
     return {"object_id": _num(oid), "type": t, "detail": detail}
 
 
@@ -564,7 +545,6 @@ def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
         "email": s.email, "phone": s.phone, "website": s.website,
         "vat_method": s.vat_method, "vat_period": s.vat_period,
         "default_payment_days": s.default_payment_days,
-        "default_receiving_location_id": _num(getattr(s, "default_receiving_location_id", None)),
     }
 
 
@@ -886,7 +866,7 @@ _DEFINITIONS: dict[str, dict] = {
     ),
     "resolve_object": _tool(
         "resolve_object",
-        "Sagt, WAS eine 9-stellige Objektnummer ist (Artikel/Auftrag/Instanz/Benutzer/Lagerplatz) "
+        "Sagt, WAS eine 9-stellige Objektnummer ist (Artikel/Auftrag/Instanz/Benutzer) "
         "und liefert die Kernfakten. Immer zuerst nutzen, wenn die Art einer Nummer unklar ist.",
         {"object_id": {"type": "integer"}},
         ["object_id"],
@@ -917,11 +897,6 @@ _DEFINITIONS: dict[str, dict] = {
         "get_user",
         "Ein Benutzerkonto im Detail lesen (Personal) – per Objektnummer oder E-Mail.",
         {"object_id": {"type": "integer"}, "email": {"type": "string"}},
-    ),
-    "storage_locations": _tool(
-        "storage_locations",
-        "Lagerplätze/Standorte auflisten (Ziele für Bewegungen). Optional Suchbegriff.",
-        {"query": {"type": "string"}},
     ),
     "company_info": _tool(
         "company_info",
@@ -1036,8 +1011,9 @@ _DEFINITIONS: dict[str, dict] = {
                        "enum": ["purchase", "resource", "inspection", "movement", "scrap", "sale", "document"]},
          "webshop_url": {"type": "string", "description": "Beschaffung per Online-Shop-Link"},
          "supplier_object_id": {"type": "integer", "description": "Beschaffung bei diesem Lieferanten"},
-         "target_type": {"type": "string", "enum": ["lagerplatz", "user", "instance"],
-                         "description": "Bewegungs-Ziel (user = zum angemeldeten Nutzer «zu mir»)"},
+         "target_type": {"type": "string", "enum": ["user", "instance", "company"],
+                         "description": "Bewegungs-Ziel (user = zum angemeldeten Nutzer «zu mir», "
+                                        "instance = in einen Behälter, company = im Betrieb)"},
          "target_object_id": {"type": "integer"}},
         ["order_object_id", "step_type"],
     ),
@@ -1050,7 +1026,7 @@ _DEFINITIONS: dict[str, dict] = {
         {"article_object_id": {"type": "integer"},
          "step_type": {"type": "string", "enum": ["purchase", "resource", "inspection", "movement", "document"]},
          "webshop_url": {"type": "string"}, "supplier_object_id": {"type": "integer"},
-         "target_type": {"type": "string", "enum": ["lagerplatz", "user", "instance"]},
+         "target_type": {"type": "string", "enum": ["user", "instance", "company"]},
          "target_object_id": {"type": "integer"}},
         ["article_object_id", "step_type"],
     ),
@@ -1085,7 +1061,6 @@ _EXECUTORS: dict[str, ToolFn] = {
     "list_instances": _t_list_instances,
     "list_users": _t_list_users,
     "get_user": _t_get_user,
-    "storage_locations": _t_storage_locations,
     "company_info": _t_company_info,
     "audit_log": _t_audit_log,
     "fetch_web_page": _t_fetch_web_page,
@@ -1105,13 +1080,13 @@ _EXECUTORS: dict[str, ToolFn] = {
 _BY_ROLE: dict[str, tuple[str, ...]] = {
     "admin": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
               "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
-              "list_users", "get_user", "storage_locations", "company_info", "audit_log", "fetch_web_page",
+              "list_users", "get_user", "company_info", "audit_log", "fetch_web_page",
               "article_name_suggestions", "create_article_draft", "update_article", "add_article_step",
               "propose_release_article", "create_order_draft", "get_order_steps", "add_order_step",
               "set_order_instances", "propose_release_order"),
     "employee": ("list_articles", "get_article", "list_orders", "get_order", "inventory_summary",
                  "recent_events", "shop_products", "resolve_object", "open_page", "get_instance", "list_instances",
-                 "list_users", "get_user", "storage_locations", "company_info", "fetch_web_page",
+                 "list_users", "get_user", "company_info", "fetch_web_page",
                  "article_name_suggestions", "create_article_draft", "update_article", "add_article_step",
                  "propose_release_article", "create_order_draft", "get_order_steps", "add_order_step",
                  "set_order_instances", "propose_release_order"),

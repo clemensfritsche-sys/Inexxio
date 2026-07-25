@@ -13,7 +13,7 @@ class DocumentLink(Base, TimestampMixin):
     Ein Dokument gehört selten zu genau EINEM Objekt: eine Rechnung betrifft den
     Lieferanten UND mehrere Artikel UND einen Auftrag. Darum keine 1:1-Spalte, sondern
     eine Verknüpfungszeile je Bezug. ``object_id`` ist die universelle Objektnummer des
-    Ziels (Artikel/Auftrag/Instanz/Benutzer/Lagerplatz/Unternehmen), ``object_type`` ein
+    Ziels (Artikel/Auftrag/Instanz/Benutzer/Unternehmen), ``object_type`` ein
     Snapshot für Filter/Anzeige. Ein Dokument hat IMMER mindestens eine Verknüpfung
     (Freigabe-Gate im Service) – es darf nicht objektlos existieren."""
 
