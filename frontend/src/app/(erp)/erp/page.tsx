@@ -6,11 +6,10 @@ import { cn, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, StorageLocation, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
-import { storageStatusConfig } from '@/lib/storage-location';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { instanceStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
@@ -21,7 +20,6 @@ import { DocumentIngestDialog } from '@/components/erp/object-documents';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
 import { InstanceDetail } from '@/components/erp/instance-detail';
-import { StorageLocationDetail } from '@/components/erp/storage-location-detail';
 import { OrganizationDetail } from '@/components/erp/organization-detail';
 
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
@@ -33,14 +31,12 @@ type Row =
   | { type: 'article'; key: string; objectId: number | null; data: Article }
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
-  | { type: 'storage_location'; key: string; objectId: number | null; data: StorageLocation }
   | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
 
 function rowTitle(row: Row): string {
   if (row.type === 'user') return userDisplayName(row.data);
   if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
   if (row.type === 'instance') return 'Instanz';   // starr – Instanz trägt keinen freien Namen
-  if (row.type === 'storage_location') return 'Lagerplatz';
   if (row.type === 'organization') return row.data.company_name || 'Unternehmen';
   return row.data.name; // article
 }
@@ -51,8 +47,7 @@ function rowSearchText(row: Row): string {
   if (row.type === 'article') return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();
   if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
   if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
-  if (row.type === 'organization') return `unternehmen firma ${row.data.company_name} ${id}`.toLowerCase();
-  return `${row.data.name} ${row.data.address_city ?? ''} ${id}`.toLowerCase();
+  return `unternehmen firma ${row.data.company_name} ${id}`.toLowerCase();
 }
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
@@ -74,8 +69,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
-  else if (row.type === 'organization') badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
-  else badge = storageStatusConfig(row.data.status);
+  else badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
@@ -136,7 +130,6 @@ export default function ErpPage() {
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   // Vollständiger Auftrag wird erst bei Auswahl geladen (Detail-on-Demand)
   const [orderDetail, setOrderDetail] = useState<Order | null>(null);
-  const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
   // Instanzen (höchste Kardinalität): server-paginiert + server-durchsucht.
   const [instances, setInstances] = useState<Instance[]>([]);
   const [instanceTotal, setInstanceTotal] = useState(0);
@@ -149,7 +142,7 @@ export default function ErpPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
   const [sel, setSel] = useState<{ type: ErpRecordType; objectId: number } | null>(null);
-  const [creating, setCreating] = useState<'article' | 'order' | 'storage_location' | null>(null);
+  const [creating, setCreating] = useState<'article' | 'order' | null>(null);
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
   const [isAdmin, setIsAdmin] = useState(false);
   const [viewerRole, setViewerRole] = useState<'staff' | 'supplier'>('staff');
@@ -171,12 +164,11 @@ export default function ErpPage() {
     // sofort. Instanzen (höchste Kardinalität) danach nachladen.
     Promise.allSettled([
       api.getErpRecords(), api.getArticles(), api.getOrders(),
-      api.getStorageLocations(), api.getMe(),
-    ]).then(([u, a, o, sl, me]) => {
+      api.getMe(),
+    ]).then(([u, a, o, me]) => {
       if (u.status === 'fulfilled') setUsers(u.value);
       if (a.status === 'fulfilled') setArticles(a.value);
       if (o.status === 'fulfilled') setOrders(o.value);
-      if (sl.status === 'fulfilled') setStorageLocations(sl.value);
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
@@ -234,7 +226,6 @@ export default function ErpPage() {
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
       api.getOrders().then(setOrders).catch(() => {});
-      api.getStorageLocations().then(setStorageLocations).catch(() => {});
       api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
       api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
     }
@@ -284,7 +275,6 @@ export default function ErpPage() {
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
     ...instances.map((i): Row => ({ type: 'instance', key: `i${i.id}`, objectId: i.object_id, data: i })),
-    ...storageLocations.map((l): Row => ({ type: 'storage_location', key: `l${l.id}`, objectId: l.object_id, data: l })),
     // FIX: Fallback -Infinity ergab NaN, sobald ZWEI Zeilen ohne Objektnummer verglichen
     // wurden (-Infinity − -Infinity = NaN) – ein NaN-Komparator verletzt die Sortier-Ordnung
     // und macht die Reihenfolge undefiniert. 0 sortiert Zeilen ohne Nummer stabil ans Ende
@@ -316,8 +306,6 @@ export default function ErpPage() {
     const load: Promise<Row | null> =
       sel.type === 'article'
         ? api.getArticle(sel.objectId).then((d): Row => ({ type: 'article', key: `a${d.id}`, objectId: sel.objectId, data: d }))
-        : sel.type === 'storage_location'
-          ? api.getStorageLocation(sel.objectId).then((d): Row => ({ type: 'storage_location', key: `l${d.id}`, objectId: sel.objectId, data: d }))
           : Promise.resolve(null);
     load.then((row) => { if (!cancelled) setNavRecord(row); }).catch(() => { if (!cancelled) setNavRecord(null); });
     return () => { cancelled = true; };
@@ -368,7 +356,7 @@ export default function ErpPage() {
     } catch { /* Objekt nicht gefunden – ignorieren */ }
   }
 
-  function startCreate(type: 'article' | 'order' | 'storage_location') {
+  function startCreate(type: 'article' | 'order') {
     setPlusOpen(false);
     setSel(null);
     setCreating(type);
@@ -399,12 +387,6 @@ export default function ErpPage() {
     const q = search.trim();
     api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
     api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
-  }
-
-  function handleStorageSaved(loc: StorageLocation) {
-    setStorageLocations((prev) => (prev.some((x) => x.id === loc.id) ? prev.map((x) => (x.id === loc.id ? loc : x)) : [...prev, loc]));
-    setCreating(null);
-    if (loc.object_id != null) setSel({ type: 'storage_location', objectId: loc.object_id });
   }
 
   function handleUserSaved(u: UserProfile) {
@@ -529,9 +511,6 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('order')} style={menuItemStyle}>
                     <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
                   </button>
-                  <button onClick={() => startCreate('storage_location')} style={menuItemStyle}>
-                    <Warehouse size={15} style={{ color: 'var(--fg-3)' }} /> Lagerplatz
-                  </button>
                 </div>
               )}
               <button
@@ -565,9 +544,6 @@ export default function ErpPage() {
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
-          {creating === 'storage_location' && (
-            <StorageLocationDetail key="new-storage" record={null} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={cancelCreate} onBack={cancelCreate} />
-          )}
           {!creating && activeRow?.type === 'user' && (
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
@@ -586,9 +562,6 @@ export default function ErpPage() {
           {!creating && sel?.type === 'instance' && instanceDetail && (
             <InstanceDetail key={`i-${sel.objectId}`} record={instanceDetail} onBack={() => setMobileView('list')}
               onChanged={() => { api.getOrders().then(setOrders).catch(() => {}); reloadInstances(); }} />
-          )}
-          {!creating && activeRow?.type === 'storage_location' && (
-            <StorageLocationDetail key={activeRow.key} record={activeRow.data} mapsApiKey={mapsApiKey} onSaved={handleStorageSaved} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'organization' && (
             <OrganizationDetail key={activeRow.key} record={activeRow.data}

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from ..domain.event_types import STEP_TYPES as ALLOWED_STEP_TYPES
 from ..services.article_fields import normalize_shared_fields
 from .movement import LOCATION_TYPES
+from .place import Place
 
 # Schritttypen kommen aus der deklarativen Registry (``domain.event_types``) – EINE
 # Quelle der Wahrheit. EIN «resource»-Schritt («Ressource») fasst Verbrauch &
@@ -194,6 +195,7 @@ class ArticleProcessStepCreate(BaseModel):
     photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    target_place: Optional[Place] = None      # nur bei Zieltyp 'place' (Adresse/GPS)
     transport_mode: str = "auto"
     resource_lines: Optional[list[ResourceLine]] = None
     # «document»-Deklaration (Struktur der Freigabe/Anerkennung – gilt für alle Ausfertigungen)
@@ -279,9 +281,17 @@ class ArticleProcessStepCreate(BaseModel):
         if self.step_type == "resource" and not self.resource_lines:
             raise ValueError("Ein Ressource-Schritt braucht mindestens eine Zeile")
         # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.
-        # Ohne Zieltyp gibt es kein festes Zielobjekt.
+        # Ohne Zieltyp gibt es kein festes Zielobjekt. Genau EINE Adressierung:
+        # Ort → ``target_place`` (keine Nummer), sonst → ``target_location_id``.
         if self.target_location_type is None:
             self.target_location_id = None
+            self.target_place = None
+        elif self.target_location_type == "place":
+            self.target_location_id = None
+            if self.target_place is None:
+                raise ValueError("Für einen Vorgabe-Ort ist eine Adresse erforderlich")
+        else:
+            self.target_place = None
         return self
 
 
@@ -308,6 +318,7 @@ class ArticleProcessStepUpdate(BaseModel):
     photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    target_place: Optional[Place] = None      # nur bei Zieltyp 'place' (Adresse/GPS)
     transport_mode: Optional[str] = None
     resource_lines: Optional[list[ResourceLine]] = None
     doc_signers: Optional[list[DocSigner]] = None
@@ -395,6 +406,7 @@ class ArticleProcessStepResponse(BaseModel):
     photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
+    target_place: Optional[dict] = None
     transport_mode: str = "auto"
     resource_lines: list[ResourceLineView] = []
     # «document»-Deklaration

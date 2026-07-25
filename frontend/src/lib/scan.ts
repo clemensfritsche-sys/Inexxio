@@ -50,7 +50,7 @@ export interface ScanCandidate {
 
 // Erwarteter Objekttyp eines Scan-Schritts – für ein klares Symbol im Scanner
 // («was muss ich jetzt scannen?»).
-export type ScanKind = 'lagerplatz' | 'user' | 'instance' | 'article' | 'process' | 'object';
+export type ScanKind = 'user' | 'instance' | 'article' | 'process' | 'object';
 
 export interface ScanStep {
   label: string;                              // was gerade gescannt werden soll

@@ -14,8 +14,8 @@ flankiert das System jeden ``purchase``-Schritt automatisch mit Pflicht-Bewegung
 
 Die Pflicht-Bewegungen sind nicht löschbar und werden bei jeder Strukturänderung
 neu abgeleitet/positioniert (idempotent, selbstheilend). Unterscheidung der beiden
-Rollen über das Ziel: Versand trägt ein **user**-Ziel (Lieferant), Wareneingang ein
-**lagerplatz**-Ziel oder keines.
+Rollen über das Ziel: Versand trägt ein **user**-Ziel (Lieferant/Kunde), Wareneingang
+ein **eigenes** Ziel (Ort/Behälter-Instanz/Unternehmen) oder keines.
 """
 
 from sqlalchemy.orm import Session

@@ -5,8 +5,7 @@ import type {
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
-  Instance, InstanceOrderRef, ObjectReference, StorageLocation, StorageLocationInput, StorageLocationUpdateInput,
-  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
+  Instance, InstanceOrderRef, ObjectReference, CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
@@ -568,34 +567,6 @@ class ApiClient {
     return this.get(`/api/v1/erp/instances/${objectId}/orders`);
   }
 
-  // ─── ERP Storage Locations (Lagerplätze) ────────────────────────────────────
-
-  getStorageLocations(): Promise<StorageLocation[]> {
-    return this.get('/api/v1/erp/storage-locations');
-  }
-
-  getStorageLocation(objectId: number): Promise<StorageLocation> {
-    return this.get(`/api/v1/erp/storage-locations/${objectId}`);
-  }
-
-  createStorageLocation(data: StorageLocationInput): Promise<StorageLocation> {
-    return this.post('/api/v1/erp/storage-locations', data);
-  }
-
-  updateStorageLocation(objectId: number, data: StorageLocationUpdateInput): Promise<StorageLocation> {
-    return this.patch(`/api/v1/erp/storage-locations/${objectId}`, data);
-  }
-
-  // Ersetzen: Duplikat (Entwurf) anlegen, verknüpfen, Original inaktiv (nur wenn leer)
-  replaceStorageLocation(objectId: number): Promise<StorageLocation> {
-    return this.post(`/api/v1/erp/storage-locations/${objectId}/replace`, {});
-  }
-
-  // Verwendung eines Lagerplatzes (lagernde Instanzen + referenzierende Artikel)
-  getStorageLocationReferences(objectId: number): Promise<ObjectReference[]> {
-    return this.get(`/api/v1/erp/storage-locations/${objectId}/references`);
-  }
-
   // Generischer Rückverweis je Objektnummer («wer zeigt auf mich» – verortet/Ziel).
   getObjectReferences(objectId: number): Promise<ObjectReference[]> {
     return this.get(`/api/v1/erp/objects/${objectId}/references`);
@@ -768,7 +739,6 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     plausible_domain: (s.plausible_domain as string | null) ?? null,
     hcaptcha_site_key: (s.hcaptcha_site_key as string | null) ?? null,
     google_maps_api_key: (s.google_maps_api_key as string | null) ?? null,
-    default_receiving_location_id: (s.default_receiving_location_id as number | null) ?? null,
     shop_currencies: (s.shop_currencies as string[] | null) ?? ['CHF', 'EUR', 'USD'],
     shop_country_currency: (s.shop_country_currency as Record<string, string> | null) ?? null,
     shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',

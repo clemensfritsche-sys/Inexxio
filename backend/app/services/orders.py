@@ -27,7 +27,7 @@ from ..schemas.sale import SaleEmbed
 from . import process
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
-from .locations import location_label, location_labels, physical_location_labels
+from .locations import location_label, location_labels, physical_location_labels, resolve_label
 from .resource import build_resource_embed
 from .subject import order_instances, subject_kind
 
@@ -126,13 +126,20 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
 
 
 def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
-    """Lieferadresse/Wareneingang: gesetzter Lagerort (nach Wareneingang) oder die
-    in der Systemkonfiguration hinterlegte Vorgabe-Lieferadresse."""
-    recv = po.receiving_location_id
-    if not recv:
-        st = db.query(CompanySettings).first()
-        recv = st.default_receiving_location_id if st else None
-    return location_label(db, "lagerplatz", recv) if recv else None
+    """Lieferadresse/Wareneingang = die **Firmenadresse** aus den Unternehmens-Stammdaten.
+
+    Der frühere Vorgabe-Lagerplatz (`default_receiving_location_id`) ist entfallen: es gibt
+    keinen Lagerplatz-Datensatz mehr. Wohin die Ware im Haus tatsächlich geht, setzt danach
+    die gesperrte Pflicht-Bewegung «Wareneingang» (Ort/Behälter/Unternehmen)."""
+    st = db.query(CompanySettings).first()
+    if not st:
+        return None
+    bits = [
+        (st.company_name or "").strip(),
+        " ".join(x for x in [(st.street or "").strip(), (st.street_nr or "").strip()] if x),
+        " ".join(x for x in [(st.zip_code or "").strip(), (st.city or "").strip()] if x),
+    ]
+    return " · ".join(b for b in bits if b) or None
 
 
 def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
@@ -226,9 +233,10 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     me.mode = step.mode                      # 'customer' = Pflicht-Versand (nur dann sold bewegbar)
     me.target_location_type = step.target_location_type
     me.target_location_id = step.target_location_id
+    me.target_place = step.target_place
     # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei wählbar, sondern
     # FIX der Kunde des Verkaufs. So erzwingt das Panel (fester Zielort) die richtige Person UND
-    # muss keine Lagerplatz-/Personen-Listen laden (schnell). Fällt der Kunde noch (Verkauf nicht
+    # muss keine Personen-/Instanz-Listen laden (schnell). Fällt der Kunde noch (Verkauf nicht
     # bestätigt), bleibt das Ziel offen – die Bewegung ist ohnehin erst nach dem Verkauf aktiv.
     if step.mode == "customer":
         from .sale import customer_for_order
@@ -236,7 +244,9 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
         if cust:
             me.target_location_type = "user"
             me.target_location_id = cust.object_id
-    me.target_location_label = location_label(db, me.target_location_type, me.target_location_id)
+            me.target_place = None
+    me.target_location_label = location_label(
+        db, me.target_location_type, me.target_location_id, me.target_place)
     if mv and mv.moved_by_id:
         me.moved_by_name = _supplier_name(
             db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
@@ -433,7 +443,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     instance_embeds: list[InstanceEmbed] = []
     for i in instances:
         emb = InstanceEmbed.model_validate(i)
-        emb.location_label = loc_labels.get((i.location_type, i.location_id))
+        emb.location_label = resolve_label(i.location_type, i.location_id, i.place, loc_labels)
         if i.location_type == "instance":
             emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
         # Betrifft der Auftrag nur eine Teilmenge dieser Charge (z. B. 10 von 1000), die

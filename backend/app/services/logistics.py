@@ -32,14 +32,13 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import (
-    Article, ArticleProcessStep, CompanySettings, Instance, Order, Shipment,
-    StorageLocation, UserProfile,
+    Article, ArticleProcessStep, CompanySettings, Instance, Order, Shipment, UserProfile,
 )
 from ..schemas.shipment import ShipmentEmbed, ShipmentRate
 from . import shipping
 from .admin import log_audit
 from .events import emit
-from .locations import resolve_physical_location
+from .locations import resolve_physical_location, resolve_physical_place
 from .quantity import to_qty
 
 # Paket-Fallback, wenn der Artikel keine (parsebare) Grösse trägt (cm).
@@ -120,8 +119,14 @@ def same_place(a: dict | None, b: dict | None) -> bool:
 
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
     """Ownership eines Standort-Ziels: 'external_person' (Kunde/Lieferant) |
-    'internal' (Lagerplatz/Mitarbeiter/Firma) | 'unknown'. Instanzen über die
-    physische Standort-Kette."""
+    'internal' (Ort/Mitarbeiter/Firma/Behälter) | 'unknown'. Instanzen über die
+    physische Standort-Kette.
+
+    Ein **Ort** gilt als *internal* – er ist ein von uns gesetzter Standort. Ob daraus
+    ein Versand wird, entscheidet danach der **Adressvergleich** (andere Anschrift als
+    die Quelle → Transport); genau so verhält sich schon der Mehr-Standort-Fall."""
+    if ltype == "place":
+        return "internal"
     if not ltype or lid is None:
         return "unknown"
     if ltype == "instance":
@@ -134,24 +139,28 @@ def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
         if not u:
             return "unknown"
         return "internal" if (u.role or "") in _INTERNAL_ROLES else "external_person"
-    if ltype in ("lagerplatz", "company"):
+    if ltype == "company":
         return "internal"
     return "unknown"
 
 
-def effective_target(db: Session, order: Order, step: ArticleProcessStep) -> tuple[str | None, int | None]:
-    """Das für die Klassifikation massgebliche Ziel des Bewegungs-Schritts.
+def effective_target(db: Session, order: Order, step: ArticleProcessStep) -> tuple[str | None, int | None, dict | None]:
+    """Das für die Klassifikation massgebliche Ziel des Bewegungs-Schritts –
+    ``(typ, objektnummer, ort)``; bei einem **Ort** ist die Nummer ``None`` und der
+    Adress-Snapshot gesetzt.
 
     Pflicht-Versand zum Kunden (mode='customer') → der Kunde des Verkaufs; sonst das
-    (optionale) Vorgabe-Ziel der Schritt-Definition. Frei wählbare Ziele (beides leer)
-    sind vorab nicht klassifizierbar → (None, None)."""
+    (optionale) Vorgabe-Ziel der Schritt-Definition. Frei wählbare Ziele (alles leer)
+    sind vorab nicht klassifizierbar → (None, None, None)."""
     if step.mode == "customer":
         from .sale import customer_for_order
         cust = customer_for_order(db, order)
         if cust:
-            return "user", cust.object_id
-        return None, None
-    return step.target_location_type, step.target_location_id
+            return "user", cust.object_id, None
+        return None, None, None
+    if step.target_location_type == "place":
+        return "place", None, step.target_place
+    return step.target_location_type, step.target_location_id, None
 
 
 def classify_movement(db: Session, order: Order, step: ArticleProcessStep,
@@ -167,30 +176,40 @@ def classify_movement(db: Session, order: Order, step: ArticleProcessStep,
       • Zwei interne Orte: Versand NUR, wenn **beide eine Adresse tragen und sich
         UNTERSCHEIDEN** (Mehr-Standort-Transport). Gleiche/keine Adresse → **innerbetrieblich**.
     """
-    t_type, t_id = effective_target(db, order, step)
+    t_type, t_id, t_place = effective_target(db, order, step)
     tgt_kind = location_kind(db, t_type, t_id)
 
-    # Quelle = physischer Ist-Standort der ersten verorteten Instanz.
+    # Quelle = physischer Ist-Standort der ersten verorteten Instanz (Ort ODER Objekt).
     s_type = s_id = None
+    s_place = None
     for inst in instances[:20]:                      # Schutz: grosse Aufträge kappen
+        if inst.location_type == "place" and inst.place:
+            s_type, s_id, s_place = "place", None, inst.place
+            break
         pt, pid = resolve_physical_location(db, inst.location_type, inst.location_id)
+        if pt == "place":
+            # Die Kette endet an einem Ort (z. B. Bauteil → Behälter → Adresse).
+            s_type, s_id, s_place = "place", None, resolve_physical_place(
+                db, inst.location_type, inst.location_id)
+            break
         if pt and pid:
             s_type, s_id = pt, pid
             break
     src_kind = location_kind(db, s_type, s_id)
 
+    target = (t_type, t_id, t_place)
     if tgt_kind == "external_person":
-        return {"transport_class": "outside", "direction": "outbound", "target": (t_type, t_id)}
+        return {"transport_class": "outside", "direction": "outbound", "target": target}
     if src_kind == "external_person":
-        return {"transport_class": "outside", "direction": "inbound", "target": (t_type, t_id)}
+        return {"transport_class": "outside", "direction": "inbound", "target": target}
     if tgt_kind == "unknown":
-        return {"transport_class": "unknown", "direction": "outbound", "target": (t_type, t_id)}
+        return {"transport_class": "unknown", "direction": "outbound", "target": target}
     # Beide intern → Adress-Vergleich (Mehr-Standort). Ziel ohne Adresse = innerbetrieblich.
-    tgt_addr = target_address(db, t_type, t_id)
-    src_addr = target_address(db, s_type, s_id)
+    tgt_addr = target_address(db, t_type, t_id, t_place)
+    src_addr = target_address(db, s_type, s_id, s_place)
     if _has_address(tgt_addr) and _has_address(src_addr) and not same_place(src_addr, tgt_addr):
-        return {"transport_class": "outside", "direction": "outbound", "target": (t_type, t_id)}
-    return {"transport_class": "inside", "direction": "outbound", "target": (t_type, t_id)}
+        return {"transport_class": "outside", "direction": "outbound", "target": target}
+    return {"transport_class": "inside", "direction": "outbound", "target": target}
 
 
 # ─── Pakete aus den Artikel-Daten (kaum manueller Input) ─────────────────────────
@@ -321,13 +340,15 @@ def _addr_user(u: UserProfile) -> dict:
     }
 
 
-def _addr_storage(loc: StorageLocation) -> dict:
+def _addr_place(place: dict) -> dict:
+    """Adress-Snapshot eines **Orts** – er liegt bereits in genau dieser Form vor
+    (``schemas/place.py``), nur Land normalisieren und Lücken auffüllen."""
     return {
-        "name": loc.name or "Lagerplatz",
-        "street1": loc.address_street or "—",
-        "zip": loc.address_zip or "",
-        "city": loc.address_city or "",
-        "country": iso2(loc.address_country),
+        "name": (place.get("name") or "").strip() or "Standort",
+        "street1": (place.get("street1") or "").strip() or "—",
+        "zip": (place.get("zip") or "").strip() or "",
+        "city": (place.get("city") or "").strip() or "",
+        "country": iso2(place.get("country")),
         "email": None, "phone": None,
     }
 
@@ -340,21 +361,32 @@ def _addr_label(a: dict | None) -> str | None:
     return " · ".join(str(b) for b in bits if b and b != "—") or None
 
 
-def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:
-    """Adress-Snapshot des Ziels (Person → Profil-Adresse, Lagerplatz → Standort-Adresse)."""
+def target_address(db: Session, ltype: str | None, lid: int | None,
+                   place: dict | None = None) -> dict | None:
+    """Adress-Snapshot des Ziels: **Ort** → seine eigene Adresse, Person → Profil-Adresse,
+    **Unternehmen** → Firmenadresse, Instanz → über die physische Kette (endet an einem
+    Ort/einer Person/dem Unternehmen)."""
+    if ltype == "place":
+        return _addr_place(place) if place else None
     if not ltype or lid is None:
         return None
     if ltype == "instance":
         pt, pid = resolve_physical_location(db, ltype, lid)
         if (pt, pid) == (ltype, lid):
             return None
+        if pt == "place":
+            # Kette endet an einem Ort – dessen Adresse liegt an der Host-Instanz.
+            host_place = resolve_physical_place(db, ltype, lid)
+            return _addr_place(host_place) if host_place else None
         return target_address(db, pt, pid)
     if ltype == "user":
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
         return _addr_user(u) if u else None
-    if ltype == "lagerplatz":
-        loc = db.query(StorageLocation).filter(StorageLocation.object_id == lid).first()
-        return _addr_storage(loc) if loc else None
+    if ltype == "company":
+        # Das Unternehmen selbst – bisher hatte es KEINEN Adress-Zweig, obwohl
+        # ``location_kind`` es als intern führte (stille Lücke). Jetzt als Bewegungsziel
+        # zugelassen und darum sauber aufgelöst.
+        return _addr_company(_settings(db))
     return None
 
 
@@ -389,11 +421,11 @@ def ensure_shipment(db: Session, order: Order, step: ArticleProcessStep,
         db.add(ship)
     if ship.status in ("draft", "quoted"):
         settings = _settings(db)
-        t_type, t_id = cls["target"]
+        t_type, t_id, t_place = cls["target"]
         ship.direction = cls["direction"]
         outbound = cls["direction"] == "outbound"
         company = _addr_company(settings)
-        other = target_address(db, t_type, t_id)
+        other = target_address(db, t_type, t_id, t_place)
         ship.address_from = company if outbound else other
         ship.address_to = other if outbound else company
         ship.parcels = parcels
@@ -417,7 +449,7 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
                             "Rate-Shopping – Spediteur anfragen und Carrier/Tracking/Kosten "
                             "manuell erfassen (Instant-Fracht-Tarif folgt als Phase 1).")
     if not ship.address_to or not ship.address_from:
-        raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Person/Lagerplatz) pflegen")
+        raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Ort/Person/Unternehmen) pflegen")
     provider = shipping.get_provider()
     if not provider.supports_rates:
         raise HTTPException(503, detail="Kein Versand-Anbieter konfiguriert (SHIPPO_API_KEY) – Carrier/Tracking manuell erfassen")
@@ -609,9 +641,9 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
     else:
         # Vorschau ohne Beleg: Adressen/Pakete/Last live ableiten (kein Schreiben im GET).
         settings = _settings(db)
-        t_type, t_id = cls["target"]
+        t_type, t_id, t_place = cls["target"]
         company = _addr_company(settings)
-        other = target_address(db, t_type, t_id)
+        other = target_address(db, t_type, t_id, t_place)
         outbound = cls["direction"] == "outbound"
         emb.from_label = _addr_label(company if outbound else other)
         emb.to_label = _addr_label(other if outbound else company)

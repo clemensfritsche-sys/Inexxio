@@ -7,10 +7,13 @@ from pydantic import BaseModel, ConfigDict, field_validator
 class InstanceLocation(BaseModel):
     """Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).
     Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –
-    die Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt."""
+    die Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt.
+
+    ``location_id`` ist NULL, wenn die Instanz an einem **Ort** liegt (``place``) – ein Ort
+    trägt keine Objektnummer und hält immer die ganze (Rest-)Menge."""
 
     location_type: str
-    location_id: int
+    location_id: Optional[int] = None
     quantity: float
     location_label: Optional[str] = None   # vom Router denormalisiert
 
@@ -64,7 +67,7 @@ class ObjectReference(BaseModel):
     z. B. für die lagernden Instanzen / referenzierenden Artikel eines Lagerplatzes."""
 
     kind: str          # menschenlesbare Rolle des Verweises
-    ref_type: str      # order | instance | article | lagerplatz | user
+    ref_type: str      # order | instance | article | user
     object_id: int
     label: str
     at: datetime

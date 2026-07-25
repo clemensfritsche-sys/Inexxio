@@ -46,19 +46,33 @@ class Instance(Base, TimestampMixin):
     # (Ressource-Schritt): ältester Freigabe-Zeitpunkt zuerst.
     released_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Standort – eine Instanz hat IMMER einen Standort (ab Freigabe: Lieferant bzw. Wareneingang).
-    # Der Standort ist stets ein Datensatzobjekt mit Nummer:
-    #   lagerplatz → StorageLocation | user → UserProfile | instance → andere Instanz
+    # Standort = **Halter**. Vier Arten, nur eine davon ohne Datensatzobjekt:
+    #   place    → Adresse/GPS INLINE in ``place`` (location_id ist NULL)  ← das «Blatt»
+    #   user     → UserProfile (Mitarbeiter, Lieferant, Kunde)   – Objektnummer
+    #   instance → andere Instanz (Behälter/Palette/Maschine/LKW) – Objektnummer
+    #   company  → das Unternehmen selbst (Betriebsadresse)       – Objektnummer
+    # NULL = «noch nicht festgelegt» (standortlos ist erlaubt, z. B. nach dem Verschrotten).
+    # Ein **benannter Platz** (Regal A, Wareneingang) ist eine Instanz, die andere hält –
+    # das ersetzt den früheren eigenständigen `lagerplatz`-Datensatz.
     location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     location_id: Mapped[Optional[int]] = mapped_column(BigInteger, index=True, nullable=True)
+    # Der **Ort** (nur bei ``location_type='place'``): Adress-/GPS-Snapshot in exakt der Form
+    # der Versand-Adressen ({name,street1,zip,city,country} + lat/lng), damit die Logistik
+    # (``same_place``/``_addr_label``) ihn ohne Übersetzung verarbeitet. Siehe schemas/place.py.
+    place: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # **Standort-Verteilung** – exakt nach dem Vorbild von ``reservations`` (mengengenau,
     # OHNE Teilung der Instanz / ohne neue Objektnummer). Eine Charge von 1000 Schrauben
     # kann physisch auf mehrere Standorte verteilt sein (300 @ Band A, 700 @ Band B) und
     # trägt trotzdem EINE Objektnummer (die Teile sind alle mit ihr beschriftet). Die Map
     # ist nach **Objektnummer** des Ziels geschlüsselt (global eindeutig → «wer liegt hier?»
-    # per has_key), Wert = {"t": <lagerplatz|user|instance>, "q": <menge-string>}:
-    #   locations = {"100000123": {"t": "lagerplatz", "q": "300"}, ...}   Summe = quantity.
+    # per has_key), Wert = {"t": <instance|user|company>, "q": <menge-string>}:
+    #   locations = {"100000123": {"t": "instance", "q": "300"}, ...}   Summe = quantity.
+    # **Verteilbar sind nur Halter MIT Objektnummer** (Instanz/Person/Unternehmen). Ein
+    # ``place`` (reine Adresse) hält IMMER die ganze (Rest-)Menge – eine Adresse kann zwei
+    # Plätze am selben Standort gar nicht unterscheiden («Band A» und «Wareneingang» haben
+    # dieselbe Anschrift); wer innerhalb eines Standorts verteilen will, nutzt Behälter-
+    # Instanzen. Das hält die Verteilung schlank und die Map eindeutig geschlüsselt.
     # Ist die Charge an EINEM Ort (Normalfall) → Map NULL, der Skalar ``location_*`` ist die
     # Wahrheit. Verteilt → die Map ist die Wahrheit, der Skalar spiegelt die grösste Teilmenge
     # (denormalisiert, wie ``reserved_for_order_id`` die Einzel-Reservierung spiegelt).

@@ -4054,282 +4054,6 @@
         }
       }
     },
-    "/api/v1/erp/storage-locations": {
-      "get": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "List Storage Locations",
-        "operationId": "list_storage_locations_api_v1_erp_storage_locations_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/StorageLocationResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Storage Locations Api V1 Erp Storage Locations Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "Create Storage Location",
-        "operationId": "create_storage_location_api_v1_erp_storage_locations_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StorageLocationCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/erp/storage-locations/{object_id}": {
-      "get": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "Get Storage Location",
-        "operationId": "get_storage_location_api_v1_erp_storage_locations__object_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "Update Storage Location",
-        "operationId": "update_storage_location_api_v1_erp_storage_locations__object_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StorageLocationUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/storage-locations/{object_id}/references": {
-      "get": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "List Storage Location References",
-        "description": "Verwendung des Lagerplatzes: lagernde Instanzen + referenzierende Artikel.",
-        "operationId": "list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ObjectReference"
-                  },
-                  "title": "Response List Storage Location References Api V1 Erp Storage Locations  Object Id  References Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/storage-locations/{object_id}/replace": {
-      "post": {
-        "tags": [
-          "storage-locations"
-        ],
-        "summary": "Replace Storage Location",
-        "description": "Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen\n(nur wenn leer). Liefert den **neuen** Lagerplatz zurück.",
-        "operationId": "replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StorageLocationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/articles/{object_id}/sales": {
       "get": {
         "tags": [
@@ -6701,78 +6425,6 @@
             ],
             "title": "Is Hazmat"
           },
-          "fixed_location_lat": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lat"
-          },
-          "fixed_location_lng": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lng"
-          },
-          "fixed_location_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Street"
-          },
-          "fixed_location_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Zip"
-          },
-          "fixed_location_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location City"
-          },
-          "fixed_location_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Country"
-          },
           "procurement_mode": {
             "anyOf": [
               {
@@ -7211,6 +6863,16 @@
             ],
             "title": "Target Location Id"
           },
+          "target_place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Place"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "transport_mode": {
             "type": "string",
             "title": "Transport Mode",
@@ -7454,6 +7116,17 @@
             ],
             "title": "Target Location Id"
           },
+          "target_place": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Place"
+          },
           "transport_mode": {
             "type": "string",
             "title": "Transport Mode",
@@ -7694,6 +7367,16 @@
               }
             ],
             "title": "Target Location Id"
+          },
+          "target_place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Place"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "transport_mode": {
             "anyOf": [
@@ -7947,72 +7630,6 @@
             "type": "boolean",
             "title": "Is Hazmat",
             "default": false
-          },
-          "fixed_location_lat": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lat"
-          },
-          "fixed_location_lng": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lng"
-          },
-          "fixed_location_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Street"
-          },
-          "fixed_location_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Zip"
-          },
-          "fixed_location_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location City"
-          },
-          "fixed_location_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Country"
           },
           "procurement_mode": {
             "type": "string",
@@ -8487,78 +8104,6 @@
               }
             ],
             "title": "Is Hazmat"
-          },
-          "fixed_location_lat": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lat"
-          },
-          "fixed_location_lng": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Lng"
-          },
-          "fixed_location_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Street"
-          },
-          "fixed_location_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Zip"
-          },
-          "fixed_location_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location City"
-          },
-          "fixed_location_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fixed Location Country"
           },
           "procurement_mode": {
             "anyOf": [
@@ -9080,17 +8625,6 @@
             ],
             "title": "Google Maps Api Key"
           },
-          "default_receiving_location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Receiving Location Id"
-          },
           "shop_currencies": {
             "anyOf": [
               {
@@ -9536,17 +9070,6 @@
               }
             ],
             "title": "Google Maps Api Key"
-          },
-          "default_receiving_location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Receiving Location Id"
           },
           "shop_currencies": {
             "anyOf": [
@@ -10921,7 +10444,14 @@
             "title": "Location Type"
           },
           "location_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Location Id"
           },
           "quantity": {
@@ -10943,11 +10473,10 @@
         "type": "object",
         "required": [
           "location_type",
-          "location_id",
           "quantity"
         ],
         "title": "InstanceLocation",
-        "description": "Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).\nBei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –\ndie Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt."
+        "description": "Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).\nBei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –\ndie Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt.\n\n``location_id`` ist NULL, wenn die Instanz an einem **Ort** liegt (``place``) – ein Ort\nträgt keine Objektnummer und hält immer die ganze (Rest-)Menge."
       },
       "InstanceOrderRef": {
         "properties": {
@@ -11312,6 +10841,17 @@
             ],
             "title": "Target Location Label"
           },
+          "target_place": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Place"
+          },
           "mode": {
             "anyOf": [
               {
@@ -11349,18 +10889,34 @@
             "title": "Location Type"
           },
           "location_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Location Id"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Place"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "instance_id",
-          "location_type",
-          "location_id"
+          "location_type"
         ],
         "title": "MovementTarget",
-        "description": "Zielstandort einer einzelnen Instanz (per Objektnummer adressiert)."
+        "description": "Zielstandort einer einzelnen Instanz.\n\nEntweder ein Datensatzobjekt (``location_id`` = Objektnummer) ODER – bei\n``location_type='place'`` – ein **Ort** (Adresse/GPS in ``place``, ohne Objektnummer)."
       },
       "MovementUpdate": {
         "properties": {
@@ -13155,6 +12711,84 @@
         "title": "PendingDocument",
         "description": "Ein noch zu bestätigendes Dokument für den aktuellen Nutzer (Consent-Gate)."
       },
+      "Place": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "street1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street1"
+          },
+          "zip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "type": "string",
+            "title": "Country",
+            "default": "CH"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          }
+        },
+        "type": "object",
+        "title": "Place",
+        "description": "Ein Ort: freie Bezeichnung + Adresse + optionale Koordinaten.\n\nMindestens EINE inhaltliche Angabe ist Pflicht – ein leerer Ort wäre bedeutungslos\n(dann ist der Standort schlicht ``NULL`` = «noch nicht festgelegt»)."
+      },
       "PriceView": {
         "properties": {
           "currency": {
@@ -13346,17 +12980,6 @@
               }
             ],
             "title": "Webshop Url"
-          },
-          "receiving_location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receiving Location Id"
           },
           "created_at": {
             "type": "string",
@@ -13593,17 +13216,6 @@
               }
             ],
             "title": "Tracking Number"
-          },
-          "receiving_location_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Receiving Location Id"
           },
           "step_id": {
             "anyOf": [
@@ -15450,706 +15062,6 @@
         ],
         "title": "StepShortfall",
         "description": "Ein ungedeckter Bedarf, der einen Schritt **blockiert** (Artikel + Fehlmenge).\n\n``available_*`` beschreibt, ob & womit sich der Bedarf **aus vorhandenem Lagerbestand**\ndecken liesse (für «Aus Lager decken» / «Andere Instanz wählen»)."
-      },
-      "StorageLocationCreate": {
-        "properties": {
-          "code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "location_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Type"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "max_load_kg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Load Kg"
-          },
-          "width_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width Mm"
-          },
-          "depth_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Depth Mm"
-          },
-          "height_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Mm"
-          },
-          "is_dry": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Dry"
-          },
-          "is_tempered": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Tempered"
-          },
-          "is_hazmat": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Hazmat"
-          },
-          "is_blocked": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Blocked"
-          },
-          "latitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latitude"
-          },
-          "longitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
-          },
-          "address_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Street"
-          },
-          "address_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Zip"
-          },
-          "address_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address City"
-          },
-          "address_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Country"
-          }
-        },
-        "type": "object",
-        "title": "StorageLocationCreate",
-        "description": "Anlage über '+'. Status startet als 'draft'. Bezeichnung ist fix 'Lagerplatz'\n(serverseitig gesetzt); Koordinaten/Adresse/Kapazität werden mitgegeben."
-      },
-      "StorageLocationResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "location_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Type"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "max_load_kg": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Load Kg"
-          },
-          "width_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width Mm"
-          },
-          "depth_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Depth Mm"
-          },
-          "height_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Mm"
-          },
-          "is_dry": {
-            "type": "boolean",
-            "title": "Is Dry"
-          },
-          "is_tempered": {
-            "type": "boolean",
-            "title": "Is Tempered"
-          },
-          "is_hazmat": {
-            "type": "boolean",
-            "title": "Is Hazmat"
-          },
-          "is_blocked": {
-            "type": "boolean",
-            "title": "Is Blocked"
-          },
-          "latitude": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latitude"
-          },
-          "longitude": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
-          },
-          "address_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Street"
-          },
-          "address_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Zip"
-          },
-          "address_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address City"
-          },
-          "address_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Country"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "replaced_by_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaced By Id"
-          },
-          "replaces_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Replaces Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "object_id",
-          "status",
-          "name",
-          "code",
-          "location_type",
-          "note",
-          "max_load_kg",
-          "width_mm",
-          "depth_mm",
-          "height_mm",
-          "is_dry",
-          "is_tempered",
-          "is_hazmat",
-          "is_blocked",
-          "latitude",
-          "longitude",
-          "address_street",
-          "address_zip",
-          "address_city",
-          "address_country",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "StorageLocationResponse"
-      },
-      "StorageLocationUpdate": {
-        "properties": {
-          "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Status"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "location_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Location Type"
-          },
-          "note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Note"
-          },
-          "max_load_kg": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Load Kg"
-          },
-          "width_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Width Mm"
-          },
-          "depth_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Depth Mm"
-          },
-          "height_mm": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Height Mm"
-          },
-          "is_dry": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Dry"
-          },
-          "is_tempered": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Tempered"
-          },
-          "is_hazmat": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Hazmat"
-          },
-          "is_blocked": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Blocked"
-          },
-          "latitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Latitude"
-          },
-          "longitude": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Longitude"
-          },
-          "address_street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Street"
-          },
-          "address_zip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Zip"
-          },
-          "address_city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address City"
-          },
-          "address_country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Address Country"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
-          "expected_updated_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Updated At"
-          }
-        },
-        "type": "object",
-        "title": "StorageLocationUpdate"
       },
       "SuggestedLink": {
         "properties": {

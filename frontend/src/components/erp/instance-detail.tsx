@@ -230,8 +230,11 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             <Tile
               icon={LocIcon} label="Standort"
               hint={distributed ? 'Diese Charge liegt auf mehreren Standorten (siehe Karte «Standort»).' : undefined}
-              value={distributed ? 'Verteilt' : (inst.location_label ?? (inst.location_id != null ? 'Objekt' : 'Nicht festgelegt'))}
-              sub={distributed ? `${inst.locations?.length} Standorte` : (inst.location_id != null ? fmtObjId(inst.location_id) : undefined)} subMono={!distributed}
+              value={distributed ? 'Verteilt' : (inst.location_label ?? (inst.location_type === 'place' ? 'Ort' : inst.location_id != null ? 'Objekt' : 'Nicht festgelegt'))}
+              sub={distributed ? `${inst.locations?.length} Standorte`
+                : inst.location_id != null ? fmtObjId(inst.location_id)
+                : inst.location_type === 'place' ? 'Adresse (keine Objektnummer)' : undefined}
+              subMono={!distributed && inst.location_id != null}
               onClick={!distributed && inst.location_id != null ? () => nav?.(inst.location_id as number) : undefined}
             />
             <Tile

@@ -13,7 +13,7 @@ from app.models import Instance
 from app.services import location_split as ls
 
 
-def _inst(qty, lid=100000001, ltype="lagerplatz", locations=None, kind="batch"):
+def _inst(qty, lid=100000001, ltype="instance", locations=None, kind="batch"):
     return Instance(object_id=100000050, quantity=Decimal(str(qty)), location_type=ltype,
                     location_id=lid, locations=locations, kind=kind, article_id=1, order_id=1)
 
@@ -92,3 +92,48 @@ def test_guards_reject_invalid_moves():
     ls.move(i, "lagerplatz", 100000002, 400)
     with pytest.raises(HTTPException):
         ls.move(i, "lagerplatz", 100000003, 700, from_id=100000002)  # mehr als am Quellslice
+
+
+# ─── Ort («place»): kein Objekt, darum nicht verteilbar ──────────────────────────
+
+def test_place_holds_the_whole_quantity_and_is_not_splittable():
+    """Ein **Ort** (Adresse/GPS ohne Objektnummer) hält per Definition die GANZE Menge.
+
+    Das ist keine willkürliche Einschränkung, sondern die ehrliche Abbildung: die
+    Verteilungs-Map ist nach Objektnummer geschlüsselt, und eine Adresse kann zwei Plätze
+    am selben Standort gar nicht unterscheiden («Band A» und «Wareneingang» haben dieselbe
+    Anschrift). Wer innerhalb eines Standorts verteilen will, nutzt Behälter-Instanzen."""
+    inst = _inst(1000, lid=None, ltype="place")
+    inst.place = {"name": "Aussenlager", "zip": "8000", "city": "Zürich"}
+
+    # Die Verteilung meldet EINEN Eintrag über die ganze Menge – ohne Objektnummer.
+    dist = ls.distribution(inst)
+    assert dist == [{"location_type": "place", "location_id": None, "quantity": 1000.0}]
+
+    # Eine Teilmenge auf einen Ort zu verlagern wird klar abgewiesen (statt still zu scheitern).
+    with pytest.raises(HTTPException) as e:
+        ls.move(inst, "place", 0, 10)
+    assert "ganze Menge" in e.value.detail
+
+    # Auf eine Behälter-Instanz ist dieselbe Teilmenge sehr wohl verlagerbar.
+    inst2 = _inst(1000, lid=100000001, ltype="instance")
+    ls.move(inst2, "instance", 100000002, 10)
+    assert _dist(inst2) == {100000001: 990.0, 100000002: 10.0}
+
+
+def test_place_identity_is_its_address():
+    """Ein Ort hat keine Nummer – seine Identität ist die (normalisierte) Adresse.
+    Darauf beruht der Ist↔Soll-Abgleich (``is_at``) und damit die No-op-Erkennung."""
+    inst = _inst(5, lid=None, ltype="place")
+    inst.place = {"name": "Aussenlager", "zip": "8000", "city": "Zürich"}
+
+    assert ls.is_at(inst, "place", None, {"name": "AUSSENLAGER", "zip": "8000", "city": "zürich"})
+    assert not ls.is_at(inst, "place", None, {"zip": "3000", "city": "Bern"})
+    assert not ls.is_at(inst, "instance", 100000001)
+
+    # Wechsel auf einen anderen Ort führt eine verteilte Charge wieder zusammen.
+    inst.locations = {"100000001": {"t": "instance", "q": "2"},
+                      "100000002": {"t": "instance", "q": "3"}}
+    ls.set_target(inst, "place", None, {"zip": "3000", "city": "Bern"})
+    assert inst.locations is None and inst.location_id is None
+    assert inst.place["city"] == "Bern" and inst.location_type == "place"

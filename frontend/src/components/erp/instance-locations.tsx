@@ -27,10 +27,11 @@ export function InstanceLocationsCard({ instance }: { instance: Instance }) {
         {slices.map((s) => {
           const Icon = LOCATION_META[s.location_type as LocationType]?.icon ?? MapPin;
           return (
-            <div key={`${s.location_type}:${s.location_id}`} style={ST.slice}>
+            <div key={`${s.location_type}:${s.location_id ?? 'place'}`} style={ST.slice}>
               <Icon size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-              <span style={ST.sliceLabel}>{s.location_label ?? fmtObjId(s.location_id)}</span>
-              <span style={ST.sliceNr}>{fmtObjId(s.location_id)}</span>
+              <span style={ST.sliceLabel}>{s.location_label ?? (s.location_id != null ? fmtObjId(s.location_id) : 'Ort')}</span>
+              {/* Ein Ort trägt keine Objektnummer – dann bleibt die Nummern-Spalte leer. */}
+              <span style={ST.sliceNr}>{s.location_id != null ? fmtObjId(s.location_id) : ''}</span>
               <span style={ST.sliceQty}>{s.quantity}</span>
             </div>
           );
