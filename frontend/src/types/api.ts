@@ -3730,6 +3730,11 @@ export interface components {
             physical_location_label?: string | null;
             /** Reserved For Order Object Id */
             reserved_for_order_object_id?: number | null;
+            /**
+             * Location Path
+             * @default []
+             */
+            location_path: components["schemas"]["LocationHop"][];
         };
         /** LegalDocument */
         LegalDocument: {
@@ -3740,6 +3745,21 @@ export interface components {
             /** Document Date */
             document_date?: string | null;
             content?: components["schemas"]["DocumentContent"] | null;
+        };
+        /**
+         * LocationHop
+         * @description Eine Station der Standort-Kette (von innen nach aussen).
+         *
+         *     ``location_type='address'`` markiert den abschliessenden geografischen Eintrag –
+         *     er trägt keine Objektnummer, sondern die Anschrift.
+         */
+        LocationHop: {
+            /** Location Type */
+            location_type: string;
+            /** Location Id */
+            location_id?: number | null;
+            /** Label */
+            label?: string | null;
         };
         /**
          * MovementEmbed

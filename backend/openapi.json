@@ -11159,6 +11159,14 @@
               }
             ],
             "title": "Reserved For Order Object Id"
+          },
+          "location_path": {
+            "items": {
+              "$ref": "#/components/schemas/LocationHop"
+            },
+            "type": "array",
+            "title": "Location Path",
+            "default": []
           }
         },
         "type": "object",
@@ -11222,6 +11230,42 @@
           "kind"
         ],
         "title": "LegalDocument"
+      },
+      "LocationHop": {
+        "properties": {
+          "location_type": {
+            "type": "string",
+            "title": "Location Type"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "location_type"
+        ],
+        "title": "LocationHop",
+        "description": "Eine Station der Standort-Kette (von innen nach aussen).\n\n``location_type='address'`` markiert den abschliessenden geografischen Eintrag –\ner trägt keine Objektnummer, sondern die Anschrift."
       },
       "MovementEmbed": {
         "properties": {

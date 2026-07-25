@@ -133,8 +133,11 @@ def _relocate(db: Session, inst: Instance, product: Instance, actor_id: int) -> 
     """Komponente in die Produkt-Instanz einbauen (Lagerabgang + Verbrauch)."""
     log_audit(db, "instances", "location", f"instance:{product.object_id}", actor_id,
               object_id=inst.object_id, old_value=f"{inst.location_type}:{inst.location_id}")
-    inst.location_type = "instance"
-    inst.location_id = product.object_id
+    # Über die EINE Schreibstelle setzen: ``set_single`` räumt zusätzlich eine bestehende
+    # Verteilungs-Map auf. Direktes Zuweisen liess bei einer zuvor auf mehrere Standorte
+    # verteilten Charge die alte Map stehen – die Instanz galt dann als «verbaut» UND
+    # gleichzeitig als anteilig woanders liegend.
+    location_split.set_single(inst, "instance", product.object_id)
     inst.disposition = "consumed"   # Verbleib: verbaut (Qualität bleibt unverändert)
 
 

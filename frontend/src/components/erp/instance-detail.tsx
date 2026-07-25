@@ -14,6 +14,7 @@ import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { InstanceLocationsCard } from '@/components/erp/instance-locations';
+import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -248,6 +249,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
           </div>
+
+          {/* «Wo genau?» – die volle Kette: Instanz → Behälter → Lagerplatz → Anschrift */}
+          <LocationPathCard path={inst.location_path ?? []} self={inst.object_id} />
 
           {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
           <InstanceLocationsCard instance={inst} />
