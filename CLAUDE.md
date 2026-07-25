@@ -390,6 +390,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   den Batch-Labels. Frontend: `components/erp/location-path.tsx` rendert sie als eingerückte
   Kette im bestehenden Karten-Design (Stationen klickbar, die Anschrift nicht – sie ist kein
   Datensatz); erscheint erst ab echter Verschachtelung, sonst genügt die Standort-Kachel.
+  **Die Kette ist Dekoration, nie der Datensatz** (`routers/instances.safe_location_path`):
+  scheitert ihre Auflösung (Altdaten, gelöschter Halter), kostet das die Kette – die Instanz
+  bleibt lesbar, der echte Fehler geht mit Objektnummer ins Log; das Frontend verwirft
+  unbrauchbare Stationen still.
+- **Wächter gegen `NameError` im Backend** (`tests/test_no_undefined_names.py`): ein im
+  Funktionsrumpf benutzter, aber nie importierter Name ist in Python **kein** Import- oder
+  Syntaxfehler – er fliegt erst, wenn genau dieser Pfad läuft. Genau so kam `LocationHop` in
+  `routers/instances.py` durch alle Netze (Tests, `dump_openapi`, Deploy, App-Start alle grün)
+  und liess trotzdem **jeden** Aufruf von `GET /erp/instances/{id}` mit 500 auflaufen. Der Test
+  prüft über `symtable` (stdlib) je Modul, dass jeder als **global** aufgelöste Name nach dem
+  Import wirklich existiert – und dass **jedes** Modul unter `app/` importierbar ist. Das ist
+  die Python-Entsprechung zu ESLint, die im Backend gefehlt hat.
 - **Verbauen setzt den Standort über die EINE Schreibstelle** (`resource._relocate` →
   `location_split.set_single`): eine Komponente wandert beim Einbau auf die Produkt-Instanz
   (und damit über die Kette physisch mit ihr mit). Vorher wurde `location_type`/`location_id`
