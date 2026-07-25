@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, CompanySettings, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
@@ -68,7 +68,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   // Datenerfassung – Bilderfassung + Freigabe/Unterschrift
   const [docCfg, setDocCfg] = useState<DocCfg>(emptyDocCfg());   // «Dokument»-Freigabe-Deklaration
   const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
-  const [company, setCompany] = useState<Partial<CompanySettings> | null>(null);
+  const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -84,8 +84,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     if (ownerObjectId == null) return;
     setLoading(true);
     api.getSteps(owner, ownerObjectId!).then(setSteps).catch(() => {}).finally(() => setLoading(false));
-    // Firmen-Objektnummer für den Wareneingang-Zielselektor (Ziel «Unternehmen»).
-    api.getPublicSettings().then(setCompany).catch(() => {});
+    // Lagerplätze für den (editierbaren) Wareneingang-Zielselektor der Pflicht-Bewegung
+    api.getStorageLocations().then(setStorageLocs).catch(() => {});
   }, [owner, ownerObjectId]);
 
   // Schrittanzahl + abgeleitete Auftragsart (Bestands-Operation vs. Herstellung) an das
@@ -134,7 +134,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
       return;
     }
     if (adding !== 'movement') return;
-    api.getPublicSettings().then(setCompany).catch(() => {});
+    api.getStorageLocations().then(setStorageLocs).catch(() => {});
     api.getUsers().then(setAllUsers).catch(() => {});
     api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
@@ -406,18 +406,15 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
               {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
               {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
                 <div style={cardBody}>
-                  <Label>Wareneingang-Ziel (optional)</Label>
+                  <Label>Ziel-Lagerplatz (optional)</Label>
                   <SearchSelect
-                    value={s.target_location_id ? `${s.target_location_type}:${s.target_location_id}` : ''}
+                    value={s.target_location_id ? `lagerplatz:${s.target_location_id}` : ''}
                     onChange={(v) => setLockedTarget(s.id, v)}
                     placeholder="frei – Lagerist wählt beim Einlagern"
                     options={[
                       { value: '', label: 'frei – Lagerist wählt beim Einlagern' },
-                      ...(company?.object_id != null ? [{
-                        value: `company:${company.object_id}`,
-                        label: `Unternehmen ${company.company_name ?? ''} · ${fmtObjId(company.object_id)}`.trim() }] : []),
-                      ...allInstances.filter((i) => i.object_id != null).map((i) => ({
-                        value: `instance:${i.object_id}`, label: `Behälter ${instanceLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
+                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
                     ]} />
                   <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-4)' }}>
                     Vorgabe → beim Scannen erzwungen. Leer → frei einlagerbar (per Scan erfasst).
@@ -605,9 +602,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     placeholder="Nicht definiert – Lagerist wählt beim Einlagern"
                     options={[
                       { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
-                      ...(company?.object_id != null ? [{
-                        value: `company:${company.object_id}`,
-                        label: `Unternehmen ${company.company_name ?? ''} · ${fmtObjId(company.object_id)}`.trim() }] : []),
+                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
+                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
                       ...allUsers.filter((u) => u.object_id != null).map((u) => ({
                         value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({

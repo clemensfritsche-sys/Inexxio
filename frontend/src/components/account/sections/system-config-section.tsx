@@ -22,6 +22,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_discount_percent: null, default_discount_days: null, oss_active: false,
   oss_number: null, vies_validation: false, stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
+  default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
   legal_documents: null,
@@ -181,7 +182,27 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
           <Field label="Stripe Publishable Key" name="stripe_publishable_key" defaultValue={s.stripe_publishable_key ?? ''} placeholder="pk_live_…" hint="Öffentlicher Key" />
           <Field label="Plausible Domain" name="plausible_domain" defaultValue={s.plausible_domain ?? ''} placeholder="inexxio.com" />
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
-          <Field label="Google Maps API Key" name="google_maps_api_key" defaultValue={s.google_maps_api_key ?? ''} placeholder="AIza…" hint="Für Standort-Karte (Orte); Maps JavaScript API + Geocoding API aktivieren, auf Domain einschränken" className="sm:col-span-2" />
+          <Field label="Google Maps API Key" name="google_maps_api_key" defaultValue={s.google_maps_api_key ?? ''} placeholder="AIza…" hint="Für Lagerplatz-Karte; Maps JavaScript API + Geocoding API aktivieren, auf Domain einschränken" className="sm:col-span-2" />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard icon={<PackageSearch className="h-5 w-5" />} title="Lager & Logistik (Bereitstellungsorte)"
+        saved={saved === 'logistics'} saving={saving === 'logistics'}
+        onSave={(d) => saveSection('logistics', {
+          default_receiving_location_id: d.default_receiving_location_id ? Number(d.default_receiving_location_id) : null,
+        })}>
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+          <PackageSearch className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
+          <p className="text-xs text-blue-800">
+            Objektnummer eines <strong>Lagerplatzes</strong> für den <strong>Wareneingang</strong> eintragen –
+            das Standard-Ziel für angelieferte Ware. Leer = das System legt bei Bedarf automatisch einen
+            Lagerplatz «Wareneingang» an. <em>Verschrottete Instanzen sind bewusst standortlos</em> (der
+            Endzustand «verschrottet» ist die Wo-Aussage) – daher kein Schrottplatz-Lagerort mehr.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Wareneingang · Lagerplatz-Nr." name="default_receiving_location_id" type="number"
+            defaultValue={s.default_receiving_location_id ?? ''} placeholder="z. B. 100000200" hint="Standard-Lieferadresse" />
         </div>
       </SettingsCard>
 

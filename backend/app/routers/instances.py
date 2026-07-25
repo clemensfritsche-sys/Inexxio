@@ -8,7 +8,7 @@ from ..core.database import get_db
 from ..models import Article, Instance, Order, UserProfile
 from ..schemas.instance import InstanceLocation, InstanceOrderRef, InstanceResponse
 from ..services import location_split
-from ..services.locations import location_labels, physical_location_labels, resolve_label
+from ..services.locations import location_labels, physical_location_labels
 from ..services.references import instance_orders
 
 router = APIRouter(prefix="/api/v1/erp/instances", tags=["instances"])
@@ -60,14 +60,14 @@ def _denorm(db: Session, rows: list[Instance]) -> list[InstanceResponse]:
         resp.article_object_id = arts_oid.get(r.article_id)
         resp.order_object_id = ords.get(r.order_id)
         resp.reserved_for_order_object_id = ords.get(r.reserved_for_order_id) if r.reserved_for_order_id else None
-        resp.location_label = resolve_label(r.location_type, r.location_id, r.place, loc_labels)
+        resp.location_label = loc_labels.get((r.location_type, r.location_id))
         if r.location_type == "instance":
             resp.physical_location_label = phys_labels.get((r.location_type, r.location_id))
         resp.locations = [
             InstanceLocation(
                 location_type=d["location_type"], location_id=d["location_id"],
                 quantity=d["quantity"],
-                location_label=resolve_label(d["location_type"], d["location_id"], r.place, loc_labels),
+                location_label=loc_labels.get((d["location_type"], d["location_id"])),
             )
             for d in dist_by_inst.get(r.id, [])
         ]

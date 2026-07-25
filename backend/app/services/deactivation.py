@@ -26,7 +26,7 @@ Ersetzen: alter Datensatz inaktiv + **Duplikat als Entwurf** + Verknüpfung
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from ..models import Article, ArticleProcessStep, Instance, Order, OrderLine
+from ..models import Article, ArticleProcessStep, Instance, Order, OrderLine, StorageLocation
 from .admin import log_audit
 from .events import emit
 from .inventory import in_stock_clauses
@@ -190,6 +190,14 @@ def cancel_order_effects(db: Session, order: Order, actor_id: int,
     emit(db, "order.cancelled", object_type="order", object_id=order.object_id, actor_id=actor_id)
 
 
+# ─── Lagerplatz ───────────────────────────────────────────────────────────────
+
+def storage_location_in_use(db: Session, loc: StorageLocation) -> bool:
+    return db.query(Instance.id).filter(
+        Instance.is_active == True, Instance.location_type == "lagerplatz",
+        Instance.location_id == loc.object_id,
+    ).first() is not None
+
 
 # ─── Ersetzen: Duplikat als Entwurf + Verknüpfung ────────────────────────────
 
@@ -211,7 +219,6 @@ def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id:
             require_signature=s.require_signature, signer_ids=s.signer_ids,
             require_photo=s.require_photo, photo_instruction=s.photo_instruction,
             target_location_type=s.target_location_type, target_location_id=s.target_location_id,
-            target_place=s.target_place,
             transport_mode=s.transport_mode,
             resource_lines=s.resource_lines,
             # FIX: Dokument-Konfiguration (Migration 066) mitkopieren – ohne diese Felder
@@ -240,6 +247,9 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
         # die Beschaffungsquelle (Artikel-Default) – ein purchase-Artikel liess sich dann
         # ohne Neueingabe nicht mehr freigeben (has_source-Gate).
         is_hazmat=src.is_hazmat, reorder_target=src.reorder_target,
+        fixed_location_lat=src.fixed_location_lat, fixed_location_lng=src.fixed_location_lng,
+        fixed_location_street=src.fixed_location_street, fixed_location_zip=src.fixed_location_zip,
+        fixed_location_city=src.fixed_location_city, fixed_location_country=src.fixed_location_country,
         procurement_mode=src.procurement_mode, default_supplier_id=src.default_supplier_id,
         default_webshop_url=src.default_webshop_url,
     )
@@ -268,3 +278,18 @@ def duplicate_order(db: Session, src: Order, actor_id: int) -> Order:
     return new
 
 
+def duplicate_storage_location(db: Session, src: StorageLocation, actor_id: int) -> StorageLocation:
+    new = StorageLocation(
+        object_id=next_object_id(db, "storage_location"), status="draft", name=src.name, code=src.code,
+        location_type=src.location_type, note=src.note, max_load_kg=src.max_load_kg,
+        width_mm=src.width_mm, depth_mm=src.depth_mm, height_mm=src.height_mm,
+        is_dry=src.is_dry, is_tempered=src.is_tempered, is_hazmat=src.is_hazmat,
+        is_blocked=src.is_blocked, latitude=src.latitude, longitude=src.longitude,
+        address_street=src.address_street, address_zip=src.address_zip,
+        address_city=src.address_city, address_country=src.address_country,
+    )
+    db.add(new)
+    db.flush()
+    log_audit(db, "storage_locations", None, f"Lagerplatz als Ersatz für {src.object_id} angelegt",
+              actor_id, object_id=new.object_id)
+    return new

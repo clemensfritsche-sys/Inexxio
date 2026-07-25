@@ -1408,6 +1408,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/erp/storage-locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Storage Locations */
+        get: operations["list_storage_locations_api_v1_erp_storage_locations_get"];
+        put?: never;
+        /** Create Storage Location */
+        post: operations["create_storage_location_api_v1_erp_storage_locations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/storage-locations/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Storage Location */
+        get: operations["get_storage_location_api_v1_erp_storage_locations__object_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Storage Location */
+        patch: operations["update_storage_location_api_v1_erp_storage_locations__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/erp/storage-locations/{object_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Storage Location References
+         * @description Verwendung des Lagerplatzes: lagernde Instanzen + referenzierende Artikel.
+         */
+        get: operations["list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/storage-locations/{object_id}/replace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace Storage Location
+         * @description Ersetzen: Duplikat als Entwurf anlegen, verknüpfen, Original inaktiv setzen
+         *     (nur wenn leer). Liefert den **neuen** Lagerplatz zurück.
+         */
+        post: operations["replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/erp/articles/{object_id}/sales": {
         parameters: {
             query?: never;
@@ -2260,6 +2337,18 @@ export interface components {
             reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
+            /** Fixed Location Lat */
+            fixed_location_lat?: number | string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: number | string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2387,7 +2476,6 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            target_place?: components["schemas"]["Place"] | null;
             /**
              * Transport Mode
              * @default auto
@@ -2472,8 +2560,6 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            /** Target Place */
-            target_place?: Record<string, never> | null;
             /**
              * Transport Mode
              * @default auto
@@ -2555,7 +2641,6 @@ export interface components {
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            target_place?: components["schemas"]["Place"] | null;
             /** Transport Mode */
             transport_mode?: string | null;
             /** Resource Lines */
@@ -2612,6 +2697,18 @@ export interface components {
              * @default false
              */
             is_hazmat: boolean;
+            /** Fixed Location Lat */
+            fixed_location_lat?: string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /**
              * Procurement Mode
              * @default supplier
@@ -2749,6 +2846,18 @@ export interface components {
             reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
+            /** Fixed Location Lat */
+            fixed_location_lat?: number | string | null;
+            /** Fixed Location Lng */
+            fixed_location_lng?: number | string | null;
+            /** Fixed Location Street */
+            fixed_location_street?: string | null;
+            /** Fixed Location Zip */
+            fixed_location_zip?: string | null;
+            /** Fixed Location City */
+            fixed_location_city?: string | null;
+            /** Fixed Location Country */
+            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2890,6 +2999,8 @@ export interface components {
             hcaptcha_site_key: string | null;
             /** Google Maps Api Key */
             google_maps_api_key: string | null;
+            /** Default Receiving Location Id */
+            default_receiving_location_id?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -2970,6 +3081,8 @@ export interface components {
             hcaptcha_site_key?: string | null;
             /** Google Maps Api Key */
             google_maps_api_key?: string | null;
+            /** Default Receiving Location Id */
+            default_receiving_location_id?: number | null;
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
@@ -3528,15 +3641,12 @@ export interface components {
          * @description Eine Teilmenge einer Charge an einem Standort (Verteilung ohne Instanz-Teilung).
          *     Bei einer nicht verteilten Instanz enthält die Liste genau EINEN Eintrag. Read-only –
          *     die Verteilung entsteht ausschliesslich über einen Auftrag + Bewegungsschritt.
-         *
-         *     ``location_id`` ist NULL, wenn die Instanz an einem **Ort** liegt (``place``) – ein Ort
-         *     trägt keine Objektnummer und hält immer die ganze (Rest-)Menge.
          */
         InstanceLocation: {
             /** Location Type */
             location_type: string;
             /** Location Id */
-            location_id?: number | null;
+            location_id: number;
             /** Quantity */
             quantity: number;
             /** Location Label */
@@ -3664,18 +3774,13 @@ export interface components {
             target_location_id?: number | null;
             /** Target Location Label */
             target_location_label?: string | null;
-            /** Target Place */
-            target_place?: Record<string, never> | null;
             /** Mode */
             mode?: string | null;
             shipment?: components["schemas"]["ShipmentEmbed"] | null;
         };
         /**
          * MovementTarget
-         * @description Zielstandort einer einzelnen Instanz.
-         *
-         *     Entweder ein Datensatzobjekt (``location_id`` = Objektnummer) ODER – bei
-         *     ``location_type='place'`` – ein **Ort** (Adresse/GPS in ``place``, ohne Objektnummer).
+         * @description Zielstandort einer einzelnen Instanz (per Objektnummer adressiert).
          */
         MovementTarget: {
             /** Instance Id */
@@ -3683,8 +3788,7 @@ export interface components {
             /** Location Type */
             location_type: string;
             /** Location Id */
-            location_id?: number | null;
-            place?: components["schemas"]["Place"] | null;
+            location_id: number;
         };
         /**
          * MovementUpdate
@@ -4326,32 +4430,6 @@ export interface components {
             content?: components["schemas"]["DocumentContent"] | null;
         };
         /**
-         * Place
-         * @description Ein Ort: freie Bezeichnung + Adresse + optionale Koordinaten.
-         *
-         *     Mindestens EINE inhaltliche Angabe ist Pflicht – ein leerer Ort wäre bedeutungslos
-         *     (dann ist der Standort schlicht ``NULL`` = «noch nicht festgelegt»).
-         */
-        Place: {
-            /** Name */
-            name?: string | null;
-            /** Street1 */
-            street1?: string | null;
-            /** Zip */
-            zip?: string | null;
-            /** City */
-            city?: string | null;
-            /**
-             * Country
-             * @default CH
-             */
-            country: string;
-            /** Lat */
-            lat?: number | null;
-            /** Lng */
-            lng?: number | null;
-        };
-        /**
          * PriceView
          * @description Berechneter Anzeige-Preis (eine Währung) – Ergebnis der Preis-Pipeline.
          */
@@ -4411,6 +4489,8 @@ export interface components {
             landed_unit_cost: string | null;
             /** Webshop Url */
             webshop_url: string | null;
+            /** Receiving Location Id */
+            receiving_location_id?: number | null;
             /**
              * Created At
              * Format: date-time
@@ -4485,6 +4565,8 @@ export interface components {
             payment_terms_days?: number | null;
             /** Tracking Number */
             tracking_number?: string | null;
+            /** Receiving Location Id */
+            receiving_location_id?: number | null;
             /** Step Id */
             step_id?: number | null;
             /** Article Id */
@@ -5216,6 +5298,153 @@ export interface components {
              * @default []
              */
             available_instances: components["schemas"]["ShortfallInstance"][];
+        };
+        /**
+         * StorageLocationCreate
+         * @description Anlage über '+'. Status startet als 'draft'. Bezeichnung ist fix 'Lagerplatz'
+         *     (serverseitig gesetzt); Koordinaten/Adresse/Kapazität werden mitgegeben.
+         */
+        StorageLocationCreate: {
+            /** Code */
+            code?: string | null;
+            /** Location Type */
+            location_type?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Max Load Kg */
+            max_load_kg?: number | string | null;
+            /** Width Mm */
+            width_mm?: number | null;
+            /** Depth Mm */
+            depth_mm?: number | null;
+            /** Height Mm */
+            height_mm?: number | null;
+            /** Is Dry */
+            is_dry?: boolean | null;
+            /** Is Tempered */
+            is_tempered?: boolean | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
+            /** Is Blocked */
+            is_blocked?: boolean | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
+            /** Address Street */
+            address_street?: string | null;
+            /** Address Zip */
+            address_zip?: string | null;
+            /** Address City */
+            address_city?: string | null;
+            /** Address Country */
+            address_country?: string | null;
+        };
+        /** StorageLocationResponse */
+        StorageLocationResponse: {
+            /** Id */
+            id: number;
+            /** Object Id */
+            object_id: number | null;
+            /** Status */
+            status: string;
+            /** Name */
+            name: string;
+            /** Code */
+            code: string | null;
+            /** Location Type */
+            location_type: string | null;
+            /** Note */
+            note: string | null;
+            /** Max Load Kg */
+            max_load_kg: string | null;
+            /** Width Mm */
+            width_mm: number | null;
+            /** Depth Mm */
+            depth_mm: number | null;
+            /** Height Mm */
+            height_mm: number | null;
+            /** Is Dry */
+            is_dry: boolean;
+            /** Is Tempered */
+            is_tempered: boolean;
+            /** Is Hazmat */
+            is_hazmat: boolean;
+            /** Is Blocked */
+            is_blocked: boolean;
+            /** Latitude */
+            latitude: string | null;
+            /** Longitude */
+            longitude: string | null;
+            /** Address Street */
+            address_street: string | null;
+            /** Address Zip */
+            address_zip: string | null;
+            /** Address City */
+            address_city: string | null;
+            /** Address Country */
+            address_country: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Replaced By Id */
+            replaced_by_id?: number | null;
+            /** Replaces Id */
+            replaces_id?: number | null;
+        };
+        /** StorageLocationUpdate */
+        StorageLocationUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Code */
+            code?: string | null;
+            /** Location Type */
+            location_type?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Max Load Kg */
+            max_load_kg?: number | string | null;
+            /** Width Mm */
+            width_mm?: number | null;
+            /** Depth Mm */
+            depth_mm?: number | null;
+            /** Height Mm */
+            height_mm?: number | null;
+            /** Is Dry */
+            is_dry?: boolean | null;
+            /** Is Tempered */
+            is_tempered?: boolean | null;
+            /** Is Hazmat */
+            is_hazmat?: boolean | null;
+            /** Is Blocked */
+            is_blocked?: boolean | null;
+            /** Latitude */
+            latitude?: number | string | null;
+            /** Longitude */
+            longitude?: number | string | null;
+            /** Address Street */
+            address_street?: string | null;
+            /** Address Zip */
+            address_zip?: string | null;
+            /** Address City */
+            address_city?: string | null;
+            /** Address Country */
+            address_country?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Expected Updated At */
+            expected_updated_at?: string | null;
         };
         /** SuggestedLink */
         SuggestedLink: {
@@ -8008,6 +8237,187 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObjectReference"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_storage_locations_api_v1_erp_storage_locations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"][];
+                };
+            };
+        };
+    };
+    create_storage_location_api_v1_erp_storage_locations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageLocationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_storage_location_api_v1_erp_storage_locations__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_storage_location_api_v1_erp_storage_locations__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StorageLocationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_storage_location_references_api_v1_erp_storage_locations__object_id__references_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectReference"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_storage_location_api_v1_erp_storage_locations__object_id__replace_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageLocationResponse"];
                 };
             };
             /** @description Validation Error */

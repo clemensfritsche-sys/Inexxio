@@ -37,6 +37,7 @@ class CompanySettingsUpdate(BaseModel):
     plausible_domain: Optional[str] = None
     hcaptcha_site_key: Optional[str] = None
     google_maps_api_key: Optional[str] = None
+    default_receiving_location_id: Optional[int] = None
     # Shop / Verkauf
     shop_currencies: Optional[list[str]] = None
     shop_country_currency: Optional[dict] = None
@@ -83,6 +84,7 @@ class CompanySettingsResponse(BaseModel):
     plausible_domain: Optional[str]
     hcaptcha_site_key: Optional[str]
     google_maps_api_key: Optional[str]
+    default_receiving_location_id: Optional[int] = None
     # Shop / Verkauf
     shop_currencies: Optional[list[str]] = None
     shop_country_currency: Optional[dict] = None

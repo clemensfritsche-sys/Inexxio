@@ -17,7 +17,7 @@ from ..schemas.instance import InstanceResponse
 from ..services import deactivation
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
-from ..services.locations import location_labels, physical_location_labels, resolve_label
+from ..services.locations import location_labels, physical_location_labels
 from ..services.processes import article_steps
 from ..services.objects import next_object_id
 from ..services.weight import computed_weights
@@ -200,6 +200,12 @@ async def create_article(
         min_order_qty=data.min_order_qty,
         safety_stock=data.safety_stock,
         reorder_target=data.reorder_target,
+        fixed_location_lat=data.fixed_location_lat,
+        fixed_location_lng=data.fixed_location_lng,
+        fixed_location_street=data.fixed_location_street,
+        fixed_location_zip=data.fixed_location_zip,
+        fixed_location_city=data.fixed_location_city,
+        fixed_location_country=data.fixed_location_country,
         procurement_mode=proc_mode,
         default_supplier_id=data.default_supplier_id if proc_mode == "supplier" else None,
         default_webshop_url=data.default_webshop_url if proc_mode == "webshop" else None,
@@ -392,7 +398,7 @@ async def list_article_instances(
         resp = InstanceResponse.model_validate(r)
         resp.order_object_id = order_map.get(r.order_id)
         resp.article_name = article.name
-        resp.location_label = resolve_label(r.location_type, r.location_id, r.place, loc_labels)
+        resp.location_label = loc_labels.get((r.location_type, r.location_id))
         if r.location_type == "instance":
             resp.physical_location_label = phys_labels.get((r.location_type, r.location_id))
         out.append(resp)

@@ -81,7 +81,7 @@ def test_duplicate_article_copies_spec_and_procurement_fields():
     # Bug: der Nachfolger verlor u. a. die Beschaffungsquelle (Freigabe-Gate has_source).
     from app.services.deactivation import duplicate_article
     src = inspect.getsource(duplicate_article)
-    for field in ("is_hazmat", "reorder_target", 
+    for field in ("is_hazmat", "reorder_target", "fixed_location_lat", "fixed_location_street",
                   "procurement_mode", "default_supplier_id", "default_webshop_url"):
         assert field in src, f"duplicate_article kopiert «{field}» nicht"
 

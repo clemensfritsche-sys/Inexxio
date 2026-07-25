@@ -54,6 +54,7 @@ class CompanySettings(Base):
     # Lager & Logistik: Standard-Wareneingang (Objektnummer eines Lagerplatzes).
     # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
     # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
+    default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
 
     # ── Shop / Verkauf ──────────────────────────────────────────────────────────
     # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
