@@ -43,10 +43,6 @@ class PurchaseOrder(Base, TimestampMixin):
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)
     supplier_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     webshop_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    # Lieferadresse / Wareneingang: Lagerplatz-Objektnummer aus dem Beschaffungsschritt.
-    # Dorthin wechseln die Instanzen beim Wareneingang («received»).
-    receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-
     status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
 
     # Offerte: EINE Bestellsumme (netto, exkl. MWST). Der Stückpreis wird daraus

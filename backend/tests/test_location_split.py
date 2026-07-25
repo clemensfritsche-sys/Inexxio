@@ -13,7 +13,7 @@ from app.models import Instance
 from app.services import location_split as ls
 
 
-def _inst(qty, lid=100000001, ltype="lagerplatz", locations=None, kind="batch"):
+def _inst(qty, lid=100000001, ltype="instance", locations=None, kind="batch"):
     return Instance(object_id=100000050, quantity=Decimal(str(qty)), location_type=ltype,
                     location_id=lid, locations=locations, kind=kind, article_id=1, order_id=1)
 
@@ -30,7 +30,7 @@ def test_scalar_only_reports_whole_quantity_at_one_place():
 
 def test_partial_move_keeps_object_number_and_splits_location():
     i = _inst(1000)
-    ls.move(i, "lagerplatz", 100000002, 300)          # 300 → Band B
+    ls.move(i, "instance", 100000002, 300)          # 300 → Band B
     assert _dist(i) == {100000001: 700.0, 100000002: 300.0}
     assert i.locations is not None                     # jetzt verteilt
     assert i.location_id == 100000001                  # Skalar spiegelt die grösste Teilmenge (700)
@@ -38,16 +38,16 @@ def test_partial_move_keeps_object_number_and_splits_location():
 
 def test_second_move_empties_source_and_scalar_follows_largest():
     i = _inst(1000)
-    ls.move(i, "lagerplatz", 100000002, 300)           # 700@A, 300@B
-    ls.move(i, "lagerplatz", 100000003, 700)           # A leert sich → 700@C, 300@B
+    ls.move(i, "instance", 100000002, 300)           # 700@A, 300@B
+    ls.move(i, "instance", 100000003, 700)           # A leert sich → 700@C, 300@B
     assert _dist(i) == {100000003: 700.0, 100000002: 300.0}
     assert i.location_id == 100000003
 
 
 def test_collapse_to_single_location_drops_the_map():
     i = _inst(1000)
-    ls.move(i, "lagerplatz", 100000002, 400)           # 600@A, 400@B
-    ls.move(i, "lagerplatz", 100000002, 600, from_id=100000001)  # alles nach B
+    ls.move(i, "instance", 100000002, 400)           # 600@A, 400@B
+    ls.move(i, "instance", 100000002, 600, from_id=100000001)  # alles nach B
     assert i.locations is None
     assert i.location_id == 100000002
     assert _dist(i) == {100000002: 1000.0}
@@ -55,15 +55,15 @@ def test_collapse_to_single_location_drops_the_map():
 
 def test_reconcile_trims_distribution_after_quantity_drop():
     i = _inst(1000)
-    ls.move(i, "lagerplatz", 100000002, 400)           # 600@A, 400@B
+    ls.move(i, "instance", 100000002, 400)           # 600@A, 400@B
     i.quantity = Decimal("700")                        # 300 verschrottet
     ls.reconcile(i)
     assert sum(_dist(i).values()) == pytest.approx(700.0)
 
 
 def test_fractional_quantities_are_exact():
-    i = _inst("2.5", ltype="lagerplatz")               # 2.5 kg
-    ls.move(i, "lagerplatz", 100000002, "1.5")
+    i = _inst("2.5", ltype="instance")               # 2.5 kg
+    ls.move(i, "instance", 100000002, "1.5")
     assert _dist(i) == {100000001: 1.0, 100000002: 1.5}
 
 
@@ -78,23 +78,23 @@ def test_order_driven_partial_move_uses_reserved_quantity():
     share = reserved_for(i, 555)
     assert share == Decimal("10")
     # der Bewegungsschritt bewegt genau die vom Auftrag beanspruchte Teilmenge
-    ls.move(i, "lagerplatz", 100000002, share)
+    ls.move(i, "instance", 100000002, share)
     assert _dist(i) == {100000001: 990.0, 100000002: 10.0}
     assert i.object_id == 100000050       # Objektnummer unverändert – keine neue Instanz
 
 
 def test_guards_reject_invalid_moves():
     with pytest.raises(HTTPException):
-        ls.move(_inst(1000), "lagerplatz", 100000002, 0)          # Menge 0
+        ls.move(_inst(1000), "instance", 100000002, 0)          # Menge 0
     with pytest.raises(HTTPException):
-        ls.move(_inst(1000), "lagerplatz", 100000001, 300)        # Ziel = einziger Standort
+        ls.move(_inst(1000), "instance", 100000001, 300)        # Ziel = einziger Standort
     i = _inst(1000)
-    ls.move(i, "lagerplatz", 100000002, 400)
+    ls.move(i, "instance", 100000002, 400)
     with pytest.raises(HTTPException):
-        ls.move(i, "lagerplatz", 100000003, 700, from_id=100000002)  # mehr als am Quellslice
+        ls.move(i, "instance", 100000003, 700, from_id=100000002)  # mehr als am Quellslice
 
 
-# ─── Adressen: EINE Darstellung für Person, Unternehmen, Lagerplatz ──────────────
+# ─── Adressen: EINE Darstellung für Person und Unternehmen ──────────────────────
 
 def test_address_module_harmonises_person_and_company():
     """Die Spaltennamen sind historisch verschieden (``address_line1``/``postal_code`` an
@@ -140,18 +140,18 @@ def test_address_module_harmonises_person_and_company():
 
 
 def test_location_chain_walks_container_nesting_to_the_address():
-    """Die Standort-Kette beantwortet «wo genau?»: Instanz → Behälter → Lagerplatz →
+    """Die Standort-Kette beantwortet «wo genau?»: Instanz → Behälter → Unternehmen →
     Anschrift. Sie ist zyklensicher und endet am geografischen Blatt."""
     from types import SimpleNamespace
 
-    from app.models import Instance, StorageLocation
+    from app.models import CompanySettings, Instance
     from app.services import locations as loc
 
-    # Behälter 100000007 liegt auf Lagerplatz 100000003.
-    behaelter = SimpleNamespace(object_id=100000007, location_type="lagerplatz",
+    # Behälter 100000007 steht beim Unternehmen 100000003.
+    behaelter = SimpleNamespace(object_id=100000007, location_type="company",
                                 location_id=100000003, is_active=True)
-    platz = SimpleNamespace(name="Halle Nord", address_street="Musterstrasse 1",
-                            address_zip="8000", address_city="Zürich", address_country="CH")
+    platz = SimpleNamespace(company_name="Inexxio AG", street="Musterstrasse", street_nr="1",
+                            zip_code="8000", city="Zürich", country="CH", email=None, phone=None)
 
     class _Q:
         """Minimale Query-Attrappe: filter() ist ein No-op, first() liefert das Ergebnis."""
@@ -163,13 +163,13 @@ def test_location_chain_walks_container_nesting_to_the_address():
         def query(self, model, *rest):
             if model is Instance:
                 return _Q(behaelter)
-            if model is StorageLocation:
+            if model is CompanySettings:
                 return _Q(platz)
             return _Q(None)
 
     chain = loc.location_chain(_DB2(), "instance", 100000007)
     types = [h["location_type"] for h in chain]
-    assert types == ["instance", "lagerplatz", "address"]
+    assert types == ["instance", "company", "address"]
     assert chain[-1]["location_id"] is None                    # Adresse hat keine Nummer
     assert "Musterstrasse 1" in chain[-1]["label"]
     assert "8000 Zürich" in chain[-1]["label"]
@@ -207,11 +207,9 @@ def test_location_chain_survives_every_holder_shape():
     Keine davon darf werfen; im Zweifel ist die Kette kurz, aber nie kaputt."""
     from types import SimpleNamespace
 
-    from app.models import CompanySettings, Instance, StorageLocation, UserProfile
+    from app.models import CompanySettings, Instance, UserProfile
     from app.services import locations as loc
 
-    platz = SimpleNamespace(name="Halle Nord", address_street="Musterstrasse 1",
-                            address_zip="8000", address_city="Zürich", address_country="Schweiz")
     person = SimpleNamespace(company_name=None, first_name="Anna", last_name="Muster",
                              email="a@b.ch", phone=None, city="Bern", postal_code="3000",
                              address_line1="Weg 2", country="CH",
@@ -225,28 +223,29 @@ def test_location_chain_survives_every_holder_shape():
         def filter(self, *a, **k): return self
         def first(self): return self._r
 
-    def _db(*, instance=None, storage=None, user=None, company=None):
+    def _db(*, instance=None, user=None, company=None):
         class _DB:
             def query(self, model, *rest):
-                return _Q({Instance: instance, StorageLocation: storage,
-                           UserProfile: user, CompanySettings: company}.get(model))
+                return _Q({Instance: instance, UserProfile: user,
+                           CompanySettings: company}.get(model))
         return _DB()
 
-    behaelter = SimpleNamespace(object_id=100000007, location_type="lagerplatz",
-                                location_id=100000003, is_active=True)
+    behaelter = SimpleNamespace(object_id=100000007, location_type="company",
+                                location_id=100000060, is_active=True)
 
     cases = [
         # (db, start-typ, start-id, erwartete Stationstypen)
-        (_db(instance=behaelter, storage=platz), "instance", 100000007,
-         ["instance", "lagerplatz", "address"]),
-        (_db(storage=platz), "lagerplatz", 100000003, ["lagerplatz", "address"]),
+        (_db(instance=behaelter, company=firma), "instance", 100000007,
+         ["instance", "company", "address"]),
+        (_db(company=firma), "company", 100000060, ["company", "address"]),
         (_db(), None, None, []),                              # standortlos
-        (_db(), "lagerplatz", 100000999, ["lagerplatz"]),     # Halter gelöscht
         (_db(), "instance", 100000998, ["instance"]),         # Instanz-Halter gelöscht
         (_db(user=person), "user", 100000050, ["user", "address"]),
-        (_db(company=firma), "company", 100000060, ["company", "address"]),
         (_db(), "wolke", 100000003, ["wolke"]),               # unbekannter Alt-Typ
-        (_db(storage=platz), "lagerplatz", None, []),         # Typ ohne Nummer
+        # **Altbestand**: der entfallene Typ darf beim LESEN nie werfen – er löst zu
+        # «kein Standort» auf (die Kette bleibt kurz, der Datensatz lesbar).
+        (_db(), "lagerplatz", 100000003, ["lagerplatz"]),
+        (_db(company=firma), "company", None, []),            # Typ ohne Nummer
     ]
     for db, ltype, lid, expected in cases:
         chain = loc.location_chain(db, ltype, lid)
@@ -264,6 +263,6 @@ def test_broken_chain_never_takes_down_the_instance_record():
         def query(self, *a, **k):
             raise RuntimeError("relation \"storage_locations\" does not exist")
 
-    inst = SimpleNamespace(object_id=100000455, location_type="lagerplatz",
+    inst = SimpleNamespace(object_id=100000455, location_type="company",
                            location_id=100000003)
     assert safe_location_path(_ExplodingDB(), inst) == []

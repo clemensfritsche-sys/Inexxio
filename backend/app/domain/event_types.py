@@ -45,7 +45,7 @@ SUBJECT_PRECEDENCE = (STOCK, PRODUCE, INSTANCE)
 # (``services/process_steps.py``) und Verbrauch/Betriebsmittel über den Ressourcen-Schritt
 # (``services/resource.py``, Komponente → Produkt-Instanz / Werkzeug → Arbeitsplatz).
 # **Verschrotten** hat KEINEN Bereitstellungsort: ein verschrottetes Teil verlässt den
-# Bestand endgültig – ein Standort ist immer ein realer Halter (Lagerplatz/Person/Instanz),
+# Bestand endgültig – ein Standort ist immer ein realer Halter (Person/Instanz/Unternehmen),
 # und einen solchen hat Ausschuss nicht mehr. Der Endzustand ``disposition='scrapped'`` IST
 # die «Wo»-Aussage; die Instanz wird beim Verschrotten **standortlos** (siehe services/scrap.py).
 PROV_NONE = "none"            # kein fester Ort (frei / self): Datenerfassung, Bewegung, Dokument

@@ -5,8 +5,8 @@ einer Instanz ist physisch (Etikett/QR an den Teilen) und darf sich **nie** änd
 Charge wird **nie** in eine zweite Instanz mit eigener Nummer aufgeteilt. Statt zu teilen,
 merkt sich die **eine** Instanz eine **Standort→Menge-Map** (``instances.locations``):
 
-    locations = {"100000123": {"t": "lagerplatz", "q": "300"},   # Band A
-                 "100000124": {"t": "lagerplatz", "q": "700"}}    # Band B   (Summe = quantity)
+    locations = {"100000123": {"t": "instance", "q": "300"},   # Behälter A
+                 "100000124": {"t": "instance", "q": "700"}}   # Behälter B  (Summe = quantity)
 
 Geschlüsselt nach **Objektnummer** des Ziels (global eindeutig → «wer liegt hier?» per
 ``locations ? '<objektnr>'``). Ist die Charge an EINEM Ort (Normalfall) → Map ``None``,
@@ -119,7 +119,7 @@ def set_single(inst: Instance, location_type: str, location_id: int) -> None:
 def clear(inst: Instance) -> None:
     """Instanz **standortlos** machen (Skalar + Verteilungs-Map löschen). EINE Stelle für
     «kein Halter mehr»: beim Verschrotten verlässt das Teil den Bestand endgültig – ein
-    Standort ist immer ein realer Halter (Lagerplatz/Person/Instanz), den Ausschuss nicht
+    Standort ist immer ein realer Halter (Person/Instanz/Unternehmen), den Ausschuss nicht
     mehr hat. Der Endzustand ``disposition='scrapped'`` trägt die «Wo»-Aussage."""
     inst.location_type = None
     inst.location_id = None

@@ -570,14 +570,30 @@ def sell_order_subjects(db: Session, order: Order) -> None:
 def return_subjects_to_stock(db: Session, order: Order) -> None:
     """Physischer Rückfluss einer **Retoure** – **idempotent**, aufgerufen (a) sobald die
     **Rückgabe-Bewegung** durch ist (die Ware ist wieder da → «freigegeben») UND (b) beim
-    Abschluss. Eine verkaufte Subjekt-Instanz, die per **Bewegung** zurück an einen
-    **Lagerplatz** gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS
-    bewegt (Kulanz: der Kunde behält die Ware) → sie bleibt 'sold' (nur Geld zurück).
-    Durchgefallene (quality='failed', z. B. defekt) bleiben gesperrt und werden verschrottet."""
+    Abschluss. Eine verkaufte Subjekt-Instanz, die per **Bewegung** vom Kunden **weg**
+    gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS bewegt
+    (Kulanz: der Kunde behält die Ware) → sie bleibt 'sold' (nur Geld zurück).
+    Durchgefallene (quality='failed', z. B. defekt) bleiben gesperrt und werden verschrottet.
+
+    Die Rückkehr wird daran erkannt, dass die Instanz **nicht mehr beim Kunden liegt** –
+    nicht daran, an welchen Halter-Typ sie gebracht wurde. (Früher stand hier
+    ``location_type == 'lagerplatz'``; mit dem Wegfall des Lagerplatz-Typs hätte diese
+    Bedingung nie mehr zugetroffen und keine Retoure wäre je wieder eingebucht worden.)"""
     from ..models import Event
+    from .sale import customer_for_order
     from .subject import is_return, order_instances
     if not is_return(order):
         return
+    # Der Kunde steht am **Original-Verkauf** (der Retoure-Auftrag selbst trägt nur
+    # Gutschriften, ``kind='credit'`` – ``customer_for_order`` fände dort nichts).
+    # Liegt die Instanz noch bei ihm, wurde nichts zurückbewegt (Kulanz). Ohne
+    # auflösbaren Kunden gilt eine quittierte Rückgabe-Bewegung als Rückkehr.
+    _parent = (
+        db.query(Order).filter(Order.id == order.parent_order_id).first()
+        if order.parent_order_id else None
+    )
+    _cust = customer_for_order(db, _parent) if _parent else None
+    _cust_oid = _cust.object_id if _cust else None
     # Die zurückkommende Menge ist die unter dem ORIGINAL-Verkauf abgebuchte Menge
     # (Event-Strom) – nicht pauschal 1: eine 5-kg-Charge kam sonst als 1 kg zurück.
     # Fallback 1 deckt Einzelteile/Altdaten ohne Events (jede Einzelteil-Instanz = 1 Stück).
@@ -607,8 +623,12 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
         if inst.quality == "failed" or (inst.disposition or "") in ("scrapped", "consumed"):
             continue
         if inst.disposition == "sold":
-            # Ganz verkaufte Instanz: Rückkehr = Bewegung an einen Lagerplatz.
-            if inst.location_type != "lagerplatz":
+            # Ganz verkaufte Instanz: Rückkehr = sie liegt nicht mehr beim Kunden.
+            still_at_customer = (
+                _cust_oid is not None
+                and inst.location_type == "user" and inst.location_id == _cust_oid
+            )
+            if still_at_customer or not movement_done:
                 continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
             back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
             inst.quantity = back

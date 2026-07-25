@@ -51,11 +51,6 @@ class CompanySettings(Base):
     hcaptcha_site_key: Mapped[Optional[str]] = mapped_column(String(255))
     google_maps_api_key: Mapped[Optional[str]] = mapped_column(String(255))
 
-    # Lager & Logistik: Standard-Wareneingang (Objektnummer eines Lagerplatzes).
-    # Neue Instanzen landen bei der Serialisierung hier; fehlt der Eintrag, wird
-    # automatisch ein Lagerplatz «Wareneingang» angelegt (services/locations.py).
-    default_receiving_location_id: Mapped[Optional[int]] = mapped_column(BigInteger)
-
     # ── Shop / Verkauf ──────────────────────────────────────────────────────────
     # Im Shop wählbare Währungen (Default CHF/EUR/USD) sowie die Zuordnung
     # Land → Default-Währung (editierbar) und die Fallback-Währung.

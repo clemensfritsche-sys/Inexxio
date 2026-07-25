@@ -1,6 +1,6 @@
 """Geschäftslogik für den Prozessschritt «Bewegung».
 
-Der Lagerist weist jeder Instanz des Auftrags einen Zielstandort zu (Lagerplatz,
+Der Lagerist weist jeder Instanz des Auftrags einen Zielstandort zu (Person,
 Person oder andere Instanz). Die Standorte werden direkt auf den Instanzen
 gespeichert; ein ``Movement``-Datensatz markiert den Abschluss des Schritts
 (analog zur Datenerfassung). Instanzen eines Auftrags können dabei an
@@ -137,7 +137,7 @@ def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
     log_audit(db, "movements", None, "Bewegung erfasst", actor_id, object_id=order.object_id)
     emit(db, "movement.recorded", object_type="order", object_id=order.object_id, actor_id=actor_id)
     # Label-Wechsel dann, wann es wirklich passiert: hat die Rückgabe-Bewegung die verkaufte Ware
-    # an einen Lagerplatz gebracht, ist sie sofort wieder «freigegeben» (sold → in_stock), nicht
+    # vom Kunden weg gebracht, ist sie sofort wieder «freigegeben» (sold → in_stock), nicht
     # erst am Auftragsende. Idempotent; Kulanz (nicht bewegt) bleibt sold.
     if is_return(order):
         process.return_subjects_to_stock(db, order)

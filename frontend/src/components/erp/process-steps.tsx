@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, StorageLocation, UserProfile } from '@/types';
+import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
@@ -68,7 +68,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   // Datenerfassung – Bilderfassung + Freigabe/Unterschrift
   const [docCfg, setDocCfg] = useState<DocCfg>(emptyDocCfg());   // «Dokument»-Freigabe-Deklaration
   const [targetSel, setTargetSel] = useState('');   // kombiniertes Ziel "type:objid" ('' = frei)
-  const [storageLocs, setStorageLocs] = useState<StorageLocation[]>([]);
+  const [company, setCompany] = useState<{ objectId: number; name: string } | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allInstances, setAllInstances] = useState<Instance[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
@@ -84,8 +84,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     if (ownerObjectId == null) return;
     setLoading(true);
     api.getSteps(owner, ownerObjectId!).then(setSteps).catch(() => {}).finally(() => setLoading(false));
-    // Lagerplätze für den (editierbaren) Wareneingang-Zielselektor der Pflicht-Bewegung
-    api.getStorageLocations().then(setStorageLocs).catch(() => {});
+    // Das Unternehmen («im Betrieb») für den editierbaren Wareneingang-Zielselektor
+    api.getPublicSettings()
+      .then((c) => { if (c.object_id != null) setCompany({ objectId: c.object_id, name: c.company_name || 'Im Betrieb' }); })
+      .catch(() => {});
   }, [owner, ownerObjectId]);
 
   // Schrittanzahl + abgeleitete Auftragsart (Bestands-Operation vs. Herstellung) an das
@@ -119,7 +121,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     setUrl(selfArticle?.default_webshop_url ?? '');
   }, [adding, selfArticle]);
 
-  // Bewegung braucht Lagerplätze/Personen/Instanzen als Zielauswahl; Ressource die Artikel.
+  // Bewegung braucht Personen/Instanzen/Unternehmen als Zielauswahl; Ressource die Artikel.
   // (Beschaffung: keine Lieferadresse mehr am Schritt – kommt aus der Systemkonfiguration.)
   useEffect(() => {
     if (adding === 'resource') { api.getArticles().then(setArticles).catch(() => {}); return; }
@@ -134,7 +136,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
       return;
     }
     if (adding !== 'movement') return;
-    api.getStorageLocations().then(setStorageLocs).catch(() => {});
     api.getUsers().then(setAllUsers).catch(() => {});
     api.getInstances().then(setAllInstances).catch(() => {});
   }, [adding]);
@@ -167,7 +168,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     return s.target_location_type === 'user' ? 'versand' : 'wareneingang';
   }
 
-  // Wareneingang-Ziel der Pflicht-Bewegung setzen (Lagerplatz oder offen).
+  // Wareneingang-Ziel der Pflicht-Bewegung setzen (Behälter/Unternehmen oder offen).
   async function setLockedTarget(stepId: number, value: string) {
     const tgt = value ? value.split(':') : null;
     try {
@@ -368,7 +369,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       : lockedRole(s) === 'versandkunde'
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
                         : (s.target_location_id
-                          ? `Wareneingang → Lagerplatz ${fmtObjId(s.target_location_id)}`
+                          ? `Wareneingang → ${fmtObjId(s.target_location_id)}`
                           : 'Wareneingang · frei beim Einlagern'))}
                     {!isLocked && s.step_type === 'purchase' && (() => {
                       // Bezugsquelle am Schritt (Lieferant/Webshop) – oder geerbt vom Artikel-Standard.
@@ -406,15 +407,14 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
               {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
               {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
                 <div style={cardBody}>
-                  <Label>Ziel-Lagerplatz (optional)</Label>
+                  <Label>Ziel Wareneingang (optional)</Label>
                   <SearchSelect
-                    value={s.target_location_id ? `lagerplatz:${s.target_location_id}` : ''}
+                    value={s.target_location_id ? `${s.target_location_type}:${s.target_location_id}` : ''}
                     onChange={(v) => setLockedTarget(s.id, v)}
                     placeholder="frei – Lagerist wählt beim Einlagern"
                     options={[
                       { value: '', label: 'frei – Lagerist wählt beim Einlagern' },
-                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
-                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+                      ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
                     ]} />
                   <div style={{ marginTop: 4, fontSize: 11, color: 'var(--fg-4)' }}>
                     Vorgabe → beim Scannen erzwungen. Leer → frei einlagerbar (per Scan erfasst).
@@ -571,7 +571,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   )}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse aus der Systemkonfiguration; der tatsächliche Lagerplatz wird beim Wareneingang erfasst.</span>
+                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse ist die Firmenadresse; der tatsächliche Ort wird beim Wareneingang erfasst.</span>
                   </div>
                   {owner === 'articles' && procurementReady === false && mode === 'supplier' && !supplierId && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
@@ -602,8 +602,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     placeholder="Nicht definiert – Lagerist wählt beim Einlagern"
                     options={[
                       { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
-                      ...storageLocs.filter((l) => l.status === 'released' && l.object_id != null).map((l) => ({
-                        value: `lagerplatz:${l.object_id}`, label: `Lagerplatz ${fmtObjId(l.object_id)}` })),
+                      ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
                       ...allUsers.filter((u) => u.object_id != null).map((u) => ({
                         value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({

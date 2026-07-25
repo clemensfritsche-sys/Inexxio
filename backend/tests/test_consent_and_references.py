@@ -70,7 +70,7 @@ def test_object_references_generic_no_type_filter():
     src = inspect.getsource(references.object_references)
     assert "location_id == object_id" in src
     assert "location_type ==" not in src
-    assert "object_references(db, loc.object_id)" in inspect.getsource(references.storage_location_references)
+    assert not hasattr(references, "storage_location_references")   # mit dem Datensatztyp entfallen
     from app.routers import object_refs
     assert "/api/v1/erp/objects/{object_id}/references" in {r.path for r in object_refs.router.routes}
 

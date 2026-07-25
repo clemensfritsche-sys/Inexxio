@@ -135,7 +135,7 @@ def _object_label(db: Session, object_id: int, object_type: str | None) -> str:
             return u.company_name or u.display_name or u.email or "Benutzer"
         return "Benutzer"
     return {"order": "Auftrag", "instance": "Instanz",
-            "storage_location": "Lagerplatz", "organization": "Unternehmen",
+            "organization": "Unternehmen",
             "document": "Dokument"}.get(object_type or "", "Objekt")
 
 

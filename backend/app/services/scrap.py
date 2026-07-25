@@ -66,7 +66,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             # reservierte Instanz aus), wird dessen Fehlmenge dadurch **ehrlich** wieder sichtbar
             # → sein Subjekt-Schritt wird «blockiert» (abgeleitet), statt still unterzuliefern.
             release_all(inst)
-            # **Standortlos machen**: ein Standort ist immer ein realer Halter (Lagerplatz/Person/
+            # **Standortlos machen**: ein Standort ist immer ein realer Halter (Person/Instanz/
             # Instanz); Ausschuss hat keinen mehr. Der Endzustand `scrapped` IST die «Wo»-Aussage –
             # kein Schrottplatz-Lagerort, keine „herrenlosen" Referenzen (references/„wer liegt hier"
             # finden ein verschrottetes Teil dann korrekt nicht mehr).

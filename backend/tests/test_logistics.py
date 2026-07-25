@@ -50,16 +50,16 @@ def test_haversine_and_iso2_and_dimensions():
 
 
 def test_location_kind_and_same_place():
-    """Ownership per ROLLE (Kunde/Lieferant = extern, Mitarbeiter/Lagerplatz = intern) und
+    """Ownership per ROLLE (Kunde/Lieferant = extern, Mitarbeiter/Unternehmen = intern) und
     Adress-Vergleich (normalisiert Strasse+PLZ+Ort+Land) – die Basis der Geofence-losen
     Versand-Ableitung."""
-    from app.models import StorageLocation, UserProfile
+    from app.models import CompanySettings, UserProfile
     from app.services import logistics as lg
 
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="customer")}), "user", 1) == "external_person"
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="supplier")}), "user", 1) == "external_person"
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="employee")}), "user", 1) == "internal"
-    assert lg.location_kind(_DB({StorageLocation: SimpleNamespace()}), "lagerplatz", 2) == "internal"
+    assert lg.location_kind(_DB({CompanySettings: SimpleNamespace()}), "company", 2) == "internal"
     assert lg.location_kind(_DB({}), None, None) == "unknown"
     assert lg.location_kind(_DB({UserProfile: None}), "user", 9) == "unknown"
 
@@ -97,9 +97,9 @@ def test_parcels_from_article_data_with_hazmat():
 
 def test_classify_movement_address_based():
     """E2E-Ableitung OHNE Geofence: (1) Ziel Kunde → extern/outbound; (2) Ware beim
-    Lieferanten, Ziel internes Lager → extern/inbound (Abholung); (3) Ziel-Lagerplatz OHNE
+    Lieferanten, Ziel intern → extern/inbound (Abholung); (3) internes Ziel OHNE
     Adresse → innerbetrieblich; (4) freies Ziel (kein Standort) → unknown (keine Box)."""
-    from app.models import StorageLocation, UserProfile
+    from app.models import CompanySettings, UserProfile
     from app.services import logistics as lg
 
     no_addr = SimpleNamespace(name="L", address_street=None, address_zip=None,
@@ -113,14 +113,14 @@ def test_classify_movement_address_based():
     assert out["transport_class"] == "outside" and out["direction"] == "outbound"
 
     # (2) Quelle = Lieferant (Ware liegt dort), Ziel = internes Lager → extern/inbound.
-    step_in = SimpleNamespace(mode="supplier", target_location_type="lagerplatz", target_location_id=5)
-    db2 = _DB({UserProfile: SimpleNamespace(role="supplier"), StorageLocation: no_addr})
+    step_in = SimpleNamespace(mode="supplier", target_location_type="company", target_location_id=5)
+    db2 = _DB({UserProfile: SimpleNamespace(role="supplier"), CompanySettings: no_addr})
     inb = lg.classify_movement(db2, SimpleNamespace(), step_in,
                                [SimpleNamespace(location_type="user", location_id=88)])
     assert inb["transport_class"] == "outside" and inb["direction"] == "inbound"
 
-    # (3) Ziel = Lagerplatz OHNE Adresse, Quelle im Haus → innerbetrieblich (kein Versand).
-    internal = lg.classify_movement(_DB({StorageLocation: no_addr}), SimpleNamespace(), step_in, inst_home)
+    # (3) Ziel intern OHNE Adresse, Quelle im Haus → innerbetrieblich (kein Versand).
+    internal = lg.classify_movement(_DB({CompanySettings: no_addr}), SimpleNamespace(), step_in, inst_home)
     assert internal["transport_class"] == "inside"
 
     # (4) Freies Ziel (kein Standort hinterlegt) → unknown → keine Versand-Box.

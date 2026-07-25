@@ -137,8 +137,6 @@ def instantiate_for_order(db: Session, order: Order, actor_id: int) -> list[Purc
                 supplier_id=supplier_id,
                 webshop_url=webshop_url,
                 status="requested",
-                # Der konkrete Lagerort (Wareneingang) wird erst beim Wareneingang gesetzt.
-                receiving_location_id=None,
             )
             db.add(po)
             db.flush()
@@ -224,11 +222,8 @@ def apply_update(db: Session, po: PurchaseOrder, data, user: UserProfile) -> Pur
 
     payload = data.model_dump(exclude_unset=True)
     target = payload.pop("status", None)
-    # Lagerort/Transport gehört nicht mehr zur Beschaffung (läuft über die Bewegung);
-    # ein evtl. mitgesendetes Feld wird ignoriert. step_id/article_id sind reine
-    # Routing-/Disambiguierungsfelder (Mehr-Operationen-Routing bzw. Mehrpositionen),
-    # keine Felder DIESER Bestellung.
-    payload.pop("receiving_location_id", None)
+    # step_id/article_id sind reine Routing-/Disambiguierungsfelder (Mehr-Operationen-
+    # Routing bzw. Mehrpositionen), keine Felder DIESER Bestellung.
     payload.pop("step_id", None)
     payload.pop("article_id", None)
 

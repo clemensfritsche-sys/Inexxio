@@ -1,23 +1,27 @@
 """Standorte für Instanzen (Prozessschritt «Bewegung»).
 
 Eine Instanz **kann** einen Standort haben (sie darf auch standortlos sein, ``NULL`` =
-«noch nicht festgelegt»); ist einer gesetzt, ist er stets ein Datensatzobjekt mit
-9-stelliger Nummer:
+«noch nicht festgelegt»); ist einer gesetzt, ist er stets ein **Halter** – ein
+Datensatzobjekt mit 9-stelliger Nummer:
 
-    lagerplatz → StorageLocation
-    user       → UserProfile (Mitarbeiter, Lieferant, Kunde)
-    instance   → andere Instanz (z. B. eingebaut in Maschine/Behälter)
+    user     → UserProfile (Mitarbeiter, Lieferant, Kunde)
+    instance → andere Instanz (Behälter, Palette, Maschine, LKW)
+    company  → das Unternehmen selbst («im Betrieb»)
+
+Der frühere Typ **lagerplatz** ist ersatzlos entfallen (siehe ``schemas/movement.py``).
+Ein unbekannter/veralteter Typ ist hier bewusst **kein Fehler**: er löst zu ``None`` auf
+und wird als «kein Standort» angezeigt. Geprüft wird nur beim **Schreiben**
+(``validate_location``) – so kann ein Altbestand nie eine Ansicht zerlegen.
 
 Bei der Auftragsfreigabe startet eine Instanz beim **Lieferanten** (Lieferanten-
 Beschaffung als erster Schritt) oder **ohne Standort** (siehe
-``services/serialization.py``). Den realen Ort setzt der erste Bewegungs-Schritt; die
-Vorgabe-Lieferadresse steht in ``company_settings.default_receiving_location_id``.
+``services/serialization.py``). Den realen Ort setzt der erste Bewegungs-Schritt.
 """
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import Instance, StorageLocation, UserProfile
+from ..models import Instance, UserProfile
 from ..schemas.movement import LOCATION_TYPES
 
 
@@ -31,18 +35,11 @@ def _obj_nr(lid: int) -> str:
 
 
 def location_label(db: Session, ltype: str | None, lid: int | None) -> str | None:
-    """Anzeige eines Standorts: Lagerplatz/Instanz → Objektnummer, User → Name.
+    """Anzeige eines Standorts: Instanz → Objektnummer, User → Name, Unternehmen → Firma.
 
-    Lagerplätze werden über die Objektnummer angesprochen (kein Name mehr)."""
+    Ein unbekannter Typ (Altbestand) ergibt ``None`` = «kein Standort» – nie ein Fehler."""
     if not ltype or lid is None:
         return None
-    if ltype == "lagerplatz":
-        loc = (
-            db.query(StorageLocation)
-            .filter(StorageLocation.object_id == lid, StorageLocation.is_active == True)
-            .first()
-        )
-        return _obj_nr(lid) if loc else None
     if ltype == "user":
         u = (
             db.query(UserProfile)
@@ -70,7 +67,7 @@ LocKey = tuple[str | None, int | None]
 def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None]:
     """**Batch**-Variante von ``location_label``: EIN Query je Standort-Typ statt einem je
     Zeile (N+1) – für Feeds/Listen (Instanz-Feed, Artikel-Bestand, Auftrags-Instanzen)."""
-    ids: dict[str, set[int]] = {"lagerplatz": set(), "user": set(), "instance": set(), "company": set()}
+    ids: dict[str, set[int]] = {"user": set(), "instance": set(), "company": set()}
     for ltype, lid in pairs:
         if ltype in ids and lid is not None:
             ids[ltype].add(lid)
@@ -79,10 +76,6 @@ def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None
         c.object_id: (c.company_name or _obj_nr(c.object_id))
         for c in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids["company"]))
     } if ids["company"] else {}
-    existing_loc = {
-        oid for (oid,) in db.query(StorageLocation.object_id).filter(
-            StorageLocation.object_id.in_(ids["lagerplatz"]), StorageLocation.is_active == True)
-    } if ids["lagerplatz"] else set()
     users = {
         u.object_id: _user_label(u) for u in db.query(UserProfile).filter(
             UserProfile.object_id.in_(ids["user"]), UserProfile.is_active == True)
@@ -97,8 +90,6 @@ def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None
         ltype, lid = key
         if not ltype or lid is None:
             out[key] = None
-        elif ltype == "lagerplatz":
-            out[key] = _obj_nr(lid) if lid in existing_loc else None
         elif ltype == "user":
             out[key] = users.get(lid)
         elif ltype == "instance":
@@ -150,13 +141,13 @@ def location_chain(db: Session, ltype: str | None, lid: int | None,
 
     Beispiel für eine Schraube in einem Behälter in einer Halle::
 
-        [{instance  100000007 · Behälter},
-         {lagerplatz 100000003 · Halle Nord},
-         {address    —         · Musterstrasse 1, 8000 Zürich}]
+        [{instance 100000007 · Behälter},
+         {instance 100000003 · Halle Nord},
+         {address  —         · Musterstrasse 1, 8000 Zürich}]
 
     Jeder Eintrag: ``{location_type, location_id, label, address}``. Die Kette folgt
     ``instance``→``instance``-Verschachtelungen bis zu einem physischen Halter und hängt –
-    falls dieser eine Adresse trägt (Lagerplatz, Person, Unternehmen) – einen abschliessenden
+    falls dieser eine Adresse trägt (Person, Unternehmen) – einen abschliessenden
     ``address``-Eintrag an. Sie endet ausserdem bei einem Zyklus oder ``max_depth``.
 
     Bewusst nur für **Detail**-Ansichten gedacht (ein Datensatz, ≤ 10 Auflösungen); Feeds
@@ -200,14 +191,11 @@ def location_chain(db: Session, ltype: str | None, lid: int | None,
 
 
 def _holder_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:
-    """Adresse eines Halters (Lagerplatz/Person/Unternehmen) in kanonischer Form."""
+    """Adresse eines Halters (Person/Unternehmen) in kanonischer Form."""
     from . import address as addr_mod
-    from ..models import CompanySettings as _CS, StorageLocation as _SL
+    from ..models import CompanySettings as _CS
     if not ltype or lid is None:
         return None
-    if ltype == "lagerplatz":
-        loc = db.query(_SL).filter(_SL.object_id == lid).first()
-        return addr_mod.of_storage(loc) if loc else None
     if ltype == "user":
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
         return addr_mod.of_user(u, "ship") if u else None
@@ -221,7 +209,7 @@ def resolve_physical_location(
     db: Session, ltype: str | None, lid: int | None, _depth: int = 0
 ) -> tuple[str | None, int | None]:
     """Folgt ``instance``→``instance``-Ketten bis zum **physischen** Standort
-    (Lagerplatz/Person). So «wandert» eine verbaute Komponente mit ihrer Produkt-
+    (Person/Unternehmen). So «wandert» eine verbaute Komponente mit ihrer Produkt-
     Instanz: ihr Standort ist die Produkt-Instanz, der physische Ort ergibt sich
     aus deren Standort. Endet bei einem Nicht-Instanz-Standort (Tiefenschutz)."""
     if ltype != "instance" or lid is None or _depth > 10:

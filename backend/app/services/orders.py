@@ -126,13 +126,13 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
 
 
 def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
-    """Lieferadresse/Wareneingang: gesetzter Lagerort (nach Wareneingang) oder die
-    in der Systemkonfiguration hinterlegte Vorgabe-Lieferadresse."""
-    recv = po.receiving_location_id
-    if not recv:
-        st = db.query(CompanySettings).first()
-        recv = st.default_receiving_location_id if st else None
-    return location_label(db, "lagerplatz", recv) if recv else None
+    """Lieferadresse für den Lieferanten: die **Firmenadresse**.
+
+    Früher stand hier die Objektnummer eines Lagerplatzes – damit konnte ein Lieferant
+    nichts anfangen. Wohin die Ware im Betrieb wandert, entscheidet ohnehin erst die
+    Pflicht-Bewegung «Wareneingang» nach der Beschaffung."""
+    from . import address
+    return address.one_line(address.of_company(db.query(CompanySettings).first()))
 
 
 def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
@@ -228,7 +228,7 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
     me.target_location_id = step.target_location_id
     # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei wählbar, sondern
     # FIX der Kunde des Verkaufs. So erzwingt das Panel (fester Zielort) die richtige Person UND
-    # muss keine Lagerplatz-/Personen-Listen laden (schnell). Fällt der Kunde noch (Verkauf nicht
+    # muss keine Personen-/Instanz-Listen laden (schnell). Fällt der Kunde noch (Verkauf nicht
     # bestätigt), bleibt das Ziel offen – die Bewegung ist ohnehin erst nach dem Verkauf aktiv.
     if step.mode == "customer":
         from .sale import customer_for_order

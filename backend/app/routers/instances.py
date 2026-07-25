@@ -118,7 +118,7 @@ def safe_location_path(db: Session, inst: Instance) -> list[LocationHop]:
     """Standort-Kette fürs Detail – **niemals fatal**.
 
     Die Kette ist eine *abgeleitete Dekoration*, nicht der Datensatz: sie löst fremde
-    Halter auf (Lagerplatz/Person/Unternehmen, über mehrere Stufen) und kann dabei an
+    Halter auf (Person/Instanz/Unternehmen, über mehrere Stufen) und kann dabei an
     Altdaten scheitern, die die Instanz selbst gar nicht braucht. Ein Auflösungsfehler
     darf den Datensatz deshalb NIE unlesbar machen – er kostet die Kette, nicht die
     Instanz. Der echte Fehler geht mit Objektnummer ins Log, statt still zu verschwinden.

@@ -107,7 +107,7 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 _OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock", "reorder_target")
 
-# Fixierter Standort (optionales Spezifikationsfeld): GPS + Adresse, exakt wie am Lagerplatz.
+# Fixierter Standort (optionales Spezifikationsfeld): GPS + Adresse, rein deskriptiv.
 _FIXED_LOC_TEXT_FIELDS = (
     "fixed_location_street", "fixed_location_zip", "fixed_location_city", "fixed_location_country",
 )
@@ -153,7 +153,7 @@ class ArticleCreate(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None
     fixed_location_street: Optional[str] = None
@@ -264,7 +264,7 @@ class ArticleUpdate(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None
     fixed_location_street: Optional[str] = None
@@ -380,7 +380,7 @@ class ArticleResponse(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
     is_hazmat: bool = False                     # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
+    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
     fixed_location_lat: Optional[Decimal] = None
     fixed_location_lng: Optional[Decimal] = None
     fixed_location_street: Optional[str] = None

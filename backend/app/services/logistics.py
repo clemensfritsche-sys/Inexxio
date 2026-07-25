@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from ..models import (
     Article, ArticleProcessStep, CompanySettings, Instance, Order, Shipment,
-    StorageLocation, UserProfile,
+    UserProfile,
 )
 from ..schemas.shipment import ShipmentEmbed, ShipmentRate
 from . import address, shipping
@@ -88,8 +88,8 @@ def same_place(a: dict | None, b: dict | None) -> bool:
 
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
     """Ownership eines Standort-Ziels: 'external_person' (Kunde/Lieferant) |
-    'internal' (Lagerplatz/Mitarbeiter/Firma) | 'unknown'. Instanzen über die
-    physische Standort-Kette."""
+    'internal' (Mitarbeiter/Firma) | 'unknown'. Instanzen über die physische
+    Standort-Kette."""
     if not ltype or lid is None:
         return "unknown"
     if ltype == "instance":
@@ -102,7 +102,7 @@ def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
         if not u:
             return "unknown"
         return "internal" if (u.role or "") in _INTERNAL_ROLES else "external_person"
-    if ltype in ("lagerplatz", "company"):
+    if ltype == "company":
         return "internal"
     return "unknown"
 
@@ -262,8 +262,8 @@ def recommend_mode(cls: dict, load: dict) -> str:
 
 # ─── Adress-Snapshots ─────────────────────────────────────────────────────────────
 
-# Adress-Aufbau ist zentral in ``services/address.py`` (EINE Darstellung für Person,
-# Unternehmen und Lagerplatz) – hier nur noch dünne Aliase für die Lesbarkeit.
+# Adress-Aufbau ist zentral in ``services/address.py`` (EINE Darstellung für Person und
+# Unternehmen) – hier nur noch dünne Aliase für die Lesbarkeit.
 def _addr_company(settings: CompanySettings | None) -> dict:
     return address.of_company(settings) if settings else address.make(name="Inexxio")
 
@@ -273,16 +273,12 @@ def _addr_user(u: UserProfile) -> dict:
     return address.of_user(u, "ship")
 
 
-def _addr_storage(loc: StorageLocation) -> dict:
-    return address.of_storage(loc)
-
-
 def _addr_label(a: dict | None) -> str | None:
     return address.one_line(a)
 
 
 def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:
-    """Adress-Snapshot des Ziels (Person → Profil-Adresse, Lagerplatz → Standort-Adresse)."""
+    """Adress-Snapshot des Ziels (Person → Profil-Adresse, Unternehmen → Firmensitz)."""
     if not ltype or lid is None:
         return None
     if ltype == "instance":
@@ -293,9 +289,10 @@ def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | No
     if ltype == "user":
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
         return _addr_user(u) if u else None
-    if ltype == "lagerplatz":
-        loc = db.query(StorageLocation).filter(StorageLocation.object_id == lid).first()
-        return _addr_storage(loc) if loc else None
+    if ltype == "company":
+        # «Im Betrieb» – die Firmenadresse. Ohne diesen Zweig hätte eine Bewegung mit
+        # Ziel Unternehmen keinen Empfänger und liefe in «Adresse unvollständig».
+        return _addr_company(db.query(CompanySettings).first())
     return None
 
 
@@ -358,7 +355,7 @@ def quote(db: Session, order: Order, step: ArticleProcessStep,
                             "Rate-Shopping – Spediteur anfragen und Carrier/Tracking/Kosten "
                             "manuell erfassen (Instant-Fracht-Tarif folgt als Phase 1).")
     if not ship.address_to or not ship.address_from:
-        raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Person/Lagerplatz) pflegen")
+        raise HTTPException(400, detail="Empfänger-Adresse unvollständig – bitte Adresse am Ziel (Person/Unternehmen) pflegen")
     provider = shipping.get_provider()
     if not provider.supports_rates:
         raise HTTPException(503, detail="Kein Versand-Anbieter konfiguriert (SHIPPO_API_KEY) – Carrier/Tracking manuell erfassen")

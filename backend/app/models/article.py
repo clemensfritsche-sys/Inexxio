@@ -59,7 +59,7 @@ class Article(Base, TimestampMixin):
     reorder_target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)
 
     # ── Fixierter Standort (optionales Spezifikationsfeld) ──────────────────────────
-    # Funktioniert exakt wie die Standort-Definition am Lagerplatz-Datensatz: GPS-Koordinaten
+    # Rein deskriptiv am Artikel (kein Bestands-Standort): GPS-Koordinaten
     # + per Reverse-Geocoding gefüllte Adresse (Strasse/PLZ/Ort/Land). Rein deskriptiv am
     # Artikel hinterlegt – der feste geografische Ort, an dem dieser Artikel verortet ist.
     fixed_location_lat: Mapped[Optional[Decimal]] = mapped_column(Numeric(9, 6), nullable=True)
