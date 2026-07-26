@@ -1,5 +1,5 @@
 import { Clock, CheckCircle2, FileText, Banknote, Ban } from 'lucide-react';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
 import type { PNode } from '@/components/erp/purchase-progress';
 
 // Verkauf (kaufmännisches Spiegelbild der Beschaffung):
@@ -15,7 +15,7 @@ export const SALE_STATUS: Record<SaleStatus, StatusCfg> = {
 };
 
 export function saleStatusConfig(status: string): StatusCfg {
-  return SALE_STATUS[status as SaleStatus] ?? SALE_STATUS.requested;
+  return pickCfg(SALE_STATUS, status, 'requested');
 }
 
 const SALE_FLOW = [

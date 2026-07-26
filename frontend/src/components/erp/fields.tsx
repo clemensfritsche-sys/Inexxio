@@ -300,3 +300,25 @@ export function SaveIndicator({ saving, flash }: { saving: boolean; flash: boole
   if (flash) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#16a34a' }}><CheckCircle2 size={12} /> Gespeichert</span>;
   return null;
 }
+
+
+/**
+ * **Beschriftete Wertzeile** («Kunde · Max Muster») – das Arbeitspferd der Panel-
+ * Zusammenfassungen. Lag dreimal identisch im Code (Auftrags-Detail, Beschaffungs-
+ * und Verkaufs-Panel), zweimal Zeichen für Zeichen gleich, einmal mit optionalem
+ * Symbol. Jetzt eine Stelle – und dabei von hart kodierten Farben auf die
+ * Design-Tokens gezogen.
+ */
+export function Row({ k, v, icon: Icon }: { k: string; v: string; icon?: React.ElementType }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+      <span style={{
+        color: 'var(--fg-4)', flexShrink: 0,
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+      }}>
+        {Icon && <Icon size={12} />}{k}
+      </span>
+      <span style={{ color: 'var(--fg-1)', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+    </div>
+  );
+}

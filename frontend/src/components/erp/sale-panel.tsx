@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import type { Order, OrderSale, PaymentMethod, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { saleStatusConfig, saleNodes } from '@/lib/sale';
-import { PrimaryButton, SearchSelect, TextField, ErrorText, StatusBadge, PanelHeader, Segmented } from '@/components/erp/fields';
+import { ErrorText, PanelHeader, PrimaryButton, Row, SearchSelect, Segmented, StatusBadge, TextField } from '@/components/erp/fields';
 import { PurchaseProgress } from '@/components/erp/purchase-progress';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
@@ -309,16 +309,6 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Row({ k, v, icon: Icon }: { k: string; v: string; icon?: React.ElementType }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: '#94a3b8', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-        {Icon && <Icon size={12} />}{k}
-      </span>
-      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
-    </div>
-  );
-}
 
 const ghost: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start',

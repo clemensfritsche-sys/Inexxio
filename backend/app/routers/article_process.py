@@ -24,6 +24,7 @@ from ..schemas.article_process_step import (
     normalize_capture_fields,
     normalize_doc_signers,
 )
+from ..services import people
 from ..services.admin import log_audit
 from ..services.process_steps import sync_locked_movements
 
@@ -84,13 +85,6 @@ def _order_owner(db: Session, object_id: int) -> _Owner:
 
 # ─── Gemeinsame Helfer ───────────────────────────────────────────────────────────
 
-def _supplier_name(db: Session, supplier_id: int | None) -> str | None:
-    if not supplier_id:
-        return None
-    u = db.query(UserProfile).filter(UserProfile.id == supplier_id).first()
-    return u.display_name if u else None
-
-
 def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLineView]:
     if not raw_lines:
         return []
@@ -114,7 +108,7 @@ def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLi
 
 def _to_response(db: Session, step: ArticleProcessStep) -> ArticleProcessStepResponse:
     resp = ArticleProcessStepResponse.model_validate(step)
-    resp.supplier_name = _supplier_name(db, step.supplier_id)
+    resp.supplier_name = people.name_by_id(db, step.supplier_id)
     resp.resource_lines = _resource_line_views(db, step.resource_lines)
     return resp
 

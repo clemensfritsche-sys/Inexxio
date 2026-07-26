@@ -54,6 +54,7 @@ def test_location_kind_and_same_place():
     Adress-Vergleich (normalisiert Strasse+PLZ+Ort+Land) – die Basis der Geofence-losen
     Versand-Ableitung."""
     from app.models import CompanySettings, UserProfile
+    from app.services import address
     from app.services import logistics as lg
 
     assert lg.location_kind(_DB({UserProfile: SimpleNamespace(role="customer")}), "user", 1) == "external_person"
@@ -66,10 +67,12 @@ def test_location_kind_and_same_place():
     a = {"street1": "Bahnhofstrasse 1", "zip": "8000", "city": "Zürich", "country": "CH"}
     b = {"street1": "bahnhofstrasse 1", "zip": "8000", "city": "zürich", "country": "ch"}
     c = {"street1": "Andere 2", "zip": "3000", "city": "Bern", "country": "CH"}
-    assert lg.same_place(a, b) is True          # normalisiert gleich (Gross/Klein, Leerzeichen)
-    assert lg.same_place(a, c) is False         # anderer Ort
-    assert lg.same_place(a, None) is False
-    assert lg.same_place({"zip": "", "city": ""}, {"zip": "", "city": ""}) is False   # ohne Adresse nicht «gleich»
+    # Der Ortsvergleich lebt in services/address (EINE Stelle) – logistics hatte dafür
+    # nur einen Ein-Zeilen-Alias, der entfallen ist.
+    assert address.same(a, b) is True           # normalisiert gleich (Gross/Klein, Leerzeichen)
+    assert address.same(a, c) is False          # anderer Ort
+    assert address.same(a, None) is False
+    assert address.same({"zip": "", "city": ""}, {"zip": "", "city": ""}) is False   # ohne Adresse nicht «gleich»
 
 
 def test_parcels_from_article_data_with_hazmat():

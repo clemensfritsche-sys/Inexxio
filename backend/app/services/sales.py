@@ -18,7 +18,7 @@ from ..models import (
     CompanySettings, Order, Sale, UserProfile,
 )
 from ..models.base import utcnow
-from . import pricing
+from . import people, pricing
 from .admin import log_audit
 
 DEFAULT_SHOP_CURRENCIES = ["CHF", "EUR", "USD"]
@@ -53,10 +53,6 @@ def resolve_currency(db: Session, requested: str | None, country: str | None) ->
 
 # ─── Profil / Preise / Zielgruppe (ERP) ──────────────────────────────────────────
 
-def _user_name(u: UserProfile | None) -> str | None:
-    return u.display_name if u else None
-
-
 def prices_for(db: Session, article_id: int) -> list[ArticlePrice]:
     prices = (
         db.query(ArticlePrice)
@@ -84,7 +80,7 @@ def audience_for(db: Session, article_id: int) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         u = db.query(UserProfile).filter(UserProfile.id == r.user_id).first()
-        out.append({"id": r.id, "user_id": r.user_id, "name": _user_name(u),
+        out.append({"id": r.id, "user_id": r.user_id, "name": people.name(u),
                     "email": u.email if u else None, "object_id": u.object_id if u else None})
     return out
 

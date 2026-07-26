@@ -24,7 +24,7 @@ from ..schemas.order import (
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
 from ..schemas.sale import SaleEmbed
-from . import process
+from . import people, process
 from .article_fields import normalize_shared_fields
 from .inspection import eval_fields, required_count, sample_targets
 from .locations import location_label, location_labels, physical_location_labels
@@ -91,10 +91,6 @@ def recurrence_due(order: Order) -> bool:
     return (order.recurrence_anchor - timedelta(days=order.recurrence_lead_time_days or 0)) <= date.today()
 
 
-def _supplier_name(u: UserProfile | None) -> str | None:
-    return u.display_name if u else None
-
-
 def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
     """Audit-Verlauf der Bestellung (Statuswechsel mit Wer/Wann) für den Stepper."""
     logs = (
@@ -115,9 +111,7 @@ def _purchase_history(db: Session, order: Order) -> list[PurchaseHistoryEntry]:
         if not status:
             continue
         if lg.user_id is not None and lg.user_id not in names:
-            names[lg.user_id] = _supplier_name(
-                db.query(UserProfile).filter(UserProfile.id == lg.user_id).first()
-            )
+            names[lg.user_id] = people.name_by_id(db, lg.user_id)
         out.append(PurchaseHistoryEntry(
             status=status, at=lg.changed_at_utc,
             by=names.get(lg.user_id) if lg.user_id is not None else None,
@@ -139,8 +133,7 @@ def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,
                     po: PurchaseOrder, history: list[PurchaseHistoryEntry] | None = None) -> PurchaseEmbed:
     emb = PurchaseEmbed.model_validate(po)
     if po.supplier_id:
-        emb.supplier_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == po.supplier_id).first())
+        emb.supplier_name = people.name_by_id(db, po.supplier_id)
     emb.receiving_location_label = _receiving_label(db, po)
     emb.shared_fields = normalize_shared_fields(step.shared_fields if step else None)
     # Der Verlauf ist je AUFTRAG identisch (Audit nach Auftragsnummer) – bei mehreren
@@ -169,8 +162,7 @@ def _sale_embed(db: Session, order: Order, sale: Sale | None) -> SaleEmbed:
     se = (SaleEmbed.model_validate(sale) if sale
           else SaleEmbed(id=0, status="requested"))
     if sale and sale.customer_id:
-        se.customer_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first())
+        se.customer_name = people.name_by_id(db, sale.customer_id)
     # Artikel dieser Position denormalisieren – bei einem Mehrpositionen-Auftrag trägt
     # jeder Sale-Beleg einen ANDEREN Artikel (``order.article_id`` ist dann NULL).
     art_id = sale.article_id if sale else order.article_id
@@ -212,11 +204,9 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
         for t in sample_targets(db, order, step)
     ]
     if insp and insp.inspector_id:
-        ie.inspector_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == insp.inspector_id).first())
+        ie.inspector_name = people.name_by_id(db, insp.inspector_id)
     if insp and insp.signed_by:
-        ie.signed_by_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == insp.signed_by).first())
+        ie.signed_by_name = people.name_by_id(db, insp.signed_by)
     return ie
 
 
@@ -238,8 +228,7 @@ def _movement_embed(db: Session, order: Order, step: ArticleProcessStep,
             me.target_location_id = cust.object_id
     me.target_location_label = location_label(db, me.target_location_type, me.target_location_id)
     if mv and mv.moved_by_id:
-        me.moved_by_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == mv.moved_by_id).first())
+        me.moved_by_name = people.name_by_id(db, mv.moved_by_id)
     # Versand (ADR 005): abgeleitete Transportklasse + Versand-Beleg dieses Schritts.
     # EXAKT dieselbe Instanz-Auswahl wie die Ausführung (movement.movable_instances).
     if instances is None:
@@ -255,8 +244,7 @@ def _disposal_embed(db: Session, order: Order, disp: Disposal | None,
     de = DisposalEmbed(id=disp.id if disp else 0, done=disp is not None,
                        note=disp.note if disp else None, scrapped_count=scrapped_count)
     if disp and disp.scrapped_by_id:
-        de.scrapped_by_name = _supplier_name(
-            db.query(UserProfile).filter(UserProfile.id == disp.scrapped_by_id).first())
+        de.scrapped_by_name = people.name_by_id(db, disp.scrapped_by_id)
     return de
 
 

@@ -22,16 +22,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import Instance, UserProfile
+from . import people
+from .objects import obj_nr as _obj_nr
 from ..schemas.movement import LOCATION_TYPES
-
-
-def _user_label(u: UserProfile) -> str:
-    return u.display_name
-
-
-def _obj_nr(lid: int) -> str:
-    """9-stellige Objektnummer (analog Frontend fmtObjId)."""
-    return str(lid).zfill(9)
 
 
 def location_label(db: Session, ltype: str | None, lid: int | None) -> str | None:
@@ -46,7 +39,7 @@ def location_label(db: Session, ltype: str | None, lid: int | None) -> str | Non
             .filter(UserProfile.object_id == lid, UserProfile.is_active == True)
             .first()
         )
-        return _user_label(u) if u else None
+        return people.name(u)
     if ltype == "instance":
         inst = (
             db.query(Instance)
@@ -77,7 +70,7 @@ def location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, str | None
         for c in db.query(CompanySettings).filter(CompanySettings.object_id.in_(ids["company"]))
     } if ids["company"] else {}
     users = {
-        u.object_id: _user_label(u) for u in db.query(UserProfile).filter(
+        u.object_id: people.name(u) for u in db.query(UserProfile).filter(
             UserProfile.object_id.in_(ids["user"]), UserProfile.is_active == True)
     } if ids["user"] else {}
     existing_inst = {

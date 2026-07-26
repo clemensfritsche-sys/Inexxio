@@ -25,7 +25,7 @@ from ..schemas.resource import (
     ResourceCandidate, ResourceComponentPick, ResourceEmbed, ResourceLineExec,
     ResourcePlanItem, ResourceProductPlan,
 )
-from . import location_split, process, provisioning
+from . import location_split, people, process, provisioning
 from .admin import log_audit
 from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
@@ -52,10 +52,6 @@ def _line_mode(line: dict, step: ArticleProcessStep | None = None) -> str:
     sind entfernt –, bleibt aber als Parameter für die Aufrufer erhalten.)"""
     m = (line or {}).get("mode")
     return m if m in ("consume", "tool") else "consume"
-
-
-def _user_name(u: UserProfile | None) -> str | None:
-    return u.display_name if u else None
 
 
 def reserve_resources(db: Session, order: Order, actor_id: int) -> None:
@@ -393,6 +389,6 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
     emb = ResourceEmbed(done=done, note=usage.note if usage else None,
                         lines=lines, products=product_plans)
     if usage and usage.used_by_id:
-        emb.used_by_name = _user_name(
+        emb.used_by_name = people.name(
             db.query(UserProfile).filter(UserProfile.id == usage.used_by_id).first())
     return emb

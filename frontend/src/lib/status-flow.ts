@@ -15,6 +15,19 @@ export interface StatusCfg {
   icon?: ElementType;
 }
 
+/**
+ * Status → Anzeige-Konfiguration, mit Rückfall auf den Anfangszustand.
+ *
+ * Dieser Dreizeiler lag fünfmal identisch im Code (Artikel, Auftrag, Beschaffung,
+ * Verkauf, Instanz) – gleiche Bedeutung, fünf Funktionen. Die fachlichen Karten
+ * bleiben je Domäne, die *Auflösung* ist jetzt eine.
+ */
+export function pickCfg<T extends string>(
+  map: Record<T, StatusCfg>, status: string, fallback: T,
+): StatusCfg {
+  return map[status as T] ?? map[fallback];
+}
+
 export interface StatusAction {
   label: string;
   target: string;

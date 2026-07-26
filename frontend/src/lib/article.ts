@@ -1,6 +1,6 @@
 import { FilePen, CheckCircle2, Ban } from 'lucide-react';
 import type { ArticleSerialization, ArticleStatus, ArticleUnit } from '@/types';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
 
 // ─── Anzeige-Konfiguration (Töne aus den geteilten Design-Tokens) ────────────
 
@@ -33,7 +33,7 @@ export function serializationLabel(value: string): string {
 }
 
 export function statusConfig(status: string): StatusCfg {
-  return ARTICLE_STATUS[status as ArticleStatus] ?? ARTICLE_STATUS.draft;
+  return pickCfg(ARTICLE_STATUS, status, 'draft');
 }
 
 // ─── Validierung (Spiegel von backend/app/schemas/article.py) ────────────────

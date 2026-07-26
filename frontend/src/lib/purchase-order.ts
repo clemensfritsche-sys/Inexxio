@@ -1,6 +1,6 @@
 import { Clock, FileText, ShoppingCart, XCircle, PackageCheck } from 'lucide-react';
 import type { PurchaseOrderStatus, ProcessStepMode } from '@/types';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
 
 // Beschaffungs-Fluss über die geteilten Tokens: offen = amber, laufend = slate,
 // geliefert = grün, abgelehnt = rot. Die Schritte trennen sich zusätzlich per Symbol.
@@ -13,7 +13,7 @@ export const PURCHASE_STATUS: Record<PurchaseOrderStatus, StatusCfg> = {
 };
 
 export function purchaseStatusConfig(status: string): StatusCfg {
-  return PURCHASE_STATUS[status as PurchaseOrderStatus] ?? PURCHASE_STATUS.requested;
+  return pickCfg(PURCHASE_STATUS, status, 'requested');
 }
 
 export const PROCESS_MODE_LABEL: Record<ProcessStepMode, string> = {

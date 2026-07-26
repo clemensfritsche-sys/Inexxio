@@ -20,7 +20,7 @@ from ..models import (
     ArticleProcessStep, Document, DocumentSignoff, Instance, Order, UserProfile,
 )
 from ..schemas.document import DocumentContent, DocumentUpdate, SignoffView
-from . import process
+from . import people, process
 from .admin import log_audit
 from .events import emit
 
@@ -339,17 +339,12 @@ def withdraw_issuance(db: Session, order: Order, step_id: int | None, user: User
     return order
 
 
-def _user_name(db: Session, object_id: int) -> Optional[str]:
-    u = db.query(UserProfile).filter(UserProfile.object_id == object_id).first()
-    return u.display_name if u else None
-
-
 def signoff_views(db: Session, doc: Document) -> list[SignoffView]:
     """Freigabe-Parteien eines Dokuments als Ansicht (mit Namen) – für den Auftrags-Embed."""
     out: list[SignoffView] = []
     for r in signoffs_for(db, doc):
         v = SignoffView.model_validate(r)
-        v.signer_name = _user_name(db, r.signer_object_id)
+        v.signer_name = people.name_by_object_id(db, r.signer_object_id)
         out.append(v)
     return out
 
