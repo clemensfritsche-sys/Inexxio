@@ -134,6 +134,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Register Options Api V1 Auth Passkeys Register Options Post"
                 }
@@ -281,6 +282,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Login Options Api V1 Auth Passkeys Login Options Post"
                 }
@@ -6320,7 +6322,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6378,7 +6381,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6392,7 +6396,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6406,7 +6411,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6431,7 +6437,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6445,7 +6452,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6603,7 +6611,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               }
             ],
             "title": "Amount Chf"
@@ -6614,7 +6623,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6672,12 +6682,14 @@
           },
           "amount_chf": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Amount Chf"
           },
           "compare_at_chf": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6746,7 +6758,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -6760,7 +6773,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7058,9 +7072,9 @@
             "type": "string",
             "title": "Step Type"
           },
-          "locked": {
+          "companion": {
             "type": "boolean",
-            "title": "Locked",
+            "title": "Companion",
             "default": false
           },
           "mode": {
@@ -7582,7 +7596,8 @@
           "weight_kg": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7637,7 +7652,8 @@
           "min_order_qty": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7648,7 +7664,8 @@
           "safety_stock": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7659,7 +7676,8 @@
           "reorder_target": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7675,7 +7693,8 @@
           "fixed_location_lat": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7686,7 +7705,8 @@
           "fixed_location_lng": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7790,7 +7810,8 @@
           "landed_unit_cost": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7816,7 +7837,8 @@
           "computed_weight_kg": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7849,7 +7871,8 @@
           "unit_cost_low": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7860,7 +7883,8 @@
           "unit_cost_high": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -7952,6 +7976,7 @@
           "sales_content": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8032,6 +8057,7 @@
           "sales_content": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8107,7 +8133,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8165,7 +8192,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8179,7 +8207,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8193,7 +8222,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8218,7 +8248,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8232,7 +8263,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8413,7 +8445,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "context_object_id": {
@@ -8438,7 +8470,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -8711,7 +8743,8 @@
           "default_skonto_pct": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -8821,6 +8854,7 @@
           "shop_country_currency": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8848,6 +8882,7 @@
           "pricing_zone_factors": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8859,6 +8894,7 @@
           "legal_documents": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9154,7 +9190,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -9267,6 +9304,7 @@
           "shop_country_currency": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9300,6 +9338,7 @@
           "pricing_zone_factors": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9311,6 +9350,7 @@
           "legal_documents": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9508,7 +9548,8 @@
           "gross_total": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -9809,6 +9850,7 @@
           "extracted_data": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10429,7 +10471,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -10470,6 +10513,7 @@
           "payload": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -10746,6 +10790,7 @@
             "default": 1
           },
           "values": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Values",
             "default": {}
@@ -11754,6 +11799,7 @@
           "content": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -12358,7 +12404,8 @@
           "article_weight_kg": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -13063,6 +13110,7 @@
       "PasskeyLoginVerify": {
         "properties": {
           "credential": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Credential",
             "description": "PublicKeyCredential (assertion) aus dem Browser"
@@ -13078,6 +13126,7 @@
       "PasskeyRegisterVerify": {
         "properties": {
           "credential": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Credential",
             "description": "PublicKeyCredential (attestation) aus dem Browser"
@@ -13267,12 +13316,14 @@
           },
           "net": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Net"
           },
           "compare_at": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -13282,10 +13333,12 @@
           },
           "tax_rate": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Tax Rate"
           },
           "gross": {
             "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Gross"
           }
         },
@@ -13349,7 +13402,8 @@
           "order_total": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -13405,7 +13459,8 @@
           "landed_unit_cost": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -13503,7 +13558,8 @@
           "article_weight_kg": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -13619,7 +13675,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14192,7 +14249,8 @@
           "order_total": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14203,7 +14261,8 @@
           "vat_rate": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14407,7 +14466,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14421,7 +14481,8 @@
                 "type": "number"
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14693,6 +14754,7 @@
           },
           "parcels": {
             "items": {
+              "additionalProperties": true,
               "type": "object"
             },
             "type": "array",
@@ -14702,6 +14764,7 @@
           "load": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -14792,7 +14855,8 @@
           "cost_amount": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -14988,6 +15052,7 @@
           "load": {
             "anyOf": [
               {
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -16140,7 +16205,8 @@
           "weekly_hours": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
               },
               {
                 "type": "null"
@@ -16645,6 +16711,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

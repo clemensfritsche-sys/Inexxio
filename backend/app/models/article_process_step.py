@@ -34,9 +34,12 @@ class ArticleProcessStep(Base, TimestampMixin):
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
 
-    # Pflicht-Bewegung: vom System rund um eine Beschaffung erzeugt (Versand/Wareneingang).
-    # Nicht löschbar/editierbar und automatisch positioniert (services/process_steps.py).
-    locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # Begleit-Bewegung: vom System EINMALIG hinter eine Beschaffung (Wareneingang) bzw.
+    # einen Verkauf (Versand zum Kunden) gesät – siehe services/process_steps.py. Das ist
+    # eine **Rolle, keine Sperre**: der Schritt ist löschbar, verschiebbar und editierbar
+    # wie jeder andere (früher ``locked``, Migration 079). Die Rolle steuert das feste
+    # Versand-Ziel und die Ausnahme von der Fehlmengen-Prüfung.
+    companion: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Konfiguration «purchase»
     mode: Mapped[str] = mapped_column(String(20), default="supplier", nullable=False)  # supplier | webshop

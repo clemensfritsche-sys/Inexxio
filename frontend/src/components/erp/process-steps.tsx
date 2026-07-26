@@ -164,20 +164,20 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     setTargetSel(''); setResLines([]); setDocCfg(emptyDocCfg()); setError(null);
   }
 
-  // Nach Strukturänderungen die kanonische Liste neu laden (inkl. automatischer
-  // Pflicht-Bewegungen + serverseitiger Positionen).
+  // Nach Strukturänderungen die kanonische Liste neu laden (inkl. einer beim Anlegen
+  // gesäten Begleit-Bewegung + serverseitiger Positionen).
   async function reload() {
     try { setSteps(await api.getSteps(owner, ownerObjectId!)); } catch { /* ignore */ }
   }
 
-  // Rolle einer Pflicht-Bewegung: Versand zum Kunden (mode=customer), Versand zum
-  // Lieferanten (user-Ziel) oder Wareneingang.
-  function lockedRole(s: ArticleProcessStep): 'versand' | 'wareneingang' | 'versandkunde' {
-    if ((s.mode as string) === 'customer') return 'versandkunde';   // Versand zum Kunden (getaggt)
-    return s.target_location_type === 'user' ? 'versand' : 'wareneingang';
+  // Rolle einer gesäten Begleit-Bewegung: Versand zum Kunden (mode=customer) oder
+  // Wareneingang. Die Rolle ist ein Hinweis, keine Sperre – der Schritt lässt sich wie
+  // jeder andere verschieben und löschen.
+  function companionRole(s: ArticleProcessStep): 'wareneingang' | 'versandkunde' {
+    return (s.mode as string) === 'customer' ? 'versandkunde' : 'wareneingang';
   }
 
-  // Wareneingang-Ziel der Pflicht-Bewegung setzen (Behälter/Unternehmen oder offen).
+  // Wareneingang-Ziel setzen (Behälter/Unternehmen oder offen).
   async function setLockedTarget(stepId: number, value: string) {
     const tgt = value ? value.split(':') : null;
     try {
@@ -309,9 +309,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
   async function persistOrder(orderedFull: ArticleProcessStep[]) {
     setSteps(orderedFull);  // optimistisch
-    // Nur die frei sortierbaren (nicht-Pflicht) Schritte werden gesendet; der
-    // Server fügt die Pflicht-Bewegungen automatisch wieder an der richtigen Stelle ein.
-    const ids = orderedFull.filter((s) => !s.locked).map((s) => s.id);
+    // ALLE Schritte sind frei sortierbar – auch die gesäten Begleit-Bewegungen. Früher
+    // wurden sie hier ausgefiltert und vom Server automatisch neu positioniert.
+    const ids = orderedFull.map((s) => s.id);
     try { setSteps(await api.reorderSteps(owner, ownerObjectId!, ids)); }
     catch { reload(); }
   }
@@ -338,10 +338,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
       {steps.map((s, i) => {
         const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
         const Icon = meta.icon;
-        const isLocked = s.locked;
-        const canDrag = !readOnly && !isLocked;
+        const isCompanion = s.companion;
+        const canDrag = !readOnly;
         const isOver = over === i && drag !== null && drag !== i;
-        const kc = kindColor(s.step_type as StepType, isLocked);
+        const kc = kindColor(s.step_type as StepType);
         return (
           <div key={s.id} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Connector />
@@ -361,26 +361,21 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
             >
               {/* Kopf: Symbol-Kachel + Titel (+ Pflicht) + Löschen */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px' }}>
-                {!readOnly && (isLocked
-                  ? <Lock size={14} style={{ color: 'var(--fg-4)', flexShrink: 0 }} />
-                  : <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />)}
+                {!readOnly && <GripVertical size={16} style={{ color: 'var(--border-2)', cursor: 'grab', flexShrink: 0 }} />}
                 <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', color: kc.fg, border: `1px solid ${kc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon size={19} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{meta.label}</span>
-                    {isLocked && <span style={pflichtBadge}>Pflicht</span>}
                   </div>
                   <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>
-                    {isLocked && (lockedRole(s) === 'versand'
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Lieferanten{s.target_location_id ? ` · ${fmtObjId(s.target_location_id)}` : ''}</span>
-                      : lockedRole(s) === 'versandkunde'
-                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
-                        : (s.target_location_id
-                          ? `Wareneingang → ${fmtObjId(s.target_location_id)}`
-                          : 'Wareneingang · frei beim Einlagern'))}
-                    {!isLocked && s.step_type === 'purchase' && (() => {
+                    {isCompanion && (companionRole(s) === 'versandkunde'
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
+                      : (s.target_location_id
+                        ? `Wareneingang → ${fmtObjId(s.target_location_id)}`
+                        : 'Wareneingang · frei beim Einlagern'))}
+                    {!isCompanion && s.step_type === 'purchase' && (() => {
                       // Bezugsquelle am Schritt (Lieferant/Webshop) – oder geerbt vom Artikel-Standard.
                       if (s.mode === 'webshop' && s.webshop_url)
                         return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Webshop · {s.webshop_url.replace(/^https?:\/\//, '').slice(0, 40)}</span>;
@@ -392,7 +387,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Bezugsquelle vom Artikel-Standard</span>;
                     })()}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
-                    {!isLocked && s.step_type === 'movement' && (s.target_location_id
+                    {!isCompanion && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
@@ -410,13 +405,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     )}
                   </div>
                 </div>
-                {!readOnly && !isLocked && (
+                {!readOnly && (
                   <button onClick={() => removeStep(s.id)} title="Modul löschen" style={delBtn}><Trash2 size={15} /></button>
                 )}
               </div>
 
-              {/* Pflicht-Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
-              {isLocked && !readOnly && lockedRole(s) === 'wareneingang' && (
+              {/* Wareneingang: Ziel definierbar wie bei regulärer Bewegung */}
+              {isCompanion && !readOnly && companionRole(s) === 'wareneingang' && (
                 <div style={cardBody}>
                   <Label>Ziel Wareneingang (optional)</Label>
                   <SearchSelect
@@ -538,7 +533,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
                 {chooserTypes.map((t) => {
-                  const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t, false);
+                  const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t);
                   return (
                     <button key={t} onClick={() => setAdding(t)} title={STEP_HINT[t]} style={paletteTile}>
                       <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: '#fff', border: `1px solid ${kc.border}`, color: kc.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={18} /></div>
@@ -985,8 +980,9 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
 };
-function kindColor(type: StepType, locked: boolean) {
-  if (locked) return { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-3)' };
+// Begleit-Bewegungen sind normale Schritte und werden darum auch normal eingefärbt –
+// die frühere Graufärbung signalisierte «gesperrt» und ist mit der Sperre entfallen.
+function kindColor(type: StepType) {
   return KIND_COLORS[type] ?? KIND_COLORS.purchase;
 }
 
@@ -1062,10 +1058,6 @@ const editorCard: React.CSSProperties = {
   width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch',
   background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
   boxShadow: 'var(--shadow-sm)', padding: '16px 18px',
-};
-const pflichtBadge: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
-  color: 'var(--fg-3)', background: 'var(--bg-3)', padding: '1px 6px', borderRadius: 999,
 };
 const delBtn: React.CSSProperties = {
   border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0,

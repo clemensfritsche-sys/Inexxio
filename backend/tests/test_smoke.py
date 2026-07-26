@@ -992,47 +992,104 @@ def test_deactivation_replace_wired():
         DeactivateRequest(orders_mode="bogus")
 
 
-def test_purchase_is_commercial_only_and_movements_planned():
-    """Modul-Trennung: Purchase ist rein kaufmännisch (kein Standortwechsel mehr);
-    Pflicht-Bewegungen rund um die Beschaffung werden korrekt geplant."""
+def test_purchase_is_commercial_only_and_movements_seeded():
+    """Modul-Trennung: Purchase ist rein kaufmännisch (kein Standortwechsel mehr); die
+    Begleit-Bewegungen sind je Auslöser **deklariert** statt als Sequenz geplant."""
     from app.services import purchase
-    from app.services.process_steps import _plan
+    from app.services.process_steps import _COMPANION_MODE
 
     # Purchase verschiebt keine Instanzen mehr – die Alt-Helfer sind entfernt
     assert not hasattr(purchase, "_relocate_to_receiving")
     assert not hasattr(purchase, "_resolve_received_location")
 
-    P = ("purchase", "supplier")
-    # Beschaffung als erster Schritt → nur Wareneingang danach
-    assert _plan([P]) == ["purchase", "wareneingang"]
-    # Aufeinanderfolgende Beschaffungen: keine doppelte Bewegung dazwischen
-    assert _plan([P, P]) == ["purchase", "wareneingang", "purchase", "wareneingang"]
-    # Ohne Beschaffung keine Pflicht-Bewegung
-    assert _plan([("resource", None), ("inspection", None)]) == ["resource", "inspection"]
-    # Webshop-Beschaffung: gleicher Plan wie beim Lieferanten
-    assert _plan([("resource", None), ("purchase", "webshop")]) == \
-        ["resource", "purchase", "wareneingang"]
+    # Genau zwei Auslöser, je eine Rolle: Beschaffung → Wareneingang, Verkauf → Kunde.
+    assert _COMPANION_MODE == {"purchase": "supplier", "sale": "customer"}
 
 
 def test_every_step_module_behaves_the_same_at_any_position():
     """**Jedes Modul steht für sich.** Ein Schritttyp verhält sich an JEDER Position gleich –
-    es gibt keine Regel mehr, die aus derselben Konfiguration je nach Reihenfolge etwas
-    anderes macht.
+    es gibt keine Regel, die aus derselben Konfiguration je nach Reihenfolge etwas anderes
+    macht.
 
-    Vorher erzeugte eine Lieferanten-Beschaffung ab Position 2 zusätzlich einen gesperrten
-    «Versand zum Lieferanten» (an Position 1 dagegen nicht) – und eine selbst angelegte
-    Bewegung davor unterdrückte ihn nicht einmal (die Prüfung kannte nur die Pflicht-Marker),
-    was zwei Bewegungen hintereinander ergab."""
-    from app.services.process_steps import _plan
+    Früher erzeugte eine Lieferanten-Beschaffung ab Position 2 zusätzlich einen gesperrten
+    «Versand zum Lieferanten» (an Position 1 dagegen nicht). Heute ist die Regel strukturell
+    positionsunabhängig: ``seed_companion_movements`` entscheidet je Auslöser-Schritt über
+    einen reinen Dict-Lookup (``_COMPANION_MODE``) – es gibt keinen Positions-Kontext, in dem
+    eine solche Regel überhaupt formulierbar wäre."""
+    import inspect as _inspect
 
-    P = ("purchase", "supplier")
-    # Dieselbe Beschaffung, drei Positionen → immer exakt dieselbe Ergänzung.
-    assert _plan([P]) == ["purchase", "wareneingang"]
-    assert _plan([("resource", None), P]) == ["resource", "purchase", "wareneingang"]
-    assert _plan([("resource", None), ("inspection", None), P]) == \
-        ["resource", "inspection", "purchase", "wareneingang"]
-    # Eine eigene Bewegung vor der Beschaffung bleibt die EINZIGE Bewegung davor.
-    assert _plan([("movement", None), P]) == ["movement", "purchase", "wareneingang"]
+    from app.services import process_steps
+
+    src = _inspect.getsource(process_steps.seed_companion_movements)
+    # Kein Index-/Nachbarschafts-Kontext: die Schleife sieht nur den einzelnen Schritt.
+    assert "enumerate(" not in src
+    assert "steps[" not in src   # kein Blick auf Vorgänger/Nachfolger
+    assert "_COMPANION_MODE.get(s.step_type)" in src
+
+
+def test_companion_movements_are_seeded_once_not_enforced():
+    """**Zwang aufgelöst:** die Begleit-Bewegungen (Wareneingang/Versand zum Kunden) sind
+    ganz normale Schritte – löschbar, verschiebbar, editierbar.
+
+    Drei Eigenschaften halten das zusammen:
+    1. Gelöschte kommen NICHT wieder – ``_seeded_modes`` zählt auch ``is_active=False``
+       (kein Filter darauf), also gilt eine entfernte Bewegung dauerhaft als «gab es schon».
+    2. Der Router kennt keine Sperren mehr (kein Löschverbot, kein Editier-Verbot, keine
+       Ausklammerung beim Sortieren).
+    3. Nachgezogen wird nur beim **Anlegen** eines Schritts, nicht bei Sortieren/Ändern/
+       Löschen – sonst wäre die Automatik wieder selbstheilend."""
+    import inspect as _inspect
+
+    from app.routers import article_process
+    from app.services import process_steps
+
+    # 1) Einmalig: keine is_active-Einschränkung beim Nachschlagen bereits gesäter Rollen
+    #    (der Docstring darf das Wort erklären – die Query darf nicht danach filtern).
+    seeded_src = _inspect.getsource(process_steps._seeded_modes)
+    assert "ArticleProcessStep.is_active" not in seeded_src
+
+    # 2) Keine Sperren mehr im Router.
+    router_src = _inspect.getsource(article_process)
+    assert "nicht löschbar" not in router_src
+    assert "nur das Ziel editierbar" not in router_src
+    assert "ArticleProcessStep.locked" not in router_src
+
+    # 3) Gesät wird ausschliesslich beim Anlegen.
+    assert "owner.seed(db)" in _inspect.getsource(article_process._create)
+    for fn in (article_process._reorder, article_process._update, article_process._delete):
+        assert "seed(db)" not in _inspect.getsource(fn)
+
+
+def test_companion_role_survives_the_unlocking():
+    """Die Sperre fällt, die **Rolle** bleibt – sonst kehrt der Shop-Bug aus Migration 074
+    zurück: nach der Zahlung gilt die Ware als «verkauft» (aus dem freien Bestand weg), und
+    ohne die Ausnahme wäre der Versand-Schritt dauerhaft «blockiert» → kein Auftrag mehr
+    versendbar.
+
+    Die Ausnahme hängt darum an ``is_companion`` (Spalte ``companion``) und NICHT an ``mode``:
+    dessen Default ist ``'supplier'``, jede vom Nutzer angelegte Bewegung würde sonst
+    fälschlich als Begleiter gelten und wäre nie mehr auf Fehlmengen geprüft."""
+    import inspect as _inspect
+
+    from app.models import ArticleProcessStep
+    from app.services import process
+    from app.services.process_steps import is_companion
+
+    assert "companion" in ArticleProcessStep.__table__.columns
+
+    # Die Fehlmengen-Ausnahme liest die Rolle, nicht den Modus.
+    src = _inspect.getsource(process.step_shortfalls)
+    assert "not is_companion(step)" in src
+
+    # is_companion liest die Spalte – ein movement mit dem mode-Default ist KEIN Begleiter.
+    class _Step:
+        step_type = "movement"
+        mode = "supplier"
+        companion = False
+
+    assert not is_companion(_Step())
+    _Step.companion = True
+    assert is_companion(_Step())
 
 
 def test_resource_embed_per_product_breakdown():
@@ -1765,16 +1822,16 @@ def test_pooled_orders_reuse_generic_step_editor():
     assert "ArticleProcessStep(" not in add_src   # legt KEINE Schritte automatisch an
 
 
-def test_pooled_owner_sync_is_unchanged():
+def test_pooled_owner_seed_is_unchanged():
     """Verkauf ist EIN Schritt (auch bei mehreren Artikeln – mehrere Belege teilen sich
-    ihn, ``services/sale.py``); die Pflicht-Bewegungs-Synchronisation läuft deshalb für
+    ihn, ``services/sale.py``); das Säen der Begleit-Bewegung läuft deshalb für
     Mehrpositionen-Aufträge GENAU WIE für jeden anderen Auftrag, ohne Sonderfall."""
     import inspect as _inspect
     from app.routers import article_process
 
-    src = _inspect.getsource(article_process._Owner.sync)
+    src = _inspect.getsource(article_process._Owner.seed)
     assert "if self.pooled" not in src   # kein Sonderfall/No-op mehr nötig
-    assert "sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)" in src
+    assert "seed_companion_movements(db, article_id=self.article_id, order_id=self.order_id)" in src
 
 
 def test_pooled_order_step_types_all_allowed():
