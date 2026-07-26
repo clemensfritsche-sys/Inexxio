@@ -203,7 +203,7 @@ def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id:
     for s in q.order_by(ArticleProcessStep.position, ArticleProcessStep.id).all():
         db.add(ArticleProcessStep(
             article_id=dst_article_id, order_id=dst_order_id,
-            position=s.position, step_type=s.step_type, locked=s.locked, mode=s.mode,
+            position=s.position, step_type=s.step_type, companion=s.companion, mode=s.mode,
             supplier_id=s.supplier_id, webshop_url=s.webshop_url, shared_fields=s.shared_fields,
             sample_percent=s.sample_percent, capture_fields=s.capture_fields,
             require_signature=s.require_signature, signer_ids=s.signer_ids,

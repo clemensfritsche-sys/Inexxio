@@ -26,7 +26,7 @@ from ..schemas.article_process_step import (
 )
 from ..services import people
 from ..services.admin import log_audit
-from ..services.process_steps import sync_locked_movements
+from ..services.process_steps import seed_companion_movements
 
 router = APIRouter(prefix="/api/v1/erp", tags=["process-steps"])
 
@@ -58,12 +58,15 @@ class _Owner:
         return and_(ArticleProcessStep.article_id == self.article_id,
                     ArticleProcessStep.order_id.is_(None))
 
-    def sync(self, db: Session) -> None:
-        # Ein Mehrpositionen-Auftrag hat genau EINEN Verkaufs-Schritt (mehrere Belege
-        # teilen sich ihn, ``services/sale.py``) – die Pflicht-Bewegungs-Synchronisation
-        # zieht dafür wie gewohnt GENAU EINE «Versand zum Kunden»-Bewegung nach, keine
-        # Sonderbehandlung nötig.
-        sync_locked_movements(db, article_id=self.article_id, order_id=self.order_id)
+    def seed(self, db: Session) -> None:
+        """Begleit-Bewegung zu einem neu angelegten Beschaffungs-/Verkaufs-Schritt säen.
+
+        Nur beim **Anlegen** – Sortieren/Ändern/Löschen ziehen bewusst NICHTS mehr nach:
+        die gesäte Bewegung ist ein normaler Schritt, über den der Nutzer allein bestimmt
+        (früher ``sync_locked_movements``, selbstheilend und gesperrt). Ein Mehrpositionen-
+        Auftrag hat genau EINEN Verkaufs-Schritt (mehrere Belege teilen sich ihn,
+        ``services/sale.py``) und bekommt darum auch genau EINEN Versand."""
+        seed_companion_movements(db, article_id=self.article_id, order_id=self.order_id)
 
     def new_step_kwargs(self) -> dict:
         return {"article_id": self.article_id, "order_id": self.order_id}
@@ -236,7 +239,7 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
               user.id, object_id=owner.object_id)
-    owner.sync(db)
+    owner.seed(db)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
@@ -244,9 +247,11 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
 
 def _reorder(db: Session, owner: _Owner, data: StepReorder, user: UserProfile) -> list[ArticleProcessStepResponse]:
     owner.ensure_editable()
+    # ALLE aktiven Schritte sind frei sortierbar – auch die gesäten Begleit-Bewegungen
+    # (Wareneingang/Versand). Früher waren sie ``locked`` und wurden hier ausgeklammert.
     free = (
         db.query(ArticleProcessStep)
-        .filter(owner.filter(), ArticleProcessStep.is_active == True, ArticleProcessStep.locked == False)
+        .filter(owner.filter(), ArticleProcessStep.is_active == True)
         .all()
     )
     by_id = {s.id: s for s in free}
@@ -255,7 +260,6 @@ def _reorder(db: Session, owner: _Owner, data: StepReorder, user: UserProfile) -
     for i, sid in enumerate(data.ordered_ids):
         by_id[sid].position = i * 2
     db.flush()
-    owner.sync(db)
     log_audit(db, "article_process_steps", "reorder", str(data.ordered_ids), user.id,
               object_id=owner.object_id)
     db.commit()
@@ -266,21 +270,6 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
     owner.ensure_editable()
     step = _get_step(db, owner, step_id)
     payload = data.model_dump(exclude_unset=True)
-    if step.locked:
-        if step.target_location_type == "user":
-            raise HTTPException(400, detail="Versand zum Lieferanten ist fix – nicht editierbar")
-        if set(payload) - {"target_location_type", "target_location_id"}:
-            raise HTTPException(400, detail="Bei dieser Pflicht-Bewegung ist nur das Ziel editierbar")
-        ttype = payload.get("target_location_type")
-        # Wareneingang: jeder gültige Halter (Instanz/Unternehmen) oder offen. NICHT 'user'
-        # – das ist die Kennung des Pflicht-Versands zum Lieferanten (siehe process_steps).
-        if ttype not in (None, "instance", "company"):
-            raise HTTPException(400, detail="Wareneingang-Ziel muss ein Behälter oder das Unternehmen sein")
-        step.target_location_type = ttype
-        step.target_location_id = payload.get("target_location_id") if ttype else None
-        db.commit()
-        db.refresh(step)
-        return _to_response(db, step)
     if "supplier_id" in payload:
         _validate_supplier(db, payload["supplier_id"])
     if "capture_fields" in payload:
@@ -296,11 +285,7 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
         step.webshop_url = None
     elif step.mode == "webshop":
         step.supplier_id = None
-    # FIX: Anders als _create/_reorder/_delete zog _update die Pflicht-Bewegungen NICHT nach –
-    # ein Lieferanten-/Modus-Wechsel am Beschaffungs-Schritt liess den gesperrten «Versand zum
-    # Lieferanten» aufs ALTE Ziel zeigen (und webshop→supplier legte ihn gar nicht erst an).
     db.flush()
-    owner.sync(db)
     log_audit(db, "article_process_steps", "update", str(payload), user.id, object_id=owner.object_id)
     db.commit()
     db.refresh(step)
@@ -310,12 +295,12 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
 def _delete(db: Session, owner: _Owner, step_id: int, user: UserProfile) -> dict:
     owner.ensure_editable()
     step = _get_step(db, owner, step_id)
-    if step.locked:
-        raise HTTPException(400, detail="Pflicht-Bewegung zu einer Beschaffung – nicht löschbar")
+    # JEDER Schritt ist löschbar – auch eine gesäte Begleit-Bewegung (Wareneingang/Versand).
+    # Sie bleibt als ``is_active=False`` liegen und markiert damit «gab es schon», sodass
+    # ``seed_companion_movements`` sie nicht wieder anlegt.
     step.is_active = False
     log_audit(db, "article_process_steps", "is_active", "false", user.id,
               object_id=owner.object_id, old_value="true")
-    owner.sync(db)
     db.commit()
     return {"deleted": True}
 

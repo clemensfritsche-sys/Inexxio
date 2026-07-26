@@ -313,8 +313,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse**
     kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); den
-    realen Wareneingangs-Ort setzt die **gesperrte Pflicht-Bewegung «Wareneingang»** nach der
-    Beschaffung (`process_steps.sync_locked_movements`) – NICHT mehr die Bestellung selbst
+    realen Wareneingangs-Ort setzt die **gesäte Begleit-Bewegung «Wareneingang»** nach der
+    Beschaffung (`process_steps.seed_companion_movements`) – NICHT mehr die Bestellung selbst
     (`purchase_orders.receiving_location_id` ist Alt-Spalte, `apply_update` ignoriert das Feld).
     **Bezugsquelle wird IM PROZESSSCHRITT definiert** (max. Flexibilität – ein Prozess darf mehrere
     `purchase`-Schritte mit UNTERSCHIEDLICHEN Lieferanten/Quellen haben, was ein reines Artikel-Feld
@@ -444,8 +444,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   'lagerplatz'` – mit dem Wegfall des Typs hätte das **nie mehr** zugetroffen und keine Retoure
   wäre je wieder eingebucht worden; jetzt gilt «die Instanz liegt **nicht mehr beim Kunden**»
   (Kunde vom **Original-Verkauf**, da die Retoure selbst nur `kind='credit'`-Belege trägt).
-  Mengeneinheiten: Stk/mm/m²/**m³**/kg/l. Den **Wareneingangs-Ort** setzt weiterhin die gesperrte
-  Pflicht-Bewegung «Wareneingang» nach der Beschaffung (Ziel: Behälter-Instanz, Unternehmen oder
+  Mengeneinheiten: Stk/mm/m²/**m³**/kg/l. Den **Wareneingangs-Ort** setzt weiterhin die gesäte
+  Begleit-Bewegung «Wareneingang» nach der Beschaffung (Ziel: Behälter-Instanz, Unternehmen oder
   offen); der **Bewegungs**-Schritt verteilt von dort weiter.
 - **Adressen: EINE Darstellung** (`services/address.py`): Person und Unternehmen
   tragen historisch **verschiedene Spaltennamen** (`address_line1`/`postal_code` an der Person
@@ -470,17 +470,35 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   «Aus dem Lager» → **Ab Lager**, «Instanz wählen» → **Auswählen**. Der Termin ist eine Zeile, kein
   Feld-Raster. `GoalCard`/`OutcomeBanner` sind entfallen. **Die Backend-Logik ist unverändert** – rein
   Präsentation (Subjektart wird weiterhin abgeleitet, nicht gewählt).
-- **Jedes Prozessschritt-Modul steht für sich** (`services/process_steps.py: _plan`): Ein Schritttyp
-  verhält sich an **jeder Position gleich**. Entfallen ist die einzige positionsabhängige Regel – der
-  Pflicht-«Versand zum Lieferanten» **vor einer nicht-ersten** Lieferanten-Beschaffung: dieselbe
-  Beschaffung erzeugte an Position 1 keinen, ab Position 2 einen Zusatzschritt, und eine **selbst
-  angelegte** Bewegung davor unterdrückte ihn nicht einmal (die Prüfung kannte nur die Pflicht-Marker
-  → zwei Bewegungen hintereinander). Materialtransport zum Lieferanten (Lohnveredelung) bildet man mit
-  einem **normalen Bewegungs-Schritt** ab (sichtbar, verschiebbar, löschbar); Alt-Bestand solcher
-  gesperrten Schritte wird beim nächsten Sync automatisch deaktiviert. Es bleiben nur die zwei
-  **physisch zwingenden** Pflicht-Bewegungen: **Wareneingang** nach einer Beschaffung (die Ware muss
-  ankommen) und **Versand zum Kunden** nach einem Verkauf (ausser bei einer Retoure). Wächter:
-  `tests/test_smoke.py: test_every_step_module_behaves_the_same_at_any_position`.
+- **Zwangs-Prozessschrittmodule sind aufgelöst – gesät statt erzwungen** (Juli 2026,
+  `services/process_steps.py`, Migration `079`): Rund um Beschaffung und Verkauf hat das System bisher
+  **gesperrte Pflicht-Bewegungen** eingefügt (`locked=True`) – Wareneingang danach, Versand zum Kunden
+  danach. Sie waren **nicht löschbar, nicht verschiebbar, nur das Ziel editierbar** und wurden bei jeder
+  Strukturänderung neu abgeleitet **und umpositioniert** (`sync_locked_movements`, selbstheilend). Wer sie
+  nicht brauchte – Abholung durch den Kunden, Streckengeschäft, digitale Lieferung, Lohnveredelung –
+  konnte sie nicht entfernen: der nächste Sync legte sie wieder an. Das widersprach dem Grundsatz, dass
+  ein Prozess abbildet, was **tatsächlich** passiert, und nicht, was das System für zwingend hält.
+  **Neu:** `seed_companion_movements` **sät** die Bewegung **einmalig** beim Anlegen des auslösenden
+  Schritts; danach ist sie ein **ganz normaler Schritt** – löschbar, verschiebbar, voll editierbar wie
+  jeder andere. Was der Nutzer löscht, bleibt gelöscht (die deaktivierte Zeile ist selbst der Merker,
+  `_seeded_modes` filtert bewusst NICHT auf `is_active`). Nachgezogen wird nur beim **Anlegen** –
+  Sortieren/Ändern/Löschen ziehen nichts mehr nach.
+  **Die Sperre fällt, die Rolle bleibt:** aus `locked` wird `companion` (Migration `079`, additiv – die
+  Alt-Spalte bleibt bis zum Folge-Deploy stehen, damit ein laufender Cloud-Run-Rollout nicht auf eine
+  gedroppte Spalte trifft). Die Rolle trägt zwei echte Fachwirkungen, die von der Sperre unabhängig sind:
+  (1) `mode='customer'` → Ziel ist der **Kunde des Verkaufs** (`movement.record_movement`); (2) Begleiter
+  sind von der **Fehlmengen-Prüfung ausgenommen** (`process.step_shortfalls` → `is_companion`) – ohne die
+  Ausnahme wäre der Versand blockiert, sobald der Verkauf bezahlt ist (die Ware gilt dann als «verkauft»,
+  aus Sicht des freien Bestands weg). Genau das war der Shop-Bug aus Migration `074`; die Ausnahme hängt
+  darum jetzt an der **Rolle** und bewusst **nicht** an `mode` (dessen Default `'supplier'` würde jede
+  vom Nutzer angelegte Bewegung fälschlich zum Wareneingang machen).
+  **Jedes Modul steht weiterhin für sich:** ein Schritttyp verhält sich an **jeder Position gleich** –
+  jetzt sogar strukturell, weil `seed_companion_movements` je Auslöser über einen reinen Dict-Lookup
+  (`_COMPANION_MODE`) entscheidet und gar keinen Positions-Kontext kennt. Wächter:
+  `tests/test_smoke.py: test_every_step_module_behaves_the_same_at_any_position`,
+  `…_seeded_once_not_enforced`, `…_companion_role_survives_the_unlocking`.
+  Den Shop-Versandschritt legt `selling._create_multiline_sale_order` weiterhin selbst an (`companion=True`)
+  – der Shop-Kunde baut keinen Prozess.
 - **Standort-Kette «wo genau?»** (`locations.location_chain`, `InstanceResponse.location_path`):
   liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Unternehmen → **Anschrift**
   (`location_type='address'`, ohne Objektnummer). Zyklensicher, auf 10 Stationen begrenzt, und
@@ -596,14 +614,18 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Datenerfassung/Bewegung/Dokument→kein fester Ort. Der
   EINE Reconciler `provisioning.reconcile_to(inst, typ, id)` vergleicht Ist↔Soll und bringt die **ganze**
   Instanz ans Ziel — **no-op, wenn schon da**; Teilmengen/Chargen laufen weiter auftragsgetrieben über den
-  Bewegungs-Schritt (`location_split.move`). Wareneingang/Versand/Kunde laufen wie gehabt über die
-  gesperrten Pflicht-Bewegungen (`services/process_steps.py`), Verbrauch/Betriebsmittel über den
-  Ressourcen-Schritt (Komponente → Produkt-Instanz via `_relocate`; Werkzeug → Arbeitsplatz via `_use_tool`,
-  jetzt über denselben Reconciler, no-op wenn schon da). **Verschrotten** hat KEINEN Bereitstellungsort
+  Bewegungs-Schritt (`location_split.move`). **Verschrotten** hat KEINEN Bereitstellungsort
   (`PROV_NOWHERE`): die Instanz wird standortlos (`location_split.clear`), kein Schrottplatz-Reconcile mehr.
-  Automatik ist **standardmässig an** (der physische Vollzug bleibt beim Bewegungs-Schritt scan-quittiert;
-  no-ops laufen still durch). *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige Montage sind über
-  denselben Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten bleibt Backlog.*
+  **WICHTIG — Reichweite (Doku-Korrektur Juli 2026):** Der `provisioning`-Eintrag ist heute überwiegend
+  eine **Deklaration**, kein laufender Automatismus. `reconcile_to` hat genau **EINEN** Aufrufer:
+  `resource._use_tool` (Werkzeug → Arbeitsplatz). Alles andere bewegt sich über den **regulären
+  Bewegungs-Schritt**: Wareneingang und Versand zum Kunden über die dahinter gesäten Begleit-Bewegungen
+  (`services/process_steps.py`), Komponenten-Einbau über `resource._relocate` (→ `location_split.set_single`).
+  Die frühere Formulierung «Automatik ist standardmässig an» war irreführend — es gibt **keinen Sweep und
+  keinen Trigger**, der von sich aus Ist↔Soll abgleicht; niemand prüft, ob ein Teil am deklarierten
+  Bereitstellungsort liegt, bevor ein Schritt läuft. *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige
+  Montage sind über denselben Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten
+  bleibt Backlog. Ein Reconciler-Netz beim Auftragsabschluss ist bewusst NICHT gebaut (siehe unten).*
 - **Logistik/Versand — «Versand wird ABGELEITET, nicht bestellt» (ADR 005, `docs/adr/005-logistik.md`,
   Migrationen `071`+`072`)**: der Bewegungs-Schritt kennt Quelle+Ziel → EINE Klassifikation
   (`services/logistics.classify_movement`) leitet die Transportklasse **adress-basiert, OHNE Geofence** ab
@@ -868,7 +890,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   legt bei Freigabe pro Position einen `Sale`-Beleg an, alle mit demselben `step_id`;
   `process.facts_for_step`/`_resolve_facts_multi` lösen die Liste auf) – **NIE mehrere sequentielle
   Sale-Schritte** («2-fache Prozessschrittmodule» war der zentrale Kritikpunkt der ersten, verworfenen
-  Umsetzung). Der automatische Pflicht-Versand (`_Owner.sync`/`sync_locked_movements`) funktioniert daher
+  Umsetzung). Der gesäte Begleit-Versand (`_Owner.seed`/`seed_companion_movements`) funktioniert daher
   unverändert – EIN Sale-Schritt ⇒ EIN Versand, kein Vervielfachungsrisiko.
   **Preis = Single Source of Truth vom Artikel** (`sale.price_from_article`, dieselbe Preis-Pipeline wie
   der Shop `services/pricing.py`): bei genau EINER Position bleibt der Betrag wie gewohnt frei editierbar
@@ -953,9 +975,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   - **Label-Wechsel dann, WANN es wirklich passiert (step-basiert, idempotent):**
     - **Verkauf bezahlt → «verkauft»**: `process.sell_order_subjects` (in_stock→sold, mengengenau) wird bei
       **sale-`paid`** aufgerufen (`sale._apply_transition`/`finalize_paid`) – nicht erst am Auftragsende;
-      make-to-order zieht beim Abschluss nach. Die **gesperrten Pflicht-Bewegungen** (u. a. der Versand zum
-      Kunden) sind von der Subjekt-Fehlmengen-Prüfung **ausgenommen** (`step_shortfalls`, `not step.locked`),
-      sonst würde der Versand blockiert, sobald die Ware «verkauft» (aus dem freien Bestand «weg») ist.
+      make-to-order zieht beim Abschluss nach. Die **Begleit-Bewegungen** (u. a. der Versand zum
+      Kunden) sind von der Subjekt-Fehlmengen-Prüfung **ausgenommen** (`step_shortfalls`, `not
+      is_companion(step)`), sonst würde der Versand blockiert, sobald die Ware «verkauft» (aus dem freien
+      Bestand «weg») ist.
     - **Rückgabe-Bewegung durch → «freigegeben»**: `process.return_subjects_to_stock` (sold→in_stock, Menge
       auf ≥1) wird bei der **Bewegung** weg vom Kunden aufgerufen (`movement.record_movement`), nicht
       erst am Auftragsende. Movement/Scrap nehmen bei einer Retoure (bzw. Versand: Ziel=Person) auch
@@ -974,12 +997,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     trägt `returnable`/`return_requested`/`return_deadline`; `orders-list.tsx` zeigt «Retoure anfragen»
     (mit Frist) bzw. «Retoure angefragt». *Bewusst NICHT gebaut: Rücksende-Label/RMA-Tracking, Teil-
     Mengen-Auswahl durch den Kunden (Personal passt die Menge im ERP an).*
-- **Pflicht-Versand zum Kunden geht IMMER an den Kunden** (Fix): die auf einen `sale`-Schritt folgende
-  Pflicht-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
+- **Versand zum Kunden geht IMMER an den Kunden** (Fix): die auf einen `sale`-Schritt gesäte
+  Begleit-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
   Serverseitig erzwungen (`movement.record_movement` überschreibt die Ziel-Eingaben) UND im Embed als festes
   Ziel gezeigt (`orders._movement_embed`) – der Lagerist kann kein falsches Ziel wählen. Weil das Ziel fest
   ist, lädt das Movement-Panel **keine** Personen-/Instanz-Listen mehr (`movement-panel.tsx:
-  hasFixedTarget` → spürbar schneller, gerade direkt nach dem Verkauf).
+  hasFixedTarget` → spürbar schneller, gerade direkt nach dem Verkauf). **Das Ziel ist fest, der Schritt
+  ist es nicht:** wer nicht versendet (Abholung, Streckengeschäft), löscht die Bewegung – sie ist seit
+  Juli 2026 ein normaler Schritt (siehe «Zwangs-Prozessschrittmodule sind aufgelöst»).
 - **KI-Layer (ADR 004, `docs/adr/004-ki-layer.md` – VOR KI-Arbeit lesen)**: vier dünne Schichten in
   `backend/app/services/ai/`. (1) **Gateway** (`gateway.py`): provider-agnostisch – **Vertex-EU Default**
   (`AI_PROVIDER=vertex` + `VERTEX_PROJECT_ID`, ADC-Auth), Anthropic-direkt swap-bar, Gemini-Bild

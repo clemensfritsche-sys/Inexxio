@@ -17,7 +17,6 @@ from ..models import ArticleProcessStep, Order, Sale
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
-from .process_steps import sync_locked_movements
 from .subject import order_instances, record_link
 
 # Rückgabefenster (Tage ab Abschluss der Bestellung). Bewusst grosszügig (Online-Shop-üblich).
@@ -132,10 +131,12 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
         record_link(db, inst.object_id, ret.id)
     # Üblichen Ablauf gleich anlegen, damit das Personal nur noch ausführen muss:
     #   Bewegung (Ware zurück ins Lager) + Verkauf im Kredit-Modus (Gutschrift).
+    # Kein Begleit-Versand: der «Verkauf» ist hier eine **Gutschrift**, die Ware kommt
+    # herein statt hinaus (``seed_companion_movements`` überspringt den Retoure-Kontext
+    # ohnehin – der Ablauf steht hier explizit).
     db.add(ArticleProcessStep(order_id=ret.id, step_type="movement", position=1, is_active=True))
     db.add(ArticleProcessStep(order_id=ret.id, step_type="sale", position=2, is_active=True))
     db.flush()
-    sync_locked_movements(db, order_id=ret.id)
     log_audit(db, "orders", None, f"Kunden-Retoure zu {order.object_id}", customer_id, object_id=ret.object_id)
     emit(db, "order.customer_return_requested", object_type="order", object_id=ret.object_id,
          payload={"parent": order.object_id, "reason": reason,

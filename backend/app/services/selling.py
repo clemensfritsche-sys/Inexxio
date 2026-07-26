@@ -579,16 +579,16 @@ def _create_multiline_sale_order(db: Session, lines: list, customer: UserProfile
             base_amount_chf=Decimal(line["base_amount_chf"]), fx_date=utcnow().date(),
             mode="shop",
         ))
-    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden). FIX: als **gesperrter
-    # Pflicht-Versand** (locked + mode='customer') – exakt wie ihn ``sync_locked_movements``
-    # für einen ERP-Verkauf erzeugt. Ohne die Markierung galt die Locked-Ausnahme der
-    # Fehlmengen-Prüfung (``process.step_shortfalls``) nicht: nach der Zahlung war die Ware
-    # «verkauft» (aus dem freien Bestand weg), der Versand-Schritt dadurch dauerhaft
-    # «blockiert» und der Shop-Auftrag konnte NIE versendet/abgeschlossen werden. Zudem
-    # erzwingt erst mode='customer' das feste Ziel «Kunde des Verkaufs» (movement.record_
-    # movement überschreibt die Ziel-Eingaben) statt eines frei wählbaren Ziels.
+    # EIN gemeinsamer Versand-Schritt (alle Positionen zum Kunden), markiert als Begleiter
+    # des Verkaufs (mode='customer') – exakt wie ihn ``seed_companion_movements`` für einen
+    # ERP-Verkauf sät. Die Rollen-Markierung trägt zwei Dinge: (1) die Ausnahme von der
+    # Fehlmengen-Prüfung (``process.step_shortfalls``) – ohne sie wäre die Ware nach der
+    # Zahlung «verkauft», also aus Sicht des freien Bestands weg, und der Versand dauerhaft
+    # «blockiert»; (2) das feste Ziel «Kunde des Verkaufs» (``movement.record_movement``).
+    # Der Schritt ist ein ganz normaler, löschbarer Schritt – der Shop-Kunde baut aber keinen
+    # Prozess, darum legt ihn der Shop-Pfad selbst an.
     db.add(ArticleProcessStep(order_id=order.id, position=100, step_type="movement",
-                              locked=True, mode="customer",
+                              mode="customer", companion=True,
                               target_location_type="user" if customer.object_id else None,
                               target_location_id=customer.object_id))
     db.flush()

@@ -447,13 +447,18 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     resource(consume) → braucht seine **Komponenten** (need − verfügbar; verfügbar = frei am
     Lager + für diesen Auftrag reserviert).
 
-    **Ausnahme – gesperrte (locked) Pflicht-Bewegungen** (Wareneingang/Versand, u. a. der
-    Pflicht-Versand zum Kunden): sie sind **Begleiter** eines Verkaufs/einer Beschaffung, kein
+    **Ausnahme – Begleit-Bewegungen** (Wareneingang ``mode='supplier'`` / Versand zum Kunden
+    ``mode='customer'``): sie sind **Begleiter** eines Verkaufs/einer Beschaffung, kein
     eigenständiger Subjekt-Bedarf. Sie werden NICHT auf Fehlmengen geprüft – sonst würde der
     Versand blockiert, sobald der Verkauf bezahlt ist (die Ware ist dann bereits «verkauft», also
-    aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus)."""
+    aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus).
+
+    Die Erkennung hängt an der **Rolle** (``process_steps.is_companion``), seit die
+    ``locked``-Sperre aufgelöst ist: der Schritt ist frei löschbar/verschiebbar, seine
+    fachliche Rolle als Begleiter bleibt davon unberührt."""
     out: dict[int, Decimal] = {}
-    if step.step_type in SUBJECT_STEP_TYPES and not step.locked:
+    from .process_steps import is_companion
+    if step.step_type in SUBJECT_STEP_TYPES and not is_companion(step):
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
         from .order_lines import effective_quantity

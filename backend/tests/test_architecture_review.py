@@ -114,14 +114,18 @@ def test_sold_amounts_skips_scrap_events():
 
 # ─── Shop-Pfad: Pflicht-Versand + Nachschub-Dimensionierung ───────────────────────
 
-def test_shop_shipping_step_is_locked_customer():
-    # Bug: der Shop-Versandschritt war nicht als Pflicht-Versand markiert → nach Zahlung
-    # dauerhaft «blockiert» (Locked-Ausnahme der Fehlmengen-Prüfung galt nicht) → kein
+def test_shop_shipping_step_is_companion_customer():
+    # Bug: der Shop-Versandschritt war nicht als Begleiter des Verkaufs markiert → nach der
+    # Zahlung dauerhaft «blockiert» (die Ausnahme der Fehlmengen-Prüfung galt nicht) → kein
     # Shop-Auftrag konnte je versendet/abgeschlossen werden.
+    #
+    # Die Markierung heisst seit Migration 079 ``companion`` statt ``locked`` – sie ist eine
+    # **Rolle, keine Sperre** (der Schritt ist löschbar/verschiebbar), trägt aber unverändert
+    # die Ausnahme und das feste Ziel «Kunde des Verkaufs».
     from app.services.selling import _create_multiline_sale_order
     src = inspect.getsource(_create_multiline_sale_order)
     assert 'step_type="movement"' in src
-    assert "locked=True" in src and 'mode="customer"' in src
+    assert "companion=True" in src and 'mode="customer"' in src
 
 
 def test_fulfill_intent_sizes_supply_before_selling():

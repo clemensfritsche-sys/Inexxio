@@ -102,8 +102,11 @@ _COLUMN_SAFETY_NET = (
     ("inspections", "step_id", "BIGINT"),
     ("movements", "step_id", "BIGINT"),
     ("resource_usages", "step_id", "BIGINT"),
-    # Pflicht-Bewegung rund um Beschaffung (System, nicht löschbar)
+    # Begleit-Bewegung, hinter Beschaffung/Verkauf gesät (Rolle, keine Sperre – Migration 079).
+    # ``locked`` ist die abgelöste Sperr-Spalte; sie bleibt bis zum Folge-Deploy stehen,
+    # damit während eines Rollouts die alte Revision noch darauf zugreifen kann.
     ("article_process_steps", "locked", "BOOLEAN DEFAULT FALSE NOT NULL"),
+    ("article_process_steps", "companion", "BOOLEAN DEFAULT FALSE NOT NULL"),
     # Ersetzen statt Versionierung: Nachfolger-Objektnummer (alt → neu)
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),

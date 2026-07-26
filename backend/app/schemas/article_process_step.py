@@ -381,7 +381,9 @@ class ArticleProcessStepResponse(BaseModel):
     order_id: Optional[int] = None
     position: int
     step_type: str
-    locked: bool = False   # Pflicht-Bewegung (System, nicht löschbar/editierbar)
+    # Begleit-Bewegung: vom System hinter Beschaffung/Verkauf gesät. **Rolle, keine Sperre** –
+    # der Schritt ist wie jeder andere löschbar/verschiebbar/editierbar (früher ``locked``).
+    companion: bool = False
     mode: str
     supplier_id: Optional[int]
     supplier_name: Optional[str] = None  # vom Router denormalisiert
