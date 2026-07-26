@@ -83,19 +83,26 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
         </div>
       )}
 
-      <SettingsCard icon={<Building2 className="h-5 w-5" />} title="Allgemeine Angaben"
-        saved={saved === 'general'} saving={saving === 'general'}
-        onSave={(d) => saveSection('general', { company_name: d.company_name, legal_form: d.legal_form || null, street: d.street, street_number: d.street_number || null, zip: d.zip, city: d.city, country: d.country })}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Firmenname" name="company_name" defaultValue={s.company_name} required />
-          <Field label="Rechtsform" name="legal_form" defaultValue={s.legal_form ?? ''} placeholder="AG, GmbH, …" />
-          <Field label="Strasse" name="street" defaultValue={s.street} required />
-          <Field label="Hausnummer" name="street_number" defaultValue={s.street_number ?? ''} />
-          <Field label="PLZ" name="zip" defaultValue={s.zip} required />
-          <Field label="Ort" name="city" defaultValue={s.city} required />
-          <Field label="Land" name="country" defaultValue={s.country} required className="sm:col-span-2" />
+      {/* **ERP ist Master.** Firmenname und Firmensitz werden am ERP-Unternehmens-Datensatz
+          gepflegt (dort mit Adress-Suche); diese Seite zeigt sie nur noch an. Vorher waren
+          sie an ZWEI Stellen editierbar – zwei Formulare auf dieselbe Zeile, mit zwei
+          verschiedenen Eingabe-Erlebnissen. */}
+      <div className="rounded-ds-lg border border-border-1 bg-bg-1 p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-fg-3" />
+          <h3 className="font-display text-[15px] font-bold text-fg-1">Allgemeine Angaben</h3>
         </div>
-      </SettingsCard>
+        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <Readonly label="Firmenname" value={s.company_name} />
+          <Readonly label="Rechtsform" value={s.legal_form ?? '—'} />
+          <Readonly label="Firmensitz"
+            value={[[s.street, s.street_number].filter(Boolean).join(' '),
+                    [s.zip, s.city].filter(Boolean).join(' '), s.country].filter(Boolean).join(' · ')} />
+        </dl>
+        <p className="mt-3 text-[12px] text-fg-4">
+          Wird am ERP-Datensatz «Unternehmen» gepflegt – dort mit Adress-Suche. Diese Seite spiegelt ihn nur.
+        </p>
+      </div>
 
       <SettingsCard icon={<FileText className="h-5 w-5" />} title="Rechtliche Identifikation"
         saved={saved === 'legal'} saving={saving === 'legal'}
@@ -448,6 +455,17 @@ function ToggleField({ name, label, defaultValue, description }: {
         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-blue-600' : 'bg-slate-200'}`}>
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
       </button>
+    </div>
+  );
+}
+
+
+/** Gespiegelter Wert: sichtbar, aber nicht editierbar – der Master ist das ERP. */
+function Readonly({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[12px] font-medium text-fg-3">{label}</dt>
+      <dd className="truncate text-[13.5px] text-fg-1">{value || '—'}</dd>
     </div>
   );
 }

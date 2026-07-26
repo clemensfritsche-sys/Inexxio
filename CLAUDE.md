@@ -78,6 +78,28 @@ inexxio/
   `docs/design-system/README.md §4`). Kein Big-Bang – inkrementell mitziehen.
 - Density: kompakt aber luftig – 8px-Grid. Font: Inter (Body) / Inter Tight (Display).
 
+## Leitbild (VERBINDLICH)
+
+### ERP ist Master – alles andere ist Spiegelbild
+Jeder Datensatz hat **genau EINEN Ort, an dem er gepflegt wird: das ERP.** Oberflächen
+ausserhalb des ERP (Konto/Profil, Admin-Seiten, Shop) sind **Spiegel** – sie zeigen an,
+sie besitzen nicht. Konkret:
+
+- Dieselbe fachliche Angabe darf **nie an zwei Stellen editierbar** sein. Existiert ein
+  ERP-Datensatz dafür, ist die andere Stelle read-only mit Verweis («wird am ERP-Datensatz
+  … gepflegt»).
+- Ein Formular ausserhalb des ERP darf schreiben, wenn es der **Selbstbedienungs-Pfad** einer
+  Person auf ihre EIGENEN Daten ist (Profil, Rechnungsadresse) – dann ist es derselbe
+  Datensatz über denselben Endpunkt, nicht eine zweite Wahrheit.
+- Beim Anfassen einer Oberfläche prüfen: *Gibt es diese Eingabe schon woanders?* Wenn ja,
+  die schwächere Stelle zum Spiegel machen, statt die Logik zu duplizieren.
+
+### Eine Sache, eine Stelle
+Gleiches gleich behandeln: gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine**
+Implementierung (z. B. `services/address.py` für Adressen, `services/locations.py` für
+Standorte, `components/erp/address-field.tsx` für jede Adress-Eingabe). Zwei Wege für
+dieselbe Sache sind ein Bug, auch wenn beide funktionieren.
+
 ## Konventionen
 - Alle DB-Felder: snake_case, Englisch
 - API-Endpunkte: /api/v1/{resource}
