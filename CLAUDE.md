@@ -312,10 +312,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Ablauf requested→quoted→ordered→received (+rejected); webshop: requested→ordered→received.
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse**
-    kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); den
-    realen Wareneingangs-Ort setzt die **Bereitstellung** nach der abgeschlossenen
-    Beschaffung (`provisioning.ensure_provisioning`) – NICHT mehr die Bestellung selbst
-    (`purchase_orders.receiving_location_id` ist Alt-Spalte, `apply_update` ignoriert das Feld).
+    ist die **Firmenadresse**; den realen Wareneingangs-Ort setzt die **Bereitstellung** nach der
+    abgeschlossenen Beschaffung (`provisioning.ensure_provisioning`) – NICHT mehr die Bestellung selbst.
     **Bezugsquelle wird IM PROZESSSCHRITT definiert** (max. Flexibilität – ein Prozess darf mehrere
     `purchase`-Schritte mit UNTERSCHIEDLICHEN Lieferanten/Quellen haben, was ein reines Artikel-Feld
     nicht abbilden kann): am Schritt `article_process_steps.mode` (supplier|webshop) +
@@ -470,6 +468,27 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   «Aus dem Lager» → **Ab Lager**, «Instanz wählen» → **Auswählen**. Der Termin ist eine Zeile, kein
   Feld-Raster. `GoalCard`/`OutcomeBanner` sind entfallen. **Die Backend-Logik ist unverändert** – rein
   Präsentation (Subjektart wird weiterhin abgeleitet, nicht gewählt).
+- **Code-Cleanup ERP (Juli 2026, Migration `081`)** – drei Runden, alles ohne Verhaltensänderung:
+  **(1) Tote Achse Unterschrift/Foto (8 Spalten).** Beim Umbau der Datenerfassung auf frei
+  konfigurierbare `capture_fields` wurden `photo`/`signature` normale **Feldtypen**; die alte
+  Parallel-Mechanik blieb tot stehen: Definition (`article_process_steps.require_signature/
+  signer_ids/require_photo/photo_instruction` – das Frontend setzte sie beim Anlegen hart auf
+  `false` und las sie nie) und Ergebnis (`inspections.signature_url/signed_by/signed_at/photo_url`
+  – **nirgends geschrieben**; gelesen wurde nur `signed_by`, das damit immer NULL war, der
+  Auftrags-Embed zeigte also nie einen Unterzeichner). Dazu `article_process_steps.transport_mode`
+  (trug die von `076` abgeschafften Werte + eine **zweite, veraltete** `ALLOWED_TRANSPORT_MODES` –
+  zwei Wahrheiten für dieselbe Sache; ein Test prüfte ausgerechnet die veraltete) und
+  `article_process_steps.locked` (Migration `079` hatte den Drop auf den Folge-Deploy vertagt).
+  **(2) Überlange ERP-Kernfunktionen** auf die 80-Zeilen-Regel gebracht, entlang **fachlicher**
+  Nähte statt nach Zeilenzahl: `to_order_response` 155→53 (`_fill_demand`/`_instance_embeds`/
+  `_attach_step_embed`), `update_order` 123→62 (`_assert_status_transition` = die vollständige
+  Zustandsmaschine, `_assert_releasable` = die drei Freigabe-Gates an EINER Stelle),
+  `record_movement` 91→66, `record_scrap` 91→49 (`_scrap_one` kapselt «ganz oder Teilmenge»),
+  `build_resource_embed` 86→58. *Bewusst gelassen: `render_pdf`/`run_chat`/`fulfill_intent` –
+  ausserhalb des ERP-Kerns.*
+  **(3) Quelltext-Guards robuster:** Tests, die eine Einzelfunktion zeilengenau prüften, prüfen
+  jetzt das **Modul** – dieselbe Fachaussage, aber sie brechen nicht mehr bei jeder internen
+  Umstrukturierung. Dazu drei ungenutzte Imports.
 - **Bereitstellung: physische Bewegungen werden ABGELEITET, nicht geplant** (Juli 2026,
   `services/provisioning.py`, Migration `080`): Das System legt **KEINEN** Prozessschritt mehr
   an. Der Nutzer modelliert nur die **fachlichen** Schritte (kaufen, verbauen, verkaufen);
@@ -656,8 +675,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   die **Empfehlung** ab (vorgewählte Default-Auswahl, IMMER frei übersteuerbar am Beleg
   `shipments.transport_mode`). Die frühere **Doppelung Modus×Sendungsart** und die Werte
   `auto/carrier/self/none` sind **entfernt** (Migration `076`); die interne `kind`-Spalte (parcel|freight)
-  spiegelt nur noch den Modus (freight ⟺ 'freight'). Der Artikel-Prozess wird nie mutiert (die Alt-Spalte
-  `article_process_steps.transport_mode` bleibt, wird zur Laufzeit ignoriert); digitale Payloads = KEIN Fall.
+  spiegelt nur noch den Modus (freight ⟺ 'freight'). Der Artikel-Prozess wird nie mutiert; die Alt-Spalte
+  `article_process_steps.transport_mode` ist **entfernt** (Migration `081`) – sie trug noch die von `076`
+  abgeschafften Werte und eine zweite, veraltete Whitelist. Digitale Payloads = KEIN Fall.
   **Versand-Beleg `shipments`** (Fachzeile je Bewegungs-Schritt, KEINE eigene Nummer): Adress-Snapshots
   (Firma ↔ Ziel-Person/-Halter, Länder → ISO-2), **Paket-Schätzung aus Artikel-Daten** (Gewicht×Menge,
   Grösse mm→cm, Fallback-Karton), Gefahrgut-Warnung (`articles.is_hazmat`, optionales Spez-Feld «Gefahrgut»),
