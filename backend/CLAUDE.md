@@ -54,6 +54,21 @@ cd backend && python -m scripts.dump_openapi     # → backend/openapi.json
 cd ../frontend && npm run generate:types          # → src/types/api.ts
 ```
 
+> **ACHTUNG – mit den GEPINNTEN Versionen generieren.** Die CI (`deploy-dev.yml`,
+> Job «Quality gates») generiert beides neu und bricht bei jedem Unterschied ab
+> («Generierte Typen sind veraltet»). Das Ergebnis hängt an der **FastAPI-/Pydantic-
+> Version**: eine neuere Umgebung schreibt z. B. `additionalProperties: true` dort,
+> wo die gepinnte es weglässt (`Record<string, never>` statt `{[key: string]: unknown}`
+> in der `api.ts`). Wer mit global installierten, neueren Paketen generiert, produziert
+> deshalb einen Diff, der lokal unsichtbar ist und erst die CI rot macht.
+>
+> Vor dem Generieren prüfen, dass die aktive Umgebung `requirements.txt` entspricht:
+> ```bash
+> python -c "import fastapi,pydantic;print(fastapi.__version__, pydantic.VERSION)"
+> # muss zu requirements.txt passen (fastapi==0.115.5, pydantic==2.10.2)
+> ```
+> Passt es nicht, in einem venv mit `pip install -r requirements.txt` generieren.
+
 ## API-Endpunkte (tatsächlich vorhanden, Phase 1)
 | Method | Path | Auth | Beschreibung |
 |--------|------|------|--------------|

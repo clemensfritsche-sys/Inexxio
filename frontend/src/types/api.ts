@@ -2708,9 +2708,7 @@ export interface components {
              */
             sales_fulfillment: string;
             /** Sales Content */
-            sales_content?: {
-                [key: string]: unknown;
-            } | null;
+            sales_content?: Record<string, never> | null;
             /**
              * Prices
              * @default []
@@ -2736,9 +2734,7 @@ export interface components {
             /** Sales Fulfillment */
             sales_fulfillment?: string | null;
             /** Sales Content */
-            sales_content?: {
-                [key: string]: unknown;
-            } | null;
+            sales_content?: Record<string, never> | null;
         };
         /**
          * ArticleUpdate
@@ -2816,14 +2812,20 @@ export interface components {
         };
         /** Body_analyze_document_api_v1_ai_documents_analyze_post */
         Body_analyze_document_api_v1_ai_documents_analyze_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
             /** Context Object Id */
             context_object_id?: number | null;
         };
         /** Body_upload_attachment_api_v1_erp_attachments_post */
         Body_upload_attachment_api_v1_erp_attachments_post: {
-            /** File */
+            /**
+             * File
+             * Format: binary
+             */
             file: string;
         };
         /**
@@ -2923,9 +2925,7 @@ export interface components {
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
-            shop_country_currency?: {
-                [key: string]: unknown;
-            } | null;
+            shop_country_currency?: Record<string, never> | null;
             /**
              * Shop Default Currency
              * @default CHF
@@ -2934,13 +2934,9 @@ export interface components {
             /** Payments Provider */
             payments_provider?: string | null;
             /** Pricing Zone Factors */
-            pricing_zone_factors?: {
-                [key: string]: unknown;
-            } | null;
+            pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
-            legal_documents?: {
-                [key: string]: unknown;
-            } | null;
+            legal_documents?: Record<string, never> | null;
         };
         /** CompanySettingsUpdate */
         CompanySettingsUpdate: {
@@ -3009,21 +3005,15 @@ export interface components {
             /** Shop Currencies */
             shop_currencies?: string[] | null;
             /** Shop Country Currency */
-            shop_country_currency?: {
-                [key: string]: unknown;
-            } | null;
+            shop_country_currency?: Record<string, never> | null;
             /** Shop Default Currency */
             shop_default_currency?: string | null;
             /** Payments Provider */
             payments_provider?: string | null;
             /** Pricing Zone Factors */
-            pricing_zone_factors?: {
-                [key: string]: unknown;
-            } | null;
+            pricing_zone_factors?: Record<string, never> | null;
             /** Legal Documents */
-            legal_documents?: {
-                [key: string]: unknown;
-            } | null;
+            legal_documents?: Record<string, never> | null;
         };
         /** ContactRequest */
         ContactRequest: {
@@ -3240,9 +3230,7 @@ export interface components {
              */
             ai_analyzed: boolean;
             /** Extracted Data */
-            extracted_data?: {
-                [key: string]: unknown;
-            } | null;
+            extracted_data?: Record<string, never> | null;
             /**
              * Suggested Links
              * @default []
@@ -3466,9 +3454,7 @@ export interface components {
             /** Event Type */
             event_type: string;
             /** Payload */
-            payload?: {
-                [key: string]: unknown;
-            } | null;
+            payload?: Record<string, never> | null;
             /** Actor Id */
             actor_id?: number | null;
             /**
@@ -3570,9 +3556,7 @@ export interface components {
              * Values
              * @default {}
              */
-            values: {
-                [key: string]: unknown;
-            };
+            values: Record<string, never>;
             /**
              * Photos
              * @default []
@@ -3920,9 +3904,7 @@ export interface components {
             /** Created By Name */
             created_by_name?: string | null;
             /** Content */
-            content?: {
-                [key: string]: unknown;
-            } | null;
+            content?: Record<string, never> | null;
             /** Quality */
             quality?: string | null;
             /** Disposition */
@@ -4396,9 +4378,7 @@ export interface components {
              * Credential
              * @description PublicKeyCredential (assertion) aus dem Browser
              */
-            credential: {
-                [key: string]: unknown;
-            };
+            credential: Record<string, never>;
         };
         /**
          * PasskeyRegisterVerify
@@ -4409,9 +4389,7 @@ export interface components {
              * Credential
              * @description PublicKeyCredential (attestation) aus dem Browser
              */
-            credential: {
-                [key: string]: unknown;
-            };
+            credential: Record<string, never>;
             /**
              * Device Name
              * @description Anzeigename ('iPhone', 'Laptop')
@@ -5016,13 +4994,9 @@ export interface components {
              * Parcels
              * @default []
              */
-            parcels: {
-                [key: string]: unknown;
-            }[];
+            parcels: Record<string, never>[];
             /** Load */
-            load?: {
-                [key: string]: unknown;
-            } | null;
+            load?: Record<string, never> | null;
             /**
              * Hazmat
              * @default false
@@ -5111,9 +5085,7 @@ export interface components {
             /** Note */
             note?: string | null;
             /** Load */
-            load?: {
-                [key: string]: unknown;
-            } | null;
+            load?: Record<string, never> | null;
             /** Incoterm */
             incoterm?: string | null;
             /** Pickup Date */
@@ -5608,10 +5580,6 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -5730,9 +5698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
@@ -5834,9 +5800,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
         };
