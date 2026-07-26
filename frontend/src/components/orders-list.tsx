@@ -5,11 +5,13 @@ import { Package, RefreshCw, Loader2, Undo2, CheckCircle2 } from 'lucide-react';
 import type { CustomerOrder } from '@/types';
 import { formatMoney as fmtMoney } from '@/lib/utils';
 
+// Dieselbe Ampel + dieselben Worte wie im ERP: offen/laufend = GELB, erledigt = GRÜN,
+// storniert = ROT. Tokens statt Hex.
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  requested:  { label: 'Offen',          color: '#b45309', bg: '#fffbeb' },
-  processing: { label: 'In Bearbeitung', color: '#2563eb', bg: '#eff6ff' },
-  completed:  { label: 'Abgeschlossen',  color: '#16a34a', bg: '#f0fdf4' },
-  cancelled:  { label: 'Storniert',      color: '#64748b', bg: '#f1f5f9' },
+  requested:  { label: 'Offen',         color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  processing: { label: 'In Arbeit',     color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  completed:  { label: 'Abgeschlossen', color: 'var(--success)', bg: 'var(--success-bg)' },
+  cancelled:  { label: 'Storniert',     color: 'var(--danger)',  bg: 'var(--danger-bg)' },
 };
 
 

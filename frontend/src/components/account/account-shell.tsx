@@ -8,16 +8,13 @@ import { userDisplayName } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { ProfileSection } from './sections/profile-section';
-import { ContactSection } from './sections/contact-section';
-import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
-import { PrivacySection } from './sections/privacy-section';
 import { OrdersSection } from './sections/orders-section';
 import { DocumentsSection } from './sections/documents-section';
 
-// Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adresse + Rechnungsadresse +
-// Datenschutz/Newsletter; «Benachrichtigungen» ist entfallen (die Toggles hatten keinerlei
-// Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
+// Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adressen + Kommunikation in EINER
+// Sektion (ein Formular, ein Auto-Save); «Benachrichtigungen» ist entfallen (die Toggles hatten
+// keinerlei Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
 type SectionId = 'profile' | 'orders' | 'documents' | 'security';
 
 interface Props {
@@ -93,16 +90,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   function renderSection() {
     if (!profile) return null;
     switch (activeSection) {
-      // «Mein Profil» = Person + Adresse + Rechnungsadresse + Datenschutz/Newsletter,
-      // gestapelt in EINEM Reiter (je Block eigener Auto-Save mit eigener Rückmeldung).
-      case 'profile': return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />
-          <ContactSection profile={profile} onSave={onSave} />
-          <InvoiceSection profile={profile} onSave={onSave} isBusiness={isSupplier} />
-          <PrivacySection profile={profile} onSave={onSave} />
-        </div>
-      );
+      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
       case 'orders': return <OrdersSection />;
       case 'documents': return <DocumentsSection />;
       case 'security': return <SecuritySection profile={profile} />;

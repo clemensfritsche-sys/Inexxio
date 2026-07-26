@@ -22,15 +22,14 @@ export function fmtObjId(id: number | null | undefined): string {
   return String(id).padStart(9, '0');
 }
 
-// Eine Rolle ist KEIN Lebenszyklus-Status (nichts ist «gut/wartend/Fehler»), darum
-// bewusst neutrale Identitäts-Chips (warmes Grau, Tokens) statt Ampelfarben – die
-// Unterscheidung trägt das Symbol + Label. So konkurrieren Rollen nicht mit der
-// grün/gelb/rot-Status-Ampel.
+// Eine Rolle ist kein Lebenszyklus-Status, aber ein aktiver Benutzer ist ein **gültiger,
+// aktiver** Datensatz – darum GRÜN (nicht Grau, das nach «aus» aussähe; deaktivierte Nutzer
+// erscheinen ohnehin nicht im Feed). Die Rolle selbst trägt Symbol + Label zur Unterscheidung.
 export const ROLE_CFG: Record<string, StatusCfg> = {
-  admin:    { label: 'Admin',       color: 'var(--fg-1)', bg: 'var(--bg-3)', icon: Shield },
-  employee: { label: 'Mitarbeiter', color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Briefcase },
-  supplier: { label: 'Lieferant',   color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Truck },
-  customer: { label: 'Kunde',       color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: UserCircle },
+  admin:    { label: 'Admin',       color: 'var(--success)', bg: 'var(--success-bg)', icon: Shield },
+  employee: { label: 'Mitarbeiter', color: 'var(--success)', bg: 'var(--success-bg)', icon: Briefcase },
+  supplier: { label: 'Lieferant',   color: 'var(--success)', bg: 'var(--success-bg)', icon: Truck },
+  customer: { label: 'Kunde',       color: 'var(--success)', bg: 'var(--success-bg)', icon: UserCircle },
 };
 
 const COUNTRY_NAMES: Record<string, string> = {
