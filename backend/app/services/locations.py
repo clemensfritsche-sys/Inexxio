@@ -120,6 +120,18 @@ def physical_location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, s
     return {key: labels.get(cur) for key, cur in resolved.items()}
 
 
+def company_location(db: Session) -> tuple[str | None, int | None]:
+    """Der Standort «im Betrieb» – die EINE Auflösung des eigenen Unternehmens als Halter.
+
+    Ersetzt den früheren konfigurierten Wareneingangs-Lagerplatz: seit dem Wegfall des
+    Datensatztyps «Lagerplatz» ist das Unternehmen selbst der Halter (Adresse aus den
+    Firmen-Stammdaten). Gibt ``(None, None)``, solange die Firma keine Objektnummer hat –
+    dann findet keine Bereitstellung statt, statt auf eine Phantom-Nummer zu buchen."""
+    from ..models import CompanySettings
+    c = db.query(CompanySettings).filter(CompanySettings.object_id.isnot(None)).first()
+    return ("company", c.object_id) if c and c.object_id else (None, None)
+
+
 def validate_location(db: Session, ltype: str, lid: int) -> None:
     """Stellt sicher, dass der Zielstandort gültig ist und existiert."""
     if ltype not in LOCATION_TYPES:

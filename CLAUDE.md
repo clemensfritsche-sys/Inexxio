@@ -313,8 +313,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Offerte = **eine Bestellsumme** (netto), Stück-/Einstandspreis = Summe÷Menge. Saubere
     Verantwortungstrennung (Lieferant offeriert, Besteller bestellt/nimmt an). Die **Lieferadresse**
     kommt aus der **Systemkonfiguration** (`company_settings.default_receiving_location_id`); den
-    realen Wareneingangs-Ort setzt die **gesäte Begleit-Bewegung «Wareneingang»** nach der
-    Beschaffung (`process_steps.seed_companion_movements`) – NICHT mehr die Bestellung selbst
+    realen Wareneingangs-Ort setzt die **Bereitstellung** nach der abgeschlossenen
+    Beschaffung (`provisioning.ensure_provisioning`) – NICHT mehr die Bestellung selbst
     (`purchase_orders.receiving_location_id` ist Alt-Spalte, `apply_update` ignoriert das Feld).
     **Bezugsquelle wird IM PROZESSSCHRITT definiert** (max. Flexibilität – ein Prozess darf mehrere
     `purchase`-Schritte mit UNTERSCHIEDLICHEN Lieferanten/Quellen haben, was ein reines Artikel-Feld
@@ -444,9 +444,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   'lagerplatz'` – mit dem Wegfall des Typs hätte das **nie mehr** zugetroffen und keine Retoure
   wäre je wieder eingebucht worden; jetzt gilt «die Instanz liegt **nicht mehr beim Kunden**»
   (Kunde vom **Original-Verkauf**, da die Retoure selbst nur `kind='credit'`-Belege trägt).
-  Mengeneinheiten: Stk/mm/m²/**m³**/kg/l. Den **Wareneingangs-Ort** setzt weiterhin die gesäte
-  Begleit-Bewegung «Wareneingang» nach der Beschaffung (Ziel: Behälter-Instanz, Unternehmen oder
-  offen); der **Bewegungs**-Schritt verteilt von dort weiter.
+  Mengeneinheiten: Stk/mm/m²/**m³**/kg/l. Den **Wareneingangs-Ort** setzt die **Bereitstellung**
+  nach der abgeschlossenen Beschaffung (Ziel: die Firmenadresse, `locations.company_location`);
+  der **Bewegungs**-Schritt verteilt von dort weiter.
 - **Adressen: EINE Darstellung** (`services/address.py`): Person und Unternehmen
   tragen historisch **verschiedene Spaltennamen** (`address_line1`/`postal_code` an der Person
   vs. `street`+`street_nr`/`zip_code` am Unternehmen). Dieses Modul ist die eine Stelle, die
@@ -470,35 +470,54 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   «Aus dem Lager» → **Ab Lager**, «Instanz wählen» → **Auswählen**. Der Termin ist eine Zeile, kein
   Feld-Raster. `GoalCard`/`OutcomeBanner` sind entfallen. **Die Backend-Logik ist unverändert** – rein
   Präsentation (Subjektart wird weiterhin abgeleitet, nicht gewählt).
-- **Zwangs-Prozessschrittmodule sind aufgelöst – gesät statt erzwungen** (Juli 2026,
-  `services/process_steps.py`, Migration `079`): Rund um Beschaffung und Verkauf hat das System bisher
-  **gesperrte Pflicht-Bewegungen** eingefügt (`locked=True`) – Wareneingang danach, Versand zum Kunden
-  danach. Sie waren **nicht löschbar, nicht verschiebbar, nur das Ziel editierbar** und wurden bei jeder
-  Strukturänderung neu abgeleitet **und umpositioniert** (`sync_locked_movements`, selbstheilend). Wer sie
-  nicht brauchte – Abholung durch den Kunden, Streckengeschäft, digitale Lieferung, Lohnveredelung –
-  konnte sie nicht entfernen: der nächste Sync legte sie wieder an. Das widersprach dem Grundsatz, dass
-  ein Prozess abbildet, was **tatsächlich** passiert, und nicht, was das System für zwingend hält.
-  **Neu:** `seed_companion_movements` **sät** die Bewegung **einmalig** beim Anlegen des auslösenden
-  Schritts; danach ist sie ein **ganz normaler Schritt** – löschbar, verschiebbar, voll editierbar wie
-  jeder andere. Was der Nutzer löscht, bleibt gelöscht (die deaktivierte Zeile ist selbst der Merker,
-  `_seeded_modes` filtert bewusst NICHT auf `is_active`). Nachgezogen wird nur beim **Anlegen** –
-  Sortieren/Ändern/Löschen ziehen nichts mehr nach.
-  **Die Sperre fällt, die Rolle bleibt:** aus `locked` wird `companion` (Migration `079`, additiv – die
-  Alt-Spalte bleibt bis zum Folge-Deploy stehen, damit ein laufender Cloud-Run-Rollout nicht auf eine
-  gedroppte Spalte trifft). Die Rolle trägt zwei echte Fachwirkungen, die von der Sperre unabhängig sind:
-  (1) `mode='customer'` → Ziel ist der **Kunde des Verkaufs** (`movement.record_movement`); (2) Begleiter
-  sind von der **Fehlmengen-Prüfung ausgenommen** (`process.step_shortfalls` → `is_companion`) – ohne die
-  Ausnahme wäre der Versand blockiert, sobald der Verkauf bezahlt ist (die Ware gilt dann als «verkauft»,
-  aus Sicht des freien Bestands weg). Genau das war der Shop-Bug aus Migration `074`; die Ausnahme hängt
-  darum jetzt an der **Rolle** und bewusst **nicht** an `mode` (dessen Default `'supplier'` würde jede
-  vom Nutzer angelegte Bewegung fälschlich zum Wareneingang machen).
-  **Jedes Modul steht weiterhin für sich:** ein Schritttyp verhält sich an **jeder Position gleich** –
-  jetzt sogar strukturell, weil `seed_companion_movements` je Auslöser über einen reinen Dict-Lookup
-  (`_COMPANION_MODE`) entscheidet und gar keinen Positions-Kontext kennt. Wächter:
-  `tests/test_smoke.py: test_every_step_module_behaves_the_same_at_any_position`,
-  `…_seeded_once_not_enforced`, `…_companion_role_survives_the_unlocking`.
-  Den Shop-Versandschritt legt `selling._create_multiline_sale_order` weiterhin selbst an (`companion=True`)
-  – der Shop-Kunde baut keinen Prozess.
+- **Bereitstellung: physische Bewegungen werden ABGELEITET, nicht geplant** (Juli 2026,
+  `services/provisioning.py`, Migration `080`): Das System legt **KEINEN** Prozessschritt mehr
+  an. Der Nutzer modelliert nur die **fachlichen** Schritte (kaufen, verbauen, verkaufen);
+  jeder physische Transport, der daraus zwingend folgt, entsteht **zur Laufzeit**.
+  **Warum die Vorgänger-Lösung falsch sein musste:** Beim Modellieren ist gar nicht
+  entscheidbar, ob eine Bewegung nötig sein wird – ob die Schraube schon am Band liegt oder
+  in Halle B, zeigt sich erst zur Laufzeit. Jedes vorgeplante Bewegungs-Modul rät deshalb:
+  mal überflüssig (Teil liegt längst richtig), mal fehlend (Teil liegt woanders, aber niemand
+  hat den Schritt eingeplant). Die gesperrten Pflicht-Bewegungen (`locked`, selbstheilend
+  neu positioniert) und danach das einmalige Säen (`seed_companion_movements`) sind beide
+  ersatzlos entfernt – `services/process_steps.py` gibt es nicht mehr, ebenso wenig den fest
+  eingebauten Shop-Versandschritt.
+  **Die vier Regeln:** (1) jeder Schritttyp deklariert in `domain/event_types.py`, **wo sein
+  Material sein muss** (`provisioning`); (2) ist ein Schritt dran (oder gerade erledigt), wird
+  **Ist ↔ Soll** verglichen; (3) stimmt es → **nichts passiert** (der häufigste Fall, komplett
+  unsichtbar); (4) stimmt es nicht → ein **Bereitstellungs-Unter-Auftrag**
+  (`orders.reason='provisioning'` + `orders.provisioning_step_id`) holt genau diese Instanzen
+  an ihren Soll-Ort.
+  **Warum Unter-Auftrag und nicht Schritt im Auftrag:** Ein Bewegungs-Schritt bewegt immer die
+  Instanzen **seines** Auftrags (`movement.movable_instances`). Die Komponente aus Halle B
+  gehört aber nicht zum Subjekt – sie ist eine Ressourcen-Zeile; der Schritt könnte sie gar
+  nicht greifen. Ein Unter-Auftrag kann es, weil er ein **eigenes fixiertes Subjekt** trägt –
+  exakt wie Abweichung und Retoure. Damit ist die Systematik symmetrisch: **nichts da** →
+  `supply` (blockiert den Schritt) · **falscher Ort** → `provisioning` (blockiert den Schritt) ·
+  **kaputt** → `deviation` (pausiert den ganzen Auftrag).
+  **Der Zeitpunkt ist je Schritttyp verschieden – und muss es sein** (`_STAGE_BEFORE`):
+  Ressource stellt **vor** der Ausführung bereit (die Komponente muss da sein, bevor verbaut
+  wird), Beschaffung/Verkauf **danach** (die Ware kommt an bzw. geht hinaus, nachdem der
+  kaufmännische Vorgang durch ist). Ohne die Trennung würde erst BESTELLTE Ware sofort in den
+  Betrieb gebucht – buchhalterisch da, bevor sie geliefert ist.
+  **Abstufung nach Distanz** (dieselbe Mechanik, andere Konsequenz – über die bestehende
+  Adress-Klassifikation aus ADR 005, kein zweites Regelwerk): **innerhalb derselben Adresse**
+  bucht der Unter-Auftrag sich sofort selbst ab (zwanzig Meter durch die Halle brauchen kein
+  Formular); **über Adressgrenzen** bleibt er offen für Tarifwahl, Label und Quittierung.
+  Die automatische Buchung ist eine **Behauptung**, keine Beobachtung – das Audit-Log hält sie
+  ausdrücklich als «systemseitig zugewiesen, nicht quittiert» fest.
+  **Zwei Fallstricke, beide getestet:** (a) Die Bereitstellung hängt `subject_of_order_id`
+  **nicht** um (nur `record_link`) – sonst verlöre der Eltern-Auftrag sein Subjekt; (b) zum
+  Kunden gehen **nur `sold`-Instanzen** über die VOLLE Instanzliste (`order_instances`), denn
+  `sold` ist terminal und `order_active_instances` blendet es aus – über die aktive Liste
+  hätte der Kundenversand nie ausgelöst, und eine teilverkaufte Charge wäre als Ganzes zum
+  Kunden gewandert. Wächter: `test_smoke.py: test_system_never_plans_process_steps`,
+  `…_keeps_parent_subject_binding`, `…_timing_differs_by_step_type`,
+  `…_to_customer_only_moves_sold_units`, `…_sub_order_buckets_are_explicit_per_reason`.
+  *Alt-Bestand:* früher gesäte Begleit-Bewegungen (`article_process_steps.companion`) bleiben
+  gültige Schritte und behalten ihre Fachwirkung (`provisioning.is_companion`: festes Ziel
+  «Kunde», Ausnahme von der Fehlmengen-Prüfung); nie ausgeführte werden von Migration `080`
+  deaktiviert.
 - **Standort-Kette «wo genau?»** (`locations.location_chain`, `InstanceResponse.location_path`):
   liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Unternehmen → **Anschrift**
   (`location_type='address'`, ohne Objektnummer). Zyklensicher, auf 10 Stationen begrenzt, und
@@ -616,16 +635,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Instanz ans Ziel — **no-op, wenn schon da**; Teilmengen/Chargen laufen weiter auftragsgetrieben über den
   Bewegungs-Schritt (`location_split.move`). **Verschrotten** hat KEINEN Bereitstellungsort
   (`PROV_NOWHERE`): die Instanz wird standortlos (`location_split.clear`), kein Schrottplatz-Reconcile mehr.
-  **WICHTIG — Reichweite (Doku-Korrektur Juli 2026):** Der `provisioning`-Eintrag ist heute überwiegend
-  eine **Deklaration**, kein laufender Automatismus. `reconcile_to` hat genau **EINEN** Aufrufer:
-  `resource._use_tool` (Werkzeug → Arbeitsplatz). Alles andere bewegt sich über den **regulären
-  Bewegungs-Schritt**: Wareneingang und Versand zum Kunden über die dahinter gesäten Begleit-Bewegungen
-  (`services/process_steps.py`), Komponenten-Einbau über `resource._relocate` (→ `location_split.set_single`).
-  Die frühere Formulierung «Automatik ist standardmässig an» war irreführend — es gibt **keinen Sweep und
-  keinen Trigger**, der von sich aus Ist↔Soll abgleicht; niemand prüft, ob ein Teil am deklarierten
-  Bereitstellungsort liegt, bevor ein Schritt läuft. *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige
-  Montage sind über denselben Bewegungs-Schritt + die Primitive abbildbar; scan-Quittierung im Verschrotten
-  bleibt Backlog. Ein Reconciler-Netz beim Auftragsabschluss ist bewusst NICHT gebaut (siehe unten).*
+  **Die Deklaration ist jetzt wirksam** (Juli 2026): `provisioning.target_for` löst sie in eine konkrete
+  Objektnummer auf, und `ensure_provisioning` (aufgerufen aus `process.recompute_completion`, also nach
+  JEDEM Schritt-Abschluss) legt bei Abweichung Ist↔Soll einen **Bereitstellungs-Unter-Auftrag** an – siehe
+  «Bereitstellung» oben. Zuvor war der Eintrag reine Beschriftung: `reconcile_to` hatte genau EINEN
+  Aufrufer (`resource._use_tool`). *Rückführung/WIP-Puffer/Werkzeug-Rückgabe/mehrstufige Montage sind über
+  denselben Mechanismus abbildbar; scan-Quittierung im Verschrotten bleibt Backlog. Ortsfeste
+  Betriebsmittel (das Produkt muss zur Maschine, nicht umgekehrt) sind bewusst NOCH NICHT gebaut.*
 - **Logistik/Versand — «Versand wird ABGELEITET, nicht bestellt» (ADR 005, `docs/adr/005-logistik.md`,
   Migrationen `071`+`072`)**: der Bewegungs-Schritt kennt Quelle+Ziel → EINE Klassifikation
   (`services/logistics.classify_movement`) leitet die Transportklasse **adress-basiert, OHNE Geofence** ab
@@ -890,8 +906,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   legt bei Freigabe pro Position einen `Sale`-Beleg an, alle mit demselben `step_id`;
   `process.facts_for_step`/`_resolve_facts_multi` lösen die Liste auf) – **NIE mehrere sequentielle
   Sale-Schritte** («2-fache Prozessschrittmodule» war der zentrale Kritikpunkt der ersten, verworfenen
-  Umsetzung). Der gesäte Begleit-Versand (`_Owner.seed`/`seed_companion_movements`) funktioniert daher
-  unverändert – EIN Sale-Schritt ⇒ EIN Versand, kein Vervielfachungsrisiko.
+  Umsetzung). Die abgeleitete Bereitstellung zum Kunden funktioniert daher unverändert –
+  EIN Sale-Schritt ⇒ EINE Sendung, kein Vervielfachungsrisiko.
   **Preis = Single Source of Truth vom Artikel** (`sale.price_from_article`, dieselbe Preis-Pipeline wie
   der Shop `services/pricing.py`): bei genau EINER Position bleibt der Betrag wie gewohnt frei editierbar
   (z. B. Artikel ohne hinterlegten Verkaufspreis); bei mehreren Positionen ist der Betrag **pro Position
@@ -997,8 +1013,8 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     trägt `returnable`/`return_requested`/`return_deadline`; `orders-list.tsx` zeigt «Retoure anfragen»
     (mit Frist) bzw. «Retoure angefragt». *Bewusst NICHT gebaut: Rücksende-Label/RMA-Tracking, Teil-
     Mengen-Auswahl durch den Kunden (Personal passt die Menge im ERP an).*
-- **Versand zum Kunden geht IMMER an den Kunden** (Fix): die auf einen `sale`-Schritt gesäte
-  Begleit-Bewegung (`mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
+- **Versand zum Kunden geht IMMER an den Kunden** (Fix): die zu einem `sale`-Schritt gehörende
+  Bewegung (Bereitstellung bzw. Alt-Bestand `mode='customer'`) hat als Ziel **fix den Kunden des Verkaufs** (`sale.customer_for_order`).
   Serverseitig erzwungen (`movement.record_movement` überschreibt die Ziel-Eingaben) UND im Embed als festes
   Ziel gezeigt (`orders._movement_embed`) – der Lagerist kann kein falsches Ziel wählen. Weil das Ziel fest
   ist, lädt das Movement-Panel **keine** Personen-/Instanz-Listen mehr (`movement-panel.tsx:

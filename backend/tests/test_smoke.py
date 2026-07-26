@@ -992,104 +992,108 @@ def test_deactivation_replace_wired():
         DeactivateRequest(orders_mode="bogus")
 
 
-def test_purchase_is_commercial_only_and_movements_seeded():
-    """Modul-Trennung: Purchase ist rein kaufmännisch (kein Standortwechsel mehr); die
-    Begleit-Bewegungen sind je Auslöser **deklariert** statt als Sequenz geplant."""
-    from app.services import purchase
-    from app.services.process_steps import _COMPANION_MODE
+def test_system_never_plans_process_steps():
+    """**Der Kern:** das System legt von sich aus KEINEN Prozessschritt an. Der Nutzer
+    modelliert den Ablauf; physisch nötige Transporte entstehen zur Laufzeit als
+    Bereitstellungs-Unter-Auftrag (``services/provisioning.py``), nicht als Modul im Plan.
 
-    # Purchase verschiebt keine Instanzen mehr – die Alt-Helfer sind entfernt
-    assert not hasattr(purchase, "_relocate_to_receiving")
-    assert not hasattr(purchase, "_resolve_received_location")
+    Beim Modellieren ist gar nicht entscheidbar, ob eine Bewegung nötig sein wird – ob das
+    Teil schon am Band liegt oder in Halle B, zeigt sich erst zur Laufzeit. Genau daran
+    sind die früheren Zwangs-Bewegungen gescheitert."""
+    import importlib
 
-    # Genau zwei Auslöser, je eine Rolle: Beschaffung → Wareneingang, Verkauf → Kunde.
-    assert _COMPANION_MODE == {"purchase": "supplier", "sale": "customer"}
-
-
-def test_every_step_module_behaves_the_same_at_any_position():
-    """**Jedes Modul steht für sich.** Ein Schritttyp verhält sich an JEDER Position gleich –
-    es gibt keine Regel, die aus derselben Konfiguration je nach Reihenfolge etwas anderes
-    macht.
-
-    Früher erzeugte eine Lieferanten-Beschaffung ab Position 2 zusätzlich einen gesperrten
-    «Versand zum Lieferanten» (an Position 1 dagegen nicht). Heute ist die Regel strukturell
-    positionsunabhängig: ``seed_companion_movements`` entscheidet je Auslöser-Schritt über
-    einen reinen Dict-Lookup (``_COMPANION_MODE``) – es gibt keinen Positions-Kontext, in dem
-    eine solche Regel überhaupt formulierbar wäre."""
-    import inspect as _inspect
-
-    from app.services import process_steps
-
-    src = _inspect.getsource(process_steps.seed_companion_movements)
-    # Kein Index-/Nachbarschafts-Kontext: die Schleife sieht nur den einzelnen Schritt.
-    assert "enumerate(" not in src
-    assert "steps[" not in src   # kein Blick auf Vorgänger/Nachfolger
-    assert "_COMPANION_MODE.get(s.step_type)" in src
-
-
-def test_companion_movements_are_seeded_once_not_enforced():
-    """**Zwang aufgelöst:** die Begleit-Bewegungen (Wareneingang/Versand zum Kunden) sind
-    ganz normale Schritte – löschbar, verschiebbar, editierbar.
-
-    Drei Eigenschaften halten das zusammen:
-    1. Gelöschte kommen NICHT wieder – ``_seeded_modes`` zählt auch ``is_active=False``
-       (kein Filter darauf), also gilt eine entfernte Bewegung dauerhaft als «gab es schon».
-    2. Der Router kennt keine Sperren mehr (kein Löschverbot, kein Editier-Verbot, keine
-       Ausklammerung beim Sortieren).
-    3. Nachgezogen wird nur beim **Anlegen** eines Schritts, nicht bei Sortieren/Ändern/
-       Löschen – sonst wäre die Automatik wieder selbstheilend."""
-    import inspect as _inspect
+    import pytest
 
     from app.routers import article_process
-    from app.services import process_steps
+    from app.services import selling
 
-    # 1) Einmalig: keine is_active-Einschränkung beim Nachschlagen bereits gesäter Rollen
-    #    (der Docstring darf das Wort erklären – die Query darf nicht danach filtern).
-    seeded_src = _inspect.getsource(process_steps._seeded_modes)
-    assert "ArticleProcessStep.is_active" not in seeded_src
+    # Das Säe-Modul ist ersatzlos entfernt.
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("app.services.process_steps")
 
-    # 2) Keine Sperren mehr im Router.
-    router_src = _inspect.getsource(article_process)
-    assert "nicht löschbar" not in router_src
-    assert "nur das Ziel editierbar" not in router_src
-    assert "ArticleProcessStep.locked" not in router_src
-
-    # 3) Gesät wird ausschliesslich beim Anlegen.
-    assert "owner.seed(db)" in _inspect.getsource(article_process._create)
-    for fn in (article_process._reorder, article_process._update, article_process._delete):
-        assert "seed(db)" not in _inspect.getsource(fn)
+    # Weder Router noch Shop-Pfad legen eine Bewegung an.
+    router_src = _inspect_source(article_process)
+    assert "seed" not in router_src
+    shop_src = _inspect_source_fn(selling._create_multiline_sale_order)
+    assert 'step_type="movement"' not in shop_src
 
 
-def test_companion_role_survives_the_unlocking():
-    """Die Sperre fällt, die **Rolle** bleibt – sonst kehrt der Shop-Bug aus Migration 074
-    zurück: nach der Zahlung gilt die Ware als «verkauft» (aus dem freien Bestand weg), und
-    ohne die Ausnahme wäre der Versand-Schritt dauerhaft «blockiert» → kein Auftrag mehr
-    versendbar.
+def _inspect_source(mod):
+    import inspect as _i
+    return _i.getsource(mod)
 
-    Die Ausnahme hängt darum an ``is_companion`` (Spalte ``companion``) und NICHT an ``mode``:
-    dessen Default ist ``'supplier'``, jede vom Nutzer angelegte Bewegung würde sonst
-    fälschlich als Begleiter gelten und wäre nie mehr auf Fehlmengen geprüft."""
-    import inspect as _inspect
 
-    from app.models import ArticleProcessStep
-    from app.services import process
-    from app.services.process_steps import is_companion
+def _inspect_source_fn(fn):
+    import inspect as _i
+    return _i.getsource(fn)
 
-    assert "companion" in ArticleProcessStep.__table__.columns
 
-    # Die Fehlmengen-Ausnahme liest die Rolle, nicht den Modus.
-    src = _inspect.getsource(process.step_shortfalls)
-    assert "not is_companion(step)" in src
+def test_provisioning_keeps_parent_subject_binding():
+    """**Kritisch:** eine Bereitstellung darf ``subject_of_order_id`` NICHT umhängen.
 
-    # is_companion liest die Spalte – ein movement mit dem mode-Default ist KEIN Begleiter.
-    class _Step:
-        step_type = "movement"
-        mode = "supplier"
-        companion = False
+    Die Instanz gehört weiterhin dem Eltern-Auftrag – die Bereitstellung transportiert sie
+    bloss. Anders als bei Abweichung/Retoure (wo der Übergang gewollt ist) verlöre der
+    Eltern sonst sein Subjekt: bei einem Erzeugungsauftrag stünde er ohne Instanzen da."""
+    from app.services import provisioning
 
-    assert not is_companion(_Step())
-    _Step.companion = True
-    assert is_companion(_Step())
+    # Geprüft wird die **Zuweisung**, nicht die Erwähnung: Kommentare dürfen (und sollen)
+    # erklären, warum hier gerade NICHT umgehängt wird.
+    for fn in (provisioning._create, provisioning._settle):
+        src = _inspect_source_fn(fn)
+        assert "subject_of_order_id =" not in src, f"{fn.__name__} hängt die Bindung um"
+    assert "record_link(db, inst.object_id, sub.id)" in _inspect_source_fn(provisioning._create)
+
+
+def test_provisioning_has_fixed_subject_and_cannot_recurse():
+    """Eine Bereitstellung hat ein **festes Subjekt** (die Instanzen existieren, sie liegen
+    nur falsch) – also keine Fehlmengen-Ableitung, kein Lager-FIFO. Und sie löst **keine
+    weitere Bereitstellung** aus: sie IST die Bereitstellung (Rekursions-Schutz)."""
+    from app.services import provisioning
+    from app.services.subject import is_fixed_subject, is_provisioning
+
+    class _O:
+        reason = "provisioning"
+    assert is_provisioning(_O()) and is_fixed_subject(_O())
+
+    src = _inspect_source_fn(provisioning.ensure_provisioning)
+    assert "order.reason == REASON" in src   # Selbst-Ausschluss
+
+
+def test_provisioning_target_covers_every_step_type():
+    """Jeder Schritttyp muss einen **auflösbaren** Bereitstellungsort haben – sonst gäbe es
+    einen Schritt, für den das System nicht weiss, wohin sein Material soll. Die Zuordnung
+    ist deklariert (``event_types``), die Auflösung kennt jeden deklarierten Wert."""
+    from app.domain import event_types
+    from app.services import provisioning
+
+    src = _inspect_source_fn(provisioning.target_for)
+    for et in event_types.REGISTRY.values():
+        kind = et.provisioning
+        if kind in (event_types.PROV_NONE, event_types.PROV_NOWHERE):
+            continue          # kein fester Ort – bewusst
+        const = {event_types.PROV_RECEIVING: "PROV_RECEIVING",
+                 event_types.PROV_CUSTOMER: "PROV_CUSTOMER",
+                 event_types.PROV_PRODUCT: "PROV_PRODUCT"}[kind]
+        assert const in src, f"{et.key}: Bereitstellungsort {kind} wird nicht aufgelöst"
+
+
+def test_provisioning_settles_only_inside_one_address():
+    """Die Abstufung: **innerhalb derselben Adresse** bucht das System selbst (zwanzig Meter
+    durch die Halle brauchen kein Formular), **über Adressgrenzen** bleibt der Auftrag offen
+    für Tarif/Label/Quittierung. Entschieden wird das mit der bestehenden Logistik-
+    Klassifikation (ADR 005) – kein zweites Regelwerk.
+
+    Und: die automatische Buchung wird als **Behauptung** gekennzeichnet, nicht als bezeugte
+    Übergabe (niemand hat gescannt)."""
+    from app.services import provisioning
+
+    internal = _inspect_source_fn(provisioning._is_internal)
+    assert "logistics.classify_movement" in internal
+    assert '!= "outside"' in internal
+    assert "return False" in internal        # im Zweifel den Menschen fragen
+
+    settle = _inspect_source_fn(provisioning._settle)
+    assert "nicht quittiert" in settle
 
 
 def test_resource_embed_per_product_breakdown():
@@ -1822,16 +1826,21 @@ def test_pooled_orders_reuse_generic_step_editor():
     assert "ArticleProcessStep(" not in add_src   # legt KEINE Schritte automatisch an
 
 
-def test_pooled_owner_seed_is_unchanged():
-    """Verkauf ist EIN Schritt (auch bei mehreren Artikeln – mehrere Belege teilen sich
-    ihn, ``services/sale.py``); das Säen der Begleit-Bewegung läuft deshalb für
-    Mehrpositionen-Aufträge GENAU WIE für jeden anderen Auftrag, ohne Sonderfall."""
+def test_pooled_orders_need_no_special_case():
+    """Verkauf ist EIN Schritt (auch bei mehreren Artikeln – mehrere Belege teilen sich ihn,
+    ``services/sale.py``). Da das System keine Schritte mehr plant, gibt es für Mehrpositionen-
+    Aufträge auch keinen Sonderfall: die Bereitstellung leitet sich je Schritt ab, unabhängig
+    von der Zahl der Positionen."""
     import inspect as _inspect
-    from app.routers import article_process
 
-    src = _inspect.getsource(article_process._Owner.seed)
-    assert "if self.pooled" not in src   # kein Sonderfall/No-op mehr nötig
-    assert "seed_companion_movements(db, article_id=self.article_id, order_id=self.order_id)" in src
+    from app.routers import article_process
+    from app.services import provisioning
+
+    assert not hasattr(article_process._Owner, "seed")
+    assert not hasattr(article_process._Owner, "sync")
+    # Die Ableitung kennt nur Schritte, keine Positionen.
+    src = _inspect.getsource(provisioning.ensure_provisioning)
+    assert "pooled" not in src and "order_lines" not in src
 
 
 def test_pooled_order_step_types_all_allowed():
@@ -2555,3 +2564,60 @@ def test_scrap_location_column_removed():
     assert "default_scrap_location_id" not in CompanySettings.__table__.columns
     assert "default_scrap_location_id" not in CompanySettingsResponse.model_fields
     assert "default_scrap_location_id" not in CompanySettingsUpdate.model_fields
+
+
+def test_provisioning_timing_differs_by_step_type():
+    """**Der Zeitpunkt ist je Schritttyp verschieden – und das muss er sein.**
+
+    Ressource stellt VOR der Ausführung bereit (die Komponente muss da sein, bevor verbaut
+    wird). Beschaffung und Verkauf stellen DANACH bereit (die Ware kommt an bzw. geht
+    hinaus, nachdem der kaufmännische Vorgang durch ist).
+
+    Ohne diese Trennung würde eine erst BESTELLTE Ware – Schritt aktiv, Ware noch beim
+    Lieferanten – sofort in den Betrieb gebucht und wäre buchhalterisch da, bevor sie
+    geliefert ist."""
+    import inspect as _inspect
+
+    from app.services import provisioning
+
+    assert provisioning._STAGE_BEFORE == ("resource",)
+    src = _inspect.getsource(provisioning.ensure_provisioning)
+    assert 'if before and state not in ("active", "blocked")' in src
+    assert 'if not before and state != "done"' in src
+
+
+def test_provisioning_to_customer_only_moves_sold_units():
+    """Eine **teilverkaufte Charge** darf nicht als Ganzes zum Kunden wandern.
+
+    Der Verkauf bucht bei einer Teilmenge nur die Menge ab – die Instanz bleibt
+    ``in_stock``. Würde sie mitbewegt, stünde der unverkaufte Rest danach als freier
+    Bestand beim Kunden. Darum: nur ``sold``-Instanzen.
+
+    Fallstrick, der hier mitgeprüft wird: ``sold`` ist eine **terminale** Disposition und
+    wird von ``order_active_instances`` ausgeblendet – über diese Liste hätte der
+    Kundenversand NIE ausgelöst."""
+    import inspect as _inspect
+
+    from app.services import provisioning
+    from app.services.subject import TERMINAL_DISPOSITIONS
+
+    assert "sold" in TERMINAL_DISPOSITIONS      # genau deshalb die volle Liste nötig
+    src = _inspect.getsource(provisioning.subjects_for)
+    assert "order_instances(db, order)" in src
+    assert '(i.disposition or "") == "sold"' in src
+
+
+def test_sub_order_buckets_are_explicit_per_reason():
+    """Unter-Aufträge werden **explizit je Grund** einsortiert – kein Sammel-``else``.
+
+    Sonst landet jeder neue Grund stillschweigend im Abweichungs-Topf: eine Bereitstellung
+    erschiene dem Nutzer als «Abweichung» und liesse den Auftrag scheinbar pausieren."""
+    import inspect as _inspect
+
+    from app.schemas.order import OrderResponse
+    from app.services import orders as orders_svc
+
+    assert "provisionings" in OrderResponse.model_fields
+    src = _inspect.getsource(orders_svc._order_sub_orders)
+    assert '"provisioning": provisionings' in src
+    assert "else deviations" not in src        # kein Sammel-Else mehr

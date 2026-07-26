@@ -305,7 +305,9 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
     return None, None
 
 
-def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInfo], list[OrderDeviationInfo], list[OrderDeviationInfo], bool]:
+def _order_sub_orders(db: Session, order: Order) -> tuple[
+        list[OrderDeviationInfo], list[OrderDeviationInfo], list[OrderDeviationInfo],
+        list[OrderDeviationInfo], bool]:
     """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichungen** (pausieren den
     Eltern), **Nachschub** (deckt Bedarf, blockiert nur Schritte), **Retouren** (Rücknahme +
     Gutschrift eines abgeschlossenen Verkaufs, pausieren NICHT) + Pause-Zustand."""
@@ -320,6 +322,7 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInf
     deviations: list[OrderDeviationInfo] = []
     supplies: list[OrderDeviationInfo] = []
     returns: list[OrderDeviationInfo] = []
+    provisionings: list[OrderDeviationInfo] = []
     for c in children:
         ids = [
             row[0] for row in
@@ -330,14 +333,25 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[list[OrderDeviationInf
         info = OrderDeviationInfo(
             object_id=c.object_id, status=c.status, reason=c.reason, instance_count=len(ids),
             instance_object_ids=ids, title=c.title)
-        bucket = supplies if c.reason == "supply" else returns if c.reason == "return" else deviations
+        # **Explizit je Grund**, kein Sammel-Else: sonst landet jeder neue Unter-Auftrags-Grund
+        # stillschweigend im Abweichungs-Topf und erscheint dem Nutzer als «Abweichung».
+        bucket = {"supply": supplies, "return": returns,
+                  "provisioning": provisionings}.get(c.reason or "", deviations)
         bucket.append(info)
-    return deviations, supplies, returns, process._is_paused_by_deviation(db, order)
+    return deviations, supplies, returns, provisionings, process._is_paused_by_deviation(db, order)
 
 
 def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
-    """Einen blockierten Schritt mit seinen Fehlmengen (Artikel + Menge) und den laufenden
-    Nachschub-Unteraufträgen anreichern (für «Nachschub anlegen» / Verlinkung im Frontend)."""
+    """Einen blockierten Schritt anreichern – mit dem GRUND seiner Blockade.
+
+    Zwei Gründe, zwei Felder: **Fehlmenge** (Artikel + Menge + laufende Nachschub-
+    Unteraufträge, für «Nachschub anlegen»/Verlinkung) ODER **noch nicht hier** (das
+    Material existiert, eine Bereitstellung bringt es gerade). Ohne den zweiten Fall stünde
+    ein wegen Standort blockierter Schritt ohne jede Erklärung da."""
+    from .provisioning import open_provisioning
+    si.provisioning_order_object_ids = [
+        o.object_id for o in open_provisioning(db, order, step.id) if o.object_id
+    ]
     shortfalls = process.step_shortfalls(db, order, step)
     if not shortfalls:
         return
@@ -377,7 +391,8 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     (Lieferant/Kunde) – filtert dann den Dokument-Inhalt nach ``doc_visibility``.
     ``None`` = interner/Personal-Aufruf (ungefiltert)."""
     resp = OrderResponse.model_validate(order)
-    resp.deviations, resp.supply_orders, resp.returns, resp.paused = _order_sub_orders(db, order)
+    (resp.deviations, resp.supply_orders, resp.returns,
+     resp.provisionings, resp.paused) = _order_sub_orders(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()

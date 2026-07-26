@@ -4228,6 +4228,11 @@ export interface components {
              */
             returns: components["schemas"]["OrderDeviationInfo"][];
             /**
+             * Provisionings
+             * @default []
+             */
+            provisionings: components["schemas"]["OrderDeviationInfo"][];
+            /**
              * Paused
              * @default false
              */
@@ -4269,6 +4274,11 @@ export interface components {
              * @default []
              */
             supply_order_object_ids: number[];
+            /**
+             * Provisioning Order Object Ids
+             * @default []
+             */
+            provisioning_order_object_ids: number[];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Purchases

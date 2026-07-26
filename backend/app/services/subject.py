@@ -75,10 +75,20 @@ def is_return(order: Order) -> bool:
     return getattr(order, "reason", None) == "return"
 
 
+def is_provisioning(order: Order) -> bool:
+    """Bereitstellung = Unter-Auftrag mit ``reason='provisioning'`` (``services/provisioning.py``).
+
+    Bringt genau die Instanzen, die ein Schritt des Eltern-Auftrags braucht, an dessen
+    Bereitstellungsort. Festes Subjekt wie Abweichung/Retoure: das Material existiert
+    bereits, es liegt nur am falschen Ort – es gibt nichts zu produzieren, zu reservieren
+    oder als Fehlmenge zu melden (das wäre der Nachschub, ``reason='supply'``)."""
+    return getattr(order, "reason", None) == "provisioning"
+
+
 def is_fixed_subject(order: Order) -> bool:
     """Unter-Auftrag, dessen Subjekt bereits FESTSTEHT (gewählte, vorhandene Instanzen) –
-    Abweichung ODER Retoure. Kein Lager-Zugriff, keine Fehlmengen-Ableitung."""
-    return is_deviation(order) or is_return(order)
+    Abweichung, Retoure ODER Bereitstellung. Kein Lager-Zugriff, keine Fehlmengen-Ableitung."""
+    return is_deviation(order) or is_return(order) or is_provisioning(order)
 
 
 def subject_kind(db: Session, order: Order) -> str:

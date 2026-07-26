@@ -114,18 +114,23 @@ def test_sold_amounts_skips_scrap_events():
 
 # ─── Shop-Pfad: Pflicht-Versand + Nachschub-Dimensionierung ───────────────────────
 
-def test_shop_shipping_step_is_companion_customer():
-    # Bug: der Shop-Versandschritt war nicht als Begleiter des Verkaufs markiert → nach der
-    # Zahlung dauerhaft «blockiert» (die Ausnahme der Fehlmengen-Prüfung galt nicht) → kein
-    # Shop-Auftrag konnte je versendet/abgeschlossen werden.
-    #
-    # Die Markierung heisst seit Migration 079 ``companion`` statt ``locked`` – sie ist eine
-    # **Rolle, keine Sperre** (der Schritt ist löschbar/verschiebbar), trägt aber unverändert
-    # die Ausnahme und das feste Ziel «Kunde des Verkaufs».
+def test_shop_ships_via_provisioning_not_a_planted_step():
+    """Bug-Historie: Der Shop-Versandschritt war einmal nicht als Begleiter markiert → nach
+    der Zahlung dauerhaft «blockiert» (die Ware gilt dann als verkauft, aus Sicht des freien
+    Bestands weg) → kein Shop-Auftrag konnte je versendet werden (Migration 074).
+
+    Diese Fehlerklasse ist strukturell weg: der Shop pflanzt **gar keinen** Versandschritt
+    mehr. Der Verkauf deklariert seinen Bereitstellungsort (Kunde); ist er bezahlt, legt
+    ``provisioning.ensure_provisioning`` die Sendung an – mit festem Subjekt, das per
+    Definition keine Fehlmengen-Prüfung durchläuft (``subject.is_fixed_subject``)."""
+    from app.domain import event_types
     from app.services.selling import _create_multiline_sale_order
+
     src = inspect.getsource(_create_multiline_sale_order)
-    assert 'step_type="movement"' in src
-    assert "companion=True" in src and 'mode="customer"' in src
+    assert 'step_type="movement"' not in src
+    assert "companion" not in src
+    # Der Verkauf trägt den Bereitstellungsort, aus dem die Sendung abgeleitet wird.
+    assert event_types.provisioning("sale") == event_types.PROV_CUSTOMER
 
 
 def test_fulfill_intent_sizes_supply_before_selling():

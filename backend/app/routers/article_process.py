@@ -26,7 +26,6 @@ from ..schemas.article_process_step import (
 )
 from ..services import people
 from ..services.admin import log_audit
-from ..services.process_steps import seed_companion_movements
 
 router = APIRouter(prefix="/api/v1/erp", tags=["process-steps"])
 
@@ -58,15 +57,6 @@ class _Owner:
         return and_(ArticleProcessStep.article_id == self.article_id,
                     ArticleProcessStep.order_id.is_(None))
 
-    def seed(self, db: Session) -> None:
-        """Begleit-Bewegung zu einem neu angelegten Beschaffungs-/Verkaufs-Schritt säen.
-
-        Nur beim **Anlegen** – Sortieren/Ändern/Löschen ziehen bewusst NICHTS mehr nach:
-        die gesäte Bewegung ist ein normaler Schritt, über den der Nutzer allein bestimmt
-        (früher ``sync_locked_movements``, selbstheilend und gesperrt). Ein Mehrpositionen-
-        Auftrag hat genau EINEN Verkaufs-Schritt (mehrere Belege teilen sich ihn,
-        ``services/sale.py``) und bekommt darum auch genau EINEN Versand."""
-        seed_companion_movements(db, article_id=self.article_id, order_id=self.order_id)
 
     def new_step_kwargs(self) -> dict:
         return {"article_id": self.article_id, "order_id": self.order_id}
@@ -239,7 +229,6 @@ def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: Us
     db.flush()
     log_audit(db, "article_process_steps", None, f"Prozessschritt '{data.step_type}' hinzugefügt",
               user.id, object_id=owner.object_id)
-    owner.seed(db)
     db.commit()
     db.refresh(step)
     return _to_response(db, step)
@@ -295,9 +284,9 @@ def _update(db: Session, owner: _Owner, step_id: int, data: ArticleProcessStepUp
 def _delete(db: Session, owner: _Owner, step_id: int, user: UserProfile) -> dict:
     owner.ensure_editable()
     step = _get_step(db, owner, step_id)
-    # JEDER Schritt ist löschbar – auch eine gesäte Begleit-Bewegung (Wareneingang/Versand).
-    # Sie bleibt als ``is_active=False`` liegen und markiert damit «gab es schon», sodass
-    # ``seed_companion_movements`` sie nicht wieder anlegt.
+    # JEDER Schritt ist löschbar. Das System legt von sich aus KEINEN Prozessschritt an –
+    # physisch nötige Transporte entstehen zur Laufzeit als Bereitstellungs-Unter-Auftrag
+    # (``services/provisioning.py``), nicht als Modul im geplanten Ablauf.
     step.is_active = False
     log_audit(db, "article_process_steps", "is_active", "false", user.id,
               object_id=owner.object_id, old_value="true")
