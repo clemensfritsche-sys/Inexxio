@@ -6,10 +6,9 @@ import type { UserProfile } from '@/types';
 import { Field, SelectField } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
-import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
-const KNOWN_COUNTRIES = new Set(['CH', 'DE', 'AT', 'FR', 'IT', 'LI']);
 
 interface Form {
   invoice_same_as_shipping: boolean;
@@ -57,13 +56,9 @@ function buildForm(p: UserProfile): Form {
   return base;
 }
 
-const COUNTRIES = [
-  { value: 'CH', label: 'Schweiz' },
-  { value: 'DE', label: 'Deutschland' },
-  { value: 'AT', label: 'Österreich' },
-  { value: 'FR', label: 'Frankreich' },
-  { value: 'IT', label: 'Italien' },
-  { value: 'LI', label: 'Liechtenstein' },
+const COUNTRIES: [string, string][] = [
+  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
+  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
 ];
 
 interface Props {
@@ -112,13 +107,17 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function applyAddress(a: AutoAddress) {
+  // Die Rechnungsadresse ist EIN Feld (Suche zuerst) – hier nur die Abbildung auf
+  // die invoice_*-Spaltennamen.
+  const address: Address = {
+    street: form.invoice_address_line1, street2: form.invoice_address_line2,
+    zip: form.invoice_postal_code, city: form.invoice_city, country: form.invoice_country,
+  };
+  function applyAddress(a: Address) {
     setForm((prev) => ({
       ...prev,
-      invoice_address_line1: a.street || prev.invoice_address_line1,
-      invoice_postal_code: a.zip || prev.invoice_postal_code,
-      invoice_city: a.city || prev.invoice_city,
-      invoice_country: a.country && KNOWN_COUNTRIES.has(a.country) ? a.country : prev.invoice_country,
+      invoice_address_line1: a.street, invoice_address_line2: a.street2 ?? '',
+      invoice_postal_code: a.zip, invoice_city: a.city, invoice_country: a.country,
     }));
   }
 
@@ -182,25 +181,19 @@ export function InvoiceSection({ profile, isBusiness, onSave }: Props) {
           <Field label="Vorname" value={form.invoice_first_name} onChange={(v) => set('invoice_first_name', v)} readOnly={disabled} required={!disabled && !form.invoice_first_name.trim()} onEnter={saveNow} />
           <Field label="Nachname" value={form.invoice_last_name} onChange={(v) => set('invoice_last_name', v)} readOnly={disabled} required={!disabled && !form.invoice_last_name.trim()} onEnter={saveNow} />
           <div className="col-span-2">
+            {/* Rechnungsadresse: EIN Feld. Bei «gleich wie Lieferadresse» nur die
+                Zusammenfassung – dort wird nichts erfasst, sondern gespiegelt. */}
             {disabled ? (
-              <Field label="Strasse und Hausnummer" value={form.invoice_address_line1} onChange={(v) => set('invoice_address_line1', v)} readOnly onEnter={saveNow} />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
-                  Strasse und Hausnummer
-                  {!form.invoice_address_line1.trim() && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
-                </label>
-                <AddressAutocomplete apiKey={mapsKey} value={form.invoice_address_line1}
-                  onChange={(v) => set('invoice_address_line1', v)} onPick={applyAddress} placeholder="Adresse suchen…" />
+              <div style={{ font: '400 13.5px var(--font-body)', color: 'var(--fg-3)' }}>
+                {[form.invoice_address_line1, [form.invoice_postal_code, form.invoice_city].filter(Boolean).join(' ')]
+                  .filter(Boolean).join(' · ') || '—'}
               </div>
+            ) : (
+              <AddressField
+                value={address} onChange={applyAddress} apiKey={mapsKey}
+                countryOptions={COUNTRIES} showStreet2 label="Rechnungsadresse" />
             )}
           </div>
-          <div className="col-span-2">
-            <Field label="Adresszusatz" value={form.invoice_address_line2} onChange={(v) => set('invoice_address_line2', v)} placeholder="c/o, Postfach…" readOnly={disabled} onEnter={saveNow} />
-          </div>
-          <Field label="PLZ" value={form.invoice_postal_code} onChange={(v) => set('invoice_postal_code', v)} readOnly={disabled} required={!disabled && !form.invoice_postal_code.trim()} onEnter={saveNow} />
-          <Field label="Ort" value={form.invoice_city} onChange={(v) => set('invoice_city', v)} readOnly={disabled} required={!disabled && !form.invoice_city.trim()} onEnter={saveNow} />
-          <SelectField label="Land" value={form.invoice_country} onChange={(v) => set('invoice_country', v)} options={COUNTRIES} disabled={disabled} />
           <Field label="Rechnungs-E-Mail" value={form.invoice_email} onChange={(v) => set('invoice_email', v)} type="email" placeholder="buchhaltung@firma.ch" onEnter={saveNow} />
         </div>
       </div>

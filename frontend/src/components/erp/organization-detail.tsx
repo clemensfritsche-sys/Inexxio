@@ -7,13 +7,26 @@ import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
+// Das Unternehmen führt das Land als Klarnamen (nicht ISO-2) – die Auswahl bestimmt
+// daher zugleich das Format, das die Adress-Suche übernehmen darf.
+const COUNTRIES: [string, string][] = [
+  ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
+  ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
+];
 const ISO_TO_NAME: Record<string, string> = {
   CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
   IT: 'Italien', LI: 'Liechtenstein',
 };
+
+/** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
+ *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
+function splitStreet(line: string): [string, string] {
+  const m = line.trim().match(/^(.*?)[\s,]+(\d+[a-zA-Z]?)$/);
+  return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
+}
 
 type OrgTab = 'stamm' | 'docs';
 
@@ -34,20 +47,14 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<OrgTab>('stamm');
-  const [addrSearch, setAddrSearch] = useState('');
   const mapsKey = useMapsApiKey();
 
-  // Google-Places-Auswahl → Firmenadresse (Strasse/PLZ/Ort/Land) auf einmal übernehmen.
-  function applyCompanyAddress(a: AutoAddress) {
-    setForm((prev) => ({
-      ...prev,
-      street: a.street || prev.street,
-      zip: a.zip || prev.zip,
-      city: a.city || prev.city,
-      country: (a.country && ISO_TO_NAME[a.country]) || prev.country,
-    }));
+  // Die Firmenadresse ist EIN Feld (Suche zuerst); Strasse und Hausnummer werden
+  // beim Übernehmen getrennt, weil das Unternehmen sie in zwei Spalten führt.
+  function applyCompanyAddress(a: Address) {
+    const [street, nr] = splitStreet(a.street);
+    setForm((prev) => ({ ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country }));
     setDirty(true);
-    setAddrSearch(a.street || addrSearch);
   }
 
   useEffect(() => {
@@ -127,18 +134,18 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
         {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ display: 'block', font: '500 12px var(--font-body)', color: 'var(--fg-3)', marginBottom: 4 }}>Adresse suchen (Google)</label>
-            <AddressAutocomplete apiKey={mapsKey} value={addrSearch} onChange={setAddrSearch}
-              onPick={applyCompanyAddress} placeholder="Firmenadresse tippen – füllt Strasse/PLZ/Ort/Land" />
-          </div>
           <Field label="Firmenname" val={v('company_name')} onChange={set('company_name')} span2 />
           <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />
-          <Field label="Land" val={v('country')} onChange={set('country')} />
-          <Field label="Strasse" val={v('street')} onChange={set('street')} />
-          <Field label="Hausnummer" val={v('street_number')} onChange={set('street_number')} />
-          <Field label="PLZ" val={v('zip')} onChange={set('zip')} />
-          <Field label="Ort" val={v('city')} onChange={set('city')} />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <AddressField
+              value={{
+                street: [v('street'), v('street_number')].filter(Boolean).join(' '),
+                zip: (v('zip') as string) ?? '', city: (v('city') as string) ?? '',
+                country: (v('country') as string) ?? 'Schweiz',
+              }}
+              onChange={applyCompanyAddress} apiKey={mapsKey}
+              countryOptions={COUNTRIES} label="Firmensitz" />
+          </div>
         </Sec>
 
         <Sec title="Rechtliche Identifikation" editable icon={FileText}>

@@ -3,13 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin } from 'lucide-react';
 import type { UserProfile } from '@/types';
-import { Field, SelectField } from '../field';
+import { Field } from '../field';
 import { useAutosave } from '../use-autosave';
 import { SaveStatusIndicator } from '../save-status';
-import { AddressAutocomplete, type AutoAddress } from '@/components/erp/address-autocomplete';
+import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
-
-const KNOWN_COUNTRIES = new Set(['CH', 'DE', 'AT', 'FR', 'IT', 'LI']);
 
 interface Form {
   phone: string;
@@ -33,13 +31,9 @@ function buildForm(p: UserProfile): Form {
   };
 }
 
-const COUNTRIES = [
-  { value: 'CH', label: 'Schweiz' },
-  { value: 'DE', label: 'Deutschland' },
-  { value: 'AT', label: 'Österreich' },
-  { value: 'FR', label: 'Frankreich' },
-  { value: 'IT', label: 'Italien' },
-  { value: 'LI', label: 'Liechtenstein' },
+const COUNTRIES: [string, string][] = [
+  ['CH', 'Schweiz'], ['DE', 'Deutschland'], ['AT', 'Österreich'],
+  ['FR', 'Frankreich'], ['IT', 'Italien'], ['LI', 'Liechtenstein'],
 ];
 
 interface Props {
@@ -67,14 +61,17 @@ export function ContactSection({ profile, onSave }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  // Google-Places-Auswahl → Strasse/PLZ/Ort/Land auf einmal übernehmen (Autofill).
-  function applyAddress(a: AutoAddress) {
+  // Die Adresse ist EIN Feld (Suche zuerst) – hier nur die Abbildung auf die
+  // Profil-Spaltennamen (address_line1/postal_code …).
+  const address: Address = {
+    street: form.address_line1, street2: form.address_line2, zip: form.postal_code,
+    city: form.city, region: form.state_region, country: form.country,
+  };
+  function applyAddress(a: Address) {
     setForm((prev) => ({
       ...prev,
-      address_line1: a.street || prev.address_line1,
-      postal_code: a.zip || prev.postal_code,
-      city: a.city || prev.city,
-      country: a.country && KNOWN_COUNTRIES.has(a.country) ? a.country : prev.country,
+      address_line1: a.street, address_line2: a.street2 ?? '', postal_code: a.zip,
+      city: a.city, state_region: a.region ?? '', country: a.country,
     }));
   }
 
@@ -93,26 +90,9 @@ export function ContactSection({ profile, onSave }: Props) {
 
         <div style={{ height: 1, background: '#F1F5F9' }} />
 
-        <div className="grid grid-cols-1 gap-4">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
-              Strasse und Hausnummer
-              {!form.address_line1.trim() && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
-            </label>
-            <AddressAutocomplete apiKey={mapsKey} value={form.address_line1}
-              onChange={(v) => set('address_line1', v)} onPick={applyAddress} placeholder="Adresse suchen (z. B. Musterstrasse 12, Zürich)" />
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Adresse eintippen und Vorschlag wählen – PLZ/Ort/Land werden automatisch ergänzt.</p>
-          </div>
-          <Field label="Adresszusatz" value={form.address_line2} onChange={(v) => set('address_line2', v)} placeholder="c/o, Postfach…" onEnter={saveNow} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="PLZ" value={form.postal_code} onChange={(v) => set('postal_code', v)} placeholder="8000" required={!form.postal_code.trim()} onEnter={saveNow} />
-          <Field label="Ort" value={form.city} onChange={(v) => set('city', v)} placeholder="Zürich" required={!form.city.trim()} onEnter={saveNow} />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Region" value={form.state_region} onChange={(v) => set('state_region', v)} placeholder="Kanton, Bundesland, Region…" onEnter={saveNow} />
-          <SelectField label="Land" value={form.country} onChange={(v) => set('country', v)} options={COUNTRIES} />
-        </div>
+        <AddressField
+          value={address} onChange={applyAddress} apiKey={mapsKey}
+          countryOptions={COUNTRIES} showStreet2 showRegion label="Wohnadresse" />
       </div>
     </div>
   );
