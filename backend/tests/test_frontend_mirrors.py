@@ -91,3 +91,40 @@ def test_location_labels_cover_every_type():
     assert set(meta) == set(LOCATION_TYPES), (
         f"LOCATION_META deckt {sorted(meta)} ab, gültig sind {sorted(LOCATION_TYPES)}"
     )
+
+
+# ─── ERP-First ────────────────────────────────────────────────────────────────────
+
+def test_erp_record_can_edit_everything_the_person_can():
+    """**ERP ist Master:** am ERP-Benutzer-Datensatz muss ALLES änderbar sein, was die
+    Person in ihrem Konto selbst pflegen kann – plus die Anstellungsdaten.
+
+    Vorher war ``ErpAdminUpdate`` eine schmale Extra-Liste (Rolle, Abteilung, Titel,
+    Eintritt, Pensum). Name, Adresse, Firmenangaben und Bankverbindung konnte das ERP
+    nur ANZEIGEN; ändern konnte sie allein die Person im Konto – die Wahrheit lag also
+    ausserhalb des ERP, genau verkehrt herum."""
+    from app.schemas.admin import ErpAdminUpdate, UserProfileUpdate
+
+    self_service = set(UserProfileUpdate.model_fields)
+    erp = set(ErpAdminUpdate.model_fields)
+    assert self_service <= erp, (
+        "Das ERP kann diese Felder NICHT ändern, die Person aber schon: "
+        f"{sorted(self_service - erp)}"
+    )
+    # … und die Anstellungsdaten bleiben dem ERP vorbehalten (nicht selbst änderbar).
+    assert {"role", "department", "job_title", "employment_start_date", "weekly_hours"} <= erp - self_service
+
+
+def test_both_profile_write_paths_share_one_implementation():
+    """Konto-Selbstbedienung und ERP-Datensatz beschreiben denselben Datensatz – und
+    jetzt über denselben Pfad (inkl. Audit-Log). Vorher protokollierte nur das ERP:
+    eine im Konto geänderte IBAN hinterliess keine Spur."""
+    import inspect
+
+    from app.routers import auth as auth_router, erp as erp_router
+    from app.services import people
+
+    for src in (inspect.getsource(auth_router.update_me),
+                inspect.getsource(erp_router.update_erp_record)):
+        assert "apply_profile_update" in src
+    assert "log_audit" in inspect.getsource(people.apply_profile_update)
