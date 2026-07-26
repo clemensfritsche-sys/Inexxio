@@ -233,8 +233,15 @@ class UserRoleUpdate(BaseModel):
     role: Role
 
 
-class ErpAdminUpdate(BaseModel):
-    """Fields an admin may change from the ERP panel."""
+class ErpAdminUpdate(UserProfileUpdate):
+    """Was am **ERP-Benutzer-Datensatz** änderbar ist.
+
+    **ERP ist Master:** das sind ALLE Felder, die die Person selbst pflegen kann
+    (geerbt von ``UserProfileUpdate``) **plus** die Anstellungsdaten. Vorher war
+    dies eine schmale Extra-Liste – das ERP konnte Name, Adresse, Firmenangaben und
+    Bankverbindung nur ANZEIGEN, editieren konnte sie allein die Person in ihrem
+    Konto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.
+    Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen."""
     # FIX: ``role`` war hier ein freier String (anders als beim Rollen-Endpoint) – ein
     # Tippfehler wie "empoyee" hätte den Benutzer still aus allen Staff-Endpunkten
     # ausgesperrt (Rollen werden exakt verglichen). Jetzt dieselbe Literal-Whitelist.

@@ -93,6 +93,12 @@ sie besitzen nicht. Konkret:
   Datensatz über denselben Endpunkt, nicht eine zweite Wahrheit.
 - Beim Anfassen einer Oberfläche prüfen: *Gibt es diese Eingabe schon woanders?* Wenn ja,
   die schwächere Stelle zum Spiegel machen, statt die Logik zu duplizieren.
+- **Das ERP muss ALLES können**, was aussenrum geht – nicht nur anzeigen. Konkret am
+  Benutzer: `ErpAdminUpdate` **erbt** von `UserProfileUpdate` (alles, was die Person selbst
+  pflegt) und ergänzt die Anstellungsdaten. Geprüft in `tests/test_frontend_mirrors.py`.
+- Schreiben beide Oberflächen denselben Datensatz, tun sie es über **denselben Pfad**
+  (`people.apply_profile_update` – gleiche Zuweisung, gleiches Audit-Log). Sonst ist eine
+  Änderung je nach Herkunft nachvollziehbar oder eben nicht.
 
 ### Eine Sache, eine Stelle
 Gleiches gleich behandeln: gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine**

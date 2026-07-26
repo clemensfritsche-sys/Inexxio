@@ -121,6 +121,13 @@ export function Sec({ title, children, editable, icon: Icon }: {
 type GetVal = (k: keyof UserProfile) => string | boolean | null | undefined;
 type SetVal = (k: keyof UserProfile) => (v: string | boolean) => void;
 
+/** **ERP ist Master:** ein Feld ist hier editierbar, sobald die Person Admin ist –
+ *  dieselben Felder, die die Person im Konto selbst pflegt. Spart 25× dieselbe
+ *  Ternär-Zeile und hält die Regel an EINER Stelle. */
+function ed(set: SetVal, isAdmin: boolean, key: keyof UserProfile) {
+  return isAdmin ? set(key) : undefined;
+}
+
 function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; record: UserProfile; isAdmin: boolean }) {
   const isSupplier = record.role === 'supplier';
   const isB2B      = record.role === 'supplier' || record.role === 'customer';
@@ -144,52 +151,56 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
         </div>
       </Sec>
 
-      <Sec title="Personalien" icon={User}>
-        <Field label="Vorname"      val={v('first_name')}    ro />
-        <Field label="Nachname"     val={v('last_name')}     ro />
-        <Field label="Geburtsdatum" val={v('date_of_birth')} type="date" ro />
-        <Field label="Telefon"      val={v('phone')}         ro />
+      <Sec title="Personalien" editable={isAdmin} icon={User}>
+        <Field label="Vorname"      val={v('first_name')}    onChange={ed(set, isAdmin, 'first_name')}    ro={!isAdmin} />
+        <Field label="Nachname"     val={v('last_name')}     onChange={ed(set, isAdmin, 'last_name')}     ro={!isAdmin} />
+        <Field label="Geburtsdatum" val={v('date_of_birth')} onChange={ed(set, isAdmin, 'date_of_birth')} type="date" ro={!isAdmin} />
+        <Field label="Telefon"      val={v('phone')}         onChange={ed(set, isAdmin, 'phone')}         ro={!isAdmin} />
       </Sec>
 
-      <Sec title="Adresse" icon={MapPin}>
-        <Field label="Adresszeile 1" val={v('address_line1')}              ro />
-        <Field label="Adresszeile 2" val={v('address_line2')}              ro />
-        <Field label="PLZ"           val={v('postal_code')}                ro />
-        <Field label="Ort"           val={v('city')}                       ro />
-        <Field label="Region"        val={v('state_region')}               ro />
-        <Field label="Land"          val={countryName(v('country') as string)} ro />
+      <Sec title="Adresse" editable={isAdmin} icon={MapPin}>
+        <Field label="Adresszeile 1" val={v('address_line1')}  onChange={ed(set, isAdmin, 'address_line1')}  ro={!isAdmin} />
+        <Field label="Adresszeile 2" val={v('address_line2')}  onChange={ed(set, isAdmin, 'address_line2')}  ro={!isAdmin} />
+        <Field label="PLZ"           val={v('postal_code')}    onChange={ed(set, isAdmin, 'postal_code')}    ro={!isAdmin} />
+        <Field label="Ort"           val={v('city')}           onChange={ed(set, isAdmin, 'city')}           ro={!isAdmin} />
+        <Field label="Region"        val={v('state_region')}   onChange={ed(set, isAdmin, 'state_region')}   ro={!isAdmin} />
+        {isAdmin
+          ? <Field label="Land" val={v('country')} onChange={ed(set, isAdmin, 'country')} />
+          : <Field label="Land" val={countryName(v('country') as string)} ro />}
       </Sec>
 
       {isB2B && (
-        <Sec title="Rechnungsadresse" icon={Building2}>
-          <Field label="Firma"            val={v('invoice_company')}       ro />
+        <Sec title="Rechnungsadresse" editable={isAdmin} icon={Building2}>
+          <Field label="Firma"            val={v('invoice_company')} onChange={ed(set, isAdmin, 'invoice_company')} ro={!isAdmin} />
           <div />
-          <Field label="Vorname"          val={v('invoice_first_name')}    ro />
-          <Field label="Nachname"         val={v('invoice_last_name')}     ro />
-          <Field label="Adresszeile 1"    val={v('invoice_address_line1')} ro />
-          <Field label="Adresszeile 2"    val={v('invoice_address_line2')} ro />
-          <Field label="PLZ"              val={v('invoice_postal_code')}   ro />
-          <Field label="Ort"              val={v('invoice_city')}          ro />
-          <Field label="Land"             val={countryName(v('invoice_country') as string)} ro />
-          <Field label="Rechnungs-E-Mail" val={v('invoice_email')} type="email" ro />
-          <Field label="Gleich wie Adresse" val={v('invoice_same_as_shipping')} type="check" span2 ro />
+          <Field label="Vorname"          val={v('invoice_first_name')} onChange={ed(set, isAdmin, 'invoice_first_name')} ro={!isAdmin} />
+          <Field label="Nachname"         val={v('invoice_last_name')} onChange={ed(set, isAdmin, 'invoice_last_name')} ro={!isAdmin} />
+          <Field label="Adresszeile 1"    val={v('invoice_address_line1')} onChange={ed(set, isAdmin, 'invoice_address_line1')} ro={!isAdmin} />
+          <Field label="Adresszeile 2"    val={v('invoice_address_line2')} onChange={ed(set, isAdmin, 'invoice_address_line2')} ro={!isAdmin} />
+          <Field label="PLZ"              val={v('invoice_postal_code')} onChange={ed(set, isAdmin, 'invoice_postal_code')} ro={!isAdmin} />
+          <Field label="Ort"              val={v('invoice_city')} onChange={ed(set, isAdmin, 'invoice_city')} ro={!isAdmin} />
+          {isAdmin
+            ? <Field label="Land" val={v('invoice_country')} onChange={ed(set, isAdmin, 'invoice_country')} />
+            : <Field label="Land" val={countryName(v('invoice_country') as string)} ro />}
+          <Field label="Rechnungs-E-Mail" val={v('invoice_email')} onChange={ed(set, isAdmin, 'invoice_email')} type="email" ro={!isAdmin} />
+          <Field label="Gleich wie Adresse" val={v('invoice_same_as_shipping')} onChange={ed(set, isAdmin, 'invoice_same_as_shipping')} type="check" span2 ro={!isAdmin} />
         </Sec>
       )}
 
       {isB2B && (
-        <Sec title="Unternehmen" icon={Building2}>
-          <Field label="Firmenname"       val={v('company_name')}          ro />
-          <Field label="UID-Nummer"       val={v('uid_number')}            ro />
-          <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} type="email" ro />
+        <Sec title="Unternehmen" editable={isAdmin} icon={Building2}>
+          <Field label="Firmenname"       val={v('company_name')} onChange={ed(set, isAdmin, 'company_name')} ro={!isAdmin} />
+          <Field label="UID-Nummer"       val={v('uid_number')} onChange={ed(set, isAdmin, 'uid_number')} ro={!isAdmin} />
+          <Field label="Rechnungs-E-Mail" val={v('company_billing_email')} onChange={ed(set, isAdmin, 'company_billing_email')} type="email" ro={!isAdmin} />
         </Sec>
       )}
 
       {isSupplier && (
-        <Sec title="Bankverbindung">
-          <Field label="Kontoinhaber" val={v('bank_account_holder')} ro />
-          <Field label="Bank"         val={v('bank_name')}           ro />
-          <Field label="IBAN"         val={v('bank_iban')}           ro />
-          <Field label="BIC/SWIFT"    val={v('bank_bic')}            ro />
+        <Sec title="Bankverbindung" editable={isAdmin}>
+          <Field label="Kontoinhaber" val={v('bank_account_holder')} onChange={ed(set, isAdmin, 'bank_account_holder')} ro={!isAdmin} />
+          <Field label="Bank"         val={v('bank_name')} onChange={ed(set, isAdmin, 'bank_name')} ro={!isAdmin} />
+          <Field label="IBAN"         val={v('bank_iban')} onChange={ed(set, isAdmin, 'bank_iban')} ro={!isAdmin} />
+          <Field label="BIC/SWIFT"    val={v('bank_bic')} onChange={ed(set, isAdmin, 'bank_bic')} ro={!isAdmin} />
         </Sec>
       )}
 
@@ -204,9 +215,9 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
 
       <Sec title="Einstellungen" icon={Settings}>
         <div className="col-span-2 flex flex-wrap gap-4">
-          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  type="check" ro />
-          <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} type="check" ro />
-          <Field label="Newsletter"                  val={v('newsletter_opt_in')} type="check" ro />
+          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  onChange={ed(set, isAdmin, 'notification_email')}  type="check" ro={!isAdmin} />
+          <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} onChange={ed(set, isAdmin, 'notification_inapp')} type="check" ro={!isAdmin} />
+          <Field label="Newsletter"                  val={v('newsletter_opt_in')} onChange={ed(set, isAdmin, 'newsletter_opt_in')} type="check" ro={!isAdmin} />
         </div>
       </Sec>
 

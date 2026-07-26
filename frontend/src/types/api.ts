@@ -3359,9 +3359,76 @@ export interface components {
         };
         /**
          * ErpAdminUpdate
-         * @description Fields an admin may change from the ERP panel.
+         * @description Was am **ERP-Benutzer-Datensatz** änderbar ist.
+         *
+         *     **ERP ist Master:** das sind ALLE Felder, die die Person selbst pflegen kann
+         *     (geerbt von ``UserProfileUpdate``) **plus** die Anstellungsdaten. Vorher war
+         *     dies eine schmale Extra-Liste – das ERP konnte Name, Adresse, Firmenangaben und
+         *     Bankverbindung nur ANZEIGEN, editieren konnte sie allein die Person in ihrem
+         *     Konto. Damit lag die Wahrheit ausserhalb des ERP, also genau verkehrt herum.
+         *     Durch die Vererbung kann die Liste auch nicht mehr auseinanderlaufen.
          */
         ErpAdminUpdate: {
+            /** First Name */
+            first_name?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Date Of Birth */
+            date_of_birth?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** City */
+            city?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** State Region */
+            state_region?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Invoice Company */
+            invoice_company?: string | null;
+            /** Invoice First Name */
+            invoice_first_name?: string | null;
+            /** Invoice Last Name */
+            invoice_last_name?: string | null;
+            /** Invoice Address Line1 */
+            invoice_address_line1?: string | null;
+            /** Invoice Address Line2 */
+            invoice_address_line2?: string | null;
+            /** Invoice City */
+            invoice_city?: string | null;
+            /** Invoice Postal Code */
+            invoice_postal_code?: string | null;
+            /** Invoice Country */
+            invoice_country?: string | null;
+            /** Invoice Email */
+            invoice_email?: string | null;
+            /** Invoice Same As Shipping */
+            invoice_same_as_shipping?: boolean | null;
+            /** Company Name */
+            company_name?: string | null;
+            /** Uid Number */
+            uid_number?: string | null;
+            /** Company Billing Email */
+            company_billing_email?: string | null;
+            /** Bank Account Holder */
+            bank_account_holder?: string | null;
+            /** Bank Iban */
+            bank_iban?: string | null;
+            /** Bank Bic */
+            bank_bic?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Notification Email */
+            notification_email?: boolean | null;
+            /** Notification Inapp */
+            notification_inapp?: boolean | null;
+            /** Newsletter Opt In */
+            newsletter_opt_in?: boolean | null;
             /** Role */
             role?: ("admin" | "employee" | "supplier" | "customer") | null;
             /** Department */

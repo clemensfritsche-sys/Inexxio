@@ -8,7 +8,7 @@ from ..core.database import get_db
 from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..schemas.shop import CustomerOrder
-from ..services import selling as selling_svc
+from ..services import people, selling as selling_svc
 from ..services.admin import log_audit
 from ..services.objects import next_object_ids, resolve_object_type
 
@@ -110,14 +110,7 @@ async def update_erp_record(
     # System-KI-Identität (ADR 004): Rolle ist fix – der Rest (Anzeige-Daten) bleibt editierbar.
     if user.role == "ai" and data.model_dump(exclude_unset=True).get("role") not in (None, "ai"):
         raise HTTPException(409, detail="Die System-KI-Identität kann keine andere Rolle erhalten")
-    for key, value in data.model_dump(exclude_unset=True).items():
-        old_val = getattr(user, key, None)
-        old_str = str(old_val) if old_val is not None else None
-        new_str = str(value) if value is not None else None
-        if old_str != new_str:
-            log_audit(db, "user_profiles", key, new_str, current_user.id,
-                      object_id=user.object_id, old_value=old_str)
-        setattr(user, key, value)
+    people.apply_profile_update(db, user, data, current_user.id)
     db.commit()
     db.refresh(user)
     return UserProfileResponse.model_validate(user)
