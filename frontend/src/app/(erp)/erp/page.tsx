@@ -25,6 +25,10 @@ import { OrganizationDetail } from '@/components/erp/organization-detail';
 // Typ-Metadaten (Label, Symbol, Symbolfarbe) + Filter-Reihenfolge sind mit dem Detail
 // geteilt – EINE Quelle der Wahrheit für die Typ-Identität: lib/erp-record.ts.
 const INSTANCE_PAGE = 100;   // Seitengrösse des server-paginierten Instanz-Feeds
+// Ab wann gilt der Feed nach einer Pause als veraltet und wird bei der Rückkehr (Tab wieder
+// sichtbar / Fenster fokussiert) EINMAL nachgeladen. Bewusst kein Polling – das kostet
+// Cloud-Run-Zeit, ohne dass jemand hinschaut.
+const STALE_AFTER_MS = 60_000;
 
 type Row =
   | { type: 'user'; key: string; objectId: number | null; data: UserProfile }
@@ -69,9 +73,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
-  // Unternehmen ist ein Stammdaten-Singleton ohne Lebenszyklus – neutrales Identitäts-Badge
-  // (warmes Grau, Tokens) statt einer Ampelfarbe.
-  else badge = { label: 'Stammdaten', color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Building2 };
+  // Unternehmen ist ein aktiver Stammdaten-Singleton → GRÜN (wie ein aktiver Benutzer),
+  // kein Grau (das läse sich als «aus»).
+  else badge = { label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 };
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
@@ -154,6 +158,7 @@ export default function ErpPage() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   // Aktueller «mehr laden»-Handler (immer frisch, vom Sentinel-Observer aufgerufen).
   const loadMoreRef = useRef<() => void>(() => {});
+  const lastLoadRef = useRef<number>(0);   // Zeitpunkt des letzten Feed-Ladens (Rückkehr-Refresh)
 
   const mapsApiKey = settings?.google_maps_api_key ?? null;
   const suppliers = users.filter((u) => u.role === 'supplier');
@@ -164,6 +169,7 @@ export default function ErpPage() {
   useEffect(() => {
     // Kern-Feeds (geringe Kardinalität) blockierend laden – die Shell erscheint
     // sofort. Instanzen (höchste Kardinalität) danach nachladen.
+    lastLoadRef.current = Date.now();
     Promise.allSettled([
       api.getErpRecords(), api.getArticles(), api.getOrders(), api.getMe(),
     ]).then(([u, a, o, me]) => {
@@ -224,14 +230,30 @@ export default function ErpPage() {
   useEffect(() => {
     const q = search.trim();
     function onDataChanged() {
+      lastLoadRef.current = Date.now();
       api.getErpRecords().then(setUsers).catch(() => {});
       api.getArticles().then(setArticles).catch(() => {});
       api.getOrders().then(setOrders).catch(() => {});
       api.getInstances(INSTANCE_PAGE, 0, q).then(setInstances).catch(() => {});
       api.getInstanceCount(q).then((r) => setInstanceTotal(r.count)).catch(() => {});
     }
+    // **Rückkehr nach Pause**: Der Feed war ein Schnappschuss vom Seitenaufbau – wer das ERP
+    // ein paar Minuten liegen liess, sah alte Daten (und musste F5 drücken). Jetzt lädt er
+    // beim Zurückkommen nach, aber NUR wenn er wirklich veraltet ist (Schwelle unten) –
+    // kein Polling, kein Traffic beim kurzen Tab-Wechsel: ein Nachladen je Rückkehr.
+    function onBack() {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastLoadRef.current < STALE_AFTER_MS) return;
+      onDataChanged();
+    }
     window.addEventListener(DATA_CHANGED_EVENT, onDataChanged);
-    return () => window.removeEventListener(DATA_CHANGED_EVENT, onDataChanged);
+    document.addEventListener('visibilitychange', onBack);
+    window.addEventListener('focus', onBack);
+    return () => {
+      window.removeEventListener(DATA_CHANGED_EVENT, onDataChanged);
+      document.removeEventListener('visibilitychange', onBack);
+      window.removeEventListener('focus', onBack);
+    };
   }, [search]);
 
   // Auftrag-Detail (inkl. Prozess-Embeds) erst bei Auswahl laden (Detail-on-Demand)

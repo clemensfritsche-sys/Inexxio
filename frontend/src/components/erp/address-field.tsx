@@ -79,6 +79,7 @@ export function AddressField({
   const usable = loaded && !error;
   const [manual, setManual] = useState(false);
   const [searching, setSearching] = useState(!hasAddress(value));
+  const [street2Open, setStreet2Open] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
@@ -201,9 +202,16 @@ export function AddressField({
           <div style={ST.line2}>{countryLabel}</div>
         </div>
       </div>
-      {showStreet2 && (
-        <Input label="Adresszusatz" value={value.street2 ?? ''} onChange={set('street2')} wide />
-      )}
+      {/* Adresszusatz (c/o, Postfach, Stockwerk) ist die Ausnahme, nicht die Regel – er wird
+          real für Lieferetiketten gebraucht, soll aber nicht als leeres Dauerfeld Fläche kosten.
+          Darum: nur zeigen, wenn befüllt oder ausdrücklich gewünscht. */}
+      {showStreet2 && (value.street2 || street2Open ? (
+        <Input label="Adresszusatz (c/o, Postfach)" value={value.street2 ?? ''} onChange={set('street2')} wide />
+      ) : (
+        <button type="button" onClick={() => setStreet2Open(true)} style={ST.escape}>
+          + Adresszusatz
+        </button>
+      ))}
     </div>
   );
 }

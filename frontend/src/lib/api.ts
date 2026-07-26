@@ -24,9 +24,23 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 class ApiClient {
   private token: string | null = null;
+  /**
+   * Liefert einen **frischen** Token (Firebase erneuert bei Bedarf selbst). Wird von der
+   * Auth-Schicht registriert, damit `api.ts` frei von Firebase-Abhängigkeiten bleibt.
+   *
+   * Hintergrund: `token` ist ein Schnappschuss vom letzten `onIdTokenChanged`. Firebase
+   * erneuert proaktiv per Timer – der wird in einem **Hintergrund-Tab gedrosselt** und im
+   * Ruhezustand des Geräts gar nicht ausgeführt. Kommt der Nutzer nach längerer Pause
+   * zurück, ist der Schnappschuss abgelaufen → jede Anfrage 401. Genau dafür ist das hier.
+   */
+  private tokenProvider: (() => Promise<string | null>) | null = null;
 
   setToken(token: string) {
     this.token = token;
+  }
+
+  setTokenProvider(fn: () => Promise<string | null>) {
+    this.tokenProvider = fn;
   }
 
   clearToken() {
@@ -49,6 +63,7 @@ class ApiClient {
     const idempotent = method === 'GET' || method === 'HEAD';
     const MAX_ATTEMPTS = 3;
     let lastError: Error = new Error('Keine Verbindung zum Server');
+    let refreshed = false;   // Token-Erneuerung: höchstens EINMAL je Anfrage
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       let response: Response;
@@ -64,6 +79,20 @@ class ApiClient {
       if (response.ok) {
         if (response.status === 204) return {} as T;
         return response.json() as Promise<T>;
+      }
+
+      // 401 = Token abgelaufen (typisch nach längerer Pause / Ruhezustand). EINMAL einen
+      // frischen Token holen und dieselbe Anfrage wiederholen, statt den Fehler nach oben
+      // zu geben (wo er bisher als «keine Daten» endete). Kostet im Normalfall NICHTS –
+      // der Pfad läuft nur, wenn tatsächlich ein 401 kam.
+      if (response.status === 401 && !refreshed && this.tokenProvider) {
+        refreshed = true;
+        const fresh = await this.tokenProvider().catch(() => null);
+        if (fresh) {
+          this.token = fresh;
+          headers['Authorization'] = `Bearer ${fresh}`;
+          continue;   // zählt als Versuch – kein Backoff nötig, der Server war erreichbar
+        }
       }
 
       const retriable = response.status === 502 || response.status === 503

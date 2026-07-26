@@ -1003,18 +1003,36 @@ def test_purchase_is_commercial_only_and_movements_planned():
     assert not hasattr(purchase, "_resolve_received_location")
 
     P = ("purchase", "supplier")
-    # Beschaffung als erster Schritt → nur Wareneingang danach (kein Versand)
+    # Beschaffung als erster Schritt → nur Wareneingang danach
     assert _plan([P]) == ["purchase", "wareneingang"]
-    # Beschaffung mitten im Prozess (Lohnveredelung) → Versand DAVOR + Wareneingang DANACH
-    assert _plan([("resource", None), P, ("inspection", None)]) == \
-        ["resource", "versand", "purchase", "wareneingang", "inspection"]
     # Aufeinanderfolgende Beschaffungen: keine doppelte Bewegung dazwischen
     assert _plan([P, P]) == ["purchase", "wareneingang", "purchase", "wareneingang"]
     # Ohne Beschaffung keine Pflicht-Bewegung
     assert _plan([("resource", None), ("inspection", None)]) == ["resource", "inspection"]
-    # Webshop-Beschaffung bekommt keinen Versand (kein Lieferant zum Hinsenden)
+    # Webshop-Beschaffung: gleicher Plan wie beim Lieferanten
     assert _plan([("resource", None), ("purchase", "webshop")]) == \
         ["resource", "purchase", "wareneingang"]
+
+
+def test_every_step_module_behaves_the_same_at_any_position():
+    """**Jedes Modul steht für sich.** Ein Schritttyp verhält sich an JEDER Position gleich –
+    es gibt keine Regel mehr, die aus derselben Konfiguration je nach Reihenfolge etwas
+    anderes macht.
+
+    Vorher erzeugte eine Lieferanten-Beschaffung ab Position 2 zusätzlich einen gesperrten
+    «Versand zum Lieferanten» (an Position 1 dagegen nicht) – und eine selbst angelegte
+    Bewegung davor unterdrückte ihn nicht einmal (die Prüfung kannte nur die Pflicht-Marker),
+    was zwei Bewegungen hintereinander ergab."""
+    from app.services.process_steps import _plan
+
+    P = ("purchase", "supplier")
+    # Dieselbe Beschaffung, drei Positionen → immer exakt dieselbe Ergänzung.
+    assert _plan([P]) == ["purchase", "wareneingang"]
+    assert _plan([("resource", None), P]) == ["resource", "purchase", "wareneingang"]
+    assert _plan([("resource", None), ("inspection", None), P]) == \
+        ["resource", "inspection", "purchase", "wareneingang"]
+    # Eine eigene Bewegung vor der Beschaffung bleibt die EINZIGE Bewegung davor.
+    assert _plan([("movement", None), P]) == ["movement", "purchase", "wareneingang"]
 
 
 def test_resource_embed_per_product_breakdown():

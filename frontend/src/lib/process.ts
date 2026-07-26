@@ -72,17 +72,17 @@ export function toStepperState(state: string): StepState {
 
 // Anzeige-Projektion der ZWEI Achsen (quality + disposition) auf EINE Badge.
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
-// am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
+// am Lager (passed+in_stock) ≻ sonst «In Arbeit». Das Datenmodell bleibt getrennt;
 // nur die Darstellung fasst beides zu einem Status zusammen.
-// Reine Ampel (TONE): «Im Prozess»/«Reserviert» = GELB (in Arbeit/gebunden), «Freigegeben»
-// = GRÜN (am Lager, frei). Terminal: «Verbraucht»/«Verkauft» = GRÜN (positiv erfüllt),
+// Reine Ampel (TONE): «In Arbeit»/«Reserviert» = GELB (läuft/gebunden), «Freigegeben»
+// = GRÜN (am Lager, frei). Terminal: «Verbaut»/«Verkauft» = GRÜN (positiv erfüllt),
 // «Gesperrt»/«Verschrottet» = ROT (Ampel auf «Stopp», nicht mehr verwendbar).
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
-  in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Clock },
+  in_process: { label: 'In Arbeit',    ...TONE.pending, icon: Clock },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
   reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
   failed:     { label: 'Gesperrt',     ...TONE.danger,  icon: XCircle },
-  consumed:   { label: 'Verbraucht',   ...TONE.done,    icon: PackageMinus },
+  consumed:   { label: 'Verbaut',      ...TONE.done,    icon: PackageMinus },
   scrapped:   { label: 'Verschrottet', ...TONE.danger,  icon: Trash2 },
   sold:       { label: 'Verkauft',     ...TONE.done,    icon: Banknote },
 };

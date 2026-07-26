@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -268,6 +268,19 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   async function setLineMode(l: PinLine, m: 'fifo' | 'specific') {
     setLineModes((prev) => ({ ...prev, [l.key]: m }));
     if (m === 'fifo' && l.pinnedIds.length > 0) await setLinePins(l, []);
+  }
+
+  // ── EINE Quellen-Wahl je Position ────────────────────────────────────────────────
+  // Einzel-Artikel und Mehrpositionen benutzen dieselbe Zeile und denselben Umschalter –
+  // vorher waren das zwei völlig verschiedene Oberflächen (grosse Ziel-Karten vs. Segment-
+  // Umschalter), sodass das Hinzufügen einer Position das ganze Fenster umbaute.
+  function lineSource(l: PinLine): OrderGoal {
+    if (isMultiPosition) return lineMode(l) === 'specific' ? 'specific' : 'stock';
+    return goal;
+  }
+  async function setLineSource(l: PinLine, s: OrderGoal) {
+    if (isMultiPosition) { await setLineMode(l, s === 'specific' ? 'specific' : 'fifo'); return; }
+    await pickGoal(s);
   }
 
   // «Instanz wählen» verlangt, dass die gewählten Instanzen die Menge GENAU decken. Bei einem
@@ -651,53 +664,73 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             </div>
           </div>
         )}
-        {/* Bedarf – Einzel-Artikel (wie gewohnt: Artikel + Menge) ODER, sobald mindestens
-            eine weitere Position hinzugefügt wurde, die Liste der Positionen. Weitere
-            Positionen lassen sich JEDERZEIT ergänzen (auch nach dem ersten Speichern). */}
+        {/* ── Bedarf: Positionen + Quelle in EINEM Container ────────────────────────
+            Eine Position ist EINE Zeile: Artikel · Menge · woher. Dieselbe Zeile für den
+            Einzel-Artikel-Auftrag wie für den Mehrpositionen-Auftrag – eine Position
+            hinzuzufügen baut das Fenster nicht mehr um, es kommt schlicht eine Zeile dazu. */}
         <SectionTitle>Bedarf</SectionTitle>
         <div style={cardStyle}>
           {demandEditable ? (
             <>
               {isMultiPosition ? (
-                <PositionsList lines={orderLines} onRemove={removePosition} />
+                orderLines.map((l) => {
+                  const line = pinLines.find((p) => p.lineId === l.id);
+                  return (
+                    <PositionRow key={l.id} line={line} unit={l.article_unit ? unitLabel(l.article_unit) : ''}
+                      title={l.article_name ?? `Artikel #${l.article_id}`} articleObjectId={l.article_object_id ?? null}
+                      qty={String(l.quantity)} canProduce={false}
+                      onRemove={orderLines.length > 1 ? () => removePosition(l.id) : undefined}
+                      source={line ? lineSource(line) : 'stock'}
+                      onSource={(s) => line && setLineSource(line, s)}
+                      onToggle={togglePin} />
+                  );
+                })
               ) : (
-                <>
-                  <SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />
-                  {isCreate && releasedArticles.length === 0 && (
-                    <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px' }}>
-                      Kein freigegebener Artikel vorhanden. Nur freigegebene Artikel sind referenzierbar.
-                    </div>
-                  )}
-                </>
+                <PositionRow
+                  line={pinLines[0]} unit={qtyUnit} canProduce={canProduce}
+                  produceHint="Der Ablauf unten wirkt auf vorhandenen Bestand – für Neuerzeugung diese Schritte entfernen"
+                  articleSelect={<SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />}
+                  qtyInput={<TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />}
+                  qty={form.quantity}
+                  source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin} />
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: isMultiPosition ? '1fr' : 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 14 }}>
-                {!isMultiPosition && (
-                  <TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />
-                )}
-                <div>
-                  <Label>Wunsch-Liefertermin</Label>
-                  {dateOpen ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <input type="date" value={form.desired_delivery_date} min={todayIso()} onChange={(e) => set('desired_delivery_date', e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent" style={{ borderColor: '#e2e8f0' }} />
-                      <button type="button" onClick={() => { setDateOpen(false); set('desired_delivery_date', ''); }}
-                        style={linkBtn}>Schnellstmöglich (kein Datum)</button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>Schnellstmöglich</span>
-                      <button type="button" onClick={() => setDateOpen(true)} style={linkBtn}>Termin festlegen</button>
-                    </div>
-                  )}
+
+              {isCreate && releasedArticles.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--warning)', background: 'var(--warning-bg)', borderRadius: 8, padding: '8px 10px' }}>
+                  Kein freigegebener Artikel vorhanden – nur freigegebene sind referenzierbar.
                 </div>
-              </div>
-              {/* Weitere Position: erst möglich, sobald der Auftrag existiert (die erste
-                  Position entsteht wie gewohnt über Artikel/Menge oben + Auto-Save). */}
+              )}
+
+              {/* Verkaufte Ware wählen ⇒ der Auftrag wird zur Retoure/Erstattung. */}
+              {!isMultiPosition && goal === 'specific' && soldPool.length > 0 && (
+                <RefundSubjectPicker sold={soldPool} value={refundIds} onChange={setRefundIds}
+                  onConfirm={() => bindRefund(refundIds)} error={error} />
+              )}
+
+              {/* Weitere Position: erst möglich, sobald der Auftrag existiert. */}
               {!isCreate && record?.status === 'draft' && (
                 <AddPositionRow articles={releasedArticles}
                   excludeArticleIds={isMultiPosition ? orderLines.map((l) => l.article_id) : (record?.article_id != null ? [record.article_id] : [])}
                   onAdd={addPosition} />
               )}
+
+              {/* Termin – eine Zeile, kein eigenes Feld-Raster. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
+                <CalendarClock size={15} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
+                <span style={{ color: 'var(--fg-3)' }}>Termin</span>
+                {dateOpen ? (
+                  <>
+                    <input type="date" value={form.desired_delivery_date} min={todayIso()} onChange={(e) => set('desired_delivery_date', e.target.value)}
+                      className="px-2 py-1 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent" style={{ borderColor: 'var(--border-1)' }} />
+                    <button type="button" onClick={() => { setDateOpen(false); set('desired_delivery_date', ''); }} style={linkBtn}>schnellstmöglich</button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontWeight: 600, color: 'var(--fg-1)' }}>Schnellstmöglich</span>
+                    <button type="button" onClick={() => setDateOpen(true)} style={linkBtn}>Datum</button>
+                  </>
+                )}
+              </div>
             </>
           ) : (
             <>
@@ -763,132 +796,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           </>
         )}
 
-        {/* Ziel der Auftragsanlage – «Was möchten Sie tun?» (DAU-sicher: Symbol + Farbe +
-            Klartext, Live-Verfügbarkeit, unmögliche Optionen deaktiviert mit Begründung).
-            Bei mehreren Positionen scheidet «Herstellen» aus (kein EINER Artikel-Prozess,
-            den ein Mehrpositionen-Auftrag fahren könnte) – nur FIFO oder Instanz wählen. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && !isMultiPosition && (
+        {/* ── Ablauf ──────────────────────────────────────────────────────────────
+            Bei «Erzeugen» braucht es keine eigenen Schritte (der Artikel-Prozess läuft);
+            sonst legt der Ablauf fest, was mit dem Bestand geschieht. */}
+        {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
           <>
-            <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 12 }}>
-              <GoalCard icon={Factory} active={goal === 'produce'}
-                disabled={!canProduce}
-                disabledHint={'Der Ablauf unten wirkt auf vorhandenen Bestand – für Neuherstellung erst diese Schritte entfernen'}
-                title="Herstellen / Beschaffen"
-                desc={`Bei Freigabe entstehen ${reqQty || ''} ${qtyUnit} neu – der Prozess des Artikels wird gefahren.`}
-                footer="Neuer Bestand"
-                onClick={() => pickGoal('produce')} />
-              <GoalCard icon={Warehouse} active={goal === 'stock'}
-                disabled={!enoughStock}
-                disabledHint={availableQty < 1 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
-                title="Aus dem Lager"
-                desc={'Vorhandene Stück verarbeiten – das System wählt automatisch die ältesten (FIFO).'}
-                footer={`Lager: ${availableQty} ${qtyUnit} verfügbar`}
-                onClick={() => pickGoal('stock')} />
-              <GoalCard icon={Target} active={goal === 'specific'}
-                disabled={!enoughStock && soldPool.length === 0}
-                disabledHint={availableQty < 1 && soldPool.length === 0 ? 'Kein Bestand vorhanden' : `Nur ${availableQty} ${qtyUnit} am Lager (${reqQty} benötigt)`}
-                title={soldPool.length > 0 ? 'Instanz wählen / Retoure' : 'Instanz wählen'}
-                desc={'Genau wählen, welche Instanzen verarbeitet werden – auch VERKAUFTE Ware (→ Retoure/Erstattung).'}
-                footer={soldPool.length > 0 ? `Lager: ${availableQty} · verkauft: ${soldPool.length}` : `Lager: ${availableQty} ${qtyUnit} verfügbar`}
-                onClick={() => pickGoal('specific')} />
-            </div>
-
-            {/* Explizite «Bei Freigabe passiert …»-Zusammenfassung (schwarz auf weiss, was die
-                Freigabe bewirkt) – ersetzt die frühere, nur bei «Herstellen» sichtbare Info-Box. */}
-            {(() => {
-              if (goal === 'produce') {
-                return <OutcomeBanner icon={Factory}
-                  title={`${reqQty || ''} ${qtyUnit} werden NEU hergestellt`.replace(/\s+/g, ' ').trim()}
-                  detail="Der Auftrag fährt den Prozess des Artikels und erzeugt neue Instanzen (jede mit eigener Objektnummer). Es wird kein vorhandener Bestand verbraucht." />;
-              }
-              if (goal === 'stock') {
-                const short = reqQty - availableQty;
-                return <OutcomeBanner icon={Warehouse}
-                  title={`${reqQty || ''} ${qtyUnit} werden ab Lager reserviert`.replace(/\s+/g, ' ').trim()}
-                  detail="Es werden automatisch die ältesten passenden Instanzen verwendet (FIFO) – keine Neuproduktion."
-                  warn={short > 0 ? `Nur ${availableQty} ${qtyUnit} am Lager – die Fehlmenge (${short} ${qtyUnit}) deckt automatisch ein Nachschub-Auftrag.` : undefined} />;
-              }
-              const pinnedTotal = pinLines.reduce((s, l) => s + l.pinnedQty, 0);
-              return <OutcomeBanner icon={Target}
-                title={`Gewählte Instanzen werden verarbeitet (${pinnedTotal}/${reqQty} ${qtyUnit})`.replace(/\s+/g, ' ').trim()}
-                detail="Genau die unten gewählten Instanzen – kein FIFO, keine Neuproduktion. Verkaufte Ware zu wählen macht den Auftrag zur Retoure/Erstattung."
-                warn={pinnedTotal < reqQty ? `Noch ${reqQty - pinnedTotal} ${qtyUnit} auswählen.` : undefined} />;
-            })()}
-
-            {/* Bei «Herstellen» sind keine eigenen Schritte nötig (der Artikel-Prozess läuft);
-                sonst: Instanzen wählen (bei «specific») + den Ablauf definieren. */}
-            {goal !== 'produce' && (
-              <>
-                {goal === 'specific' && (
-                  <>
-                    <SectionTitle icon={Boxes}>Instanzen wählen</SectionTitle>
-                    {availableQty > 0 && pinLines.map((line) => <PinPicker key={line.key} line={line} onToggle={togglePin} />)}
-                    {/* Verkaufte Ware ebenfalls hier wählbar – die Auswahl macht den Auftrag zur
-                        Retoure/Erstattung (reason='return', danach Ablauf-Editor). */}
-                    {soldPool.length > 0 && (
-                      <RefundSubjectPicker sold={soldPool} value={refundIds} onChange={setRefundIds}
-                        onConfirm={() => bindRefund(refundIds)} error={error} />
-                    )}
-                  </>
-                )}
-                <SectionTitle icon={Workflow} info={goal === 'specific'
-                  ? 'Schritte definieren, was mit den gewählten Instanzen geschieht (bewegen, verkaufen, prüfen …).'
-                  : `Schritte definieren, was mit ${reqQty || ''} ${qtyUnit} ab Lager geschieht – die ältesten zuerst (FIFO).`}>Ablauf</SectionTitle>
-                <div style={cardStyle}>
-                  <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
-                    selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Mehrpositionen-Auftrag: JE POSITION entscheiden – aus dem Lager (FIFO) oder
-            bestimmte Instanzen wählen. «Herstellen» scheidet aus (kein EINER Artikel-Prozess).
-            Flexibler als der frühere globale Modus, gleiche Optik wie die Einzel-Auswahl. */}
-        {isStaff && record?.status === 'draft' && !isSubOrder && isMultiPosition && (
-          <>
-            <SectionTitle icon={Workflow}>Was möchten Sie tun?</SectionTitle>
-            {(() => {
-              const anyShort = pinLines.some((l) => (lineMode(l) === 'fifo' ? l.availableQty < l.reqQty : l.pinnedQty < l.reqQty));
-              return <OutcomeBanner icon={Boxes}
-                title={`${pinLines.length} Positionen werden verarbeitet`}
-                detail="Je Position ab Lager (FIFO) oder gewählte Instanzen – keine Neuproduktion (dafür je Artikel einen eigenen Auftrag). Unten je Position wählen."
-                warn={anyShort ? 'Fehlmengen einzelner Positionen deckt automatisch der Nachschub.' : undefined} />;
-            })()}
-            {pinLines.map((line) => {
-              const lineInfo = orderLines.find((l) => l.id === line.lineId);
-              const mode = lineMode(line);
-              return (
-                <div key={line.key} style={{ ...cardStyle, gap: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
-                    {lineInfo?.article_object_id != null && <ObjId value={lineInfo.article_object_id} />}
-                    <span style={{ flex: 1 }}>{lineInfo?.article_name ?? `Artikel #${line.articleId}`}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>{line.reqQty} {line.unit}</span>
-                  </div>
-                  {/* Segmentierter Umschalter FIFO / Instanz wählen */}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <SegBtn active={mode === 'fifo'} icon={Warehouse}
-                      label="Aus dem Lager (FIFO)" onClick={() => setLineMode(line, 'fifo')} />
-                    <SegBtn active={mode === 'specific'} icon={Target}
-                      label="Instanz wählen" onClick={() => setLineMode(line, 'specific')} />
-                  </div>
-                  {mode === 'fifo' ? (
-                    <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-                      Die ältesten {line.reqQty} {line.unit} werden automatisch verarbeitet (FIFO).
-                      {line.availableQty < line.reqQty && (
-                        <span style={{ color: 'var(--warning)' }}> · nur {line.availableQty} am Lager – Fehlmenge deckt der Nachschub.</span>
-                      )}
-                    </div>
-                  ) : (
-                    <PinPicker line={line} onToggle={togglePin} bare />
-                  )}
-                </div>
-              );
-            })}
-            <SectionTitle icon={Workflow}
-              info="Schritte definieren, was mit den Positionen geschieht (bewegen, verkaufen, prüfen …).">Ablauf</SectionTitle>
+            <SectionTitle icon={Workflow} info="Was mit den Positionen geschieht: bewegen, verkaufen, prüfen, verschrotten … Jedes Modul ist frei kombinierbar.">Ablauf</SectionTitle>
             <div style={cardStyle}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
@@ -1257,57 +1170,95 @@ export const linkBtn: React.CSSProperties = {
   fontSize: 12, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600,
 };
 
-// Ziel-Karte («Was möchten Sie tun?»): Symbol + Klartext + Live-Fussnote. Aktiv = Slate/Accent
-// (die «leise Stimme» für Auswahl/aktiv – kein Blau/Petrol/Violett mehr). Unmögliche Optionen
-// sind deaktiviert und nennen den Grund (DAU-sicher).
-export function GoalCard({ icon: Icon, active, disabled, disabledHint, title, desc, footer, onClick }: {
-  icon: React.ElementType; active: boolean; disabled?: boolean;
-  disabledHint?: string; title: string; desc: string; footer: string; onClick: () => void;
+/**
+ * **Eine Position = eine Zeile.** Artikel · Menge · woher – und darunter, nur wenn nötig,
+ * die Instanz-Auswahl. Ersetzt die früheren drei grossen Ziel-Karten PLUS den separaten
+ * Segment-Umschalter der Mehrpositionen-Ansicht: beide Fälle sehen jetzt gleich aus, eine
+ * Position hinzuzufügen baut das Fenster nicht mehr um.
+ *
+ * Wortwahl bewusst allgemein: **Erzeugen** (statt «Herstellen/Beschaffen» – der Prozess
+ * entscheidet, ob produziert oder eingekauft wird), **Ab Lager**, **Auswählen**.
+ */
+function PositionRow({
+  line, unit, title, articleObjectId, qty, source, onSource, onToggle, onRemove,
+  canProduce, produceHint, articleSelect, qtyInput,
+}: {
+  line?: PinLine;
+  unit: string;
+  title?: string;
+  articleObjectId?: number | null;
+  qty: string;
+  source: OrderGoal;
+  onSource: (s: OrderGoal) => void;
+  onToggle: (line: PinLine, oid: number) => void;
+  onRemove?: () => void;
+  canProduce: boolean;
+  produceHint?: string;
+  /** Anker-Position (Einzel-Artikel): Artikel/Menge sind hier noch editierbar. */
+  articleSelect?: React.ReactNode;
+  qtyInput?: React.ReactNode;
 }) {
-  return (
-    <button type="button" onClick={disabled ? undefined : onClick} disabled={disabled}
-      style={{
-        display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'left', width: '100%',
-        padding: '12px 14px', borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer',
-        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
-        background: disabled ? 'var(--bg-2)' : active ? 'var(--accent-soft)' : '#fff',
-        opacity: disabled ? 0.65 : 1, transition: 'border-color 0.15s, background 0.15s',
-      }}>
-      <div style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, background: active ? 'var(--accent)' : 'var(--bg-3)', color: active ? '#fff' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={18} />
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-1)' }}>{title}</span>
-          {active && <CheckCircle2 size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.45, marginTop: 2 }}>{desc}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: disabled ? 'var(--danger)' : 'var(--accent-ink)', marginTop: 5 }}>
-          {disabled ? (disabledHint ?? 'Nicht möglich') : footer}
-        </div>
-      </div>
-    </button>
-  );
-}
+  const avail = line?.availableQty ?? 0;
+  const req = line?.reqQty ?? (Number(qty) || 0);
+  const enough = avail >= req && req > 0;
+  const pinned = line?.pinnedQty ?? 0;
 
-// «Bei Freigabe passiert …» – die EINE, explizite Zusammenfassung dessen, was die Freigabe
-// bewirkt (erzeugt Bestand / greift auf Lager zu / verarbeitet gewählte Instanzen). Schliesst
-// die Lücke, dass die Subjektart früher nur implizit aus der aktiven Karte ablesbar war.
-function OutcomeBanner({ icon: Icon, title, detail, warn }: {
-  icon: React.ElementType; title: string; detail: string; warn?: string;
-}) {
+  // Ergebniszeile: EIN Satz, was die Freigabe bewirkt – statt eines Info-Banners.
+  const outcome = source === 'produce'
+    ? { text: `${req || ''} ${unit} werden neu erzeugt`.trim(), warn: null as string | null }
+    : source === 'stock'
+      ? { text: `${req || ''} ${unit} ab Lager, älteste zuerst`.trim(),
+          warn: req > avail ? `nur ${avail} ${unit} da – Rest per Nachschub` : null }
+      : { text: `${pinned}/${req} ${unit} gewählt`,
+          warn: pinned < req ? 'Auswahl unvollständig' : null };
+
   return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '13px 15px', borderRadius: 10, marginBottom: 12,
-      background: 'var(--accent-soft)', border: '1px solid var(--accent)' }}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: 'var(--accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={17} />
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-ink)' }}>Bei Freigabe passiert</div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--fg-1)', marginTop: 3 }}>{title}</div>
-        <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginTop: 3, lineHeight: 1.45 }}>{detail}</div>
-        {warn && <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning)', marginTop: 5 }}>{warn}</div>}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 4 }}>
+      {/* Kopfzeile: Artikel + Menge (+ entfernen) */}
+      {articleSelect ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 12 }}>
+          {articleSelect}
+          {qtyInput}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {articleObjectId != null && <ObjId value={articleObjectId} />}
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{qty} {unit}</span>
+          {onRemove && (
+            <button type="button" onClick={onRemove} data-tip="Position entfernen" aria-label="Position entfernen"
+              style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Quelle: EIN Umschalter, Symbol + ein Wort. Gesperrtes nennt im Hover den Grund. */}
+      {line && (
+        <>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <SegBtn active={source === 'produce'} icon={Factory} label="Erzeugen"
+              disabled={!canProduce} hint={canProduce ? 'Neu herstellen oder beschaffen – der Artikel-Prozess läuft' : (produceHint ?? 'Bei mehreren Positionen nicht möglich – dafür je Artikel einen eigenen Auftrag')}
+              onClick={() => onSource('produce')} />
+            <SegBtn active={source === 'stock'} icon={Warehouse} label="Ab Lager"
+              disabled={!enough} hint={enough ? 'Vorhandenes verwenden – automatisch die ältesten (FIFO)' : `Nur ${avail} ${unit} am Lager (${req} nötig)`}
+              onClick={() => onSource('stock')} />
+            <SegBtn active={source === 'specific'} icon={Target} label="Auswählen"
+              hint="Genau bestimmen, welche Instanzen – auch verkaufte (→ Retoure)"
+              onClick={() => onSource('specific')} />
+          </div>
+
+          {source === 'specific' && <PinPicker line={line} onToggle={onToggle} bare />}
+
+          {/* Ergebnis in einer Zeile – kein Banner, kein Absatz. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-3)' }}>
+            <CheckCircle2 size={13} style={{ color: outcome.warn ? 'var(--warning)' : 'var(--success)', flexShrink: 0 }} />
+            <span>{outcome.text}</span>
+            {outcome.warn && <span style={{ color: 'var(--warning)', fontWeight: 600 }}>· {outcome.warn}</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1359,15 +1310,18 @@ function RefundSubjectPicker({ sold, value, onChange, onConfirm, error }: {
   );
 }
 
-// Segmentierter Umschalter (eine Option je Position: FIFO / Instanz wählen). Aktiv = Accent.
-function SegBtn({ active, icon: Icon, label, onClick }: {
+// Segmentierter Umschalter der Quelle (Erzeugen / Ab Lager / Auswählen). Aktiv = Accent.
+// Gesperrte Optionen nennen den Grund im **Hover** statt in der Fläche (weniger Text).
+function SegBtn({ active, icon: Icon, label, onClick, disabled, hint }: {
   active: boolean; icon: React.ElementType; label: string; onClick: () => void;
+  disabled?: boolean; hint?: string;
 }) {
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={disabled ? undefined : onClick} disabled={disabled} data-tip={hint} title={hint}
       style={{
         flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        fontSize: 12, fontWeight: 600, padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
+        fontSize: 12, fontWeight: 600, padding: '8px 10px', borderRadius: 8,
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
         border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
         background: active ? 'var(--accent-soft)' : '#fff', color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
       }}>

@@ -18,6 +18,7 @@ import {
   type Auth,
   type User,
 } from 'firebase/auth';
+import { api } from './api';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -109,6 +110,18 @@ export async function getIdToken(): Promise<string | null> {
   if (!auth?.currentUser) return null;
   return auth.currentUser.getIdToken();
 }
+
+// Selbstheilung bei 401: Der API-Client hält den Token als Schnappschuss (gesetzt von
+// `onIdTokenChanged`). Firebases proaktive Erneuerung ist ein Timer – im Hintergrund-Tab
+// gedrosselt, im Ruhezustand des Geräts gar nicht. Kommt der Nutzer nach einer Pause
+// zurück, kann der Schnappschuss abgelaufen sein. Statt das als «keine Daten» enden zu
+// lassen, holt der Client bei einem 401 EINMAL erzwungen einen frischen Token
+// (`getIdToken(true)`) und wiederholt die Anfrage. Hier registriert, damit `api.ts`
+// nichts von Firebase wissen muss (keine zirkuläre Abhängigkeit).
+api.setTokenProvider(async () => {
+  if (!auth?.currentUser) return null;
+  return auth.currentUser.getIdToken(true);
+});
 
 export function onAuthChange(callback: (user: User | null) => void) {
   if (!auth) return () => {};

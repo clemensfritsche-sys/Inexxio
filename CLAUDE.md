@@ -216,7 +216,24 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   «Sicherheit». Der frühere «Benachrichtigungen»-Reiter ist entfernt (die Toggles `notification_email`/
   `notification_inapp` hatten KEINE Backend-Wirkung – kein E-Mail-/In-App-System; Spalten bleiben für die
   spätere Gmail-Anbindung). Vollständigkeits-Badge (`useProfileCompletion`) rechnet Adresse/Rechnung neu
-  dem Profil-Reiter zu.
+  dem Profil-Reiter zu. **Runde 2:** «Mein Profil» ist jetzt EINE Komponente (`profile-section.tsx`) mit
+  **einem** Formular/Auto-Save und **drei** Containern – Persönliche Angaben (inkl. **Telefon**),
+  **Adressen** (Liefer- + Rechnungsadresse über EINEN «Rechnungsadresse = Lieferadresse»-Schalter im
+  gleichen Container), Kommunikation (Newsletter + AGB-Nachweis als **Tatsache**, nicht als Fake-Toggle).
+  `contact-section.tsx`/`invoice-section.tsx`/`privacy-section.tsx` sind entfallen. Toggle-Optik ist
+  einheitlich (`ToggleField`, rot = an). **Rechnungs-E-Mail** zeigt die Konto-Adresse als Platzhalter
+  (leer = dorthin). **Adresszusatz** bleibt (Shippo-Etiketten brauchen c/o · Postfach · Stockwerk), wird
+  aber erst auf «+ Adresszusatz» eingeblendet statt als leeres Dauerfeld.
+- **Frische Daten nach einer Pause – ohne Polling** (`erp/page.tsx`, `lib/api.ts`, `lib/firebase.ts`):
+  Der ERP-Feed war ein **Schnappschuss vom Seitenaufbau** (ein `useEffect([])`, sonst nichts) – wer ein
+  paar Minuten weg war, sah alte Daten und musste F5 drücken. Verschärfend: der Bearer-Token ist ein
+  In-Memory-Schnappschuss (Firebases proaktive Erneuerung ist ein Timer, der im Hintergrund-Tab
+  gedrosselt wird), und **jeder 401 wurde still verschluckt** → der Feed rendete «Keine Datensätze»
+  statt eines Fehlers. Zwei Eingriffe, beide kostenneutral: (1) `api.setTokenProvider` – bei einem 401
+  wird **einmal** ein frischer Token geholt (`getIdToken(true)`) und dieselbe Anfrage wiederholt
+  (registriert in `firebase.ts`, kein Import-Zyklus); (2) Rückkehr-Refresh: bei `visibilitychange`/
+  `focus` lädt der Feed **einmal** nach – aber nur, wenn er älter als `STALE_AFTER_MS` (60 s) ist.
+  Kein Intervall, kein Polling: ein Nachladen je Rückkehr, nichts beim kurzen Tab-Wechsel.
 - **Code-Cleanup & Härtung (Juli 2026, `docs/cleanup-2026-07.md`)**: Migration `060` –
   **Meldebestand-Bug behoben** (`orders.reason` VARCHAR(12)→(20): `replenishment` hat 13
   Zeichen, JEDE Auto-Nachbestellung scheiterte vorher am Truncation-Fehler); GIN-Index auf
@@ -441,6 +458,29 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `logistics` (`_addr_user`/`_addr_company`/`_addr_storage`/`same_place`/`iso2`),
   `document_render` (Briefkopf), `payments/stripe_provider` (Liefer-/Rechnungsadresse; die
   Stripe-Feldnamen bleiben, nur die Fallback-Logik ist zentral) und `ai/tools` (Firmen-Info).
+- **Auftrag-Anlage: EINE Zeile je Position (UI-Refresh Runde 2, `order-detail.tsx`)**. Vorher zerfiel die
+  Anlage in ~8 Container (Bedarf-Karte, 3 grosse Ziel-Karten, Ergebnis-Banner, Instanz-Picker-Karten,
+  Ablauf) – und der **Mehrpositionen-Fall sah völlig anders aus** als der Einzel-Artikel-Fall (Ziel-Karten
+  vs. Segment-Umschalter), sodass das Hinzufügen einer Position das Fenster umbaute. Jetzt: **eine Position
+  = eine Zeile** (`PositionRow`) mit Artikel · Menge · **Quellen-Umschalter** und – nur bei Bedarf – der
+  Instanz-Auswahl darunter; **dieselbe Zeile** für einen wie für viele Artikel (`lineSource`/`setLineSource`
+  vereinheitlichen `goal` und `lineMode`). Statt Banner steht **eine Ergebniszeile** je Position («5 Stk ab
+  Lager, älteste zuerst · nur 3 da – Rest per Nachschub»). Gesperrte Optionen nennen den Grund im **Hover**
+  statt in der Fläche. **Wortwahl allgemein statt spezifisch:** «Herstellen / Beschaffen» → **Erzeugen**,
+  «Aus dem Lager» → **Ab Lager**, «Instanz wählen» → **Auswählen**. Der Termin ist eine Zeile, kein
+  Feld-Raster. `GoalCard`/`OutcomeBanner` sind entfallen. **Die Backend-Logik ist unverändert** – rein
+  Präsentation (Subjektart wird weiterhin abgeleitet, nicht gewählt).
+- **Jedes Prozessschritt-Modul steht für sich** (`services/process_steps.py: _plan`): Ein Schritttyp
+  verhält sich an **jeder Position gleich**. Entfallen ist die einzige positionsabhängige Regel – der
+  Pflicht-«Versand zum Lieferanten» **vor einer nicht-ersten** Lieferanten-Beschaffung: dieselbe
+  Beschaffung erzeugte an Position 1 keinen, ab Position 2 einen Zusatzschritt, und eine **selbst
+  angelegte** Bewegung davor unterdrückte ihn nicht einmal (die Prüfung kannte nur die Pflicht-Marker
+  → zwei Bewegungen hintereinander). Materialtransport zum Lieferanten (Lohnveredelung) bildet man mit
+  einem **normalen Bewegungs-Schritt** ab (sichtbar, verschiebbar, löschbar); Alt-Bestand solcher
+  gesperrten Schritte wird beim nächsten Sync automatisch deaktiviert. Es bleiben nur die zwei
+  **physisch zwingenden** Pflicht-Bewegungen: **Wareneingang** nach einer Beschaffung (die Ware muss
+  ankommen) und **Versand zum Kunden** nach einem Verkauf (ausser bei einer Retoure). Wächter:
+  `tests/test_smoke.py: test_every_step_module_behaves_the_same_at_any_position`.
 - **Standort-Kette «wo genau?»** (`locations.location_chain`, `InstanceResponse.location_path`):
   liefert den vollen Pfad von innen nach aussen – Instanz → Behälter → Unternehmen → **Anschrift**
   (`location_type='address'`, ohne Objektnummer). Zyklensicher, auf 10 Stationen begrenzt, und
@@ -663,7 +703,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   einheitlich **Symbol + semantische Farbe + Label** (`StatusCfg` mit `icon` in den `lib/*`-Status-
   Configs; `StatusBadge` rendert sie als Pille – Feed & Detail-Köpfe). **Ampel-Semantik (nur
   grün/gelb/rot, kein Blau/Petrol/Violett/Slate mehr):** GELB (`--warning`) = offen/in Arbeit/wartend
-  (Entwurf, In Bearbeitung, Angefragt/Offeriert/Bestellt, Bestätigt/Verrechnet, Reserviert, Im Prozess);
+  (Entwurf, **In Arbeit**, Angefragt/Offeriert/Bestellt, Bestätigt/Verrechnet, Reserviert);
   GRÜN (`--success`) = gut/erledigt/frei (Freigegeben, Abgeschlossen, Geliefert, Bezahlt, am Lager,
   Verkauft, Verbaut); ROT (`--danger`) = Problem/Stopp/tot (Fehler, Abgelehnt, Storniert, **Inaktiv,
   Verschrottet**). Alles läuft über die drei `TONE`-Töne (`lib/status-flow.ts`); Rollen-Badges sind
@@ -1174,8 +1214,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   = GELB**, **Inaktiv/Verschrottet = ROT** («Stopp/nicht verwendbar»), **Verkauft/Verbaut = GRÜN**. Die
   hartkodierten Blau/Petrol/Violett-Ausreisser (Instanz consumed/sold, Prozess-Stepper, PurchaseProgress,
   Dokument-Stufen, Rollen-Badges, Primär-Buttons) sind alle auf Tokens gezogen; Rollen-Badges sind neutral
-  (Identität, keine Ampel), Primär-CTA = Rot (Design-System). Auftrag «In Bearbeitung» trägt exakt den Ton
-  der Instanz «Im Prozess». (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
+  (Identität, keine Ampel), Primär-CTA = Rot (Design-System).
+- **Status-NAMEN konsolidiert (Runde 2)**: gleiche Lebensphase → **dasselbe Wort**, überall.
+  Auftrag «In Bearbeitung» **und** Instanz «Im Prozess» heissen beide **«In Arbeit»** (zwei Namen → einer;
+  auch in der Kunden-Bestellliste `orders-list.tsx`); Instanz «Verbraucht» → **«Verbaut»** (passt zu
+  «Verkauft»); Dokument «Freigaben laufen» → **«In Freigabe»**. Rollen-Badges + Unternehmens-Badge sind
+  **grün** statt grau (ein aktiver Datensatz ist gültig; Grau läse sich als «aus»). (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
   angeboten» ist weg – Foto/Unterschrift sind reine `capture_fields`-Typen, der unbedingte `PhotoCapture`-
   Block je Probe ist entfernt. (4) **Auftrag-Shortcut**: kleiner Kopf-Knopf «Auftrag anlegen» am
   freigegebenen **Artikel** (neben Deaktivieren/Ersetzen) und an der **Instanz** (neben Abweichung) – legt

@@ -211,7 +211,7 @@ function DocStages({ issued, done }: { issued: boolean; done: boolean }) {
 }
 
 function StatusPill({ done, issued }: { done: boolean; issued: boolean }) {
-  const label = done ? 'Freigegeben' : issued ? 'Freigaben laufen' : 'Entwurf';
+  const label = done ? 'Freigegeben' : issued ? 'In Freigabe' : 'Entwurf';
   const [bg, fg] = done ? ['#DCFCE7', '#15803D'] : issued ? ['#FBF1DE', '#C8861A'] : ['#FBF1DE', '#C8861A'];
   return (
     <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: fg, background: bg, padding: '2px 8px', borderRadius: 999 }}>
