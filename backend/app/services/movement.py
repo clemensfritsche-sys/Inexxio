@@ -53,37 +53,48 @@ def movable_instances(db: Session, order: Order, step) -> list:
     return order_active_instances(db, order)
 
 
-def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
-    step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
+def _assert_something_to_move(db: Session, order: Order, step, instances: list) -> None:
+    """Leere Instanzliste ist nur dann ein Fehler, wenn auch mengenmässig nichts bewegt wird.
 
+    Teilmengen-Charge: der verkaufte Anteil hat KEINE eigene Instanz (die FIFO-Teilentnahme
+    senkt nur die Menge) – physisch geht er beim Kunden-Versand trotzdem raus bzw. kommt bei
+    der Retoure zurück. Der Schritt wird dann als reine **Quittierung** abgeschlossen (nichts
+    umzulagern), statt dauerhaft mit 409 zu blockieren; den Slice-Rückfluss bucht
+    ``process.return_subjects_to_stock``."""
     from .subject import is_return
-    instances = movable_instances(db, order, step)
-    if not instances:
-        # Teilmengen-Charge: der verkaufte Anteil hat KEINE eigene Instanz (FIFO-Teil-
-        # entnahme senkt nur die Menge) – physisch geht er beim Pflicht-Versand trotzdem
-        # raus bzw. kommt bei der Retoure zurück. Der Schritt wird dann als reine
-        # Quittierung abgeschlossen (nichts umzulagern), statt dauerhaft mit 409 zu
-        # blockieren; den Slice-Rückfluss bucht ``process.return_subjects_to_stock``.
-        if is_return(order):
-            sold_something = bool(process.sold_amounts_for_order(db, order.parent_order_id))
-        else:
-            sold_something = (step.mode == "customer"
-                              and bool(process.sold_amounts_for_order(db, order.object_id)))
-        if not sold_something:
-            raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
+    if instances:
+        return
+    if is_return(order):
+        moved = bool(process.sold_amounts_for_order(db, order.parent_order_id))
+    else:
+        moved = (step.mode == "customer"
+                 and bool(process.sold_amounts_for_order(db, order.object_id)))
+    if not moved:
+        raise HTTPException(409, detail="Keine Instanzen zum Bewegen vorhanden")
 
-    # **Pflicht-Versand zum Kunden** (mode='customer'): das Ziel ist NICHT frei – es geht IMMER
-    # an den Kunden des Verkaufs. Die Ziel-Eingaben des Clients werden dafür überschrieben
-    # (serverseitige Erzwingung; das Panel zeigt den Kunden ohnehin als festes Ziel).
-    targets = data.targets or []
-    if step.mode == "customer":
-        from .sale import customer_for_order
-        cust = customer_for_order(db, order)
-        if not cust:
-            raise HTTPException(
-                400, detail="Der Kunde dieses Verkaufs ist noch nicht gesetzt – bitte zuerst den Verkauf bestätigen")
-        targets = [type("T", (), {"instance_id": i.object_id, "location_type": "user",
-                                  "location_id": cust.object_id})() for i in instances]
+
+def _resolve_targets(db: Session, order: Order, step, data, instances: list) -> list:
+    """Die Ziel-Zuweisungen dieses Schritts. Beim **Versand zum Kunden** (mode='customer')
+    ist das Ziel NICHT frei – es geht IMMER an den Kunden des Verkaufs, die Client-Eingaben
+    werden überschrieben (serverseitige Erzwingung; das Panel zeigt den Kunden ohnehin als
+    festes Ziel)."""
+    if step.mode != "customer":
+        return data.targets or []
+    from .sale import customer_for_order
+    cust = customer_for_order(db, order)
+    if not cust:
+        raise HTTPException(
+            400, detail="Der Kunde dieses Verkaufs ist noch nicht gesetzt – bitte zuerst den Verkauf bestätigen")
+    return [type("T", (), {"instance_id": i.object_id, "location_type": "user",
+                           "location_id": cust.object_id})() for i in instances]
+
+
+def record_movement(db: Session, order: Order, data, actor_id: int) -> Movement:
+    from .subject import is_return
+    step = process.resolve_exec_step(db, order, "movement", getattr(data, "step_id", None))
+    instances = movable_instances(db, order, step)
+    _assert_something_to_move(db, order, step, instances)
+    targets = _resolve_targets(db, order, step, data, instances)
 
     # **Teilmengen-Bewegung ist auftragsgetrieben** (kein Ad-hoc an der Instanz): der Auftrag
     # legt fest, WIE VIEL einer Charge bewegt wird. Ein Bestands-Auftrag über z. B. 10 Stück

@@ -1400,7 +1400,7 @@ def test_scrap_step_is_wired_end_to_end():
     assert "disposal" in OrderStepInfo.model_fields
     assert "disposal" in OrderResponse.model_fields
     # Service setzt disposition='scrapped' und schliesst den Schritt ab
-    src = _inspect.getsource(scrap.record_scrap)
+    src = _inspect.getsource(scrap)
     assert 'inst.disposition = "scrapped"' in src
     assert "recompute_completion" in src
     # Mindestens eine Instanz wählen (kein leeres Verschrotten)
@@ -2007,8 +2007,11 @@ def test_deviation_release_does_not_require_article_and_quantity():
     import inspect as _inspect
     from app.routers import orders as orders_router
 
-    src = _inspect.getsource(orders_router.update_order)
+    # Die Freigabe-Vorbedingungen stehen gebündelt in ``_assert_releasable`` (eine Stelle,
+    # drei Gates) statt inline in ``update_order``.
+    src = _inspect.getsource(orders_router._assert_releasable)
     assert 'not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity)' in src.replace("\n", " ").replace("  ", " ")
+    assert "_assert_releasable(db, order)" in _inspect.getsource(orders_router.update_order)
 
 
 def test_subscription_mixing_check_moved_to_sale_step_creation():
@@ -2097,7 +2100,7 @@ def test_scrap_releases_all_reservations_of_the_instance():
     from app.services import reservation, scrap
 
     assert hasattr(reservation, "release_all")
-    src = _inspect.getsource(scrap.record_scrap)
+    src = _inspect.getsource(scrap)
     assert "release_all(inst)" in src
     assert "release(inst, order.id)" not in src   # alter, undichter Aufruf ist ersetzt
 
@@ -2208,7 +2211,7 @@ def test_scrap_supports_partial_batch_quantity():
     assert "quantity" in ScrapItem.model_fields
     assert "items" in ScrapUpdate.model_fields
     assert hasattr(reservation, "reduce_quantity")
-    src = _inspect.getsource(scrap.record_scrap)
+    src = _inspect.getsource(scrap)
     assert "reduce_quantity" in src and "release_all" in src
 
 
@@ -2319,8 +2322,10 @@ def test_customer_shipping_movement_targets_the_customer():
     from app.services import movement, orders, sale as sale_svc
 
     assert callable(sale_svc.customer_for_order)
-    rec = _inspect.getsource(movement.record_movement)
-    assert 'step.mode == "customer"' in rec and "customer_for_order" in rec
+    # Die Ziel-Auflösung sitzt in ``_resolve_targets`` (von ``record_movement`` aufgerufen).
+    rec = _inspect.getsource(movement._resolve_targets)
+    assert 'step.mode != "customer"' in rec and "customer_for_order" in rec
+    assert "_resolve_targets(" in _inspect.getsource(movement.record_movement)
     emb = _inspect.getsource(orders._movement_embed)
     assert 'step.mode == "customer"' in emb and "customer_for_order" in emb
 
@@ -2545,7 +2550,7 @@ def test_scrap_makes_whole_instance_locationless():
 
     from app.services import scrap, provisioning, location_split
 
-    src = _inspect.getsource(scrap.record_scrap)
+    src = _inspect.getsource(scrap)
     assert "location_split.clear" in src
     assert "send_to_scrapyard" not in src and "scrapyard" not in src
     # Die Schrottplatz-Maschinerie ist vollständig entfernt.

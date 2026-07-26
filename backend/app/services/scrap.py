@@ -24,6 +24,62 @@ from .reservation import reduce_quantity, release_all
 from .subject import order_instances
 
 
+def _chosen_quantities(data) -> dict[int, Decimal | None]:
+    """Auswahl vereinheitlichen: ``{instance_object_id: menge|None}`` (None = ganze Restmenge).
+
+    ``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (ganze Instanzen) werden
+    zusammengeführt; ``items`` gewinnt bei Überschneidung. Menge als Decimal (Bruchmenge)."""
+    chosen: dict[int, Decimal | None] = {}
+    for oid in (data.instance_ids or []):
+        chosen.setdefault(oid, None)
+    for it in (data.items or []):
+        chosen[it.instance_id] = to_qty(it.quantity) if it.quantity is not None else None
+    if not chosen:
+        raise HTTPException(400, detail="Bitte mindestens eine Instanz zum Verschrotten wählen")
+    return chosen
+
+
+def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int) -> Decimal:
+    """EINE Instanz verschrotten – ganz oder als Teilmenge. Gibt die abgehende Menge zurück.
+
+    **Ganz:** Endzustand ``scrapped``; ALLE Reservierungen werden gelöst (nicht nur die des
+    auslösenden Auftrags) – ein verschrottetes Teil verlässt den Bestand endgültig und kann
+    KEINEN Auftrag mehr beliefern. Hing es an einem anderen Auftrag (z. B. eine Abweichung
+    steuert eine für den Eltern-Verkauf reservierte Instanz aus), wird dessen Fehlmenge
+    dadurch **ehrlich** wieder sichtbar → sein Subjekt-Schritt wird «blockiert», statt still
+    unterzuliefern. Zusätzlich wird die Instanz **standortlos**: ein Standort ist immer ein
+    realer Halter, den Ausschuss nicht mehr hat – der Endzustand IST die «Wo»-Aussage, und
+    «wer liegt hier» findet ein verschrottetes Teil korrekt nicht mehr.
+
+    **Teilmenge:** nur die Menge sinkt (keine Teilung, keine neue Objektnummer), überschüssige
+    Reservierungen werden getrimmt und eine verteilte Charge nachgezogen – analog zur
+    Ressourcen-Teilentnahme."""
+    whole = qty is None or qty >= to_qty(inst.quantity)
+    if not whole and qty <= 0:
+        raise HTTPException(400, detail=f"Ungültige Menge für Instanz {inst.object_id}")
+
+    if not whole:
+        cut = reduce_quantity(inst, qty)
+        location_split.reconcile(inst)
+        log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
+                  object_id=inst.object_id,
+                  old_value=f"{(inst.quantity or 0) + cut} (− {cut} verschrottet)")
+        return cut
+
+    old = inst.disposition
+    old_loc = f"{inst.location_type}:{inst.location_id}" if inst.location_type else None
+    cut = to_qty(inst.quantity)
+    inst.disposition = "scrapped"
+    release_all(inst)
+    if inst.location_type is not None or inst.locations:
+        location_split.clear(inst)
+        log_audit(db, "instances", "location", None, actor_id,
+                  object_id=inst.object_id, old_value=old_loc)
+    log_audit(db, "instances", "disposition", "scrapped", actor_id,
+              object_id=inst.object_id, old_value=old)
+    return cut
+
+
 def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
     """Die gewählten Instanzen des Auftrags verschrotten + den Schritt abschliessen."""
     step = process.resolve_exec_step(db, order, "scrap", getattr(data, "step_id", None))
@@ -33,16 +89,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
         raise HTTPException(409, detail="Keine Instanzen zum Verschrotten vorhanden")
 
     by_obj = {i.object_id: i for i in instances}
-    # Auswahl vereinheitlichen: {instance_object_id: menge|None} (None = ganze Restmenge).
-    # ``items`` (mit Teilmenge) und die Kurzform ``instance_ids`` (ganze Instanzen) werden
-    # zusammengeführt; ``items`` gewinnt bei Überschneidung. Menge als Decimal (Bruchmenge).
-    chosen: dict[int, Decimal | None] = {}
-    for oid in (data.instance_ids or []):
-        chosen.setdefault(oid, None)
-    for it in (data.items or []):
-        chosen[it.instance_id] = to_qty(it.quantity) if it.quantity is not None else None
-    if not chosen:
-        raise HTTPException(400, detail="Bitte mindestens eine Instanz zum Verschrotten wählen")
+    chosen = _chosen_quantities(data)
 
     scrapped = 0
     touched_articles: set[int] = set()
@@ -52,40 +99,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
         if inst.disposition == "scrapped":
             continue                                # idempotent: schon verschrottet
-        whole = qty is None or qty >= to_qty(inst.quantity)
-        if not whole and qty <= 0:
-            raise HTTPException(400, detail=f"Ungültige Menge für Instanz {oid}")
-        if whole:
-            old = inst.disposition
-            old_loc = f"{inst.location_type}:{inst.location_id}" if inst.location_type else None
-            cut = to_qty(inst.quantity)
-            inst.disposition = "scrapped"
-            # ALLE Reservierungen lösen (nicht nur die dieses Auftrags): ein verschrottetes Teil
-            # verlässt den Bestand endgültig und kann KEINEN Auftrag mehr beliefern. Hing es an
-            # einem anderen Auftrag (z. B. eine Abweichung steuert eine für den Eltern-Verkauf
-            # reservierte Instanz aus), wird dessen Fehlmenge dadurch **ehrlich** wieder sichtbar
-            # → sein Subjekt-Schritt wird «blockiert» (abgeleitet), statt still unterzuliefern.
-            release_all(inst)
-            # **Standortlos machen**: ein Standort ist immer ein realer Halter (Person/Instanz/
-            # Instanz); Ausschuss hat keinen mehr. Der Endzustand `scrapped` IST die «Wo»-Aussage –
-            # kein Schrottplatz-Lagerort, keine „herrenlosen" Referenzen (references/„wer liegt hier"
-            # finden ein verschrottetes Teil dann korrekt nicht mehr).
-            if inst.location_type is not None or inst.locations:
-                location_split.clear(inst)
-                log_audit(db, "instances", "location", None, actor_id,
-                          object_id=inst.object_id, old_value=old_loc)
-            log_audit(db, "instances", "disposition", "scrapped", actor_id,
-                      object_id=inst.object_id, old_value=old)
-        else:
-            # Teil-Verschrottung einer Charge: nur die Menge sinkt (keine Teilung/neue Nummer),
-            # überschüssige Reservierungen werden getrimmt (Recovery) – analog Ressourcen-Teilentnahme.
-            cut = reduce_quantity(inst, qty)
-            # Verteilte Charge: nach dem Mengen-Abgang die Standort-Verteilung nachziehen
-            # (grösste Teilmenge zuerst gekürzt), damit die Summe wieder = quantity ist.
-            location_split.reconcile(inst)
-            log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
-                      object_id=inst.object_id,
-                      old_value=f"{(inst.quantity or 0) + cut} (− {cut} verschrottet)")
+        cut = _scrap_one(db, inst, qty, actor_id)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": cut, "delta": -cut,
                       "polarity": event_types.DECREASE, "reason": "scrapped",

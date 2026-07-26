@@ -396,6 +396,68 @@ async def get_order(
     return to_order_response(db, order, viewer=user)
 
 
+def _assert_status_transition(current: str, new: str | None) -> None:
+    """Zustandsmaschine des Auftrags-Status – **erlaubt ist nur, was hier steht.**
+
+    Ohne diese Prüfung fiel jeder nicht explizit abgefangene Wechsel in die generische
+    ``setattr``-Schleife: ein Entwurf liess sich direkt auf «completed» setzen (ohne Schritte,
+    ohne ``completed_at``), und ein abgeschlossener/inaktiver Auftrag auf «draft» zurückholen
+    und danach erneut freigeben – die Umgehung von «kein Reaktivieren».
+
+    Manuell erlaubt sind NUR draft→released (Freigabe) und draft/released→inactive (der
+    Aufrufer regelt Letzteres über «Abbrechen»); «completed» leitet ausschliesslich das System
+    ab (``process.recompute_completion``)."""
+    if not new or new == current:
+        return
+    if new == "released" and current == "inactive":
+        raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
+    if new == "completed":
+        raise HTTPException(400, detail="«Abgeschlossen» wird vom System abgeleitet, wenn alle Schritte erledigt sind")
+    if current in ("completed", "inactive"):
+        raise HTTPException(409, detail="Ein abgeschlossener/inaktiver Auftrag ist endgültig – bitte neuen Auftrag anlegen")
+    if current == "released" and new == "draft":
+        raise HTTPException(409, detail="Ein freigegebener Auftrag kann nicht in den Entwurf zurück – bitte «Abbrechen» verwenden")
+
+
+def _assert_releasable(db: Session, order: Order) -> None:
+    """Die Vorbedingungen der Auftrags-Freigabe – **eine** Stelle, drei Gates.
+
+    Wirft ``HTTPException``; kehrt lautlos zurück, wenn der Auftrag startklar ist."""
+    is_multiline = order.article_id is None and bool(order_lines_svc.lines_for(db, order))
+    # Eine Abweichung ODER Retoure (Unter-Auftrag) hat ihr Subjekt bereits über fixierte
+    # Instanzen (nicht über order_lines) – erbt bei einem Mehrpositionen-Eltern-Auftrag
+    # dessen article_id=NULL, OHNE selbst eine Mehrpositionen-Struktur zu sein. Sie braucht
+    # daher WEDER article_id/quantity NOCH order_lines zur Freigabe.
+    if not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity):
+        raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
+
+    if subject.subject_kind(db, order) == "produce":
+        # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
+        art = db.query(Article).filter(Article.id == order.article_id).first()
+        if not art or art.status != "released":
+            raise HTTPException(
+                400, detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann")
+    elif not process.order_step_infos(db, order):
+        raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
+
+    # Hat der Auftrag Beschaffungs-Schritte, muss je Schritt × betroffenem Artikel eine
+    # auflösbare Bezugsquelle vorliegen (Schritt-Quelle ODER Artikel-Default).
+    p_steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
+    if not p_steps:
+        return
+    from ..services.purchase import has_source
+    art_ids = ([order.article_id] if order.article_id
+               else [l.article_id for l in order_lines_svc.lines_for(db, order)])
+    arts = [db.query(Article).filter(Article.id == aid).first() for aid in art_ids]
+    missing = sorted({a.name for step in p_steps for a in arts if a and not has_source(step, a)})
+    if missing:
+        names = ", ".join(f"«{n}»" for n in missing)
+        raise HTTPException(
+            400,
+            detail=f"Beschaffung unvollständig: für {names} ist keine Bezugsquelle hinterlegt "
+                   "(am Beschaffungs-Schritt oder als Artikel-Standard unter Spezifikation → Beschaffung).")
+
+
 @router.patch("/{object_id}", response_model=OrderResponse)
 async def update_order(
     object_id: int,
@@ -430,23 +492,7 @@ async def update_order(
         _validate_article(db, payload["article_id"])
     if "quantity" in payload:
         _assert_quantity_serialization(db, payload.get("article_id", order.article_id), payload["quantity"])
-    # Kein Reaktivieren von Aufträgen: die Physis ist weitergewandert → neuer Auftrag.
-    if payload.get("status") == "released" and order.status == "inactive":
-        raise HTTPException(409, detail="Auftrag kann nicht reaktiviert werden – bitte neuen Auftrag anlegen")
-    # FIX: Status-Zustandsmaschine – vorher fiel jeder nicht explizit geprüfte Wechsel in die
-    # generische setattr-Schleife: ein Entwurf liess sich direkt auf «completed» setzen (ohne
-    # Schritte/completed_at) und ein abgeschlossener/inaktiver Auftrag auf «draft» zurückholen
-    # (und danach erneut freigeben – Umgehung von «kein Reaktivieren»). Erlaubte manuelle
-    # Wechsel sind NUR draft→released (Freigabe) und draft/released→inactive (unten geregelt);
-    # «completed» leitet ausschliesslich das System ab (recompute_completion).
-    new_status = payload.get("status")
-    if new_status and new_status != order.status:
-        if new_status == "completed":
-            raise HTTPException(400, detail="«Abgeschlossen» wird vom System abgeleitet, wenn alle Schritte erledigt sind")
-        if order.status in ("completed", "inactive"):
-            raise HTTPException(409, detail="Ein abgeschlossener/inaktiver Auftrag ist endgültig – bitte neuen Auftrag anlegen")
-        if order.status == "released" and new_status == "draft":
-            raise HTTPException(409, detail="Ein freigegebener Auftrag kann nicht in den Entwurf zurück – bitte «Abbrechen» verwenden")
+    _assert_status_transition(order.status, payload.get("status"))
 
     # Freigabe (draft → released) läuft AUSSCHLIESSLICH über ``release_order`` – dieser Pfad setzt
     # den Status selbst. Den Status hier NICHT vorab über die generische Schleife setzen: sonst ist
@@ -472,38 +518,7 @@ async def update_order(
     #   stock   – eigener Ablauf → er läuft auf ``quantity`` Instanzen des Artikels
     #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
     if wants_release:
-        is_multiline = order.article_id is None and bool(order_lines_svc.lines_for(db, order))
-        # Eine Abweichung ODER Retoure (Unter-Auftrag) hat ihr Subjekt bereits über fixierte
-        # Instanzen (nicht über order_lines) – erbt bei einem Mehrpositionen-Eltern-Auftrag
-        # dessen article_id=NULL, OHNE selbst eine Mehrpositionen-Struktur zu sein. Sie braucht
-        # daher WEDER article_id/quantity NOCH order_lines zur Freigabe.
-        if not is_multiline and not subject.is_fixed_subject(order) and (not order.article_id or not order.quantity):
-            raise HTTPException(400, detail="Zur Freigabe sind Artikel und Menge erforderlich")
-        if subject.subject_kind(db, order) == "produce":
-            # Vorbedingung: der Artikel (Spezifikation + Prozess) muss freigegeben sein.
-            art = db.query(Article).filter(Article.id == order.article_id).first()
-            if not art or art.status != "released":
-                raise HTTPException(
-                    400,
-                    detail="Der Artikel muss freigegeben sein, bevor der Prozess gestartet werden kann",
-                )
-        elif not process.order_step_infos(db, order):
-            raise HTTPException(400, detail="Bitte zuerst mindestens einen Prozessschritt definieren")
-        # Freigabe-Gate: hat der Auftrag Beschaffungs-Schritte, muss je Schritt × betroffenem
-        # Artikel eine auflösbare Bezugsquelle vorliegen (Schritt-Quelle ODER Artikel-Default).
-        p_steps = [d for d in process.order_step_defs(db, order) if d.step_type == "purchase"]
-        if p_steps:
-            from ..services.purchase import has_source
-            art_ids = ([order.article_id] if order.article_id
-                       else [l.article_id for l in order_lines_svc.lines_for(db, order)])
-            arts = [db.query(Article).filter(Article.id == aid).first() for aid in art_ids]
-            missing = sorted({a.name for step in p_steps for a in arts if a and not has_source(step, a)})
-            if missing:
-                names = ", ".join(f"«{n}»" for n in missing)
-                raise HTTPException(
-                    400,
-                    detail=f"Beschaffung unvollständig: für {names} ist keine Bezugsquelle hinterlegt "
-                           "(am Beschaffungs-Schritt oder als Artikel-Standard unter Spezifikation → Beschaffung).")
+        _assert_releasable(db, order)
         # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
         # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
         # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
