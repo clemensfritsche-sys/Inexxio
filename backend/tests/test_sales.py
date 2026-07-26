@@ -72,11 +72,11 @@ def test_cart_checkout_schema():
 def test_deferred_intent_helpers_exist():
     """Defer-Modell: der Warenkorb wird als CheckoutIntent gehalten; die Aufträge entstehen
     erst bei der Zahlung (fulfill_intent) bzw. werden bei Abbruch aufgelöst (cancel_intent)."""
-    from app.services import sales as sales_svc
+    from app.services import selling as selling_svc
     from app.models import CheckoutIntent
 
     for f in ("checkout", "fulfill_intent", "cancel_intent", "price_options"):
-        assert hasattr(sales_svc, f)
+        assert hasattr(selling_svc, f)
     assert CheckoutIntent.__tablename__ == "checkout_intents"
 
 
@@ -110,15 +110,15 @@ def test_make_to_order_is_demand_supply_not_override():
     stock/FIFO); die Fehlmenge deckt ein Nachschub-Unter-Auftrag (services/supply)."""
     import inspect as _inspect
     from app.models import Order
-    from app.services import sales, subject, supply
+    from app.services import selling, subject, supply
 
     # subject_kind leitet rein aus der Auftragsgestalt ab – keine Quellen-Übersteuerung mehr.
     assert "subject_source" not in _inspect.getsource(subject.subject_kind)
     assert "subject_source" not in Order.__table__.columns.keys()
     assert "fulfilled_by_order_id" not in Order.__table__.columns.keys()
     # Der Shop dockt über DENSELBEN Mechanismus an wie der ERP-Knopf: ensure_supply.
-    assert "ensure_supply" in _inspect.getsource(sales.fulfill_intent)
-    assert not hasattr(sales, "_create_production_order")
+    assert "ensure_supply" in _inspect.getsource(selling.fulfill_intent)
+    assert not hasattr(selling, "_create_production_order")
     assert hasattr(supply, "ensure_supply")
 
 

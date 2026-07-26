@@ -15,7 +15,7 @@ from ..schemas.sales import (
     ArticlePriceCreate, ArticlePriceResponse, ArticlePriceUpdate,
     ArticleSalesProfile, ArticleSalesUpdate, AudienceAdd, AudienceMember, PriceView,
 )
-from ..services import sales as sales_svc
+from ..services import selling as selling_svc
 
 router = APIRouter(prefix="/api/v1/erp/articles", tags=["sales"])
 
@@ -36,9 +36,9 @@ def _profile(db: Session, article: Article) -> ArticleSalesProfile:
         sales_visibility=article.sales_visibility,
         sales_fulfillment=article.sales_fulfillment,
         sales_content=article.sales_content,
-        prices=[ArticlePriceResponse.model_validate(p) for p in sales_svc.prices_for(db, article.id)],
-        audience=[AudienceMember(**m) for m in sales_svc.audience_for(db, article.id)],
-        previews=[PriceView(**v) for v in sales_svc.previews(db, article)],
+        prices=[ArticlePriceResponse.model_validate(p) for p in selling_svc.prices_for(db, article.id)],
+        audience=[AudienceMember(**m) for m in selling_svc.audience_for(db, article.id)],
+        previews=[PriceView(**v) for v in selling_svc.previews(db, article)],
     )
 
 
@@ -54,7 +54,7 @@ async def get_sales(object_id: int, db: Session = Depends(get_db),
 async def update_sales(object_id: int, data: ArticleSalesUpdate, db: Session = Depends(get_db),
                        user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    sales_svc.update_profile(db, article, data, user.id)
+    selling_svc.update_profile(db, article, data, user.id)
     return _profile(db, article)
 
 
@@ -64,28 +64,28 @@ async def update_sales(object_id: int, data: ArticleSalesUpdate, db: Session = D
 async def list_prices(object_id: int, db: Session = Depends(get_db),
                       _: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    return [ArticlePriceResponse.model_validate(p) for p in sales_svc.prices_for(db, article.id)]
+    return [ArticlePriceResponse.model_validate(p) for p in selling_svc.prices_for(db, article.id)]
 
 
 @router.post("/{object_id}/sales/prices", response_model=ArticlePriceResponse, status_code=201)
 async def create_price(object_id: int, data: ArticlePriceCreate, db: Session = Depends(get_db),
                        user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    return ArticlePriceResponse.model_validate(sales_svc.create_price(db, article, data, user.id))
+    return ArticlePriceResponse.model_validate(selling_svc.create_price(db, article, data, user.id))
 
 
 @router.patch("/{object_id}/sales/prices/{price_id}", response_model=ArticlePriceResponse)
 async def update_price(object_id: int, price_id: int, data: ArticlePriceUpdate,
                        db: Session = Depends(get_db), user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    return ArticlePriceResponse.model_validate(sales_svc.update_price(db, article, price_id, data, user.id))
+    return ArticlePriceResponse.model_validate(selling_svc.update_price(db, article, price_id, data, user.id))
 
 
 @router.delete("/{object_id}/sales/prices/{price_id}")
 async def delete_price(object_id: int, price_id: int, db: Session = Depends(get_db),
                        user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    sales_svc.delete_price(db, article, price_id, user.id)
+    selling_svc.delete_price(db, article, price_id, user.id)
     return {"deleted": True}
 
 
@@ -96,13 +96,13 @@ async def delete_price(object_id: int, price_id: int, db: Session = Depends(get_
 async def add_audience(object_id: int, data: AudienceAdd, db: Session = Depends(get_db),
                        user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    sales_svc.add_audience(db, article, data.user_id, user.id)
-    return [AudienceMember(**m) for m in sales_svc.audience_for(db, article.id)]
+    selling_svc.add_audience(db, article, data.user_id, user.id)
+    return [AudienceMember(**m) for m in selling_svc.audience_for(db, article.id)]
 
 
 @router.delete("/{object_id}/sales/audience/{row_id}")
 async def remove_audience(object_id: int, row_id: int, db: Session = Depends(get_db),
                           user: UserProfile = Depends(require_employee)):
     article = _get_article(db, object_id)
-    sales_svc.remove_audience(db, article, row_id, user.id)
+    selling_svc.remove_audience(db, article, row_id, user.id)
     return {"removed": True}

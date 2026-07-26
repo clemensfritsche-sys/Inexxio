@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...models import CheckoutIntent, Order, Sale, UserProfile
-from .. import address, sales as sales_svc
+from .. import address, selling as selling_svc
 from ..events import emit
 from .base import PaymentProvider
 
@@ -214,13 +214,13 @@ class StripeProvider(PaymentProvider):
         if not intent:
             return None
         snap = self._snapshot(stripe, session)
-        sales_svc.fulfill_intent(db, intent, snapshot=snap)
+        selling_svc.fulfill_intent(db, intent, snapshot=snap)
         return intent
 
     def _on_failed(self, db: Session, session) -> CheckoutIntent | None:
         intent = self._resolve_intent(db, session)
         if intent:
-            sales_svc.cancel_intent(db, intent)
+            selling_svc.cancel_intent(db, intent)
         return intent
 
     def _on_subscription_ended(self, db: Session, sub) -> CheckoutIntent | None:
@@ -229,7 +229,7 @@ class StripeProvider(PaymentProvider):
         # FIX: Nach dem Abschluss des Abo-Auftrags trägt ein Folge-Entwurf die Wiederkehr
         # (recurrence_active am Original = False) – der alte Guard tat dann NICHTS und die
         # lokale Kette spawnte weiter, obwohl Stripe das Abo beendet hatte.
-        if order and sales_svc.deactivate_recurrence_chain(db, order):
+        if order and selling_svc.deactivate_recurrence_chain(db, order):
             emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
             db.commit()
         return None
@@ -255,7 +255,7 @@ class StripeProvider(PaymentProvider):
         if order is not None and kind == "product":
             from .. import sale as sale_svc, supply
             from ..orders import release_order
-            chain = sales_svc.recurrence_chain(db, order)
+            chain = selling_svc.recurrence_chain(db, order)
             current = chain[-1] if chain else None
             if (current is not None and current.status == "draft"
                     and current.recurrence_active):
@@ -314,7 +314,7 @@ class StripeProvider(PaymentProvider):
                     raise HTTPException(502, detail=f"Kündigung bei Stripe fehlgeschlagen: {e}")
         # FIX: Nach Auftrags-Abschluss trägt ein Folge-Entwurf die Wiederkehr
         # (_spawn_recurrence) – die ganze Kette beenden, nicht nur das Original.
-        if sales_svc.deactivate_recurrence_chain(db, order):
+        if selling_svc.deactivate_recurrence_chain(db, order):
             emit(db, "subscription.cancelled", object_type="order", object_id=order.object_id)
         db.commit()
         return True
@@ -325,7 +325,7 @@ class StripeProvider(PaymentProvider):
 
         Grundlage ist der beim Kauf eingefrorene **Positions-Brutto** (Snapshot
         ``settlement.total`` – bei einem Mehrpositionen-Warenkorb der anteilige Betrag
-        DIESER Position, ``sales._split_snapshot``), skaliert mit dem Gutschrift-Anteil
+        DIESER Position, ``selling._split_snapshot``), skaliert mit dem Gutschrift-Anteil
         (netto Gutschrift ÷ netto Original, Teil-Erstattung/Kulanz). Ohne Original-
         PaymentIntent (Direkt-/Rechnungsverkauf) → ``None`` (offline abzuwickeln)."""
         pi_id = getattr(original_sale, "stripe_payment_intent_id", None) if original_sale else None

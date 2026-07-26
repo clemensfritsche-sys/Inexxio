@@ -16,7 +16,7 @@ from ..models import Article, CheckoutIntent, CompanySettings, Order, Sale, User
 from ..schemas.shop import (
     CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct, ShopReturnRequest,
 )
-from ..services import consent as consent_svc, sales as sales_svc
+from ..services import consent as consent_svc, selling as selling_svc
 from ..services.payments import get_provider, provider_name
 
 router = APIRouter(prefix="/api/v1/shop", tags=["shop"])
@@ -36,7 +36,7 @@ async def shop_config(db: Session = Depends(get_db)):
     eingebettete Stripe-Kasse – der **Publishable Key** (öffentlich, kein Secret)."""
     s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
     return {
-        "currencies": sales_svc.shop_currencies(db),
+        "currencies": selling_svc.shop_currencies(db),
         "default_currency": (s.shop_default_currency if s else None) or "CHF",
         "provider": provider_name(db),
         "stripe_publishable_key": (s.stripe_publishable_key if s else None) or None,
@@ -56,9 +56,9 @@ def list_products(
     db: Session = Depends(get_db),
     user: UserProfile | None = Depends(get_optional_user),
 ):
-    cur = sales_svc.resolve_currency(db, currency, country)
+    cur = selling_svc.resolve_currency(db, currency, country)
     return [ShopProduct(**p) for p in
-            sales_svc.list_products(db, user, cur, country, _lang(request, lang))]
+            selling_svc.list_products(db, user, cur, country, _lang(request, lang))]
 
 
 @router.get("/products/{object_id}", response_model=ShopProduct)
@@ -74,11 +74,11 @@ def get_product(
     article = db.query(Article).filter(Article.object_id == object_id, Article.is_active == True).first()
     if not article:
         raise HTTPException(404, detail="Produkt nicht gefunden")
-    article = sales_svc.canonical(db, article)   # Ersetzen-Kette: kanonisch zum aktuellen Artikel
-    if not sales_svc.can_view(db, article, user):
+    article = selling_svc.canonical(db, article)   # Ersetzen-Kette: kanonisch zum aktuellen Artikel
+    if not selling_svc.can_view(db, article, user):
         raise HTTPException(404, detail="Produkt nicht gefunden")
-    cur = sales_svc.resolve_currency(db, currency, country)
-    return ShopProduct(**sales_svc.to_product(db, article, cur, country, user, _lang(request, lang)))
+    cur = selling_svc.resolve_currency(db, currency, country)
+    return ShopProduct(**selling_svc.to_product(db, article, cur, country, user, _lang(request, lang)))
 
 
 @router.post("/checkout", response_model=ShopCheckoutResult)
@@ -92,7 +92,7 @@ def checkout(
     # Serverseitiges Consent-Gate (Backstop zum blockierenden Frontend-Modal): ein Kauf
     # setzt die akzeptierten Pflichtdokumente (AGB …) voraus – auch per direktem API-Call.
     consent_svc.assert_acknowledged(db, user)
-    intent, result = sales_svc.checkout(db, data.items, user)
+    intent, result = selling_svc.checkout(db, data.items, user)
     return ShopCheckoutResult(
         token=str(intent.id),
         provider=result.get("provider") or provider_name(db),
@@ -157,7 +157,7 @@ async def simulate_payment(data: PaymentSimulate, db: Session = Depends(get_db),
 async def my_orders(db: Session = Depends(get_db),
                     user: UserProfile = Depends(get_current_user)):
     """Eigene Bestellungen + Abos (Kunden-Selbstbedienung)."""
-    return [CustomerOrder(**o) for o in sales_svc.list_customer_orders(db, user.id)]
+    return [CustomerOrder(**o) for o in selling_svc.list_customer_orders(db, user.id)]
 
 
 @router.post("/orders/{order_object_id}/cancel-subscription")
@@ -178,13 +178,13 @@ def cancel_subscription(order_object_id: int, db: Session = Depends(get_db),
     # `not order.recurrence_active` meldete dann «gekündigt», OHNE Stripe je zu kündigen:
     # der Kunde wäre unbegrenzt weiter belastet worden. Nur noch überspringen, wenn weder
     # ein Stripe-Abo noch irgendein aktives Glied der Wiederkehr-Kette existiert.
-    chain_active = any(o.recurrence_active for o in sales_svc.recurrence_chain(db, order))
+    chain_active = any(o.recurrence_active for o in selling_svc.recurrence_chain(db, order))
     if not chain_active and not order.stripe_subscription_id:
         return {"cancelled": True, "subscription_active": False}
     # Mindestbindung eines Produktabos – verhindert eine sofortige Kündigung direkt nach
     # Abschluss, vor der ersten Lieferung/Abrechnung (state of the art bei wiederkehrenden
     # physischen Lieferungen). Personal darf trotzdem jederzeit kündigen (Kulanz/Support).
-    earliest = sales_svc.earliest_cancellation_date(order)
+    earliest = selling_svc.earliest_cancellation_date(order)
     if earliest and user.role not in ("admin", "employee") and date.today() < earliest:
         raise HTTPException(
             403,

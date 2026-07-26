@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..core.auth import require_employee
 from ..core.database import get_db
 from ..models import UserProfile
-from ..services import replenishment, sales
+from ..services import replenishment, selling
 
 router = APIRouter(prefix="/api/v1/erp/maintenance", tags=["maintenance"])
 
@@ -29,5 +29,5 @@ async def run_sweep(db: Session = Depends(get_db), user: UserProfile = Depends(r
     """Meldebestände prüfen/nachbestellen + verlassene Checkout-Intents stornieren."""
     reordered = len(replenishment.evaluate_all(db, user.id))
     db.commit()
-    reaped = sales.reap_stale_intents(db, user.id)
+    reaped = selling.reap_stale_intents(db, user.id)
     return SweepResult(reordered=reordered, reaped_intents=reaped)

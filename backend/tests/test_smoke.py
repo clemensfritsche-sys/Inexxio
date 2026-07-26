@@ -1566,7 +1566,12 @@ def test_reservation_becomes_firm_only_at_release():
     assert "reserve(cand, order.id, take)" in alloc_src  # erst hier scharf (mengengenau)
     assert "next_object_id" not in alloc_src             # KEINE Teilung / neue Nummer
     # Freigabe-Validierung: nur freigegebene (passed/in_stock) Instanzen sind freigebbar
-    assert 'quality == "passed"' in alloc_src and 'disposition == "in_stock"' in alloc_src
+    # Die Bestands-Regel («freigegeben UND am Lager») steht nur noch an EINER Stelle –
+    # als Query-Bedingung (in_stock_clauses) und als Objekt-Prüfung (is_in_stock).
+    assert "is_in_stock" in alloc_src
+    from app.services import inventory as _inv
+    rule = _inspect.getsource(_inv.is_in_stock)
+    assert 'quality == "passed"' in rule and 'disposition == "in_stock"' in rule
     assert "record_link" in alloc_src                   # Historie dauerhaft festhalten
 
 
@@ -1852,12 +1857,12 @@ def test_sale_mode_and_payment_method_fields():
     personal-erfasster Verkauf braucht KEIN Kartenterminal (Rechnung ist der übliche B2B-Weg,
     `payment_method` bleibt frei wählbar: invoice/cash/twint/other)."""
     import inspect as _inspect
-    from app.services import sale as sale_svc, sales as sales_svc
+    from app.services import sale as sale_svc, selling as selling_svc
     from app.schemas.sale import ALLOWED_PAYMENT_METHODS
 
     assert set(ALLOWED_PAYMENT_METHODS) == {"invoice", "cash", "twint", "other"}
     assert "payment_method" in sale_svc._EDITABLE and "payment_reference" in sale_svc._EDITABLE
-    assert 'mode="shop"' in _inspect.getsource(sales_svc._create_multiline_sale_order)
+    assert 'mode="shop"' in _inspect.getsource(selling_svc._create_multiline_sale_order)
     assert 'sale.payment_method = "stripe"' in _inspect.getsource(sale_svc._apply_stripe_snapshot)
     # Manuelle Zahlung ohne gewählte Art -> sinnvoller Default (Rechnung), kein Terminal nötig.
     assert '"invoice"' in _inspect.getsource(sale_svc._apply_transition)
@@ -1988,9 +1993,9 @@ def test_subscription_cancellation_has_minimum_commitment():
     Mindestbindung. Personal darf trotzdem jederzeit kündigen (Kulanz)."""
     import inspect as _inspect
     from app.routers import shop
-    from app.services import sales
+    from app.services import selling
 
-    fn_src = _inspect.getsource(sales.earliest_cancellation_date)
+    fn_src = _inspect.getsource(selling.earliest_cancellation_date)
     assert 'order.recurrence_kind != "product"' in fn_src
     assert "earliest > date.today()" in fn_src
 
@@ -2398,16 +2403,16 @@ def test_allocation_write_paths_lock_fifo_candidates():
     Checkouts dieselbe letzte Instanz doppelt (Überverkauf). Reine Previews lesen ohne Lock."""
     import inspect as _inspect
 
-    from app.services import recovery, resource, sales, subject
+    from app.services import recovery, resource, selling, subject
 
-    for mod, fn in ((sales, "_materialize_multiline"), (subject, "_allocate_stock_for"),
+    for mod, fn in ((selling, "_materialize_multiline"), (subject, "_allocate_stock_for"),
                     (recovery, "_fifo_cover")):
         src = _inspect.getsource(getattr(mod, fn))
         assert "lock=True" in src, f"{mod.__name__}.{fn} alloziert ohne Row-Lock"
     src = _inspect.getsource(resource)
     assert src.count("lock=True") >= 2   # reserve_components + _consume_line
 
-    from app.services.sales import fulfill_intent
+    from app.services.selling import fulfill_intent
     assert "with_for_update" in _inspect.getsource(fulfill_intent)
 
 

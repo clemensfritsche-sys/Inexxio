@@ -96,9 +96,20 @@ sie besitzen nicht. Konkret:
 
 ### Eine Sache, eine Stelle
 Gleiches gleich behandeln: gleiche Bedeutung → gleicher Name, gleiche Datenform, **eine**
-Implementierung (z. B. `services/address.py` für Adressen, `services/locations.py` für
-Standorte, `components/erp/address-field.tsx` für jede Adress-Eingabe). Zwei Wege für
+Implementierung (z. B. `services/address.py` für Adressen, `services/people.py` für
+Personennamen, `services/locations.py` für Standorte, `objects.obj_nr` für die
+Objektnummer, `components/erp/address-field.tsx` für jede Adress-Eingabe). Zwei Wege für
 dieselbe Sache sind ein Bug, auch wenn beide funktionieren.
+
+Braucht eine Regel zwei **Formen** (SQL-Bedingung *und* Prüfung auf einem geladenen
+Objekt), stehen beide nebeneinander in EINEM Modul und tragen denselben Namensstamm –
+`inventory.in_stock_clauses()` / `inventory.is_in_stock()`. Zwei Formen einer Regel sind
+in Ordnung; zwei Regeln sind es nicht.
+
+**Spiegel über die API-Grenze** (Frontend braucht Symbol/Label zu Backend-Aufzählungen)
+sind erlaubt, aber getestet: `backend/tests/test_frontend_mirrors.py` vergleicht die
+handgepflegten TS-Unions (`StepType`, `LocationType`, `ArticleUnit`) und die Labels gegen
+die Backend-Quellen. So bleibt der Spiegel schnell und kann trotzdem nicht auseinanderlaufen.
 
 ## Konventionen
 - Alle DB-Felder: snake_case, Englisch

@@ -77,6 +77,24 @@ def available_qty(candidates: list[Instance], for_order_id: int | None = None) -
     return total
 
 
+def is_in_stock(inst) -> bool:
+    """Dieselbe Regel wie ``in_stock_clauses`` – nur auf einem **geladenen** Objekt
+    statt als Query-Bedingung.
+
+    Beide Formen brauchte es schon immer (einmal fürs SQL, einmal für eine Instanz in
+    der Hand), aber nur die SQL-Form war zentral. Die Objekt-Form lag viermal einzeln
+    ausgeschrieben im Code (subject, recovery, routers/orders 2×) und in ``process``
+    sogar in ZWEI Varianten: ``quality != 'failed'`` an der einen, ``quality ==
+    'passed'`` an der nächsten Stelle. Beide meinten dasselbe – aber wer das liest,
+    muss erst prüfen, ob der Unterschied Absicht ist. Jetzt gibt es eine Regel in
+    zwei Formen, nicht zwei Regeln."""
+    return (
+        inst.quality == "passed"
+        and inst.disposition == "in_stock"
+        and to_qty(inst.quantity) > 0
+    )
+
+
 def in_stock_clauses() -> tuple:
     """SQLAlchemy-Bedingungen für „physisch am Lager" – qualitativ freigegeben
     (``quality=passed``) UND dispositiv am Lager (``disposition=in_stock``), Menge > 0."""
