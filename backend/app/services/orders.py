@@ -191,11 +191,6 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
     ie.sample_percent = step.sample_percent
     ie.required_count = required_count(db, order, step)
     ie.fields = [CaptureField(**f) for f in eval_fields(step)]
-    # Freigabe/Unterschrift + Bilderfassung: Konfiguration aus der Schritt-Definition.
-    ie.require_signature = bool(getattr(step, "require_signature", False))
-    ie.signer_ids = [int(x) for x in (step.signer_ids or [])]
-    ie.require_photo = bool(getattr(step, "require_photo", False))
-    ie.photo_instruction = step.photo_instruction
     stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
               for s in (insp.samples or [])} if insp else {}
     ie.samples = [
@@ -205,8 +200,6 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
     ]
     if insp and insp.inspector_id:
         ie.inspector_name = people.name_by_id(db, insp.inspector_id)
-    if insp and insp.signed_by:
-        ie.signed_by_name = people.name_by_id(db, insp.signed_by)
     return ie
 
 

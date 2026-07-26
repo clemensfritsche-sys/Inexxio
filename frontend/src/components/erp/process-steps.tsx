@@ -237,10 +237,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
         shared_fields: type === 'purchase' ? shared : null,
         sample_percent: type === 'inspection' ? Math.trunc(Number(samplePercent)) : null,
         capture_fields: type === 'inspection' ? buildCaptureFields() : null,
-        // Bild/Unterschrift sind Feldtypen der Maske (kein Schritt-Flag mehr).
-        require_photo: false,
-        require_signature: false,
-        signer_ids: null,
         target_location_type: tgt ? (tgt[0] as LocationType) : null,
         target_location_id: tgt ? Number(tgt[1]) : null,
         resource_lines: resourcePayload,

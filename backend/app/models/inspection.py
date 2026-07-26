@@ -43,7 +43,3 @@ class Inspection(Base, TimestampMixin):
         Boolean, default=False, server_default=text("false"), nullable=False)
 
     # Freigabe/Unterschrift (Bild-URL + wer + wann) und Schritt-Foto («Bilderfassung»).
-    signature_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
-    signed_by: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    signed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    photo_url: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

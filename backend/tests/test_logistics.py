@@ -289,16 +289,22 @@ def test_freight_wiring_and_quote_guard():
 
 
 def test_shipping_wiring_end_to_end():
-    """Verdrahtung: Shipment-Modell (Fachzeile ohne eigene Nummer), transport_mode am
-    Schritt (Whitelist), ShipmentEmbed im Bewegungs-Embed, Endpunkte am Auftrag,
-    Gefahrgut am Artikel (Geofence entfernt – adress-basiert)."""
+    """Verdrahtung: Shipment-Modell (Fachzeile ohne eigene Nummer), ShipmentEmbed im
+    Bewegungs-Embed, Endpunkte am Auftrag, Gefahrgut am Artikel (Geofence entfernt –
+    adress-basiert).
+
+    Der Transport-Modus lebt **nur am Versand-Beleg** (``shipments.transport_mode``:
+    internal | parcel | freight). Die frühere Vorgabe am Prozessschritt trug noch die von
+    Migration 076 abgeschafften Werte (auto/carrier/self/none) und wurde nirgends gelesen –
+    zwei Whitelists für dieselbe Sache. Sie ist entfernt (Migration 081)."""
     import inspect as _inspect
 
     from app.models import Article, ArticleProcessStep, CompanySettings, Shipment
     from app.routers import orders as orders_router
     from app.schemas.article_process_step import (
-        ALLOWED_TRANSPORT_MODES, ArticleProcessStepCreate, ArticleProcessStepUpdate,
+        ArticleProcessStepCreate, ArticleProcessStepUpdate,
     )
+    from app.schemas.shipment import ALLOWED_TRANSPORT_MODES
     from app.schemas.movement import MovementEmbed
     from app.schemas.shipment import ShipmentEmbed
     from app.services import logistics, movement
@@ -306,10 +312,11 @@ def test_shipping_wiring_end_to_end():
     cols = Shipment.__table__.columns.keys()
     assert "object_id" not in cols and {"order_id", "step_id", "direction", "status",
                                         "rates", "label_url", "tracking_number"} <= set(cols)
-    assert ALLOWED_TRANSPORT_MODES == ("auto", "carrier", "self", "none")
-    assert "transport_mode" in ArticleProcessStep.__table__.columns
-    assert "transport_mode" in ArticleProcessStepCreate.model_fields
-    assert "transport_mode" in ArticleProcessStepUpdate.model_fields
+    # EINE Whitelist, am Beleg – nicht zwei mit auseinanderlaufenden Werten.
+    assert ALLOWED_TRANSPORT_MODES == ("internal", "parcel", "freight")
+    assert "transport_mode" not in ArticleProcessStep.__table__.columns
+    assert "transport_mode" not in ArticleProcessStepCreate.model_fields
+    assert "transport_mode" not in ArticleProcessStepUpdate.model_fields
     assert "is_hazmat" in Article.__table__.columns
     for c in ("site_latitude", "site_longitude", "site_radius_m"):
         assert c not in CompanySettings.__table__.columns   # Geofence entfernt (adress-basiert)

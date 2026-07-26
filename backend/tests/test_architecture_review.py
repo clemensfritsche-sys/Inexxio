@@ -68,12 +68,14 @@ def test_movement_embed_and_router_share_selection():
 # ─── 3./4. Ersetzen/Wiederkehr verliert keine Konfiguration mehr ──────────────────
 
 def test_copy_steps_copies_document_and_transport_config():
-    # Bug: _copy_steps verlor doc_signers/… + transport_mode → «Ersetzen» einer
-    # Dokument-Fassung bzw. der nächste Wartungszyklus verloren still die Freigabe-Parteien.
+    # Bug: _copy_steps verlor doc_signers/… → «Ersetzen» einer Dokument-Fassung bzw. der
+    # nächste Wartungszyklus verloren still die Freigabe-Parteien.
+    # (``transport_mode`` am Schritt ist mit Migration 081 entfallen – der Modus lebt am
+    # Versand-Beleg und wird zur Laufzeit ermittelt, es gibt am Schritt nichts zu kopieren.)
     from app.services.deactivation import _copy_steps
     src = inspect.getsource(_copy_steps)
     for field in ("doc_signers", "sign_sequential", "doc_audience", "doc_audience_roles",
-                  "doc_audience_person_ids", "doc_visibility", "transport_mode"):
+                  "doc_audience_person_ids", "doc_visibility"):
         assert field in src, f"_copy_steps kopiert «{field}» nicht"
 
 

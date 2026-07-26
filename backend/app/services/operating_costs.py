@@ -18,7 +18,6 @@ import calendar
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models import Event, Sale

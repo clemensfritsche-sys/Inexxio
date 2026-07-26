@@ -57,15 +57,9 @@ class InspectionEmbed(BaseModel):
     fields: list[CaptureField] = []     # Maske (aus der Prozessdefinition)
     samples: list[InspectionSample] = []  # konkrete Stichproben (Instanz + erfasste Werte)
 
-    # Freigabe/Unterschrift + Bilderfassung (Konfiguration aus der Definition + erfasste Werte).
-    require_signature: bool = False
-    signer_ids: list[int] = []          # zugelassene Unterzeichner (Objektnummern); leer = jede/r
-    signature_url: Optional[str] = None
-    signed_by_name: Optional[str] = None
-    signed_at: Optional[datetime] = None
-    require_photo: bool = False
-    photo_instruction: Optional[str] = None
-    photo_url: Optional[str] = None
+    # Unterschrift und Foto sind reine **Erfassungsfeld-Typen** (``fields`` mit
+    # ``type='signature'``/``'photo'``); ihre Werte stehen in den ``samples``. Die frühere
+    # Parallel-Achse (require_*/signature_url/…) ist entfernt (Migration 081).
 
     @field_validator("samples", mode="before")
     @classmethod
