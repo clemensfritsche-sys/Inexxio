@@ -82,10 +82,19 @@ class Order(Base, TimestampMixin):
     #                     Kredit-Modus, Ware über die Bewegung). KEINE Eltern-Pause.
     #   'replenishment' – Auto-Nachbestellung bei unterschrittenem Meldebestand
     #                     (``services/replenishment.py``): eigenständig, OHNE Eltern.
+    #   'provisioning'  – Bereitstellung: bringt Instanzen an den Ort, den ein Schritt des
+    #                     Eltern-Auftrags verlangt (``services/provisioning.py``). Festes
+    #                     Subjekt = genau diese Instanzen; der betroffene Schritt ist
+    #                     «blockiert», bis sie da sind (wie Nachschub, keine Eltern-Pause).
     parent_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
     # VARCHAR(20): 'replenishment' hat 13 Zeichen – die frühere Breite 12 liess jede
     # Auto-Nachbestellung mit einem Truncation-Fehler scheitern (Migration 060).
-    reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # deviation | supply | return | replenishment
+    reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # deviation | supply | return | replenishment | provisioning
+
+    # Bereitstellung: welcher Schritt des Eltern-Auftrags wartet auf sie. Bindet die
+    # Bereitstellung an ihren Auslöser – ein Auftrag kann mehrere Schritte haben, die
+    # unabhängig voneinander Material an verschiedene Orte brauchen.
+    provisioning_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
     # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
     # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**

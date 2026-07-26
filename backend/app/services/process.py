@@ -453,11 +453,12 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     Versand blockiert, sobald der Verkauf bezahlt ist (die Ware ist dann bereits «verkauft», also
     aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus).
 
-    Die Erkennung hängt an der **Rolle** (``process_steps.is_companion``), seit die
-    ``locked``-Sperre aufgelöst ist: der Schritt ist frei löschbar/verschiebbar, seine
-    fachliche Rolle als Begleiter bleibt davon unberührt."""
+    Die Erkennung hängt an der **Rolle** (``provisioning.is_companion``), nicht an einer
+    Sperre: der Schritt ist frei löschbar/verschiebbar, seine fachliche Rolle als Begleiter
+    bleibt davon unberührt. Neue Begleiter entstehen nicht mehr – physische Transporte sind
+    heute Bereitstellungs-Unter-Aufträge –, bestehende bleiben gültig."""
     out: dict[int, Decimal] = {}
-    from .process_steps import is_companion
+    from .provisioning import is_companion
     if step.step_type in SUBJECT_STEP_TYPES and not is_companion(step):
         out.update(_subject_shortfalls(db, order))
     elif step.step_type in RESOURCE_STEP_TYPES:
@@ -475,8 +476,15 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
 
 
 def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
-    """Blockiert, weil ein Bedarf dieses Schritts (noch) nicht gedeckt ist?"""
-    return bool(step_shortfalls(db, order, step))
+    """Blockiert, weil ein Bedarf dieses Schritts (noch) nicht gedeckt ist?
+
+    Zwei Gründe, dieselbe Konsequenz: **Menge** fehlt (``step_shortfalls`` → Nachschub)
+    oder das Material liegt am **falschen Ort** (offene Bereitstellung → sie muss erst
+    ankommen). Beide blockieren nur diesen Schritt, nicht den Auftrag."""
+    if step_shortfalls(db, order, step):
+        return True
+    from .provisioning import open_provisioning
+    return bool(open_provisioning(db, order, step.id))
 
 
 def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
@@ -728,6 +736,18 @@ def recompute_completion(db: Session, order: Order) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind – aber NICHT,
     solange eine Abweichung offen oder ein Abbruch ausstehend ist (der Auftrag pausiert)."""
     if _is_paused_by_deviation(db, order):
+        return
+    # Bereitstellung ableiten: Jeder Schritt, der dran ist oder gerade war, bekommt sein
+    # Material an den Ort, den er verlangt – als Unter-Auftrag, falls es woanders liegt.
+    # Hier, weil ``recompute_completion`` nach JEDEM Schritt-Abschluss läuft: sobald der
+    # nächste Schritt aktiv wird, ist die Bereitstellung fällig. Ein Bereitstellungs-
+    # Auftrag selbst löst keine weitere aus (Rekursions-Schutz in ``ensure_provisioning``).
+    from .provisioning import ensure_provisioning, open_provisioning
+    ensure_provisioning(db, order, None)
+    # Ein Auftrag ist nicht fertig, solange Material noch unterwegs ist – auch wenn alle
+    # Schritte fachlich erledigt sind (z. B. Verkauf bezahlt, Ware aber noch nicht beim
+    # Kunden). Sonst schlösse der Auftrag ab, bevor die Lieferung raus ist.
+    if open_provisioning(db, order):
         return
     if order.status != "completed" and all_steps_done(db, order):
         order.status = "completed"

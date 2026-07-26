@@ -51,6 +51,10 @@ class OrderStepInfo(BaseModel):
     # die diese Fehlmenge gerade decken.
     shortfall: list[StepShortfall] = []
     supply_order_object_ids: list[int] = []
+    # Bei state='blocked' **ohne** Fehlmenge: das Material existiert, liegt aber noch am
+    # falschen Ort – diese Bereitstellungs-Unteraufträge bringen es her (Objektnummern).
+    # Zwei Gründe zu blockieren, zwei getrennte Felder: «zu wenig da» ≠ «noch nicht hier».
+    provisioning_order_object_ids: list[int] = []
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt).
     # «Beschaffung» und «Verkauf» sind – wie jeder andere Schritttyp – GENAU EIN Schritt,
@@ -303,10 +307,14 @@ class OrderResponse(BaseModel):
     replaces_id: Optional[int] = None
     # Unter-Auftrag (parent) + Grund + Abbruch-Folgeauftrag (Objektnummern)
     parent_order_id: Optional[int] = None
-    reason: Optional[str] = None   # deviation | supply | return (gesetzt → dieser Auftrag IST ein Unter-Auftrag)
+    reason: Optional[str] = None   # deviation | supply | return | provisioning (gesetzt → Unter-Auftrag)
     abort_into_id: Optional[int] = None
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
     returns: list[OrderDeviationInfo] = []           # Retouren/Erstattungen (pausieren NICHT)
+    # Bereitstellungen: bringen vorhandenes Material an den Ort, den ein Schritt verlangt
+    # (blockiert nur den betroffenen Schritt, pausiert den Eltern NICHT). Eigener Topf, weil
+    # eine Bereitstellung sonst im ``deviations``-Topf landete und als «Abweichung» erschiene.
+    provisionings: list[OrderDeviationInfo] = []
     paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist

@@ -34,11 +34,11 @@ class ArticleProcessStep(Base, TimestampMixin):
     position: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False)
     step_type: Mapped[str] = mapped_column(String(30), default="purchase", nullable=False)
 
-    # Begleit-Bewegung: vom System EINMALIG hinter eine Beschaffung (Wareneingang) bzw.
-    # einen Verkauf (Versand zum Kunden) gesät – siehe services/process_steps.py. Das ist
-    # eine **Rolle, keine Sperre**: der Schritt ist löschbar, verschiebbar und editierbar
-    # wie jeder andere (früher ``locked``, Migration 079). Die Rolle steuert das feste
-    # Versand-Ziel und die Ausnahme von der Fehlmengen-Prüfung.
+    # Alt-Bestand: früher automatisch gesäte Begleit-Bewegung (Wareneingang / Versand zum
+    # Kunden). Das System legt **keine** Prozessschritte mehr an – physisch nötige Transporte
+    # entstehen zur Laufzeit als Bereitstellungs-Unter-Auftrag (services/provisioning.py).
+    # Bestehende Begleiter behalten ihre Fachwirkung: festes Versand-Ziel und Ausnahme von
+    # der Fehlmengen-Prüfung (``provisioning.is_companion``).
     companion: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
     # Konfiguration «purchase»

@@ -131,9 +131,9 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
         record_link(db, inst.object_id, ret.id)
     # Üblichen Ablauf gleich anlegen, damit das Personal nur noch ausführen muss:
     #   Bewegung (Ware zurück ins Lager) + Verkauf im Kredit-Modus (Gutschrift).
-    # Kein Begleit-Versand: der «Verkauf» ist hier eine **Gutschrift**, die Ware kommt
-    # herein statt hinaus (``seed_companion_movements`` überspringt den Retoure-Kontext
-    # ohnehin – der Ablauf steht hier explizit).
+    # Der «Verkauf» ist hier eine **Gutschrift**: die Ware kommt herein statt hinaus. Der
+    # Ablauf steht explizit; eine Bereitstellung zum Kunden entsteht nicht (das Subjekt ist
+    # bereits beim Kunden, ``provisioning`` bringt es über diese Bewegung zurück).
     db.add(ArticleProcessStep(order_id=ret.id, step_type="movement", position=1, is_active=True))
     db.add(ArticleProcessStep(order_id=ret.id, step_type="sale", position=2, is_active=True))
     db.flush()

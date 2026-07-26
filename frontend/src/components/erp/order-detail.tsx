@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -831,7 +831,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             ) : currentStepObj?.state === 'blocked' ? (
               <ProcessHoldNotice reason="shortfall" step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
                 busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
-                onCoverStock={coverFromStock} />
+                onCoverStock={coverFromStock} onOpen={(oid) => nav?.(oid)} />
             ) : (
               <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
             )}
@@ -944,6 +944,31 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
             ))}
           </div>
         )}
+        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+      </HoldFrame>
+    );
+  }
+
+  // ── Angehalten, weil Material noch unterwegs ist (nur der betroffene Schritt) ───
+  // Anderer Grund als Unterdeckung: das Material EXISTIERT, es liegt bloss noch nicht hier.
+  // Es gibt nichts zu beschaffen – die Bereitstellung bringt es, dann läuft es weiter.
+  const staging = step?.provisioning_order_object_ids ?? [];
+  if (staging.length > 0) {
+    return (
+      <HoldFrame title="Prozess angehalten – Material unterwegs">
+        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
+          Das benötigte Material ist vorhanden, liegt aber noch nicht am richtigen Ort. Es wird
+          gerade bereitgestellt – sobald es da ist, läuft dieser Schritt automatisch weiter.
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {staging.map((oid) => (
+            <button key={oid} type="button" onClick={() => onOpen?.(oid)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a', background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' }}>
+              <Truck size={14} style={{ color: '#b45309', flexShrink: 0 }} />
+              <span>Bereitstellung <ObjId value={oid} /> öffnen</span>
+            </button>
+          ))}
+        </div>
         {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
       </HoldFrame>
     );

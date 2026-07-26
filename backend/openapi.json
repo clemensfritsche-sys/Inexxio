@@ -12608,6 +12608,14 @@
             "title": "Returns",
             "default": []
           },
+          "provisionings": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDeviationInfo"
+            },
+            "type": "array",
+            "title": "Provisionings",
+            "default": []
+          },
           "paused": {
             "type": "boolean",
             "title": "Paused",
@@ -12689,6 +12697,14 @@
             },
             "type": "array",
             "title": "Supply Order Object Ids",
+            "default": []
+          },
+          "provisioning_order_object_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Provisioning Order Object Ids",
             "default": []
           },
           "purchase": {
