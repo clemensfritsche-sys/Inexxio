@@ -75,7 +75,7 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid #F1F5F9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <User style={{ width: 16, height: 16, color: '#64748b' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Mein Profil</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', margin: 0 }}>Persönliche Angaben</h2>
         </div>
         <SaveStatusIndicator status={status} errorMsg={errorMsg} />
       </div>

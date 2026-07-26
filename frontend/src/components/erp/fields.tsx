@@ -232,9 +232,11 @@ function statusActionStyle(tone: StatusTone = 'neutral', disabled?: boolean): Re
     padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
   };
-  if (tone === 'primary') return { ...base, border: 'none', background: '#2563eb', color: '#fff' };
-  if (tone === 'danger') return { ...base, border: '1px solid #fecaca', background: '#fff', color: '#dc2626' };
-  return { ...base, border: '1px solid #e2e8f0', background: '#fff', color: '#475569' };
+  // Design-System: Rot = der EINE laute CTA-Akzent (Primär, gefüllt). Destruktiv bleibt
+  // bewusst leise (rote Outline, nicht gefüllt), Neutral = graue Outline. Kein Blau mehr.
+  if (tone === 'primary') return { ...base, border: 'none', background: 'var(--inexxio-red)', color: '#fff' };
+  if (tone === 'danger') return { ...base, border: '1px solid var(--danger-bg)', background: 'var(--bg-1)', color: 'var(--danger)' };
+  return { ...base, border: '1px solid var(--border-2)', background: 'var(--bg-1)', color: 'var(--fg-3)' };
 }
 
 /** Status-Badge + Prozess-Buttons (Freigeben / Deaktivieren / Reaktivieren). */
@@ -274,7 +276,7 @@ export function PrimaryButton({ icon: Icon, children, onClick, disabled, tone = 
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
         minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none',
-        background: tone === 'success' ? '#16a34a' : '#2563eb', color: '#fff',
+        background: tone === 'success' ? 'var(--success)' : 'var(--inexxio-red)', color: '#fff',
         fontSize: 14, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
       }}>

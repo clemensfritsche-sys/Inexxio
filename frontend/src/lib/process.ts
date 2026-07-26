@@ -74,17 +74,17 @@ export function toStepperState(state: string): StepState {
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
 // am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
 // nur die Darstellung fasst beides zu einem Status zusammen.
-// Töne aus den geteilten Design-Tokens (TONE). «Im Prozess» = amber-orange – exakt der
-// gleiche Ton wie ein Auftrag «In Bearbeitung». Verbraucht/Verkauft behalten ihren eigenen,
-// terminal-eindeutigen Ton (violett/petrol), da es dafür keinen Semantik-Token gibt.
+// Reine Ampel (TONE): «Im Prozess»/«Reserviert» = GELB (in Arbeit/gebunden), «Freigegeben»
+// = GRÜN (am Lager, frei). Terminal: «Verbraucht»/«Verkauft» = GRÜN (positiv erfüllt),
+// «Gesperrt»/«Verschrottet» = ROT (Ampel auf «Stopp», nicht mehr verwendbar).
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
-  in_process: { label: 'Im Prozess',   ...TONE.pending,  icon: Clock },
-  in_stock:   { label: 'Freigegeben',  ...TONE.done,     icon: CheckCircle2 },
-  reserved:   { label: 'Reserviert',   ...TONE.info,     icon: Lock },
-  failed:     { label: 'Gesperrt',     ...TONE.danger,   icon: XCircle },
-  consumed:   { label: 'Verbraucht',   color: '#7c3aed', bg: '#f5f3ff', icon: PackageMinus },
-  scrapped:   { label: 'Verschrottet', ...TONE.inactive, icon: Trash2 },
-  sold:       { label: 'Verkauft',     color: '#0d9488', bg: '#f0fdfa', icon: Banknote },
+  in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Clock },
+  in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
+  reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
+  failed:     { label: 'Gesperrt',     ...TONE.danger,  icon: XCircle },
+  consumed:   { label: 'Verbraucht',   ...TONE.done,    icon: PackageMinus },
+  scrapped:   { label: 'Verschrottet', ...TONE.danger,  icon: Trash2 },
+  sold:       { label: 'Verkauft',     ...TONE.done,    icon: Banknote },
 };
 
 // Projektion der zwei Achsen (quality + disposition) PLUS Reservierung auf EINE Badge.

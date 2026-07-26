@@ -98,6 +98,15 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     onStepsCount?.(steps.length, isStockOperation(steps.map((s) => s.step_type as StepType)));
   }, [steps, onStepsCount]);
 
+  // Personen laden, sobald ein «Dokument»-Schritt existiert – auch read-only (freigegebener
+  // Prozess), damit die Freigabe-Parteien mit NAMEN statt nur als Zahl sichtbar sind.
+  useEffect(() => {
+    if (allUsers.length > 0) return;
+    if (steps.some((s) => s.step_type === 'document')) {
+      api.getUsers().then(setAllUsers).catch(() => {});
+    }
+  }, [steps, allUsers.length]);
+
   // Herkunfts-Artikel laden, um beim Beschaffungsschritt nur die **tatsächlich
   // gepflegten** optionalen Stammdatenfelder zur Freigabe anzubieten.
   const [selfArticle, setSelfArticle] = useState<Article | null>(null);
@@ -387,6 +396,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
+                    {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
+                    {s.step_type === 'scrap' && 'Verschrotten – gewählte Instanzen im Auftrag'}
                     {s.step_type === 'document' && (
                       <span>{(() => {
                         const n = s.doc_signers?.length ?? 0;
@@ -464,14 +475,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   {!readOnly && editId === s.id ? (
                     <DocConfigEditor cfg={docCfg} onChange={setDocCfg} users={allUsers} />
                   ) : (
-                    <div style={{ fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <span>{(s.doc_signers?.length ?? 0) > 0
-                        ? `${s.doc_signers!.length} Freigabe-Partei${s.doc_signers!.length === 1 ? '' : 'en'}${s.sign_sequential ? ' · der Reihe nach' : ''}`
-                        : 'Keine Freigabe-Parteien (sofort freigegeben)'}</span>
-                      <span>{s.doc_audience
-                        ? `Anerkennung: ${s.doc_audience === 'all' ? 'alle Angemeldeten' : s.doc_audience === 'roles' ? (s.doc_audience_roles ?? []).join(', ') || 'Rollen' : 'bestimmte Personen'}`
-                        : 'Keine Anerkennungspflicht'}</span>
-                    </div>
+                    <DocConfigView step={s} users={allUsers} />
                   )}
                 </div>
               )}
@@ -482,7 +486,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   {s.capture_fields!.map((f, idx) => (
                     <div key={idx} style={{ fontSize: 12.5, color: 'var(--fg-2)' }}>
                       • {f.label} <span style={{ color: 'var(--fg-4)' }}>
-                        {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : '(Text)'}
+                        {f.type === 'measure' ? `(Soll ${f.target ?? '—'}${f.tolerance != null ? ` ± ${f.tolerance}` : ''}${f.unit ? ` ${f.unit}` : ''})` : f.type === 'bool' ? '(Gut/Schlecht)' : f.type === 'photo' ? '(Foto)' : f.type === 'signature' ? '(Unterschrift)' : '(Text)'}
                       </span>
                     </div>
                   ))}
@@ -760,6 +764,68 @@ function OptionToggle({ checked, onChange, label, hint }: {
 // ─── «Dokument»-Deklaration: Freigabe-Parteien + Publikum + Sichtbarkeit ──────
 const AUDIENCE_ROLE_LABELS: Record<string, string> = {
   customer: 'Kunden', supplier: 'Lieferanten', employee: 'Mitarbeiter', admin: 'Admins',
+};
+
+// Read-only-Ansicht der «Dokument»-Deklaration (freigegebener bzw. nicht editierter Prozess):
+// zeigt ALLE definierten Details – Freigabe-Parteien mit NAMEN, Aktion (Bestätigen/
+// Unterschreiben) und Reihenfolge, Sichtbarkeit sowie Anerkennungs-Publikum (mit Namen/Rollen).
+// So ist im freigegebenen Prozess vollständig nachvollziehbar, was der Dokument-Schritt tut.
+function DocConfigView({ step, users }: { step: ArticleProcessStep; users: UserProfile[] }) {
+  const nameOf = (oid: number) => {
+    const u = users.find((x) => x.object_id === oid);
+    return u ? userDisplayName(u) : `Objekt ${fmtObjId(oid)}`;
+  };
+  const signers = step.doc_signers ?? [];
+  const vis = step.doc_visibility ?? 'internal';
+  const visLabel = vis === 'public' ? 'Öffentlich' : vis === 'confidential' ? 'Vertraulich' : 'Intern';
+  const aud = step.doc_audience;
+  const audienceText = !aud
+    ? 'Keine Anerkennungspflicht'
+    : aud === 'all' ? 'Alle Angemeldeten'
+    : aud === 'roles' ? ((step.doc_audience_roles ?? []).map((r) => AUDIENCE_ROLE_LABELS[r] ?? r).join(', ') || 'Rollen')
+    : `Bestimmte Personen: ${(step.doc_audience_person_ids ?? []).map(nameOf).join(', ') || '—'}`;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <div style={dv.label}>Freigabe-Parteien{step.sign_sequential && signers.length > 1 ? ' · der Reihe nach' : ''}</div>
+        {signers.length === 0 ? (
+          <div style={dv.muted}>Keine – mit «Ausstellen» sofort freigegeben.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>
+            {signers.map((s, i) => (
+              <div key={i} style={dv.row}>
+                <span style={dv.idx}>{i + 1}.</span>
+                <span style={dv.name}>{nameOf(s.signer_object_id)}</span>
+                <span style={dv.tag}>{s.action === 'confirm' ? 'Bestätigen' : 'Unterschreiben'}</span>
+                <span style={dv.nr}>{fmtObjId(s.signer_object_id)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={dv.kv}>
+        <span style={dv.label}>Sichtbarkeit</span>
+        <span style={dv.value}>{visLabel}</span>
+      </div>
+      <div>
+        <div style={dv.label}>Anerkennungs-Publikum</div>
+        <div style={{ ...dv.value, marginTop: 3 }}>{audienceText}</div>
+      </div>
+    </div>
+  );
+}
+
+const dv: Record<string, React.CSSProperties> = {
+  label: { font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' },
+  muted: { font: '500 12.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 3 },
+  row: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border-1)', background: '#fff' },
+  idx: { font: '700 11px var(--font-body)', color: 'var(--fg-4)', minWidth: 16 },
+  name: { flex: 1, font: '600 13px var(--font-body)', color: 'var(--fg-1)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  tag: { font: '600 11px var(--font-body)', color: 'var(--accent-ink)', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
+  nr: { fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 },
+  kv: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  value: { font: '600 13px var(--font-body)', color: 'var(--fg-2)' },
 };
 
 function DocConfigEditor({ cfg, onChange, users }: {

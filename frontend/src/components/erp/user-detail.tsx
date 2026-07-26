@@ -22,11 +22,15 @@ export function fmtObjId(id: number | null | undefined): string {
   return String(id).padStart(9, '0');
 }
 
+// Eine Rolle ist KEIN Lebenszyklus-Status (nichts ist «gut/wartend/Fehler»), darum
+// bewusst neutrale Identitäts-Chips (warmes Grau, Tokens) statt Ampelfarben – die
+// Unterscheidung trägt das Symbol + Label. So konkurrieren Rollen nicht mit der
+// grün/gelb/rot-Status-Ampel.
 export const ROLE_CFG: Record<string, StatusCfg> = {
-  admin:    { label: 'Admin',       color: '#dc2626', bg: '#fef2f2', icon: Shield },
-  employee: { label: 'Mitarbeiter', color: '#2563eb', bg: '#eff6ff', icon: Briefcase },
-  supplier: { label: 'Lieferant',   color: '#d97706', bg: '#fffbeb', icon: Truck },
-  customer: { label: 'Kunde',       color: '#16a34a', bg: '#f0fdf4', icon: UserCircle },
+  admin:    { label: 'Admin',       color: 'var(--fg-1)', bg: 'var(--bg-3)', icon: Shield },
+  employee: { label: 'Mitarbeiter', color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Briefcase },
+  supplier: { label: 'Lieferant',   color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Truck },
+  customer: { label: 'Kunde',       color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: UserCircle },
 };
 
 const COUNTRY_NAMES: Record<string, string> = {

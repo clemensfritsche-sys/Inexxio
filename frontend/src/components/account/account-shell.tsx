@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { User, MapPin, FileText, FileSignature, Shield, Bell, Lock, ShoppingBag, Loader2 } from 'lucide-react';
+import { User, FileSignature, Shield, ShoppingBag, Loader2 } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { api } from '@/lib/api';
 import { userDisplayName } from '@/lib/utils';
@@ -11,12 +11,14 @@ import { ProfileSection } from './sections/profile-section';
 import { ContactSection } from './sections/contact-section';
 import { InvoiceSection } from './sections/invoice-section';
 import { SecuritySection } from './sections/security-section';
-import { NotificationsSection } from './sections/notifications-section';
 import { PrivacySection } from './sections/privacy-section';
 import { OrdersSection } from './sections/orders-section';
 import { DocumentsSection } from './sections/documents-section';
 
-type SectionId = 'profile' | 'orders' | 'documents' | 'contact' | 'invoice' | 'security' | 'notifications' | 'privacy';
+// Konsolidiert auf 4 Reiter: «Mein Profil» bündelt Person + Adresse + Rechnungsadresse +
+// Datenschutz/Newsletter; «Benachrichtigungen» ist entfallen (die Toggles hatten keinerlei
+// Backend-Wirkung – kein E-Mail-/In-App-System dahinter).
+type SectionId = 'profile' | 'orders' | 'documents' | 'security';
 
 interface Props {
   profile: UserProfile | null;
@@ -75,11 +77,7 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
       { id: 'profile', label: 'Mein Profil', icon: User },
       { id: 'orders', label: 'Bestellungen & Abos', icon: ShoppingBag },
       { id: 'documents', label: 'Meine Dokumente', icon: FileSignature },
-      { id: 'contact', label: 'Adresse', icon: MapPin },
-      { id: 'invoice', label: 'Rechnungsadresse', icon: FileText },
       { id: 'security', label: 'Sicherheit', icon: Shield },
-      { id: 'notifications', label: 'Benachrichtigungen', icon: Bell },
-      { id: 'privacy', label: 'Datenschutz', icon: Lock },
     ];
     // Systemkonfiguration ist neu ein ERP-Datensatz («Unternehmen» im ERP-Feed) und
     // wird daher nicht mehr in den Profileinstellungen geführt.
@@ -95,14 +93,19 @@ export function AccountShell({ profile, isLoading, onSave }: Props) {
   function renderSection() {
     if (!profile) return null;
     switch (activeSection) {
-      case 'profile': return <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />;
+      // «Mein Profil» = Person + Adresse + Rechnungsadresse + Datenschutz/Newsletter,
+      // gestapelt in EINEM Reiter (je Block eigener Auto-Save mit eigener Rückmeldung).
+      case 'profile': return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <ProfileSection profile={profile} onSave={onSave} isEmployee={isEmployee} isSupplier={isSupplier} />
+          <ContactSection profile={profile} onSave={onSave} />
+          <InvoiceSection profile={profile} onSave={onSave} isBusiness={isSupplier} />
+          <PrivacySection profile={profile} onSave={onSave} />
+        </div>
+      );
       case 'orders': return <OrdersSection />;
       case 'documents': return <DocumentsSection />;
-      case 'contact': return <ContactSection profile={profile} onSave={onSave} />;
-      case 'invoice': return <InvoiceSection profile={profile} onSave={onSave} isBusiness={isSupplier} />;
       case 'security': return <SecuritySection profile={profile} />;
-      case 'notifications': return <NotificationsSection profile={profile} onSave={onSave} />;
-      case 'privacy': return <PrivacySection profile={profile} onSave={onSave} />;
     }
   }
 
