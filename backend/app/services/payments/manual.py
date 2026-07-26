@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...models import CheckoutIntent, UserProfile
-from .. import sales as sales_svc
+from .. import selling as selling_svc
 from .base import PaymentProvider
 
 
@@ -42,9 +42,9 @@ class ManualProvider(PaymentProvider):
         result = (payload.get("result") or "").lower()
         intent = _resolve_intent(db, str(token))
         if result in ("paid", "success", "succeeded"):
-            sales_svc.fulfill_intent(db, intent)        # netto/Steuer aus eigener Pipeline (CHF)
+            selling_svc.fulfill_intent(db, intent)        # netto/Steuer aus eigener Pipeline (CHF)
             return intent
         if result in ("cancelled", "canceled", "failed"):
-            sales_svc.cancel_intent(db, intent)
+            selling_svc.cancel_intent(db, intent)
             return intent
         raise HTTPException(400, detail="Unbekanntes Zahlungs-Ergebnis (paid|cancelled)")

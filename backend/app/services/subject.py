@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from ..domain import event_types
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
+from . import inventory
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
@@ -225,7 +226,7 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
     vom Mehrpositionen-Auftrag (``order_lines``)."""
     pinned = chosen_subjects(db, order, article_id=article_id)
     for inst in pinned:                                    # fixierte: erst bei Freigabe „scharf"
-        if not (inst.quality == "passed" and inst.disposition == "in_stock"):
+        if not inventory.is_in_stock(inst):
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist nicht freigegeben/am Lager – Freigabe nicht möglich")
         need = to_qty(inst.quantity) - reserved_for(inst, order.id)

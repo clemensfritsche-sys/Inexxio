@@ -29,6 +29,7 @@ from ..models import Instance, Order
 from . import process
 from .admin import log_audit
 from .events import emit
+from . import inventory
 from .inventory import allocate, fifo_candidates
 from .quantity import ZERO
 from .reservation import free_qty, reserve
@@ -80,7 +81,7 @@ def cover_from_stock(db: Session, order: Order, actor_id: int,
             rem = short.get(inst.article_id, ZERO)
             if rem <= 0:
                 raise HTTPException(400, detail=f"Instanz {oid} passt zu keinem offenen Bedarf dieses Auftrags")
-            if not (inst.quality == "passed" and inst.disposition == "in_stock"):
+            if not inventory.is_in_stock(inst):
                 raise HTTPException(409, detail=f"Instanz {oid} ist nicht freigegeben/am Lager")
             take = min(free_qty(inst), rem)
             if take <= 0:

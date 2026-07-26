@@ -118,7 +118,7 @@ def test_shop_shipping_step_is_locked_customer():
     # Bug: der Shop-Versandschritt war nicht als Pflicht-Versand markiert → nach Zahlung
     # dauerhaft «blockiert» (Locked-Ausnahme der Fehlmengen-Prüfung galt nicht) → kein
     # Shop-Auftrag konnte je versendet/abgeschlossen werden.
-    from app.services.sales import _create_multiline_sale_order
+    from app.services.selling import _create_multiline_sale_order
     src = inspect.getsource(_create_multiline_sale_order)
     assert 'step_type="movement"' in src
     assert "locked=True" in src and 'mode="customer"' in src
@@ -127,7 +127,7 @@ def test_shop_shipping_step_is_locked_customer():
 def test_fulfill_intent_sizes_supply_before_selling():
     # Bug: ensure_supply lief NACH finalize_paid → die schon verkaufte Teilmenge zählte
     # als «verloren» und der Nachschub wurde auf die volle Menge dimensioniert.
-    from app.services.sales import fulfill_intent
+    from app.services.selling import fulfill_intent
     src = inspect.getsource(fulfill_intent)
     make_branch = src.split("allow_backorder=True", 1)[1]
     assert make_branch.index("ensure_supply") < make_branch.index("_finalize_order_sales")

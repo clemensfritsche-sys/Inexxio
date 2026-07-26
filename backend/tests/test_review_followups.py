@@ -12,7 +12,7 @@ import pytest
 # ─── CheckoutIntent-Reaper ────────────────────────────────────────────────────────
 
 def test_intent_reaper_exists_and_uses_cancel_path():
-    from app.services.sales import reap_stale_intents
+    from app.services.selling import reap_stale_intents
     src = inspect.getsource(reap_stale_intents)
     assert "cancel_intent" in src                 # regulärer Storno-Pfad (löst Reservierungen)
     assert 'status == "pending"' in src           # nur unbezahlte

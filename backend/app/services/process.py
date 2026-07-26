@@ -36,7 +36,7 @@ from ..models import (
 )
 from ..models.base import utcnow
 from .events import emit
-from .inventory import available
+from .inventory import available, in_stock_clauses
 from .quantity import ONE, ZERO, to_qty
 from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
 
@@ -556,7 +556,7 @@ def sell_order_subjects(db: Session, order: Order) -> None:
     produced = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.quality != "failed", Instance.disposition == "in_stock")
+                *in_stock_clauses())
         .all()
     )
     for inst in produced:
@@ -800,7 +800,7 @@ def _peg_supply_to_parent(db: Session, order: Order) -> None:
     produced = (
         db.query(Instance)
         .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.quality == "passed", Instance.disposition == "in_stock")
+                *in_stock_clauses())
         .order_by(Instance.object_id)
         .all()
     )

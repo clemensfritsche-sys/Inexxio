@@ -16,7 +16,7 @@ from ..schemas.order import (
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
+from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
 from ..services.admin import log_audit
 from ..services.document import (
     act_on_signoff, get_signoff, record_document, substitute_signer, withdraw_issuance,
@@ -104,7 +104,7 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
         if devi or i.disposition == "sold":
             insts.append(i)           # fixiertes Subjekt (Abweichung/Retoure) – ohne Stock-Checks
             continue
-        if not (i.quality == "passed" and i.disposition == "in_stock"):
+        if not inventory.is_in_stock(i):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
         if free_qty(i) + reserved_for(i, order.id) < i.quantity:
             raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
@@ -198,7 +198,7 @@ def _pin_line_instances(db: Session, order: Order, article_id: int, quantity: in
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
         if i.article_id != article_id:
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wie die Position wählbar")
-        if not (i.quality == "passed" and i.disposition == "in_stock"):
+        if not inventory.is_in_stock(i):
             raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
         if free_qty(i) + reserved_for(i, order.id) < i.quantity:
             raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")

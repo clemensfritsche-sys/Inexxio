@@ -172,9 +172,9 @@ def _t_recent_events(db: Session, p: AiPrincipal, args: dict) -> Any:
 def _t_shop_products(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Shop-Sortiment (Kaufberatung) – über ``sales.can_view`` gescopt: public für alle,
     private nur für zugewiesene Kunden. Kein ERP-Detail, nur Verkaufsdaten."""
-    from .. import sales as sales_svc
+    from .. import selling as selling_svc
     user = p.effective if p.on_behalf_of else None
-    products = sales_svc.list_products(db, user, "CHF", "CH", "de")
+    products = selling_svc.list_products(db, user, "CHF", "CH", "de")
     needle = (args.get("query") or "").strip().lower()
     out = []
     for prod in products:
@@ -199,10 +199,10 @@ def _t_shop_products(db: Session, p: AiPrincipal, args: dict) -> Any:
 
 def _t_my_orders(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Eigene Shop-Bestellungen des Kunden (exakt die «Meine Bestellungen»-Sicht)."""
-    from .. import sales as sales_svc
+    from .. import selling as selling_svc
     if not p.on_behalf_of:
         return []
-    rows = sales_svc.list_customer_orders(db, p.on_behalf_of.id)
+    rows = selling_svc.list_customer_orders(db, p.on_behalf_of.id)
     return [{
         "order_object_id": _num(r.get("order_object_id")),
         "title": r.get("title"), "status": r.get("status"),
