@@ -2381,29 +2381,10 @@ export interface components {
             sample_percent?: number | null;
             /** Capture Fields */
             capture_fields?: components["schemas"]["CaptureField"][] | null;
-            /**
-             * Require Signature
-             * @default false
-             */
-            require_signature: boolean;
-            /** Signer Ids */
-            signer_ids?: number[] | null;
-            /**
-             * Require Photo
-             * @default false
-             */
-            require_photo: boolean;
-            /** Photo Instruction */
-            photo_instruction?: string | null;
             /** Target Location Type */
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            /**
-             * Transport Mode
-             * @default auto
-             */
-            transport_mode: string;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
             /** Doc Signers */
@@ -2462,32 +2443,10 @@ export interface components {
              * @default []
              */
             capture_fields: components["schemas"]["CaptureField"][];
-            /**
-             * Require Signature
-             * @default false
-             */
-            require_signature: boolean;
-            /**
-             * Signer Ids
-             * @default []
-             */
-            signer_ids: number[];
-            /**
-             * Require Photo
-             * @default false
-             */
-            require_photo: boolean;
-            /** Photo Instruction */
-            photo_instruction?: string | null;
             /** Target Location Type */
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            /**
-             * Transport Mode
-             * @default auto
-             */
-            transport_mode: string;
             /**
              * Resource Lines
              * @default []
@@ -2552,20 +2511,10 @@ export interface components {
             sample_percent?: number | null;
             /** Capture Fields */
             capture_fields?: components["schemas"]["CaptureField"][] | null;
-            /** Require Signature */
-            require_signature?: boolean | null;
-            /** Signer Ids */
-            signer_ids?: number[] | null;
-            /** Require Photo */
-            require_photo?: boolean | null;
-            /** Photo Instruction */
-            photo_instruction?: string | null;
             /** Target Location Type */
             target_location_type?: string | null;
             /** Target Location Id */
             target_location_id?: number | null;
-            /** Transport Mode */
-            transport_mode?: string | null;
             /** Resource Lines */
             resource_lines?: components["schemas"]["ResourceLine"][] | null;
             /** Doc Signers */
@@ -3514,31 +3463,6 @@ export interface components {
              * @default []
              */
             samples: components["schemas"]["InspectionSample"][];
-            /**
-             * Require Signature
-             * @default false
-             */
-            require_signature: boolean;
-            /**
-             * Signer Ids
-             * @default []
-             */
-            signer_ids: number[];
-            /** Signature Url */
-            signature_url?: string | null;
-            /** Signed By Name */
-            signed_by_name?: string | null;
-            /** Signed At */
-            signed_at?: string | null;
-            /**
-             * Require Photo
-             * @default false
-             */
-            require_photo: boolean;
-            /** Photo Instruction */
-            photo_instruction?: string | null;
-            /** Photo Url */
-            photo_url?: string | null;
         };
         /**
          * InspectionSample

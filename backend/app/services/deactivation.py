@@ -206,10 +206,7 @@ def _copy_steps(db: Session, *, src_article_id: int | None = None, src_order_id:
             position=s.position, step_type=s.step_type, companion=s.companion, mode=s.mode,
             supplier_id=s.supplier_id, webshop_url=s.webshop_url, shared_fields=s.shared_fields,
             sample_percent=s.sample_percent, capture_fields=s.capture_fields,
-            require_signature=s.require_signature, signer_ids=s.signer_ids,
-            require_photo=s.require_photo, photo_instruction=s.photo_instruction,
             target_location_type=s.target_location_type, target_location_id=s.target_location_id,
-            transport_mode=s.transport_mode,
             resource_lines=s.resource_lines,
             # FIX: Dokument-Konfiguration (Migration 066) mitkopieren – ohne diese Felder
             # verlor «Ersetzen» (neue Fassung eines Rechts-/Publikums-Dokuments!) und die

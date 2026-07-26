@@ -305,6 +305,50 @@ def _preview_consume(db: Session, products: list[Instance], article_db_id: int,
 _UNSET = object()
 
 
+def _fill_consume_line(db: Session, order: Order, exec_line, view: dict, products: list,
+                       per_product: dict, *, art_name: str | None, order_qty,
+                       logged: dict | None) -> None:
+    """Eine **Verbrauchs-Zeile** mit Bedarf/Verfügbarkeit und dem Verbrauch **je Produkt-
+    Instanz** füllen.
+
+    ``logged`` = das Protokoll dieses Artikels, wenn der Schritt bereits ausgeführt ist –
+    dann zeigt das Panel die **tatsächlichen** Picks. Sonst wird der FIFO-Plan als Vorschau
+    berechnet. Beides schreibt in dieselbe Struktur (``exec_line.plan`` + ``per_product``),
+    damit die Anzeige vor und nach der Ausführung identisch aufgebaut ist."""
+    art_id = view["article_id"]
+    need = to_qty(view["quantity"]) * order_qty
+    have = available(db, art_id, order.id)   # SQL-Aggregat (kein Laden aller Instanzen)
+    exec_line.need = need
+    exec_line.available = have
+    exec_line.sufficient = have >= need
+
+    def _pick(p, into):
+        if into in per_product:
+            per_product[into].append(ResourceComponentPick(
+                article_id=art_id, article_name=art_name, instance_id=p["instance_id"],
+                quantity=p["quantity"], split_from=p.get("split_from")))
+
+    if logged is not None:
+        picks = logged.get("picks", [])
+        for p in picks:
+            _pick(p, p.get("into_instance_id"))
+        exec_line.plan = [
+            ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
+                             into_instance_id=p.get("into_instance_id"),
+                             split_from=p.get("split_from"))
+            for p in picks]
+        return
+
+    preview = _preview_consume(db, products, art_id, view["quantity"], order.id)
+    for prod_oid, picks in preview.items():
+        for p in picks:
+            _pick(p, prod_oid)
+    exec_line.plan = [
+        ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
+                         into_instance_id=prod_oid, split_from=p.get("split_from"))
+        for prod_oid, picks in preview.items() for p in picks]
+
+
 def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
                          usage=_UNSET) -> ResourceEmbed | None:
     if not step or not step.resource_lines:
@@ -344,40 +388,12 @@ def build_resource_embed(db: Session, order: Order, step: ArticleProcessStep,
             ]
             exec_line.picked = tools_by_art.get(art_id, [])
         else:
-            need = to_qty(view["quantity"]) * order_qty
-            have = available(db, art_id, order.id)   # SQL-Aggregat (kein Laden aller Instanzen)
-            exec_line.need = need
-            exec_line.available = have
-            exec_line.sufficient = have >= need
             exec_line.picked = consumed_by_art.get(art_id, [])
-            name = art_names[art_id].name if art_names[art_id] else None
-            if done:
-                # Tatsächliche Picks aus dem Protokoll (mit Ziel-Produkt-Instanz)
-                rec = next((c for c in details.get("consume", []) if c["article_id"] == art_id), None)
-                for p in (rec.get("picks", []) if rec else []):
-                    tgt = p.get("into_instance_id")
-                    if tgt in per_product:
-                        per_product[tgt].append(ResourceComponentPick(
-                            article_id=art_id, article_name=name,
-                            instance_id=p["instance_id"], quantity=p["quantity"],
-                            split_from=p.get("split_from")))
-                exec_line.plan = [
-                    ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
-                                     into_instance_id=p.get("into_instance_id"),
-                                     split_from=p.get("split_from"))
-                    for p in (rec.get("picks", []) if rec else [])]
-            else:
-                preview = _preview_consume(db, products, art_id, view["quantity"], order.id)
-                for prod_oid, picks in preview.items():
-                    for p in picks:
-                        per_product[prod_oid].append(ResourceComponentPick(
-                            article_id=art_id, article_name=name,
-                            instance_id=p["instance_id"], quantity=p["quantity"],
-                            split_from=p.get("split_from")))
-                exec_line.plan = [
-                    ResourcePlanItem(instance_id=p["instance_id"], quantity=p["quantity"],
-                                     into_instance_id=prod_oid, split_from=p.get("split_from"))
-                    for prod_oid, picks in preview.items() for p in picks]
+            _fill_consume_line(db, order, exec_line, view, products, per_product,
+                               art_name=art_names[art_id].name if art_names[art_id] else None,
+                               order_qty=order_qty,
+                               logged=next((c for c in details.get("consume", [])
+                                            if c["article_id"] == art_id), None) if done else None)
         lines.append(exec_line)
 
     product_plans = [

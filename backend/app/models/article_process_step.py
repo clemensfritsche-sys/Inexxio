@@ -52,26 +52,20 @@ class ArticleProcessStep(Base, TimestampMixin):
     # Menge + Erfassungsfelder (Soll-Ist mit Toleranz, Gut/Schlecht, Text).
     sample_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     capture_fields: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
-    # «Freigabe/Unterschrift»: eine Person quittiert die Datenerfassung mit digitaler
-    # Unterschrift (als Bild). Optional auf bestimmte Personen (Objektnummern) beschränkt –
-    # leer/NULL = jede eingeloggte Person darf unterschreiben (wird protokolliert).
-    require_signature: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False)
-    signer_ids: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
-    # «Bilderfassung»: genau EIN Foto je Schritt; die Anweisung beschreibt, was zu fotografieren ist.
-    require_photo: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False)
-    photo_instruction: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    # Unterschrift und Foto sind **Erfassungsfeld-Typen** (``capture_fields`` mit
+    # ``type='signature'``/``'photo'``), keine eigene Achse: die frühere Parallel-Mechanik
+    # (require_signature/signer_ids/require_photo/photo_instruction + die Ergebnis-Spalten
+    # an ``inspections``) war seit dem Umbau auf capture_fields tot – das Frontend setzte
+    # sie hart auf false und las sie nie (Migration 081).
 
     # Konfiguration «movement» (Bewegung): optionales Vorgabe-Ziel. Beides NULL =
     # der Lagerist entscheidet beim Ausführen frei je Instanz.
     target_location_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     target_location_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    # Transport-Modus der Bewegung (ADR 005, deklarierter Default; per Auftrag über
-    # ``shipments.transport_mode`` übersteuerbar): 'auto' (abgeleitet: extern → Versand) |
-    # 'carrier' (immer Versand) | 'self' (Selbsttransport, kein Carrier) | 'none' (nie Versand).
-    transport_mode: Mapped[str] = mapped_column(
-        String(10), default="auto", server_default="auto", nullable=False)
+    # Der Transport-Modus lebt am **Versand-Beleg** (``shipments.transport_mode``:
+    # internal | parcel | freight, ADR 005) – zur Laufzeit ermittelt und dort übersteuerbar.
+    # Die frühere Vorgabe am Schritt trug noch die von Migration 076 abgeschafften Werte
+    # (auto/carrier/self/none) und wurde nirgends mehr gelesen (Migration 081).
 
     # Konfiguration «resource» (Ressource): Liste der benötigten Ressourcen je
     # Operation – [{article_id, quantity, mode}], mode ∈ consume | tool.

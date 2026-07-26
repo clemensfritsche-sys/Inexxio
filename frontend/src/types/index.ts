@@ -230,9 +230,7 @@ export interface InspectionSampleInput {
 export interface InspectionUpdateInput {
   samples: InspectionSampleInput[];
   note?: string | null;
-  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)
-  signature_url?: string | null;   // digitale Unterschrift (Freigabe), falls verlangt
-  photo_url?: string | null;       // Schritt-Foto (Bilderfassung), falls verlangt
+  step_id?: number | null;   // konkrete Schritt-Definition (Mehr-Operationen-Routing)   // digitale Unterschrift (Freigabe), falls verlangt       // Schritt-Foto (Bilderfassung), falls verlangt
 }
 
 // Bestands-Instanz (Reiter «Bestand» am Artikel)
@@ -434,10 +432,6 @@ export interface ArticleProcessStepInput {
   shared_fields?: string[] | null;
   sample_percent?: number | null;
   capture_fields?: CaptureField[] | null;
-  require_signature?: boolean;
-  signer_ids?: number[] | null;
-  require_photo?: boolean;
-  photo_instruction?: string | null;
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;
@@ -457,10 +451,6 @@ export interface ArticleProcessStepUpdateInput {
   shared_fields?: string[] | null;
   sample_percent?: number | null;
   capture_fields?: CaptureField[] | null;
-  require_signature?: boolean;
-  signer_ids?: number[] | null;
-  require_photo?: boolean;
-  photo_instruction?: string | null;
   target_location_type?: LocationType | null;
   target_location_id?: number | null;
   resource_lines?: ResourceLineInput[] | null;

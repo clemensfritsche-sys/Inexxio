@@ -9,7 +9,6 @@ from ..models import UserProfile
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..schemas.shop import CustomerOrder
 from ..services import people, selling as selling_svc
-from ..services.admin import log_audit
 from ..services.objects import next_object_ids, resolve_object_type
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])

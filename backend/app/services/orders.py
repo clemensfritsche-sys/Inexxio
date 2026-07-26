@@ -191,11 +191,6 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
     ie.sample_percent = step.sample_percent
     ie.required_count = required_count(db, order, step)
     ie.fields = [CaptureField(**f) for f in eval_fields(step)]
-    # Freigabe/Unterschrift + Bilderfassung: Konfiguration aus der Schritt-Definition.
-    ie.require_signature = bool(getattr(step, "require_signature", False))
-    ie.signer_ids = [int(x) for x in (step.signer_ids or [])]
-    ie.require_photo = bool(getattr(step, "require_photo", False))
-    ie.photo_instruction = step.photo_instruction
     stored = {(s.get("instance_id"), s.get("slot", 1)): (s.get("values") or {})
               for s in (insp.samples or [])} if insp else {}
     ie.samples = [
@@ -205,8 +200,6 @@ def _inspection_embed(db: Session, order: Order, step: ArticleProcessStep,
     ]
     if insp and insp.inspector_id:
         ie.inspector_name = people.name_by_id(db, insp.inspector_id)
-    if insp and insp.signed_by:
-        ie.signed_by_name = people.name_by_id(db, insp.signed_by)
     return ie
 
 
@@ -383,6 +376,128 @@ def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si
     ]
 
 
+def _fill_demand(db: Session, order: Order, resp: OrderResponse) -> None:
+    """Bedarf denormalisieren: **entweder** der eine Anker-Artikel **oder** die Positionen
+    eines Mehrpositionen-Auftrags (``order.article_id`` ist dann NULL) – nie beides."""
+    if order.article_id:
+        art = db.query(Article).filter(Article.id == order.article_id).first()
+        if not art:
+            return
+        resp.article_name = art.name
+        resp.article_object_id = art.object_id
+        resp.article_size = art.size
+        resp.article_unit = art.unit
+        resp.article_weight_kg = art.weight_kg
+        resp.article_serialization = art.serialization
+        resp.article_supplier_article_number = art.supplier_article_number
+        return
+    from .order_lines import lines_for
+    lines = lines_for(db, order)
+    arts = {a.id: a for a in db.query(Article).filter(
+        Article.id.in_({l.article_id for l in lines})).all()} if lines else {}
+    resp.order_lines = [
+        OrderLineInfo(
+            id=l.id, article_id=l.article_id, quantity=l.quantity, position=l.position,
+            article_object_id=arts[l.article_id].object_id if l.article_id in arts else None,
+            article_name=arts[l.article_id].name if l.article_id in arts else None,
+            article_unit=arts[l.article_id].unit if l.article_id in arts else None,
+        )
+        for l in lines
+    ]
+
+
+def _instance_embeds(db: Session, order: Order, instances: list) -> list[InstanceEmbed]:
+    """Subjekt-Instanzen als Embeds – Standort-Labels **batch** aufgelöst (statt einem
+    Query je Instanz, N+1)."""
+    from .quantity import to_qty
+    from .reservation import reserved_for
+
+    loc_keys = [(i.location_type, i.location_id) for i in instances]
+    loc_labels = location_labels(db, loc_keys)
+    phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
+    out: list[InstanceEmbed] = []
+    for i in instances:
+        emb = InstanceEmbed.model_validate(i)
+        emb.location_label = loc_labels.get((i.location_type, i.location_id))
+        if i.location_type == "instance":
+            emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
+        # Betrifft der Auftrag nur eine Teilmenge dieser Charge (z. B. 10 von 1000), die
+        # reservierte Menge fürs Bewegungs-Panel mitgeben (sonst NULL = ganze Instanz).
+        share = reserved_for(i, order.id)
+        if to_qty(0) < share < to_qty(i.quantity):
+            emb.move_quantity = float(share)
+        out.append(emb)
+    return out
+
+
+def _attach_step_embed(db: Session, order: Order, s: dict, si: OrderStepInfo,
+                       first: dict, *, instances: list,
+                       viewer: UserProfile | None) -> tuple[str | None, object | None]:
+    """Den zum Schritttyp passenden Ausführungs-Embed an ``si`` hängen (Mehr-Operationen-
+    Routing) und «wer/wann» für einen erledigten Schritt zurückgeben.
+
+    ``first`` sammelt je Typ das erste Embed – ``OrderResponse.purchase``/``sale``/… sind
+    die Kurzform für die Lieferanten-/Kunden-Sicht (beim Einzel-Artikel-Auftrag identisch
+    mit dem einzigen Schritt-Embed)."""
+    step, fact, done = s["step"], s["fact"], s["state"] == "done"
+    kind = step.step_type
+
+    if kind == "purchase":
+        # EIN Schritt kann mehrere Bestellungen tragen (eine je Artikel/Position eines
+        # Mehrpositionen-Auftrags) – ``purchases`` ist die vollständige Liste.
+        facts = s["facts"]
+        hist = _purchase_history(db, order) if facts else None
+        embs = [_purchase_embed(db, order, step, f, history=hist) for f in facts]
+        if not embs:
+            return None, None
+        si.purchases, si.purchase = embs, embs[0]
+        first.setdefault("purchase", embs[0])
+        return _purchase_received(embs[0]) if done else (None, None)
+
+    if kind == "sale":
+        # EIN `sale`-Schritt, ZWEI Modi (aus dem Subjekt abgeleitet): Verkauf (kind='sale')
+        # oder Gutschrift/Erstattung (kind='credit', Retoure). Mehrere Belege je Position
+        # teilen sich den Schritt.
+        facts = s["facts"]
+        embs = [_sale_embed(db, order, f) for f in facts] or [_sale_embed(db, order, None)]
+        si.sales, si.sale = embs, embs[0]
+        first.setdefault("sale", embs[0])
+        if done and facts:
+            return embs[0].customer_name, max((f.paid_at for f in facts if f.paid_at), default=None)
+        return None, None
+
+    # Einzel-Beleg-Schritte: Embed bauen, ablegen, «wer» aus dem jeweiligen Feld lesen.
+    if kind == "inspection":
+        si.inspection = emb = _inspection_embed(db, order, step, fact)
+        who = emb.inspector_name
+    elif kind == "movement":
+        si.movement = emb = _movement_embed(db, order, step, fact)
+        who = emb.moved_by_name
+    elif kind == "scrap":
+        scrapped = sum(1 for i in instances if i.disposition == "scrapped")
+        si.disposal = emb = _disposal_embed(db, order, fact, scrapped)
+        who = emb.scrapped_by_name
+    elif kind == "document":
+        si.document = emb = _document_embed(db, order, step, fact, viewer=viewer)
+        who = emb.created_by_name
+    elif kind in process.RESOURCE_STEP_TYPES:
+        si.resource = emb = build_resource_embed(db, order, step, usage=fact)
+        who = emb.used_by_name if emb else None
+    else:
+        return None, None
+
+    if emb is not None:
+        first.setdefault(_EMBED_SLOT[kind], emb)
+    if done and emb is not None:
+        return who, (fact.updated_at if fact else None)
+    return None, None
+
+
+# Schritttyp → Feldname der Kurzform an der OrderResponse (Lieferanten-/Kunden-Sicht).
+_EMBED_SLOT = {"inspection": "inspection", "movement": "movement", "scrap": "disposal",
+               "document": "document", "resource": "resource"}
+
+
 def to_order_response(db: Session, order: Order, viewer: UserProfile | None = None) -> OrderResponse:
     """OrderResponse inkl. denormalisiertem Artikel, Instanzen und – pro Schritt –
     dem passenden Ausführungs-Embed (Mehr-Operationen-Routing).
@@ -397,55 +512,11 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()
         resp.replaces_id = pred[0] if pred else None
-    if order.article_id:
-        art = db.query(Article).filter(Article.id == order.article_id).first()
-        if art:
-            resp.article_name = art.name
-            resp.article_object_id = art.object_id
-            resp.article_size = art.size
-            resp.article_unit = art.unit
-            resp.article_weight_kg = art.weight_kg
-            resp.article_serialization = art.serialization
-            resp.article_supplier_article_number = art.supplier_article_number
-    else:
-        # Mehrpositionen-Auftrag: kein einzelner Artikel – die Positionen stehen einzeln.
-        from .order_lines import lines_for
-        lines = lines_for(db, order)
-        arts = {a.id: a for a in db.query(Article).filter(
-            Article.id.in_({l.article_id for l in lines})).all()} if lines else {}
-        resp.order_lines = [
-            OrderLineInfo(
-                id=l.id, article_id=l.article_id, quantity=l.quantity, position=l.position,
-                article_object_id=arts[l.article_id].object_id if l.article_id in arts else None,
-                article_name=arts[l.article_id].name if l.article_id in arts else None,
-                article_unit=arts[l.article_id].unit if l.article_id in arts else None,
-            )
-            for l in lines
-        ]
-
+    _fill_demand(db, order, resp)
     resp.recurrence_due = recurrence_due(order)
 
-    # Subjekt-Instanzen: worauf der Auftrag wirkt (MAKE: erzeugt | CUSTOM: ausgewählt).
-    # Standort-Labels **batch** auflösen (statt einem Query je Instanz, N+1).
     instances = order_instances(db, order)
-    loc_keys = [(i.location_type, i.location_id) for i in instances]
-    loc_labels = location_labels(db, loc_keys)
-    phys_labels = physical_location_labels(db, [k for k in loc_keys if k[0] == "instance"])
-    from .quantity import to_qty
-    from .reservation import reserved_for
-    instance_embeds: list[InstanceEmbed] = []
-    for i in instances:
-        emb = InstanceEmbed.model_validate(i)
-        emb.location_label = loc_labels.get((i.location_type, i.location_id))
-        if i.location_type == "instance":
-            emb.physical_location_label = phys_labels.get((i.location_type, i.location_id))
-        # Betrifft der Auftrag nur eine Teilmenge dieser Charge (z. B. 10 von 1000), die
-        # reservierte Menge fürs Bewegungs-Panel mitgeben (sonst NULL = ganze Instanz).
-        share = reserved_for(i, order.id)
-        if to_qty(0) < share < to_qty(i.quantity):
-            emb.move_quantity = float(share)
-        instance_embeds.append(emb)
-    resp.instances = instance_embeds
+    resp.instances = _instance_embeds(db, order, instances)
 
     # Auftrag-Stepper: je Schritt der passende Ausführungs-Embed + Abschluss-Info.
     # Das oberste Embed je Typ bleibt für Rückwärtskompatibilität (Lieferanten-Sicht)
@@ -461,67 +532,9 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
                            label=s["label"], state=s["state"])
         if s["state"] == "blocked":
             _fill_step_shortfall(db, order, step, si)
-        done = s["state"] == "done"
-        by_name: str | None = None
-        at = None
-        if step.step_type == "purchase":
-            # EIN Schritt kann mehrere Bestellungen tragen (ein Artikel/Position je
-            # Bestellung, Mehrpositionen-Auftrag) – ``purchases`` ist die vollständige
-            # Liste, ``purchase`` bleibt das erste Embed (Rückwärtskompatibilität; beim
-            # Einzel-Artikel-Auftrag identisch).
-            facts = s["facts"]
-            hist = _purchase_history(db, order) if facts else None
-            embs = [_purchase_embed(db, order, step, f, history=hist) for f in facts]
-            if embs:
-                si.purchases = embs
-                si.purchase = embs[0]
-                first.setdefault("purchase", embs[0])
-                if done:
-                    by_name, at = _purchase_received(embs[0])
-        elif step.step_type == "sale":
-            # EIN `sale`-Schritt, ZWEI Modi (aus dem Subjekt abgeleitet): Verkauf (kind='sale')
-            # oder Gutschrift/Erstattung (kind='credit', Retoure). Mehrere Belege je Artikel/
-            # Position teilen sich den Schritt – ``sales`` ist die vollständige Liste.
-            facts = s["facts"]
-            embs = [_sale_embed(db, order, f) for f in facts] or [_sale_embed(db, order, None)]
-            si.sales = embs
-            si.sale = embs[0]
-            first.setdefault("sale", embs[0])
-            if done and facts:
-                by_name = embs[0].customer_name
-                at = max((f.paid_at for f in facts if f.paid_at), default=None)
-        elif step.step_type == "inspection":
-            emb = _inspection_embed(db, order, step, fact)
-            si.inspection = emb
-            first.setdefault("inspection", emb)
-            if done:
-                by_name, at = emb.inspector_name, (fact.updated_at if fact else None)
-        elif step.step_type == "movement":
-            emb = _movement_embed(db, order, step, fact)
-            si.movement = emb
-            first.setdefault("movement", emb)
-            if done:
-                by_name, at = emb.moved_by_name, (fact.updated_at if fact else None)
-        elif step.step_type == "scrap":
-            scrapped_count = sum(1 for i in instances if i.disposition == "scrapped")
-            emb = _disposal_embed(db, order, fact, scrapped_count)
-            si.disposal = emb
-            first.setdefault("disposal", emb)
-            if done:
-                by_name, at = emb.scrapped_by_name, (fact.updated_at if fact else None)
-        elif step.step_type == "document":
-            emb = _document_embed(db, order, step, fact, viewer=viewer)
-            si.document = emb
-            first.setdefault("document", emb)
-            if done:
-                by_name, at = emb.created_by_name, (fact.updated_at if fact else None)
-        elif step.step_type in process.RESOURCE_STEP_TYPES:
-            emb = build_resource_embed(db, order, step, usage=fact)
-            si.resource = emb
-            first.setdefault("resource", emb)
-            if done and emb:
-                by_name, at = emb.used_by_name, (fact.updated_at if fact else None)
-        if done:
+        by_name, at = _attach_step_embed(db, order, s, si, first,
+                                         instances=instances, viewer=viewer)
+        if s["state"] == "done":
             si.completed_by = by_name
             si.completed_at = at
         steps.append(si)

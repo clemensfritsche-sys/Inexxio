@@ -17,9 +17,6 @@ ALLOWED_MODES = ("supplier", "webshop")
 # (gleichrangig neben Soll-Ist/Gut-Schlecht/Text), keine übergeordneten Schritt-Optionen mehr.
 ALLOWED_CAPTURE_TYPES = ("measure", "bool", "text", "photo", "signature")
 ALLOWED_RESOURCE_MODES = ("consume", "tool")
-# Transport-Modus der Bewegung (ADR 005): auto (abgeleitet) | carrier (immer Versand) |
-# self (Selbsttransport) | none (nie Versand).
-ALLOWED_TRANSPORT_MODES = ("auto", "carrier", "self", "none")
 ALLOWED_SIGN_ACTIONS = ("confirm", "sign")
 ALLOWED_AUDIENCE = ("all", "roles", "persons")
 ALLOWED_VISIBILITY = ("public", "internal", "confidential")
@@ -56,15 +53,6 @@ def normalize_doc_signers(rows: Optional[list]) -> Optional[list[dict]]:
         seen.add(s.signer_object_id)
         out.append(s.model_dump())
     return out or None
-
-
-def _check_transport_mode(v: Optional[str]) -> Optional[str]:
-    """Transport-Modus der Bewegung (ADR 005); leer/None → 'auto' bleibt unberührt."""
-    if v is None:
-        return None
-    if v not in ALLOWED_TRANSPORT_MODES:
-        raise ValueError(f"Transport-Modus muss eine von {', '.join(ALLOWED_TRANSPORT_MODES)} sein")
-    return v
 
 
 def _check_target_location_type(v: Optional[str]) -> Optional[str]:
@@ -188,13 +176,8 @@ class ArticleProcessStepCreate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
-    require_signature: bool = False
-    signer_ids: Optional[list[int]] = None
-    require_photo: bool = False
-    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
-    transport_mode: str = "auto"
     resource_lines: Optional[list[ResourceLine]] = None
     # «document»-Deklaration (Struktur der Freigabe/Anerkennung – gilt für alle Ausfertigungen)
     doc_signers: Optional[list[DocSigner]] = None
@@ -240,10 +223,6 @@ class ArticleProcessStepCreate(BaseModel):
     def _target_type_ok(cls, v: Optional[str]) -> Optional[str]:
         return _check_target_location_type(v)
 
-    @field_validator("transport_mode")
-    @classmethod
-    def _transport_ok(cls, v: str) -> str:
-        return _check_transport_mode(v) or "auto"
 
     @field_validator("step_type")
     @classmethod
@@ -302,13 +281,8 @@ class ArticleProcessStepUpdate(BaseModel):
     shared_fields: Optional[list[str]] = None
     sample_percent: Optional[int] = None
     capture_fields: Optional[list[CaptureField]] = None
-    require_signature: Optional[bool] = None
-    signer_ids: Optional[list[int]] = None
-    require_photo: Optional[bool] = None
-    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
-    transport_mode: Optional[str] = None
     resource_lines: Optional[list[ResourceLine]] = None
     doc_signers: Optional[list[DocSigner]] = None
     sign_sequential: Optional[bool] = None
@@ -348,10 +322,6 @@ class ArticleProcessStepUpdate(BaseModel):
     def _target_type_ok(cls, v: Optional[str]) -> Optional[str]:
         return _check_target_location_type(v)
 
-    @field_validator("transport_mode")
-    @classmethod
-    def _transport_ok(cls, v: Optional[str]) -> Optional[str]:
-        return _check_transport_mode(v)
 
     @field_validator("mode")
     @classmethod
@@ -391,13 +361,8 @@ class ArticleProcessStepResponse(BaseModel):
     shared_fields: list[str] = []
     sample_percent: Optional[int] = None
     capture_fields: list[CaptureField] = []
-    require_signature: bool = False
-    signer_ids: list[int] = []
-    require_photo: bool = False
-    photo_instruction: Optional[str] = None
     target_location_type: Optional[str] = None
     target_location_id: Optional[int] = None
-    transport_mode: str = "auto"
     resource_lines: list[ResourceLineView] = []
     # «document»-Deklaration
     doc_signers: list[DocSigner] = []
@@ -410,10 +375,6 @@ class ArticleProcessStepResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("signer_ids", mode="before")
-    @classmethod
-    def _signers_default(cls, v: Optional[list]) -> list[int]:
-        return [int(x) for x in v] if v else []
 
     @field_validator("doc_signers", mode="before")
     @classmethod

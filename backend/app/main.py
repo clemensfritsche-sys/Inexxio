@@ -105,7 +105,6 @@ _COLUMN_SAFETY_NET = (
     # Alt-Bestand: früher automatisch gesäte Begleit-Bewegung (Rolle, keine Sperre).
     # Neue entstehen nicht mehr – physische Transporte sind Bereitstellungs-Unter-Aufträge
     # (Migration 080). ``locked`` ist die abgelöste Sperr-Spalte aus der Zeit davor.
-    ("article_process_steps", "locked", "BOOLEAN DEFAULT FALSE NOT NULL"),
     ("article_process_steps", "companion", "BOOLEAN DEFAULT FALSE NOT NULL"),
     # Bereitstellung (Unter-Auftrag) → welcher Schritt des Eltern auf sie wartet
     ("orders", "provisioning_step_id", "BIGINT"),
@@ -170,18 +169,9 @@ _COLUMN_SAFETY_NET = (
     ("article_process_steps", "doc_audience_person_ids", "JSONB"),
     ("article_process_steps", "doc_visibility", "VARCHAR(16) DEFAULT 'internal' NOT NULL"),
     # Datenerfassung: Freigabe/Unterschrift + Bilderfassung (Konfiguration am Schritt, Werte an der Erfassung).
-    ("article_process_steps", "require_signature", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("article_process_steps", "signer_ids", "JSONB"),
-    ("article_process_steps", "require_photo", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("article_process_steps", "photo_instruction", "VARCHAR(300)"),
-    ("inspections", "signature_url", "VARCHAR(300)"),
-    ("inspections", "signed_by", "BIGINT"),
-    ("inspections", "signed_at", "TIMESTAMP WITH TIME ZONE"),
-    ("inspections", "photo_url", "VARCHAR(300)"),
     # Logistik/Versand (ADR 005): Gefahrgut-Flag, Betriebs-Geofence, Transport-Modus.
     # Die shipments-TABELLE legt create_all() an; hier nur nachgezogene Spalten.
     ("articles", "is_hazmat", "BOOLEAN DEFAULT FALSE NOT NULL"),
-    ("article_process_steps", "transport_mode", "VARCHAR(10) DEFAULT 'auto' NOT NULL"),
     # Phase-0-Fracht: Sendungsart + Last am Versand-Beleg (parcel|freight).
     ("shipments", "kind", "VARCHAR(12) DEFAULT 'parcel' NOT NULL"),
     ("shipments", "load", "JSONB"),
