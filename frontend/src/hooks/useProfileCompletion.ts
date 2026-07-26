@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import type { UserProfile } from '@/types';
 
-type SectionId = 'profile' | 'contact' | 'invoice' | 'documents';
+// Adresse + Rechnungsadresse liegen jetzt gemeinsam im Reiter «Mein Profil» – darum
+// zählen ihre Pflichtfelder auf denselben Abschnitt (das Badge erscheint am Profil-Reiter).
+type SectionId = 'profile' | 'documents';
 
 interface RequiredField {
   section: SectionId;
@@ -10,23 +12,23 @@ interface RequiredField {
 }
 
 const REQUIRED: RequiredField[] = [
-  // Mein Profil
+  // Mein Profil – Person
   { section: 'profile', field: 'first_name' },
   { section: 'profile', field: 'last_name' },
-  // Adresse
-  { section: 'contact', field: 'phone' },
-  { section: 'contact', field: 'address_line1' },
-  { section: 'contact', field: 'city' },
-  { section: 'contact', field: 'postal_code' },
-  // Firmendaten (Lieferant) – im Profil-Abschnitt
+  // Mein Profil – Adresse
+  { section: 'profile', field: 'phone' },
+  { section: 'profile', field: 'address_line1' },
+  { section: 'profile', field: 'city' },
+  { section: 'profile', field: 'postal_code' },
+  // Mein Profil – Firmendaten (Lieferant)
   { section: 'profile', field: 'company_name', condition: (p) => p.role === 'supplier' },
   { section: 'profile', field: 'uid_number', condition: (p) => p.role === 'supplier' },
-  // Rechnungsadresse (wenn nicht = Lieferadresse)
-  { section: 'invoice', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'invoice', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'invoice', field: 'invoice_address_line1', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'invoice', field: 'invoice_city', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
-  { section: 'invoice', field: 'invoice_postal_code', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  // Mein Profil – Rechnungsadresse (wenn nicht = Lieferadresse)
+  { section: 'profile', field: 'invoice_first_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'profile', field: 'invoice_last_name', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'profile', field: 'invoice_address_line1', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'profile', field: 'invoice_city', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
+  { section: 'profile', field: 'invoice_postal_code', condition: (p) => (p.role === 'customer' || p.role === 'supplier') && !(p.invoice_same_as_shipping ?? true) },
 ];
 
 function isFilled(profile: UserProfile, field: keyof UserProfile): boolean {

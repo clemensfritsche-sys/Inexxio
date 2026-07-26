@@ -2,14 +2,14 @@ import { Clock, FileText, ShoppingCart, XCircle, PackageCheck } from 'lucide-rea
 import type { PurchaseOrderStatus, ProcessStepMode } from '@/types';
 import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
 
-// Beschaffungs-Fluss über die geteilten Tokens: offen = amber, laufend = slate,
-// geliefert = grün, abgelehnt = rot. Die Schritte trennen sich zusätzlich per Symbol.
+// Beschaffungs-Ampel: offen/laufend (angefragt/offeriert/bestellt) = GELB,
+// geliefert = GRÜN, abgelehnt = ROT. Die Schritte trennen sich zusätzlich per Symbol.
 export const PURCHASE_STATUS: Record<PurchaseOrderStatus, StatusCfg> = {
-  requested: { label: 'Angefragt',    ...TONE.pending,  icon: Clock },
-  quoted:    { label: 'Offeriert',    ...TONE.info,     icon: FileText },
-  ordered:   { label: 'Bestellt',     ...TONE.info,     icon: ShoppingCart },
-  rejected:  { label: 'Abgelehnt',    ...TONE.danger,   icon: XCircle },
-  received:  { label: 'Geliefert',    ...TONE.done,     icon: PackageCheck },
+  requested: { label: 'Angefragt',    ...TONE.pending, icon: Clock },
+  quoted:    { label: 'Offeriert',    ...TONE.pending, icon: FileText },
+  ordered:   { label: 'Bestellt',     ...TONE.pending, icon: ShoppingCart },
+  rejected:  { label: 'Abgelehnt',    ...TONE.danger,  icon: XCircle },
+  received:  { label: 'Geliefert',    ...TONE.done,    icon: PackageCheck },
 };
 
 export function purchaseStatusConfig(status: string): StatusCfg {

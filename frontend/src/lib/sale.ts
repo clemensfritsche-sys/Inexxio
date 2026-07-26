@@ -8,8 +8,8 @@ export type SaleStatus = 'requested' | 'confirmed' | 'invoiced' | 'paid' | 'canc
 
 export const SALE_STATUS: Record<SaleStatus, StatusCfg> = {
   requested: { label: 'Angefragt',  ...TONE.pending, icon: Clock },
-  confirmed: { label: 'Bestätigt',  ...TONE.info,    icon: CheckCircle2 },
-  invoiced:  { label: 'Verrechnet', ...TONE.info,    icon: FileText },
+  confirmed: { label: 'Bestätigt',  ...TONE.pending, icon: CheckCircle2 },
+  invoiced:  { label: 'Verrechnet', ...TONE.pending, icon: FileText },
   paid:      { label: 'Bezahlt',    ...TONE.done,    icon: Banknote },
   cancelled: { label: 'Storniert',  ...TONE.danger,  icon: Ban },
 };

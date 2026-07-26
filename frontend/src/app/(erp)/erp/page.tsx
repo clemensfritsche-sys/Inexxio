@@ -69,7 +69,9 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
-  else badge = { label: 'Stammdaten', color: '#0f766e', bg: '#f0fdfa', icon: Building2 };
+  // Unternehmen ist ein Stammdaten-Singleton ohne Lebenszyklus – neutrales Identitäts-Badge
+  // (warmes Grau, Tokens) statt einer Ampelfarbe.
+  else badge = { label: 'Stammdaten', color: 'var(--fg-2)', bg: 'var(--bg-3)', icon: Building2 };
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;

@@ -6,17 +6,19 @@ import { Check, X, Clock } from 'lucide-react';
 export type StepState = 'done' | 'active' | 'pending' | 'rejected' | 'blocked';
 export interface StepNode { key: string; label: string; state: StepState; hint?: string; icon?: React.ElementType }
 
+// Ampel-Knoten (Tokens): erledigt = GRÜN, aktiv = GELB (in Arbeit), abgelehnt = ROT,
+// noch nicht erreicht = neutral (inert, keine Ampelfarbe), wartend/blockiert = GELB (hell).
 const NODE: Record<StepState, { bg: string; color: string; ring: string }> = {
-  done:     { bg: '#0f766e', color: '#fff', ring: 'transparent' },
-  active:   { bg: '#2563eb', color: '#fff', ring: '#dbeafe' },
-  pending:  { bg: '#f1f5f9', color: '#94a3b8', ring: 'transparent' },
-  rejected: { bg: '#dc2626', color: '#fff', ring: 'transparent' },
-  // Wartet auf Material (Nachschub läuft) – Amber, kein Häkchen/X, sondern «wartend».
-  blocked:  { bg: '#fffbeb', color: '#b45309', ring: '#fde68a' },
+  done:     { bg: 'var(--success)',    color: '#fff',           ring: 'transparent' },
+  active:   { bg: 'var(--warning)',    color: '#fff',           ring: 'var(--warning-bg)' },
+  pending:  { bg: 'var(--bg-3)',       color: 'var(--fg-4)',    ring: 'transparent' },
+  rejected: { bg: 'var(--danger)',     color: '#fff',           ring: 'transparent' },
+  // Wartet auf Material (Nachschub läuft) – hell-Gelb, kein Häkchen/X, sondern «wartend».
+  blocked:  { bg: 'var(--warning-bg)', color: 'var(--warning)', ring: 'var(--warning-bg)' },
 };
 
-const LINE_DONE = '#0f766e';
-const LINE_PENDING = '#e2e8f0';
+const LINE_DONE = 'var(--success)';
+const LINE_PENDING = 'var(--border-1)';
 
 /** Knoten-Inhalt: erledigt → Haken, abgelehnt → X, sonst das Schritt-Symbol
  *  (Symbole statt Zahlen – auf einen Blick erkennbar), ersatzweise die Nummer. */
@@ -53,7 +55,7 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
             onMouseEnter={() => setHover(n.key)} onMouseLeave={() => setHover((h) => (h === n.key ? null : h))}
             style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, cursor: clickable ? 'pointer' : (n.hint ? 'help' : 'default') }}>
             {showHint && (
-              <div style={{ position: 'absolute', bottom: '100%', marginBottom: 6, zIndex: 20, padding: '5px 9px', borderRadius: 6, background: '#0f172a', color: '#fff', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', bottom: '100%', marginBottom: 6, zIndex: 20, padding: '5px 9px', borderRadius: 6, background: 'var(--fg-1)', color: '#fff', fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.18)', pointerEvents: 'none' }}>
                 {n.hint}
               </div>
             )}
@@ -64,7 +66,7 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
                 background: node.bg, color: node.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700,
-                boxShadow: selected ? '0 0 0 3px #0f172a' : (n.state === 'active' || n.state === 'blocked') ? `0 0 0 4px ${node.ring}` : 'none',
+                boxShadow: selected ? '0 0 0 3px var(--fg-1)' : (n.state === 'active' || n.state === 'blocked') ? `0 0 0 4px ${node.ring}` : 'none',
                 transition: 'box-shadow 0.15s',
               }}>
                 {nodeContent(n, i)}
@@ -74,7 +76,7 @@ export function ProcessStepper({ nodes, selectedKey, onSelect }: {
             <div style={{
               marginTop: 5, fontSize: 10, lineHeight: 1.2, textAlign: 'center',
               fontWeight: selected || n.state === 'active' || n.state === 'blocked' ? 700 : 500,
-              color: n.state === 'pending' ? '#94a3b8' : n.state === 'rejected' ? '#dc2626' : n.state === 'blocked' ? '#b45309' : '#0F172A',
+              color: n.state === 'pending' ? 'var(--fg-4)' : n.state === 'rejected' ? 'var(--danger)' : n.state === 'blocked' ? 'var(--warning)' : 'var(--fg-1)',
             }}>
               {n.label}
             </div>

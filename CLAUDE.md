@@ -211,7 +211,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Unternehmens-Datensatz eine kompakte Übersicht der **tatsächlichen** laufenden Kosten – KI aus dem
   Event-Strom (verbrauchte Tokens × Modell-Tarif), Zahlungen aus Stripe-Gebühren der bezahlten Verkäufe,
   Infrastruktur als anteilige Google-Cloud-Schätzung; grosse Ist-Summe + Monats-Hochrechnung.
-- Frontend: Profileinstellungen (Profil, Adresse, Rechnungsadresse, Sicherheit, Benachrichtigungen, Datenschutz)
+- Frontend: Profileinstellungen – **auf 4 Reiter konsolidiert**: «Mein Profil» (Person + Adresse +
+  Rechnungsadresse + Newsletter/AGB-Nachweis, gestapelt), «Bestellungen & Abos», «Meine Dokumente»,
+  «Sicherheit». Der frühere «Benachrichtigungen»-Reiter ist entfernt (die Toggles `notification_email`/
+  `notification_inapp` hatten KEINE Backend-Wirkung – kein E-Mail-/In-App-System; Spalten bleiben für die
+  spätere Gmail-Anbindung). Vollständigkeits-Badge (`useProfileCompletion`) rechnet Adresse/Rechnung neu
+  dem Profil-Reiter zu.
 - **Code-Cleanup & Härtung (Juli 2026, `docs/cleanup-2026-07.md`)**: Migration `060` –
   **Meldebestand-Bug behoben** (`orders.reason` VARCHAR(12)→(20): `replenishment` hat 13
   Zeichen, JEDE Auto-Nachbestellung scheiterte vorher am Truncation-Fehler); GIN-Index auf
@@ -442,7 +447,12 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   bewusst **nur im Instanz-Detail** gefüllt (ein Datensatz, ≤10 Auflösungen) – Feeds bleiben bei
   den Batch-Labels. Frontend: `components/erp/location-path.tsx` rendert sie als eingerückte
   Kette im bestehenden Karten-Design (Stationen klickbar, die Anschrift nicht – sie ist kein
-  Datensatz); erscheint erst ab echter Verschachtelung, sonst genügt die Standort-Kachel.
+  Datensatz). **Die Kette startet beim unmittelbaren Halter, NICHT bei der Instanz selbst** (die
+  ist ja schon geöffnet – die frühere «Diese Instanz»-Zeile ist entfernt) und ist die **einzige**
+  Standort-Anzeige im Instanz-Detail: die frühere zusätzliche «Standort»-Kachel im Glance-Grid ist
+  entfallen. Sie rendert jetzt auch bei nur EINEM Halter bzw. «Nicht festgelegt» (kein
+  Verschachtelungs-Schwellenwert mehr); bei einer verteilten Charge weist sie auf die
+  Aufteilung darunter (`InstanceLocationsCard`) hin.
   **Die Kette ist Dekoration, nie der Datensatz** (`routers/instances.safe_location_path`):
   scheitert ihre Auflösung (Altdaten, gelöschter Halter), kostet das die Kette – die Instanz
   bleibt lesbar, der echte Fehler geht mit Objektnummer ins Log; das Frontend verwirft
@@ -651,8 +661,13 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Schritt; Instanzen haben einen Reiter **Verwendung** (Verwendungsnachweise, neu→alt).
 - **Design-Sprache (DAU-tauglich, «Symbole statt Text, Farbe = Bedeutung»)**: Status-Badges sind
   einheitlich **Symbol + semantische Farbe + Label** (`StatusCfg` mit `icon` in den `lib/*`-Status-
-  Configs; `StatusBadge` rendert sie als Pille – Feed & Detail-Köpfe). Semantik: Amber = offen/Entwurf,
-  Blau = aktiv/Aktion, Grün = erledigt/ok, Rot = Fehler/gesperrt, Slate = inaktiv. Der Prozess-Stepper
+  Configs; `StatusBadge` rendert sie als Pille – Feed & Detail-Köpfe). **Ampel-Semantik (nur
+  grün/gelb/rot, kein Blau/Petrol/Violett/Slate mehr):** GELB (`--warning`) = offen/in Arbeit/wartend
+  (Entwurf, In Bearbeitung, Angefragt/Offeriert/Bestellt, Bestätigt/Verrechnet, Reserviert, Im Prozess);
+  GRÜN (`--success`) = gut/erledigt/frei (Freigegeben, Abgeschlossen, Geliefert, Bezahlt, am Lager,
+  Verkauft, Verbaut); ROT (`--danger`) = Problem/Stopp/tot (Fehler, Abgelehnt, Storniert, **Inaktiv,
+  Verschrottet**). Alles läuft über die drei `TONE`-Töne (`lib/status-flow.ts`); Rollen-Badges sind
+  bewusst **neutral** (Identität, keine Ampelfarbe). Der Prozess-Stepper
   zeigt **Schritt-Symbole** statt Zahlen. Aktive Prozessschritte haben **eine** grosse, touch-taugliche
   Hauptaktion (`PrimaryButton`, ≥44 px, volle Breite) – «Was muss ich jetzt tun?» auf einen Blick.
   **Gemeinsames UI-Vokabular (`components/erp/fields.tsx`) – konsequent verwenden statt Eigenbau:**
@@ -1153,11 +1168,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Einheiten/Serialisierung-Whitelist); Fehler kommen als `{error,hint}` zurück → die KI korrigiert sich
   selbst (kein «15cm» mehr, Grösse mm/aufsteigend/×-getrennt, Gewicht in kg). Neues rechte-gescoptes
   Read-Tool `article_name_suggestions` (Dubletten vermeiden statt neu erfinden); Tool-Schemas + Prompt
-  (`registry.PROMPT_VERSION`) präzisiert. (2) **Status-Töne vereinheitlicht** über `lib/status-flow.TONE`
-  (pending=amber/warning, info=slate/accent, done=grün/success, danger=rot, inactive=grau): **Auftrag «In
-  Bearbeitung» ist jetzt amber** – exakt der Ton der Instanz «Im Prozess»; Artikel/Prozess/
-  Beschaffung/Verkauf ziehen dieselbe Palette (nur terminal Verbraucht/Verkauft behalten violett/petrol,
-  kein Semantik-Token). (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
+  (`registry.PROMPT_VERSION`) präzisiert. (2) **Status auf reine Ampel konsolidiert** (`lib/status-flow.TONE`
+  = nur noch pending=GELB/warning, done=GRÜN/success, danger=ROT/danger – die früheren Töne `info` (Slate)
+  und `inactive` (Grau) sind entfallen): **In Bearbeitung/Reserviert/Offeriert/Bestellt/Bestätigt/Verrechnet
+  = GELB**, **Inaktiv/Verschrottet = ROT** («Stopp/nicht verwendbar»), **Verkauft/Verbaut = GRÜN**. Die
+  hartkodierten Blau/Petrol/Violett-Ausreisser (Instanz consumed/sold, Prozess-Stepper, PurchaseProgress,
+  Dokument-Stufen, Rollen-Badges, Primär-Buttons) sind alle auf Tokens gezogen; Rollen-Badges sind neutral
+  (Identität, keine Ampel), Primär-CTA = Rot (Design-System). Auftrag «In Bearbeitung» trägt exakt den Ton
+  der Instanz «Im Prozess». (3) **Datenerfassung**: der Bug «Unterschrift konfiguriert, trotzdem Foto-Aufnahme
   angeboten» ist weg – Foto/Unterschrift sind reine `capture_fields`-Typen, der unbedingte `PhotoCapture`-
   Block je Probe ist entfernt. (4) **Auftrag-Shortcut**: kleiner Kopf-Knopf «Auftrag anlegen» am
   freigegebenen **Artikel** (neben Deaktivieren/Ersetzen) und an der **Instanz** (neben Abweichung) – legt

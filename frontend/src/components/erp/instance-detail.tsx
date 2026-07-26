@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
-  Boxes, ArrowLeft, FileText, MapPin, Package, CalendarDays, History,
+  Boxes, ArrowLeft, FileText, Package, CalendarDays, History,
   ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert, ClipboardPlus,
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Instance, InstanceOrderRef, LocationType, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
-import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
+import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
+import { instanceStatusConfig } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
@@ -72,7 +72,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   }, [genDoc]);
 
   const status = instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
-  const LocIcon = LOCATION_META[(inst.location_type as LocationType)]?.icon ?? MapPin;
   const distributed = (inst.locations?.length ?? 0) > 1;
 
   // Aufträge sortiert nach Zeitpunkt (an), Richtung umschaltbar.
@@ -229,13 +228,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               onClick={inst.article_object_id != null ? () => nav?.(inst.article_object_id as number) : undefined}
             />
             <Tile
-              icon={LocIcon} label="Standort"
-              hint={distributed ? 'Diese Charge liegt auf mehreren Standorten (siehe Karte «Standort»).' : undefined}
-              value={distributed ? 'Verteilt' : (inst.location_label ?? (inst.location_id != null ? 'Objekt' : 'Nicht festgelegt'))}
-              sub={distributed ? `${inst.locations?.length} Standorte` : (inst.location_id != null ? fmtObjId(inst.location_id) : undefined)} subMono={!distributed}
-              onClick={!distributed && inst.location_id != null ? () => nav?.(inst.location_id as number) : undefined}
-            />
-            <Tile
               icon={Package} label="Bestand" hint="Zählbar nur, wenn freigegeben und am Lager."
               value={<>{bestand} <span style={S.unit}>Stk</span></>}
               sub={bestandSub}
@@ -250,8 +242,8 @@ export function InstanceDetail({ record, onBack, onChanged }: {
             )}
           </div>
 
-          {/* «Wo genau?» – die volle Kette: Instanz → Behälter → Lagerplatz → Anschrift */}
-          <LocationPathCard path={inst.location_path ?? []} self={inst.object_id} />
+          {/* «Wo genau?» – die einzige Standort-Anzeige: Halter → … → Anschrift (ohne die Instanz selbst) */}
+          <LocationPathCard path={inst.location_path ?? []} distributedCount={distributed ? inst.locations?.length : undefined} />
 
           {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
           <InstanceLocationsCard instance={inst} />

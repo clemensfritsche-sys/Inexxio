@@ -192,8 +192,9 @@ function DocStages({ issued, done }: { issued: boolean; done: boolean }) {
       {stages.map((s, i) => {
         const isDone = i < cur;
         const isCur = i === cur;
-        const color = isDone ? '#15803D' : isCur ? '#2563eb' : '#B8B5AE';
-        const bg = isDone ? '#DCFCE7' : isCur ? '#EFF6FF' : '#F5F4F1';
+        // Ampel: erledigt = GRÜN, aktuell = GELB (in Arbeit), noch offen = neutral.
+        const color = isDone ? 'var(--success)' : isCur ? 'var(--warning)' : 'var(--fg-4)';
+        const bg = isDone ? 'var(--success-bg)' : isCur ? 'var(--warning-bg)' : 'var(--bg-3)';
         const Icon = isDone ? Check : s.icon;
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
