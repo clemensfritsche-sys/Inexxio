@@ -7,7 +7,7 @@ import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, Purcha
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
-import { TextField, StatusBadge, PanelHeader } from '@/components/erp/fields';
+import { PanelHeader, Row, StatusBadge, TextField } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 import { ObjId } from '@/components/erp/obj-id';
 import { formatAmount as fmtMoney } from '@/lib/utils';
@@ -379,11 +379,3 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
-      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
-    </div>
-  );
-}

@@ -14,7 +14,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { SearchSelect, StatusBadge, StatusFlow, Label, SectionTitle, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
+import { Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -1271,14 +1271,6 @@ export function GoalCard({ icon: Icon, tone, active, disabled, disabledHint, tit
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-      <span style={{ color: '#94a3b8', flexShrink: 0 }}>{k}</span>
-      <span style={{ color: '#0F172A', fontWeight: 600, textAlign: 'right' }}>{v}</span>
-    </div>
-  );
-}
 
 // Auswahl der zu erstattenden VERKAUFTEN Instanzen – macht den (normalen) Auftrag zur Retoure
 // (reason='return' + parent = Original-Verkauf). Danach folgt der gewohnte Ablauf-Editor.

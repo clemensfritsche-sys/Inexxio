@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import address
+from .objects import obj_nr as _obj_nr
 
 _ASSET_DIR = Path(__file__).resolve().parent.parent / "assets"
 _FONT_DIR = _ASSET_DIR / "fonts"
@@ -87,10 +88,6 @@ def _fmt_date(value) -> str:
     if isinstance(value, (date, datetime)):
         return value.strftime("%d.%m.%Y")
     return _esc(value) if value else ""
-
-
-def _obj_nr(object_id: Optional[int]) -> str:
-    return str(object_id).zfill(9) if object_id else "—"
 
 
 def _address_lines(company: dict) -> list[str]:

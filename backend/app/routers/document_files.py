@@ -25,6 +25,7 @@ from ..schemas.document_file import (
     DocumentAnalyzeResponse, DocumentConfirmRequest, ObjectDocument,
 )
 from ..services import document as document_svc
+from ..services import people
 from ..services import storage
 from ..services.ai import actions as actions_svc
 from ..services.ai import documents as ai_documents
@@ -38,13 +39,6 @@ router = APIRouter(tags=["documents"])
 
 def _principal(db: Session, user: UserProfile) -> AiPrincipal:
     return AiPrincipal(actor=ensure_ai_user(db), on_behalf_of=user)
-
-
-def _user_name(db: Session, uid: Optional[int]) -> Optional[str]:
-    if not uid:
-        return None
-    u = db.query(UserProfile).filter(UserProfile.id == uid).first()
-    return u.display_name if u else None
 
 
 # ─── Aufnahme: analysieren → bestätigen/ablehnen ──────────────────────────────────
@@ -214,7 +208,7 @@ def _file_entry(db: Session, df: DocumentFile, relation: Optional[str]) -> Objec
         doc_type=df.doc_type, summary=df.summary, mime=df.mime, filename=df.filename,
         page_count=df.page_count, byte_size=df.byte_size,
         download_url=f"/api/v1/erp/document-files/{df.id}/download",
-        relation=relation, created_at=df.created_at, created_by_name=_user_name(db, df.created_by),
+        relation=relation, created_at=df.created_at, created_by_name=people.name_by_id(db, df.created_by),
     )
 
 

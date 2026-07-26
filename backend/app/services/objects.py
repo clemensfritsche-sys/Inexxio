@@ -16,6 +16,12 @@ from ..models import (
 )
 
 OBJ_ID_START = 100_000_001
+
+
+def obj_nr(object_id: int | None) -> str:
+    """9-stellige Objektnummer als Text – die EINE Formatierung (Spiegel des Frontend
+    ``fmtObjId``). Ohne Nummer der Gedankenstrich, damit Belege/Labels nie «None» zeigen."""
+    return str(object_id).zfill(9) if object_id else "—"
 OBJECT_ID_SEQUENCE = "object_id_seq"
 
 # Objekttyp ↔ Modell (für Registry-Backfill und -Pflege). Prozesse sind KEINE

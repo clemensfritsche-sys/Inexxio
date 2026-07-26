@@ -16,6 +16,8 @@ from ..core.database import get_db
 from ..models import CompanySettings, Order, UserProfile
 from ..services import attachments as attachments_svc
 from ..services import document as document_svc
+from ..services import people
+from ..services.objects import obj_nr as format_obj_nr
 from ..services.document_render import render_pdf
 
 router = APIRouter(prefix="/api/v1/erp", tags=["documents"])
@@ -39,7 +41,7 @@ def _signoff_render_data(db: Session, doc) -> list[dict]:
     out: list[dict] = []
     for s in document_svc.signoffs_for(db, doc):
         out.append({
-            "name": document_svc._user_name(db, s.signer_object_id) or f"Objekt {s.signer_object_id}",
+            "name": people.name_by_object_id(db, s.signer_object_id) or f"Objekt {s.signer_object_id}",
             "action": s.action,
             "status": s.status,
             "acted_at": s.acted_at,
@@ -92,5 +94,5 @@ async def get_document_pdf(
         signoffs=_signoff_render_data(db, doc),
         image_resolver=lambda url: _signature_data_uri(db, url),
     )
-    fname = f"Dokument-{str(obj_nr).zfill(9)}.pdf" if obj_nr else "Dokument-Entwurf.pdf"
+    fname = f"Dokument-{format_obj_nr(obj_nr)}.pdf" if obj_nr else "Dokument-Entwurf.pdf"
     return _pdf_response(pdf, fname)

@@ -76,16 +76,6 @@ def _settings(db: Session) -> CompanySettings | None:
     return db.query(CompanySettings).filter(CompanySettings.id == 1).first()
 
 
-def _has_address(a: dict | None) -> bool:
-    """Trägt der Adress-Snapshot echte Angaben (PLZ oder Ort)? «—»/leer zählt nicht."""
-    return address.has_content(a)
-
-
-def same_place(a: dict | None, b: dict | None) -> bool:
-    """Zwei Adress-Snapshots als **gleicher Ort** werten (Strasse+PLZ+Ort+Land normalisiert)."""
-    return address.same(a, b)
-
-
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
     """Ownership eines Standort-Ziels: 'external_person' (Kunde/Lieferant) |
     'internal' (Mitarbeiter/Firma) | 'unknown'. Instanzen über die physische
@@ -156,7 +146,7 @@ def classify_movement(db: Session, order: Order, step: ArticleProcessStep,
     # Beide intern → Adress-Vergleich (Mehr-Standort). Ziel ohne Adresse = innerbetrieblich.
     tgt_addr = target_address(db, t_type, t_id)
     src_addr = target_address(db, s_type, s_id)
-    if _has_address(tgt_addr) and _has_address(src_addr) and not same_place(src_addr, tgt_addr):
+    if address.has_content(tgt_addr) and address.has_content(src_addr) and not address.same(src_addr, tgt_addr):
         return {"transport_class": "outside", "direction": "outbound", "target": (t_type, t_id)}
     return {"transport_class": "inside", "direction": "outbound", "target": (t_type, t_id)}
 
@@ -262,19 +252,14 @@ def recommend_mode(cls: dict, load: dict) -> str:
 
 # ─── Adress-Snapshots ─────────────────────────────────────────────────────────────
 
-# Adress-Aufbau ist zentral in ``services/address.py`` (EINE Darstellung für Person und
-# Unternehmen) – hier nur noch dünne Aliase für die Lesbarkeit.
+# Adress-Aufbau ist zentral in ``services/address.py`` – hier wird direkt dorthin
+# gerufen. Die früheren Ein-Zeilen-Aliase (_addr_company/_addr_user/_addr_label/
+# _has_address/same_place) waren reine Weiterleitung und sind entfallen: eine
+# Indirektion, die nichts hinzufügte, aber eine zweite Namensebene für dieselbe Sache
+# schuf.
 def _addr_company(settings: CompanySettings | None) -> dict:
+    """Firmenadresse mit Rückfall auf den blossen Namen (Snapshot braucht ein Ziel)."""
     return address.of_company(settings) if settings else address.make(name="Inexxio")
-
-
-def _addr_user(u: UserProfile) -> dict:
-    """Empfänger-Adresse einer Person: Lieferadresse (ship_*) vor Wohnadresse."""
-    return address.of_user(u, "ship")
-
-
-def _addr_label(a: dict | None) -> str | None:
-    return address.one_line(a)
 
 
 def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | None:
@@ -288,7 +273,7 @@ def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | No
         return target_address(db, pt, pid)
     if ltype == "user":
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
-        return _addr_user(u) if u else None
+        return address.of_user(u, "ship") if u else None
     if ltype == "company":
         # «Im Betrieb» – die Firmenadresse. Ohne diesen Zweig hätte eine Bewegung mit
         # Ziel Unternehmen keinen Empfänger und liefe in «Adresse unvollständig».
@@ -542,8 +527,8 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         emb.parcels = ship.parcels or []
         emb.load = ship.load if kind == "freight" else None
         emb.rates = [ShipmentRate(**r) for r in (ship.rates or [])]
-        emb.from_label = _addr_label(ship.address_from)
-        emb.to_label = _addr_label(ship.address_to)
+        emb.from_label = address.one_line(ship.address_from)
+        emb.to_label = address.one_line(ship.address_to)
     else:
         # Vorschau ohne Beleg: Adressen/Pakete/Last live ableiten (kein Schreiben im GET).
         settings = _settings(db)
@@ -551,8 +536,8 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         company = _addr_company(settings)
         other = target_address(db, t_type, t_id)
         outbound = cls["direction"] == "outbound"
-        emb.from_label = _addr_label(company if outbound else other)
-        emb.to_label = _addr_label(other if outbound else company)
+        emb.from_label = address.one_line(company if outbound else other)
+        emb.to_label = address.one_line(other if outbound else company)
         parcels, hazmat = build_parcels(db, instances)
         emb.parcels = parcels
         emb.hazmat = hazmat

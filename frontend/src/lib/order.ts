@@ -1,6 +1,6 @@
 import { FilePen, Hammer, CheckCircle2, Ban } from 'lucide-react';
 import type { OrderStatus } from '@/types';
-import { TONE, type StatusCfg } from '@/lib/status-flow';
+import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
 
 // «In Bearbeitung» trägt jetzt denselben amber-orangen Ton wie eine Instanz «Im Prozess»
 // (TONE.pending) – der laufende Auftrag ist in Arbeit, nicht «fertig». Farben aus den Tokens.
@@ -12,5 +12,5 @@ export const ORDER_STATUS: Record<OrderStatus, StatusCfg> = {
 };
 
 export function orderStatusConfig(status: string): StatusCfg {
-  return ORDER_STATUS[status as OrderStatus] ?? ORDER_STATUS.draft;
+  return pickCfg(ORDER_STATUS, status, 'draft');
 }
