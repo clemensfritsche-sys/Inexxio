@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, FileText, Building2 } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import type { StepState } from '@/components/erp/process-stepper';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
@@ -9,6 +9,9 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   movement:   { label: 'Bewegung',       icon: ArrowLeftRight },
   resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   scrap:      { label: 'Verschrotten',   icon: Trash2 },
+  // Sperren = das reversible Gegenstück: die Instanz bleibt, darf aber nicht verwendet
+  // werden (quality='blocked'); aufhebbar an der Instanz.
+  block:      { label: 'Sperren',        icon: Lock },
   sale:       { label: 'Verkauf',        icon: Receipt },   // bedient auch die Gutschrift/Erstattung (Kredit-Modus)
   document:   { label: 'Dokument',       icon: FileText },  // erzeugt ein nummeriertes Dokument (Vertrag/AGB/Zertifikat)
 };
@@ -45,6 +48,7 @@ const STEP_SUBJECT_ROLE: Record<StepType, 'produce' | 'stock' | 'instance'> = {
   sale:       'stock',
   movement:   'instance',
   inspection: 'instance',
+  block:      'instance',
   scrap:      'instance',
   document:   'produce',   // erzeugt einen (nicht-physischen) Liefergegenstand – kein Bestandszugriff
 };
@@ -81,7 +85,12 @@ const INSTANCE_STATUS: Record<string, StatusCfg> = {
   in_process: { label: 'In Arbeit',    ...TONE.pending, icon: Clock },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
   reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
-  failed:     { label: 'Gesperrt',     ...TONE.danger,  icon: XCircle },
+  // «Durchgefallen» (Prüfung) und «Gesperrt» (bewusst ausgesetzt) sind zwei
+  // verschiedene Dinge – vorher trugen beide dasselbe Wort.
+  failed:     { label: 'Durchgefallen', ...TONE.danger,  icon: XCircle },
+  // Gesperrt ist WARTEND, nicht tot: die Instanz kommt zurück (Wartung/Prüfung) –
+  // darum gelb wie alles Offene, nicht rot wie das endgültige Verschrotten.
+  blocked:    { label: 'Gesperrt',     ...TONE.pending, icon: Ban },
   consumed:   { label: 'Verbaut',      ...TONE.done,    icon: PackageMinus },
   scrapped:   { label: 'Verschrottet', ...TONE.danger,  icon: Trash2 },
   sold:       { label: 'Verkauft',     ...TONE.done,    icon: Banknote },
@@ -100,6 +109,7 @@ export function instanceStatusConfig(
   if (disposition === 'scrapped') return INSTANCE_STATUS.scrapped;
   if (disposition === 'sold') return INSTANCE_STATUS.sold;
   if (disposition === 'consumed') return INSTANCE_STATUS.consumed;
+  if (quality === 'blocked') return INSTANCE_STATUS.blocked;
   if (quality === 'failed') return INSTANCE_STATUS.failed;
   if (quality === 'passed' && disposition === 'in_stock')
     return reserved ? INSTANCE_STATUS.reserved : INSTANCE_STATUS.in_stock;

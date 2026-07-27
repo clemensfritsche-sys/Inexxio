@@ -1430,6 +1430,44 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   *Bewusst NICHT geändert: der «Hinzufügen»-Knopf im Schritt-Editor bleibt (#40) – Auto-Save würde
   einen halb konfigurierten Schritt anlegen, und genau das verbietet #41.*
 
+- **Testnotizen-Runde 5 (Sperren-Modul, Notizen #52–#68)**: Kern ist ein **neuer Schritttyp
+  `block` = «Sperren»** (#59) – das **reversible Gegenstück zum Verschrotten**: nicht alles, was
+  aus dem Verkehr muss, ist Ausschuss (die defekte Maschine wartet auf ihre Wartung, das
+  fragliche Los auf ein Laborergebnis). **Modelliert auf der Qualitäts-Achse**
+  (`instances.quality='blocked'`), NICHT auf der Verbleibs-Achse: eine Sperre ändert nicht,
+  *wo* etwas ist, sondern ob man es *verwenden darf*. Das ist der ganze Trick – weil
+  `inventory.in_stock_clauses()` ohnehin `passed` UND `in_stock` verlangt, fällt eine gesperrte
+  Instanz **ohne eine einzige zusätzliche Abfrage** aus FIFO, Verfügbarkeit, Bestandszählung und
+  Reservierbarkeit; und weil `quality` von Natur aus veränderlich ist, ist die Rücknahme
+  eingebaut statt nachgerüstet. Verschrotten dagegen ist `DECREASE`/terminal, standortlos und
+  löst alle Reservierungen – Sperren ist `NEUTRAL`, lässt Standort, Menge und Reservierungen
+  **unangetastet** (das Teil gehört weiterhin seinem Auftrag, es ist nur gerade nicht benutzbar).
+  Schema-seitig kostet das **eine** Spalte: `disposals.mode` ∈ scrap|block (Migration `084`,
+  `quality` ist ein freies VARCHAR). **Ein Panel, zwei Wirkungen** (`scrap-panel.tsx` mit
+  `mode`-Prop) – die Instanz-Auswahl ist identisch, nur das Ergebnis nicht; Teilmengen gibt es
+  nur beim Verschrotten (eine halbe Charge sperren hiesse, sie zu teilen). **Aufgehoben wird an
+  der Instanz, nicht im Prozess** (`POST /erp/instances/{id}/unblock`, Knopf nur bei
+  `quality='blocked'`): eine Maschine kommt aus der Wartung zurück, ohne dass jemand dafür einen
+  Auftrag anlegen will. Der Zustand danach wird **abgeleitet statt gemerkt**
+  (`scrap._restore_quality`: `released_at` gesetzt → `passed`, sonst `pending`) – kein
+  verstecktes «vorherige Qualität»-Feld, das auseinanderlaufen könnte. Nur im **Auftrags**-Ablauf
+  zulässig (wie `scrap`), Wächter `test_smoke.py: test_block_is_reversible_scrap_is_not`.
+  **Wortschärfe im gleichen Zug:** `quality='failed'` hiess bisher ebenfalls «Gesperrt» – jetzt
+  **«Durchgefallen»** (rot, Prüfergebnis) gegenüber **«Gesperrt»** (gelb, bewusst ausgesetzt und
+  wartend). Daneben: (2) **Ein Prozessschritt wird nicht mehr nachträglich umkonfiguriert** –
+  die Sonderfälle «Sichtbare Felder» und «Dokument-Deklaration» hielten als einzige Module einen
+  Bearbeiten-Zustand am Leben; wie überall sonst gilt jetzt löschen + neu anlegen. (3)
+  **Lieferant am Beschaffungs-Schritt ist klickbar** (`ArticleProcessStepResponse.
+  supplier_object_id` – `supplier_id` ist der INTERNE Schlüssel und darf nie als Objektnummer
+  erscheinen), Symbol statt Wort. (4) **Dokument-Deklaration symbol-first**: Sichtbarkeit
+  (Alle · Intern · Vertraulich) und Anerkennungs-Publikum (Niemand · Alle · Rollen · Personen)
+  als `IconSwitch` mit Hover-Erklärung statt Segmented+Erklärsatz. (5) **Benutzernummer ist kein
+  Formularfeld** – sie ist vergeben und unveränderlich, steht also als Versalien-Label +
+  monospaced Nummer da statt in einem Eingabefeld, das zum Hineinklicken einlädt; dazu zwei
+  Erklärkästen im Konto entfernt bzw. auf eine Zeile eingedampft.
+  *Bewusst NICHT geändert (#68, wie #40): der «Hinzufügen»-Knopf bleibt – Auto-Save legte einen
+  halb konfigurierten Schritt an, was #41 gerade verbietet.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

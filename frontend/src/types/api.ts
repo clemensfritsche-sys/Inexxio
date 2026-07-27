@@ -1289,6 +1289,29 @@ export interface paths {
         patch: operations["update_order_scrap_api_v1_erp_orders__object_id__scrap_patch"];
         trace?: never;
     };
+    "/api/v1/erp/orders/{object_id}/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Order Block
+         * @description Schritt «Sperren»: gewählte Instanzen vorübergehend sperren (quality='blocked').
+         *
+         *     Gleiche Auswahl-Form wie das Verschrotten – nur eben umkehrbar: Standort, Menge und
+         *     Reservierungen bleiben unangetastet, die Instanz ist nur nicht mehr verwendbar.
+         */
+        patch: operations["update_order_block_api_v1_erp_orders__object_id__block_patch"];
+        trace?: never;
+    };
     "/api/v1/erp/instances": {
         parameters: {
             query?: never;
@@ -1341,6 +1364,31 @@ export interface paths {
         get: operations["get_instance_api_v1_erp_instances__object_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/erp/instances/{object_id}/unblock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unblock Instance
+         * @description Sperre aufheben – das Gegenstück zum Schritt «Sperren».
+         *
+         *     Bewusst eine **Aktion an der Instanz**, kein Prozessschritt: eine Maschine kommt aus
+         *     der Wartung zurück, ohne dass jemand dafür einen Auftrag anlegen möchte. Der Zustand
+         *     danach ist abgeleitet – schon einmal freigegeben → wieder freigegeben, sonst zurück
+         *     in die Prüfung.
+         */
+        post: operations["unblock_instance_api_v1_erp_instances__object_id__unblock_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2435,6 +2483,8 @@ export interface components {
             supplier_id: number | null;
             /** Supplier Name */
             supplier_name?: string | null;
+            /** Supplier Object Id */
+            supplier_object_id?: number | null;
             /** Webshop Url */
             webshop_url: string | null;
             /**
@@ -8002,6 +8052,41 @@ export interface operations {
             };
         };
     };
+    update_order_block_api_v1_erp_orders__object_id__block_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScrapUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_instances_api_v1_erp_instances_get: {
         parameters: {
             query?: {
@@ -8069,6 +8154,37 @@ export interface operations {
         };
     };
     get_instance_api_v1_erp_instances__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unblock_instance_api_v1_erp_instances__object_id__unblock_post: {
         parameters: {
             query?: never;
             header?: never;

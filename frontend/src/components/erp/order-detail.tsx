@@ -915,7 +915,7 @@ function stepHint(s: OrderStep): string | undefined {
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
 // Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
-const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'sale'];
+const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
 
 // EIN einheitliches «Prozess angehalten» (on hold) für beide Gründe, warum ein Auftrag nicht
 // weiterläuft – konsistente Sprache/Optik statt zweier Metaphern:
@@ -1165,8 +1165,10 @@ function StepPanel({ step, order, viewerRole, company, onSaved }: {
   if (step.step_type === 'resource') {
     return <ResourcePanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
   }
-  if (step.step_type === 'scrap') {
-    return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId} onOrderUpdated={onSaved} />;
+  if (step.step_type === 'scrap' || step.step_type === 'block') {
+    // EIN Panel, zwei Wirkungen – die Auswahl ist identisch, nur das Ergebnis nicht.
+    return <ScrapPanel order={stepOrder} stepState={stepState} stepId={stepId}
+      mode={step.step_type === 'block' ? 'block' : 'scrap'} onOrderUpdated={onSaved} />;
   }
   if (step.step_type === 'document') {
     return <DocumentPanel order={stepOrder} stepState={stepState} stepId={stepId} company={company} onOrderUpdated={onSaved} />;

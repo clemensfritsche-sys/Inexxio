@@ -14,7 +14,7 @@ from ..schemas.instance import (
     InstanceResponse,
     LocationHop,
 )
-from ..services import location_split
+from ..services import location_split, scrap as scrap_svc
 from ..services.locations import location_chain, location_labels, physical_location_labels
 from ..services.references import instance_orders
 
@@ -149,6 +149,31 @@ async def get_instance(
     )
     if not inst:
         raise HTTPException(404, detail="Instanz nicht gefunden")
+    resp = _denorm(db, [inst])[0]
+    resp.location_path = safe_location_path(db, inst)
+    return resp
+
+
+@router.post("/{object_id}/unblock", response_model=InstanceResponse)
+async def unblock_instance(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Sperre aufheben – das Gegenstück zum Schritt «Sperren».
+
+    Bewusst eine **Aktion an der Instanz**, kein Prozessschritt: eine Maschine kommt aus
+    der Wartung zurück, ohne dass jemand dafür einen Auftrag anlegen möchte. Der Zustand
+    danach ist abgeleitet – schon einmal freigegeben → wieder freigegeben, sonst zurück
+    in die Prüfung."""
+    inst = (
+        db.query(Instance)
+        .filter(Instance.object_id == object_id, Instance.is_active == True)
+        .first()
+    )
+    if not inst:
+        raise HTTPException(404, detail="Instanz nicht gefunden")
+    scrap_svc.unblock(db, inst, current_user.id)
     resp = _denorm(db, [inst])[0]
     resp.location_path = safe_location_path(db, inst)
     return resp

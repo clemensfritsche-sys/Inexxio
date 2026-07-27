@@ -116,7 +116,7 @@ def _fact_status(step_type: str, fact) -> str:
         if fact.status == "cancelled":
             return "failed"
         return "open"
-    if step_type in ("movement", "resource", "scrap"):
+    if step_type in ("movement", "resource", "scrap", "block"):
         # Marker-Fachzeile: erledigt, sobald sie existiert.
         return "done" if fact else "open"
     if step_type == "document":
@@ -433,7 +433,7 @@ def _component_needs(db: Session, order: Order) -> dict[int, Decimal]:
     return needs
 
 
-SUBJECT_STEP_TYPES = ("movement", "inspection", "scrap", "sale")
+SUBJECT_STEP_TYPES = ("movement", "inspection", "scrap", "block", "sale")
 
 
 def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, Decimal]:

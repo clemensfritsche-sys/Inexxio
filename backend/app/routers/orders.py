@@ -25,7 +25,7 @@ from ..services.inspection import record_inspection
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services import logistics
 from ..services.movement import record_movement
-from ..services.scrap import record_scrap
+from ..services.scrap import record_block, record_scrap
 from ..services.objects import next_object_id
 from ..services.orders import release_order, to_order_response, to_order_summaries, visible_orders
 from ..services.purchase import apply_update_bulk as apply_purchase_update_bulk, instantiate_for_order as instantiate_purchase
@@ -919,5 +919,23 @@ async def update_order_scrap(
     order = _get_staff_order(db, object_id)
     _assert_not_paused(db, order)
     record_scrap(db, order, data, current_user.id)
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.patch("/{object_id}/block", response_model=OrderResponse)
+async def update_order_block(
+    object_id: int,
+    data: ScrapUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """Schritt «Sperren»: gewählte Instanzen vorübergehend sperren (quality='blocked').
+
+    Gleiche Auswahl-Form wie das Verschrotten – nur eben umkehrbar: Standort, Menge und
+    Reservierungen bleiben unangetastet, die Instanz ist nur nicht mehr verwendbar."""
+    order = _get_staff_order(db, object_id)
+    _assert_not_paused(db, order)
+    record_block(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
