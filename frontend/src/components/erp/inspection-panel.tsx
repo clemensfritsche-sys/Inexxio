@@ -5,7 +5,7 @@ import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanL
 import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { Label, PrimaryButton, PanelHeader } from '@/components/erp/fields';
+import { Label, PrimaryButton, PanelHeader, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
@@ -273,7 +273,8 @@ function CaptureRow({ field, value, onChange, ok, readOnly }: {
     <div>
       <Label>{field.label}</Label>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} inputMode="decimal" disabled={readOnly} placeholder={field.unit ? `Ist (${field.unit})` : 'Ist'}
+        {/* Messwert = Zahl: Buchstaben kommen gar nicht erst ins Feld. */}
+        <input value={(value as string) ?? ''} onChange={(e) => onChange(numericOnly(e.target.value))} {...numericInputProps} disabled={readOnly} placeholder={field.unit ? `Ist (${field.unit})` : 'Ist'}
           className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           style={{ borderColor: filled && field.target != null ? (ok ? '#86efac' : '#fca5a5') : '#e2e8f0', width: 120 }} />
         <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{soll}</span>

@@ -141,6 +141,27 @@ export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }
 
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
 
+/**
+ * Die EINE Regel für Zahlenfelder (Mengen, Perioden, Prozente): nur Ziffern, optional
+ * EIN Dezimaltrenner. Das Komma wird zum Punkt – wer «2,5» tippt, meint 2.5, und das
+ * Backend rechnet mit Punkt.
+ *
+ * Bewusst eine Filterfunktion statt `<input type="number">`: dessen Spinner, Scroll-Rad
+ * und länderabhängige Trennzeichen sind in Formularen mehr Ärger als Hilfe – und ein
+ * `type="number"` liefert bei ungültiger Eingabe einen LEEREN Wert, wodurch getippte
+ * Zeichen spurlos verschwinden. Hier bleibt der Wert immer sichtbar und sauber.
+ */
+export function numericOnly(raw: string, opts: { decimals?: boolean } = {}): string {
+  const { decimals = true } = opts;
+  const cleaned = raw.replace(',', '.').replace(/[^\d.]/g, '');
+  if (!decimals) return cleaned.replace(/\./g, '');
+  const [head, ...rest] = cleaned.split('.');       // höchstens EIN Trenner
+  return rest.length ? `${head}.${rest.join('')}` : head;
+}
+
+/** Tastatur/Verhalten passend zum Zahlenfeld (Mobile: Ziffernblock). */
+export const numericInputProps = { inputMode: 'decimal' as const, autoComplete: 'off' };
+
 export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 4 }}>
@@ -194,6 +215,18 @@ export function SelectField({ label, value, onChange, options, required }: {
 
 /** Durchsuchbare Referenz-Auswahl (Combobox). Filtert Optionen per Tippen –
  *  z. B. «003» findet die Objektnummer 100000003. */
+/**
+ * Neueste zuerst: Datensatz-Auswahlen zeigen die **grösste Nummer oben**. Objektnummern
+ * werden aufsteigend vergeben – wer einen Datensatz referenziert, meint fast immer einen
+ * der zuletzt angelegten, nicht den ältesten von tausend. Greift nur, wenn ALLE Werte
+ * Zahlen sind (sonst bleibt die vom Aufrufer gewählte Reihenfolge unangetastet).
+ */
+function newestFirst(options: { value: string; label: string }[]): { value: string; label: string }[] {
+  if (options.length < 2) return options;
+  if (!options.every((o) => o.value !== '' && Number.isFinite(Number(o.value)))) return options;
+  return [...options].sort((a, b) => Number(b.value) - Number(a.value));
+}
+
 export function SearchSelect({ label, value, onChange, options, required, placeholder }: {
   label?: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; required?: boolean; placeholder?: string;
@@ -202,6 +235,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
+  const ordered = newestFirst(options);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -212,7 +246,7 @@ export function SearchSelect({ label, value, onChange, options, required, placeh
   }, []);
 
   const q = query.trim().toLowerCase();
-  const filtered = q ? options.filter((o) => o.label.toLowerCase().includes(q)) : options;
+  const filtered = q ? ordered.filter((o) => o.label.toLowerCase().includes(q)) : ordered;
 
   function pick(v: string) { onChange(v); setOpen(false); setQuery(''); }
 
