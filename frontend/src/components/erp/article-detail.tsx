@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Package, ArrowLeft, FileText, Workflow, Boxes, Trash2, Tag, QrCode, AlertTriangle,
-  Ruler, ShoppingCart, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
+  Ruler, TrendingUp, Box, Square, Scale, Droplet, Fingerprint, Layers, ExternalLink,
   Scaling, Hash, Truck, Banknote, Link2, Weight, Sparkles, Plus, Shield, Ban, FolderOpen,
   MapPin, ClipboardPlus, Loader2,
 } from 'lucide-react';
@@ -377,9 +377,9 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                   {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
                       auslösen (nur freigegebene Artikel sind auftragsfähig). */}
                   {record.status === 'released' && (
-                    <button className="erp-idbtn" data-tip="Auftrag anlegen" data-tip-pos="bottom"
+                    <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag anlegen" data-tip-pos="bottom"
                       aria-label="Auftrag zu diesem Artikel anlegen" disabled={orderBusy}
-                      style={{ color: 'var(--accent)' }} onClick={createOrderShortcut}>
+                      onClick={createOrderShortcut}>
                       {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
                     </button>
                   )}
@@ -476,10 +476,12 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                           onPick={pickFixedLocation} onRemove={() => removeField('fixed_location')} />
                       )}
                       {!isCreate && record!.lead_time_days_low != null && (
-                        <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record!)} autoHint="Automatisch aus vorherigen Lieferungen" />
+                        <ReadField icon={Truck} label="Lieferzeit" value={leadValue(record!)} spread={leadSpread(record!)}
+                          autoHint="Median aus erledigten Aufträgen" />
                       )}
-                      {!isCreate && record!.landed_unit_cost != null && (
-                        <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record!.landed_unit_cost)} unit="CHF" autoHint="Aus der letzten Freigabe" mono />
+                      {!isCreate && costValue(record!) != null && (
+                        <ReadField icon={Banknote} label="EK-Preis" value={costValue(record!)} unit="CHF" spread={costSpread(record!)}
+                          autoHint="Median aus bisherigen Bestellungen" mono />
                       )}
                     </div>
                   )}
@@ -844,18 +846,39 @@ function linkHost(href: string): string {
   try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
 }
 
-function leadRangeText(r: Article): string {
+// ── Abgeleitete Kennzahlen: der MEDIAN trägt die Aussage ────────────────────────
+// Ein einzelner Eil-Auftrag oder eine Kleinstmenge zu Apothekerpreisen zieht einen
+// Mittelwert weg – der Median bleibt bei dem, was üblich ist (Backend:
+// `services/metrics.py`). Die Spanne steht untergeordnet daneben und nur dann, wenn
+// sie etwas Neues sagt (bei einem einzigen Datenpunkt fällt sie mit dem Median zusammen).
+
+function leadValue(r: Article): string {
+  const v = r.lead_time_days_median ?? r.lead_time_days_low;
+  return v == null ? '—' : formatDuration(Number(v));
+}
+
+function leadSpread(r: Article): string | undefined {
   const lo = r.lead_time_days_low; const hi = r.lead_time_days_high;
-  if (lo == null && hi == null) return '—';
-  const same = lo == null || hi == null || Number(lo) === Number(hi);
-  return same ? formatDuration((lo ?? hi) as number) : `${formatDuration(lo as number)} – ${formatDuration(hi as number)}`;
+  if (lo == null || hi == null || Number(lo) === Number(hi)) return undefined;
+  return `kürzeste ${formatDuration(Number(lo))} · längste ${formatDuration(Number(hi))}`;
+}
+
+function costValue(r: Article): string | null {
+  const v = r.unit_cost_median ?? r.landed_unit_cost;
+  return v == null ? null : fmtChf(v);
+}
+
+function costSpread(r: Article): string | undefined {
+  const lo = r.unit_cost_low; const hi = r.unit_cost_high;
+  if (lo == null || hi == null || Number(lo) === Number(hi)) return undefined;
+  return `tiefster ${fmtChf(lo)} · höchster ${fmtChf(hi)} CHF`;
 }
 
 // Read-only-Feld (Design-`.frow`): kleines Symbol + Versalien-Overline + kräftiger Wert.
 // Optional Einheit/mono, Link («Öffnen») oder ⓘ-Auto-Hinweis (abgeleiteter Wert).
-function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, link }: {
+function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
   icon?: React.ElementType; label: string; value?: React.ReactNode; unit?: string;
-  mono?: boolean; full?: boolean; autoHint?: string; link?: string;
+  mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
 }) {
   return (
     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
@@ -874,6 +897,12 @@ function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, link 
         ) : (
           <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
             {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
+          </div>
+        )}
+        {/* Spanne: bewusst leiser als der Median – sie ordnet ein, sie ist nicht die Aussage. */}
+        {spread && (
+          <div style={{ marginTop: 4, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
+            {spread}
           </div>
         )}
         {autoHint && (
@@ -936,8 +965,12 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
-  const hasProcurement = has('supplier_article_number') || has('cad_url') || has('min_order_qty')
-    || has('safety_stock') || record.landed_unit_cost != null || record.lead_time_days_low != null;
+  // KEIN Abschnitt «Beschaffung» mehr: WIE beschafft wird (Quelle, Lieferant, Webshop),
+  // steht ausschliesslich am Beschaffungs-Schritt im Reiter «Prozess» – eine Überschrift
+  // hier las sich, als würde es auch an zwei Stellen gepflegt. Was bleibt, sind zwei
+  // ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet) und
+  // die restlichen optionalen Angaben, die zur Spezifikation selbst gehören.
+  const hasMetrics = record.lead_time_days_low != null || costValue(record) != null;
   const fixedLat = form.fixed_lat.trim() ? Number(form.fixed_lat) : null;
   const fixedLng = form.fixed_lng.trim() ? Number(form.fixed_lng) : null;
   const hasFixedLoc = fixedLat != null || fixedLng != null
@@ -954,6 +987,10 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
           <ReadField icon={Fingerprint} label="Serialisierung" value={serializationLabel(record.serialization)} />
           {has('surface') && <ReadField icon={Sparkles} label="Oberfläche" value={form.surface} />}
           {has('material') && <ReadField icon={Layers} label="Material" value={form.material} />}
+          {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
+          {has('min_order_qty') && <ReadField icon={Package} label="Mindestbestellmenge" value={form.min_order_qty} mono />}
+          {has('safety_stock') && <ReadField icon={Shield} label="Sicherheitsbestand" value={form.safety_stock} mono />}
+          {has('cad_url') && <ReadField icon={Link2} label="CAD-Link" link={form.cad_url} full />}
         </div>
       </div>
       {hasPhysical && (
@@ -965,14 +1002,16 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
           )}
         </SubSection>
       )}
-      {hasProcurement && (
-        <SubSection icon={ShoppingCart} title="Beschaffung">
-          {has('supplier_article_number') && <ReadField icon={Hash} label="Bestellnummer" value={form.supplier_article_number} />}
-          {record.lead_time_days_low != null && <ReadField icon={Truck} label="Lieferzeit" value={leadRangeText(record)} autoHint="Automatisch aus vorherigen Lieferungen" />}
-          {record.landed_unit_cost != null && <ReadField icon={Banknote} label="EK-Preis" value={fmtChf(record.landed_unit_cost)} unit="CHF" mono />}
-          {has('min_order_qty') && <ReadField icon={Package} label="Mindestbestellmenge" value={form.min_order_qty} mono />}
-          {has('safety_stock') && <ReadField icon={Shield} label="Sicherheitsbestand" value={form.safety_stock} mono />}
-          {has('cad_url') && <ReadField icon={Link2} label="CAD-Link" link={form.cad_url} full />}
+      {hasMetrics && (
+        <SubSection icon={TrendingUp} title="Kennzahlen">
+          {record.lead_time_days_low != null && (
+            <ReadField icon={Truck} label="Lieferzeit" value={leadValue(record)} spread={leadSpread(record)}
+              autoHint="Median aus erledigten Aufträgen" />
+          )}
+          {costValue(record) != null && (
+            <ReadField icon={Banknote} label="EK-Preis" value={costValue(record)} unit="CHF" spread={costSpread(record)}
+              autoHint="Median aus bisherigen Bestellungen" mono />
+          )}
         </SubSection>
       )}
       {hasFixedLoc && (

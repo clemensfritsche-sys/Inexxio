@@ -586,58 +586,6 @@
         }
       }
     },
-    "/api/v1/consent/acknowledgements/{user_object_id}": {
-      "get": {
-        "tags": [
-          "consent"
-        ],
-        "summary": "User Acknowledgements",
-        "description": "Bestätigungen eines Nutzers (für den Benutzer-ERP-Datensatz) – Personal-Sicht.",
-        "operationId": "user_acknowledgements_api_v1_consent_acknowledgements__user_object_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "user_object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "User Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Acknowledgement"
-                  },
-                  "title": "Response User Acknowledgements Api V1 Consent Acknowledgements  User Object Id  Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/contact": {
       "post": {
         "tags": [
@@ -6201,36 +6149,6 @@
         ],
         "title": "AcknowledgeRequest"
       },
-      "Acknowledgement": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "version_object_id": {
-            "type": "integer",
-            "title": "Version Object Id"
-          },
-          "accepted_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Accepted At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "title",
-          "version_object_id",
-          "accepted_at"
-        ],
-        "title": "Acknowledgement",
-        "description": "Eine erfolgte Bestätigung (für den Benutzer-ERP-Datensatz)."
-      },
       "AiChatMessage": {
         "properties": {
           "role": {
@@ -7977,6 +7895,17 @@
             ],
             "title": "Replaces Id"
           },
+          "unit_cost_median": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Median"
+          },
           "unit_cost_low": {
             "anyOf": [
               {
@@ -7998,6 +7927,17 @@
               }
             ],
             "title": "Unit Cost High"
+          },
+          "lead_time_days_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Time Days Median"
           },
           "lead_time_days_low": {
             "anyOf": [
@@ -16025,6 +15965,22 @@
           "role": {
             "type": "string",
             "title": "Role"
+          },
+          "last_sign_in_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sign In Provider"
+          },
+          "passkey_count": {
+            "type": "integer",
+            "title": "Passkey Count",
+            "default": 0
           },
           "is_active": {
             "type": "boolean",

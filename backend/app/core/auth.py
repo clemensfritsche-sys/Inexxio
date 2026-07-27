@@ -129,6 +129,13 @@ def _sync_user_profile(db: Session, user: UserProfile, email: str, decoded: dict
         user.photo_url = new_photo
         changed = True
 
+    # Anmeldeweg mitschreiben (steht im ID-Token): google.com | password | emailLink |
+    # custom (= Passkey, wir stellen dafür ein Custom Token aus).
+    provider = (decoded.get("firebase") or {}).get("sign_in_provider")
+    if provider and user.last_sign_in_provider != provider:
+        user.last_sign_in_provider = provider
+        changed = True
+
     if changed:
         db.commit()
 

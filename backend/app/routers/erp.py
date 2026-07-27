@@ -1,17 +1,40 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from pydantic import BaseModel
 
 from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
-from ..models import UserProfile
+from ..models import UserProfile, WebAuthnCredential
 from ..schemas.admin import ErpAdminUpdate, UserProfileResponse
 from ..schemas.shop import CustomerOrder
 from ..services import people, selling as selling_svc
 from ..services.objects import next_object_ids, resolve_object_type
 
 router = APIRouter(prefix="/api/v1/erp", tags=["erp"])
+
+
+def _passkey_counts(db: Session, user_ids: list[int]) -> dict[int, int]:
+    """{UserProfile.id → Anzahl aktiver Passkeys} – EINE gruppierte Abfrage (kein N+1)."""
+    if not user_ids:
+        return {}
+    rows = (
+        db.query(WebAuthnCredential.user_id, func.count(WebAuthnCredential.id))
+        .filter(
+            WebAuthnCredential.user_id.in_(user_ids),
+            WebAuthnCredential.is_active == True,   # noqa: E712
+        )
+        .group_by(WebAuthnCredential.user_id)
+        .all()
+    )
+    return dict(rows)
+
+
+def _record(user: UserProfile, passkeys: int = 0) -> UserProfileResponse:
+    resp = UserProfileResponse.model_validate(user)
+    resp.passkey_count = passkeys
+    return resp
 
 
 class ObjectResolution(BaseModel):
@@ -62,7 +85,8 @@ async def list_erp_records(
         .order_by(UserProfile.object_id)
         .all()
     )
-    return [UserProfileResponse.model_validate(u) for u in users]
+    counts = _passkey_counts(db, [u.id for u in users])
+    return [_record(u, counts.get(u.id, 0)) for u in users]
 
 
 @router.get("/records/{object_id}", response_model=UserProfileResponse)
@@ -76,7 +100,7 @@ async def get_erp_record(
     ).first()
     if not user:
         raise HTTPException(404, detail="Record not found")
-    return UserProfileResponse.model_validate(user)
+    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))
 
 
 @router.get("/records/{object_id}/orders", response_model=list[CustomerOrder])
@@ -112,4 +136,4 @@ async def update_erp_record(
     people.apply_profile_update(db, user, data, current_user.id)
     db.commit()
     db.refresh(user)
-    return UserProfileResponse.model_validate(user)
+    return _record(user, _passkey_counts(db, [user.id]).get(user.id, 0))

@@ -9,7 +9,7 @@ import { ObjectDocuments } from '@/components/erp/object-documents';
 import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import type { UserProfile, CustomerOrder, Acknowledgement } from '@/types';
+import type { UserProfile, CustomerOrder } from '@/types';
 
 type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
 import type { StatusCfg } from '@/lib/status-flow';
@@ -172,10 +172,14 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
           : <Field label="Land" val={countryName(v('country') as string)} ro />}
       </Sec>
 
-      {isB2B && (
+      {/* Spiegel des Profils: dort pflegt JEDE Rolle eine Rechnungsadresse (nur der
+          Firmenname ist Lieferanten-Sache). Vorher war der Abschnitt im ERP an
+          Kunde/Lieferant gebunden – bei einer Mitarbeiterin sah das Personal ihre
+          eigenen Eingaben nicht, was «das ERP muss alles können» widerspricht. */}
+      {(
         <Sec title="Rechnungsadresse" editable={isAdmin} icon={Building2}>
-          <Field label="Firma"            val={v('invoice_company')} onChange={ed(set, isAdmin, 'invoice_company')} ro={!isAdmin} />
-          <div />
+          {isSupplier && <Field label="Firma" val={v('invoice_company')} onChange={ed(set, isAdmin, 'invoice_company')} ro={!isAdmin} />}
+          {isSupplier && <div />}
           <Field label="Vorname"          val={v('invoice_first_name')} onChange={ed(set, isAdmin, 'invoice_first_name')} ro={!isAdmin} />
           <Field label="Nachname"         val={v('invoice_last_name')} onChange={ed(set, isAdmin, 'invoice_last_name')} ro={!isAdmin} />
           <Field label="Adresszeile 1"    val={v('invoice_address_line1')} onChange={ed(set, isAdmin, 'invoice_address_line1')} ro={!isAdmin} />
@@ -216,21 +220,27 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
         </Sec>
       )}
 
-      <Sec title="Einstellungen" icon={Settings}>
+      {/* Spiegel der Profileinstellungen: dort gibt es genau EINEN Schalter
+          («Newsletter»). Die beiden Benachrichtigungs-Schalter sind im Profil bewusst
+          entfernt worden, weil sie keine Backend-Wirkung haben (kein E-Mail-/In-App-
+          System); im ERP standen sie noch – ein Schalter, der nichts tut, gehört
+          nirgendwohin. Die Spalten bleiben für die spätere Gmail-Anbindung. */}
+      <Sec title="Kommunikation" icon={Settings}>
         <div className="col-span-2 flex flex-wrap gap-4">
-          <Field label="E-Mail-Benachrichtigungen" val={v('notification_email')}  onChange={ed(set, isAdmin, 'notification_email')}  type="check" ro={!isAdmin} />
-          <Field label="In-App-Benachrichtigungen"  val={v('notification_inapp')} onChange={ed(set, isAdmin, 'notification_inapp')} type="check" ro={!isAdmin} />
-          <Field label="Newsletter"                  val={v('newsletter_opt_in')} onChange={ed(set, isAdmin, 'newsletter_opt_in')} type="check" ro={!isAdmin} />
+          <Field label="Newsletter" val={v('newsletter_opt_in')} onChange={ed(set, isAdmin, 'newsletter_opt_in')} type="check" ro={!isAdmin} />
         </div>
       </Sec>
 
+      {/* AGB-Nachweis steht NICHT mehr hier: welche Fassung wann anerkannt wurde, führt
+          der Reiter «Dokumente» vollständig (offene Freigaben, offene Anerkennungen,
+          Erledigt – jeweils mit Datum und Stand-Objektnummer). */}
       <Sec title="System" icon={Shield}>
-        <Field label="E-Mail"           val={record.email}                       ro />
-        <Field label="Erstellt"         val={localDate(record.created_at)}       ro />
-        <Field label="Zuletzt geändert" val={localDate(record.updated_at)}       ro />
-        <Field label="Letzter Login"    val={localDate(record.last_login_at)}    ro />
-        <Field label="AGB akzeptiert"   val={localDate(record.terms_accepted_at)} ro />
-        <Field label="AGB Version"      val={record.terms_version ?? '—'}        ro />
+        <Field label="E-Mail"           val={record.email}                    ro />
+        <Field label="Anmeldung"        val={signInLabel(record.last_sign_in_provider)} ro />
+        <Field label="Passkeys"         val={passkeyLabel(record.passkey_count)} ro />
+        <Field label="Erstellt"         val={localDate(record.created_at)}    ro />
+        <Field label="Zuletzt geändert" val={localDate(record.updated_at)}    ro />
+        <Field label="Letzter Login"    val={localDate(record.last_login_at)} ro />
         {isAdmin && <Field label="Firebase UID" val={record.firebase_uid.slice(0, 16) + '…'} ro span2 />}
       </Sec>
     </>
@@ -239,27 +249,20 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
 
 // ─── Bestellungen (Reiter) ─────────────────────────────────────────────────────
 
-// Bestätigungen (Consent-Gate): welche Pflichtdokumente dieser Nutzer wann bestätigt hat.
-// «AGB akzeptiert am … · Stand <Objektnummer der Fassung>». Blendet sich aus, wenn leer.
-function AcknowledgementsCard({ objectId }: { objectId: number | null | undefined }) {
-  const [acks, setAcks] = useState<Acknowledgement[] | null>(null);
-  useEffect(() => {
-    if (objectId == null) { setAcks([]); return; }
-    let cancelled = false;
-    api.getUserAcknowledgements(objectId).then((a) => { if (!cancelled) setAcks(a); }).catch(() => { if (!cancelled) setAcks([]); });
-    return () => { cancelled = true; };
-  }, [objectId]);
-  if (!acks || acks.length === 0) return null;
-  return (
-    <div style={{ marginTop: 12, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 8 }}>Bestätigungen</div>
-      {acks.map((a, i) => (
-        <div key={i} style={{ fontSize: 13, color: '#334155', padding: '3px 0' }}>
-          <strong>{a.title}</strong> akzeptiert am {localDate(a.accepted_at)} · Stand {fmtObjId(a.version_object_id)}
-        </div>
-      ))}
-    </div>
-  );
+/** Anmeldeweg aus dem Firebase-ID-Token, in Klartext. */
+function signInLabel(provider: string | null | undefined): string {
+  const map: Record<string, string> = {
+    'google.com': 'Google SSO',
+    custom: 'Passkey',          // Passkey-Login stellt ein Firebase Custom Token aus
+    emailLink: 'Anmeldelink',
+    password: 'Passwort',
+  };
+  return provider ? (map[provider] ?? provider) : '—';
+}
+
+function passkeyLabel(count: number | null | undefined): string {
+  const n = count ?? 0;
+  return n === 0 ? 'Keiner eingerichtet' : `${n} Gerät${n === 1 ? '' : 'e'}`;
 }
 
 function OrdersSec({ objectId }: { objectId: number | null | undefined }) {
@@ -377,10 +380,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
-        {tab === 'profil' && <>
-          <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />
-          <AcknowledgementsCard objectId={record.object_id} />
-        </>}
+        {tab === 'profil' && <FormSections v={v} set={set} record={record} isAdmin={isAdmin} />}
         {tab === 'orders' && <OrdersSec objectId={record.object_id} />}
         {tab === 'verwendung' && <ObjectReferences objectId={record.object_id} emptyHint="Diese Person hält aktuell keine Instanzen." />}
         {tab === 'docs' && (

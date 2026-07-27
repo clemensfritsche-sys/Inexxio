@@ -148,6 +148,7 @@ _COLUMN_SAFETY_NET = (
     ("company_settings", "pricing_zone_factors", "JSONB"),
     # Stripe-Integration: Customer-/Subscription-/PaymentIntent-Bezüge + Snapshot
     ("user_profiles", "stripe_customer_id", "VARCHAR(64)"),
+    ("user_profiles", "last_sign_in_provider", "VARCHAR(40)"),
     ("orders", "stripe_subscription_id", "VARCHAR(80)"),
     ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
     ("sales", "stripe_snapshot", "JSONB"),

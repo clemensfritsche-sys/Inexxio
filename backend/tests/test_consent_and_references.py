@@ -32,10 +32,17 @@ def test_legal_resolves_on_issued_document_not_stock():
     assert 'disposition != "scrapped"' in src
 
 
-def test_acknowledgements_endpoint_wired():
+def test_user_document_proof_endpoint_wired():
+    """Der Nachweis «wer hat welche Fassung wann anerkannt» hängt am Benutzer-Datensatz.
+
+    Es gibt dafür genau EINE Sicht: die Dokument-Übersicht (offene Freigaben + offene
+    Anerkennungen + Erledigt, je mit Datum und Stand-Objektnummer). Der frühere zweite
+    Endpunkt nur für Bestätigungen ist entfallen – er speiste eine Karte, die dieselbe
+    Aussage ein zweites Mal auf demselben Datensatz machte."""
     from app.routers import consent as consent_router
     paths = {r.path for r in consent_router.router.routes}
-    assert "/api/v1/consent/acknowledgements/{user_object_id}" in paths
+    assert "/api/v1/consent/user/{user_object_id}/documents" in paths
+    assert "/api/v1/consent/acknowledgements/{user_object_id}" not in paths
 
 
 def test_pending_document_serialization():

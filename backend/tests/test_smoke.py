@@ -2626,3 +2626,22 @@ def test_sub_order_buckets_are_explicit_per_reason():
     src = _inspect.getsource(orders_svc._order_sub_orders)
     assert '"provisioning": provisionings' in src
     assert "else deviations" not in src        # kein Sammel-Else mehr
+
+
+def test_metrics_spread_median_first():
+    """Kennzahlen aus der Historie: der Median trägt die Aussage, die Spanne ordnet ein.
+
+    Bewusst Median statt Mittelwert – ein einzelner Eil-Auftrag (hier: 30 Tage) darf die
+    übliche Dauer nicht verzerren. Typ-erhaltend, damit Geld ``Decimal`` bleibt."""
+    from decimal import Decimal
+
+    from app.services.metrics import spread
+
+    assert spread([]) == (None, None, None)
+    assert spread([5.0]) == (5.0, 5.0, 5.0)
+    # Ausreisser: Mittelwert wäre 9.5, der Median bleibt bei 2
+    assert spread([1.0, 2.0, 2.0, 30.0, None]) == (2.0, 1.0, 30.0)
+
+    med, low, high = spread([Decimal("10.00"), Decimal("12.00"), Decimal("50.00")])
+    assert (med, low, high) == (Decimal("12.00"), Decimal("10.00"), Decimal("50.00"))
+    assert isinstance(med, Decimal)

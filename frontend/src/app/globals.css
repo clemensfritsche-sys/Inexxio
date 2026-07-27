@@ -671,6 +671,11 @@
 /* Abweichung-Knopf hebt sich dezent hervor: ruhend leicht amber hinterlegt, beim Hover satter. */
 .erp-idbtn-flag { background: var(--warning-bg); color: var(--warning); }
 .erp-idbtn-flag:hover { background: var(--warning); color: #fff; }
+/* Auftrag-Shortcut: dieselbe dezente Tönung wie der Abweichung-Knopf, aber in der
+   leisen Stimme (Slate) statt Amber – eine Handlung, keine Warnung. */
+.erp-idbtn-act { background: var(--accent-soft); color: var(--accent-ink); }
+.erp-idbtn-act:hover { background: var(--accent); color: #fff; }
+.erp-idbtn-act:disabled, .erp-idbtn-act:disabled:hover { background: transparent; color: var(--fg-4); }
 .erp-idbtn:disabled { opacity: .4; cursor: not-allowed; }
 .erp-idbtn:disabled:hover { background: transparent; color: var(--fg-4); }
 .erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: transparent; color: var(--fg-4); }
