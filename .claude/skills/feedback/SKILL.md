@@ -25,10 +25,12 @@ heraus selbst abzurufen.
 Format je Notiz:
 
 ```markdown
-## #12 · /erp?open=100000123
+## #12 · /erp
 
 > Der Freigeben-Knopf sollte hier ausgegraut sein
 
+- **Ansicht:** Auftrag · Ablauf
+- **Abschnitt:** Bewegung
 - **Element:** «Freigeben» (`button`)
 - **Selektor:** `div > div:nth-of-type(2) > button`
 - **Datensatz:** 100000123
@@ -38,11 +40,17 @@ Format je Notiz:
 
 ## Vorgehen je Notiz
 
-1. **Code-Stelle finden.** Der sichtbare Text ist der stärkste Anker – die Oberfläche ist
-   deutschsprachig, Beschriftungen stehen meist genau einmal im Repository:
-   `rg -n "Freigeben" frontend/src`. Grenzt die Route ein: `/erp` →
-   `frontend/src/app/(erp)/`, `/konto` → `components/account/`, `/shop` → `(public)/shop/`.
-   Hilft der Text nicht (Icon-Knopf), das `outerHTML` und den Selektor heranziehen.
+1. **Code-Stelle finden – in dieser Reihenfolge.**
+   - **Ansicht + Abschnitt zuerst:** «Auftrag · Ablauf / Bewegung» führt direkt zu
+     `components/erp/movement-panel.tsx`. Der Abschnitt ist der Titel eines
+     `PanelHeader`/`SectionTitle` – `rg -n 'title="Bewegung"' frontend/src` bzw.
+     `rg -n 'PanelHeader' frontend/src`. Bei Prozess-Notizen ist das der zuverlässigste
+     Einstieg, weil die Schrittliste sortierbar ist und der Selektor mitwandert.
+   - **Dann der sichtbare Text:** die Oberfläche ist deutschsprachig, Beschriftungen
+     stehen meist genau einmal im Repository: `rg -n "Freigeben" frontend/src`.
+   - **Route als Eingrenzung:** `/erp` → `frontend/src/app/(erp)/` und
+     `components/erp/`, `/konto` → `components/account/`, `/shop` → `(public)/shop/`.
+   - Hilft nichts davon (Icon-Knopf), das `outerHTML` und den Selektor heranziehen.
 2. **Rolle beachten.** `Rolle customer` heisst: der Befund gilt für die Kundensicht –
    nicht in ERP-Komponenten suchen, sondern in Shop/Konto.
 3. **Fehlerzeile ernst nehmen.** Steht unter `**Fehler:**` etwas, ist das meist die

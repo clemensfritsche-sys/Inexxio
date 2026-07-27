@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
-  Check, ClipboardCheck, Copy, Crosshair, MessageSquarePlus, RotateCcw, X,
+  Check, ClipboardCheck, Copy, Crosshair, MessageSquarePlus, RotateCcw, Trash2, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { onAuthChange } from '@/lib/firebase';
@@ -147,6 +147,12 @@ export function FeedbackPin() {
     setNotes((cur) => cur.map((n) => (n.id === id ? updated : n)));
   }, []);
 
+  const remove = useCallback(async (id: number) => {
+    await api.deleteFeedback(id);
+    setNotes((cur) => cur.filter((n) => n.id !== id));
+    setActiveId((cur) => (cur === id ? null : cur));
+  }, []);
+
   const openCount = useMemo(() => notes.filter((n) => n.status === 'open').length, [notes]);
   if (!FEEDBACK_ENABLED || !signedIn) return null;
 
@@ -168,6 +174,8 @@ export function FeedbackPin() {
           onPick={() => setPicking((p) => !p)}
           onSelect={setActiveId}
           onStatus={setStatus}
+          onRemove={remove}
+          onCleared={reload}
         />
       ) : (
         <Launcher count={openCount} onClick={() => setOpen(true)} />
@@ -214,10 +222,12 @@ function Launcher({ count, onClick }: { count: number; onClick: () => void }) {
 }
 
 /** Notizen dieser Seite + die zwei Aktionen: anheften und exportieren. */
-function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect, onStatus }: {
+function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect, onStatus, onRemove, onCleared }: {
   notes: FeedbackNote[]; openCount: number; picking: boolean; activeId: number | null;
   onClose: () => void; onPick: () => void; onSelect: (id: number | null) => void;
   onStatus: (id: number, status: FeedbackStatus) => Promise<void>;
+  onRemove: (id: number) => Promise<void>;
+  onCleared: () => Promise<void>;
 }) {
   return (
     <div
@@ -257,25 +267,28 @@ function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect,
         ) : (
           notes.map((n, i) => (
             <NoteRow key={n.id} note={n} index={i + 1} active={n.id === activeId}
-              onSelect={() => onSelect(n.id === activeId ? null : n.id)} onStatus={onStatus} />
+              onSelect={() => onSelect(n.id === activeId ? null : n.id)}
+              onStatus={onStatus} onRemove={onRemove} />
           ))
         )}
       </div>
 
-      <ExportRow />
+      <FooterActions onCleared={onCleared} />
     </div>
   );
 }
 
-function NoteRow({ note, index, active, onSelect, onStatus }: {
-  note: FeedbackNote; index: number; active: boolean;
-  onSelect: () => void; onStatus: (id: number, status: FeedbackStatus) => Promise<void>;
+function NoteRow({ note, index, active, onSelect, onStatus, onRemove }: {
+  note: FeedbackNote; index: number; active: boolean; onSelect: () => void;
+  onStatus: (id: number, status: FeedbackStatus) => Promise<void>;
+  onRemove: (id: number) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const act = async (status: FeedbackStatus) => {
+  const run = async (fn: () => Promise<void>) => {
     setBusy(true);
-    try { await onStatus(note.id, status); } finally { setBusy(false); }
+    try { await fn(); } finally { setBusy(false); }
   };
+  const act = (status: FeedbackStatus) => run(() => onStatus(note.id, status));
   return (
     <div
       className={`border-b border-border-1 px-3 py-2.5 transition-colors ${active ? 'bg-accent-soft' : 'hover:bg-bg-2'}`}
@@ -297,41 +310,86 @@ function NoteRow({ note, index, active, onSelect, onStatus }: {
           )}
         </div>
         {note.mine && (
-          <button
-            type="button" disabled={busy}
-            onClick={(e) => { e.stopPropagation(); void act(note.status === 'open' ? 'done' : 'open'); }}
-            title={note.status === 'open' ? 'Als erledigt markieren' : 'Wieder öffnen'}
-            className="shrink-0 rounded-ds-sm p-1 text-fg-3 transition-colors hover:bg-bg-3 hover:text-fg-1 disabled:opacity-40"
-          >
-            {note.status === 'open' ? <Check size={14} /> : <RotateCcw size={13} />}
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button" disabled={busy}
+              onClick={(e) => { e.stopPropagation(); void act(note.status === 'open' ? 'done' : 'open'); }}
+              title={note.status === 'open' ? 'Als erledigt markieren' : 'Wieder öffnen'}
+              className="rounded-ds-sm p-1 text-fg-3 transition-colors hover:bg-bg-3 hover:text-fg-1 disabled:opacity-40"
+            >
+              {note.status === 'open' ? <Check size={14} /> : <RotateCcw size={13} />}
+            </button>
+            <button
+              type="button" disabled={busy}
+              onClick={(e) => { e.stopPropagation(); void run(() => onRemove(note.id)); }}
+              title="Notiz löschen"
+              className="rounded-ds-sm p-1 text-fg-4 transition-colors hover:bg-bg-3 hover:text-danger disabled:opacity-40"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-/** Alle offenen Notizen als Markdown in die Zwischenablage – das Entwicklungs-Briefing. */
-function ExportRow() {
-  const [state, setState] = useState<'idle' | 'done' | 'error'>('idle');
+/**
+ * Fusszeile: exportieren und aufräumen. «Alles löschen» verlangt einen zweiten Klick
+ * (der Knopf fragt zurück) – ein Modal wäre für eine Testumgebung zu viel Zeremonie,
+ * ein einzelner Klick zu wenig Schutz. Gelöscht wird weich (`is_active=false`).
+ */
+function FooterActions({ onCleared }: { onCleared: () => Promise<void> }) {
+  const [copied, setCopied] = useState<'idle' | 'done' | 'error'>('idle');
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
   const copy = async () => {
     try {
       const all = await api.listFeedback();
       await navigator.clipboard.writeText(notesToMarkdown(all));
-      setState('done');
-    } catch { setState('error'); }
-    setTimeout(() => setState('idle'), 2500);
+      setCopied('done');
+    } catch { setCopied('error'); }
+    setTimeout(() => setCopied('idle'), 2500);
   };
+
+  const clear = async (scope: 'done' | 'all') => {
+    setBusy(true);
+    try { await api.clearFeedback(scope); await onCleared(); }
+    finally { setBusy(false); setConfirming(false); }
+  };
+
   return (
-    <button
-      type="button" onClick={copy}
-      className="flex items-center justify-center gap-1.5 border-t border-border-1 bg-bg-2 px-3 py-2 text-[11px] font-semibold text-fg-3 transition-colors hover:text-fg-1"
-    >
-      {state === 'done' ? <ClipboardCheck size={12} /> : <Copy size={12} />}
-      {state === 'done' ? 'Kopiert – in die Entwicklungs-Sitzung einfügen'
-        : state === 'error' ? 'Kopieren fehlgeschlagen'
-        : 'Alle offenen Notizen als Markdown kopieren'}
-    </button>
+    <div className="flex flex-col gap-1 border-t border-border-1 bg-bg-2 px-3 py-2">
+      <button
+        type="button" onClick={copy}
+        className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-fg-3 transition-colors hover:text-fg-1"
+      >
+        {copied === 'done' ? <ClipboardCheck size={12} /> : <Copy size={12} />}
+        {copied === 'done' ? 'Kopiert – in die Entwicklungs-Sitzung einfügen'
+          : copied === 'error' ? 'Kopieren fehlgeschlagen'
+          : 'Alle offenen Notizen als Markdown kopieren'}
+      </button>
+      <div className="flex items-center justify-center gap-3 text-[11px] text-fg-4">
+        <button
+          type="button" disabled={busy} onClick={() => clear('done')}
+          title="Erledigte und verworfene Notizen entfernen"
+          className="transition-colors hover:text-fg-2 disabled:opacity-40"
+        >
+          Erledigte aufräumen
+        </button>
+        <span aria-hidden>·</span>
+        <button
+          type="button" disabled={busy}
+          onClick={() => (confirming ? clear('all') : setConfirming(true))}
+          onBlur={() => setConfirming(false)}
+          title="Alle eigenen Notizen löschen"
+          className={`transition-colors disabled:opacity-40 ${confirming ? 'font-semibold text-danger' : 'hover:text-fg-2'}`}
+        >
+          {confirming ? 'Wirklich alle löschen?' : 'Alles zurücksetzen'}
+        </button>
+      </div>
+    </div>
   );
 }
 

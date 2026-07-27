@@ -16,6 +16,7 @@ import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/u
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
+import { setOpenRecord } from '@/lib/feedback';
 import { DocumentIngestDialog } from '@/components/erp/object-documents';
 import { ArticleDetail } from '@/components/erp/article-detail';
 import { OrderDetail } from '@/components/erp/order-detail';
@@ -335,6 +336,13 @@ export default function ErpPage() {
   }, [sel, selectedRow]);
   // Für aus-der-Liste rendernde Typen: der geladene Feed-Datensatz ODER der on-demand nachgeladene.
   const activeRow = selectedRow ?? navRecord;
+
+  // Testnotizen: dem Notiz-Widget melden, WAS gerade offen ist. Der Feed ist ein
+  // Master-Detail auf EINER Route – ohne diese Meldung trüge eine Notiz aus dem
+  // Detailfenster keine Objektnummer (die Route bleibt schlicht `/erp`).
+  useEffect(() => {
+    setOpenRecord(sel ? { kind: TYPE_META[sel.type]?.label ?? sel.type, objectId: sel.objectId } : null);
+  }, [sel]);
 
   // Instanz-Pagination: nur laden, wenn Instanzen sichtbar sind (Feed «alle» oder «Instanzen»).
   const instancesRelevant = typeFilter === null || typeFilter === 'instance';

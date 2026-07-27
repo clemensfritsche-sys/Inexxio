@@ -47,6 +47,37 @@ async def create_feedback(
     return feedback_svc.to_response(db, note, user)
 
 
+@router.delete("", status_code=200)
+async def clear_feedback(
+    scope: str = Query("done", description="'done' = Erledigte/Verworfene, 'all' = alles"),
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    """Aufräumen bzw. zurücksetzen – wirkt nur auf die eigenen sichtbaren Notizen."""
+    _require_enabled()
+    try:
+        removed = feedback_svc.delete_many(db, user, scope)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    db.commit()
+    return {"deleted": removed}
+
+
+@router.delete("/{note_id}", status_code=204)
+async def delete_feedback(
+    note_id: int,
+    db: Session = Depends(get_db),
+    user: UserProfile = Depends(get_current_user),
+):
+    _require_enabled()
+    note = feedback_svc.visible_query(db, user).filter(FeedbackNote.id == note_id).first()
+    if not note:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Notiz nicht gefunden")
+    feedback_svc.delete_note(db, note)
+    db.commit()
+    return None
+
+
 @router.patch("/{note_id}", response_model=FeedbackNoteResponse)
 async def update_feedback(
     note_id: int,

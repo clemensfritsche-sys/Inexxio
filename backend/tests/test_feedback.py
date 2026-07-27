@@ -62,6 +62,26 @@ def test_note_body_is_bounded():
     assert FeedbackCreate(body="passt", route="/erp?open=100000123").target_object_id is None
 
 
+def test_clear_scope_is_whitelisted():
+    """Aufräumen kennt genau zwei Umfänge – ein Tippfehler darf nie «alles» bedeuten."""
+    from app.services.feedback import delete_many
+
+    with pytest.raises(ValueError):
+        delete_many(None, None, "everything")   # Prüfung greift vor jedem DB-Zugriff
+
+
+def test_context_fields_for_precision_are_bounded():
+    """«Ansicht» und «Abschnitt» sind Kontext, kein Freitext-Kanal."""
+    from app.schemas.feedback import FeedbackAnchor, FeedbackContext
+
+    with pytest.raises(ValueError):
+        FeedbackContext(view="x" * 81)
+    with pytest.raises(ValueError):
+        FeedbackAnchor(section="x" * 81)
+    assert FeedbackContext(view="Artikel · Prozess").view == "Artikel · Prozess"
+    assert FeedbackAnchor(section="Bewegung").section == "Bewegung"
+
+
 def test_note_is_no_business_object():
     """Kein Nummernkreis, kein Feed, kein Event-Strom: eine Notiz ist ein Meta-Artefakt.
 

@@ -23,8 +23,13 @@ damit der beste greppbare Anker, den es gibt.
    ein Klick heftet die Notiz daran. `Esc` bricht ab.
 3. Kommentar tippen, **Enter** speichert.
 4. Solange die Liste offen ist, sitzen die **Pins** an ihren Elementen: gelb = offen,
-   grün = erledigt, grau = verworfen. Ein Klick auf den Haken schliesst eine Notiz.
+   grün = erledigt, grau = verworfen. Ein Klick auf den Haken schliesst eine Notiz,
+   der Papierkorb löscht sie.
 5. **«Alle offenen Notizen als Markdown kopieren»** → das Briefing für die Entwicklung.
+6. Fusszeile: **«Erledigte aufräumen»** entfernt alles Abgehakte/Verworfene,
+   **«Alles zurücksetzen»** leert die Liste (zweiter Klick bestätigt). Beides wirkt nur
+   auf die Notizen, die man auch sehen darf – ein Kunde räumt nie fremde Notizen weg.
+   Gelöscht wird **weich** (`is_active=false`, Hausregel «nie hart löschen»).
 
 **Für jede angemeldete Rolle** – Mitarbeiter, Admin, Lieferant und Kunde. Aus Kundensicht
 zu testen und dabei melden zu können, ist ausdrücklich Teil des Zwecks.
@@ -35,6 +40,8 @@ zu testen und dabei melden zu können, ist ausdrücklich Teil des Zwecks.
 |---|---|---|
 | `route` | Pfad + Query (`/erp?open=100000123`) | Seite wiederfinden |
 | `target_object_id` | Objektnummer des offenen Datensatzes | Fall reproduzieren |
+| `context.view` | Datensatzart + aktiver Reiter («Artikel · Prozess») | Ansicht eingrenzen |
+| `anchor.section` | umgebender Abschnitt («Bewegung», «Bestand») | Panel/Sektion eingrenzen |
 | `anchor.label` | sichtbarer Text des Elements | **greppbarer Anker im Code** |
 | `anchor.selector` | Tag-/Positions-Kette (ohne Klassen) | Pin wiederfinden |
 | `anchor.html` | `outerHTML`, auf 800 Zeichen gekappt | Komponente erkennen |
@@ -46,6 +53,22 @@ zu testen und dabei melden zu können, ist ausdrücklich Teil des Zwecks.
 
 Der Fehler-Ringpuffer hört nur auf `error` und `unhandledrejection` – **kein**
 Monkey-Patching von `console.*`, damit das Werkzeug die Anwendung nicht beeinflussen kann.
+
+### Warum «Ansicht» und «Abschnitt» nötig wurden
+
+Der ERP-Feed ist ein **Master-Detail auf EINER Route**: `/erp` bleibt `/erp`, egal welcher
+Datensatz offen ist (`?open=` ist nur der Deep-Link von aussen). Notizen aus dem
+Detailfenster trugen deshalb anfangs **keine Objektnummer** – die Entwicklung musste den
+Datensatz aus dem Notiztext erschliessen. Jetzt meldet die ERP-Seite ihre Auswahl an
+`setOpenRecord` (eine Stelle: der `sel`-Effekt in `erp/page.tsx`), und `currentObjectId`
+zieht sie der URL vor.
+
+Dasselbe Problem in klein hat der **Prozess-Editor**: seine Schritte sind eine dynamische,
+sortierbare Liste – eine `nth-of-type`-Kette sagt dort nur «der dritte Block», was nach dem
+nächsten Umsortieren nicht mehr stimmt. Darum markieren sich `PanelHeader` und
+`SectionTitle` mit `data-fb-section` (wieder: je eine Stelle), und der Anker nimmt den
+Abschnittstitel mit. Eine Notiz am Bewegungs-Panel liest sich dann als
+«Ansicht: Auftrag · Ablauf / Abschnitt: Bewegung» – unabhängig von der Position.
 
 ## Datenmodell
 
@@ -69,7 +92,7 @@ die Testnotizen anderer liest.
 | `backend/app/models/feedback.py` | Tabelle |
 | `backend/app/schemas/feedback.py` | Grenzen (Längen, Status-Whitelist, Fehler-Kappung) |
 | `backend/app/services/feedback.py` | die EINE Stelle für Sichtbarkeit/Anlage/Abschluss |
-| `backend/app/routers/feedback.py` | `GET/POST /api/v1/feedback`, `PATCH /api/v1/feedback/{id}` |
+| `backend/app/routers/feedback.py` | `GET/POST /api/v1/feedback`, `PATCH`/`DELETE …/{id}`, `DELETE …?scope=done\|all` |
 | `frontend/src/lib/feedback.ts` | Anker, Kontext, Markdown-Export (React-frei) |
 | `frontend/src/components/feedback/feedback-pin.tsx` | Widget (Launcher, Liste, Zeigemodus, Pins) |
 
@@ -90,10 +113,12 @@ eigener Auth-Prüfung, damit es in jedem Layout ohne Zutun funktioniert.
 Exportformat (stabil halten – die Skill liest es):
 
 ```markdown
-## #12 · /erp?open=100000123
+## #12 · /erp
 
 > Der Freigeben-Knopf sollte hier ausgegraut sein
 
+- **Ansicht:** Auftrag · Ablauf
+- **Abschnitt:** Bewegung
 - **Element:** «Freigeben» (`button`)
 - **Selektor:** `div > div:nth-of-type(2) > button`
 - **Datensatz:** 100000123
