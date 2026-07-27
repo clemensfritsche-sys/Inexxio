@@ -20,6 +20,7 @@ import type { LocationType } from '@/types';
 import { LOCATION_META, locationTypeLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useErpNav } from '@/components/erp/obj-id';
+import { TileShell } from '@/components/erp/fields';
 
 export type LocationHop = {
   location_type: string;
@@ -27,10 +28,12 @@ export type LocationHop = {
   label?: string | null;
 };
 
-export function LocationPathCard({ path, distributedCount }: {
+export function LocationPathCard({ path, distributedCount, style }: {
   path: LocationHop[] | null | undefined;
   /** Ist die Charge auf mehrere Standorte verteilt: deren Anzahl (Aufteilung folgt darunter). */
   distributedCount?: number | null;
+  /** Platzierung im Kachel-Raster der Instanz (volle Breite). */
+  style?: React.CSSProperties;
 }) {
   const nav = useErpNav();
   // Defensiv: nur brauchbare Stationen (mit Typ) rendern – die Kette darf das Detail
@@ -41,12 +44,7 @@ export function LocationPathCard({ path, distributedCount }: {
   const distributed = (distributedCount ?? 0) > 1;
 
   return (
-    <div style={ST.card}>
-      <div style={ST.head}>
-        <MapPin size={16} style={{ color: 'var(--fg-3)' }} />
-        <h3 style={ST.title}>Standort</h3>
-      </div>
-
+    <TileShell icon={MapPin} label="Standort" style={style}>
       {distributed && (
         <div style={ST.note}>Auf {distributedCount} Standorte verteilt – Aufteilung siehe unten.</div>
       )}
@@ -84,20 +82,14 @@ export function LocationPathCard({ path, distributedCount }: {
           })}
         </ol>
       )}
-    </div>
+    </TileShell>
   );
 }
 
 const ST: Record<string, React.CSSProperties> = {
-  card: {
-    border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 18,
-    background: '#fff', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 30,
-  },
-  head: { display: 'flex', alignItems: 'center', gap: 8 },
-  title: { font: '700 15px var(--font-display)', color: 'var(--fg-1)', margin: 0 },
-  note: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' },
-  empty: { font: '500 13.5px var(--font-body)', color: 'var(--fg-4)' },
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2 },
+  note: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', marginTop: 6 },
+  empty: { font: '500 13.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 6 },
+  list: { listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 2 },
   row: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' },
   arrow: { color: 'var(--fg-4)', flexShrink: 0 },
   label: {

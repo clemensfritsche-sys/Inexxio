@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
-  Boxes, ArrowLeft, FileText, Package, CalendarDays, History,
-  ClipboardList, ChevronRight, ArrowUpRight, QrCode, TriangleAlert, ClipboardPlus,
-  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Info, Hash, FolderOpen,
+  Boxes, ArrowLeft, FileText, Package, CalendarDays,
+  ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
+  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
@@ -17,12 +17,13 @@ import { InstanceLocationsCard } from '@/components/erp/instance-locations';
 import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { TileShell, TILE } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { cn, localDate, timeAgo } from '@/lib/utils';
+import { localDate, timeAgo } from '@/lib/utils';
 
 /**
  * Instanz-Detail – bewusst EINE Ansicht (keine Reiter): Eine Instanz ist die
@@ -84,20 +85,17 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     });
     return list;
   }, [orders, sortDir]);
-  const latestOrder = useMemo(() => {
-    return [...(orders ?? [])].sort((a, b) => (b.at ? new Date(b.at).getTime() : 0) - (a.at ? new Date(a.at).getTime() : 0))[0] ?? null;
-  }, [orders]);
-
   // Bestand: zählbar nur, wenn freigegeben UND am Lager.
   const inStock = inst.quality === 'passed' && inst.disposition === 'in_stock';
   const bestand = inStock ? inst.quantity : 0;
-  const bestandSub =
-    inst.disposition === 'sold' ? 'Verkauft – nicht mehr am Lager'
-    : inst.disposition === 'scrapped' ? 'Verschrottet'
-    : inst.disposition === 'consumed' ? 'Verbaut'
-    : inst.quality === 'failed' ? 'Qualität: durchgefallen'
-    : inStock ? ((inst.reserved_quantity ?? 0) > 0 ? `${inst.reserved_quantity} reserviert` : 'Am Lager')
-    : 'In Arbeit';
+  // Die Unterzeile erklärt die ZAHL – nicht den Zustand. Welcher Zustand vorliegt
+  // (Verkauft · Verschrottet · Verbaut · Fehler · In Arbeit), sagt bereits die Badge im
+  // Kopf; sie hier ein zweites Mal auszuschreiben, war reine Doppelung wenige Zentimeter
+  // daneben. Zusätzlich ist nur die reservierte MENGE – die steht nirgends sonst.
+  const reserved = inst.reserved_quantity ?? 0;
+  const bestandSub = !inStock ? 'Nicht am Lager'
+    : reserved > 0 ? `${reserved} reserviert`
+    : 'Am Lager';
 
   // Eine Abweichung an genau dieser Instanz läuft – wie jede Aktion – über einen Auftrag:
   // einen Unter-Auftrag am (Herkunfts-)Auftrag, der freigegeben/abgeschlossen ist.
@@ -233,20 +231,21 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               sub={bestandSub}
             />
             <Tile icon={CalendarDays} label="Erstellt" value={localDate(inst.created_at)} sub={timeAgo(inst.created_at)} />
-            <Tile
-              icon={History} label="Letzte Bewegung" value={status.label}
-              sub={[timeAgo(inst.updated_at), latestOrder ? `Auftrag ${fmtObjId(latestOrder.object_id)}` : null].filter(Boolean).join(' · ')}
-            />
             {inst.serial_number && (
               <Tile icon={Hash} label="Seriennummer" value={inst.serial_number} subMono />
             )}
+
+            {/* Standort gehört in dasselbe Raster – er ist eine Kennzahl der Instanz wie
+                jede andere, keine Karte für sich (Notiz #5). */}
+            <LocationPathCard
+              style={TILE.wide}
+              path={inst.location_path ?? []}
+              distributedCount={distributed ? inst.locations?.length : undefined}
+            />
+
+            {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
+            <InstanceLocationsCard style={TILE.wide} instance={inst} />
           </div>
-
-          {/* «Wo genau?» – die einzige Standort-Anzeige: Halter → … → Anschrift (ohne die Instanz selbst) */}
-          <LocationPathCard path={inst.location_path ?? []} distributedCount={distributed ? inst.locations?.length : undefined} />
-
-          {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
-          <InstanceLocationsCard instance={inst} />
           </>
           )}
 
@@ -303,31 +302,15 @@ export function InstanceDetail({ record, onBack, onChanged }: {
 }
 
 // ── Kachel («Auf einen Blick») ─────────────────────────────────────────────────
-function Tile({ icon: Icon, label, hint, value, sub, subMono, wide, onClick }: {
+function Tile({ icon, label, hint, value, sub, subMono, wide, onClick }: {
   icon: ElementType; label: string; hint?: string; value: ReactNode;
   sub?: string; subMono?: boolean; wide?: boolean; onClick?: () => void;
 }) {
-  const clickable = !!onClick;
-  const Comp: ElementType = clickable ? 'button' : 'div';
   return (
-    <Comp
-      onClick={onClick}
-      className={cn('erp-tile', clickable && 'erp-tile-link')}
-      style={{ ...S.tile, ...(wide ? S.tileWide : null), ...(clickable ? S.tileLink : null) }}
-    >
-      <div style={S.tileIco}><Icon size={19} /></div>
-      <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
-        <div style={S.tileK}>
-          {label}
-          {hint && (
-            <span style={S.hint} data-tip={hint}><Info size={13} /></span>
-          )}
-        </div>
-        <div style={S.tileV}>{value}</div>
-        {sub && <div style={{ ...S.tileSub, ...(subMono ? S.mono : null) }}>{sub}</div>}
-      </div>
-      {clickable && <span style={S.goto}><ArrowUpRight size={18} /></span>}
-    </Comp>
+    <TileShell icon={icon} label={label} hint={hint} onClick={onClick} style={wide ? TILE.wide : undefined}>
+      <div style={TILE.v}>{value}</div>
+      {sub && <div style={{ ...TILE.sub, ...(subMono ? S.mono : null) }}>{sub}</div>}
+    </TileShell>
   );
 }
 
@@ -347,18 +330,14 @@ const S: Record<string, React.CSSProperties> = {
   statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
   body: { padding: '24px clamp(14px, 4vw, 28px) 40px', maxWidth: 980 },
-  glance: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 1, background: 'var(--border-1)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', marginBottom: 30 },
-  tile: { background: '#fff', padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start', border: 'none', width: '100%', font: 'inherit' },
-  tileWide: { gridColumn: '1 / -1' },
-  tileLink: { cursor: 'pointer' },
-  tileIco: { width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)', color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
-  tileK: { font: '600 11.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 6 },
-  hint: { width: 13, height: 13, color: 'var(--fg-4)', cursor: 'help', display: 'inline-flex' },
-  tileV: { font: '700 18px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  // Kacheln tragen ihre eigene Haarlinie und stehen in Weissraum (Design-System:
+  // «Struktur vor Fläche»). Das frühere Raster war durchgehend in der Linienfarbe
+  // eingefärbt und liess Lücken bei 1 : Eine unvollständige letzte Reihe erschien als
+  // grauer Block. Breitere Mindestspalte, damit bei viel Platz nicht sieben schmale
+  // Streifen entstehen (Notiz #3).
+  glance: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 12, marginBottom: 30 },
   unit: { font: '600 13px var(--font-body)', color: 'var(--fg-3)' },
-  tileSub: { font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginTop: 3, fontVariantNumeric: 'tabular-nums' },
   mono: { fontFamily: 'var(--font-mono)' },
-  goto: { marginLeft: 'auto', color: 'var(--accent)', display: 'flex', alignSelf: 'center' },
   osecHead: { display: 'flex', alignItems: 'center', gap: 11, marginBottom: 4 },
   osecIc: { width: 36, height: 36, borderRadius: 'var(--r-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
   osecH3: { font: '800 19px var(--font-display)', letterSpacing: '-.02em', margin: 0, color: 'var(--fg-1)' },

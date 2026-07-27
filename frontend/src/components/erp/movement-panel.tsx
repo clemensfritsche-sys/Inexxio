@@ -206,12 +206,10 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   if (done) {
     return (
       <div style={cardStyle}>
+        {/* Kein «Bewegung abgeschlossen»-Banner: dass der Schritt erledigt ist, sagt der
+            Auftrags-Stepper bereits (grünes Symbol, Wer/Wann im Hover) – hier zählt das
+            Ergebnis, also wo die Instanzen jetzt liegen (Notiz #2). */}
         <Header />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
-          <CheckCircle2 size={16} />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>Bewegung abgeschlossen</span>
-          {mv?.moved_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{mv.moved_by_name}</span>}
-        </div>
         {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} readOnly onOrderUpdated={onOrderUpdated} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
           {instances.map((i) => <InstanceRow key={i.id} instance={i} />)}

@@ -770,7 +770,10 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Hauptaktion (`PrimaryButton`, ≥44 px, volle Breite) – «Was muss ich jetzt tun?» auf einen Blick.
   **Gemeinsames UI-Vokabular (`components/erp/fields.tsx`) – konsequent verwenden statt Eigenbau:**
   `Tooltip`/`InfoHint` (Erklärungen/Infotexte gehören in den **Hover**, ⓘ-Symbol – nicht in die
-  Fläche), `SectionTitle` (Symbol + Versalien-Label + optional ⓘ + rechter Slot), `PanelHeader`
+  Fläche), `TileShell`/`TILE` (Kachel-Grundform der Detail-Ansichten: Symbol-Kasten + Versalien-
+  Label + Inhalt; jede Kachel trägt ihre eigene Haarlinie und steht in Weissraum – **kein**
+  durchgefärbtes Raster, sonst erscheint eine unvollständige letzte Reihe als grauer Block),
+  `SectionTitle` (Symbol + Versalien-Label + optional ⓘ + rechter Slot), `PanelHeader`
   (einheitlicher Prozessschritt-Kopf: getöntes Symbol + Titel + ⓘ + rechter Slot/Status – EIN Look
   über ALLE Schritt-Panels), `StatusBadge`, `PrimaryButton`. Leitsatz: «weniger ist mehr» – Symbole
   statt Text, Infotexte in den Hover, sofort erkennbar was Sache ist / was zu tun ist.
@@ -1316,6 +1319,22 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   → Einfügen in eine Entwicklungs-Sitzung (Skill `.claude/skills/feedback/`); Wächter
   `tests/test_feedback.py`. *Bewusst NICHT gebaut: GitHub-Issue-Sync (Token im Backend = zweite
   Wahrheit), `html2canvas`-Screenshot, flächendeckende `data-*`-Anker, Voting/Threads/Kanban.*
+
+- **Testnotizen-Runde 1 (Instanz-Detail entdoppelt, Notizen #1–#6)**: erste über das Notiz-Widget
+  gemeldete Befunde, alle Frontend. Kern war **Doppelung des Zustands**: die Statusbadge im Kopf
+  einer Instanz ist bereits die Projektion beider Achsen (`quality`+`disposition`) – die Kachel
+  «Letzte Bewegung» zeigte exakt dieselbe Beschriftung noch einmal (entfernt), und die Unterzeile
+  der Bestands-Kachel schrieb sie ein drittes Mal aus («Qualität: durchgefallen», «Verkauft», …).
+  Sie erklärt jetzt nur noch die **Zahl** (`Nicht am Lager` · `Am Lager` · `N reserviert` – die
+  reservierte Menge steht nirgends sonst). Gleiches Muster im Bewegungs-Panel: das grüne Banner
+  «Bewegung abgeschlossen» ist weg – dass der Schritt erledigt ist, sagt der Auftrags-Stepper
+  (Symbol + Wer/Wann im Hover), im Panel zählt das Ergebnis. **Kachel-Raster:** das Raster war
+  durchgehend in der Linienfarbe eingefärbt (Haarlinien über `gap: 1`), wodurch eine
+  unvollständige letzte Reihe als **grauer Block** erschien; jetzt trägt jede Kachel ihre eigene
+  Haarlinie und steht in Weissraum (Mindestspalte 160→260 px, damit auf breiten Schirmen keine
+  schmalen Streifen entstehen). Die **Standort**-Karten sitzen im selben Raster (volle Breite)
+  statt als eigene Karten darunter – möglich geworden durch `TileShell` in `fields.tsx`, das die
+  dreifach kopierte Kachel-Anatomie zusammenführt. Homepage-Headline: «Industrie 4.0».
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

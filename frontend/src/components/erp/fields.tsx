@@ -2,8 +2,71 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
+
+// ─── Kachel: die Grundform der Detail-Ansichten ──────────────────────────────
+
+/**
+ * Symbol-Kasten links, Versalien-Label, Inhalt darunter – die EINE Kachel-Optik, die
+ * sich die Kennzahlen und die Standort-Karten der Instanz teilen. Vorher stand dieselbe
+ * Anatomie dreimal im Code, weshalb die Standort-Karte neben den Kacheln fremd wirkte.
+ *
+ * Jede Kachel trägt ihre eigene Haarlinie (Weissraum dazwischen) statt in einem
+ * durchgefärbten Raster zu sitzen: so bleibt eine unvollständige letzte Reihe einfach
+ * leer, statt als grauer Block zu erscheinen.
+ */
+export function TileShell({ icon: Icon, label, hint, right, style, onClick, children }: {
+  icon: ElementType; label: string; hint?: string; right?: ReactNode;
+  style?: React.CSSProperties; onClick?: () => void; children: ReactNode;
+}) {
+  const clickable = !!onClick;
+  const Comp: ElementType = clickable ? 'button' : 'div';
+  return (
+    <Comp
+      onClick={onClick}
+      className={clickable ? 'erp-tile erp-tile-link' : 'erp-tile'}
+      style={{ ...TILE.box, ...(clickable ? { cursor: 'pointer' } : null), ...style }}
+    >
+      <div style={TILE.ico}><Icon size={19} /></div>
+      <div style={{ minWidth: 0, flex: 1, textAlign: 'left' }}>
+        <div style={TILE.k}>
+          {label}
+          {hint && <span style={TILE.hint} data-tip={hint}><Info size={13} /></span>}
+          {right && <span style={{ marginLeft: 'auto' }}>{right}</span>}
+        </div>
+        {children}
+      </div>
+      {clickable && <span style={TILE.goto}><ArrowUpRight size={18} /></span>}
+    </Comp>
+  );
+}
+
+export const TILE: Record<string, React.CSSProperties> = {
+  box: {
+    background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+    padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'flex-start',
+    width: '100%', font: 'inherit', textAlign: 'left',
+  },
+  ico: {
+    width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)',
+    color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
+  },
+  k: {
+    font: '600 11.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em',
+    color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 6,
+  },
+  hint: { width: 13, height: 13, color: 'var(--fg-4)', cursor: 'help', display: 'inline-flex' },
+  v: {
+    font: '700 18px var(--font-body)', color: 'var(--fg-1)', marginTop: 6,
+    fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'center', gap: 8,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  sub: { font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginTop: 3, fontVariantNumeric: 'tabular-nums' },
+  goto: { marginLeft: 'auto', color: 'var(--accent)', display: 'flex', alignSelf: 'center' },
+  /** Volle Breite im Kachel-Raster (Standort-Karten, Spezifikation). */
+  wide: { gridColumn: '1 / -1' },
+};
 
 // ─── Hover-Hilfen: Erklärungen/Infotexte gehören in den Hover, nicht in die Fläche ──
 
