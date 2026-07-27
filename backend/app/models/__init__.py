@@ -28,6 +28,7 @@ from .attachment import Attachment
 from .webauthn import WebAuthnCredential, WebAuthnChallenge
 from .ai import AiAction
 from .audit import AuditLog
+from .feedback import FeedbackNote
 from .event import Event
 from .object_ref import ObjectRef
 
@@ -39,5 +40,5 @@ __all__ = [
     "Document", "DocumentSignoff", "DocumentAcknowledgement", "DocumentFile", "DocumentLink", "DocumentBlob",
     "Attachment",
     "WebAuthnCredential", "WebAuthnChallenge",
-    "AiAction", "AuditLog", "Event", "ObjectRef",
+    "AiAction", "AuditLog", "Event", "ObjectRef", "FeedbackNote",
 ]

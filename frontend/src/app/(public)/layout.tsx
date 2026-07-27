@@ -4,6 +4,7 @@ import { CartProvider } from '@/lib/cart-context';
 import { AiAssistant } from '@/components/ai/assistant';
 import { ConsentGate } from '@/components/consent/consent-gate';
 import { PasskeyNudge } from '@/components/auth/passkey-nudge';
+import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <AiAssistant context="Website" />
       <ConsentGate />
       <PasskeyNudge />
+      {/* Testnotizen: nur in der Testumgebung, für JEDE angemeldete Rolle. */}
+      <FeedbackPin />
     </CartProvider>
   );
 }

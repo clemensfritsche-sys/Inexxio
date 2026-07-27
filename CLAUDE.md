@@ -1291,6 +1291,31 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   siehe ADR-005-Bullet – der frühere «komisch differenzierte» Split (Klasse-Chip + auto/carrier/self/none-
   Select + Paket/Fracht-Toggle) ist EIN **3-Wege-Umschalter Im Betrieb | Paket | Fracht** mit markierter,
   abgeleiteter Empfehlung.
+- **Testnotizen – «Pin setzen» statt Befunde dokumentieren** (Juli 2026, `docs/feedback.md`,
+  Migration `082`): Beim Testen fallen laufend Dinge auf; teuer ist nicht das Erkennen, sondern das
+  **Rekonstruieren des Kontexts** (wo war ich, welcher Datensatz, welche Rolle, was hat der Browser
+  gemeldet). Ein Launcher unten **links** (die KI sitzt rechts) öffnet die Notizen der Seite;
+  «Notiz anheften» schaltet in einen **Zeigemodus** (Element unter dem Cursor wird umrandet, Klick
+  heftet die Notiz daran, `Esc` bricht ab), Kommentar tippen, Enter. **Sichtbar nur in der
+  Testumgebung** (`NEXT_PUBLIC_ENVIRONMENT`/`APP_ENV`; die Produktion antwortet 404) und bewusst für
+  **JEDE angemeldete Rolle** – auch aus Kunden-/Lieferantensicht muss gemeldet werden können.
+  **Die Brücke vom Pixel zum Code sind nicht Koordinaten/Screenshots, sondern Text + DOM-Signatur:**
+  die Oberfläche ist deutschsprachig, ihre Beschriftungen stehen im Repo meist genau einmal – der
+  sichtbare Text des geklickten Elements (`anchor.label`) ist damit der beste greppbare Anker
+  (dazu Selektor-Kette ohne Klassennamen, gekapptes `outerHTML`, relative Position `rx`/`ry`).
+  Automatisch mitgeschnitten ausserdem: Route, **Objektnummer des offenen Datensatzes**, Rolle,
+  Viewport, **Build-Commit** (`NEXT_PUBLIC_COMMIT_SHA`) und die letzten 5 Laufzeitfehler (Ringpuffer
+  aus `error`/`unhandledrejection` – **kein** Monkey-Patching von `console.*`). Pins sitzen an ihren
+  Elementen, solange die Liste offen ist (Ampel: offen gelb · erledigt grün · verworfen grau) –
+  damit wird ein Fix **am Ort des Befunds** verifiziert statt aus einer Liste heraus.
+  **Kein Geschäftsobjekt:** `feedback_notes` hat **keine Objektnummer**, keinen Feed, keinen
+  Event-Strom und kein Audit-Log (Einordnung wie `ai_actions`/`attachments`); die Referenz auf den
+  offenen Datensatz heisst darum `target_object_id` wie bei `AiAction` – `object_id` ist im System
+  immer die EIGENE Nummer eines Datensatzes. Sichtbarkeit: Personal sieht alles, jede andere Rolle
+  nur die eigenen Notizen. Weiterverarbeitung über **«Alle offenen Notizen als Markdown kopieren»**
+  → Einfügen in eine Entwicklungs-Sitzung (Skill `.claude/skills/feedback/`); Wächter
+  `tests/test_feedback.py`. *Bewusst NICHT gebaut: GitHub-Issue-Sync (Token im Backend = zweite
+  Wahrheit), `html2canvas`-Screenshot, flächendeckende `data-*`-Anker, Voting/Threads/Kanban.*
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

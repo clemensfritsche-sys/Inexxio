@@ -113,6 +113,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/ai/write | staff | KI-Schreibhilfe (Dokumente-Modul, Structured Output) |
 | POST | /api/v1/ai/image-edit | staff | Shop-Bild mit Gemini bearbeiten → neues Attachment |
 | POST | /api/v1/ai/actions/{id}/confirm · /reject | staff | KI-Vorschlag bestätigen/ablehnen (kritische Aktionen) |
+| GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
+| PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
 
 > Artikel: **Stammdaten** + **Prozess** (Purchase-Schritt) implementiert; Reiter **Bestand** ist
 > noch Platzhalter. Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert

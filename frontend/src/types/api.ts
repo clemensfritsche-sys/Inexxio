@@ -2065,6 +2065,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Feedback */
+        get: operations["list_feedback_api_v1_feedback_get"];
+        put?: never;
+        /** Create Feedback */
+        post: operations["create_feedback_api_v1_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/feedback/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Feedback
+         * @description Erledigt/verworfen setzen – durch den Melder selbst oder durch Personal.
+         */
+        patch: operations["update_feedback_api_v1_feedback__note_id__patch"];
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -3411,6 +3449,132 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * FeedbackAnchor
+         * @description WO die Notiz hängt. ``label`` (sichtbarer Text) ist der beste greppbare Anker.
+         */
+        FeedbackAnchor: {
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+            /**
+             * Tag
+             * @default
+             */
+            tag: string;
+            /**
+             * Selector
+             * @default
+             */
+            selector: string;
+            /**
+             * Html
+             * @default
+             */
+            html: string;
+            /**
+             * Rx
+             * @default 0.5
+             */
+            rx: number;
+            /**
+             * Ry
+             * @default 0.5
+             */
+            ry: number;
+        };
+        /**
+         * FeedbackContext
+         * @description WOMIT es passiert ist – die Umgebung, die man von Hand nie sauber notiert.
+         */
+        FeedbackContext: {
+            /**
+             * Viewport
+             * @default
+             */
+            viewport: string;
+            /**
+             * Ua
+             * @default
+             */
+            ua: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Errors */
+            errors?: string[];
+        };
+        /** FeedbackCreate */
+        FeedbackCreate: {
+            /** Body */
+            body: string;
+            /**
+             * Route
+             * @default
+             */
+            route: string;
+            /** Target Object Id */
+            target_object_id?: number | null;
+            anchor?: components["schemas"]["FeedbackAnchor"] | null;
+            context?: components["schemas"]["FeedbackContext"] | null;
+        };
+        /** FeedbackNoteResponse */
+        FeedbackNoteResponse: {
+            /** Id */
+            id: number;
+            /** Status */
+            status: string;
+            /** Body */
+            body: string;
+            /** Route */
+            route: string;
+            /** Target Object Id */
+            target_object_id?: number | null;
+            /** Anchor */
+            anchor?: Record<string, never> | null;
+            /** Context */
+            context?: Record<string, never> | null;
+            /** Resolution */
+            resolution?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: number | null;
+            /**
+             * Author Name
+             * @default
+             */
+            author_name: string;
+            /**
+             * Mine
+             * @default false
+             */
+            mine: boolean;
+        };
+        /**
+         * FeedbackUpdate
+         * @description Rückkopplung: erledigt/verworfen setzen (oder wieder öffnen) + Begründung.
+         */
+        FeedbackUpdate: {
+            /** Status */
+            status?: string | null;
+            /** Resolution */
+            resolution?: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -9162,6 +9326,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AiProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_feedback_api_v1_feedback_get: {
+        parameters: {
+            query?: {
+                /** @description Nur Notizen dieser Seite (Pfad) */
+                route?: string | null;
+                status?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackNoteResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_feedback_api_v1_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackNoteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_feedback_api_v1_feedback__note_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackNoteResponse"];
                 };
             };
             /** @description Validation Error */

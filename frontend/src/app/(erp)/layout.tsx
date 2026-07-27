@@ -10,6 +10,7 @@ import { ScanProvider } from '@/components/scan/scan-provider';
 import { AiAssistant } from '@/components/ai/assistant';
 import { ConsentGate } from '@/components/consent/consent-gate';
 import { PasskeyNudge } from '@/components/auth/passkey-nudge';
+import { FeedbackPin } from '@/components/feedback/feedback-pin';
 
 const ROLE_KEY = 'inexxio_user_role';
 
@@ -74,6 +75,7 @@ export default function ERPLayout({ children }: { children: React.ReactNode }) {
       <AiAssistant context="ERP" />
       <ConsentGate />
       <PasskeyNudge />
+      <FeedbackPin />
     </ScanProvider>
   );
 }

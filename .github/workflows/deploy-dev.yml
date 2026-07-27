@@ -153,6 +153,8 @@ jobs:
           NEXT_PUBLIC_API_URL: https://inexxio-dev.web.app
           NEXT_PUBLIC_APP_URL: https://inexxio-dev.web.app
           NEXT_PUBLIC_ENVIRONMENT: development
+          # Build-Commit: beantwortet bei einer Testnotiz «welchen Stand hast du gesehen?»
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Deploy to Firebase Hosting (dev)
