@@ -23,7 +23,7 @@ export const UI_MARKER = 'data-feedback-ui';
 
 // Feldlängen wie im Backend-Schema (`schemas/feedback.py`) – hier gekappt, damit eine
 // Notiz nie an einer Validierung scheitert, wenn jemand einen Roman-Knopf anklickt.
-const MAX = { label: 200, tag: 40, selector: 500, html: 800, ua: 300, error: 300 };
+const MAX = { label: 200, tag: 40, selector: 500, html: 800, ua: 300, error: 300, section: 80 };
 
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n) : s);
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -34,17 +34,54 @@ export function currentRoute(): string {
   return cut(window.location.pathname + window.location.search, 500);
 }
 
+// ─── Was ist gerade offen? ────────────────────────────────────────────────────
+// Der ERP-Feed ist ein Master-Detail auf EINER Route: `/erp` bleibt `/erp`, egal
+// welcher Datensatz geöffnet ist (`?open=` ist nur der Deep-Link von aussen). Ohne
+// diese Meldung stand bei jeder Notiz aus dem Detailfenster KEINE Objektnummer –
+// die Entwicklung musste den Datensatz aus dem Text erraten. Darum meldet die
+// ERP-Seite ihre Auswahl hierher; das Widget liest sie beim Anheften.
+
+let openRecord: { kind?: string | null; objectId?: number | null } = {};
+
+/** Vom ERP-Feed gerufen, sobald sich die Auswahl ändert (null = Detail geschlossen). */
+export function setOpenRecord(record: { kind?: string | null; objectId?: number | null } | null) {
+  openRecord = record ?? {};
+}
+
 /**
- * Objektnummer des gerade geöffneten Datensatzes, falls erkennbar: das ERP öffnet
- * Datensätze über `?open=<Objektnr>`, Shop/Konto tragen sie im Pfad. 9-stellig
- * (100'000'001–999'999'999) ist eindeutig genug, um sie sicher zu erkennen.
+ * Objektnummer des gerade geöffneten Datensatzes: zuerst die gemeldete Auswahl,
+ * sonst der Deep-Link `?open=<Objektnr>` bzw. eine 9-stellige Nummer im Pfad
+ * (100'000'001–999'999'999 ist eindeutig genug, um sie sicher zu erkennen).
  */
 export function currentObjectId(): number | null {
   if (typeof window === 'undefined') return null;
+  if (openRecord.objectId != null) return openRecord.objectId;
   const fromQuery = new URLSearchParams(window.location.search).get('open');
   const candidate = fromQuery ?? (window.location.pathname.match(/\b(\d{9})\b/)?.[1] ?? '');
   const n = Number(candidate);
   return Number.isInteger(n) && n >= 100_000_001 && n <= 999_999_999 ? n : null;
+}
+
+/** «Artikel · Prozess» – Datensatzart plus aktiver Reiter (aus dem DOM, eine Quelle). */
+function currentView(): string {
+  const tab = document.querySelector('[data-fb-tab]')?.getAttribute('data-fb-tab') ?? '';
+  return [openRecord.kind, tab].filter(Boolean).join(' · ').slice(0, 80);
+}
+
+/**
+ * Umgebender Abschnitt des geklickten Elements: der nächste Vorfahr, der einen
+ * Abschnittskopf enthält (`PanelHeader`/`SectionTitle` markieren sich mit
+ * `data-fb-section`). Genau das trägt bei den dynamischen Listen des Prozess-
+ * Editors die Bedeutung, die eine `nth-of-type`-Kette nicht mehr hergibt:
+ * «Abschnitt: Bewegung» sagt, um welches Schritt-Panel es geht.
+ */
+function sectionOf(el: Element): string {
+  let cur: Element | null = el;
+  for (let i = 0; cur && i < 8; i++, cur = cur.parentElement) {
+    const head = cur.querySelector?.('[data-fb-section]');
+    if (head) return cut(head.getAttribute('data-fb-section') ?? '', MAX.section);
+  }
+  return '';
 }
 
 /** Sichtbarer Text des Elements – in einer deutschsprachigen UI der beste Anker im Code. */
@@ -89,6 +126,7 @@ export function describeAnchor(el: Element, clientX: number, clientY: number): F
     tag: cut(el.tagName.toLowerCase(), MAX.tag),
     selector: cssPath(el),
     html: cut(el.outerHTML.replace(/\s+/g, ' '), MAX.html),
+    section: sectionOf(el),
     rx: rect.width ? clamp01((clientX - rect.left) / rect.width) : 0.5,
     ry: rect.height ? clamp01((clientY - rect.top) / rect.height) : 0.5,
   };
@@ -101,6 +139,7 @@ export function describeContext(role: string): FeedbackContext {
     ua: cut(navigator.userAgent, MAX.ua),
     role,
     version: BUILD,
+    view: currentView(),
     errors: recentErrors(),
   };
 }
@@ -169,6 +208,8 @@ function noteToMarkdown(n: FeedbackNote): string[] {
   const a = n.anchor;
   const c = n.context;
   const out = [`## #${n.id} · ${n.route || '—'}`, '', `> ${n.body.replace(/\n/g, '\n> ')}`, ''];
+  if (c?.view) out.push(`- **Ansicht:** ${c.view}`);
+  if (a?.section) out.push(`- **Abschnitt:** ${a.section}`);
   if (a?.label) out.push(`- **Element:** «${a.label}» (\`${a.tag}\`)`);
   if (a?.selector) out.push(`- **Selektor:** \`${a.selector}\``);
   if (n.target_object_id) out.push(`- **Datensatz:** ${n.target_object_id}`);

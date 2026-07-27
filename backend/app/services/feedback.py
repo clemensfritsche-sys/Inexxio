@@ -91,6 +91,24 @@ def apply_update(
     return note
 
 
+def delete_note(db: Session, note: FeedbackNote) -> None:
+    """Soft-Delete (Hausregel: nie hart löschen). Für den Melder ist die Notiz weg."""
+    note.is_active = False
+    db.flush()
+
+
+def delete_many(db: Session, user: UserProfile, scope: str) -> int:
+    """Aufräumen: ``done`` entfernt nur Abgehaktes/Verworfenes, ``all`` setzt zurück.
+    Beides läuft über ``visible_query`` – wer nur seine eigenen Notizen sieht, kann
+    auch nur seine eigenen löschen."""
+    if scope not in ("done", "all"):
+        raise ValueError("scope must be 'done' or 'all'")
+    q = visible_query(db, user)
+    if scope == "done":
+        q = q.filter(FeedbackNote.status != "open")
+    return q.update({FeedbackNote.is_active: False}, synchronize_session=False)
+
+
 def to_response(db: Session, note: FeedbackNote, user: UserProfile) -> FeedbackNoteResponse:
     """Antwort inkl. der zwei abgeleiteten Felder: Melder-Name und «darf ich ran?»."""
     return FeedbackNoteResponse(

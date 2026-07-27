@@ -554,6 +554,8 @@ export interface FeedbackAnchor {
   tag: string;
   selector: string;
   html: string;
+  /** Umgebender Abschnitt (Prozessschritt-Panel, Sektionstitel) – trägt bei dynamischen Listen mehr als der Selektor. */
+  section: string;
   rx: number;   // relative Position im Element (0–1) – der Pin sitzt wieder gleich
   ry: number;
 }
@@ -564,6 +566,8 @@ export interface FeedbackContext {
   ua: string;
   role: string;
   version: string;
+  /** Offener Datensatz + aktiver Reiter, z. B. «Artikel · Prozess». */
+  view: string;
   errors: string[];
 }
 

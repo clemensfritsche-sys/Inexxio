@@ -17,6 +17,9 @@ class FeedbackAnchor(BaseModel):
     tag: str = Field(default="", max_length=40)
     selector: str = Field(default="", max_length=500)
     html: str = Field(default="", max_length=800)
+    # Umgebender Abschnitt (Prozessschritt-Panel, Sektionstitel) – bei den dynamischen
+    # Listen des Prozess-Editors trägt er mehr als die Positions-Kette des Selektors.
+    section: str = Field(default="", max_length=80)
     rx: float = 0.5   # relative Position im Element (0–1), damit der Pin wieder passt
     ry: float = 0.5
 
@@ -28,6 +31,7 @@ class FeedbackContext(BaseModel):
     ua: str = Field(default="", max_length=300)
     role: str = Field(default="", max_length=20)
     version: str = Field(default="", max_length=60)      # Build-Commit des Frontends
+    view: str = Field(default="", max_length=80)         # offener Datensatz + Reiter («Artikel · Prozess»)
     errors: list[str] = Field(default_factory=list)      # letzte Laufzeitfehler (Ringpuffer)
 
     @field_validator("errors")

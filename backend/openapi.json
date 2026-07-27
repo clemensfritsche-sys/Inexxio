@@ -6013,9 +6013,94 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Clear Feedback",
+        "description": "Aufräumen bzw. zurücksetzen – wirkt nur auf die eigenen sichtbaren Notizen.",
+        "operationId": "clear_feedback_api_v1_feedback_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "'done' = Erledigte/Verworfene, 'all' = alles",
+              "default": "done",
+              "title": "Scope"
+            },
+            "description": "'done' = Erledigte/Verworfene, 'all' = alles"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/feedback/{note_id}": {
+      "delete": {
+        "tags": [
+          "feedback"
+        ],
+        "summary": "Delete Feedback",
+        "operationId": "delete_feedback_api_v1_feedback__note_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "feedback"
@@ -10577,6 +10662,12 @@
             "title": "Html",
             "default": ""
           },
+          "section": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Section",
+            "default": ""
+          },
           "rx": {
             "type": "number",
             "title": "Rx",
@@ -10616,6 +10707,12 @@
             "type": "string",
             "maxLength": 60,
             "title": "Version",
+            "default": ""
+          },
+          "view": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "View",
             "default": ""
           },
           "errors": {

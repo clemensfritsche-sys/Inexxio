@@ -2077,7 +2077,11 @@ export interface paths {
         put?: never;
         /** Create Feedback */
         post: operations["create_feedback_api_v1_feedback_post"];
-        delete?: never;
+        /**
+         * Clear Feedback
+         * @description Aufräumen bzw. zurücksetzen – wirkt nur auf die eigenen sichtbaren Notizen.
+         */
+        delete: operations["clear_feedback_api_v1_feedback_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2093,7 +2097,8 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Feedback */
+        delete: operations["delete_feedback_api_v1_feedback__note_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -3476,6 +3481,11 @@ export interface components {
              */
             html: string;
             /**
+             * Section
+             * @default
+             */
+            section: string;
+            /**
              * Rx
              * @default 0.5
              */
@@ -3511,6 +3521,11 @@ export interface components {
              * @default
              */
             version: string;
+            /**
+             * View
+             * @default
+             */
+            view: string;
             /** Errors */
             errors?: string[];
         };
@@ -9393,6 +9408,67 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["FeedbackNoteResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_feedback_api_v1_feedback_delete: {
+        parameters: {
+            query?: {
+                /** @description 'done' = Erledigte/Verworfene, 'all' = alles */
+                scope?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_feedback_api_v1_feedback__note_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                note_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

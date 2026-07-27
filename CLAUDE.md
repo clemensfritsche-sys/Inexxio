@@ -1319,6 +1319,19 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   → Einfügen in eine Entwicklungs-Sitzung (Skill `.claude/skills/feedback/`); Wächter
   `tests/test_feedback.py`. *Bewusst NICHT gebaut: GitHub-Issue-Sync (Token im Backend = zweite
   Wahrheit), `html2canvas`-Screenshot, flächendeckende `data-*`-Anker, Voting/Threads/Kanban.*
+  **Runde 2 (Präzision + Aufräumen):** (1) **Der Feed ist ein Master-Detail auf EINER Route** –
+  `/erp` bleibt `/erp`, egal welcher Datensatz offen ist (`?open=` ist nur der Deep-Link von
+  aussen). Notizen aus dem Detailfenster trugen darum **keine Objektnummer**; jetzt meldet die
+  ERP-Seite ihre Auswahl an `feedback.setOpenRecord` (EINE Stelle: der `sel`-Effekt in
+  `erp/page.tsx`), und `currentObjectId` zieht sie der URL vor. (2) **Dynamische Listen**
+  (Prozess-Editor: sortierbare Schritte) machen eine `nth-of-type`-Kette wertlos – sie sagt nur
+  «der dritte Block». Deshalb markieren sich `PanelHeader`/`SectionTitle` mit `data-fb-section`
+  und der aktive Reiter (`DetailTabs`) mit `data-fb-tab`; die Notiz trägt jetzt
+  **`context.view`** («Auftrag · Ablauf») und **`anchor.section`** («Bewegung») – beides
+  positions**un**abhängig. (3) **Löschen/Zurücksetzen** (vorher gar nicht möglich):
+  Papierkorb je Notiz, «Erledigte aufräumen» und «Alles zurücksetzen» (zweiter Klick bestätigt)
+  – `DELETE /api/v1/feedback/{id}` bzw. `?scope=done|all`, **weich** (`is_active=false`) und
+  über `visible_query` gescopt, damit niemand fremde Notizen wegräumt.
 
 - **Testnotizen-Runde 1 (Instanz-Detail entdoppelt, Notizen #1–#6)**: erste über das Notiz-Widget
   gemeldete Befunde, alle Frontend. Kern war **Doppelung des Zustands**: die Statusbadge im Kopf

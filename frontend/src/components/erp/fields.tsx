@@ -108,7 +108,10 @@ export function SectionTitle({ icon: Icon, info, right, children }: {
   icon?: ElementType; info?: string; right?: ReactNode; children: ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}>
+    <div
+      data-fb-section={typeof children === 'string' ? children : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px' }}
+    >
       {Icon && <Icon size={13} style={{ color: '#94a3b8' }} />}
       <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>{children}</span>
       {info && <InfoHint text={info} />}
@@ -123,7 +126,9 @@ export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }
   icon: ElementType; title: string; tone?: string; info?: string; right?: ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    // `data-fb-section` benennt den Abschnitt für eine Testnotiz: im Prozess-Editor
+    // sagt «Bewegung» mehr als jede Positions-Kette im Selektor.
+    <div data-fb-section={title} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: `${tone}14`, color: tone, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
         <Icon size={15} />
       </span>

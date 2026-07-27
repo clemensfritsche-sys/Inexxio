@@ -733,6 +733,15 @@ class ApiClient {
     return this.patch(`/api/v1/feedback/${id}`, data);
   }
 
+  deleteFeedback(id: number): Promise<void> {
+    return this.delete(`/api/v1/feedback/${id}`);
+  }
+
+  /** Aufräumen: 'done' entfernt Erledigte/Verworfene, 'all' setzt zurück. */
+  clearFeedback(scope: 'done' | 'all'): Promise<{ deleted: number }> {
+    return this.delete(`/api/v1/feedback?scope=${scope}`);
+  }
+
   // ─── Contact form ──────────────────────────────────────────────────────────
 
   sendContactForm(data: {

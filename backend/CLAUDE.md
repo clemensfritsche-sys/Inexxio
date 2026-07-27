@@ -115,6 +115,7 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/ai/actions/{id}/confirm · /reject | staff | KI-Vorschlag bestätigen/ablehnen (kritische Aktionen) |
 | GET/POST | /api/v1/feedback | user | Testnotizen der Oberfläche (JEDE Rolle; eigene bzw. alle für Personal) – nur Testumgebung, sonst 404 |
 | PATCH | /api/v1/feedback/{id} | user | Notiz erledigt/verworfen setzen bzw. wieder öffnen |
+| DELETE | /api/v1/feedback/{id} · ?scope=done\|all | user | Notiz löschen bzw. aufräumen/zurücksetzen (weich, nur eigene sichtbare) |
 
 > Artikel: **Stammdaten** + **Prozess** (Purchase-Schritt) implementiert; Reiter **Bestand** ist
 > noch Platzhalter. Prozessschritt-Modul «Purchase»: Auftrag (Artikel+Menge) → Freigabe instanziiert

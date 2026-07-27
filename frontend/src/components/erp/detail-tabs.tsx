@@ -22,6 +22,9 @@ export function DetailTabs<K extends string>({ tabs, active, onChange, style }: 
         const Icon = t.icon;
         return (
           <button key={t.key} onClick={() => onChange(t.key)}
+            // Der aktive Reiter markiert sich für die Testnotizen: eine Notiz weiss
+            // dadurch, in welcher Ansicht sie gesetzt wurde (`context.view`).
+            data-fb-tab={active === t.key ? t.label : undefined}
             className={cn('erp-tab', active === t.key && 'erp-tab-active')}>
             <Icon size={15} /> {t.label}
           </button>
