@@ -12,8 +12,8 @@ from .core.database import Base, SessionLocal, engine
 from .models import UserProfile
 from .routers import (
     admin, ai, article_process, articles, attachments, auth, consent, contact, documents,
-    document_files, erp, events, health, instances, legal, maintenance, object_refs, orders,
-    passkey, sales, shop,
+    document_files, erp, events, feedback, health, instances, legal, maintenance, object_refs,
+    orders, passkey, sales, shop,
 )
 
 settings = get_settings()
@@ -679,6 +679,7 @@ app.include_router(attachments.router)
 app.include_router(legal.router)
 app.include_router(maintenance.router)
 app.include_router(ai.router)
+app.include_router(feedback.router)
 
 
 @app.get("/")

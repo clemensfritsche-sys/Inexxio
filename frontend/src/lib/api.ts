@@ -12,6 +12,7 @@ import type {
   CustomerOrder,
   AiConfig, AiChatMessage, AiChatResponse, AiProposal, AiDocContent, AiImageEditResponse,
   ObjectDocument, DocumentAnalyzeResponse, DocumentConfirmInput, Passkey,
+  FeedbackNote, FeedbackCreateInput, FeedbackUpdateInput,
 } from '@/types';
 import type {
   PublicKeyCredentialCreationOptionsJSON,
@@ -715,6 +716,21 @@ class ApiClient {
 
   aiRejectAction(actionId: number): Promise<AiProposal> {
     return this.post(`/api/v1/ai/actions/${actionId}/reject`, {});
+  }
+
+  // ─── Testnotizen (in-app Feedback, nur Testumgebung) ────────────────────────
+
+  listFeedback(route?: string): Promise<FeedbackNote[]> {
+    const q = route ? `?route=${encodeURIComponent(route)}` : '';
+    return this.get(`/api/v1/feedback${q}`);
+  }
+
+  createFeedback(data: FeedbackCreateInput): Promise<FeedbackNote> {
+    return this.post('/api/v1/feedback', data);
+  }
+
+  updateFeedback(id: number, data: FeedbackUpdateInput): Promise<FeedbackNote> {
+    return this.patch(`/api/v1/feedback/${id}`, data);
   }
 
   // ─── Contact form ──────────────────────────────────────────────────────────

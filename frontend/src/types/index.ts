@@ -543,3 +543,57 @@ export interface CompanySettings {
   legal_documents: Record<string, number> | null;
 }
 
+
+// ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
+// Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –
+// ein Meta-Artefakt über dem System, kein Geschäftsobjekt (siehe docs/feedback.md).
+
+/** WO die Notiz hängt. `label` (sichtbarer Text) ist der greppbare Anker im Code. */
+export interface FeedbackAnchor {
+  label: string;
+  tag: string;
+  selector: string;
+  html: string;
+  rx: number;   // relative Position im Element (0–1) – der Pin sitzt wieder gleich
+  ry: number;
+}
+
+/** WOMIT es passiert ist – Umgebung inkl. der letzten Laufzeitfehler. */
+export interface FeedbackContext {
+  viewport: string;
+  ua: string;
+  role: string;
+  version: string;
+  errors: string[];
+}
+
+export type FeedbackStatus = 'open' | 'done' | 'dismissed';
+
+export interface FeedbackNote {
+  id: number;
+  status: FeedbackStatus;
+  body: string;
+  route: string;
+  target_object_id: number | null;
+  anchor: FeedbackAnchor | null;
+  context: FeedbackContext | null;
+  resolution: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  created_by: number | null;
+  author_name: string;
+  mine: boolean;
+}
+
+export interface FeedbackCreateInput {
+  body: string;
+  route: string;
+  target_object_id?: number | null;
+  anchor?: FeedbackAnchor | null;
+  context?: FeedbackContext | null;
+}
+
+export interface FeedbackUpdateInput {
+  status?: FeedbackStatus;
+  resolution?: string | null;
+}
