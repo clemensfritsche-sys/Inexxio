@@ -102,6 +102,9 @@ def _resource_line_views(db: Session, raw_lines: list | None) -> list[ResourceLi
 def _to_response(db: Session, step: ArticleProcessStep) -> ArticleProcessStepResponse:
     resp = ArticleProcessStepResponse.model_validate(step)
     resp.supplier_name = people.name_by_id(db, step.supplier_id)
+    if step.supplier_id:
+        sup = db.query(UserProfile).filter(UserProfile.id == step.supplier_id).first()
+        resp.supplier_object_id = sup.object_id if sup else None
     resp.resource_lines = _resource_line_views(db, step.resource_lines)
     return resp
 

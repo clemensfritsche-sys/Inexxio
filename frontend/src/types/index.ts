@@ -106,7 +106,7 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 
 // Auftrag-Prozess (Stepper + eingebettete Schritt-Ausführungen)
 // EIN «resource»-Schritt fasst Verbrauch & Betriebsmittel zusammen; pro Zeile ein Modus.
-export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'sale' | 'document';
+export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'block' | 'sale' | 'document';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStep = OrderApi['steps'][number];
 

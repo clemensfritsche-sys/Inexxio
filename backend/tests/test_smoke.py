@@ -225,7 +225,7 @@ def test_process_step_types_and_optional_config():
 
     from app.schemas.article_process_step import ALLOWED_STEP_TYPES, ArticleProcessStepCreate
 
-    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "sale", "document"}
+    assert set(ALLOWED_STEP_TYPES) == {"purchase", "inspection", "movement", "resource", "scrap", "block", "sale", "document"}
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
@@ -1202,11 +1202,11 @@ def test_step_type_whitelist_per_context():
     order = event_types.allowed_step_types("order")
     # Artikel-Prozess (Herstellung): kein Verkauf UND kein Verschrotten (beides wirkt
     # auf vorhandenen Bestand, läuft über einen Auftrag).
-    assert "sale" not in art and "scrap" not in art
+    assert "sale" not in art and "scrap" not in art and "block" not in art
     assert {"purchase", "resource", "inspection", "movement"} <= set(art)
     # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
     # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
+    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document"}
 
 
 def test_webshop_url_is_validated():
@@ -1349,7 +1349,7 @@ def test_event_type_registry_declares_polarity():
     Richtung)."""
     from app.domain import event_types as ev
 
-    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
+    assert set(ev.STEP_TYPES) == {"purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document"}
     assert ev.RESOURCE_TYPES == ("resource",)   # consume/tool-Aliase entfernt
     # Polarität ist deklariert, nicht abgeleitet:
     assert ev.polarity("purchase") == ev.INCREASE
@@ -1377,7 +1377,7 @@ def test_legacy_resource_aliases_removed():
         assert alias not in STEP_LABELS
         assert alias not in _FACT_MODEL
     assert RESOURCE_STEP_TYPES == ("resource",)
-    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "sale", "document"}
+    assert set(STEP_LABELS) == {"purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document"}
     assert STEP_LABELS["resource"] == "Ressource"
 
 
@@ -2671,3 +2671,36 @@ def test_failed_inspection_is_not_terminal():
     # … und die Sperre ist rücknehmbar (failed → pending), nie eine vorzeitige Freigabe.
     assert 'inst.quality = "pending"' in src
     assert 'inst.quality = "passed"' not in src
+
+
+def test_block_is_reversible_scrap_is_not():
+    """«Sperren» und «Verschrotten» sind zwei Wege, dieselbe Instanz auszusteuern –
+    aber auf VERSCHIEDENEN Achsen, und nur einer ist umkehrbar.
+
+    Sperren wirkt auf ``quality`` («darf man es verwenden?») und lässt Standort, Menge und
+    Reservierungen unangetastet; Verschrotten wirkt auf ``disposition`` («wo ist es») und
+    macht die Instanz standortlos. Weil ``in_stock_clauses`` beides verlangt, fällt eine
+    gesperrte Instanz ohne weitere Abfrage aus Bestand und FIFO."""
+    import inspect as _inspect
+
+    from app.domain import event_types as ev
+    from app.services import scrap
+
+    # Registry: eigener Schritttyp, wirkt auf bestehende Instanzen, teilt sich die
+    # Marker-Fachzeile mit dem Verschrotten – aber ohne Bestandsvernichtung (NEUTRAL).
+    block = ev.REGISTRY["block"]
+    assert block.subject_role == ev.INSTANCE and block.fact == "Disposal"
+    assert block.polarity == ev.NEUTRAL and ev.REGISTRY["scrap"].polarity == ev.DECREASE
+    # Sperren hat KEINEN Bereitstellungsort (die Instanz bleibt stehen); Verschrotten
+    # macht standortlos.
+    assert block.provisioning == ev.PROV_NONE
+    assert ev.REGISTRY["scrap"].provisioning == ev.PROV_NOWHERE
+    # Nur im Auftrags-Ablauf, nie im Artikel-Prozess (wie das Verschrotten).
+    assert "block" not in ev.allowed_step_types("article")
+    assert "block" in ev.allowed_step_types("order")
+
+    src = _inspect.getsource(scrap)
+    assert 'inst.quality = "blocked"' in src        # Sperre auf der Qualitäts-Achse
+    assert "def unblock(" in src                    # … und wieder aufhebbar
+    # Der Zustand nach dem Entsperren wird ABGELEITET (kein gemerktes drittes Feld).
+    assert "def _restore_quality(" in src

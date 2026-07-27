@@ -5,7 +5,7 @@ import type { ReactNode, ElementType } from 'react';
 import {
   Boxes, ArrowLeft, FileText, Package, CalendarDays,
   ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
-  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen,
+  ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen, LockOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, InstanceOrderRef, ObjectDocument, CompanySettings, DocumentContent } from '@/types';
@@ -101,6 +101,19 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   // einen Unter-Auftrag am (Herkunfts-)Auftrag, der freigegeben/abgeschlossen ist.
   const deviationParent = (orders ?? []).find((o) => o.status === 'released' || o.status === 'completed') ?? null;
 
+  const [unblockBusy, setUnblockBusy] = useState(false);
+  async function unblockInstance() {
+    if (inst.object_id == null || unblockBusy) return;
+    setUnblockBusy(true);
+    setDevErr(null);
+    try {
+      await api.unblockInstance(inst.object_id);
+      onChanged?.();
+    } catch (e) {
+      setDevErr(e instanceof Error ? e.message : 'Sperre konnte nicht aufgehoben werden');
+    } finally { setUnblockBusy(false); }
+  }
+
   async function reportDeviation() {
     if (!deviationParent || inst.object_id == null) return;
     setDevBusy(true);
@@ -172,6 +185,17 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                 onClick={createOrderShortcut}>
                 {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
               </button>
+              {/* Sperre aufheben – nur wenn gesperrt. Bewusst eine Aktion an der Instanz
+                  (kein Prozessschritt): eine Maschine kommt aus der Wartung zurück, ohne
+                  dass jemand dafür einen Auftrag anlegen will. */}
+              {inst.quality === 'blocked' && (
+                <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+                  data-tip="Sperre aufheben – die Instanz ist danach wieder verwendbar"
+                  aria-label="Sperre aufheben" disabled={unblockBusy}
+                  onClick={unblockInstance}>
+                  {unblockBusy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
+                </button>
+              )}
               <button
                 className="erp-idbtn erp-idbtn-flag"
                 data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}

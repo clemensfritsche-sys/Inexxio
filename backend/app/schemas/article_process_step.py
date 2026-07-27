@@ -361,7 +361,10 @@ class ArticleProcessStepResponse(BaseModel):
     companion: bool = False
     mode: str
     supplier_id: Optional[int]
-    supplier_name: Optional[str] = None  # vom Router denormalisiert
+    supplier_name: Optional[str] = None       # vom Router denormalisiert
+    # Objektnummer des Lieferanten – ``supplier_id`` ist der interne Schlüssel und darf
+    # NIE als Objektnummer angezeigt werden. Damit ist die Quelle im Prozess klickbar.
+    supplier_object_id: Optional[int] = None
     webshop_url: Optional[str]
     shared_fields: list[str] = []
     sample_percent: Optional[int] = None

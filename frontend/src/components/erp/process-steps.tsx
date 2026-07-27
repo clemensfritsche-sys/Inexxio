@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Truck, Globe } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Truck, Globe, Building2, Ban, Users as UsersIcon, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, IconSwitch, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, InfoHint, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { ObjId } from '@/components/erp/obj-id';
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
 function isValidWebshopUrl(v: string): boolean {
@@ -75,8 +76,6 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
   const [resLines, setResLines] = useState<ResLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [editShared, setEditShared] = useState<string[]>(MANDATORY_FIELD_KEYS);
   const [drag, setDrag] = useState<number | null>(null);
   const [over, setOver] = useState<number | null>(null);
 
@@ -271,42 +270,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     } catch { /* ignore */ }
   }
 
-  async function saveShared(stepId: number) {
-    try {
-      const updated = await api.updateStep(owner, ownerObjectId!, stepId, { shared_fields: editShared });
-      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
-      setEditId(null);
-    } catch { /* ignore */ }
-  }
-
-  // Freigabe-Deklaration eines BESTEHENDEN Dokument-Schritts ändern (Parteien/Publikum/
-  // Sichtbarkeit) – erlaubt es, die Anerkennungspflicht nachträglich zu setzen.
-  function beginEditDoc(s: ArticleProcessStep) {
-    if (!allUsers.length) api.getUsers().then(setAllUsers).catch(() => {});
-    setDocCfg({
-      signers: (s.doc_signers ?? []).map((x) => ({ signer_object_id: x.signer_object_id, action: (x.action as 'confirm' | 'sign') })),
-      sequential: !!s.sign_sequential,
-      audience: (s.doc_audience ?? '') as DocCfg['audience'],
-      roles: s.doc_audience_roles ?? [],
-      persons: s.doc_audience_person_ids ?? [],
-      visibility: (s.doc_visibility ?? 'internal') as DocCfg['visibility'],
-    });
-    setEditId(s.id);
-  }
-  async function saveDocCfg(stepId: number) {
-    try {
-      const updated = await api.updateStep(owner, ownerObjectId!, stepId, {
-        doc_signers: docCfg.signers.length ? docCfg.signers : null,
-        sign_sequential: docCfg.sequential,
-        doc_audience: docCfg.audience || null,
-        doc_audience_roles: docCfg.audience === 'roles' ? (docCfg.roles as DocAudienceRole[]) : null,
-        doc_audience_person_ids: docCfg.audience === 'persons' ? docCfg.persons : null,
-        doc_visibility: docCfg.visibility,
-      });
-      setSteps((p) => p.map((s) => (s.id === stepId ? updated : s)));
-      setEditId(null); setDocCfg(emptyDocCfg());
-    } catch (e) { setError(e instanceof Error ? e.message : 'Speichern fehlgeschlagen'); }
-  }
+  // Ein bestehender Schritt wird NICHT mehr nachträglich umkonfiguriert – wie bei jedem
+  // anderen Modul: löschen und neu anlegen. Das hielt zwei Bearbeitungs-Zustände (Sichtbare
+  // Felder, Dokument-Deklaration) am Leben, die es sonst nirgends gab.
 
   async function persistOrder(orderedFull: ArticleProcessStep[]) {
     setSteps(orderedFull);  // optimistisch
@@ -381,7 +347,16 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       if (s.mode === 'webshop' && s.webshop_url)
                         return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Webshop · {s.webshop_url.replace(/^https?:\/\//, '').slice(0, 40)}</span>;
                       if (s.mode === 'supplier' && s.supplier_id)
-                        return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Lieferant · {s.supplier_name ?? fmtObjId(s.supplier_id)}</span>;
+                        // Symbol statt Wort, und die Objektnummer ist klickbar (öffnet den
+                        // Lieferanten). ``supplier_id`` ist der INTERNE Schlüssel – angezeigt
+                        // wird ausschliesslich ``supplier_object_id``.
+                        return (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Lieferant">
+                            <Truck size={12} />
+                            {s.supplier_object_id != null && <ObjId value={s.supplier_object_id} />}
+                            {s.supplier_name}
+                          </span>
+                        );
                       // Kein Schritt-Override → erbt den Artikel-Standard. Fehlt der ebenfalls, roter Hinweis.
                       return owner === 'articles' && procurementReady === false
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#b91c1c', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt – Schritt oder Spezifikation ergänzen</span>
@@ -440,43 +415,23 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
                       <Eye size={12} /> Für Lieferant sichtbar
                     </span>
-                    {!readOnly && (editId === s.id ? (
-                      <button onClick={() => saveShared(s.id)} style={miniPrimary}><Check size={12} /> Speichern</button>
-                    ) : (
-                      <button onClick={() => { setEditId(s.id); setEditShared(normalizeSharedFields(s.shared_fields)); }} style={miniGhost}>Ändern</button>
-                    ))}
                   </div>
-                  {!readOnly && editId === s.id ? (
-                    <FieldChips value={editShared} onChange={setEditShared} optionalAvailable={optionalShareKeys} />
-                  ) : (
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {normalizeSharedFields(s.shared_fields).map((k) => <Chip key={k} label={fieldLabel(k)} on />)}
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {normalizeSharedFields(s.shared_fields).map((k) => <Chip key={k} label={fieldLabel(k)} on />)}
+                  </div>
                 </div>
               )}
 
-              {/* Dokument: Freigabe-Deklaration (Parteien/Publikum/Sichtbarkeit) – nachträglich änderbar */}
+              {/* Dokument: Freigabe-Deklaration (Parteien/Publikum/Sichtbarkeit) – wie jedes
+                  andere Modul nicht nachträglich änderbar: löschen und neu anlegen. */}
               {s.step_type === 'document' && (
                 <div style={cardBody}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
                       <Lock size={12} /> Freigabe & Anerkennung
                     </span>
-                    {!readOnly && (editId === s.id ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => saveDocCfg(s.id)} style={miniPrimary}><Check size={12} /> Speichern</button>
-                        <button onClick={() => { setEditId(null); setDocCfg(emptyDocCfg()); }} style={miniGhost}>Abbrechen</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => beginEditDoc(s)} style={miniGhost}>Ändern</button>
-                    ))}
                   </div>
-                  {!readOnly && editId === s.id ? (
-                    <DocConfigEditor cfg={docCfg} onChange={setDocCfg} users={allUsers} />
-                  ) : (
-                    <DocConfigView step={s} users={allUsers} />
-                  )}
+                  <DocConfigView step={s} users={allUsers} />
                 </div>
               )}
 
@@ -648,6 +603,7 @@ const STEP_HINT: Record<StepType, string> = {
   movement: 'Instanzen an ihren Standort bringen',
   resource: 'Material verbrauchen oder Betriebsmittel nutzen',
   scrap: 'Defekte/nicht benötigte Instanzen ausschleusen',
+  block: 'Instanzen vorübergehend sperren (aufhebbar) – z. B. Maschine bis zur Wartung',
   sale: 'Verkauf bzw. Gutschrift/Erstattung (bei verkaufter Ware) – Bestätigung → Rechnung → Zahlung',
   document: 'Dokument (Vertrag, AGB, Zertifikat) – Inhalt im Auftrag verfasst',
 };
@@ -892,6 +848,23 @@ const dv: Record<string, React.CSSProperties> = {
   value: { font: '600 13px var(--font-body)', color: 'var(--fg-2)' },
 };
 
+/**
+ * Beschriftung im Dokument-Schritt als **Frage**: «Wer muss freigeben?» sagt einem Laien
+ * sofort, was hier einzustellen ist – «Freigabe-Parteien (Unterschrift / Bestätigung)»
+ * setzt das Vokabular des Systems voraus. Die genaue Wirkung steht im ⓘ-Hover, nicht als
+ * Absatz in der Fläche.
+ */
+function DocLabel({ text, hint }: { text: string; hint?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+      <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--fg-3)' }}>
+        {text}
+      </span>
+      {hint && <InfoHint text={hint} />}
+    </div>
+  );
+}
+
 function DocConfigEditor({ cfg, onChange, users }: {
   cfg: DocCfg; onChange: (c: DocCfg) => void; users: UserProfile[];
 }) {
@@ -935,20 +908,10 @@ function DocConfigEditor({ cfg, onChange, users }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-        <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-        <span>An diesem Schritt entsteht ein Dokument. Den <strong>Inhalt</strong> verfasst du erst
-          im <strong>Auftrag</strong>; hier legst du fest, <strong>wer freigeben</strong> muss
-          (endliche Parteien) und <strong>wer anerkennen</strong> soll (offenes Publikum).</span>
-      </div>
-
       {/* Freigabe-Parteien (endlich, gated die Freigabe) */}
       <div>
-        <Label>Freigabe-Parteien (Unterschrift / Bestätigung)</Label>
-        <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', margin: '2px 0 8px' }}>
-          Erst wenn ALLE hier genannten Personen freigegeben haben, gilt das Dokument als
-          freigegeben. Leer = sofort mit «Ausstellen» freigegeben.
-        </div>
+        <DocLabel text="Wer muss freigeben?"
+          hint="Das Dokument gilt erst als freigegeben, wenn ALLE hier genannten Personen unterschrieben bzw. bestätigt haben. Niemand eingetragen = mit «Ausstellen» sofort freigegeben." />
         {cfg.signers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
             {cfg.signers.map((s, i) => (
@@ -980,24 +943,35 @@ function DocConfigEditor({ cfg, onChange, users }: {
         {cfg.signers.length >= 2 && (
           <div style={{ marginTop: 8 }}>
             <OptionToggle checked={cfg.sequential} onChange={(v) => set({ sequential: v })}
-              label="Der Reihe nach unterschreiben" hint="Jede Partei kann erst handeln, wenn die vorige unterschrieben hat." />
+              label="Nacheinander statt gleichzeitig" />
           </div>
         )}
       </div>
 
-      {/* Sichtbarkeit */}
-      <Segmented label="Sichtbarkeit" value={cfg.visibility}
-        onChange={(v) => set({ visibility: v as DocCfg['visibility'] })}
-        options={[{ value: 'public', label: 'Öffentlich' }, { value: 'internal', label: 'Intern' }, { value: 'confidential', label: 'Vertraulich' }]} />
+      {/* Sichtbarkeit – Schieber mit Symbolen, Bedeutung im Hover. */}
+      <div>
+        <DocLabel text="Wer darf es lesen?" />
+        <IconSwitch<DocCfg['visibility']> value={cfg.visibility} onChange={(v) => set({ visibility: v })}
+          options={[
+            { value: 'public', icon: Globe, label: 'Alle', hint: 'Jeder mit Zugang zum Auftrag – auch Kunden und Lieferanten.' },
+            { value: 'internal', icon: Building2, label: 'Intern', hint: 'Nur Personal; benannte Parteien sehen es trotzdem.' },
+            { value: 'confidential', icon: Lock, label: 'Vertraulich', hint: 'Nur Personal und die benannten Parteien.' },
+          ]} />
+      </div>
 
       {/* Anerkennungs-Publikum (offen, blockiert den Auftrag NIE) */}
       <div>
-        <Segmented label="Anerkennungs-Publikum" value={cfg.audience || 'none'}
+        <DocLabel text="Wer muss es zur Kenntnis nehmen?"
+          hint="Nach der Freigabe müssen diese Personen das Dokument aktiv anerkennen (z. B. neue AGB). Das hält den Auftrag NICHT auf – es erscheint bei ihnen als offene Aufgabe." />
+        <IconSwitch<'none' | 'all' | 'roles' | 'persons'>
+          value={(cfg.audience || 'none') as 'none' | 'all' | 'roles' | 'persons'}
           onChange={(v) => set({ audience: (v === 'none' ? '' : v) as DocCfg['audience'] })}
-          options={[{ value: 'none', label: 'Keins' }, { value: 'all', label: 'Alle' }, { value: 'roles', label: 'Rollen' }, { value: 'persons', label: 'Personen' }]} />
-        <div style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 4 }}>
-          Wer das freigegebene Dokument aktiv anerkennen muss (rollierendes Gate, blockiert den Auftrag nicht).
-        </div>
+          options={[
+            { value: 'none', icon: Ban, label: 'Niemand', hint: 'Keine Anerkennung nötig.' },
+            { value: 'all', icon: UsersIcon, label: 'Alle', hint: 'Jede angemeldete Person.' },
+            { value: 'roles', icon: Shield, label: 'Rollen', hint: 'Alle Personen bestimmter Rollen (z. B. alle Lieferanten).' },
+            { value: 'persons', icon: UserIcon, label: 'Personen', hint: 'Namentlich ausgewählte Personen.' },
+          ]} />
         {cfg.audience === 'roles' && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
             {(['customer', 'supplier', 'employee', 'admin'] as const).map((r) => {
@@ -1050,6 +1024,8 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   document:   { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-2)' },
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
+  // Sperren: warnend, nicht endgültig – bewusst amber statt dem Rot des Verschrottens.
+  block:      { bg: '#FDF8EE', border: '#EFE0C4', fg: 'var(--warning)' },
 };
 // Begleit-Bewegungen sind normale Schritte und werden darum auch normal eingefärbt –
 // die frühere Graufärbung signalisierte «gesperrt» und ist mit der Sperre entfallen.
@@ -1157,12 +1133,4 @@ const primaryBtn: React.CSSProperties = {
 const secondaryBtn: React.CSSProperties = {
   padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border-1)', background: '#fff',
   color: 'var(--fg-2)', fontSize: 13, cursor: 'pointer',
-};
-const miniPrimary: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 6,
-  border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-};
-const miniGhost: React.CSSProperties = {
-  padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border-1)', background: '#fff',
-  color: 'var(--fg-2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
 };

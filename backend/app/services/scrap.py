@@ -1,12 +1,20 @@
-"""Geschäftslogik für den Prozessschritt «Verschrotten».
+"""Geschäftslogik für «Verschrotten» und «Sperren» – die zwei Wege, eine Instanz aus dem
+verwendbaren Bestand zu nehmen.
 
-Verschrotten ist die definierte **Auflösung** einer Abweichung (oder eines regulären
-Bestands-Auftrags): ein defektes/nicht mehr benötigtes Teil verlässt den Bestand. Die
-gewählten Instanzen werden auf ``disposition='scrapped'`` gesetzt; ein ``Disposal``-
-Datensatz markiert den Abschluss des Schritts (analog zur Bewegung – keine eigene Nummer).
+Beide teilen sich die Marker-Fachzeile ``Disposal`` (``mode``) und die Instanz-Auswahl,
+unterscheiden sich aber in der **Achse**, auf der sie wirken – und damit in der Umkehrbarkeit:
 
-So gibt es keine „herumliegenden, undefinierten Teile": ein physisch vorhandenes Teil
-bekommt einen ehrlichen Endzustand (verschrottet) statt einfach zu verschwinden.
+* **Verschrotten** wirkt auf ``disposition`` → ``scrapped``: endgültig, die Instanz verliert
+  ihren Standort (ein Standort ist immer ein realer Halter, den Ausschuss nicht mehr hat).
+* **Sperren** wirkt auf ``quality`` → ``blocked``: vorübergehend, der Standort bleibt. Eine
+  defekte Maschine steht weiter da, wo sie steht – sie darf nur nicht verwendet werden. Die
+  Sperre ist an der Instanz wieder aufhebbar (``unblock``).
+
+Warum die Qualitäts-Achse: sie beantwortet «darf man das verwenden?», genau die Frage einer
+Sperre. ``disposition`` beantwortet «wo ist es» – und daran ändert eine Sperre nichts. Weil
+``inventory.in_stock_clauses()`` beides verlangt (passed UND in_stock), fällt eine gesperrte
+Instanz automatisch aus FIFO, Verfügbarkeit und Bestandszählung – ohne eine einzige weitere
+Abfrage.
 """
 
 from decimal import Decimal
@@ -35,7 +43,7 @@ def _chosen_quantities(data) -> dict[int, Decimal | None]:
     for it in (data.items or []):
         chosen[it.instance_id] = to_qty(it.quantity) if it.quantity is not None else None
     if not chosen:
-        raise HTTPException(400, detail="Bitte mindestens eine Instanz zum Verschrotten wählen")
+        raise HTTPException(400, detail="Bitte mindestens eine Instanz wählen")
     return chosen
 
 
@@ -111,6 +119,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
     if not disp:
         disp = Disposal(order_id=order.id, step_id=step.id)
         db.add(disp)
+    disp.mode = "scrap"
     disp.note = (data.note or "").strip() or None
     disp.scrapped_by_id = actor_id
     db.flush()
@@ -130,3 +139,76 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
     db.commit()
     db.refresh(disp)
     return disp
+
+
+# ─── Sperren (reversibel) ────────────────────────────────────────────────────────
+
+def _restore_quality(inst) -> str:
+    """Zustand nach dem Entsperren: war die Instanz schon einmal freigegeben
+    (``released_at`` gesetzt), ist sie es wieder – sonst zurück in die Prüfung.
+
+    Bewusst **abgeleitet** statt gemerkt: einen «Zustand vor der Sperre» zu speichern
+    wäre ein verstecktes drittes Feld, das mit der Wirklichkeit auseinanderlaufen kann."""
+    return "passed" if getattr(inst, "released_at", None) else "pending"
+
+
+def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
+    """Die gewählten Instanzen **sperren** (quality='blocked') + den Schritt abschliessen.
+
+    Anders als beim Verschrotten bleibt alles andere unangetastet: Standort, Menge,
+    Reservierungen. Gesperrt heisst «vorübergehend nicht verwendbar», nicht «weg»."""
+    step = process.resolve_exec_step(db, order, "block", getattr(data, "step_id", None))
+
+    instances = order_instances(db, order)
+    if not instances:
+        raise HTTPException(409, detail="Keine Instanzen zum Sperren vorhanden")
+
+    by_obj = {i.object_id: i for i in instances}
+    chosen = _chosen_quantities(data)
+
+    blocked = 0
+    for oid in chosen:
+        inst = by_obj.get(oid)
+        if not inst:
+            raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
+        if inst.disposition == "scrapped":
+            raise HTTPException(409, detail=f"Instanz {oid} ist verschrottet – Sperren sinnlos")
+        if inst.quality == "blocked":
+            continue                                # idempotent: schon gesperrt
+        old = inst.quality
+        inst.quality = "blocked"
+        log_audit(db, "instances", "quality", "blocked", actor_id,
+                  object_id=inst.object_id, old_value=old)
+        emit(db, "instance.blocked", object_type="instance", object_id=inst.object_id,
+             payload={"order": order.object_id}, actor_id=actor_id)
+        blocked += 1
+
+    disp = process.fact_for_step(db, order, step)
+    if not disp:
+        disp = Disposal(order_id=order.id, step_id=step.id)
+        db.add(disp)
+    disp.mode = "block"
+    disp.note = (data.note or "").strip() or None
+    disp.scrapped_by_id = actor_id
+    db.flush()
+
+    log_audit(db, "disposals", None, f"{blocked} Instanz(en) gesperrt", actor_id,
+              object_id=order.object_id)
+    process.recompute_completion(db, order)
+    db.commit()
+    db.refresh(disp)
+    return disp
+
+
+def unblock(db: Session, inst, actor_id: int):
+    """Sperre einer Instanz aufheben (z. B. Maschine nach der Wartung wieder freigeben)."""
+    if inst.quality != "blocked":
+        raise HTTPException(409, detail="Diese Instanz ist nicht gesperrt")
+    inst.quality = _restore_quality(inst)
+    log_audit(db, "instances", "quality", inst.quality, actor_id,
+              object_id=inst.object_id, old_value="blocked")
+    emit(db, "instance.unblocked", object_type="instance", object_id=inst.object_id,
+         payload={"quality": inst.quality}, actor_id=actor_id)
+    db.commit()
+    db.refresh(inst)
+    return inst

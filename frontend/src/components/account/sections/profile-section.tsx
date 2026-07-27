@@ -180,7 +180,17 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
       <Card icon={User} title="Persönliche Angaben" right={<SaveStatusIndicator status={status} errorMsg={errorMsg} />}>
-        <Field label="Benutzernummer" value={objectNumber} readOnly hint="Eindeutige Kennnummer Ihres Kontos" />
+        {/* Die Objektnummer ist vergeben und unveränderlich – sie wie ein Formularfeld
+            zu zeigen, lud zum Hineinklicken ein. Jetzt steht sie da wie überall sonst
+            im System: Versalien-Label + monospaced Nummer. */}
+        <div>
+          <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4)', marginBottom: 4 }}>
+            Benutzernummer
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>
+            {objectNumber}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Vorname" value={form.first_name} onChange={(v) => set('first_name', v)} placeholder="Max" required={!form.first_name.trim()} onEnter={saveNow} />
@@ -246,7 +256,6 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
           label="Rechnungs-E-Mail" value={form.invoice_email}
           onChange={(v) => set('invoice_email', v)} type="email"
           placeholder={profile.email ?? 'rechnung@firma.ch'}
-          hint="Leer lassen = Rechnungen gehen an Ihre Konto-E-Mail"
           onEnter={saveNow}
         />
       </Card>

@@ -12,17 +12,39 @@ import { useScan } from '@/components/scan/scan-provider';
 
 
 /**
- * Prozessschritt «Verschrotten» – die definierte Auflösung einer Abweichung: ein
- * defektes/nicht mehr benötigtes Teil verlässt den Bestand (disposition='scrapped').
- * **Quittierung per Scan ist verbindlich:** jede Instanz wird vor dem Verschrotten
- * physisch gescannt (kein blosses Anklicken) – so wird nie das falsche Teil ausgeschleust.
+ * Prozessschritt «Verschrotten» **und** «Sperren» – dieselbe Auswahl, zwei Wirkungen:
+ *
+ * * **Verschrotten** (endgültig): das Teil verlässt den Bestand (disposition='scrapped').
+ * * **Sperren** (vorübergehend): das Teil bleibt, wo es ist, darf aber nicht verwendet
+ *   werden (quality='blocked') – z. B. eine defekte Maschine bis zur Wartung. Die Sperre
+ *   wird an der Instanz wieder aufgehoben.
+ *
+ * **Quittierung per Scan ist verbindlich:** jede Instanz wird vorher physisch gescannt
+ * (kein blosses Anklicken) – so trifft es nie das falsche Teil. Eine **Teilmenge** gibt es
+ * nur beim Verschrotten: eine halbe Maschine kann man nicht sperren.
  */
-export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
+const MODE_TEXT = {
+  scrap: {
+    title: 'Verschrotten', verb: 'Verschrotten', running: 'Verschrottet…',
+    doneText: 'Verschrottung abgeschlossen', tone: 'var(--danger)',
+    info: 'Jede Instanz wird vorher gescannt (Verifikation). Gescannte Instanzen werden endgültig aus dem Bestand genommen.',
+  },
+  block: {
+    title: 'Sperren', verb: 'Sperren', running: 'Sperrt…',
+    doneText: 'Gesperrt', tone: 'var(--warning)',
+    info: 'Jede Instanz wird vorher gescannt (Verifikation). Gesperrte Instanzen bleiben an ihrem Standort, sind aber nicht mehr verwendbar – die Sperre wird an der Instanz wieder aufgehoben.',
+  },
+} as const;
+
+export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUpdated }: {
   order: Order;
   stepState: string;
   stepId?: number | null;
+  /** «Verschrotten» (endgültig) oder «Sperren» (aufhebbar) – gleiche Auswahl, andere Wirkung. */
+  mode?: 'scrap' | 'block';
   onOrderUpdated: (o: Order) => void;
 }) {
+  const T = MODE_TEXT[mode];
   const disp = order.disposal;
   const done = !!disp?.done;
   const instances = useMemo(() => order.instances ?? [], [order.instances]);
@@ -53,9 +75,9 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
     const inst = queue[0];
     const oid = inst.object_id as number;
     scan({
-      title: `Verschrotten · ${fmtObjId(oid)}`,
+      title: `${T.verb} · ${fmtObjId(oid)}`,
       steps: [{
-        label: 'Instanz', hint: 'Zu verschrottende Instanz scannen', expected: oid, kind: 'instance',
+        label: 'Instanz', hint: `Instanz zum ${T.verb} scannen`, expected: oid, kind: 'instance',
         candidates: [{ objectId: oid, label: instanceLabel(inst.kind) }],
       }],
       onComplete: () => {
@@ -74,15 +96,18 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   async function submit() {
     const ids = [...scanned];
-    if (ids.length === 0) { setError('Bitte zuerst die zu verschrottenden Instanzen scannen'); return; }
-    // Je Instanz die (ggf. reduzierte) Teilmenge mitgeben – Charge wird teilverschrottet.
-    const items = ids.map((oid) => ({ instance_id: oid, quantity: qtys[oid] ?? null }));
+    if (ids.length === 0) { setError(`Bitte zuerst die Instanzen zum ${T.verb} scannen`); return; }
+    // Teilmenge NUR beim Verschrotten – eine halbe Maschine lässt sich nicht sperren.
+    const items = ids.map((oid) => ({ instance_id: oid, quantity: mode === 'scrap' ? (qtys[oid] ?? null) : null }));
+    const payload = { items, note: note.trim() || null, step_id: stepId ?? null };
     setSaving(true); setError(null);
     try {
-      onOrderUpdated(await api.updateOrderScrap(order.object_id as number,
-        { items, note: note.trim() || null, step_id: stepId ?? null }));
+      const oid = order.object_id as number;
+      onOrderUpdated(mode === 'scrap'
+        ? await api.updateOrderScrap(oid, payload)
+        : await api.updateOrderBlock(oid, payload));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Verschrotten');
+      setError(e instanceof Error ? e.message : `Fehler beim ${T.verb}`);
     } finally { setSaving(false); }
   }
 
@@ -116,7 +141,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f1f5f9', color: '#475569' }}>
           <CheckCircle2 size={16} />
           <span style={{ fontSize: 13, fontWeight: 700 }}>
-            Verschrottung abgeschlossen{disp?.scrapped_count ? ` · ${disp.scrapped_count} Stück` : ''}
+            {T.doneText}{disp?.scrapped_count ? ` · ${disp.scrapped_count} Stück` : ''}
           </span>
           {disp?.scrapped_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{disp.scrapped_by_name}</span>}
         </div>
@@ -132,7 +157,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header info="Jede Instanz wird vor dem Verschrotten gescannt (Verifikation). Gescannte Instanzen werden mit «Verschrotten» endgültig aus dem Bestand genommen." />
+      <Header info={T.info} title={T.title} tone={T.tone} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {
@@ -146,7 +171,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
             }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind, i.quantity, order.article_unit ?? undefined)}</span>
-              {sel && (i.quantity ?? 1) > 1 && (
+              {mode === 'scrap' && sel && (i.quantity ?? 1) > 1 && (
                 // Charge: Teilmenge zum Verschrotten wählen (Bruchmenge möglich, z. B. 0.75 … volle Menge).
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b' }}>
                   <input type="number" min={0} step="any" max={i.quantity ?? 1}
@@ -190,7 +215,7 @@ export function ScrapPanel({ order, stepState, stepId, onOrderUpdated }: {
             minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff',
             fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.55 : 1,
           }}>
-          <Trash2 size={18} /> {saving ? 'Verschrottet…' : `Verschrotten (${scanned.size})`}
+          <Trash2 size={18} /> {saving ? T.running : `${T.verb} (${scanned.size})`}
         </button>
       )}
       {!allScanned && (
@@ -217,8 +242,8 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   );
 }
 
-function Header({ info }: { info?: string }) {
-  return <PanelHeader icon={Trash2} title="Verschrotten" tone="#dc2626" info={info} />;
+function Header({ info, title, tone }: { info?: string; title?: string; tone?: string }) {
+  return <PanelHeader icon={Trash2} title={title ?? 'Verschrotten'} tone={tone ?? 'var(--danger)'} info={info} />;
 }
 
 const cardStyle: React.CSSProperties = {

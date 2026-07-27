@@ -81,11 +81,9 @@ export function SecuritySection({ profile }: Props) {
           <Field label="Aktuelle E-Mail-Adresse" value={profile.email} readOnly />
 
           {isGoogleUser ? (
-            <div style={{ padding: '12px 16px', background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0' }}>
-              <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>
-                Deine E-Mail-Adresse wird über dein Google-Konto verwaltet und kann hier nicht geändert werden.
-              </p>
-            </div>
+            <p style={{ fontSize: 12, color: 'var(--fg-4)', margin: 0 }}>
+              Wird über dein Google-Konto verwaltet.
+            </p>
           ) : (
             <>
               {!showEmailForm ? (
