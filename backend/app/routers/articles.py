@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
@@ -14,7 +13,7 @@ from ..schemas.deactivation import (
     DeactivateRequest, DeactivationImpact, ImpactArticle, ImpactOrder,
 )
 from ..schemas.instance import InstanceResponse
-from ..services import deactivation
+from ..services import deactivation, metrics
 from ..services.admin import log_audit
 from ..services.lifecycle import ensure_mutable, ensure_version
 from ..services.locations import location_labels, physical_location_labels
@@ -62,16 +61,13 @@ def _supplier_refs(db: Session, supplier_pks: set[int]) -> dict[int, tuple[str, 
 
 
 def _price_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
-    """Min/Max Stückpreis (Bestellsumme ÷ Menge) je Artikel über akzeptierte Bestellungen."""
+    """Stückpreis (Bestellsumme ÷ Menge) je Artikel über akzeptierte Bestellungen –
+    als ``(median, kleinster, grösster)``. Der Median braucht die Einzelwerte, darum
+    wird hier nicht mehr in SQL aggregiert; die Zeilenzahl je Artikel ist klein."""
     if not article_ids:
         return {}
-    per_unit = PurchaseOrder.order_total / PurchaseOrder.quantity
     rows = (
-        db.query(
-            PurchaseOrder.article_id,
-            func.min(per_unit),
-            func.max(per_unit),
-        )
+        db.query(PurchaseOrder.article_id, PurchaseOrder.order_total, PurchaseOrder.quantity)
         .filter(
             PurchaseOrder.article_id.in_(article_ids),
             PurchaseOrder.is_active == True,
@@ -79,15 +75,17 @@ def _price_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
             PurchaseOrder.quantity > 0,
             PurchaseOrder.status.in_(_PRICED_STATUS),
         )
-        .group_by(PurchaseOrder.article_id)
         .all()
     )
-    return {aid: (low, high) for aid, low, high in rows}
+    per_article: dict[int, list] = {}
+    for aid, total, qty in rows:
+        per_article.setdefault(aid, []).append(total / qty)
+    return {aid: metrics.spread(vals) for aid, vals in per_article.items()}
 
 
 def _lead_time_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
-    """Min/Max Durchlaufzeit in Tagen (Freigabe → Abschluss) je Artikel über
-    erledigte Aufträge. Klein genug, um in Python aggregiert zu werden."""
+    """Durchlaufzeit in Tagen (Freigabe → Abschluss) je Artikel über erledigte
+    Aufträge – als ``(median, kürzeste, längste)``. Klein genug für Python."""
     if not article_ids:
         return {}
     rows = (
@@ -100,15 +98,12 @@ def _lead_time_ranges(db: Session, article_ids: list[int]) -> dict[int, tuple]:
         )
         .all()
     )
-    out: dict[int, tuple] = {}
+    per_article: dict[int, list] = {}
     for aid, released_at, completed_at in rows:
         days = (completed_at - released_at).total_seconds() / 86400.0
-        if days < 0:
-            continue
-        lo, hi = out.get(aid, (None, None))
-        out[aid] = (days if lo is None else min(lo, days),
-                    days if hi is None else max(hi, days))
-    return out
+        if days >= 0:
+            per_article.setdefault(aid, []).append(days)
+    return {aid: metrics.spread(vals) for aid, vals in per_article.items()}
 
 
 def _predecessors(db: Session, object_ids: list[int]) -> dict[int, int]:
@@ -129,14 +124,15 @@ def _to_response(article: Article, price_range: tuple | None,
                  supplier_ref: tuple | None = None) -> ArticleResponse:
     resp = ArticleResponse.model_validate(article)
     if price_range:
-        low, high = price_range
-        resp.unit_cost_low = low
-        resp.unit_cost_high = high
+        resp.unit_cost_median, resp.unit_cost_low, resp.unit_cost_high = price_range
     elif article.landed_unit_cost is not None:
+        # Ohne Bestellhistorie ist der letzte Einstandspreis der einzige Datenpunkt –
+        # dann sind Median und Spanne derselbe Wert.
+        resp.unit_cost_median = article.landed_unit_cost
         resp.unit_cost_low = article.landed_unit_cost
         resp.unit_cost_high = article.landed_unit_cost
     if lead_range:
-        resp.lead_time_days_low, resp.lead_time_days_high = lead_range
+        resp.lead_time_days_median, resp.lead_time_days_low, resp.lead_time_days_high = lead_range
     resp.computed_weight_kg = computed_weight
     resp.replaces_id = replaces_id
     # Beschaffungs-Default: Lieferantenname/Objektnummer denormalisieren (Anzeige/klickbar).

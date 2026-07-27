@@ -1349,6 +1349,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   statt als eigene Karten darunter – möglich geworden durch `TileShell` in `fields.tsx`, das die
   dreifach kopierte Kachel-Anatomie zusammenführt. Homepage-Headline: «Industrie 4.0».
 
+- **Testnotizen-Runde 2 (Artikel/Verkauf/Benutzer, Notizen #7–#22)**: (1) **Kennzahlen zeigen
+  den Median** (`services/metrics.py: spread` → `(median, low, high)`, EINE Stelle für Lieferzeit
+  UND Einstandspreis): ein einzelner Eil-Auftrag oder eine Kleinstmenge zu Apothekerpreisen zieht
+  einen Mittelwert weg – der Median bleibt bei dem, was üblich ist. Die Spanne steht untergeordnet
+  darunter («kürzeste … · längste …») und nur, wenn sie etwas Neues sagt.
+  (2) **Kein Abschnitt «Beschaffung» in der Artikel-Spezifikation** mehr: WIE beschafft wird, steht
+  ausschliesslich am Beschaffungs-Schritt im Reiter «Prozess»; geblieben sind ein Abschnitt
+  **«Kennzahlen»** (abgeleitet) und die optionalen Angaben in der Basis-Gruppe.
+  (3) **Verkauf-Reiter Symbol-first**: alle Wahlmöglichkeiten (Status · Sichtbarkeit · Verfügbarkeit ·
+  Preisart · Intervall · Abo-Typ) sind EINE Zeile Symbol-Chips (`IconChoice`) statt Dropdown/Segment,
+  jede Erklärung sitzt im **Hover** statt als Absatz in der Fläche; der **Vergleichspreis** ist
+  entfallen (soll später automatisiert kommen), das Anlegen eines Preises läuft über **Auto-Save**
+  statt Speichern/Abbrechen (bewusst längere Denkpause von 2,5 s, damit keine halb getippte Zahl
+  committet wird). Die Datei ist dabei von der Alt-Palette (`#2563eb`/slate) auf Tokens migriert.
+  (4) **Benutzer-Datensatz**: «Bestätigungen»-Karte und die AGB-Felder im System-Block entfernt –
+  der Reiter **Dokumente** führt das vollständig (der nur dafür gebaute Endpunkt
+  `GET /consent/acknowledgements/{id}` ist mit entfallen); neu **«Anmeldung»** (Google SSO ·
+  Passkey · Anmeldelink · Passwort, aus `firebase.sign_in_provider`, Migration `083`) und
+  **«Passkeys»** (Anzahl Geräte, eine gruppierte Abfrage). **Spiegel-Abgleich mit den
+  Profileinstellungen** (Notiz #20): die Benachrichtigungs-Schalter sind auch im ERP entfernt (sie
+  hatten nie Backend-Wirkung und fehlen im Profil längst), und die **Rechnungsadresse** erscheint
+  jetzt für JEDE Rolle statt nur für Kunde/Lieferant – bei einer Mitarbeiterin sah das Personal
+  ihre eigenen Eingaben sonst nicht.
+  (5) Kleineres: Bestandsliste ohne Summenzeile + zentriert, Instanz-Detail auf allen Reitern
+  zentriert, Auftrag-Shortcut getönt wie der Abweichung-Knopf (`.erp-idbtn-act`), Prozess-Schritt
+  nennt nur noch den Prüfumfang (nicht die Zahl der Erfassungsfelder), Homepage-Headline.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

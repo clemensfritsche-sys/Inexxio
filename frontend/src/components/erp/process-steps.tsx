@@ -382,7 +382,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#b91c1c', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt – Schritt oder Spezifikation ergänzen</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Bezugsquelle vom Artikel-Standard</span>;
                     })()}
-                    {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%${(s.capture_fields?.length ?? 0) > 0 ? ` · ${s.capture_fields!.length} Erfassungsfeld${s.capture_fields!.length === 1 ? '' : 'er'}` : ''}`}
+                    {/* Nur der Prüfumfang – WAS erfasst wird, steht ausformuliert im Schritt
+                        selbst; die blosse Anzahl der Felder sagte nichts, was dort nicht steht. */}
+                    {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%`}
                     {!isCompanion && s.step_type === 'movement' && (s.target_location_id
                       ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}

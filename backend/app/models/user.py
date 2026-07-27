@@ -17,6 +17,10 @@ class UserProfile(Base, TimestampMixin):
     firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, nullable=False, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     photo_url: Mapped[Optional[str]] = mapped_column(Text)
+    # Wie sich die Person zuletzt angemeldet hat (aus dem Firebase-ID-Token:
+    # google.com | password | emailLink | custom = Passkey). Rein deskriptiv – die
+    # Support-Frage «wie kommt der überhaupt rein?» war sonst nicht beantwortbar.
+    last_sign_in_provider: Mapped[Optional[str]] = mapped_column(String(40))
     role: Mapped[str] = mapped_column(String(20), default="customer", nullable=False)
 
     # Personal identity

@@ -103,6 +103,10 @@ class UserProfileResponse(BaseModel):
     email: str
     photo_url: Optional[str]
     role: str
+    # Anmeldeweg + Passkeys: beantwortet am ERP-Datensatz «wie kommt die Person herein?»
+    # (google.com | password | emailLink | custom = Passkey). Rein deskriptiv.
+    last_sign_in_provider: Optional[str] = None
+    passkey_count: int = 0
     is_active: bool
     created_at: datetime
     updated_at: datetime

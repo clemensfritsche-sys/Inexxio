@@ -405,9 +405,13 @@ class ArticleResponse(BaseModel):
     replaced_by_id: Optional[int] = None
     replaces_id: Optional[int] = None  # vom Router gesetzt (Vorgänger)
     # Stückpreis-Spanne netto (Bestellsumme ÷ Menge) über akzeptierte Bestellungen
+    # Abgeleitete Kennzahlen: der MEDIAN trägt die Aussage, die Spanne steht
+    # untergeordnet daneben (services/metrics.py).
+    unit_cost_median: Optional[Decimal] = None
     unit_cost_low: Optional[Decimal] = None
     unit_cost_high: Optional[Decimal] = None
     # Durchlaufzeit-Spanne in Tagen (Freigabe → Abschluss) über erledigte Aufträge
+    lead_time_days_median: Optional[float] = None
     lead_time_days_low: Optional[float] = None
     lead_time_days_high: Optional[float] = None
     is_active: bool

@@ -146,8 +146,6 @@ export interface LegalDocument {
 
 // Zu bestätigendes Pflichtdokument (Consent-Gate) – versioniert über die Objektnummer.
 export type PendingDocument = components['schemas']['PendingDocument'];
-// Erfolgte Bestätigung (am Benutzer-ERP-Datensatz sichtbar).
-export type Acknowledgement = components['schemas']['Acknowledgement'];
 
 // Registrierter Passkey (WebAuthn/FIDO2) – Kontoverwaltung (ohne Krypto-Material).
 export type Passkey = components['schemas']['PasskeyResponse'];

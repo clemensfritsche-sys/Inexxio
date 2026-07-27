@@ -4,7 +4,7 @@ import type {
   Order, OrderSummary, OrderInput, OrderUpdateInput, OrderLineCreateInput, OrderLinePinsInput,
   PurchaseOrderUpdateInput, InspectionUpdateInput, DocumentUpdateInput,
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
-  PendingDocument, Acknowledgement, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
+  PendingDocument, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference,
   CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
@@ -198,12 +198,9 @@ class ApiClient {
     return this.post('/api/v1/consent/acknowledge', { kind, object_number: objectNumber ?? null });
   }
 
-  // Bestätigungen eines Nutzers (für den Benutzer-ERP-Datensatz).
-  getUserAcknowledgements(userObjectId: number): Promise<Acknowledgement[]> {
-    return this.get(`/api/v1/consent/acknowledgements/${userObjectId}`);
-  }
-
-  // Vollständige Dokument-Beteiligung eines Nutzers – PRIMÄRE Sicht am ERP-Benutzer-Datensatz.
+  // Vollständige Dokument-Beteiligung eines Nutzers – die EINE Sicht am ERP-Benutzer-
+  // Datensatz (offene Freigaben + offene Anerkennungen + Erledigt, je mit Datum und Stand).
+  // Die frühere zweite Abfrage nur für Bestätigungen ist damit entfallen.
   getUserDocumentOverview(userObjectId: number): Promise<UserDocumentOverview> {
     return this.get(`/api/v1/consent/user/${userObjectId}/documents`);
   }

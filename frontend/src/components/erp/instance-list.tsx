@@ -8,6 +8,10 @@ import { instanceStatusConfig, instanceLabel } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge, Placeholder } from '@/components/erp/fields';
+import { TYPE_META } from '@/lib/erp-record';
+
+// Farbidentität des Datensatztyps aus der EINEN Quelle (statt hier hart kodiert).
+const INST = TYPE_META.instance;
 
 export function InstanceList({ articleObjectId, unit }: { articleObjectId: number | null; unit?: string }) {
   const [items, setItems] = useState<Instance[]>([]);
@@ -33,18 +37,16 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
     return <Placeholder icon={Boxes} title="Kein Bestand" text="Instanzen entstehen bei der Serialisierung eines freigegebenen Auftrags." />;
   }
 
-  const totalQty = items.reduce((sum, i) => sum + (i.quantity || 0), 0);
-
   return (
-    <div style={{ maxWidth: 720 }}>
+    // Zentriert und breiter: auf einem 3440er-Schirm klebte die Liste sonst links
+    // in einer 720-px-Spalte.
+    <div style={{ maxWidth: 980, marginInline: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: '#E9EDEC', color: '#5E6B66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+        <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: INST.bg, color: INST.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
           <Boxes size={18} />
         </div>
+        {/* Keine Summenzeile: jede Instanz nennt ihre Menge in der Zeile darunter. */}
         <h3 style={{ font: '800 19px var(--font-display)', letterSpacing: '-.02em', margin: 0, color: 'var(--fg-1)' }}>Bestand</h3>
-        <span style={{ marginLeft: 'auto', font: '500 13px var(--font-body)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums' }}>
-          {items.length} Instanz{items.length === 1 ? '' : 'en'} · {totalQty} {unit ?? 'Stk'}
-        </span>
       </div>
       <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: '#fff' }}>
         {items.map((i, idx) => (
@@ -58,7 +60,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
               cursor: 'pointer', font: 'inherit', textAlign: 'left',
             }}
           >
-            <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: '#E9EDEC', color: '#5E6B66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 'var(--r-sm)', background: INST.bg, color: INST.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
               <Boxes size={16} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>

@@ -165,11 +165,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                 <QrCode size={15} />
               </button>
               {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
-              <button className="erp-idbtn" data-tip-pos="bottom"
+              <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
                 data-tip={canOrderInstance ? 'Auftrag auf diese Instanz anlegen' : 'Auftrag möglich, sobald die Instanz am Lager (freigegeben) oder verkauft ist'}
                 aria-label="Auftrag auf diese Instanz anlegen"
                 disabled={!canOrderInstance || orderBusy}
-                style={canOrderInstance ? { color: 'var(--accent)' } : undefined}
                 onClick={createOrderShortcut}>
                 {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
               </button>
@@ -329,7 +328,9 @@ const S: Record<string, React.CSSProperties> = {
   idbtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
   statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
-  body: { padding: '24px clamp(14px, 4vw, 28px) 40px', maxWidth: 980 },
+  // Zentriert (nicht linksbündig): auf einem breiten Schirm klebte der Inhalt sonst am
+  // linken Rand. Gilt für ALLE Reiter – der Rumpf ist EIN Container.
+  body: { padding: '24px clamp(14px, 4vw, 28px) 40px', maxWidth: 1040, marginInline: 'auto' },
   // Kacheln tragen ihre eigene Haarlinie und stehen in Weissraum (Design-System:
   // «Struktur vor Fläche»). Das frühere Raster war durchgehend in der Linienfarbe
   // eingefärbt und liess Lücken bei 1 : Eine unvollständige letzte Reihe erschien als
