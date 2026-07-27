@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, ScanLine, Camera, PenLine } from 'lucide-react';
+import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, RotateCcw, ScanLine, ThumbsUp, ThumbsDown, Camera, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -40,7 +40,11 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const required = insp?.required_count ?? 0;
   const pct = insp?.sample_percent ?? 100;
   const result = insp?.result ?? 'pending';
-  const done = result === 'passed' || result === 'failed';
+  // «Erneut erfassen» nach einer geklärten Abweichung: der Schritt wird wieder
+  // erfassbar, ohne dass irgendwo ein Zustand zurückgesetzt werden muss – das Backend
+  // überschreibt dieselbe Fachzeile und bewertet die Instanzen neu.
+  const [redo, setRedo] = useState(false);
+  const done = (result === 'passed' || result === 'failed') && !redo;
   // Bei einem Mehrpositionen-Auftrag ist ``order.quantity`` NULL – die Gesamtmenge ergibt
   // sich dann aus der Summe der Positionsmengen (Spiegel von ``order_lines.effective_quantity``).
   const qty = order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
@@ -145,14 +149,27 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         </div>
       )}
 
-      {/* Ergebnis-Banner */}
+      {/* Ergebnis-Banner. Bei «Durchgefallen» ist der Schritt NICHT das Ende: die
+          Abweichung klärt den Fall (nacharbeiten / verschrotten / ersetzen), danach wird
+          erneut erfasst. Ohne diesen Weg bliebe der Auftrag für immer auf «fehlgeschlagen»
+          stehen – ein Auftrag muss immer einen Weg nach vorn haben. */}
       {done && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8,
-          background: result === 'passed' ? '#f0fdf4' : '#fef2f2', color: result === 'passed' ? '#16a34a' : '#dc2626' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8,
+          background: result === 'passed' ? 'var(--success-bg)' : 'var(--danger-bg)',
+          color: result === 'passed' ? 'var(--success)' : 'var(--danger)' }}>
           {result === 'passed' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
           <span style={{ fontSize: 13, fontWeight: 700 }}>{result === 'passed' ? 'Bestanden' : 'Durchgefallen'}</span>
-          {insp?.checked_count != null && <span style={{ fontSize: 12, color: '#64748b' }}>· {insp.checked_count} geprüft</span>}
-          {insp?.inspector_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{insp.inspector_name}</span>}
+          {insp?.checked_count != null && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>· {insp.checked_count} geprüft</span>}
+          {insp?.inspector_name && <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{insp.inspector_name}</span>}
+          {result === 'failed' && (
+            <button type="button" onClick={() => setRedo(true)}
+              title="Nach geklärter Abweichung (nachgearbeitet, ersetzt, aussortiert) erneut erfassen – bestandene Teile werden dabei wieder entsperrt"
+              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
+                border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)',
+                borderRadius: 'var(--r-sm)', padding: '4px 10px', font: '600 12px var(--font-body)', cursor: 'pointer' }}>
+              <RotateCcw size={13} /> Erneut erfassen
+            </button>
+          )}
         </div>
       )}
 
@@ -225,8 +242,10 @@ function CaptureRow({ field, value, onChange, ok, readOnly }: {
       <div>
         <Label>{field.label}</Label>
         <div style={{ display: 'flex', gap: 6 }}>
-          <Toggle label="Gut" active={value === true} tone="ok" disabled={readOnly} onClick={() => onChange(true)} />
-          <Toggle label="Schlecht" active={value === false} tone="bad" disabled={readOnly} onClick={() => onChange(false)} />
+          {/* Daumen hoch/runter statt Wörtern: auf einen Blick erfassbar, in jeder
+              Sprache verständlich – die Bedeutung steht im Hover. */}
+          <Toggle icon={ThumbsUp} label="Gut" active={value === true} tone="ok" disabled={readOnly} onClick={() => onChange(true)} />
+          <Toggle icon={ThumbsDown} label="Schlecht" active={value === false} tone="bad" disabled={readOnly} onClick={() => onChange(false)} />
         </div>
       </div>
     );
@@ -286,14 +305,21 @@ function CaptureRow({ field, value, onChange, ok, readOnly }: {
   );
 }
 
-function Toggle({ label, active, tone, onClick, disabled }: { label: string; active: boolean; tone: 'ok' | 'bad'; onClick: () => void; disabled?: boolean }) {
-  const color = tone === 'ok' ? '#16a34a' : '#dc2626';
-  const bg = tone === 'ok' ? '#f0fdf4' : '#fef2f2';
+/** Gut/Schlecht als **Daumen**: Symbol statt Wort, Bedeutung im Hover. */
+function Toggle({ icon: Icon, label, active, tone, onClick, disabled }: {
+  icon: React.ElementType; label: string; active: boolean; tone: 'ok' | 'bad';
+  onClick: () => void; disabled?: boolean;
+}) {
+  const color = tone === 'ok' ? 'var(--success)' : 'var(--danger)';
+  const bg = tone === 'ok' ? 'var(--success-bg)' : 'var(--danger-bg)';
   return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{ padding: '6px 14px', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: disabled ? 'default' : 'pointer',
-        border: `1px solid ${active ? color : '#e2e8f0'}`, background: active ? bg : '#fff', color: active ? color : '#64748b' }}>
-      {label}
+    <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label}
+      aria-pressed={active}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 42, height: 34, borderRadius: 'var(--r-sm)', cursor: disabled ? 'default' : 'pointer',
+        border: `1px solid ${active ? color : 'var(--border-1)'}`,
+        background: active ? bg : '#fff', color: active ? color : 'var(--fg-4)' }}>
+      <Icon size={17} />
     </button>
   );
 }

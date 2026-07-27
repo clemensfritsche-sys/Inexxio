@@ -229,9 +229,14 @@ def test_process_step_types_and_optional_config():
     # «serialization» ist kein eigener Schritt mehr (Instanzen entstehen bei Freigabe)
     with pytest.raises(ValueError):
         ArticleProcessStepCreate(step_type="serialization")
-    insp = ArticleProcessStepCreate(step_type="inspection")
+    # Eine Datenerfassung OHNE Erfassungsfeld ist ein Schritt ohne Inhalt – im Auftrag
+    # gäbe es nichts zu erfassen, der Auftrag käme dort nicht weiter.
+    with pytest.raises(ValueError):
+        ArticleProcessStepCreate(step_type="inspection")
+    one_field = [{"label": "Oberfläche", "type": "bool"}]
+    insp = ArticleProcessStepCreate(step_type="inspection", capture_fields=one_field)
     assert insp.sample_percent == 100                 # Default: ganze Menge
-    insp2 = ArticleProcessStepCreate(step_type="inspection", sample_percent=10)
+    insp2 = ArticleProcessStepCreate(step_type="inspection", sample_percent=10, capture_fields=one_field)
     assert insp2.sample_percent == 10
 
 
@@ -2645,3 +2650,24 @@ def test_metrics_spread_median_first():
     med, low, high = spread([Decimal("10.00"), Decimal("12.00"), Decimal("50.00")])
     assert (med, low, high) == (Decimal("12.00"), Decimal("10.00"), Decimal("50.00"))
     assert isinstance(med, Decimal)
+
+
+def test_failed_inspection_is_not_terminal():
+    """Eine durchgefallene Datenerfassung darf den Auftrag nicht endgültig festsetzen.
+
+    ``all_steps_done`` verlangt für jeden Schritt ``done`` – ein Schritt, der auf
+    «fehlgeschlagen» stehen bleibt, verhindert den Abschluss für immer. Der Weg nach vorn:
+    die Abweichung klärt den Fall (nacharbeiten / verschrotten / ersetzen), danach wird
+    **erneut erfasst**. Damit das etwas ändern kann, muss die Bewertung bei JEDEM Ergebnis
+    laufen (auch bei «bestanden») und eine frühere Sperre wieder lösen können."""
+    import inspect as _inspect
+
+    from app.services import inspection as insp_mod
+
+    src = _inspect.getsource(insp_mod)
+    # Nicht mehr nur beim Nichtbestehen bewerten …
+    assert 'if decision != "passed":\n        _apply_per_instance_qc' not in src
+    assert "_apply_per_instance_qc(db, order, fields, stored)" in src
+    # … und die Sperre ist rücknehmbar (failed → pending), nie eine vorzeitige Freigabe.
+    assert 'inst.quality = "pending"' in src
+    assert 'inst.quality = "passed"' not in src

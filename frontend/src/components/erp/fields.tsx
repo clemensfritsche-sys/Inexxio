@@ -142,6 +142,55 @@ export function PanelHeader({ icon: Icon, title, tone = '#2563eb', info, right }
 export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-colors';
 
 /**
+ * **Schieber** für eine Wahl mit wenigen, einander ausschliessenden Optionen: EIN Gleis,
+ * ein Reiter, der zur aktiven Option gleitet. Nebeneinanderstehende Knöpfe lassen offen,
+ * dass sie sich ausschliessen – die Bewegung zeigt es ohne ein Wort Erklärung.
+ *
+ * `symbolOnly` blendet die Beschriftung aus (nur Symbol, Bedeutung im Hover) – für enge
+ * Stellen, an denen das Wort ohnehin nur Platz füllt. Gesperrte Optionen bleiben sichtbar
+ * und nennen ihren Grund ebenfalls im Hover.
+ */
+export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly }: {
+  value: T; onChange: (v: T) => void;
+  options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean }[];
+  symbolOnly?: boolean;
+}) {
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const width = 100 / options.length;
+  return (
+    <div style={{
+      position: 'relative', display: symbolOnly ? 'inline-flex' : 'flex',
+      padding: 3, borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+    }}>
+      <span aria-hidden style={{
+        position: 'absolute', top: 3, bottom: 3, left: 3, width: `calc(${width}% - 2px)`,
+        transform: `translateX(${index * 100}%)`, transition: 'transform .18s cubic-bezier(.4,0,.2,1)',
+        borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.12)',
+      }} />
+      {options.map((o) => {
+        const active = o.value === value;
+        const Icon = o.icon;
+        return (
+          <button key={o.value} type="button" role="tab" aria-selected={active}
+            aria-label={o.label} title={o.hint ?? o.label}
+            onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
+            style={{
+              position: 'relative', flex: 1, display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6, padding: symbolOnly ? '6px 16px' : '7px 10px',
+              border: 'none', background: 'none', borderRadius: 999,
+              font: '600 12px var(--font-body)', cursor: o.disabled ? 'not-allowed' : 'pointer',
+              opacity: o.disabled ? 0.4 : 1, transition: 'color .18s',
+              color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
+            }}>
+            <Icon size={14} />{!symbolOnly && o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * Die EINE Regel für Zahlenfelder (Mengen, Perioden, Prozente): nur Ziffern, optional
  * EIN Dezimaltrenner. Das Komma wird zum Punkt – wer «2,5» tippt, meint 2.5, und das
  * Backend rechnet mit Punkt.
@@ -222,9 +271,14 @@ export function SelectField({ label, value, onChange, options, required }: {
  * Zahlen sind (sonst bleibt die vom Aufrufer gewählte Reihenfolge unangetastet).
  */
 function newestFirst(options: { value: string; label: string }[]): { value: string; label: string }[] {
-  if (options.length < 2) return options;
-  if (!options.every((o) => o.value !== '' && Number.isFinite(Number(o.value)))) return options;
-  return [...options].sort((a, b) => Number(b.value) - Number(a.value));
+  const isNum = (v: string) => v !== '' && Number.isFinite(Number(v));
+  const numeric = options.filter((o) => isNum(o.value));
+  // Nicht-numerische Einträge sind Platzhalter («— wählen —», «Standard erben») und
+  // bleiben vorn. Mehr als einer davon heisst: die Liste ist gemischt (z. B. Standort-
+  // Ziele wie `user:100000002`) – dann bleibt die Reihenfolge des Aufrufers unangetastet.
+  const others = options.filter((o) => !isNum(o.value));
+  if (numeric.length < 2 || others.length > 1) return options;
+  return [...others, ...numeric.sort((a, b) => Number(b.value) - Number(a.value))];
 }
 
 export function SearchSelect({ label, value, onChange, options, required, placeholder }: {

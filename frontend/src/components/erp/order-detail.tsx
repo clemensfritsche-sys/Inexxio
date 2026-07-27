@@ -1642,14 +1642,14 @@ function RecurrenceCard({ order, onSaved, version }: {
               className={recInput} style={{ borderColor: 'var(--border-1)', opacity: active ? 1 : 0.5 }} />
           </div>
         </div>
-        {/* Der Zustand als Satz – nicht als Schalterstellung, die man deuten muss. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--fg-3)' }}>
-          <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, flexShrink: 0,
-            background: active ? 'var(--success)' : 'var(--fg-4)' }} />
-          {active
-            ? `Alle ${days} Tage entsteht beim Abschluss automatisch der nächste Auftrag als Entwurf.`
-            : 'Einmalig – trage eine Periode ein, damit sich der Auftrag wiederholt.'}
-        </div>
+        {/* Dezent statt erklärend: EIN Punkt plus zwei Wörter. Ist nichts eingestellt,
+            sagt das leere Feld bereits alles – dann steht hier gar nichts. */}
+        {active && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--fg-3)' }}>
+            <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, flexShrink: 0, background: 'var(--success)' }} />
+            Aktiv · alle {days} Tage
+          </div>
+        )}
         {err && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</span>}
       </div>
     </>
