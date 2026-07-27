@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react';
 import type { Instance, LocationType } from '@/types';
 import { LOCATION_META } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { TileShell } from '@/components/erp/fields';
 
 /**
  * **Read-only** Standort-Verteilung einer Charge: liegt eine Charge (EINE Objektnummer)
@@ -12,18 +13,20 @@ import { fmtObjId } from '@/components/erp/user-detail';
  * Auftrag + Prozessschritt (Bewegen) – NICHT an der Instanz. Bei nur EINEM Standort genügt
  * die «Standort»-Kachel, dann rendert diese Karte nichts.
  */
-export function InstanceLocationsCard({ instance }: { instance: Instance }) {
+export function InstanceLocationsCard({ instance, style }: {
+  instance: Instance;
+  /** Platzierung im Kachel-Raster der Instanz (volle Breite). */
+  style?: React.CSSProperties;
+}) {
   const slices = instance.locations ?? [];
   if (slices.length <= 1) return null;
 
   return (
-    <div style={ST.card}>
-      <div style={ST.head}>
-        <MapPin size={16} style={{ color: 'var(--fg-3)' }} />
-        <h3 style={ST.title}>Standort · verteilt</h3>
-        <span style={ST.pill}>{slices.length} Standorte</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <TileShell
+      icon={MapPin} label="Standort · verteilt" style={style}
+      right={<span style={ST.pill}>{slices.length} Standorte</span>}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
         {slices.map((s) => {
           const Icon = LOCATION_META[s.location_type as LocationType]?.icon ?? MapPin;
           return (
@@ -36,14 +39,11 @@ export function InstanceLocationsCard({ instance }: { instance: Instance }) {
           );
         })}
       </div>
-    </div>
+    </TileShell>
   );
 }
 
 const ST: Record<string, React.CSSProperties> = {
-  card: { border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 18, background: '#fff', display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 30 },
-  head: { display: 'flex', alignItems: 'center', gap: 8 },
-  title: { font: '700 15px var(--font-display)', color: 'var(--fg-1)', margin: 0 },
   pill: { marginLeft: 'auto', font: '600 11px var(--font-body)', color: 'var(--accent-ink)', background: 'var(--accent-soft)', padding: '2px 9px', borderRadius: 'var(--r-pill)' },
   slice: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)' },
   sliceLabel: { font: '600 13.5px var(--font-body)', color: 'var(--fg-1)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
