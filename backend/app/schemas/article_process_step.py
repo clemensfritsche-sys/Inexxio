@@ -255,6 +255,11 @@ class ArticleProcessStepCreate(BaseModel):
         # sie pro Fall überschreiben (``supplier_id`` bzw. ``webshop_url``) – keine Pflicht mehr.
         if self.step_type == "inspection" and self.sample_percent is None:
             self.sample_percent = 100  # Default: ganze Menge prüfen
+        # Eine **Datenerfassung ohne Erfassungsfeld** ist ein Schritt ohne Inhalt: er liesse
+        # sich anlegen, böte im Auftrag aber nichts zu erfassen – der Auftrag käme dort nicht
+        # weiter. Analog zur Ressource-Zeile darum hier abgewiesen, nicht nur im Formular.
+        if self.step_type == "inspection" and not (self.capture_fields or []):
+            raise ValueError("Eine Datenerfassung braucht mindestens ein Erfassungsfeld")
         if self.step_type == "resource" and not self.resource_lines:
             raise ValueError("Ein Ressource-Schritt braucht mindestens eine Zeile")
         # Zielstandort – Bewegung: Ziel; Beschaffung: Lieferadresse/Wareneingang.

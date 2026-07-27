@@ -1401,6 +1401,35 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   hiesse dieselbe Farbe gleichzeitig «tu es» und «ist getan» – die Badge daneben wird nach der
   Freigabe grün, das ist die Rückmeldung.*
 
+- **Testnotizen-Runde 4 (Prozess-Editor & Datenerfassung, Notizen #32–#51)**: (1) **Eine
+  durchgefallene Datenerfassung ist nicht mehr terminal** (#51, der einzige offene Punkt aus
+  `docs/review-2026-07.md`): `all_steps_done` verlangt je Schritt `done` – ein Schritt auf
+  «fehlgeschlagen» verhinderte den Abschluss **für immer**. Der Weg nach vorn ist jetzt gebaut:
+  Abweichung klärt den Fall (nacharbeiten/verschrotten/ersetzen) → **«Erneut erfassen»** im Panel →
+  neue Bewertung. Damit das etwas ändern kann, läuft `_apply_per_instance_qc` bei **jedem** Ergebnis
+  (nicht nur beim Nichtbestehen) und **löst eine frühere Sperre** (`failed` → `pending`, nie direkt
+  `passed` – freigegeben wird weiterhin erst beim Auftrags-Abschluss). Wächter
+  `test_smoke.py: test_failed_inspection_is_not_terminal`. (2) **Datenerfassung ohne Erfassungsfeld
+  ist keine mehr** (#41): Schema-Prüfung analog zur Ressource-Zeile (nicht nur im Formular) – ein
+  solcher Schritt böte im Auftrag nichts zu erfassen. (3) **Prüfumfang als Voreinstellungen** (#36,
+  #37): Chips «Alle · Jedes 2. · Jedes 4. · Stichprobe» statt Prozentfeld mit Erklärsatz; «…» blendet
+  ein Zahlenfeld für Sonderwerte ein (ein gespeicherter Sonderwert geht nie verloren). (4) **Gut/
+  Schlecht als Daumen** (#42), **eigene Farbfamilie für die Datenerfassung** (#44 – sie trug exakt
+  die Tönung der Bewegung). (5) **Weniger Text, mehr Hover**: Bezugsquelle als **symbol-only
+  Schieber** (#47, generischer `fields.IconSwitch` – dieselbe Mechanik wie der Bedarf-Schieber),
+  Ressourcen-Legende (#45), Beschaffungs-Infotext (#48), Lieferanten-Hinweis (#49) und der
+  Bild/Unterschrift-Kasten (#38) entfallen; «+ Ressource/Erfassungsfeld» wird zum blossen **«+»**,
+  sobald die Liste nicht leer ist (#46); Headline «Für Lieferant sichtbar» (#50). (6) **Auswahl
+  neueste zuerst repariert** (#34): `newestFirst` verlangte, dass ALLE Werte Zahlen sind – der
+  Platzhalter «— wählen —» hat die Sortierung damit überall stillgelegt. Platzhalter bleiben jetzt
+  vorn, der Rest wird sortiert. (7) **Namensgebung vereinheitlicht**: «Adresszeile 1/2» → **«Strasse
+  und Hausnummer» / «Adresszusatz»** wie in den Profileinstellungen (#33); Verkauf «Publiziert/
+  Entwurf» → **«Nicht sichtbar / Sichtbar»**, Ausgangszustand links (#32). (8) Ziel-Angabe am
+  Bewegungsschritt: **Objektnummer zuerst**, dann die Bezeichnung (#43); Wiederkehr zeigt nur noch
+  «Aktiv · alle N Tage» statt eines Erklärsatzes (#35).
+  *Bewusst NICHT geändert: der «Hinzufügen»-Knopf im Schritt-Editor bleibt (#40) – Auto-Save würde
+  einen halb konfigurierten Schritt anlegen, und genau das verbietet #41.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

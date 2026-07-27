@@ -117,9 +117,12 @@ function IconChoice<T extends string>({ label, value, onChange, options }: {
   );
 }
 
+// «Sichtbar / Nicht sichtbar» – dieselben Wörter wie überall sonst, wenn es um
+// Sichtbarkeit geht. Der Ausgangszustand (nicht sichtbar) steht LINKS: Listen liest man
+// von links, und ein Artikel ist erst einmal nicht im Shop.
 const PUBLISHED: Choice<'true' | 'false'>[] = [
-  { value: 'true', label: 'Publiziert', icon: Eye, hint: 'Im Shop auffindbar und kaufbar.' },
-  { value: 'false', label: 'Entwurf', icon: EyeOff, hint: 'Nicht im Shop – nur intern sichtbar.' },
+  { value: 'false', label: 'Nicht sichtbar', icon: EyeOff, hint: 'Nicht im Shop – nur intern sichtbar.' },
+  { value: 'true', label: 'Sichtbar', icon: Eye, hint: 'Im Shop auffindbar und kaufbar.' },
 ];
 
 const VISIBILITY: Choice<SalesVisibility>[] = [

@@ -162,8 +162,8 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
       </Sec>
 
       <Sec title="Adresse" editable={isAdmin} icon={MapPin}>
-        <Field label="Adresszeile 1" val={v('address_line1')}  onChange={ed(set, isAdmin, 'address_line1')}  ro={!isAdmin} />
-        <Field label="Adresszeile 2" val={v('address_line2')}  onChange={ed(set, isAdmin, 'address_line2')}  ro={!isAdmin} />
+        <Field label="Strasse und Hausnummer" val={v('address_line1')} onChange={ed(set, isAdmin, 'address_line1')} ro={!isAdmin} />
+        <Field label="Adresszusatz" val={v('address_line2')} onChange={ed(set, isAdmin, 'address_line2')} ro={!isAdmin} />
         <Field label="PLZ"           val={v('postal_code')}    onChange={ed(set, isAdmin, 'postal_code')}    ro={!isAdmin} />
         <Field label="Ort"           val={v('city')}           onChange={ed(set, isAdmin, 'city')}           ro={!isAdmin} />
         <Field label="Region"        val={v('state_region')}   onChange={ed(set, isAdmin, 'state_region')}   ro={!isAdmin} />
@@ -182,8 +182,8 @@ function FormSections({ v, set, record, isAdmin }: { v: GetVal; set: SetVal; rec
           {isSupplier && <div />}
           <Field label="Vorname"          val={v('invoice_first_name')} onChange={ed(set, isAdmin, 'invoice_first_name')} ro={!isAdmin} />
           <Field label="Nachname"         val={v('invoice_last_name')} onChange={ed(set, isAdmin, 'invoice_last_name')} ro={!isAdmin} />
-          <Field label="Adresszeile 1"    val={v('invoice_address_line1')} onChange={ed(set, isAdmin, 'invoice_address_line1')} ro={!isAdmin} />
-          <Field label="Adresszeile 2"    val={v('invoice_address_line2')} onChange={ed(set, isAdmin, 'invoice_address_line2')} ro={!isAdmin} />
+          <Field label="Strasse und Hausnummer" val={v('invoice_address_line1')} onChange={ed(set, isAdmin, 'invoice_address_line1')} ro={!isAdmin} />
+          <Field label="Adresszusatz" val={v('invoice_address_line2')} onChange={ed(set, isAdmin, 'invoice_address_line2')} ro={!isAdmin} />
           <Field label="PLZ"              val={v('invoice_postal_code')} onChange={ed(set, isAdmin, 'invoice_postal_code')} ro={!isAdmin} />
           <Field label="Ort"              val={v('invoice_city')} onChange={ed(set, isAdmin, 'invoice_city')} ro={!isAdmin} />
           {isAdmin

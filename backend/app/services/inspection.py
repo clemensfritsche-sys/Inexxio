@@ -67,14 +67,28 @@ def eval_fields(step: ArticleProcessStep | None) -> list[dict]:
 
 
 def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
-    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes (failed).
+    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes.
 
-    Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben
-    ``pending`` («Im Prozess») und werden erst beim Auftrags-Abschluss freigegeben
-    (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig."""
+    Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben ``pending``
+    («In Arbeit») und werden erst beim Auftrags-Abschluss freigegeben
+    (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig.
+
+    **Eine Sperre ist rücknehmbar** (Nacharbeit): besteht eine zuvor durchgefallene
+    Instanz die *erneute* Erfassung, geht sie von ``failed`` zurück auf ``pending``.
+    Ohne das wäre ein Durchfaller endgültig verloren – auch wenn die Abweichung ihn
+    nachweislich in Ordnung gebracht hat. Terminale Instanzen (verschrottet/verkauft/
+    verbaut) bleiben unangetastet: dort ist nichts mehr zu bewerten."""
     insts = order_active_instances(db, order)
+    reworkable = "in_process"
+
+    def verdict(inst, ok: bool) -> None:
+        if not ok:
+            inst.quality = "failed"
+        elif inst.quality == "failed" and inst.disposition == reworkable:
+            inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
+
     if len(insts) == 1 and insts[0].kind == "batch":
-        insts[0].quality = "failed"
+        verdict(insts[0], all(evaluate(fields, s.get("values") or {}) for s in stored))
         return
     ok_by_inst: dict[int, bool] = {}
     for s in stored:
@@ -82,8 +96,7 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
         iid = s.get("instance_id")
         ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
     for inst in insts:
-        if not ok_by_inst.get(inst.object_id, False):
-            inst.quality = "failed"
+        verdict(inst, ok_by_inst.get(inst.object_id, False))
 
 
 def _shuffle_key(object_id: int, seed: int) -> int:
@@ -182,11 +195,11 @@ def record_inspection(db: Session, order: Order, data, actor) -> Inspection:
 
     insp.result = "passed" if decision == "passed" else "failed"
     db.flush()
-    # Bei Bestehen NICHT vorzeitig freigeben – die Instanzen werden erst beim
-    # Auftrags-Abschluss «Freigegeben» (process.release_instances). Bei Nichtbestehen
-    # die durchgefallenen Instanzen sperren (failed).
-    if decision != "passed":
-        _apply_per_instance_qc(db, order, fields, stored)
+    # Je Instanz bewerten – IMMER, nicht nur beim Nichtbestehen: Bestehen sperrt nichts,
+    # löst aber eine frühere Sperre (Nacharbeit). Bei Bestehen wird NICHT vorzeitig
+    # freigegeben – «Freigegeben» folgt erst beim Auftrags-Abschluss
+    # (process.release_instances).
+    _apply_per_instance_qc(db, order, fields, stored)
 
     log_audit(db, "inspections", "result", insp.result, actor_id, object_id=order.object_id)
     emit(db, f"inspection.{insp.result}", object_type="order", object_id=order.object_id,

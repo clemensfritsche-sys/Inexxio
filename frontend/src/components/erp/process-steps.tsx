@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Truck, Globe } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ErrorText, IconSwitch, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
@@ -212,6 +212,11 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     if (type === 'inspection') {
       const p = Number(samplePercent);
       if (!Number.isFinite(p) || p < 1 || p > 100) { setError('Prüfumfang muss 1–100 % sein'); return; }
+      // Eine Datenerfassung ohne definierte Information ist ein Schritt ohne Inhalt: das
+      // Panel zeigt dann nichts zu erfassen und der Auftrag käme nicht weiter.
+      if (buildCaptureFields().length === 0) {
+        setError('Bitte mindestens ein Erfassungsfeld festlegen – ohne definierte Information gibt es nichts zu erfassen'); return;
+      }
     }
     let resourcePayload: { article_id: number; quantity: number; mode: ResourceMode }[] | null = null;
     if (type === 'resource') {
@@ -386,7 +391,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         selbst; die blosse Anzahl der Felder sagte nichts, was dort nicht steht. */}
                     {s.step_type === 'inspection' && `Stichprobe ${s.sample_percent ?? 100}%`}
                     {!isCompanion && s.step_type === 'movement' && (s.target_location_id
-                      ? `Ziel: ${locationTypeLabel(s.target_location_type)} · ${fmtObjId(s.target_location_id)}`
+                      // Objektnummer zuerst, danach die Bezeichnung – überall dieselbe
+                      // Lesereihenfolge wie in den Auswahllisten («100000002 · Person»).
+                      ? `Ziel: ${fmtObjId(s.target_location_id)} · ${locationTypeLabel(s.target_location_type)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
@@ -552,8 +559,14 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   {/* Bezugsquelle direkt im Prozessschritt (Lieferant ODER Webshop-Link) –
                       vorbelegt aus dem Artikel-Standard, je Schritt frei überschreibbar, sodass
                       ein Prozess mehrere Beschaffungen mit unterschiedlichen Quellen abbilden kann. */}
-                  <Segmented label="Bezugsquelle" value={mode} onChange={(v) => setMode(v as ProcessStepMode)}
-                    options={[{ value: 'supplier', label: 'Lieferant' }, { value: 'webshop', label: 'Webshop' }]} />
+                  <div>
+                    <Label>Bezugsquelle</Label>
+                    <IconSwitch<ProcessStepMode> symbolOnly value={mode} onChange={setMode}
+                      options={[
+                        { value: 'supplier', icon: Truck, label: 'Lieferant', hint: 'Bestellung bei einem Lieferanten' },
+                        { value: 'webshop', icon: Globe, label: 'Webshop', hint: 'Kauf über einen Webshop-Link' },
+                      ]} />
+                  </div>
                   {mode === 'supplier' ? (
                     <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId}
                       placeholder="Artikel-Standard erben"
@@ -566,30 +579,20 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     <TextField label="Webshop-Link" value={url} onChange={setUrl}
                       placeholder="https://shop.example.com/artikel" hint="Leer lassen, um den Artikel-Standard zu erben." />
                   )}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-                    <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span>Vorbelegt aus der Produktspezifikation (Reiter «Spezifikation» → Beschaffung) – hier je Schritt überschreibbar. Leer lassen erbt den Artikel-Standard. Lieferadresse ist die Firmenadresse; der tatsächliche Ort wird beim Wareneingang erfasst.</span>
-                  </div>
                   {owner === 'articles' && procurementReady === false && mode === 'supplier' && !supplierId && (
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
                       <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                       <span>Ohne Bezugsquelle (hier oder als Artikel-Standard) lässt sich der Artikel nicht freigeben.</span>
                     </div>
                   )}
-                  <div><Label>Für den Lieferanten sichtbare Spezifikation</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
+                  <div><Label>Für Lieferant sichtbar</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
                 </>
               )}
 
               {adding === 'inspection' && (
                 <>
-                  <TextField label="Prüfumfang (% der Menge)" value={samplePercent} onChange={(v) => setSamplePercent(numericOnly(v, { decimals: false }))}
-                    required placeholder="z. B. 10" hint="Stichprobe: wie viel Prozent geprüft werden muss (1–100)" />
+                  <SampleScope value={samplePercent} onChange={setSamplePercent} />
                   <CaptureFieldsEditor fields={wfields} onChange={setWfields} />
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-                    <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <span><strong>Bild</strong> und <strong>Unterschrift</strong> sind eigene Feldtypen –
-                      füge sie oben als Erfassungsfeld hinzu (gleichrangig neben Soll-Ist/Gut-Schlecht/Text).</span>
-                  </div>
                 </>
               )}
 
@@ -687,10 +690,78 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
           );
         })}
       </div>
-      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Ressource hinzufügen</button>
-      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PackageMinus size={12} style={{ color: '#0f766e' }} /> Verbrauch (FIFO)</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Wrench size={12} style={{ color: '#7c3aed' }} /> Betriebsmittel (genutzt)</span>
+      {/* Leere Liste braucht das Wort, danach genügt das Symbol (Bedeutung im Hover). */}
+      <AddRowButton label="Ressource hinzufügen" compact={lines.length > 0} onClick={add} />
+    </div>
+  );
+}
+
+/**
+ * **Prüfumfang** als Voreinstellungen statt Prozent-Eingabe: In der Praxis prüft man jedes
+ * Stück, jedes zweite, jedes vierte oder eine Handvoll – vier Chips decken das ab und
+ * brauchen keinen Erklärsatz. Ein abweichender Wert (z. B. 7 %) bleibt möglich: «…»
+ * blendet das Zahlenfeld ein, und ein bereits gespeicherter Sonderwert erscheint als
+ * eigener Chip, statt still verlorenzugehen.
+ */
+const SAMPLE_PRESETS = [
+  { pct: '100', label: 'Alle', hint: '100 % – jedes Stück wird geprüft' },
+  { pct: '50', label: 'Jedes 2.', hint: '50 % der Menge' },
+  { pct: '25', label: 'Jedes 4.', hint: '25 % der Menge' },
+  { pct: '10', label: 'Stichprobe', hint: '10 % der Menge' },
+];
+
+/** Zeile hinzufügen: solange die Liste leer ist mit Wort, danach nur noch «+» (Hover erklärt). */
+function AddRowButton({ label, compact, onClick }: { label: string; compact: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+      style={{ ...addBtnStyle, marginTop: 8, padding: '8px', width: compact ? 38 : undefined }}>
+      <Plus size={14} />{!compact && ` ${label}`}
+    </button>
+  );
+}
+
+function SampleScope({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isPreset = SAMPLE_PRESETS.some((p) => p.pct === value);
+  const [custom, setCustom] = useState(!isPreset && value !== '');
+  return (
+    <div>
+      <Label required>Prüfumfang</Label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        {SAMPLE_PRESETS.map((p) => {
+          const on = value === p.pct && !custom;
+          return (
+            <button key={p.pct} type="button" title={p.hint}
+              onClick={() => { setCustom(false); onChange(p.pct); }}
+              style={{
+                padding: '6px 12px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
+                font: '600 12.5px var(--font-body)',
+                border: `1px solid ${on ? 'var(--accent)' : 'var(--border-1)'}`,
+                background: on ? 'var(--accent-soft)' : '#fff',
+                color: on ? 'var(--accent-ink)' : 'var(--fg-3)',
+              }}>
+              {p.label}
+            </button>
+          );
+        })}
+        <button type="button" title="Anderer Prüfumfang in Prozent" onClick={() => setCustom(true)}
+          style={{
+            padding: '6px 12px', borderRadius: 'var(--r-pill)', cursor: 'pointer',
+            font: '600 12.5px var(--font-body)',
+            border: `1px solid ${custom ? 'var(--accent)' : 'var(--border-1)'}`,
+            background: custom ? 'var(--accent-soft)' : '#fff',
+            color: custom ? 'var(--accent-ink)' : 'var(--fg-3)',
+          }}>
+          …
+        </button>
+        {custom && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <input value={value} onChange={(e) => onChange(numericOnly(e.target.value, { decimals: false }))}
+              {...numericInputProps} placeholder="z. B. 7"
+              className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              style={{ borderColor: 'var(--border-1)', width: 76 }} />
+            <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>%</span>
+          </span>
+        )}
       </div>
     </div>
   );
@@ -733,7 +804,7 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           </div>
         ))}
       </div>
-      <button onClick={add} style={{ ...addBtnStyle, marginTop: 8, padding: '8px' }}><Plus size={14} /> Erfassungsfeld hinzufügen</button>
+      <AddRowButton label="Erfassungsfeld hinzufügen" compact={fields.length > 0} onClick={add} />
     </div>
   );
 }
@@ -973,7 +1044,9 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   movement:   { bg: '#F3F8FB', border: '#D8E7EF', fg: 'var(--accent-ink)' },
   resource:   { bg: '#FBF6ED', border: '#EADFCB', fg: '#9A7238' },
   purchase:   { bg: '#FBF3EF', border: '#EBD9CF', fg: '#A65A3C' },
-  inspection: { bg: '#F3F8FB', border: '#D8E7EF', fg: 'var(--accent-ink)' },
+  // Eigene Farbfamilie (gedämpftes Pflaume): Datenerfassung und Bewegung trugen exakt
+  // dieselbe Tönung – zwei verschiedene Schritttypen sahen damit gleich aus.
+  inspection: { bg: '#F7F4FA', border: '#E2DBEC', fg: '#6B5B8A' },
   document:   { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-2)' },
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
