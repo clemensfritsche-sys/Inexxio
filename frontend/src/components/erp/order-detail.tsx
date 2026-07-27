@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck } from 'lucide-react';
+import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -14,7 +14,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow } from '@/components/erp/fields';
+import { Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -786,7 +786,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
               {isSupply ? 'Ablauf des Nachschubs' : isReturn ? 'Ablauf der Retoure' : 'Ablauf der Abweichung'}
             </SectionTitle>
-            <div style={cardStyle}>
+            {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
+            <div style={{ marginBottom: 12 }}>
               {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
                   ein Beschaffungs-Schritt am Auftrag konnte NIE einen Lieferanten wählen
                   («Keine Lieferanten vorhanden»), obwohl welche existieren. */}
@@ -797,14 +798,32 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         )}
 
         {/* ── Ablauf ──────────────────────────────────────────────────────────────
-            Bei «Erzeugen» braucht es keine eigenen Schritte (der Artikel-Prozess läuft);
-            sonst legt der Ablauf fest, was mit dem Bestand geschieht. */}
+            Gleiche Darstellung wie der Prozess-Reiter am Artikel: `ProcessSteps` steht
+            frei im Weissraum statt in einer zusätzlichen Karte – es ist derselbe Editor,
+            also soll er auch gleich aussehen. */}
         {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
           <>
             <SectionTitle icon={Workflow} info="Was mit den Positionen geschieht: bewegen, verkaufen, prüfen, verschrotten … Jedes Modul ist frei kombinierbar.">Ablauf</SectionTitle>
-            <div style={cardStyle}>
+            <div style={{ marginBottom: 12 }}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
+            </div>
+          </>
+        )}
+
+        {/* «Erzeugen» hat keinen eigenen Ablauf – es läuft der Prozess des Artikels. Statt
+            das nur zu behaupten, wird er hier **gezeigt**: dieselbe Komponente, dieselben
+            Daten, nur lesend (`owner="articles"`). Eine 1:1-Spiegelung, keine Kopie – wer
+            ihn ändern will, ändert ihn am Artikel. */}
+        {isStaff && record?.status === 'draft' && !isSubOrder && !isMultiPosition
+          && goal === 'produce' && record.article_object_id != null && (
+          <>
+            <SectionTitle icon={Workflow} info="Der am Artikel hinterlegte Prozess – hier nur zur Ansicht. Geändert wird er am Artikel selbst (Reiter «Prozess»).">
+              Prozess des Artikels
+            </SectionTitle>
+            <div style={{ marginBottom: 12 }}>
+              <ProcessSteps owner="articles" ownerObjectId={record.article_object_id} suppliers={suppliers}
+                selfArticleObjectId={record.article_object_id} readOnly />
             </div>
           </>
         )}
@@ -1173,13 +1192,14 @@ export function TextFieldUnit({ label, value, onChange, unit, required, placehol
   return (
     <div>
       <Label required={required}>{unit ? `${label} (${unit})` : label}</Label>
+      {/* Mengen sind Zahlen: Buchstaben kommen gar nicht erst ins Feld (numericOnly). */}
       <input
         value={value}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        inputMode="decimal"
+        onChange={(e) => onChange(numericOnly(e.target.value))}
+        {...numericInputProps}
         className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-        style={{ borderColor: '#e2e8f0' }}
+        style={{ borderColor: 'var(--border-1)' }}
       />
     </div>
   );
@@ -1259,20 +1279,20 @@ function PositionRow({
         </div>
       )}
 
-      {/* Quelle: EIN Umschalter, Symbol + ein Wort. Gesperrtes nennt im Hover den Grund. */}
+      {/* Quelle: EIN Schieber mit drei Feldern. Gesperrtes nennt im Hover den Grund. */}
       {line && (
         <>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <SegBtn active={source === 'produce'} icon={Factory} label="Erzeugen"
-              disabled={!canProduce} hint={canProduce ? 'Neu herstellen oder beschaffen – der Artikel-Prozess läuft' : (produceHint ?? 'Bei mehreren Positionen nicht möglich – dafür je Artikel einen eigenen Auftrag')}
-              onClick={() => onSource('produce')} />
-            <SegBtn active={source === 'stock'} icon={Warehouse} label="Ab Lager"
-              disabled={!enough} hint={enough ? 'Vorhandenes verwenden – automatisch die ältesten (FIFO)' : `Nur ${avail} ${unit} am Lager (${req} nötig)`}
-              onClick={() => onSource('stock')} />
-            <SegBtn active={source === 'specific'} icon={Target} label="Auswählen"
-              hint="Genau bestimmen, welche Instanzen – auch verkaufte (→ Retoure)"
-              onClick={() => onSource('specific')} />
-          </div>
+          <SourceSwitch
+            value={source} onChange={onSource}
+            options={[
+              { value: 'produce', icon: Factory, label: 'Erzeugen', disabled: !canProduce,
+                hint: canProduce ? 'Neu herstellen oder beschaffen – der Artikel-Prozess läuft' : (produceHint ?? 'Bei mehreren Positionen nicht möglich – dafür je Artikel einen eigenen Auftrag') },
+              { value: 'stock', icon: Warehouse, label: 'Ab Lager', disabled: !enough,
+                hint: enough ? 'Vorhandenes verwenden – automatisch die ältesten (FIFO)' : `Nur ${avail} ${unit} am Lager (${req} nötig)` },
+              { value: 'specific', icon: Target, label: 'Auswählen',
+                hint: 'Genau bestimmen, welche Instanzen – auch verkaufte (→ Retoure)' },
+            ]}
+          />
 
           {source === 'specific' && <PinPicker line={line} onToggle={onToggle} bare />}
 
@@ -1335,23 +1355,51 @@ function RefundSubjectPicker({ sold, value, onChange, onConfirm, error }: {
   );
 }
 
-// Segmentierter Umschalter der Quelle (Erzeugen / Ab Lager / Auswählen). Aktiv = Accent.
-// Gesperrte Optionen nennen den Grund im **Hover** statt in der Fläche (weniger Text).
-function SegBtn({ active, icon: Icon, label, onClick, disabled, hint }: {
-  active: boolean; icon: React.ElementType; label: string; onClick: () => void;
-  disabled?: boolean; hint?: string;
+/**
+ * **Schieber** für die Quelle (Erzeugen · Ab Lager · Auswählen): EIN Gleis, ein Reiter,
+ * der zur gewählten Option gleitet. Drei gleich aussehende Knöpfe liessen offen, dass sie
+ * einander ausschliessen – ein wandernder Reiter zeigt es ohne ein Wort Erklärung.
+ *
+ * Gesperrte Felder bleiben sichtbar (die Wahl existiert ja) und nennen den Grund im
+ * **Hover** statt in der Fläche.
+ */
+function SourceSwitch({ value, onChange, options }: {
+  value: OrderGoal;
+  onChange: (v: OrderGoal) => void;
+  options: { value: OrderGoal; icon: React.ElementType; label: string; hint: string; disabled?: boolean }[];
 }) {
+  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const width = 100 / options.length;
   return (
-    <button type="button" onClick={disabled ? undefined : onClick} disabled={disabled} data-tip={hint} title={hint}
-      style={{
-        flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        fontSize: 12, fontWeight: 600, padding: '8px 10px', borderRadius: 8,
-        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.45 : 1,
-        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
-        background: active ? 'var(--accent-soft)' : '#fff', color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
-      }}>
-      <Icon size={14} /> {label}
-    </button>
+    <div style={{
+      position: 'relative', display: 'flex', padding: 3, borderRadius: 999,
+      background: 'var(--bg-2)', border: '1px solid var(--border-1)',
+    }}>
+      {/* Der gleitende Reiter – reine Anzeige, liegt unter den Beschriftungen. */}
+      <span aria-hidden style={{
+        position: 'absolute', top: 3, bottom: 3, left: 3, width: `calc(${width}% - 2px)`,
+        transform: `translateX(${index * 100}%)`, transition: 'transform .18s cubic-bezier(.4,0,.2,1)',
+        borderRadius: 999, background: '#fff', boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(0,0,0,.12))',
+      }} />
+      {options.map((o) => {
+        const active = o.value === value;
+        const Icon = o.icon;
+        return (
+          <button key={o.value} type="button" role="tab" aria-selected={active}
+            onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
+            data-tip={o.hint} title={o.hint}
+            style={{
+              position: 'relative', flex: 1, display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6, padding: '7px 10px', border: 'none',
+              background: 'none', borderRadius: 999, font: '600 12px var(--font-body)',
+              cursor: o.disabled ? 'not-allowed' : 'pointer', opacity: o.disabled ? 0.4 : 1,
+              color: active ? 'var(--accent-ink)' : 'var(--fg-3)', transition: 'color .18s',
+            }}>
+            <Icon size={14} /> {o.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1361,19 +1409,38 @@ function SegBtn({ active, icon: Icon, label, onClick, disabled, hint }: {
 function PinPicker({ line, onToggle, bare }: {
   line: PinLine; onToggle: (line: PinLine, oid: number) => void; bare?: boolean;
 }) {
+  // Suche nach Instanznummer: bei ein paar Instanzen sucht das Auge, bei ein paar hundert
+  // nicht mehr. Das Feld erscheint darum erst, wenn die Liste es rechtfertigt.
+  const [q, setQ] = useState('');
+  const SEARCH_FROM = 8;
+  const needle = q.trim().replace(/\D/g, '');
+  const pool = needle
+    ? line.pool.filter((i) => String(i.object_id ?? '').includes(needle))
+    : line.pool;
+
   const body = (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>Genau {line.reqQty} {line.unit} wählen:</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? 'var(--success)' : 'var(--warning)' }}>
-          {line.pinnedQty} / {line.reqQty} gewählt
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {line.pool.length >= SEARCH_FROM && (
+          <div style={{ position: 'relative', flex: 1, minWidth: 150 }}>
+            <input value={q} onChange={(e) => setQ(numericOnly(e.target.value, { decimals: false }))}
+              placeholder="Instanznummer suchen…" {...numericInputProps}
+              className="w-full rounded-md border bg-white px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+              style={{ borderColor: 'var(--border-1)', paddingRight: 26 }} />
+            <Search size={13} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4)', pointerEvents: 'none' }} />
+          </div>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: line.pinnedQty === line.reqQty ? 'var(--success)' : 'var(--warning)' }}>
+          {line.pinnedQty} / {line.reqQty} {line.unit} gewählt
         </span>
       </div>
       {line.pool.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine verfügbaren Instanzen.</div>
+      ) : pool.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine Instanz mit «{q}».</div>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {line.pool.map((i) => {
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 168, overflowY: 'auto' }}>
+          {pool.map((i) => {
             const sel = line.pinnedIds.includes(i.object_id!);
             const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
             return (
@@ -1483,48 +1550,66 @@ function AddPositionRow({ articles, excludeArticleIds, onAdd }: {
 
 const recInput = "w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-accent focus:border-transparent";
 
-/** «Wiederkehrend» direkt am Auftrag: bei Abschluss entsteht automatisch der nächste
- *  (Entwurf), Termin = Termin + Periode. Nur im Entwurf einstellbar. */
+/**
+ * **Wiederkehrend** direkt am Auftrag: bei Abschluss entsteht automatisch der nächste
+ * (Entwurf), Termin = Termin + Periode.
+ *
+ * Kein Häkchen und kein Speichern-Knopf mehr – die Angabe IST der Schalter: steht eine
+ * Periode, wiederholt sich der Auftrag; ist das Feld leer, eben nicht. Ein Häkchen neben
+ * einem Periodenfeld kann nur widersprüchlich sein («angehakt, aber keine Periode» /
+ * «Periode, aber nicht angehakt`) – diesen Zustand gibt es jetzt nicht mehr. Gespeichert
+ * wird per Auto-Save wie überall sonst; der aktuelle Stand steht als **Satz** darunter,
+ * nicht als Schalterstellung, die man interpretieren muss.
+ */
 function RecurrenceCard({ order, onSaved, version }: {
   order: Order; onSaved: (o: Order) => void; version: MutableRefObject<string | null>;
 }) {
-  const [active, setActive] = useState(!!order.recurrence_active);
-  const [interval, setIntervalDays] = useState(order.recurrence_interval_days ? String(order.recurrence_interval_days) : '365');
+  // Leer = nicht wiederkehrend. Darum KEIN Default-Wert, wenn nichts eingestellt ist.
+  const [interval, setIntervalDays] = useState(
+    order.recurrence_active && order.recurrence_interval_days ? String(order.recurrence_interval_days) : '');
+  const [lead, setLead] = useState(
+    order.recurrence_active && order.recurrence_lead_time_days != null ? String(order.recurrence_lead_time_days) : '');
   const [anchor, setAnchor] = useState(order.recurrence_anchor ?? '');
-  const [lead, setLead] = useState(order.recurrence_lead_time_days != null ? String(order.recurrence_lead_time_days) : '30');
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [flash, setFlash] = useState(false);
+  const [open, setOpen] = useState(!!order.recurrence_active);
 
-  async function save() {
-    setBusy(true); setErr(null);
+  const days = Math.trunc(Number(interval) || 0);
+  const active = days > 0;
+
+  const sig = JSON.stringify({ interval, lead, anchor });
+  const [savedSig, setSavedSig] = useState(sig);
+
+  const save = useCallback(async () => {
+    setErr(null);
     try {
-      // FIX: Der Wiederkehr-Save lief am Optimistic Locking vorbei (kein expected_updated_at)
-      // und liess verRef veralten – der NÄCHSTE Autosave (z. B. Liefertermin) scheiterte dann
-      // mit einem unerklärlichen 409, obwohl niemand sonst den Auftrag angefasst hatte.
+      // Optimistic Locking: ohne expected_updated_at lief der nächste Autosave (z. B.
+      // Liefertermin) in einen unerklärlichen 409.
       const o = await api.updateOrder(order.object_id as number, {
         recurrence_active: active,
-        recurrence_interval_days: active ? Math.max(1, Math.trunc(Number(interval) || 0)) : null,
+        recurrence_interval_days: active ? days : null,
         recurrence_lead_time_days: active ? Math.max(0, Math.trunc(Number(lead) || 0)) : 0,
         recurrence_anchor: active && anchor ? anchor : null,
         expected_updated_at: version.current,
       });
       version.current = o.updated_at;
-      onSaved(o); setSaved(true); setTimeout(() => setSaved(false), 1500);
+      onSaved(o);
+      setSavedSig(sig);
+      setFlash(true); setTimeout(() => setFlash(false), 700);
     } catch (e) { setErr(e instanceof Error ? e.message : 'Fehler beim Speichern'); }
-    finally { setBusy(false); }
-  }
+  }, [order.object_id, active, days, lead, anchor, sig, onSaved, version]);
 
-  // Dezent: standardmässig eingeklappt (ein unscheinbarer Link), nur offen wenn aktiv.
-  const [open, setOpen] = useState(!!order.recurrence_active);
+  const flush = useAutosave(sig, sig !== savedSig, save);
+
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', margin: '0 2px 12px',
-        border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+        border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', fontSize: 12, fontWeight: 600,
       }}>
-        <Repeat size={13} /> Wiederkehrend einrichten
-        {order.recurrence_active && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: 999 }}>aktiv</span>}
+        <Repeat size={13} />
+        {active ? `Wiederkehrend · alle ${days} Tage` : 'Wiederkehrend einrichten'}
+        {active && <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--success)' }} />}
         <ChevronDown size={13} />
       </button>
     );
@@ -1533,47 +1618,39 @@ function RecurrenceCard({ order, onSaved, version }: {
   return (
     <>
       <button onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 2px 8px', border: 'none', background: 'none', cursor: 'pointer' }}>
-        <Repeat size={13} style={{ color: '#94a3b8' }} />
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#64748b' }}>Wiederkehrend</span>
-        <ChevronDown size={13} style={{ color: '#94a3b8', transform: 'rotate(180deg)' }} />
+        <Repeat size={13} style={{ color: 'var(--fg-4)' }} />
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--fg-3)' }}>Wiederkehrend</span>
+        <ChevronDown size={13} style={{ color: 'var(--fg-4)', transform: 'rotate(180deg)' }} />
       </button>
-      <div style={cardStyle}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-          <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          <span style={{ fontWeight: 600, color: '#0f172a' }}>Diesen Auftrag wiederkehrend ausführen</span>
-        </label>
-        {active && (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 14 }}>
-              <div>
-                <Label>Periode (Tage)</Label>
-                <input value={interval} onChange={(e) => setIntervalDays(e.target.value)} inputMode="numeric"
-                  className={recInput} style={{ borderColor: '#e2e8f0' }} placeholder="z. B. 365" />
-              </div>
-              <div>
-                <Label>Vorlaufzeit (Tage)</Label>
-                <input value={lead} onChange={(e) => setLead(e.target.value)} inputMode="numeric"
-                  className={recInput} style={{ borderColor: '#e2e8f0' }} placeholder="z. B. 30" />
-              </div>
-            </div>
-            <div>
-              <Label>Nächster Termin / Ablauf (optional)</Label>
-              <input type="date" value={anchor} onChange={(e) => setAnchor(e.target.value)}
-                className={recInput} style={{ borderColor: '#e2e8f0' }} />
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              Beim Abschluss entsteht automatisch der nächste Auftrag (Entwurf) – Termin = dieser
-              Termin + Periode. Die Vorlaufzeit markiert ihn rechtzeitig als «fällig».
-            </div>
-          </>
-        )}
-        {err && <span style={{ fontSize: 12, color: '#dc2626' }}>{err}</span>}
-        <button onClick={save} disabled={busy} style={{
-          alignSelf: 'flex-start', padding: '7px 14px', borderRadius: 8, border: 'none',
-          background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-        }}>
-          {busy ? 'Speichern…' : saved ? 'Gespeichert ✓' : 'Speichern'}
-        </button>
+      <div style={{ ...cardStyle, boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow .2s' }}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); flush(); } }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
+          <div>
+            <Label>Periode (Tage)</Label>
+            <input value={interval} onChange={(e) => setIntervalDays(numericOnly(e.target.value, { decimals: false }))}
+              {...numericInputProps} className={recInput} style={{ borderColor: 'var(--border-1)' }} placeholder="leer = einmalig" />
+          </div>
+          <div>
+            <Label>Vorlaufzeit (Tage)</Label>
+            <input value={lead} onChange={(e) => setLead(numericOnly(e.target.value, { decimals: false }))}
+              disabled={!active} {...numericInputProps} className={recInput}
+              style={{ borderColor: 'var(--border-1)', opacity: active ? 1 : 0.5 }} placeholder="z. B. 30" />
+          </div>
+          <div>
+            <Label>Nächster Termin</Label>
+            <input type="date" value={anchor} onChange={(e) => setAnchor(e.target.value)} disabled={!active}
+              className={recInput} style={{ borderColor: 'var(--border-1)', opacity: active ? 1 : 0.5 }} />
+          </div>
+        </div>
+        {/* Der Zustand als Satz – nicht als Schalterstellung, die man deuten muss. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--fg-3)' }}>
+          <span aria-hidden style={{ width: 7, height: 7, borderRadius: 999, flexShrink: 0,
+            background: active ? 'var(--success)' : 'var(--fg-4)' }} />
+          {active
+            ? `Alle ${days} Tage entsteht beim Abschluss automatisch der nächste Auftrag als Entwurf.`
+            : 'Einmalig – trage eine Periode ein, damit sich der Auftrag wiederholt.'}
+        </div>
+        {err && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{err}</span>}
       </div>
     </>
   );

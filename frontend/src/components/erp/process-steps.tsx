@@ -8,7 +8,7 @@ import { userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
-import { ErrorText, Label, Segmented, SearchSelect, TextField } from '@/components/erp/fields';
+import { ErrorText, Label, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
@@ -582,7 +582,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
               {adding === 'inspection' && (
                 <>
-                  <TextField label="Prüfumfang (% der Menge)" value={samplePercent} onChange={setSamplePercent}
+                  <TextField label="Prüfumfang (% der Menge)" value={samplePercent} onChange={(v) => setSamplePercent(numericOnly(v, { decimals: false }))}
                     required placeholder="z. B. 10" hint="Stichprobe: wie viel Prozent geprüft werden muss (1–100)" />
                   <CaptureFieldsEditor fields={wfields} onChange={setWfields} />
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 8, fontSize: 12, color: 'var(--fg-3)' }}>
@@ -680,7 +680,7 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
               <div style={{ flex: 1 }}>
                 <SearchSelect value={l.article_id} onChange={(v) => upd(i, { article_id: v })} options={options} placeholder="Artikel wählen" />
               </div>
-              <input value={l.quantity} onChange={(e) => upd(i, { quantity: e.target.value })} inputMode="decimal" placeholder="Menge/Einh."
+              <input value={l.quantity} onChange={(e) => upd(i, { quantity: numericOnly(e.target.value) })} {...numericInputProps} placeholder="Menge/Einh."
                 className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', width: 92 }} />
               <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
             </div>

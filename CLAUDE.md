@@ -1376,6 +1376,31 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   zentriert, Auftrag-Shortcut getönt wie der Abweichung-Knopf (`.erp-idbtn-act`), Prozess-Schritt
   nennt nur noch den Prüfumfang (nicht die Zahl der Erfassungsfelder), Homepage-Headline.
 
+- **Testnotizen-Runde 3 (Auftrag-Bedarf & Ablauf, Notizen #23–#31)**: (1) **Quelle als Schieber**
+  (`SourceSwitch`): EIN Gleis mit gleitendem Reiter statt drei gleich aussehender Knöpfe – dass die
+  Optionen einander ausschliessen, zeigt jetzt die Bewegung statt ein Erklärsatz; gesperrte Felder
+  bleiben sichtbar und nennen den Grund im Hover. (2) **«Erzeugen» zeigt den Artikel-Prozess**
+  (`ProcessSteps owner="articles" readOnly`) – **1:1-Spiegelung, keine Kopie**: dieselbe Komponente,
+  dieselben Daten, nur lesend; geändert wird am Artikel. Vorher wurde die Aussage «der Artikel-Prozess
+  läuft» nur behauptet. (3) **Ablauf sieht aus wie der Prozess-Reiter am Artikel** – die zusätzliche
+  Karte um `ProcessSteps` ist weg (gleicher Editor ⇒ gleiche Optik), an allen drei Stellen
+  (Ablauf, Unter-Auftrag, Spiegel). (4) **Instanz-Auswahl ist durchsuchbar** (ab 8 Instanzen
+  Suchfeld nach Objektnummer + scrollende Liste) – bei dreistelligen Beständen war die Chip-Wolke
+  nicht mehr bedienbar. (5) **«Wiederkehrend» ohne Häkchen und ohne Speichern-Knopf**: die Periode
+  IST der Schalter (leer = einmalig), Auto-Save wie überall, und der Zustand steht als **Satz**
+  darunter statt als Schalterstellung. Der widersprüchliche Zustand «angehakt, aber keine Periode»
+  existiert damit nicht mehr. (6) **Zahlenfelder lassen nur Zahlen zu** (`fields.numericOnly` +
+  `numericInputProps`, die EINE Regel): Komma→Punkt, höchstens ein Trenner, bewusst KEIN
+  `input type="number"` (dessen Spinner/Scrollrad stören, und bei ungültiger Eingabe liefert es
+  einen leeren Wert – getippte Zeichen verschwinden spurlos). Verdrahtet an Auftrags-Menge,
+  Ressourcen-Zeile, Prüfumfang, Messwert, Wiederkehr-Perioden. (7) **Datensatz-Auswahlen zeigen die
+  grösste Nummer zuerst** (`SearchSelect: newestFirst`) – Objektnummern werden aufsteigend vergeben,
+  gemeint ist fast immer ein zuletzt angelegter Datensatz; greift nur, wenn alle Werte Zahlen sind.
+  *Bewusst NICHT geändert: der «Freigeben»-Knopf bleibt **rot**. Rot ist im Design-System der EINE
+  laute CTA-Akzent; Grün ist die Farbe des ZUSTANDS «freigegeben/erledigt». Wäre die Aktion grün,
+  hiesse dieselbe Farbe gleichzeitig «tu es» und «ist getan» – die Badge daneben wird nach der
+  Freigabe grün, das ist die Rückmeldung.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
