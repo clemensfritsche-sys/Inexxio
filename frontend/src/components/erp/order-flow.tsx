@@ -148,7 +148,7 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
       {/* Der Schritt wird DORT bearbeitet, wo er im Fluss steht – nicht in einem eigenen
           Container darunter. Gleiche Anatomie wie die Konfiguration in der Definition. */}
       {children && (
-        <div style={{ borderTop: '1px solid var(--border-1)', padding: '14px 18px 16px', background: '#fff', borderRadius: '0 0 var(--r-lg) var(--r-lg)' }}>
+        <div style={{ borderTop: `1px solid ${muted ? 'var(--border-1)' : kc.border}`, padding: '14px 18px 16px' }}>
           {children}
         </div>
       )}

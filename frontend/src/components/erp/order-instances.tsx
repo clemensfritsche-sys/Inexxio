@@ -54,11 +54,12 @@ export function OrderInstances({ order, embedded = false }: { order: Order; embe
   );
 }
 
-// Eingebettet: nur eine Haarlinie oben trennt die Instanzen von den Positionen darüber –
-// kein zweiter Rahmen um eine Karte.
+// Eingebettet: eine Kachel über die volle Breite des Spezifikations-Rasters – dieselbe
+// Anatomie wie die übrigen Kacheln (eigene Haarlinie, Weissraum drumherum).
 const embeddedStyle: React.CSSProperties = {
-  borderTop: '1px solid var(--border-1)', paddingTop: 14, marginTop: 2,
-  display: 'flex', flexDirection: 'column', gap: 10,
+  gridColumn: '1 / -1',
+  background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+  padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12,
 };
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',

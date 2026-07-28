@@ -737,3 +737,15 @@
    (Google rendert .pac-container an document.body; Default-z-index reicht nicht in Modals). */
 .pac-container { z-index: 100000 !important; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 8px 24px rgba(16,14,12,0.12); font-family: inherit; }
 .pac-item { padding: 6px 10px; font-size: 13px; cursor: pointer; }
+
+/* ── Scan-Dialog: der ganze Container IST die Kamera ──────────────────────────
+   Ein ruhiger Suchstrahl, der den Rahmen abtastet – die einzige Bewegung im Bild,
+   dezent genug, um nicht vom Motiv abzulenken. */
+@keyframes ix-scanbeam {
+  0%   { transform: translateY(-46%); opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { transform: translateY(46%); opacity: 0; }
+}
+.ix-scanbeam { animation: ix-scanbeam 2.4s cubic-bezier(.45,0,.55,1) infinite; }
+@media (prefers-reduced-motion: reduce) { .ix-scanbeam { animation: none; opacity: .7; } }
