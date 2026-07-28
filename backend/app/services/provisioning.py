@@ -219,7 +219,7 @@ def open_provisioning(db: Session, parent: Order, step_id: int | None = None) ->
     rows = q.order_by(Order.object_id).all()
     if step_id is None:
         return rows
-    return [o for o in rows if o.provisioning_step_id == step_id]
+    return [o for o in rows if o.origin_step_id == step_id]
 
 
 def sub_orders_for_step(db: Session, parent: Order, step_id: int) -> list[Order]:
@@ -233,7 +233,7 @@ def sub_orders_for_step(db: Session, parent: Order, step_id: int) -> list[Order]
     return (
         db.query(Order)
         .filter(Order.parent_order_id == parent.object_id, Order.reason == REASON,
-                Order.provisioning_step_id == step_id, Order.is_active == True,
+                Order.origin_step_id == step_id, Order.is_active == True,
                 Order.status.in_(("draft", "released", "completed")))
         .order_by(Order.object_id)
         .all()
@@ -256,7 +256,7 @@ def cancelled_for_step(db: Session, parent: Order, step_id: int) -> bool:
         return False
     return db.query(Order.id).filter(
         Order.parent_order_id == parent.object_id, Order.reason == REASON,
-        Order.provisioning_step_id == step_id, Order.status == "inactive",
+        Order.origin_step_id == step_id, Order.status == "inactive",
     ).first() is not None
 
 
@@ -313,7 +313,7 @@ def _create(db: Session, parent: Order, step: ArticleProcessStep, insts: list[In
         object_id=next_object_id(db, "order"), status="released",
         article_id=parent.article_id, quantity=len(insts),
         parent_order_id=parent.object_id, reason=REASON,
-        provisioning_step_id=step.id,
+        origin_step_id=step.id,
         title=f"Bereitstellung für {event_types.label(step.step_type)} · Auftrag {parent.object_id}",
     )
     # Direkt freigegeben statt über ``orders.release_order``: es gibt nichts zu entscheiden

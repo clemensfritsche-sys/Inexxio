@@ -74,6 +74,9 @@ class OrderStepInfo(BaseModel):
     # das Frontend platziert nur, es entscheidet nicht.
     provisionings: list[OrderDeviationInfo] = []
     provisioning_stage: str = "after"     # before | after
+    # Abweichungen, die AN DIESEM SCHRITT gemeldet wurden (``orders.origin_step_id``) – sie
+    # gehören in den Ablauf an ihre Stelle, nicht als Karte über den Prozess.
+    deviations: list[OrderDeviationInfo] = []
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt).
     # «Beschaffung» und «Verkauf» sind – wie jeder andere Schritttyp – GENAU EIN Schritt,

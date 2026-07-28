@@ -9,18 +9,20 @@ import { StatusBadge } from '@/components/erp/fields';
 // Read-only Übersicht der Bestands-Instanzen eines Auftrags. Die Instanzen
 // entstehen bei der Auftragsfreigabe – mit Standort und den zwei Instanz-Achsen
 // (quality/disposition) ab Tag 1.
-export function OrderInstances({ order }: { order: Order }) {
+export function OrderInstances({ order, embedded = false }: { order: Order; embedded?: boolean }) {
   const instances = order.instances ?? [];
   if (instances.length === 0) return null;
   const isBatch = order.article_serialization === 'batch';
   const unit = order.article_unit ?? '';
 
+  // ``embedded``: als Block INNERHALB der Auftragsspezifikation statt als eigene Karte –
+  // die Instanzen sind das Ergebnis derselben Aussage (Artikel + Menge), kein neues Thema.
   return (
-    <div style={cardStyle}>
+    <div style={embedded ? embeddedStyle : cardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Boxes size={15} style={{ color: '#2563eb' }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', flex: 1 }}>Instanzen</span>
-        <span style={{ fontSize: 12, color: '#94a3b8' }}>
+        <Boxes size={15} style={{ color: 'var(--fg-3)' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-1)', flex: 1 }}>Instanzen</span>
+        <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>
           {instances.length === 1 && isBatch
             ? `1 Charge à ${instances[0].quantity} ${unit}`.trim()
             : `${instances.length} Stück`}
@@ -52,6 +54,12 @@ export function OrderInstances({ order }: { order: Order }) {
   );
 }
 
+// Eingebettet: nur eine Haarlinie oben trennt die Instanzen von den Positionen darüber –
+// kein zweiter Rahmen um eine Karte.
+const embeddedStyle: React.CSSProperties = {
+  borderTop: '1px solid var(--border-1)', paddingTop: 14, marginTop: 2,
+  display: 'flex', flexDirection: 'column', gap: 10,
+};
 const cardStyle: React.CSSProperties = {
   background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
   marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 12,

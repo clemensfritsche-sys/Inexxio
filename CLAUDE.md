@@ -1607,6 +1607,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   sie einen Ausstieg; er heisst jetzt **«Bereitstellung übergehen»** (Symbol im Kopf) und sagt
   damit, was man entscheidet, statt generisch «verwerfen» zu heissen.
 
+- **Testnotizen-Runde 8 (der Auftrag ist der Prozess, Notizen #83–#90, Migration `087`)**:
+  (1) **Der Schritt wird dort bearbeitet, wo er im Fluss steht** (#84): die gewählte Modul-Karte
+  klappt ihr Panel **in sich selbst** auf – dieselbe Anatomie wie die Konfiguration in der
+  Definition. Der abgespaltene Container darunter ist weg, ebenso der Karten-Hintergrund um den
+  Fluss (#83): ein Fluss aus Karten braucht keine Karte drumherum.
+  (2) **Zustand ohne Wort** (#88): erledigte und noch nicht erreichte Schritte treten zurück
+  (weisse Fläche, gedämpft), nur was JETZT dran ist, trägt seine Modulfarbe. Dazu ein Symbol
+  statt eines Status-Textes – Haken (erledigt), Pause (angehalten), Kreuz (Fehler); Wer/Wann
+  bleibt im Hover.
+  (3) **Abweichungen stehen an ihrer Stelle im Ablauf** (#85): `orders.origin_step_id`
+  (vormals `provisioning_step_id`, Migration `087`) beantwortet für **jede** Unter-Auftragsart
+  dieselbe Frage – aus welchem Schritt ist er hervorgegangen? `create_deviation` schreibt den
+  gerade aktiven Schritt hinein; der Fluss rendert die Abweichung als **dezenten Abzweig**
+  (schmale Pille mit Aststück) statt als Karte über dem Prozess.
+  (4) **«Auftragsspezifikation» statt «Bedarf», immer zuoberst** (#87) – und die bei der
+  Freigabe entstandenen **Instanzen stehen in derselben Karte** (#86, `OrderInstances
+  embedded`) statt in einer zweiten darunter: sie sind das Ergebnis derselben Aussage
+  (Artikel + Menge), kein neues Thema.
+  (5) **«In Arbeit» gibt es nicht mehr** (#89/#90): der EINE Name für «läuft gerade» ist
+  **«Im Prozess»** – beim Auftrag, bei der Instanz, im Prozessschritt und in der
+  Kunden-Bestellliste.
+  (6) **Das Notiz-Werkzeug liegt über allem** (`z-[2000]`+): Dialoge/Lightboxen (bis `zIndex 70`)
+  verdeckten den Launcher – ausgerechnet dort, wo man beim Testen gerade steht, liess sich
+  nichts melden. Der Zeigemodus funktionierte schon immer über Overlays hinweg (Handler in der
+  **Capture**-Phase am `document`), nur sichtbar war er nicht.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

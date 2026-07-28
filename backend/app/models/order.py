@@ -91,10 +91,12 @@ class Order(Base, TimestampMixin):
     # Auto-Nachbestellung mit einem Truncation-Fehler scheitern (Migration 060).
     reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # deviation | supply | return | replenishment | provisioning
 
-    # Bereitstellung: welcher Schritt des Eltern-Auftrags wartet auf sie. Bindet die
-    # Bereitstellung an ihren Auslöser – ein Auftrag kann mehrere Schritte haben, die
-    # unabhängig voneinander Material an verschiedene Orte brauchen.
-    provisioning_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
+    # **Aus welchem Schritt des Eltern-Auftrags ist dieser Unter-Auftrag hervorgegangen?**
+    # Bindet ihn an seinen Auslöser und gibt ihm damit eine Position im Ablauf: die
+    # Bereitstellung wartet für genau diesen Schritt, die Abweichung wurde an genau dieser
+    # Stelle gemeldet. Früher hiess die Spalte ``provisioning_step_id`` – dieselbe Frage,
+    # nur für eine Art (Migration 087).
+    origin_step_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
     # Abbruch erzwingt einen **Folgeauftrag**: ``abort_into_id`` zeigt auf die Objektnummer
     # des Folgeauftrags. Solange gesetzt, ist der Auftrag «Abbruch ausstehend»; **inaktiv**

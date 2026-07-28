@@ -159,7 +159,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     ?? steps.find((s) => s.state === 'blocked')?.id   // wartet auf Material → surface
     ?? steps[steps.length - 1]?.id ?? null;
   const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
-  const currentStepObj = steps.find((s) => String(s.id) === currentStepId) ?? null;
 
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
@@ -589,122 +588,13 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           </div>
         )}
 
-        {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
-            klickbare Objektnummern, grüne Badge bei erledigter Abweichung. Pausiert der Auftrag,
-            steht das gross zuoberst. (Der Abbruch-Folgeauftrag hat oben schon seinen Banner.) */}
-        {!isCreate && isStaff && (record.deviations?.length ?? 0) > 0 && record.abort_into_id == null && (
-          <div style={{ marginBottom: 12, border: `1px solid ${record.paused ? '#fde68a' : '#e2e8f0'}`, borderRadius: 10, background: record.paused ? '#fffbeb' : '#fff', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: record.paused ? '#92400e' : '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
-              {record.paused ? <PauseCircle size={16} /> : <AlertTriangle size={16} style={{ color: '#d97706' }} />}
-              {record.paused ? 'Pausiert – Abweichung offen' : 'Abweichungen'}
-              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.deviations!.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {record.deviations!.map((d) => (
-                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <ObjId value={d.object_id} />
-                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                    {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
-                    {d.instance_object_ids && d.instance_object_ids.length > 0 && (
-                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
-                    )}
-                  </span>
-                  <StatusBadge cfg={orderStatusConfig(d.status)} />
-                </button>
-              ))}
-            </div>
-            {record.paused && (
-              <div style={{ padding: '8px 14px', fontSize: 12, color: '#92400e', borderTop: '1px solid #fef3c7' }}>
-                Der Auftrag läuft automatisch weiter, sobald die offene Abweichung abgeschlossen ist.
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Nachschub-Unteraufträge sichtbar machen – decken die Fehlmenge blockierter Schritte.
-            Anders als eine Abweichung pausiert ein Nachschub den Auftrag NICHT; sobald er liefert,
-            wird der betroffene Schritt von selbst wieder aktiv. */}
-        {!isCreate && isStaff && (record.supply_orders?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
-              <PackagePlus size={16} style={{ color: '#d97706' }} />
-              Nachschub
-              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.supply_orders!.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {record.supply_orders!.map((d) => (
-                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <ObjId value={d.object_id} />
-                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
-                  </span>
-                  <StatusBadge cfg={orderStatusConfig(d.status)} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* Bereitstellungen sichtbar machen. Sie entstehen als EINZIGE Unter-Auftragsart
-            **automatisch** (Material liegt am falschen Ort) – und genau darum müssen sie
-            sichtbar sein: ein Auftrag, in dem plötzlich ein fremder Folgeauftrag mit aktivem
-            Bewegen-Modul auftaucht, ist sonst nicht erklärbar. Sie blockieren den betroffenen
-            Schritt UND den Abschluss; wer sie nicht braucht, bricht sie am Datensatz ab
-            (sie wird dann nicht neu angelegt). */}
-        {!isCreate && isStaff && (record.provisionings?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
-              <Truck size={16} style={{ color: 'var(--warning)' }} />
-              Bereitstellung
-              <InfoHint text="Vom System abgeleitet: das Material eines Schritts liegt nicht dort, wo der Schritt es braucht. Die Bewegung holt es – solange sie läuft, wartet der Schritt. Nicht nötig? Am Datensatz abbrechen." />
-              <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--warning)' }}>{record.provisionings!.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {record.provisionings!.map((d) => (
-                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <ObjId value={d.object_id} />
-                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
-                  </span>
-                  <StatusBadge cfg={orderStatusConfig(d.status)} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* Retouren sichtbar machen – Unteraufträge auf die verkauften Instanzen dieses Verkaufs
-            (Rücknahme + Gutschrift). Wie ein Nachschub pausieren sie den Eltern NICHT. */}
-        {!isCreate && isStaff && (record.returns?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
-              <Undo2 size={16} style={{ color: '#0891b2' }} />
-              Retouren
-              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#0e7490' }}>{record.returns!.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {record.returns!.map((d) => (
-                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <ObjId value={d.object_id} />
-                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                    {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
-                    {d.instance_object_ids && d.instance_object_ids.length > 0 && (
-                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
-                    )}
-                  </span>
-                  <StatusBadge cfg={orderStatusConfig(d.status)} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {/* ── Bedarf: Positionen + Quelle in EINEM Container ────────────────────────
-            Eine Position ist EINE Zeile: Artikel · Menge · woher. Dieselbe Zeile für den
-            Einzel-Artikel-Auftrag wie für den Mehrpositionen-Auftrag – eine Position
-            hinzuzufügen baut das Fenster nicht mehr um, es kommt schlicht eine Zeile dazu. */}
-        <SectionTitle>Bedarf</SectionTitle>
+        {/* ── Auftragsspezifikation ─────────────────────────────────────────────────
+            **Was** dieser Auftrag betrifft – und damit das Erste, was man sehen will: sie
+            steht immer zuoberst, direkt unter dem Kopf. Eine Position ist EINE Zeile
+            (Artikel · Menge · woher), dieselbe für einen wie für viele Artikel. Die bei der
+            Freigabe entstandenen **Instanzen** stehen in derselben Karte statt in einer
+            zweiten darunter – sie sind das Ergebnis derselben Aussage, kein neues Thema. */}
+        <SectionTitle>Auftragsspezifikation</SectionTitle>
         <div style={cardStyle}>
           {demandEditable ? (
             <>
@@ -786,8 +676,63 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
             </>
           )}
+          {record && <OrderInstances order={record} embedded />}
         </div>
 
+
+        {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
+            klickbare Objektnummern, grüne Badge bei erledigter Abweichung. Pausiert der Auftrag,
+            steht das gross zuoberst. (Der Abbruch-Folgeauftrag hat oben schon seinen Banner.) */}
+        {/* Nachschub-Unteraufträge sichtbar machen – decken die Fehlmenge blockierter Schritte.
+            Anders als eine Abweichung pausiert ein Nachschub den Auftrag NICHT; sobald er liefert,
+            wird der betroffene Schritt von selbst wieder aktiv. */}
+        {!isCreate && isStaff && (record.supply_orders?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              <PackagePlus size={16} style={{ color: '#d97706' }} />
+              Nachschub
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.supply_orders!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.supply_orders!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
+                  </span>
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Retouren sichtbar machen – Unteraufträge auf die verkauften Instanzen dieses Verkaufs
+            (Rücknahme + Gutschrift). Wie ein Nachschub pausieren sie den Eltern NICHT. */}
+        {!isCreate && isStaff && (record.returns?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              <Undo2 size={16} style={{ color: '#0891b2' }} />
+              Retouren
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#0e7490' }}>{record.returns!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.returns!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
+                    {d.instance_object_ids && d.instance_object_ids.length > 0 && (
+                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
+                    )}
+                  </span>
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Wiederkehrend – nur im Entwurf einstellbar (ein freigegebener Auftrag
             ist „scharf" und lässt sich nicht mehr auf wiederkehrend umstellen). Bei einem
             Unter-Auftrag (Abweichung/Nachschub) nicht sinnvoll. */}
@@ -803,9 +748,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             </div>
           </>
         )}
-
-        {/* Bestands-Instanzen (bei Freigabe erzeugt) */}
-        {record && <OrderInstances order={record} />}
 
         {/* «Abweichung melden» sitzt jetzt als kleiner Flag-Knopf im Kopf (analog Instanz) –
             keine eigene Karte mehr im Detailfenster. */}
@@ -867,30 +809,35 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* Prozess */}
         {showProcess ? (
           <>
-            <SectionTitle icon={Workflow}>Prozess</SectionTitle>
-            <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
+            <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
+            {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
+                um einen Fluss, der schon aus Karten besteht. */}
+            <div style={{ marginBottom: 12 }}>
               <OrderFlow
                 steps={steps}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
+                renderPanel={(step) => (
+                  record.paused ? (
+                    // Angehalten wegen offener Abweichung: der GANZE Auftrag ruht (das Backend
+                    // lehnt jede Schritt-Ausführung ab). KEIN interaktives Panel – nur die
+                    // On-Hold-Notiz, die auf die zu klärende Abweichung verweist.
+                    <ProcessHoldNotice reason="deviation" step={step} isStaff={isStaff}
+                      canSupply={false} busy={false} recoverBusy={false} error={error}
+                      onSupply={requestSupply} onCoverStock={coverFromStock}
+                      deviations={record.deviations ?? []} onOpen={(oid) => nav?.(oid)} />
+                  ) : step.state === 'blocked' ? (
+                    <ProcessHoldNotice reason="shortfall" step={step} isStaff={isStaff} canSupply={record.status === 'released'}
+                      busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
+                      onCoverStock={coverFromStock} onOpen={(oid) => nav?.(oid)} />
+                  ) : (
+                    <StepPanel key={String(step.id)} step={step} order={record as Order}
+                      viewerRole={viewerRole} company={company} onSaved={afterStep} />
+                  )
+                )}
               />
             </div>
-            {record.paused ? (
-              // Angehalten wegen offener Abweichung: der GANZE Auftrag ruht (das Backend lehnt
-              // jede Schritt-Ausführung ab). KEIN interaktives Panel – nur die On-Hold-Notiz,
-              // die auf die zu klärende Abweichung verweist (dieselbe Sprache wie die Unterdeckung).
-              <ProcessHoldNotice reason="deviation" step={currentStepObj} isStaff={isStaff}
-                canSupply={false} busy={false} recoverBusy={false} error={error}
-                onSupply={requestSupply} onCoverStock={coverFromStock}
-                deviations={record.deviations ?? []} onOpen={(oid) => nav?.(oid)} />
-            ) : currentStepObj?.state === 'blocked' ? (
-              <ProcessHoldNotice reason="shortfall" step={currentStepObj} isStaff={isStaff} canSupply={record.status === 'released'}
-                busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
-                onCoverStock={coverFromStock} onOpen={(oid) => nav?.(oid)} />
-            ) : (
-              <StepPanel key={currentStepId ?? 'none'} step={currentStepObj} order={record as Order} viewerRole={viewerRole} company={company} onSaved={afterStep} />
-            )}
           </>
         ) : !isStaff && hasPurchase ? (
           <>

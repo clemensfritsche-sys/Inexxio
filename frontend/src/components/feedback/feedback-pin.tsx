@@ -190,7 +190,7 @@ function HighlightBox({ el }: { el: Element }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none fixed z-[60] rounded-ds-xs"
+      className="pointer-events-none fixed z-[2010] rounded-ds-xs"
       style={{
         top: rect.top, left: rect.left, width: rect.width, height: rect.height,
         outline: '2px solid var(--inexxio, #E51A14)', outlineOffset: 1,
@@ -206,7 +206,7 @@ function Launcher({ count, onClick }: { count: number; onClick: () => void }) {
       type="button" onClick={onClick}
       title="Testnotizen – Pin setzen und kommentieren"
       aria-label="Testnotizen öffnen"
-      className="fixed bottom-5 left-5 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border-1 bg-bg-1 text-fg-2 shadow-ds-md transition-transform hover:scale-105 hover:text-inexxio"
+      className="fixed bottom-5 left-5 z-[2000] flex h-11 w-11 items-center justify-center rounded-full border border-border-1 bg-bg-1 text-fg-2 shadow-ds-md transition-transform hover:scale-105 hover:text-inexxio"
     >
       <MessageSquarePlus size={19} />
       {count > 0 && (
@@ -231,7 +231,7 @@ function Panel({ notes, openCount, picking, activeId, onClose, onPick, onSelect,
 }) {
   return (
     <div
-      className="fixed bottom-5 left-5 z-50 flex flex-col overflow-hidden rounded-ds-lg border border-border-1 bg-bg-1 shadow-ds-lg"
+      className="fixed bottom-5 left-5 z-[2000] flex flex-col overflow-hidden rounded-ds-lg border border-border-1 bg-bg-1 shadow-ds-lg"
       style={{ width: 'min(340px, calc(100vw - 24px))', maxHeight: 'min(60vh, 520px)' }}
       role="dialog" aria-label="Testnotizen"
     >
@@ -408,7 +408,7 @@ function PinLayer({ notes, activeId, tick, onSelect }: {
           <button
             key={note.id} type="button" onClick={() => onSelect(note.id)}
             title={note.body}
-            className="fixed z-[55] flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-ds-sm transition-transform hover:scale-110"
+            className="fixed z-[1990] flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-ds-sm transition-transform hover:scale-110"
             style={{
               top: rect.top + a.ry * rect.height,
               left: rect.left + a.rx * rect.width,
@@ -449,7 +449,7 @@ function Composer({ draft, onCancel, onSave }: {
 
   return (
     <div
-      className="fixed z-[60] rounded-ds-lg border border-border-1 bg-bg-1 p-3 shadow-ds-lg"
+      className="fixed z-[2020] rounded-ds-lg border border-border-1 bg-bg-1 p-3 shadow-ds-lg"
       style={{ top, left, width }}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wider text-fg-3">

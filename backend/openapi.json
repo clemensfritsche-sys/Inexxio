@@ -13087,6 +13087,14 @@
             "title": "Provisioning Stage",
             "default": "after"
           },
+          "deviations": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDeviationInfo"
+            },
+            "type": "array",
+            "title": "Deviations",
+            "default": []
+          },
           "purchase": {
             "anyOf": [
               {
