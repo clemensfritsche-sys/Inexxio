@@ -1568,6 +1568,25 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Abweichung → Abweichung ist erlaubt und bildet die Realität ab.
   Wächter: `test_abort_is_a_deed_not_a_request`, `test_a_deviation_can_have_its_own_deviation`.
 
+- **Eine offene Bereitstellung hält den ganzen Auftrag an – und steht im Ablauf** (Juli 2026):
+  Gemeldeter Fall: Erzeugungsauftrag mit Beschaffung + Datenerfassung; die Bereitstellung
+  schien erst NACH der Datenerfassung zu entstehen, obwohl sie zwischen die beiden gehört.
+  **Der Zeitpunkt war schon richtig** (`purchase` deklariert `PROV_RECEIVING` + Stufe
+  «danach» → sie entsteht, sobald die Bestellung geliefert ist). Falsch war die **Reichweite
+  der Blockade**: `_step_blocked` fragte `open_provisioning(order, step.id)` – die
+  Bereitstellung gehört aber zum **Beschaffungs**-Schritt, nicht zur Datenerfassung, also war
+  die Datenerfassung ausführbar, während die Ware buchhalterisch noch beim Lieferanten lag
+  (nur der Auftrags-*Abschluss* lief auf sie auf – von aussen sieht das aus wie «zu spät
+  ausgelöst»). Jetzt gilt **eine Regel statt einer Fallunterscheidung**: *solange eine
+  Bereitstellung offen ist, geht der Auftrag nicht weiter* (`open_provisioning(db, order)`).
+  Damit braucht es keine fest verdrahtete Bewegung nach jedem Beschaffungs-Schritt.
+  **Darstellung:** die Bereitstellung erscheint als **Knoten im Auftrags-Stepper** an ihrer
+  Position – `OrderStepInfo.provisionings` (alle Bereitstellungen des Schritts) +
+  `provisioning_stage` ∈ before|after, abgeleitet aus der bereits deklarierten Zeitpunkt-Regel
+  (`provisioning._STAGE_BEFORE`). Sie bleibt ein **Unter-Auftrag**, der Knoten ist reine
+  Projektion (Klick öffnet den Datensatz, kein Schritt-Panel); das Frontend platziert nur,
+  es entscheidet nicht. Wächter: `test_smoke.py: test_open_provisioning_holds_the_whole_order`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

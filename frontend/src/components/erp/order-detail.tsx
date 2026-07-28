@@ -16,7 +16,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { ProcessStepper } from '@/components/erp/process-stepper';
+import { ProcessStepper, type StepState } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
@@ -861,9 +861,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
               <ProcessStepper
-                nodes={steps.map((s) => ({ key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s), icon: STEP_META[s.step_type as keyof typeof STEP_META]?.icon }))}
+                nodes={flowNodes(steps)}
                 selectedKey={currentStepId ?? undefined}
-                onSelect={setSelStep}
+                onSelect={(key) => {
+                  // Bereitstellungs-Knoten sind Unter-Aufträge, keine Schritte: sie öffnen
+                  // ihren Datensatz statt ein Panel zu wählen.
+                  const prov = key.startsWith(PROV_KEY) ? Number(key.slice(PROV_KEY.length)) : null;
+                  if (prov != null) nav?.(prov); else setSelStep(key);
+                }}
               />
             </div>
             {record.paused ? (
@@ -950,6 +955,36 @@ function stepHint(s: OrderStep): string | undefined {
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
+// ─── Ablauf-Knoten: Schritte + abgeleitete Bereitstellungen ──────────────────────
+//
+// Eine Bereitstellung ist KEIN Prozessschritt (sie wird abgeleitet, nicht modelliert) – aber
+// sie findet **zwischen** zwei Schritten statt, und genau dort gehört sie in die Darstellung.
+// Wo genau, sagt das Backend (``provisioning_stage``): Ressource stellt VOR der Ausführung
+// bereit, Beschaffung/Verkauf DANACH. Hier wird nur platziert, nicht entschieden.
+const PROV_KEY = 'prov:';
+
+function flowNodes(steps: OrderStep[]) {
+  const out: { key: string; label: string; state: StepState; hint?: string; icon?: React.ElementType }[] = [];
+  const push = (s: OrderStep) => out.push({
+    key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s),
+    icon: STEP_META[s.step_type as keyof typeof STEP_META]?.icon,
+  });
+  const pushProv = (s: OrderStep) => (s.provisionings ?? []).forEach((p) => out.push({
+    key: `${PROV_KEY}${p.object_id}`,
+    label: 'Bereitstellung',
+    state: p.status === 'completed' ? 'done' : 'blocked',
+    hint: p.status === 'completed'
+      ? `Material bereitgestellt · Auftrag ${p.object_id}`
+      : `Material ist unterwegs – solange wartet der Auftrag · Auftrag ${p.object_id}`,
+    icon: Truck,
+  }));
+  for (const s of steps) {
+    if (s.provisioning_stage === 'before') { pushProv(s); push(s); }
+    else { push(s); pushProv(s); }
+  }
+  return out;
+}
+
 // ─── Abweichungsauftrag: EIN Vorgang, EINE Entscheidung ──────────────────────────
 //
 // Früher gab es zwei Knöpfe mit zwei Namen und zwei Dialogen für dieselbe Sache: «Abweichung
