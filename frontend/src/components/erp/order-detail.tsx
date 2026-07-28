@@ -6,7 +6,6 @@ import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
-import { toStepperState, STEP_META } from '@/lib/process';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
@@ -16,7 +15,7 @@ import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
 import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
-import { ProcessStepper, type StepState } from '@/components/erp/process-stepper';
+import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderInstances } from '@/components/erp/order-instances';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
@@ -75,22 +74,19 @@ function todayIso(): string {
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
-// Ein laufender Auftrag hat KEINE Status-Aktion mehr: das frühere «Abbrechen» war ein zweiter
-// Name und ein zweites UI für dieselbe Sache (es legte ja einen Abweichungsauftrag an). Es gibt
-// jetzt nur noch den einen Knopf «Abweichungsauftrag» (Flag-Symbol im Kopf) – dort entscheidet
-// man, ob der Auftrag weiterläuft oder abgebrochen ist.
-// AUSNAHME Unter-Auftrag: er wird **verworfen** (nichts wird angelegt, die Bindungen zum
-// Eltern werden gelöst) – das ist ein anderer Vorgang und heisst darum auch anders.
-function orderActions(status: string, canRelease: boolean, isSubOrder: boolean,
-                      releaseHint?: string): StatusAction[] {
+// Ein Auftrag hat nur noch EINE Status-Aktion: freigeben. Das frühere «Abbrechen» war ein
+// zweiter Name und ein zweites UI für dieselbe Sache (es legte ja einen Abweichungsauftrag an)
+// – dafür gibt es den Flag-Knopf «Abweichungsauftrag» im Kopf, wo man entscheidet, ob der
+// Auftrag weiterläuft oder abgebrochen ist.
+//
+// Und es gibt **kein «Verwerfen»**: ein Unter-Auftrag ist eine bewusste Entscheidung (bzw. eine
+// physische Notwendigkeit) und wird durchgezogen, nicht weggeworfen. Die einzige Ausnahme ist
+// die **Bereitstellung** – sie legt das System selbst an, also braucht sie einen Ausstieg; der
+// heisst «Bereitstellung übergehen» und sagt damit, was man entscheidet.
+function orderActions(status: string, canRelease: boolean, releaseHint?: string): StatusAction[] {
   if (status === 'draft')
-    return [
-      { label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
-        hint: canRelease ? undefined : releaseHint },
-      ...(isSubOrder ? [{ label: 'Verwerfen', target: 'inactive', tone: 'danger' } as StatusAction] : []),
-    ];
-  if (status === 'released' && isSubOrder)
-    return [{ label: 'Verwerfen', target: 'inactive', tone: 'danger' }];
+    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
+      hint: canRelease ? undefined : releaseHint }];
   return [];
 }
 
@@ -120,7 +116,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('auftrag');
-  const [dialog, setDialog] = useState<'deactivate' | 'deviation' | null>(null);
+  const [dialog, setDialog] = useState<'skip-provisioning' | 'deviation' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
@@ -149,6 +145,10 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Instanz (Instanz-Detail), nicht über den abgeschlossenen Auftrag.
   const canReportDeviation = isStaff && !isCreate && record != null
     && record.status === 'released' && record.abort_into_id == null && !record.paused;
+  // Nur die **Bereitstellung** ist übergehbar: sie ist die einzige Unter-Auftragsart, die das
+  // System selbst anlegt. Alles andere ist eine bewusste Entscheidung und wird durchgezogen.
+  const canSkipProvisioning = isStaff && !isCreate && record != null
+    && record.reason === 'provisioning' && (record.status === 'draft' || record.status === 'released');
 
   // Auftrag-Prozess (mehrere Schritte, Mehr-Operationen-Routing) – Schlüssel ist die
   // Schritt-id, damit mehrere gleichartige Schritte unabhängig bedienbar sind.
@@ -422,16 +422,15 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     }
   }
 
-  // Abbrechen läuft über einen Bestätigungsdialog (Ersetzen entfällt).
   function onStatusAction(target: string) {
-    if (target === 'inactive') { setDialog('deactivate'); return; }
     changeStatus(target);
   }
 
-  async function confirmCancel() {
+  // «Bereitstellung übergehen»: die einzige Unter-Auftragsart, die das System selbst anlegt,
+  // braucht einen Ausstieg. Danach wird sie für diesen Schritt NICHT neu angelegt – die
+  // Entscheidung hält (und steht im Audit-Log).
+  async function confirmSkipProvisioning() {
     if (!record) return;
-    // Abbruch erzwingt einen Folgeauftrag (Abweichung), der die im Prozess befindlichen
-    // Instanzen übernimmt; bei einem Entwurf wird direkt inaktiviert. Navigiert zum Ergebnis.
     onSaved(await api.abortOrder(record.object_id as number));
     setDialog(null);
   }
@@ -494,60 +493,70 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #E2E8F0', background: '#fff', flexShrink: 0 }}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
-          <ArrowLeft size={14} /> Zurück
+      {/* Header – dieselbe Anatomie wie bei Artikel und Instanz: Symbol · Eyebrow · Titel ·
+          Objektnummer + Symbol-Aktionen in EINER Zeile darunter; rechts Speicher-Anzeige und
+          Status. Vorher stand die Objektnummer als eigener Kasten ganz rechts – ein drittes
+          Layout für dieselbe Sache. */}
+      <div style={H.dhead}>
+        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
+          <ArrowLeft size={15} /> Zurück
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 10, flexShrink: 0, background: '#F1F5F9', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <ClipboardList size={20} />
+        <div style={H.top}>
+          <div style={{ ...H.ico, position: 'relative' }}>
+            <ClipboardList size={26} />
             {!isCreate && record.reason === 'deviation' && (
-              <span title="Abweichungs-Auftrag" style={{ position: 'absolute', bottom: -3, right: -3, width: 17, height: 17, borderRadius: 999, background: '#fffbeb', border: '1px solid #fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AlertTriangle size={10} style={{ color: '#d97706' }} />
+              <span title="Abweichungsauftrag" style={{ position: 'absolute', bottom: -3, right: -3, width: 18, height: 18, borderRadius: 999, background: 'var(--warning-bg)', border: '1px solid var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={11} style={{ color: 'var(--warning)' }} />
               </span>
             )}
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 7 }}>
-              Auftrag
-              {!isCreate && record.reason === 'deviation' && (
-                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '1px 7px', borderRadius: 999 }}>Abweichung</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={H.eyebrow}>{!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}</div>
+            <h1 style={{ ...H.title, ...(isCreate ? H.titleEmpty : null) }}>
+              {isCreate ? 'Neuer Auftrag' : (record.article_name ?? 'Auftrag')}
+            </h1>
+            <div style={H.sub}>
+              <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id ?? null)}</span>
+              {!isCreate && record.object_id != null && (
+                <>
+                  <span style={H.idsep} />
+                  <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+                    onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
+                    <QrCode size={15} />
+                  </button>
+                  {canReportDeviation && (
+                    <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
+                      aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
+                      {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
+                    </button>
+                  )}
+                  {/* Bereitstellung übergehen: die EINZIGE Unter-Auftragsart, die das System
+                      selbst anlegt, braucht einen Ausstieg – sonst ist ein Auftrag, dessen
+                      Bereitstellung nicht durchläuft, ohne Ausweg. Bewusste Entscheidung mit
+                      klarem Namen statt eines generischen «Verwerfen». */}
+                  {canSkipProvisioning && (
+                    <button className="erp-idbtn" style={{ color: 'var(--danger)' }} data-tip-pos="bottom"
+                      data-tip="Bereitstellung übergehen – ich bringe das Material von Hand an seinen Ort"
+                      aria-label="Bereitstellung übergehen" disabled={statusBusy}
+                      onClick={() => setDialog('skip-provisioning')}>
+                      <Ban size={15} />
+                    </button>
+                  )}
+                </>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+          </div>
+          <div style={H.right}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
               {isCreate ? (
                 <StatusBadge cfg={orderStatusConfig('draft')} />
               ) : (isCompleted || !isStaff) ? (
                 <StatusBadge cfg={orderStatusConfig(record.status, record.abort_into_id != null)} />
               ) : (
-                <StatusFlow cfg={orderStatusConfig(record.status, record.abort_into_id != null)} actions={orderActions(record.status, canRelease, isSubOrder, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={orderStatusConfig(record.status, record.abort_into_id != null)}
+                  actions={orderActions(record.status, canRelease, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
               )}
-              {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
-            </div>
-          </div>
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Kleine Kopf-Aktionen wie bei Instanz/Artikel: Etikett + «Abweichung melden»
-                (Flag). Die grosse Karte im Detailfenster entfällt – EIN einheitliches UI. */}
-            {!isCreate && record.object_id != null && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-                  onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
-                  <QrCode size={15} />
-                </button>
-                {canReportDeviation && (
-                  <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
-                    aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
-                    {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
-                  </button>
-                )}
-              </div>
-            )}
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-              <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>
-                {isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}
-              </div>
             </div>
           </div>
         </div>
@@ -860,15 +869,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           <>
             <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             <div style={{ ...cardStyle, paddingTop: 14, paddingBottom: 14 }}>
-              <ProcessStepper
-                nodes={flowNodes(steps)}
-                selectedKey={currentStepId ?? undefined}
-                onSelect={(key) => {
-                  // Bereitstellungs-Knoten sind Unter-Aufträge, keine Schritte: sie öffnen
-                  // ihren Datensatz statt ein Panel zu wählen.
-                  const prov = key.startsWith(PROV_KEY) ? Number(key.slice(PROV_KEY.length)) : null;
-                  if (prov != null) nav?.(prov); else setSelStep(key);
-                }}
+              <OrderFlow
+                steps={steps}
+                selectedId={currentStepId}
+                onSelectStep={setSelStep}
+                onOpenOrder={(oid) => nav?.(oid)}
               />
             </div>
             {record.paused ? (
@@ -925,20 +930,13 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         <DeviationDialog busy={deviationBusy} onChoose={reportDeviation} onClose={() => setDialog(null)} />
       )}
 
-      {dialog === 'deactivate' && record && (
+      {dialog === 'skip-provisioning' && record && (
         <DeactivateDialog
-          mode={dialog}
-          title="Auftrag abbrechen"
-          /* Ein Unter-Auftrag bekommt NIE einen eigenen Folgeauftrag – sein Subjekt gehört
-             ohnehin dem Eltern bzw. er transportiert nur. Er wird direkt inaktiv, und der
-             Eltern läuft danach weiter. */
-          message={isSubOrder
-            ? 'Der Unter-Auftrag wird inaktiv. Die Instanzen gehen an den übergeordneten Auftrag zurück, der danach weiterläuft.'
-            : record.status === 'released'
-              ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
-              : 'Der Entwurf wird inaktiv gesetzt.'}
-          confirmLabel={record.status === 'released' && !isSubOrder ? 'Folgeauftrag anlegen' : 'Abbrechen'}
-          onConfirm={confirmCancel}
+          mode="deactivate"
+          title="Bereitstellung übergehen"
+          message="Die Bereitstellung wird inaktiv und für diesen Schritt NICHT neu angelegt – du bringst das Material selbst an seinen Ort. Der übergeordnete Auftrag läuft danach weiter."
+          confirmLabel="Übergehen"
+          onConfirm={confirmSkipProvisioning}
           onClose={() => setDialog(null)}
         />
       )}
@@ -947,43 +945,21 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 }
 
 
-function stepHint(s: OrderStep): string | undefined {
-  if (s.state !== 'done' || !s.completed_at) return undefined;
-  const who = s.completed_by ?? 'System';
-  return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
-}
-
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
-// ─── Ablauf-Knoten: Schritte + abgeleitete Bereitstellungen ──────────────────────
-//
-// Eine Bereitstellung ist KEIN Prozessschritt (sie wird abgeleitet, nicht modelliert) – aber
-// sie findet **zwischen** zwei Schritten statt, und genau dort gehört sie in die Darstellung.
-// Wo genau, sagt das Backend (``provisioning_stage``): Ressource stellt VOR der Ausführung
-// bereit, Beschaffung/Verkauf DANACH. Hier wird nur platziert, nicht entschieden.
-const PROV_KEY = 'prov:';
-
-function flowNodes(steps: OrderStep[]) {
-  const out: { key: string; label: string; state: StepState; hint?: string; icon?: React.ElementType }[] = [];
-  const push = (s: OrderStep) => out.push({
-    key: String(s.id), label: s.label, state: toStepperState(s.state), hint: stepHint(s),
-    icon: STEP_META[s.step_type as keyof typeof STEP_META]?.icon,
-  });
-  const pushProv = (s: OrderStep) => (s.provisionings ?? []).forEach((p) => out.push({
-    key: `${PROV_KEY}${p.object_id}`,
-    label: 'Bereitstellung',
-    state: p.status === 'completed' ? 'done' : 'blocked',
-    hint: p.status === 'completed'
-      ? `Material bereitgestellt · Auftrag ${p.object_id}`
-      : `Material ist unterwegs – solange wartet der Auftrag · Auftrag ${p.object_id}`,
-    icon: Truck,
-  }));
-  for (const s of steps) {
-    if (s.provisioning_stage === 'before') { pushProv(s); push(s); }
-    else { push(s); pushProv(s); }
-  }
-  return out;
-}
+// Kopf-Anatomie – identisch zu Artikel/Instanz (Symbol · Eyebrow · Titel · Objektnummer+Aktionen).
+const H: Record<string, React.CSSProperties> = {
+  dhead: { padding: '18px 28px', borderBottom: '1px solid var(--border-1)', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0 },
+  top: { display: 'flex', alignItems: 'flex-start', gap: 16 },
+  ico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#EAF0F4', color: '#4A6572', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
+  eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
+  title: { font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },
+  sub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 },
+  subN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
+  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
+  right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
+};
 
 // ─── Abweichungsauftrag: EIN Vorgang, EINE Entscheidung ──────────────────────────
 //

@@ -1587,6 +1587,26 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Projektion (Klick öffnet den Datensatz, kein Schritt-Panel); das Frontend platziert nur,
   es entscheidet nicht. Wächter: `test_smoke.py: test_open_provisioning_holds_the_whole_order`.
 
+- **Testnotizen-Runde 7 (Auftrag sieht aus wie der Prozess, Notizen #79–#82)**: (1) **Der
+  laufende Auftrag zeigt denselben Fluss wie die Definition** (#82, `components/erp/order-
+  flow.tsx`): senkrechter BPMN-Fluss mit Start-/Endknoten und einer Karte je Modul – exakt
+  die Bildsprache, in der man den Prozess am Artikel definiert hat. Vorher war es ein
+  waagrechter Punkte-Stepper: dieselbe Sache in einer **zweiten** Bildsprache, und man musste
+  erst übersetzen, welcher Punkt welches Modul ist. Geteilt werden die Fluss-Bausteine
+  (`FlowTerm`/`Connector`/`kindColor`/`STEP_MAXW` aus `process-steps.tsx`) – EINE Quelle für
+  die Optik. Der einzige Unterschied ist, was eine Karte **zeigt**: dort die Konfiguration,
+  hier der Zustand (Erledigt · In Arbeit · Angehalten · Wartet · Fehler) und im Hover Wer/Wann.
+  Die abgeleiteten **Bereitstellungen** sind Karten an ihrer Position im Fluss und öffnen ihren
+  Datensatz (sie sind Unter-Aufträge, kein Modul). `process-stepper.tsx` + `toStepperState`
+  sind damit ersatzlos entfallen. (2) **Der Auftrags-Kopf hat dieselbe Anatomie wie Artikel und
+  Instanz** (#79): Symbol · Eyebrow · Titel · Objektnummer + Symbol-Aktionen in EINER Zeile,
+  rechts Speicher-Anzeige und Status. Die Objektnummer stand vorher als eigener Kasten ganz
+  rechts – ein drittes Layout für dieselbe Sache. (3) **Kein «Verwerfen»** (#81): ein
+  Unter-Auftrag ist eine bewusste Entscheidung und wird durchgezogen, nicht weggeworfen. Die
+  **einzige** Ausnahme ist die **Bereitstellung** – sie legt das System selbst an, also braucht
+  sie einen Ausstieg; er heisst jetzt **«Bereitstellung übergehen»** (Symbol im Kopf) und sagt
+  damit, was man entscheidet, statt generisch «verwerfen» zu heissen.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

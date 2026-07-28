@@ -1,6 +1,5 @@
 import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
-import type { StepState } from '@/components/erp/process-stepper';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 
 export const STEP_META: Record<StepType, { label: string; icon: React.ElementType }> = {
@@ -65,14 +64,6 @@ export function isStockOperation(stepTypes: StepType[]): boolean {
   return true;                                            // nur Bewegung/Prüfung/Verschrotten
 }
 
-// Auftrag-Schrittstatus (Backend) → Stepper-Knotenstatus
-export function toStepperState(state: string): StepState {
-  if (state === 'done') return 'done';
-  if (state === 'active') return 'active';
-  if (state === 'failed') return 'rejected';
-  if (state === 'blocked') return 'blocked';   // wartet auf Material (Nachschub)
-  return 'pending'; // locked
-}
 
 // Anzeige-Projektion der ZWEI Achsen (quality + disposition) auf EINE Badge.
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
