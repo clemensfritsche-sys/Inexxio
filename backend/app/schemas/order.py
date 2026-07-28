@@ -193,9 +193,16 @@ class OrderUpdate(BaseModel):
 
 
 class OrderDeviationCreate(BaseModel):
-    """«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
-    Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."""
+    """«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
+    Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
+
+    ``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»
+    ersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert
+    solange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der
+    Abweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist
+    eine Eigenschaft, kein zweiter Weg."""
     instance_object_ids: Optional[list[int]] = None
+    abort_parent: bool = False
 
 
 class OrderCoverStock(BaseModel):

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Repeat, Loader2, Building2, AlertTriangle, PauseCircle } from 'lucide-react';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Repeat, Loader2, Building2, AlertTriangle } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { StatusBadge } from '@/components/erp/fields';
@@ -70,15 +70,11 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
     // Auftrag, dessen Bestellung geliefert war, stand auf «Geliefert», obwohl Prüfung,
     // Bewegung und Verkauf noch offen waren. Der Stand eines einzelnen Schritts ist nicht
     // der Stand des Auftrags; er steht im Detail am Ablauf. Hier zählt: läuft er noch?
-    // «Abbruch ausstehend» ist ein eigener Zustand, kein «In Arbeit»: der Auftrag pausiert
-    // und wartet nur noch darauf, dass der Folgeauftrag freigegeben wird. Ihn im Feed wie
-    // einen laufenden Auftrag zu zeigen, war die Ursache dafür, dass ein Abbruch sich
-    // anfühlte, als hätte er nichts bewirkt.
+    // Ein abgebrochener Auftrag heisst «Abgebrochen» (rot), nicht «Inaktiv»: der Unterschied
+    // ist, dass er in einem Abweichungsauftrag fortgeführt wird. Projektion, kein Status.
     badge = row.data.recurrence_due
       ? { label: 'fällig', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Repeat }
-      : row.data.abort_into_id != null
-        ? { label: 'Abbruch ausstehend', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: PauseCircle }
-        : orderStatusConfig(row.data.status);
+      : orderStatusConfig(row.data.status, row.data.abort_into_id != null);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
   // Unternehmen ist ein aktiver Stammdaten-Singleton → GRÜN (wie ein aktiver Benutzer),

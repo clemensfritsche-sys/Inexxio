@@ -612,10 +612,14 @@ async def abort_order(
         db.refresh(order)
         return to_order_response(db, order)
 
-    follow = deviation.create_abort_followup(db, order, current_user.id)
-    db.commit()
-    db.refresh(follow)
-    return to_order_response(db, follow)
+    # Ein laufender Auftrag MIT Instanzen wird nicht mehr über diesen Weg abgebrochen: dafür
+    # gibt es den einen Knopf «Abweichungsauftrag» mit ``abort_parent=true`` – ein Vorgang,
+    # ein Wort. Sonst gäbe es wieder zwei Wege für dieselbe Sache.
+    raise HTTPException(
+        409,
+        detail="Dieser Auftrag hat Instanzen im Prozess – bitte über «Abweichungsauftrag» "
+               "abbrechen (dort festlegen, was mit den Teilen geschieht).",
+    )
 
 
 @router.post("/{object_id}/revoke", response_model=OrderResponse)
@@ -643,10 +647,14 @@ async def open_deviation(
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """«Abweichung melden» zu einem Auftrag (Fehler/Reklamation/Nacharbeit – ein Konzept):
-    legt einen **Unter-Auftrag** auf die betroffenen Instanzen an (Instanz-Ebene mit Auswahl,
-    sonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung
-    geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
+    """**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN
+    Konzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an
+    (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
+
+    ``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**
+    (er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der
+    Abweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».
+    Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
     parent = _get_staff_order(db, object_id)
     if not data.instance_object_ids:
         # **Auftragsebene** (alle Instanzen): nur an einem LAUFENDEN Auftrag – ist der Prozess
@@ -656,7 +664,13 @@ async def open_deviation(
     elif parent.status not in ("released", "completed"):
         # **Instanz-Ebene**: auch nach Abschluss möglich (z. B. spätere Reklamation eines Teils).
         raise HTTPException(400, detail="Abweichungen lassen sich nur an einem laufenden/abgeschlossenen Auftrag eröffnen")
-    devi = deviation.create_deviation(db, parent, data.instance_object_ids, current_user.id)
+    if data.abort_parent and parent.status != "released":
+        raise HTTPException(400, detail="Nur ein laufender Auftrag kann abgebrochen werden")
+    devi = deviation.create_deviation(
+        db, parent, data.instance_object_ids, current_user.id,
+        title_prefix="Abbruch von" if data.abort_parent else "Abweichung zu")
+    if data.abort_parent:
+        deviation.abort_parent(db, parent, devi, current_user.id)
     db.commit()
     db.refresh(devi)
     return to_order_response(db, devi)

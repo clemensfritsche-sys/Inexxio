@@ -785,14 +785,14 @@ def test_paused_order_blocks_step_execution_and_parent_recompute():
 
 
 def test_article_deactivate_cancel_creates_followup():
-    """Beim Deaktivieren eines Artikels mit «Abbrechen» erzwingen laufende Aufträge mit
-    Instanzen einen Folgeauftrag (statt Teile zu vernichten) – analog zum Auftrag-Abbruch."""
+    """Beim Deaktivieren eines Artikels mit «Abbrechen» übernimmt ein Abweichungsauftrag die
+    Instanzen laufender Aufträge (statt Teile zu vernichten) – analog zum Auftrag-Abbruch."""
     import inspect as _inspect
 
     from app.services import deactivation
 
     src = _inspect.getsource(deactivation.deactivate_article)
-    assert "create_abort_followup" in src and "order_active_instances" in src
+    assert "create_deviation" in src and "abort_parent" in src and "order_active_instances" in src
 
 
 def test_article_optional_fields_validation():
@@ -1720,31 +1720,51 @@ def test_order_deviation_fields_and_kind():
     assert "_bind_deviation_subjects" in mat_src
 
 
-def test_abort_requires_followup_order():
-    """Abbruch eines freigegebenen Auftrags erzwingt einen Folgeauftrag; das Original wird
-    erst inaktiv, wenn der Folgeauftrag freigegeben ist (keine herrenlosen Teile)."""
+def test_abort_is_a_deed_not_a_request():
+    """**Abbrechen ist ein Vollzug, kein Antrag – und kein zweiter Knopf.**
+
+    Früher blieb das Original «Abbruch ausstehend» (weiterhin ``released``) und wurde erst
+    inaktiv, wenn der Folgeauftrag freigegeben war; bis dahin liess sich der Abbruch
+    zurücknehmen. Ein Auftrag, den man abbrechen kann und der danach weiterläuft, ist aber
+    nicht abgebrochen. Jetzt ist er im selben Moment inaktiv – und der Weg dorthin ist
+    derselbe wie für jede Abweichung (EIN Endpunkt, ein Wort, ein Symbol; der Unterschied
+    ist das Flag ``abort_parent``)."""
     import inspect as _inspect
     from app.routers import orders
     from app.services import deviation, process
+    from app.schemas.order import OrderDeviationCreate
 
-    # Endpoint vorhanden + erzeugt einen Folgeauftrag (statt direkt inaktiv zu setzen).
-    src = _inspect.getsource(orders.abort_order)
-    assert "create_abort_followup" in src
-    # Die Freigabe (einheitlich, services/orders.release_order) macht den Abbruch-Folgeauftrag
-    # wirksam; der Router delegiert an sie.
-    from app.services import orders as orders_svc
-    assert "apply_abort_on_release" in _inspect.getsource(orders_svc.release_order)
-    assert "release_order(" in _inspect.getsource(orders.update_order)
-    # Folgeauftrag übernimmt die Instanzen, Original NICHT deaktivieren (keep_instances).
-    rel = _inspect.getsource(deviation.apply_abort_on_release)
-    assert "keep_instances=True" in rel
-    # Folgeauftrag = Abweichung (create_deviation setzt parent_order_id) + abort_into_id am Original.
-    create = _inspect.getsource(deviation.create_abort_followup)
-    assert "create_deviation" in create and "abort_into_id" in create
+    # EIN Weg: das Abbrechen ist eine Eigenschaft des Abweichungsauftrags.
+    assert OrderDeviationCreate().abort_parent is False
+    dev_src = _inspect.getsource(orders.open_deviation)
+    assert "deviation.abort_parent(db, parent, devi, current_user.id)" in dev_src
+    # … und der Alt-Weg legt keinen Folgeauftrag mehr an.
+    assert "create_abort_followup" not in _inspect.getsource(orders)
+    assert not hasattr(deviation, "create_abort_followup")
+    assert not hasattr(deviation, "apply_abort_on_release")
+
+    # Sofortiger Vollzug: inaktiv + Instanzen bleiben (sie gehören dem Abweichungsauftrag).
+    ap = _inspect.getsource(deviation.abort_parent)
+    assert 'parent.status = "inactive"' in ap and "keep_instances=True" in ap
     assert "parent_order_id=parent.object_id" in _inspect.getsource(deviation.create_deviation)
-    # Eltern pausiert, solange eine Abweichung offen / Abbruch ausstehend ist.
+
+    # Kein «Abbruch ausstehend» mehr: die Pause hängt nur noch an offenen Abweichungen.
     pause = _inspect.getsource(process._is_paused_by_deviation)
-    assert "abort_into_id" in pause and "parent_order_id" in pause
+    assert 'getattr(order, "abort_into_id", None) is not None' not in pause
+    assert "parent_order_id" in pause
+    # Ein abgebrochener Auftrag lässt sich nicht über das Zurücknehmen wiederbeleben.
+    assert 'holder.status == "inactive"' in _inspect.getsource(deviation.revoke)
+
+
+def test_a_deviation_can_have_its_own_deviation():
+    """Auch eine Abweichung kann schiefgehen (die Nacharbeit misslingt) – dann muss man das
+    melden können. Verboten bleibt nur das GLEICHZEITIGE Greifen zweier Vorgänge auf dieselbe
+    Instanz; die Kette Abweichung → Abweichung ist erlaubt."""
+    import inspect as _inspect
+    from app.services import deviation
+
+    src = _inspect.getsource(deviation.create_deviation)
+    assert "if existing and existing.id != parent.id:" in src
 
 
 def test_sale_customer_is_never_optional():

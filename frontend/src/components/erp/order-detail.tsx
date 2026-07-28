@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
+import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -75,15 +75,23 @@ function todayIso(): string {
 }
 
 // Auftrag-Lebenszyklus mit Freigabe-Schutz (Artikel + Menge nötig). Ein freigegebener
-// Auftrag kennt nur noch **Abbrechen** (Ersetzen entfällt – ein Abbruch erzwingt ohnehin
-// den Folgeauftrag mit denselben Instanzen).
-function orderActions(status: string, canRelease: boolean, releaseHint?: string): StatusAction[] {
+// Ein laufender Auftrag hat KEINE Status-Aktion mehr: das frühere «Abbrechen» war ein zweiter
+// Name und ein zweites UI für dieselbe Sache (es legte ja einen Abweichungsauftrag an). Es gibt
+// jetzt nur noch den einen Knopf «Abweichungsauftrag» (Flag-Symbol im Kopf) – dort entscheidet
+// man, ob der Auftrag weiterläuft oder abgebrochen ist.
+// AUSNAHME Unter-Auftrag: er wird **verworfen** (nichts wird angelegt, die Bindungen zum
+// Eltern werden gelöst) – das ist ein anderer Vorgang und heisst darum auch anders.
+function orderActions(status: string, canRelease: boolean, isSubOrder: boolean,
+                      releaseHint?: string): StatusAction[] {
   if (status === 'draft')
-    return [{ label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
-      hint: canRelease ? undefined : releaseHint }];
-  if (status === 'released')
-    return [{ label: 'Abbrechen', target: 'inactive', tone: 'danger' }];
-  return [];   // inactive/completed → kein manueller Wechsel
+    return [
+      { label: 'Freigeben', target: 'released', tone: 'primary', disabled: !canRelease,
+        hint: canRelease ? undefined : releaseHint },
+      ...(isSubOrder ? [{ label: 'Verwerfen', target: 'inactive', tone: 'danger' } as StatusAction] : []),
+    ];
+  if (status === 'released' && isSubOrder)
+    return [{ label: 'Verwerfen', target: 'inactive', tone: 'danger' }];
+  return [];
 }
 
 export function OrderDetail({ record, articles, viewerRole, company, suppliers = [], onSaved, onCancel, onBack }: {
@@ -112,7 +120,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('auftrag');
-  const [dialog, setDialog] = useState<'deactivate' | null>(null);
+  const [dialog, setDialog] = useState<'deactivate' | 'deviation' | null>(null);
   const [deviationBusy, setDeviationBusy] = useState(false);
   const [supplyBusy, setSupplyBusy] = useState(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
@@ -428,21 +436,16 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     setDialog(null);
   }
 
-  // «Abbruch zurücknehmen»: verwirft den noch im Entwurf befindlichen Folgeauftrag – das
-  // Original läuft danach unverändert weiter (kein Vollzug, Reservierungen blieben erhalten).
-  async function revokeAbort() {
-    if (!record?.abort_into_id) return;
-    onSaved(await api.revokeAbort(record.abort_into_id));
-  }
-
-  // «Abweichung melden»: eröffnet einen Unterauftrag (Abweichung) auf den Instanzen
-  // dieses Auftrags und navigiert dorthin – der Nutzer definiert dort den Ablauf und gibt frei.
-  async function reportDeviation() {
+  // «Abweichungsauftrag»: eröffnet einen Unterauftrag auf den Instanzen dieses Auftrags.
+  // ``abortParent`` ist die EINE Entscheidung dabei – läuft der Auftrag danach weiter
+  // (pausiert bis zur Klärung) oder ist er abgebrochen (sofort, endgültig)?
+  async function reportDeviation(abortParent: boolean) {
     if (!record) return;
+    setDialog(null);
     setDeviationBusy(true);
     setError(null);
     try {
-      onSaved(await api.createDeviation(record.object_id as number));
+      onSaved(await api.createDeviation(record.object_id as number, { abortParent }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
     } finally {
@@ -516,9 +519,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               {isCreate ? (
                 <StatusBadge cfg={orderStatusConfig('draft')} />
               ) : (isCompleted || !isStaff) ? (
-                <StatusBadge cfg={orderStatusConfig(record.status)} />
+                <StatusBadge cfg={orderStatusConfig(record.status, record.abort_into_id != null)} />
               ) : (
-                <StatusFlow cfg={orderStatusConfig(record.status)} actions={orderActions(record.status, canRelease, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
+                <StatusFlow cfg={orderStatusConfig(record.status, record.abort_into_id != null)} actions={orderActions(record.status, canRelease, isSubOrder, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
               )}
               {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
             </div>
@@ -533,8 +536,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   <QrCode size={15} />
                 </button>
                 {canReportDeviation && (
-                  <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichung melden (Defekt / Nacharbeit / Reklamation)" data-tip-pos="bottom"
-                    aria-label="Abweichung melden" disabled={deviationBusy} onClick={reportDeviation}>
+                  <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
+                    aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
                     {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
                   </button>
                 )}
@@ -569,15 +572,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {tab === 'docs' && !isCreate ? (
           <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
         ) : (<>
+        {/* Abgebrochen: der Auftrag ist im Moment des Abbruchs inaktiv – nicht «ausstehend»,
+            nicht rücknehmbar. Der Abweichungsauftrag führt ihn fort. */}
         {!isCreate && record.abort_into_id != null && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-            <AlertTriangle size={16} /> Abbruch ausstehend – wird inaktiv, sobald der Folgeauftrag <ObjId value={record.abort_into_id} /> freigegeben ist.
-            {isStaff && (
-              <button onClick={revokeAbort} type="button"
-                style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 8, border: '1px solid #d97706', background: '#fff', color: '#92400e', fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                Abbruch zurücknehmen
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '12px 14px', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10, fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>
+            <Ban size={16} /> Abgebrochen – fortgeführt im Abweichungsauftrag <ObjId value={record.abort_into_id} />.
           </div>
         )}
 
@@ -917,7 +916,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         </div>
       )}
 
-      {dialog && record && (
+      {dialog === 'deviation' && record && (
+        <DeviationDialog busy={deviationBusy} onChoose={reportDeviation} onClose={() => setDialog(null)} />
+      )}
+
+      {dialog === 'deactivate' && record && (
         <DeactivateDialog
           mode={dialog}
           title="Auftrag abbrechen"
@@ -947,6 +950,66 @@ function stepHint(s: OrderStep): string | undefined {
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
+// ─── Abweichungsauftrag: EIN Vorgang, EINE Entscheidung ──────────────────────────
+//
+// Früher gab es zwei Knöpfe mit zwei Namen und zwei Dialogen für dieselbe Sache: «Abweichung
+// melden» und «Abbrechen» – letzteres legte ebenfalls einen Abweichungsauftrag an. Jetzt gibt
+// es einen Knopf, ein Wort und ein Symbol; der Unterschied ist eine Eigenschaft des Vorgangs:
+// läuft der Ursprungsauftrag danach weiter, oder ist er abgebrochen?
+function DeviationDialog({ busy, onChoose, onClose }: {
+  busy: boolean;
+  onChoose: (abortParent: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: 'min(520px, 100%)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
+          <AlertTriangle size={18} style={{ color: 'var(--warning)' }} />
+          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)', flex: 1 }}>Abweichungsauftrag anlegen</span>
+          <button onClick={onClose} aria-label="Schliessen"
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-4)', display: 'flex' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
+            Es entsteht ein Abweichungsauftrag auf die Instanzen dieses Auftrags. Dort legst du
+            fest, was mit ihnen geschieht (nacharbeiten, ersetzen, verschrotten, sperren).
+          </p>
+          <ChoiceButton
+            disabled={busy} onClick={() => onChoose(false)}
+            title="Auftrag läuft weiter"
+            text="Der Auftrag pausiert, bis die Abweichung geklärt ist – danach läuft er normal weiter."
+          />
+          <ChoiceButton
+            disabled={busy} onClick={() => onChoose(true)} danger
+            title="Auftrag abbrechen"
+            text="Der Auftrag ist sofort abgebrochen – endgültig, keine Reaktivierung. Nur der Abweichungsauftrag läuft weiter."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChoiceButton({ title, text, danger, disabled, onClick }: {
+  title: string; text: string; danger?: boolean; disabled?: boolean; onClick: () => void;
+}) {
+  return (
+    <button type="button" disabled={disabled} onClick={onClick}
+      style={{
+        textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
+        border: `1px solid ${danger ? 'var(--danger)' : 'var(--border-1)'}`, background: '#fff', opacity: disabled ? .6 : 1,
+      }}>
+      <div style={{ font: '700 13.5px var(--font-body)', color: danger ? 'var(--danger)' : 'var(--fg-1)' }}>{title}</div>
+      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>
+    </button>
+  );
+}
+
 // Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
 const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
 

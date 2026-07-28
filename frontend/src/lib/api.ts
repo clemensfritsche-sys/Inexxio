@@ -467,17 +467,22 @@ class ApiClient {
     return this.patch(`/api/v1/erp/orders/${objectId}/lines/${lineId}`, data);
   }
 
-  // Abbrechen: erzwingt einen Folgeauftrag (Abweichung); liefert diesen zurück (bzw. bei
-  // einem Entwurf den direkt inaktivierten Auftrag).
+  // Verwerfen: setzt einen Unter-Auftrag bzw. einen Auftrag ohne Instanzen direkt inaktiv
+  // (räumt die Bindungen zum Eltern auf). Ein laufender Auftrag MIT Instanzen wird nicht
+  // hierüber abgebrochen – dafür gibt es `createDeviation(..., { abortParent: true })`.
   abortOrder(objectId: number): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
-  // «Abweichung melden»: eröffnet einen Unterauftrag (Abweichung) auf den Instanzen
-  // dieses Auftrags (optional eine Teilmenge); liefert den Entwurf der Abweichung zurück.
-  createDeviation(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/deviation`,
-      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
+  // **Abweichungsauftrag**: eröffnet einen Unterauftrag auf den Instanzen dieses Auftrags
+  // (optional eine Teilmenge). `abortParent` entscheidet, was mit dem Ursprungsauftrag
+  // geschieht – weiterlaufen (pausiert bis zur Klärung) oder sofort abgebrochen.
+  createDeviation(objectId: number, opts?: { instanceObjectIds?: number[]; abortParent?: boolean }): Promise<Order> {
+    const ids = opts?.instanceObjectIds;
+    return this.post(`/api/v1/erp/orders/${objectId}/deviation`, {
+      ...(ids && ids.length ? { instance_object_ids: ids } : {}),
+      ...(opts?.abortParent ? { abort_parent: true } : {}),
+    });
   }
 
   // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag (reason='supply'), der die
