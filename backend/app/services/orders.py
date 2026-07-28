@@ -71,10 +71,6 @@ def release_order(db: Session, order: Order, actor_id: int | None) -> None:
     reserve_resources(db, order, actor_id)           # Komponenten mengengenau reservieren
     _emit(db, "order.released", object_type="order", object_id=order.object_id,
           payload={"article_id": order.article_id, "quantity": order.quantity}, actor_id=actor_id)
-    # Abbruch-Folgeauftrag: mit seiner Freigabe das Original endgültig abbrechen (self-guard;
-    # No-op für normale Aufträge und Nachschub).
-    if order.parent_order_id is not None:
-        deviation.apply_abort_on_release(db, order, actor_id)
     # Abschluss neu bewerten: Schritte, die schon bei der Freigabe «done» sind (das eingefrorene
     # Dokument), schliessen den Auftrag sofort ab. No-op für Aufträge mit noch offenen Schritten
     # (Beschaffung/Verkauf starten in 'requested', also nicht «done»).

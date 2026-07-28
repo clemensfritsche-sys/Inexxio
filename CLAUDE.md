@@ -1542,6 +1542,32 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter: `test_smoke.py: test_sub_order_deactivation_goes_through_one_cleanup`,
   `test_cancelled_provisioning_is_not_recreated`.
 
+- **Abbrechen ist ein Vollzug, kein Antrag – und kein zweiter Knopf** (Juli 2026, Migration
+  `086`): Drei zusammenhängende Korrekturen am Abweichungs-Modell.
+  (1) **Der Abbruch wirkt sofort.** Bisher blieb das Original `released` («Abbruch ausstehend»)
+  und wurde erst inaktiv, wenn der Folgeauftrag freigegeben war; bis dahin liess er sich
+  zurücknehmen. Das war als Sicherheitsnetz gedacht, aber falsch herum: *ein Auftrag, den man
+  abbrechen kann und der danach weiterläuft, ist nicht abgebrochen.* Jetzt setzt
+  `deviation.abort_parent` ihn im selben Moment auf inaktiv – endgültig, keine Reaktivierung;
+  nur der Abweichungsauftrag lebt weiter und hält die Instanzen (`keep_instances`).
+  `abort_into_id` ist nur noch der Zeiger «fortgeführt in …»; `apply_abort_on_release` und
+  `create_abort_followup` sind entfallen, `_is_paused_by_deviation` hängt nur noch an offenen
+  Abweichungen. Anzeige: **«Abgebrochen» (rot)** als Projektion über `orderStatusConfig(status,
+  aborted)` – «Inaktiv» heisst verworfen, «Abgebrochen» heisst fortgeführt.
+  (2) **EIN Vorgang, EIN Wort, EIN Symbol.** «Abbrechen» war ein zweiter Name und ein zweites
+  UI für dieselbe Sache (es legte ja einen Abweichungsauftrag an). Die Status-Aktion ist weg;
+  es gibt nur noch den Flag-Knopf **«Abweichungsauftrag»**, und der Unterschied ist eine
+  **Eigenschaft des Vorgangs** statt eines zweiten Wegs: `OrderDeviationCreate.abort_parent`
+  (Dialog: «Auftrag läuft weiter» ↔ «Auftrag abbrechen»). `POST /orders/{id}/abort` bedient nur
+  noch das **Verwerfen** eines Unter-Auftrags bzw. eines Auftrags ohne Instanzen – ein anderer
+  Vorgang, darum ein anderes Wort.
+  (3) **Eine Abweichung darf ihre eigene Abweichung haben.** Die Regel «höchstens EINE aktive
+  Abweichung je Instanz» traf auch die Instanzen, die schon in einer Abweichung steckten –
+  misslang die Nacharbeit, liess sich das nicht melden. Jetzt gilt sie nur noch für das
+  **gleichzeitige** Greifen zweier Vorgänge (`existing.id != parent.id`); die **Kette**
+  Abweichung → Abweichung ist erlaubt und bildet die Realität ab.
+  Wächter: `test_abort_is_a_deed_not_a_request`, `test_a_deviation_can_have_its_own_deviation`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

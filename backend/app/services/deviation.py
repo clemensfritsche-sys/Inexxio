@@ -4,10 +4,11 @@ Eine **Abweichung** ist ein **Unter-Auftrag** (``orders.parent_order_id``), der 
 laufenden Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt. Der Eltern-Auftrag
 **pausiert**, solange die Abweichung offen ist (``process._is_paused_by_deviation``).
 
-Sonderfall **Abbruch**: «Abbrechen» bricht NICHT sofort ab, sondern erzwingt einen
-**Folgeauftrag** (eine Abweichung), der die im Prozess befindlichen Instanzen übernimmt.
-Das Original wird erst **inaktiv**, wenn der Folgeauftrag **freigegeben** ist – so liegen
-nie undefinierte Teile herum.
+**Abbrechen ist kein zweites Konzept**, sondern eine Eigenschaft desselben Vorgangs: Es gibt
+EINEN Knopf «Abweichungsauftrag»; beim Anlegen entscheidest du, ob der Ursprungsauftrag
+weiterläuft (er pausiert bis zur Klärung) oder **abgebrochen** ist. Im zweiten Fall ist er
+im selben Moment inaktiv (``abort_parent``) – endgültig, ohne Reaktivierung; nur der
+Abweichungsauftrag lebt weiter und hält die Instanzen.
 """
 
 from fastapi import HTTPException
@@ -91,15 +92,18 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     insts = _resolve_subjects(db, parent, instance_object_ids)
     if not insts:
         raise HTTPException(409, detail="Keine Instanzen für die Abweichung vorhanden")
-    # Regel: höchstens EINE aktive Abweichung je Instanz (kein gleichzeitiges Greifen auf
-    # Instanz- UND Prozess-Ebene). Wer zuerst kommt, hält die Instanz, bis er abgeschlossen ist.
+    # Regel: höchstens EINE aktive Abweichung je Instanz – **ausser sie ist der Auftrag, aus
+    # dem heraus die neue entsteht.** Eine Abweichung kann selbst schiefgehen (die Nacharbeit
+    # misslingt, beim Ersetzen fällt das Ersatzteil durch); dann muss man das melden können.
+    # Verboten bleibt nur das GLEICHZEITIGE Greifen zweier Vorgänge auf dieselbe Instanz; die
+    # **Kette** (Abweichung → Abweichung → …) ist erlaubt und bildet die Realität ab.
     for inst in insts:
         existing = instance_open_deviation(db, inst.object_id)
-        if existing:
+        if existing and existing.id != parent.id:
             raise HTTPException(
                 409,
-                detail=f"Instanz {inst.object_id} hat bereits eine offene Abweichung "
-                       f"(Auftrag {existing.object_id}) – diese zuerst abschliessen.",
+                detail=f"Instanz {inst.object_id} wird bereits in Auftrag {existing.object_id} "
+                       f"behandelt – dort klären oder von dort aus melden.",
             )
     devi = Order(
         object_id=next_object_id(db, "order"), status="draft",
@@ -125,19 +129,26 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     return devi
 
 
-def create_abort_followup(db: Session, order: Order, actor_id: int) -> Order:
-    """Beim Abbruch einen **Folgeauftrag** (Abweichung) erzeugen, der die im Prozess
-    befindlichen Instanzen übernimmt. Committet NICHT (der Aufrufer schliesst ab)."""
-    if order.status != "released":
-        raise HTTPException(400, detail="Nur ein freigegebener Auftrag braucht einen Folgeauftrag")
-    if order.abort_into_id:
-        raise HTTPException(409, detail="Für diesen Auftrag ist bereits ein Folgeauftrag offen")
-    follow = create_deviation(db, order, None, actor_id, title_prefix="Abbruch von")
-    order.abort_into_id = follow.object_id   # Original = «Abbruch ausstehend»
-    log_audit(db, "orders", "abort_into_id", str(follow.object_id), actor_id, object_id=order.object_id)
-    emit(db, "order.abort_requested", object_type="order", object_id=order.object_id,
-         payload={"followup": follow.object_id}, actor_id=actor_id)
-    return follow
+def abort_parent(db: Session, parent: Order, devi: Order, actor_id: int | None) -> None:
+    """Den Ursprungsauftrag **sofort** abbrechen – der Abweichungsauftrag führt ihn fort.
+
+    Früher war der Abbruch ein *Antrag*: das Original blieb «Abbruch ausstehend» und wurde erst
+    inaktiv, wenn der Folgeauftrag freigegeben war (bis dahin rücknehmbar). Gut gemeint, aber
+    falsch herum gedacht – ein Auftrag, den man abbrechen kann und der danach weiterläuft, ist
+    nicht abgebrochen. Jetzt gilt: **Abbrechen ist ein Vollzug.** Der Auftrag ist im selben
+    Moment «Abgebrochen» (endgültig, keine Reaktivierung); nur der Abweichungsauftrag lebt
+    weiter – dort wird entschieden, was mit den Teilen geschieht.
+
+    Die Instanzen bleiben erhalten (``keep_instances``): sie gehören jetzt dem
+    Abweichungsauftrag. ``abort_into_id`` bleibt als Zeiger «fortgeführt in …». Committet NICHT."""
+    from .deactivation import cancel_order_effects
+    parent.abort_into_id = devi.object_id
+    old = parent.status
+    parent.status = "inactive"
+    cancel_order_effects(db, parent, actor_id, keep_instances=True)
+    log_audit(db, "orders", "status", "inactive", actor_id, object_id=parent.object_id, old_value=old)
+    emit(db, "order.aborted", object_type="order", object_id=parent.object_id,
+         payload={"followup": devi.object_id}, actor_id=actor_id)
 
 
 def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | None) -> Order | None:
@@ -209,6 +220,10 @@ def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
     if followup.status != "draft":
         raise HTTPException(
             409, detail="Nur ein noch nicht freigegebener Folgeauftrag kann zurückgenommen werden.")
+    holder = db.query(Order).filter(Order.object_id == followup.parent_order_id).first()
+    if holder is not None and holder.status == "inactive":
+        raise HTTPException(
+            409, detail="Der Ursprungsauftrag ist abgebrochen – er lässt sich nicht reaktivieren.")
     parent = detach_sub_order(db, followup, actor_id)
     old = followup.status
     followup.status = "inactive"
@@ -218,21 +233,3 @@ def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
          object_id=(parent.object_id if parent else followup.object_id),
          payload={"followup": followup.object_id}, actor_id=actor_id)
     return parent
-
-
-def apply_abort_on_release(db: Session, followup: Order, actor_id: int) -> None:
-    """Wird ein Abbruch-Folgeauftrag **freigegeben**, das Original endgültig **abbrechen**:
-    Reservierungen lösen, ABER die übernommenen Instanzen NICHT deaktivieren (sie gehören
-    jetzt dem Folgeauftrag). Committet NICHT."""
-    if not followup.parent_order_id:
-        return
-    parent = db.query(Order).filter(Order.object_id == followup.parent_order_id).first()
-    if not parent or parent.abort_into_id != followup.object_id or parent.status == "inactive":
-        return
-    from .deactivation import cancel_order_effects
-    old = parent.status
-    parent.status = "inactive"
-    cancel_order_effects(db, parent, actor_id, keep_instances=True)
-    log_audit(db, "orders", "status", "inactive", actor_id, object_id=parent.object_id, old_value=old)
-    emit(db, "order.aborted", object_type="order", object_id=parent.object_id,
-         payload={"followup": followup.object_id}, actor_id=actor_id)

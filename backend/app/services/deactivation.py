@@ -134,15 +134,15 @@ def deactivate_article(db: Session, article: Article, actor_id: int,
     # das Auftrag-«Abbrechen» – einen **Folgeauftrag** für die im Prozess befindlichen Instanzen
     # (keine herrenlosen/vernichteten Teile). Nur Aufträge OHNE aktive Instanzen werden direkt inaktiv.
     if orders_mode == "cancel":
-        from .deviation import create_abort_followup
+        from .deviation import abort_parent, create_deviation
         from .subject import order_active_instances
         for o in db.query(Order).filter(
             Order.is_active == True, Order.status == "released", _order_article_filter(db, ids)
         ).all():
-            if o.abort_into_id:
-                continue                                  # bereits «Abbruch ausstehend»
             if order_active_instances(db, o):
-                create_abort_followup(db, o, actor_id)    # Folgeauftrag übernimmt die Instanzen
+                # Abweichungsauftrag übernimmt die Instanzen, das Original ist sofort abgebrochen.
+                devi = create_deviation(db, o, None, actor_id, title_prefix="Abbruch von")
+                abort_parent(db, o, devi, actor_id)
             else:
                 log_audit(db, "orders", "status", "inactive", actor_id,
                           object_id=o.object_id, old_value=o.status)

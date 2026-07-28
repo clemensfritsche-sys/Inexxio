@@ -11,6 +11,10 @@ export const ORDER_STATUS: Record<OrderStatus, StatusCfg> = {
   inactive:  { label: 'Inaktiv',       ...TONE.danger,  icon: Ban },
 };
 
-export function orderStatusConfig(status: string): StatusCfg {
+// «Abgebrochen» ist kein eigener Status im Datenmodell, sondern eine **Projektion**: ein
+// inaktiver Auftrag, der in einen Abweichungsauftrag übergegangen ist (``abort_into_id``).
+// Beide sind rot – aber «Inaktiv» heisst verworfen, «Abgebrochen» heisst fortgeführt.
+export function orderStatusConfig(status: string, aborted = false): StatusCfg {
+  if (aborted && status === 'inactive') return { label: 'Abgebrochen', ...TONE.danger, icon: Ban };
   return pickCfg(ORDER_STATUS, status, 'draft');
 }

@@ -119,7 +119,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     setDevBusy(true);
     setDevErr(null);
     try {
-      const devi = await api.createDeviation(deviationParent.object_id, [inst.object_id]);
+      const devi = await api.createDeviation(deviationParent.object_id, { instanceObjectIds: [inst.object_id] });
       onChanged?.();
       if (devi.object_id != null) nav?.(devi.object_id);
     } catch (e) {

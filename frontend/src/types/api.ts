@@ -951,10 +951,14 @@ export interface paths {
         put?: never;
         /**
          * Open Deviation
-         * @description «Abweichung melden» zu einem Auftrag (Fehler/Reklamation/Nacharbeit – ein Konzept):
-         *     legt einen **Unter-Auftrag** auf die betroffenen Instanzen an (Instanz-Ebene mit Auswahl,
-         *     sonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung
-         *     geklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
+         * @description **Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN
+         *     Konzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an
+         *     (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
+         *
+         *     ``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**
+         *     (er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der
+         *     Abweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».
+         *     Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
          */
         post: operations["open_deviation_api_v1_erp_orders__object_id__deviation_post"];
         delete?: never;
@@ -4135,12 +4139,23 @@ export interface components {
         };
         /**
          * OrderDeviationCreate
-         * @description «Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-
-         *     Ebene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
+         * @description «Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
+         *     Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
+         *
+         *     ``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»
+         *     ersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert
+         *     solange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der
+         *     Abweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist
+         *     eine Eigenschaft, kein zweiter Weg.
          */
         OrderDeviationCreate: {
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
+            /**
+             * Abort Parent
+             * @default false
+             */
+            abort_parent: boolean;
         };
         /**
          * OrderDeviationInfo

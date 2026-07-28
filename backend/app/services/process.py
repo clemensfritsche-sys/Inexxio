@@ -720,10 +720,12 @@ def _spawn_recurrence(db: Session, order: Order, subject_object_ids: list[int] |
 
 
 def _is_paused_by_deviation(db: Session, order: Order) -> bool:
-    """Pausiert der Auftrag wegen einer offenen Abweichung oder eines ausstehenden Abbruchs?
-    Solange darf er NICHT abschliessen – erst muss die Abweichung geklärt sein."""
-    if getattr(order, "abort_into_id", None) is not None:
-        return True
+    """Pausiert der Auftrag wegen einer offenen Abweichung? Solange darf er NICHT abschliessen –
+    erst muss die Abweichung geklärt sein.
+
+    Den früheren Zustand «Abbruch ausstehend» (``abort_into_id`` gesetzt, Auftrag läuft aber
+    weiter) gibt es nicht mehr: ein Abbruch wird sofort vollzogen, der Auftrag ist dann
+    inaktiv. ``abort_into_id`` ist nur noch der Zeiger «fortgeführt in …»."""
     if not order.object_id:
         return False
     # NUR Abweichungen pausieren den Eltern; ein Nachschub (reason='supply') blockiert nur

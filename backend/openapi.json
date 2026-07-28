@@ -2795,7 +2795,7 @@
           "orders"
         ],
         "summary": "Open Deviation",
-        "description": "«Abweichung melden» zu einem Auftrag (Fehler/Reklamation/Nacharbeit – ein Konzept):\nlegt einen **Unter-Auftrag** auf die betroffenen Instanzen an (Instanz-Ebene mit Auswahl,\nsonst Prozess-Ebene über alle Instanzen). Der Eltern-Auftrag pausiert, bis die Abweichung\ngeklärt ist. Liefert die neue Abweichung zurück (man definiert dort die Auflösung).",
+        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**\n(er pausiert bis zur Klärung) oder **abbrechen** (sofort und endgültig inaktiv; nur der\nAbweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
         "operationId": "open_deviation_api_v1_erp_orders__object_id__deviation_post",
         "security": [
           {
@@ -12425,11 +12425,16 @@
               }
             ],
             "title": "Instance Object Ids"
+          },
+          "abort_parent": {
+            "type": "boolean",
+            "title": "Abort Parent",
+            "default": false
           }
         },
         "type": "object",
         "title": "OrderDeviationCreate",
-        "description": "«Abweichung melden» zu einem Auftrag: optional die betroffenen Instanzen (Instanz-\nEbene); ohne Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene)."
+        "description": "«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne\nAuswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).\n\n``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»\nersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert\nsolange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der\nAbweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist\neine Eigenschaft, kein zweiter Weg."
       },
       "OrderDeviationInfo": {
         "properties": {
