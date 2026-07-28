@@ -294,11 +294,11 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   eigene Objektnummer). Startstandort = **Lieferant** (Beschaffung mit Lieferant) sonst Wareneingang –
   volle Rückverfolgbarkeit/Aktionen ab Tag 1 (Standort, Seriennummer, Reklamation).
   **Instanz-Lebenszyklus – ZWEI getrennte Achsen** (Migration `030`, statt überladenem `qc_status`):
-  `quality` ∈ pending|passed|failed («ist es gut?») und `disposition` ∈ in_process|in_stock|consumed|
+  `quality` ∈ pending|passed|**blocked** («darf man es verwenden?») und `disposition` ∈ in_process|in_stock|consumed|
   sold|scrapped («wo ist es?»). Neue Instanzen starten `(pending, in_process)`; bei Auftrags-Abschluss
   → `(passed, in_stock)` («Freigegeben, ab Lager verbrauchbar») via `process.recompute_completion` →
   `release_instances` (`released_at` = FIFO-Basis). Datenerfassung gibt NICHT vorzeitig frei (nur
-  Durchfaller → `quality=failed`). Verbaut → `disposition=consumed`, verkauft → `sold`, verschrottet →
+  Durchfaller → `quality=blocked` = «Gesperrt», Migration `085`). Verbaut → `disposition=consumed`, verkauft → `sold`, verschrottet →
   `scrapped`. **Verbrauchbar/zählbar = `quality=passed` UND `disposition=in_stock`** – die EINE Helper-
   Stelle `inventory.in_stock_clauses()` (von Bestand/FIFO/Betriebsmittel geteilt). Anzeige: eine Badge
   als Projektion beider Achsen (`lib/process.ts: instanceStatusConfig`).
@@ -332,7 +332,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     (`inspections.samples`), konfigurierbare Maske (`capture_fields`: Soll-Ist mit Toleranz / Gut-Schlecht /
     Text; ohne Maske synthetisches Gut-Schlecht). **Ungenügende Teil-Stichprobe → Hochstufung auf 100 %**
     (`inspections.escalated`); erst bei vollem Umfang endgültig `failed`, dann je Instanz bewertet (Charge
-    als Ganzes). Durchfaller → `instances.quality='failed'` (`services/inspection.py`).
+    als Ganzes). Durchfaller werden **gesperrt** (`instances.quality='blocked'`, `services/inspection.py`) –
+    derselbe Zustand wie beim Schritt «Sperren»; **geklärt wird nur über den Folgeauftrag**
+    (`inspections.resolved_by_order_id`, siehe Testnotizen-Runde 6).
   - **movement** = «**Bewegung**»: bringt Instanzen an ihren Standort. Jede Instanz hat **immer** einen
     Standort (`instances.location_type` ∈ user|instance|company + `location_id` = Objektnummer des
     Ziels). Der Lagerist setzt je Instanz das Ziel (auch unterschiedliche Ziele pro Auftrag möglich);
@@ -1452,9 +1454,9 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`scrap._restore_quality`: `released_at` gesetzt → `passed`, sonst `pending`) – kein
   verstecktes «vorherige Qualität»-Feld, das auseinanderlaufen könnte. Nur im **Auftrags**-Ablauf
   zulässig (wie `scrap`), Wächter `test_smoke.py: test_block_is_reversible_scrap_is_not`.
-  **Wortschärfe im gleichen Zug:** `quality='failed'` hiess bisher ebenfalls «Gesperrt» – jetzt
-  **«Durchgefallen»** (rot, Prüfergebnis) gegenüber **«Gesperrt»** (gelb, bewusst ausgesetzt und
-  wartend). Daneben: (2) **Ein Prozessschritt wird nicht mehr nachträglich umkonfiguriert** –
+  **Wortschärfe im gleichen Zug:** `quality='failed'` hiess bisher ebenfalls «Gesperrt» – kurzzeitig
+  hiess es dann «Durchgefallen» und stand neben «Gesperrt». *Runde 6 hat die beiden zu EINEM Zustand
+  zusammengeführt (Migration `085`) – siehe unten.* Daneben: (2) **Ein Prozessschritt wird nicht mehr nachträglich umkonfiguriert** –
   die Sonderfälle «Sichtbare Felder» und «Dokument-Deklaration» hielten als einzige Module einen
   Bearbeiten-Zustand am Leben; wie überall sonst gilt jetzt löschen + neu anlegen. (3)
   **Lieferant am Beschaffungs-Schritt ist klickbar** (`ArticleProcessStepResponse.
@@ -1467,6 +1469,51 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Erklärkästen im Konto entfernt bzw. auf eine Zeile eingedampft.
   *Bewusst NICHT geändert (#68, wie #40): der «Hinzufügen»-Knopf bleibt – Auto-Save legte einen
   halb konfigurierten Schritt an, was #41 gerade verbietet.*
+
+- **Testnotizen-Runde 6 (Sackgassen im Auftrag, Notizen #70–#75, Migration `085`)**: Fünf der
+  sechs Befunde waren **derselbe Bug in verschiedenen Ausprägungen** – ein Auftrag, der nach
+  einer fehlgeschlagenen Datenerfassung nicht mehr weiterkam.
+  (1) **«Gesperrt» ist EIN Zustand mit EINEM Wort** (#73): eine durchgefallene Instanz trug
+  `quality='failed'`, eine bewusst ausgesetzte `quality='blocked'`. Beides heisst «vorhanden,
+  aber nicht verwendbar», beides fällt über dieselbe Bedingung aus FIFO/Bestand, beides ist
+  aufhebbar – nur die Namen waren verschieden. Geschrieben wird jetzt **nur noch `blocked`**,
+  `failed` wird tolerant GELESEN (Altbestand; Migration `085` zieht ihn nach). Damit es EINE
+  Stelle bleibt, geht jeder Lesezugriff über `inventory.is_blocked()`/`unblocked_clauses()`
+  statt über einen handgeschriebenen Vergleich (dieselbe Zwei-Formen-Regel wie
+  `in_stock_clauses`/`is_in_stock`).
+  (2) **Ein fehlgeschlagener Befund wird vom Folgeauftrag geklärt – von sonst nichts** (#70,
+  #71). `all_steps_done` verlangt je Schritt `done`; ein Schritt auf «fehlgeschlagen» blieb es
+  für immer → der Auftrag schloss **nie** ab und seine Instanzen wurden **nie** freigegeben
+  (genau #71: die Abweichung lief korrekt durch, die Charge hing trotzdem in «In Arbeit»).
+  Runde 4 hatte dafür einen Knopf «Erneut erfassen» ins Panel gesetzt – der ist **entfernt**
+  (#70: «nur ein Folgeauftrag darf das») und war ohnehin eine Sackgasse, weil
+  `resolve_exec_step` nur **aktive** Schritte ausführt und ein fehlgeschlagener das nicht ist
+  (409). Stattdessen: schliesst die **Abweichung** ab, vermerkt `inspection.resolve_failed_by`
+  den Klärer auf dem Befund (`inspections.resolved_by_order_id`), und `_fact_status` liest den
+  Schritt als `done`. **Der Befund selbst bleibt `failed`** – was gemessen wurde, wird nicht
+  nachträglich schöngeschrieben; die Klärung steht als eigener, nachvollziehbarer Vorgang
+  daneben (Panel: «Geklärt durch <Objektnr>»).
+  (3) **Der Prüfumfang bemisst sich an der geprüften MENGE, nicht an der Zahl der Subjekte**
+  (#72): `required_count` rechnete mit `order.quantity`. Eine Abweichung auf EINE Charge à
+  5 Stk trägt aber `quantity=1` (ein Subjekt) – bei «jede» kam so statt fünf Proben nur eine.
+  Stichprobenzahl und Stichprobenziele stammen jetzt aus **derselben** Quelle
+  (`inspection.inspected_quantity` → `order_active_instances`) und können nicht mehr
+  auseinanderlaufen; `create_deviation` deklariert die Menge ebenfalls als Summe der
+  Instanz-Mengen statt als deren Anzahl.
+  (4) **Eine Bereitstellung ist keine Abweichung** (#75): `instance_open_deviation` filterte
+  nicht auf `reason` – damit galt **jeder** Unter-Auftrag als «offene Abweichung», auch die
+  automatisch abgeleitete **Bereitstellung** (`reason='provisioning'`, ein Unter-Auftrag mit
+  genau einem Bewegungs-Schritt: exakt das «Folgeauftrag …475 mit aktivem Bewegen-Modul», das
+  niemand angelegt hatte). Ein Abbruch scheiterte an dieser falschen Meldung. Jetzt zählt nur
+  `reason='deviation'` – derselbe Filter, den `open_deviations` längst hatte.
+  (5) **Der Feed zeigt den Status des Auftrags, nicht den seiner Bestellung** (#74): bei einem
+  freigegebenen Auftrag schlug der **Beschaffungs**-Status durch – ein Auftrag, dessen
+  Bestellung geliefert war, stand auf «Geliefert», obwohl Prüfung, Bewegung und Verkauf noch
+  offen waren. Der Stand eines einzelnen Schritts ist nicht der Stand des Auftrags; er steht
+  im Detail am Ablauf.
+  Wächter: `test_smoke.py: test_failed_inspection_is_not_terminal` (erweitert),
+  `test_blocked_is_one_state_with_one_word`, `test_only_a_deviation_counts_as_an_open_deviation`,
+  `test_sample_size_comes_from_the_inspected_instances`.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

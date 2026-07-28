@@ -3647,6 +3647,8 @@ export interface components {
              * @default false
              */
             escalated: boolean;
+            /** Resolved By Order Id */
+            resolved_by_order_id?: number | null;
             /** Inspector Name */
             inspector_name?: string | null;
             /**

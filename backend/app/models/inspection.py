@@ -18,7 +18,8 @@ class Inspection(Base, TimestampMixin):
     Datenerfassung dient nicht nur der Qualitätskontrolle, sondern beliebiger
     Werterfassung; nur bewertbare Felder (Soll-Ist/Gut-Schlecht) erzeugen ein
     Pass/Fail. Ist eine Stichprobe ungenügend, wird auf 100 % hochgestuft
-    (``escalated``). Durchfaller werden auf der Instanz mit ``quality='failed'`` gesperrt.
+    (``escalated``). Durchfaller werden auf der Instanz **gesperrt**
+    (``quality='blocked'`` – derselbe Zustand wie beim Schritt «Sperren»).
     """
 
     __tablename__ = "inspections"
@@ -41,5 +42,11 @@ class Inspection(Base, TimestampMixin):
     # Auf 100 %-Prüfung hochgestuft (eine Stichprobe war ungenügend)
     escalated: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False)
+
+    # Objektnummer des **Folgeauftrags** (Abweichung), der einen fehlgeschlagenen Befund
+    # geklärt hat. Der Befund selbst bleibt ``result='failed'`` – was gemessen wurde, wird
+    # nicht nachträglich schöngeschrieben; erledigt ist der Schritt trotzdem, weil die
+    # Klärung als eigener, nachvollziehbarer Vorgang danebensteht (Migration 085).
+    resolved_by_order_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     # Freigabe/Unterschrift (Bild-URL + wer + wann) und Schritt-Foto («Bilderfassung»).

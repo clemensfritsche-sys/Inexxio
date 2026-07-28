@@ -36,7 +36,7 @@ class InstanceResponse(BaseModel):
     kind: str
     quantity: float       # Bruchmenge möglich (kg/m²/m³/l) – nicht nur ganze Stück
     serial_number: Optional[str]
-    quality: str          # QC-Verdikt: pending | passed | failed
+    quality: str          # QC-Verdikt: pending | passed | blocked (gesperrt)
     disposition: str      # Verbleib: in_process | in_stock | consumed | sold | scrapped
     location_type: Optional[str] = None
     location_id: Optional[int] = None
@@ -104,7 +104,7 @@ class InstanceEmbed(BaseModel):
     article_id: int   # welcher Position (Mehrpositionen-Auftrag) die Instanz zugehört
     kind: str
     quantity: float       # Bruchmenge möglich (kg/m²/m³/l)
-    quality: str          # QC-Verdikt: pending | passed | failed
+    quality: str          # QC-Verdikt: pending | passed | blocked (gesperrt)
     disposition: str      # Verbleib: in_process | in_stock | consumed | sold | scrapped
     reserved_for_order_id: Optional[int] = None   # fest reserviert (scharf ab Freigabe)
     reserved_quantity: float = 0                   # mengengenau reservierte Menge

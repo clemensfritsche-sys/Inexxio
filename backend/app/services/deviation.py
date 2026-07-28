@@ -16,7 +16,9 @@ from sqlalchemy.orm import Session
 from ..models import Instance, InstanceOrderLink, Order
 from .admin import log_audit
 from .events import emit
+from .inventory import is_blocked
 from .objects import next_object_id
+from .quantity import qty_sum
 from .subject import order_active_instances, record_link
 
 
@@ -39,15 +41,23 @@ def open_deviations(db: Session, parent: Order) -> list[Order]:
 
 
 def instance_open_deviation(db: Session, instance_object_id: int | None) -> Order | None:
-    """Die (eine) noch offene Abweichung, die diese Instanz bereits als Subjekt führt –
+    """Die (eine) noch offene **Abweichung**, die diese Instanz bereits als Subjekt führt –
     sonst ``None``. Grundlage für die Regel «höchstens EINE aktive Abweichung je Instanz»:
-    verhindert, dass Instanz- und Prozess-Ebene gleichzeitig dieselbe Instanz greifen."""
+    verhindert, dass Instanz- und Prozess-Ebene gleichzeitig dieselbe Instanz greifen.
+
+    FIX (wie schon bei ``open_deviations``): **NUR ``reason='deviation'`` zählt.** Ohne den
+    Filter galt JEDER Unter-Auftrag, der die Instanz verarbeitet, als «offene Abweichung» –
+    insbesondere die automatisch abgeleitete **Bereitstellung** (``reason='provisioning'``,
+    ein Unter-Auftrag mit genau einem Bewegungs-Schritt). Ein Abbruch scheiterte dann mit
+    «Instanz … hat bereits eine offene Abweichung (Auftrag …)» und zeigte auf einen Auftrag,
+    den niemand angelegt hatte und der mit dem Fall nichts zu tun hat."""
     if not instance_object_id:
         return None
     return (
         db.query(Order)
         .join(InstanceOrderLink, InstanceOrderLink.order_id == Order.id)
         .filter(Order.parent_order_id.isnot(None), Order.is_active == True,
+                Order.reason == "deviation",
                 Order.status.in_(("draft", "released")),
                 InstanceOrderLink.instance_object_id == instance_object_id,
                 InstanceOrderLink.is_active == True)
@@ -93,7 +103,9 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
             )
     devi = Order(
         object_id=next_object_id(db, "order"), status="draft",
-        article_id=parent.article_id, quantity=len(insts),
+        # Menge = das, worauf die Abweichung tatsächlich wirkt (Summe der Instanz-Mengen),
+        # NICHT die Zahl der Instanzen: eine Charge à 5 Stk ist EIN Subjekt, aber 5 Stück.
+        article_id=parent.article_id, quantity=qty_sum(i.quantity for i in insts),
         parent_order_id=parent.object_id, reason="deviation",
         title=f"{title_prefix} {parent.object_id}",
     )
@@ -140,7 +152,7 @@ def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | No
     # war leer und die dokumentierte Auto-Abweichung wurde still übersprungen. Massgeblich
     # ist das SUBJEKT des Auftrags (dieselbe Menge, welche die Datenerfassung geprüft hat).
     failed = [i.object_id for i in order_active_instances(db, order)
-              if i.quality == "failed" and i.object_id]
+              if is_blocked(i) and i.object_id]
     # Regel «höchstens EINE aktive Abweichung je Instanz» respektieren, statt beim
     # automatischen Anlegen mit 409 die Erfassung selbst scheitern zu lassen.
     failed = [oid for oid in failed if not instance_open_deviation(db, oid)]

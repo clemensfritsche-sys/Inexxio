@@ -5,6 +5,7 @@ import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, Rotat
 import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { ObjId } from '@/components/erp/obj-id';
 import { Label, PrimaryButton, PanelHeader, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
@@ -40,11 +41,12 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   const required = insp?.required_count ?? 0;
   const pct = insp?.sample_percent ?? 100;
   const result = insp?.result ?? 'pending';
-  // «Erneut erfassen» nach einer geklärten Abweichung: der Schritt wird wieder
-  // erfassbar, ohne dass irgendwo ein Zustand zurückgesetzt werden muss – das Backend
-  // überschreibt dieselbe Fachzeile und bewertet die Instanzen neu.
-  const [redo, setRedo] = useState(false);
-  const done = (result === 'passed' || result === 'failed') && !redo;
+  // Ein fehlgeschlagener Befund wird NICHT an dieser Stelle wiederholt: der Folgeauftrag
+  // (Abweichung) klärt ihn, sein Abschluss erledigt den Schritt. Der frühere Knopf
+  // «Erneut erfassen» ist entfallen – er war ausserdem eine Sackgasse, weil das Backend
+  // nur einen *aktiven* Schritt ausführt und ein fehlgeschlagener das nicht ist (409).
+  const resolvedBy = insp?.resolved_by_order_id ?? null;
+  const done = result === 'passed' || result === 'failed';
   // Bei einem Mehrpositionen-Auftrag ist ``order.quantity`` NULL – die Gesamtmenge ergibt
   // sich dann aus der Summe der Positionsmengen (Spiegel von ``order_lines.effective_quantity``).
   const qty = order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
@@ -149,27 +151,37 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
         </div>
       )}
 
-      {/* Ergebnis-Banner. Bei «Durchgefallen» ist der Schritt NICHT das Ende: die
-          Abweichung klärt den Fall (nacharbeiten / verschrotten / ersetzen), danach wird
-          erneut erfasst. Ohne diesen Weg bliebe der Auftrag für immer auf «fehlgeschlagen»
-          stehen – ein Auftrag muss immer einen Weg nach vorn haben. */}
+      {/* Ergebnis-Banner. «Nicht bestanden» ist NICHT das Ende, aber auch nichts, was man
+          hier wegklickt: die **Abweichung** klärt den Fall (nacharbeiten / ersetzen /
+          aussortieren), und ihr Abschluss erledigt diesen Schritt. Der Befund selbst bleibt
+          stehen – was gemessen wurde, wird nicht überschrieben. */}
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 8,
           background: result === 'passed' ? 'var(--success-bg)' : 'var(--danger-bg)',
           color: result === 'passed' ? 'var(--success)' : 'var(--danger)' }}>
           {result === 'passed' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{result === 'passed' ? 'Bestanden' : 'Durchgefallen'}</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{result === 'passed' ? 'Bestanden' : 'Nicht bestanden'}</span>
           {insp?.checked_count != null && <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>· {insp.checked_count} geprüft</span>}
           {insp?.inspector_name && <span style={{ fontSize: 12, color: 'var(--fg-4)' }}>{insp.inspector_name}</span>}
-          {result === 'failed' && (
-            <button type="button" onClick={() => setRedo(true)}
-              title="Nach geklärter Abweichung (nachgearbeitet, ersetzt, aussortiert) erneut erfassen – bestandene Teile werden dabei wieder entsperrt"
-              style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5,
-                border: '1px solid var(--danger)', background: '#fff', color: 'var(--danger)',
-                borderRadius: 'var(--r-sm)', padding: '4px 10px', font: '600 12px var(--font-body)', cursor: 'pointer' }}>
-              <RotateCcw size={13} /> Erneut erfassen
-            </button>
+          {resolvedBy != null && (
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--fg-3)' }}
+              title="Der Folgeauftrag hat den Befund geklärt – damit ist dieser Schritt erledigt.">
+              <RotateCcw size={13} /> Geklärt durch <ObjId value={resolvedBy} />
+            </span>
           )}
+        </div>
+      )}
+
+      {/* Fehlgeschlagen, noch nicht geklärt: der Weg nach vorn führt über die Abweichung,
+          nicht über ein erneutes Erfassen an dieser Stelle. */}
+      {result === 'failed' && resolvedBy == null && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderRadius: 8,
+          background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
+          <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Die betroffenen Instanzen sind <b>gesperrt</b>. Der Fall wird über die
+            <b> Abweichung</b> geklärt (nacharbeiten, ersetzen, aussortieren) – sobald dieser
+            Folgeauftrag abgeschlossen ist, gilt dieser Schritt als erledigt und der Auftrag
+            läuft weiter.</span>
         </div>
       )}
 
