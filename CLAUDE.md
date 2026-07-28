@@ -1633,6 +1633,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   nichts melden. Der Zeigemodus funktionierte schon immer über Overlays hinweg (Handler in der
   **Capture**-Phase am `document`), nur sichtbar war er nicht.
 
+- **Testnotizen-Runde 9 (Kamera-first scannen, Panel entschlackt, Notizen #91–#104)**:
+  (1) **Der Scan-Dialog IST die Kamera** (#94–#99, `components/scan/scan-dialog.tsx`): kein
+  Kopf, kein Titel, kein Erklärtext, kein zweiter Kasten – die Sheet-Fläche ist der
+  Kamerastrom, alles Weitere liegt darüber. Im Zielrahmen tastet ein **Suchstrahl**
+  (`.ix-scanbeam`, `prefers-reduced-motion`-fest) das Bild ab, darunter steht die EINE
+  Angabe, die zählt: **was** zu scannen ist («Instanz 100000479»). Die Suche ist eine
+  milchige Leiste **im Bild** statt eines Blocks darunter; Klick daneben schliesst wie das ×.
+  `ScanRequest.title` und `ScanStep.hint` sind ersatzlos entfallen (sie wurden nirgends mehr
+  gerendert) – `label` ist der einzige Text.
+  (2) **Panels ohne zweiten Rahmen und ohne zweiten Titel** (#100, #104): sie sitzen seit
+  Runde 8 IN der Modul-Karte des Ablaufs; ihr eigener `cardStyle` (Rahmen, Fläche, Polsterung)
+  und ihr `PanelHeader` waren damit Container-in-Container bzw. eine Titel-Dopplung – beides
+  entfernt (Datenerfassung/Bewegung/Ressource/Verschrotten; Beschaffung/Verkauf/Dokument
+  behalten ihren Kopf, weil er Status bzw. einen anderen Namen trägt). Der aufgeklappte
+  Panel-Bereich trägt jetzt die **Modulfarbe** der Karte statt Weiss.
+  (3) **Datenerfassung**: «Vorschau: Bestanden/Durchgefallen» entfällt (#103 – das Ergebnis
+  steht nach dem Abschluss da), «Erfassung abschliessen» ist **gesperrt, solange nichts
+  erfasst ist** (#101 – ein Klick auf einen leeren Satz hätte die Prüfung mit lauter
+  Nichtwerten durchfallen lassen), der Prüfumfang ist eine Zeile statt eines grauen Kastens
+  (#100). Der ⓘ-Text ist mit dem Kopf entfallen (#93). **Die Hochstufung auf 100 % bleibt**
+  (#102 revidiert #93 ausdrücklich: «diese Funktion doch beibehalten»).
+  (4) **Auftragsspezifikation im Kachel-Design** (#92, `SpecTile`/`TileShell`): dieselbe
+  Sprache wie Artikel-Spezifikation und Instanz-Merkmale – Symbol-Kasten, Versalien-Label,
+  Wert; responsiv über `auto-fit, minmax(min(100%, 260px), 1fr)`. Die Instanzen sind eine
+  Kachel über die volle Breite im selben Raster.
+  (5) **«Prozess» statt «Ablauf»** (#91) – auch bei Nachschub/Retoure/Abweichung.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

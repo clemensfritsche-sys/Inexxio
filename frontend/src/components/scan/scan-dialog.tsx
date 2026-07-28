@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, CameraOff, Check, AlertTriangle, X, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
+import { CameraOff, Check, AlertTriangle, X, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
   type ScanCandidate, type ScanKind, type ScanStep, type ScanRequest,
@@ -32,7 +32,7 @@ function kindMeta(kind: ScanKind | undefined | null) {
 
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
-export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & { onClose: () => void }) {
+export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClose: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [query, setQuery] = useState('');
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -120,107 +120,78 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
   }
 
   return (
+    // Der ganze Container IST die Kameraansicht. Kein Kopf, kein Erklärtext, kein zweiter
+    // Kasten: was zu tun ist, steht im Bild – und was man sucht, tippt man im Bild.
+    // Klick daneben schliesst (identisch zum ×), Esc ebenso.
     <div style={backdrop} onClick={onClose}>
       <div style={sheet} onClick={(e) => e.stopPropagation()}>
-        {/* Kopf */}
-        <div style={head}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <ScanLine size={17} style={{ color: '#2563eb', flexShrink: 0 }} />
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {title ?? 'Code scannen'}
+        {cameraLive ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption
+          <video ref={videoRef} style={video} muted playsInline autoPlay />
+        ) : (
+          <div style={cameraOff}>
+            <CameraOff size={30} strokeWidth={1.5} />
+            <span style={{ fontSize: 12, marginTop: 8, maxWidth: 260, textAlign: 'center' }}>
+              {state === 'denied' ? 'Kein Kamerazugriff – bitte suchen.' : 'Kamera nicht verfügbar – bitte suchen.'}
             </span>
           </div>
-          <button onClick={onClose} aria-label="Schliessen" style={iconBtn}><X size={18} /></button>
-        </div>
+        )}
 
-        {/* Schritt-Fortschritt (nur bei Sequenz) */}
+        {/* Schritt-Fortschritt (nur bei Sequenz) – hauchdünn am oberen Rand */}
         {multi && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px 0' }}>
+          <div style={progressBar}>
             {steps.map((_, i) => (
-              <span key={i} style={{ height: 4, flex: 1, borderRadius: 2, background: i < stepIndex ? '#16a34a' : i === stepIndex ? '#2563eb' : '#e2e8f0' }} />
+              <span key={i} style={{ height: 3, flex: 1, borderRadius: 2, background: i < stepIndex ? 'var(--success)' : i === stepIndex ? '#fff' : 'rgba(255,255,255,.28)' }} />
             ))}
           </div>
         )}
 
-        {/* Aktueller Schritt – mit Symbol des erwarteten Objekttyps */}
-        <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {step?.kind && (() => { const K = kindMeta(step.kind).icon; return (
-            <div style={kindBadge} title={kindMeta(step.kind).label}>
-              <K size={20} strokeWidth={2} />
-            </div>
-          ); })()}
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
-              {multi ? `Schritt ${stepIndex + 1}/${steps.length}: ` : ''}{step?.label ?? '—'}
-            </div>
-            {step?.kind && <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{kindMeta(step.kind).label} scannen</div>}
-            {step?.hint && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{step.hint}</div>}
-          </div>
-        </div>
+        <button onClick={onClose} aria-label="Schliessen" style={closeBtn}><X size={18} /></button>
 
-        {/* Kamera-Viewfinder */}
-        <div style={{ padding: '10px 16px 0' }}>
-          <div style={viewport}>
-            {cameraLive && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
-              <video ref={videoRef} style={video} muted playsInline autoPlay />
-            )}
-            {!cameraLive && (
-              <div style={cameraOff}>
-                <CameraOff size={30} strokeWidth={1.5} />
-                <span style={{ fontSize: 12, marginTop: 8, maxWidth: 260, textAlign: 'center' }}>
-                  {state === 'denied'
-                    ? 'Kein Kamerazugriff – bitte unten manuell suchen/eingeben.'
-                    : 'Kamera nicht verfügbar – bitte unten manuell suchen/eingeben.'}
-                </span>
-              </div>
-            )}
-            {cameraLive && (
-              <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? '#dc2626' : feedback?.kind === 'ok' ? '#16a34a' : 'rgba(255,255,255,0.9)' }} />
-            )}
-            {cameraLive && step?.kind && !feedback && (() => { const K = kindMeta(step.kind).icon; return (
-              <div style={frameIcon}><K size={46} strokeWidth={1.5} /><span style={{ fontSize: 12, fontWeight: 700, marginTop: 4 }}>{kindMeta(step.kind).label}</span></div>
-            ); })()}
-            {feedback && (
-              <div style={{ ...badge, background: feedback.kind === 'ok' ? '#16a34a' : '#dc2626' }}>
-                {feedback.kind === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />} {feedback.text}
-              </div>
-            )}
-          </div>
+        {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt werden. */}
+        <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
+          {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
         </div>
+        {step && !feedback && (
+          <div style={targetLabel}>
+            {step.kind && (() => { const K = kindMeta(step.kind).icon; return <K size={15} strokeWidth={2} />; })()}
+            {step.label}
+          </div>
+        )}
 
-        {/* Manuelle Suche – sofort sichtbar (semantische Objektnummer-Suche) */}
-        <div style={{ padding: '12px 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#64748b' }}>
-            <Camera size={13} /> Code vor die Kamera halten – oder manuell suchen:
-          </span>
+        {feedback && (
+          <div style={{ ...badge, background: feedback.kind === 'ok' ? 'var(--success)' : 'var(--danger)' }}>
+            {feedback.kind === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />} {feedback.text}
+          </div>
+        )}
+
+        {/* Suche – im Bild statt darunter: eine milchige Leiste am unteren Rand. */}
+        <div style={searchBar}>
           <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+            <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,.7)', pointerEvents: 'none' }} />
             <input
               value={query}
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && typedDirectOk) submitQuery(); }}
               autoFocus
-              placeholder="Objektnummer oder Suche, z. B. 003"
+              placeholder="Objektnummer suchen, z. B. 003"
               style={input}
             />
           </div>
 
-          {/* Vorschläge */}
           {suggestions.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 168, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
               {suggestions.map((c) => (
                 <button key={c.objectId} onClick={() => handle(c.objectId)} style={suggestionBtn}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#2563eb' }}>{fmtObjId(c.objectId)}</span>
-                  <span style={{ color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{fmtObjId(c.objectId)}</span>
+                  <span style={{ opacity: .8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
                 </button>
               ))}
             </div>
           )}
 
-          {/* Direkte Übernahme einer vollständigen Nummer ohne Vorschlagsliste */}
           {suggestions.length === 0 && query.trim() !== '' && (
-            <button onClick={submitQuery} disabled={!typedDirectOk} style={{ ...primaryBtn, opacity: typedDirectOk ? 1 : 0.5 }}>
+            <button onClick={submitQuery} disabled={!typedDirectOk} style={{ ...primaryBtn, opacity: typedDirectOk ? 1 : 0.45 }}>
               {typedId != null ? `${fmtObjId(typedId)} übernehmen` : 'Übernehmen'}
             </button>
           )}
@@ -231,55 +202,64 @@ export function ScanDialog({ title, steps, onComplete, onClose }: ScanRequest & 
 }
 
 const backdrop: React.CSSProperties = {
-  position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.55)',
+  position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(15,23,42,0.62)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
 };
+// Die Sheet-Fläche IST die Kamera: dunkel, randlos, alles Weitere liegt darüber.
 const sheet: React.CSSProperties = {
-  width: '100%', maxWidth: 380, background: '#fff', borderRadius: 14, overflow: 'hidden',
-  border: '1px solid #E2E8F0', boxShadow: '0 20px 50px rgba(15,23,42,0.25)',
-};
-const head: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid #F1F5F9',
-};
-const viewport: React.CSSProperties = {
-  position: 'relative', width: '100%', aspectRatio: '4 / 3', background: '#0f172a',
-  borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-};
-const video: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover' };
-const cameraOff: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#94a3b8', padding: 24,
-};
-const frame: React.CSSProperties = {
-  position: 'absolute', width: '60%', aspectRatio: '1 / 1', border: '3px solid rgba(255,255,255,0.9)',
-  borderRadius: 14, boxShadow: '0 0 0 9999px rgba(0,0,0,0.22)', transition: 'border-color 0.15s',
-};
-const badge: React.CSSProperties = {
-  position: 'absolute', bottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6,
-  padding: '5px 11px', borderRadius: 999, color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: '90%',
-};
-const kindBadge: React.CSSProperties = {
-  flexShrink: 0, width: 40, height: 40, borderRadius: 10, background: '#eff6ff', color: '#2563eb',
+  position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '3 / 4', maxHeight: '82vh',
+  background: '#0B1220', borderRadius: 18, overflow: 'hidden',
+  boxShadow: '0 24px 60px rgba(15,23,42,0.4)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
-const frameIcon: React.CSSProperties = {
-  position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center',
-  color: 'rgba(255,255,255,0.85)', pointerEvents: 'none', textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+const video: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' };
+const cameraOff: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'rgba(255,255,255,.6)', padding: 24,
 };
-const iconBtn: React.CSSProperties = {
-  // ≥44px Touch-Ziel (Padding statt grösserem Icon); negativer Margin hält die Optik kompakt.
-  border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 13, margin: -9,
-  display: 'flex',
+const progressBar: React.CSSProperties = {
+  position: 'absolute', top: 10, left: 14, right: 14, display: 'flex', gap: 5,
+};
+const closeBtn: React.CSSProperties = {
+  position: 'absolute', top: 10, right: 10, border: 'none', cursor: 'pointer', display: 'flex',
+  padding: 11, borderRadius: 999, color: '#fff', background: 'rgba(15,23,42,.45)',
+  backdropFilter: 'blur(6px)',
+};
+const frame: React.CSSProperties = {
+  position: 'absolute', width: '64%', aspectRatio: '1 / 1', border: '2px solid rgba(255,255,255,.85)',
+  borderRadius: 18, boxShadow: '0 0 0 9999px rgba(4,8,16,0.42)', transition: 'border-color .15s',
+  overflow: 'hidden',
+};
+// Der Suchstrahl: eine weiche Linie, die den Rahmen abtastet.
+const beam: React.CSSProperties = {
+  position: 'absolute', left: '6%', right: '6%', top: '50%', height: 2, borderRadius: 2,
+  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent)',
+  boxShadow: '0 0 12px rgba(255,255,255,.6)',
+};
+// Die EINE Angabe im Bild: was soll gescannt werden.
+const targetLabel: React.CSSProperties = {
+  position: 'absolute', top: 'calc(50% + 34%)', display: 'inline-flex', alignItems: 'center', gap: 7,
+  padding: '7px 14px', borderRadius: 999, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)',
+  color: '#fff', font: '700 13px var(--font-body)', letterSpacing: '.01em', maxWidth: '82%',
+  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+};
+const badge: React.CSSProperties = {
+  position: 'absolute', top: 'calc(50% + 34%)', display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '7px 14px', borderRadius: 999, color: '#fff', fontSize: 12.5, fontWeight: 700, maxWidth: '86%',
+};
+const searchBar: React.CSSProperties = {
+  position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 6,
 };
 const input: React.CSSProperties = {
-  width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 9, paddingBottom: 9, fontSize: 14,
-  border: '1px solid #E2E8F0', borderRadius: 8, background: '#F8FAFC', outline: 'none', boxSizing: 'border-box',
+  width: '100%', paddingLeft: 36, paddingRight: 12, paddingTop: 11, paddingBottom: 11, fontSize: 14,
+  border: '1px solid rgba(255,255,255,.22)', borderRadius: 12, outline: 'none', boxSizing: 'border-box',
+  background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(10px)', color: '#fff',
 };
 const suggestionBtn: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', width: '100%', textAlign: 'left',
-  border: '1px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 13,
+  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', width: '100%', textAlign: 'left',
+  border: '1px solid rgba(255,255,255,.18)', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+  background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(10px)', color: '#fff',
 };
 const primaryBtn: React.CSSProperties = {
-  padding: '9px 14px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  padding: '10px 14px', borderRadius: 10, border: 'none', background: '#fff', color: 'var(--fg-1)',
+  fontSize: 13, fontWeight: 700, cursor: 'pointer',
 };

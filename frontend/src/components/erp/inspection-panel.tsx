@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ClipboardCheck, Lock, CheckCircle2, XCircle, Info, AlertTriangle, RotateCcw, ScanLine, ThumbsUp, ThumbsDown, Camera, PenLine } from 'lucide-react';
+import { Lock, CheckCircle2, XCircle, Info, AlertTriangle, RotateCcw, ScanLine, ThumbsUp, ThumbsDown, Camera, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
-import { Label, PrimaryButton, PanelHeader, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { Label, PrimaryButton, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
@@ -80,9 +80,8 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   function scanNext() {
     if (nextInstance == null) return;
     scan({
-      title: 'Instanz prüfen',
       steps: [{
-        label: `Instanz ${fmtObjId(nextInstance)}`, hint: 'Zu erfassende Instanz scannen',
+        label: `Instanz ${fmtObjId(nextInstance)}`,
         expected: nextInstance, candidates: [{ objectId: nextInstance, label: 'Instanz' }],
       }],
       onComplete: () => setUnlocked((u) => [...u, nextInstance]),
@@ -96,7 +95,12 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   function sampleOk(key: string): boolean {
     return fields.every((f) => fieldOk(f, values[key]?.[f.key]));
   }
-  const allOk = samples.every((s) => sampleOk(sKey(s.instance_id, s.slot)));
+  // Ist überhaupt etwas erfasst? Erst dann lässt sich abschliessen (Notiz #101) – sonst
+  // liesse ein Klick die Prüfung mit lauter leeren Werten durchfallen.
+  const anyCaptured = samples.some((s) => {
+    const vs = values[sKey(s.instance_id, s.slot)] ?? {};
+    return fields.some((f) => { const v = vs[f.key]; return v != null && v !== ''; });
+  });
 
   function sampleLabel(instanceId: number, slot: number): string {
     return isBatch ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Instanz ${fmtObjId(instanceId)}`;
@@ -127,7 +131,6 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -137,11 +140,11 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header info="Je genannter Instanz die Werte erfassen. Eine ungenügende Teil-Stichprobe stuft die Prüfung automatisch auf 100 % hoch." />
 
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#374151' }}>
-        Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: '#94a3b8' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
-        {isBatch && required > 1 && <span style={{ color: '#94a3b8' }}> · {required} Proben aus der Charge</span>}
+      {/* Eine Zeile, kein Kasten: die Angabe ist Beiwerk, nicht ein eigener Bereich. */}
+      <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>
+        Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: 'var(--fg-4)' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
+        {isBatch && required > 1 && <span style={{ color: 'var(--fg-4)' }}> · {required} Proben aus der Charge</span>}
       </div>
 
       {escalated && !done && (
@@ -227,16 +230,16 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind (inkl. Bild-/Unterschrift-Felder) */}
       {!done && allUnlocked && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: allOk ? '#16a34a' : '#dc2626', fontWeight: 700 }}>
-            {allOk ? <CheckCircle2 size={14} /> : <XCircle size={14} />} Vorschau: {allOk ? 'Bestanden' : 'Durchgefallen'}
-          </span>
           {!mediaComplete && (
-            <span style={{ fontSize: 11.5, color: '#b45309' }}>
+            <span style={{ fontSize: 11.5, color: 'var(--warning)' }}>
               Bitte alle Bild-/Unterschrift-Felder je Stichprobe erfassen.
             </span>
           )}
-          <PrimaryButton icon={CheckCircle2} tone={allOk ? 'success' : 'primary'} onClick={submit}
-            disabled={saving || !mediaComplete}>
+          {/* Abschliessen erst, wenn wirklich etwas erfasst wurde: ein Klick auf einen
+              leeren Satz hätte die Prüfung mit lauter Nichtwerten durchfallen lassen.
+              Keine Ergebnis-Vorschau mehr – das Ergebnis steht nach dem Abschluss da. */}
+          <PrimaryButton icon={CheckCircle2} onClick={submit}
+            disabled={saving || !mediaComplete || !anyCaptured}>
             {saving ? 'Speichert…' : 'Erfassung abschliessen'}
           </PrimaryButton>
         </div>
@@ -336,11 +339,10 @@ function Toggle({ icon: Icon, label, active, tone, onClick, disabled }: {
   );
 }
 
-function Header({ info }: { info?: string }) {
-  return <PanelHeader icon={ClipboardCheck} title="Datenerfassung" info={info} />;
-}
 
 const cardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
+  // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener
+  // Hintergrund, keine eigene Polsterung. Container-in-Container war genau die Schwere,
+  // die Notiz #100 meint; die Karte drumherum ist bereits der Container.
   display: 'flex', flexDirection: 'column', gap: 12,
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
+import { Ban, X, Package, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, TILE, TileShell, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -595,9 +595,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             Freigabe entstandenen **Instanzen** stehen in derselben Karte statt in einer
             zweiten darunter – sie sind das Ergebnis derselben Aussage, kein neues Thema. */}
         <SectionTitle>Auftragsspezifikation</SectionTitle>
-        <div style={cardStyle}>
-          {demandEditable ? (
-            <>
+        {demandEditable ? (
+          <div style={cardStyle}>
               {isMultiPosition ? (
                 orderLines.map((l) => {
                   const line = pinLines.find((p) => p.lineId === l.id);
@@ -657,27 +656,33 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   </>
                 )}
               </div>
-            </>
-          ) : (
-            <>
+          </div>
+        ) : (
+          // Lese-Ansicht im **Kachel-Raster** – dieselbe Sprache wie die Artikel-Spezifikation
+          // und die Instanz-Merkmale (``TileShell``): Symbol-Kasten + Versalien-Label + Wert,
+          // je Kachel eine eigene Haarlinie, responsiv bis Mobile (auto-fit, min 260px).
+          <div style={specGrid}>
               {isMultiPosition ? (
                 <PositionsList lines={orderLines} />
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-                    <span style={{ color: '#94a3b8', flexShrink: 0 }}>Artikel</span>
-                    <span style={{ textAlign: 'right' }}>
-                      {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
-                    </span>
-                  </div>
-                  <Row k="Menge" v={record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'} />
+                  <SpecTile icon={Package} label="Artikel">
+                    {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
+                    {record?.article_name && <span style={TILE.sub}>{record.article_name}</span>}
+                  </SpecTile>
+                  <SpecTile icon={Boxes} label="Menge">
+                    {record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'}
+                  </SpecTile>
                 </>
               )}
-              <Row k="Wunsch-Liefertermin" v={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
-            </>
-          )}
-          {record && <OrderInstances order={record} embedded />}
-        </div>
+              <SpecTile icon={CalendarClock} label="Wunsch-Liefertermin">
+                {record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'}
+              </SpecTile>
+              {/* Die bei der Freigabe entstandenen Instanzen: eine Kachel über die volle
+                  Breite – Ergebnis derselben Aussage, darum dasselbe Raster. */}
+              {record && <OrderInstances order={record} embedded />}
+          </div>
+        )}
 
 
         {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
@@ -762,7 +767,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               : isReturn
                 ? 'Lege fest, was mit der zurückkommenden Ware geschieht (Rücknahme ins Lager, Gutschrift, optional Prüfung/Verschrottung). Mit der Freigabe wird die Retoure scharf.'
                 : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
-              {isSupply ? 'Ablauf des Nachschubs' : isReturn ? 'Ablauf der Retoure' : 'Ablauf der Abweichung'}
+              {isSupply ? 'Prozess des Nachschubs' : isReturn ? 'Prozess der Retoure' : 'Prozess der Abweichung'}
             </SectionTitle>
             {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
             <div style={{ marginBottom: 12 }}>
@@ -781,7 +786,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             also soll er auch gleich aussehen. */}
         {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
           <>
-            <SectionTitle icon={Workflow} info="Was mit den Positionen geschieht: bewegen, verkaufen, prüfen, verschrotten … Jedes Modul ist frei kombinierbar.">Ablauf</SectionTitle>
+            <SectionTitle icon={Workflow} info="Was mit den Positionen geschieht: bewegen, verkaufen, prüfen, verschrotten … Jedes Modul ist frei kombinierbar.">Prozess</SectionTitle>
             <div style={{ marginBottom: 12 }}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
@@ -809,7 +814,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* Prozess */}
         {showProcess ? (
           <>
-            <SectionTitle icon={Workflow}>Ablauf</SectionTitle>
+            <SectionTitle icon={Workflow}>Prozess</SectionTitle>
             {/* Frei im Weissraum, wie der Editor am Artikel – kein zweiter Karten-Hintergrund
                 um einen Fluss, der schon aus Karten besteht. */}
             <div style={{ marginBottom: 12 }}>
@@ -894,6 +899,24 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
+// Kachel-Raster der Auftragsspezifikation – identisch zu Artikel-Spezifikation und
+// Instanz-Merkmalen: jede Kachel trägt ihre eigene Haarlinie und steht in Weissraum,
+// responsiv bis Mobile (eine Spalte, sobald 260px unterschritten werden).
+const specGrid: React.CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+  gap: 12, marginBottom: 12,
+};
+
+function SpecTile({ icon, label, children }: {
+  icon: React.ElementType; label: string; children: React.ReactNode;
+}) {
+  return (
+    <TileShell icon={icon} label={label}>
+      <div style={{ ...TILE.v, flexWrap: 'wrap', whiteSpace: 'normal' }}>{children}</div>
+    </TileShell>
+  );
+}
+
 // Kopf-Anatomie – identisch zu Artikel/Instanz (Symbol · Eyebrow · Titel · Objektnummer+Aktionen).
 const H: Record<string, React.CSSProperties> = {
   dhead: { padding: '18px 28px', borderBottom: '1px solid var(--border-1)', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0 },

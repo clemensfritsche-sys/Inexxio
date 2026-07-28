@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeftRight, Lock, CheckCircle2, MapPin, Info, ScanLine, Truck, AlertTriangle, FileDown, Loader2, Zap, Boxes, Warehouse, Package } from 'lucide-react';
+import { Lock, CheckCircle2, MapPin, Info, ScanLine, Truck, AlertTriangle, FileDown, Loader2, Zap, Boxes, Warehouse, Package } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance, LocationType, Order, UserProfile, OrderInstance, ShipmentEmbed, TransportMode } from '@/types';
@@ -10,7 +10,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
-import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
+import { PrimaryButton } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 // Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). Unbekannte/veraltete Typen
@@ -126,28 +126,25 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
       const srcKind = SRC_SCAN_KIND[inst.location_type ?? ''];
       steps.push({
         label: 'Aktueller Standort',
-        hint: `Standort von ${fmtObjId(iid)} scannen oder Nummer eingeben`,
         expected: inst.location_id,
         kind: srcKind,
         candidates: inst.location_label ? [{ objectId: inst.location_id, label: inst.location_label }] : undefined,
       });
     }
     steps.push({
-      label: 'Instanz', hint: 'Zu bewegende Instanz scannen', expected: iid, kind: 'instance',
+      label: 'Instanz', expected: iid, kind: 'instance',
       candidates: [{ objectId: iid, label: instanceLabel(inst.kind) }],
     });
     if (fixedType && fixedId) {
       steps.push({
         label: `Zielstandort ${fmtObjId(fixedId)}`,
-        hint: `Zugewiesenen ${locationTypeLabel(fixedType)} ${fmtObjId(fixedId)} scannen`,
         expected: fixedId, kind: (fixedType as ScanKind) ?? undefined,
         candidates: [{ objectId: fixedId, label: mv?.target_location_label ?? locationTypeLabel(fixedType) }],
       });
     } else {
-      steps.push({ label: 'Zielstandort', hint: 'Zielstandort scannen – wird zugewiesen', restrict: true, candidates: targetCandidates });
+      steps.push({ label: 'Zielstandort', restrict: true, candidates: targetCandidates });
     }
     scan({
-      title: `Bewegung · ${fmtObjId(iid)}`,
       steps,
       onComplete: (ids) => {
         const targetObjId = ids[ids.length - 1];
@@ -184,7 +181,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -195,7 +191,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
   if (instances.length === 0) {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
@@ -209,7 +204,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
         {/* Kein «Bewegung abgeschlossen»-Banner: dass der Schritt erledigt ist, sagt der
             Auftrags-Stepper bereits (grünes Symbol, Wer/Wann im Hover) – hier zählt das
             Ergebnis, also wo die Instanzen jetzt liegen (Notiz #2). */}
-        <Header />
         {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} readOnly onOrderUpdated={onOrderUpdated} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
           {instances.map((i) => <InstanceRow key={i.id} instance={i} />)}
@@ -225,7 +219,6 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     : 'Pro Instanz scannen: aktueller Standort → Instanz → Zielstandort (wird zugewiesen).';
   return (
     <div style={cardStyle}>
-      <Header info={moveInfo} />
 
       {/* Versand (ADR 005): abgeleitet aus Ziel/Geofence – Tarifvergleich + Label VOR dem Vollzug */}
       {mv?.shipment && <ShipmentBox order={order} stepId={stepId} shipment={mv.shipment} onOrderUpdated={onOrderUpdated} />}
@@ -582,11 +575,10 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   );
 }
 
-function Header({ info }: { info?: string }) {
-  return <PanelHeader icon={ArrowLeftRight} title="Bewegung" info={info} />;
-}
 
 const cardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
+  // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener
+  // Hintergrund, keine eigene Polsterung. Container-in-Container war genau die Schwere,
+  // die Notiz #100 meint; die Karte drumherum ist bereits der Container.
   display: 'flex', flexDirection: 'column', gap: 12,
 };

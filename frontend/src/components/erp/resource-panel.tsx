@@ -9,7 +9,7 @@ import type {
 import type { ScanStep } from '@/lib/scan';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { PrimaryButton, PanelHeader } from '@/components/erp/fields';
+import { PrimaryButton } from '@/components/erp/fields';
 import { instanceLabel } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { useScan } from '@/components/scan/scan-provider';
@@ -52,18 +52,16 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
       const p = products.find((pp) => !accProducts.includes(pp.instance_id));
       if (p) {
         const steps: ScanStep[] = [
-          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, hint: 'Übergeordnete Instanz scannen', kind: 'instance',
+          { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, kind: 'instance',
             expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceLabel(p.kind) }] },
           ...(p.components ?? []).map((c) => ({
             label: `Komponente ${fmtObjId(c.instance_id)}`,
-            hint: `${c.article_name ?? ''} in ${fmtObjId(p.instance_id)} verbauen`,
             kind: 'instance' as const,
             expected: c.instance_id,
             candidates: [{ objectId: c.instance_id, label: c.article_name ?? 'Komponente' }],
           })),
         ];
         scan({
-          title: `Verbrauch · ${fmtObjId(p.instance_id)}`,
           steps,
           onComplete: () => { const np = [...accProducts, p.instance_id]; setVProducts(np); resume(np, accTools); },
         });
@@ -73,10 +71,8 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
     const tl = toolLines.find((l) => accTools[l.article_id] == null);
     if (tl) {
       scan({
-        title: `Betriebsmittel · ${tl.article_name ?? ''}`,
         steps: [{
-          label: `Betriebsmittel: ${tl.article_name ?? `#${tl.article_id}`}`,
-          hint: 'Genutztes Betriebsmittel scannen', kind: 'instance', restrict: true,
+          label: `Betriebsmittel: ${tl.article_name ?? `#${tl.article_id}`}`, kind: 'instance', restrict: true,
           candidates: (tl.candidates ?? []).map((c) => ({ objectId: c.object_id, label: tl.article_name ?? '' })),
         }],
         onComplete: ([id]) => { const nt = { ...accTools, [tl.article_id]: id }; setVTools(nt); resume(accProducts, nt); },
@@ -106,7 +102,6 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -116,7 +111,6 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
 
   return (
     <div style={cardStyle}>
-      <Header info="Verbrauchte Komponenten werden in die Produkt-Instanz eingebaut, Betriebsmittel an deren Standort gebracht – der Standort wandert mit dem Produkt mit." />
 
       {done && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
@@ -255,12 +249,11 @@ function SubTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Header({ info }: { info?: string }) {
-  return <PanelHeader icon={Wrench} title="Ressource" info={info} />;
-}
 
 const cardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
+  // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener
+  // Hintergrund, keine eigene Polsterung. Container-in-Container war genau die Schwere,
+  // die Notiz #100 meint; die Karte drumherum ist bereits der Container.
   display: 'flex', flexDirection: 'column', gap: 12,
 };
 const lineBox: React.CSSProperties = {

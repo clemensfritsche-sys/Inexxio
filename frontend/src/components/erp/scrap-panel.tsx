@@ -5,7 +5,7 @@ import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
-import { StatusBadge, PanelHeader } from '@/components/erp/fields';
+import { StatusBadge } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useScan } from '@/components/scan/scan-provider';
@@ -25,12 +25,12 @@ import { useScan } from '@/components/scan/scan-provider';
  */
 const MODE_TEXT = {
   scrap: {
-    title: 'Verschrotten', verb: 'Verschrotten', running: 'Verschrottet…',
+    verb: 'Verschrotten', running: 'Verschrottet…',
     doneText: 'Verschrottung abgeschlossen', tone: 'var(--danger)',
     info: 'Jede Instanz wird vorher gescannt (Verifikation). Gescannte Instanzen werden endgültig aus dem Bestand genommen.',
   },
   block: {
-    title: 'Sperren', verb: 'Sperren', running: 'Sperrt…',
+    verb: 'Sperren', running: 'Sperrt…',
     doneText: 'Gesperrt', tone: 'var(--warning)',
     info: 'Jede Instanz wird vorher gescannt (Verifikation). Gesperrte Instanzen bleiben an ihrem Standort, sind aber nicht mehr verwendbar – die Sperre wird an der Instanz wieder aufgehoben.',
   },
@@ -75,9 +75,8 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     const inst = queue[0];
     const oid = inst.object_id as number;
     scan({
-      title: `${T.verb} · ${fmtObjId(oid)}`,
       steps: [{
-        label: 'Instanz', hint: `Instanz zum ${T.verb} scannen`, expected: oid, kind: 'instance',
+        label: 'Instanz', expected: oid, kind: 'instance',
         candidates: [{ objectId: oid, label: instanceLabel(inst.kind) }],
       }],
       onComplete: () => {
@@ -114,7 +113,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
   if (stepState === 'locked') {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Lock size={14} /> Wird aktiv, sobald der vorherige Schritt erledigt ist.
         </div>
@@ -125,7 +123,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
   if (instances.length === 0) {
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#94a3b8' }}>
           <Info size={14} /> Noch keine Instanzen vorhanden.
         </div>
@@ -137,7 +134,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     const scrapped = instances.filter((i) => i.disposition === 'scrapped');
     return (
       <div style={cardStyle}>
-        <Header />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f1f5f9', color: '#475569' }}>
           <CheckCircle2 size={16} />
           <span style={{ fontSize: 13, fontWeight: 700 }}>
@@ -157,7 +153,6 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
 
   return (
     <div style={cardStyle}>
-      <Header info={T.info} title={T.title} tone={T.tone} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
         {scrappable.map((i) => {
@@ -242,11 +237,10 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   );
 }
 
-function Header({ info, title, tone }: { info?: string; title?: string; tone?: string }) {
-  return <PanelHeader icon={Trash2} title={title ?? 'Verschrotten'} tone={tone ?? 'var(--danger)'} info={info} />;
-}
 
 const cardStyle: React.CSSProperties = {
-  background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px',
+  // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener
+  // Hintergrund, keine eigene Polsterung. Container-in-Container war genau die Schwere,
+  // die Notiz #100 meint; die Karte drumherum ist bereits der Container.
   display: 'flex', flexDirection: 'column', gap: 12,
 };

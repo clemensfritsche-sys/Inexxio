@@ -53,8 +53,10 @@ export interface ScanCandidate {
 export type ScanKind = 'user' | 'instance' | 'company' | 'article' | 'process' | 'object';
 
 export interface ScanStep {
-  label: string;                              // was gerade gescannt werden soll
-  hint?: string;                              // optionaler Zusatzhinweis
+  // Was gerade gescannt werden soll – die EINE Angabe, die der Scanner im Bild zeigt.
+  // Ein zusätzlicher Erklärtext (früher ``hint``) und ein Dialog-Titel sind entfallen: der
+  // ganze Container ist die Kamera, und was zu tun ist, steht im Zielrahmen.
+  label: string;
   kind?: ScanKind;                            // erwarteter Objekttyp → Symbol im Scanner
   expected?: number | number[] | null;        // exakt zu treffende Objektnummer(n)
   candidates?: ScanCandidate[];               // Vorschläge für die manuelle Suche
@@ -62,7 +64,6 @@ export interface ScanStep {
 }
 
 export interface ScanRequest {
-  title?: string;
   steps: ScanStep[];
   onComplete: (objectIds: number[]) => void;
 }
