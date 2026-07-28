@@ -36,7 +36,7 @@ from ..models import (
 )
 from ..models.base import utcnow
 from .events import emit
-from .inventory import available, in_stock_clauses
+from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
 from .quantity import ONE, ZERO, to_qty
 from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
 
@@ -104,7 +104,9 @@ def _fact_status(step_type: str, fact) -> str:
         if fact and fact.result == "passed":
             return "done"
         if fact and fact.result == "failed":
-            return "failed"
+            # Fehlgeschlagen ist NICHT terminal: hat der Folgeauftrag (Abweichung) den Fall
+            # geklärt, ist der Schritt erledigt – der Befund selbst bleibt fehlgeschlagen.
+            return "done" if getattr(fact, "resolved_by_order_id", None) else "failed"
         return "open"
     if step_type == "sale":
         # Verkauf UND Gutschrift (Kredit-Modus) teilen den kaufmännischen Lebenszyklus
@@ -365,14 +367,14 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
         # FIX: Durchgefallene zählen laut Kontrakt (Docstring) NICHT als «gesichert» – der
-        # Filter fehlte aber: eine reservierte Instanz mit quality='failed' deckte das Soll
+        # Filter fehlte aber: eine gesperrte reservierte Instanz deckte das Soll
         # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
         # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
-        if inst.quality == "failed":
+        if is_blocked(inst):
             continue
         secured[inst.article_id] = secured.get(inst.article_id, ZERO) + reserved_for(inst, order.id)
     for inst in db.query(Instance).filter(
-        Instance.order_id == order.id, Instance.is_active == True, Instance.quality != "failed"
+        Instance.order_id == order.id, Instance.is_active == True, *unblocked_clauses()
     ).all():
         if (inst.disposition or "") in TERMINAL_DISPOSITIONS:
             continue
@@ -555,7 +557,7 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         .all()
     )
     for inst in subjects:
-        if inst.quality == "failed":
+        if is_blocked(inst):
             continue
         sold = reserved_for(inst, order.id)
         consume_qty(inst, order.id, sold)        # Menge mindern + Reservierung lösen
@@ -586,7 +588,7 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     Abschluss. Eine verkaufte Subjekt-Instanz, die per **Bewegung** vom Kunden **weg**
     gebracht wurde, kommt in den Bestand zurück (sold → in_stock). Wurde NICHTS bewegt
     (Kulanz: der Kunde behält die Ware) → sie bleibt 'sold' (nur Geld zurück).
-    Durchgefallene (quality='failed', z. B. defekt) bleiben gesperrt und werden verschrottet.
+    Gesperrte (durchgefallen/ausgesetzt, z. B. defekt) bleiben gesperrt und werden verschrottet.
 
     Die Rückkehr wird daran erkannt, dass die Instanz **nicht mehr beim Kunden liegt** –
     nicht daran, an welchen Halter-Typ sie gebracht wurde. (Früher stand hier
@@ -633,7 +635,7 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
         .first() is not None
     )
     for inst in order_instances(db, order):
-        if inst.quality == "failed" or (inst.disposition or "") in ("scrapped", "consumed"):
+        if is_blocked(inst) or (inst.disposition or "") in ("scrapped", "consumed"):
             continue
         if inst.disposition == "sold":
             # Ganz verkaufte Instanz: Rückkehr = sie liegt nicht mehr beim Kunden.
@@ -783,6 +785,12 @@ def recompute_completion(db: Session, order: Order) -> None:
         if order.parent_order_id is not None:
             parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
             if parent and parent.status == "released":
+                # Die Abweichung IST die Klärung: ein fehlgeschlagener Befund am Eltern gilt
+                # damit als erledigt (sonst hinge der Eltern-Auftrag für immer an einem
+                # Schritt, den nichts mehr weiterbringen kann).
+                if (order.reason or "") == "deviation":
+                    from .inspection import resolve_failed_by
+                    resolve_failed_by(db, parent, order)
                 recompute_completion(db, parent)
 
 

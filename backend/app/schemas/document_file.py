@@ -74,7 +74,7 @@ class ObjectDocument(BaseModel):
     # erzeugte Instanz – daher trägt es DEREN Status (nicht «Erstellt») und seinen Inhalt kann
     # das Frontend direkt rendern (keine PDF-Iframe/CSP-Umwege).
     content: Optional[dict] = None
-    quality: Optional[str] = None        # Instanz-Achse «ist es gut?» (pending|passed|failed)
+    quality: Optional[str] = None        # Instanz-Achse «verwendbar?» (pending|passed|blocked)
     disposition: Optional[str] = None    # Instanz-Achse «wo ist es?» (in_process|in_stock|…)
     reserved: bool = False               # Instanz reserviert (für die Status-Badge)
     # Freigaben/Unterschriften-Layer (nur kind='generated') – wird auf das Dokument gerendert.

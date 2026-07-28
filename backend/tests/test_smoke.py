@@ -1871,8 +1871,9 @@ def test_pooled_order_step_types_all_allowed():
     resource_src = _inspect.getsource(resource.reserve_resources)
     assert "effective_quantity(db, order)" in resource_src
 
-    inspection_src = _inspect.getsource(inspection.required_count)
-    assert "effective_quantity(db, order)" in inspection_src
+    # Modul statt Einzelfunktion: die Fachaussage ist «die Datenerfassung rechnet nicht mit
+    # ``order.quantity``», nicht «genau diese Zeile steht in genau dieser Funktion».
+    assert "effective_quantity(db, order)" in _inspect.getsource(inspection)
 
 
 def test_sale_step_resolves_via_step_not_first_match():
@@ -2060,7 +2061,8 @@ def test_purchase_and_inspection_use_effective_quantity_not_order_quantity():
     assert "order.quantity or 0" not in _inspect.getsource(resource.build_resource_embed)
     assert "(order.quantity or 0)" not in _inspect.getsource(process._component_needs)
     assert "(order.quantity or 0)" not in _inspect.getsource(process.step_shortfalls)
-    assert "effective_quantity" in _inspect.getsource(inspection.required_count)
+    assert "effective_quantity" in _inspect.getsource(inspection)
+    assert "order.quantity" not in _inspect.getsource(inspection.required_count)
 
 
 def test_purchase_creates_one_order_per_position_sharing_step_id():
@@ -2653,24 +2655,107 @@ def test_metrics_spread_median_first():
 
 
 def test_failed_inspection_is_not_terminal():
-    """Eine durchgefallene Datenerfassung darf den Auftrag nicht endgültig festsetzen.
+    """Eine durchgefallene Datenerfassung darf den Auftrag nicht endgültig festsetzen –
+    aber aufgelöst wird sie NUR über den Folgeauftrag.
 
     ``all_steps_done`` verlangt für jeden Schritt ``done`` – ein Schritt, der auf
-    «fehlgeschlagen» stehen bleibt, verhindert den Abschluss für immer. Der Weg nach vorn:
-    die Abweichung klärt den Fall (nacharbeiten / verschrotten / ersetzen), danach wird
-    **erneut erfasst**. Damit das etwas ändern kann, muss die Bewertung bei JEDEM Ergebnis
-    laufen (auch bei «bestanden») und eine frühere Sperre wieder lösen können."""
+    «fehlgeschlagen» stehen bleibt, verhindert den Abschluss für immer, und seine Instanzen
+    hängen dauerhaft in «In Arbeit». Der Weg nach vorn ist die **Abweichung**: schliesst sie
+    ab, ist der Befund geklärt (``resolved_by_order_id``) und der Schritt erledigt. Der
+    Befund selbst bleibt ``failed`` – gemessen ist gemessen.
+
+    Es gibt bewusst KEIN «erneut erfassen» am fehlgeschlagenen Schritt (es wäre ohnehin eine
+    Sackgasse: ``resolve_exec_step`` führt nur *aktive* Schritte aus)."""
     import inspect as _inspect
 
     from app.services import inspection as insp_mod
+    from app.services import process as proc_mod
 
     src = _inspect.getsource(insp_mod)
     # Nicht mehr nur beim Nichtbestehen bewerten …
     assert 'if decision != "passed":\n        _apply_per_instance_qc' not in src
     assert "_apply_per_instance_qc(db, order, fields, stored)" in src
-    # … und die Sperre ist rücknehmbar (failed → pending), nie eine vorzeitige Freigabe.
+    # … und die Sperre ist rücknehmbar (gesperrt → pending), nie eine vorzeitige Freigabe.
     assert 'inst.quality = "pending"' in src
     assert 'inst.quality = "passed"' not in src
+
+    # Die Klärung: nur ein abgeschlossener Abweichungs-Unterauftrag setzt sie.
+    assert "def resolve_failed_by(" in src
+    proc_src = _inspect.getsource(proc_mod)
+    assert 'if (order.reason or "") == "deviation":' in proc_src
+    assert "resolve_failed_by(db, parent, order)" in proc_src
+    # … und ein so geklärter Befund macht den Schritt erledigt.
+    assert 'return "done" if getattr(fact, "resolved_by_order_id", None) else "failed"' in proc_src
+
+
+def test_blocked_is_one_state_with_one_word():
+    """«Durchgefallen» und «gesperrt» waren zwei Werte für dieselbe Aussage.
+
+    Beide heissen «vorhanden, aber nicht verwendbar», beide fallen über dieselbe Bedingung
+    aus FIFO/Bestand, beide sind aufhebbar – nur die Namen waren verschieden. Seit
+    Migration 085 gibt es EINEN geschriebenen Wert (``blocked``); ``failed`` wird nur noch
+    tolerant GELESEN. Damit das eine Stelle bleibt, geht jeder Lesezugriff über
+    ``inventory.is_blocked``/``unblocked_clauses`` statt über einen eigenen Vergleich."""
+    import inspect as _inspect
+
+    from app.services import deviation, inspection, inventory, process, scrap
+
+    assert inventory.BLOCKED == "blocked"
+    # Tolerant lesen: Altbestand zählt weiterhin als gesperrt.
+    assert inventory.is_blocked(_Q("failed")) and inventory.is_blocked(_Q("blocked"))
+    assert not inventory.is_blocked(_Q("passed")) and not inventory.is_blocked(_Q(None))
+
+    # Kein zweiter Weg mehr: nirgends ein handgeschriebener quality-Vergleich auf 'failed'.
+    for mod in (process, deviation, inspection, scrap):
+        src = _inspect.getsource(mod)
+        assert 'quality == "failed"' not in src, mod.__name__
+        assert 'quality != "failed"' not in src, mod.__name__
+    # Geschrieben wird ausschliesslich der eine Wert.
+    assert 'inst.quality = "failed"' not in _inspect.getsource(inspection)
+    assert "inst.quality = inventory.BLOCKED" in _inspect.getsource(inspection)
+
+
+class _Q:
+    """Minimales Instanz-Double – ``is_blocked`` liest nur ``quality``."""
+
+    def __init__(self, quality):
+        self.quality = quality
+
+
+def test_only_a_deviation_counts_as_an_open_deviation():
+    """Ein Bereitstellungs-Unterauftrag ist keine Abweichung.
+
+    ``instance_open_deviation`` filterte nicht auf ``reason`` – damit galt JEDER
+    Unter-Auftrag, der die Instanz anfasst, als «offene Abweichung». Die automatisch
+    abgeleitete **Bereitstellung** (ein Unter-Auftrag mit genau einem Bewegungs-Schritt)
+    liess so einen Abbruch mit «Instanz … hat bereits eine offene Abweichung (Auftrag …)»
+    scheitern – und zeigte auf einen Auftrag, den niemand angelegt hatte."""
+    import inspect as _inspect
+
+    from app.services import deviation
+
+    for fn in (deviation.open_deviations, deviation.instance_open_deviation):
+        assert 'Order.reason == "deviation"' in _inspect.getsource(fn), fn.__name__
+
+
+def test_sample_size_comes_from_the_inspected_instances():
+    """Der Prüfumfang bemisst sich an der geprüften MENGE, nicht an der Zahl der Subjekte.
+
+    Eine Abweichung auf EINE Charge à 5 Stk trug ``order.quantity = 1`` (ein Subjekt) – bei
+    «jede» kam so statt fünf Proben nur eine. Stichprobenzahl und Stichprobenziele stammen
+    jetzt aus derselben Quelle (``order_active_instances``) und können nicht mehr
+    auseinanderlaufen."""
+    import inspect as _inspect
+
+    from app.services import deviation, inspection
+
+    src = _inspect.getsource(inspection.inspected_quantity)
+    assert "order_active_instances(db, order)" in src
+    assert "qty_sum(i.quantity for i in insts)" in src
+    assert "inspected_quantity(db, order)" in _inspect.getsource(inspection.required_count)
+    # Auch die Abweichung selbst deklariert die Menge, nicht die Zahl der Instanzen.
+    assert "quantity=qty_sum(i.quantity for i in insts)" in _inspect.getsource(deviation.create_deviation)
+    assert "quantity=len(insts)" not in _inspect.getsource(deviation.create_deviation)
 
 
 def test_block_is_reversible_scrap_is_not():
@@ -2700,7 +2785,7 @@ def test_block_is_reversible_scrap_is_not():
     assert "block" in ev.allowed_step_types("order")
 
     src = _inspect.getsource(scrap)
-    assert 'inst.quality = "blocked"' in src        # Sperre auf der Qualitäts-Achse
+    assert "inst.quality = inventory.BLOCKED" in src   # Sperre auf der Qualitäts-Achse
     assert "def unblock(" in src                    # … und wieder aufhebbar
     # Der Zustand nach dem Entsperren wird ABGELEITET (kein gemerktes drittes Feld).
     assert "def _restore_quality(" in src

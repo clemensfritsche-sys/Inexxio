@@ -11094,6 +11094,17 @@
             "title": "Escalated",
             "default": false
           },
+          "resolved_by_order_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Order Id"
+          },
           "inspector_name": {
             "anyOf": [
               {

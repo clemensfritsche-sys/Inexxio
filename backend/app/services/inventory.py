@@ -77,6 +77,36 @@ def available_qty(candidates: list[Instance], for_order_id: int | None = None) -
     return total
 
 
+# ─── Gesperrt: EIN Zustand, EIN Wort ─────────────────────────────────────────────
+#
+# Eine Instanz ist **gesperrt**, wenn sie vorhanden, aber nicht verwendbar ist. Dafür gab
+# es zwei Werte mit derselben Bedeutung: ``failed`` (eine Datenerfassung liess sie
+# durchfallen) und ``blocked`` (ein «Sperren»-Schritt hat sie bewusst ausgesetzt). Beide
+# hiessen dasselbe, verhielten sich gleich – und trugen doch verschiedene Namen; genau die
+# Doppelung, die «eine Sache, eine Stelle» verbietet. Seit Migration ``085`` gibt es nur
+# noch **einen** Wert.
+#
+# GESCHRIEBEN wird ausschliesslich ``blocked``; ``failed`` ist Altbestand und wird nur noch
+# tolerant GELESEN (dieselbe Haltung wie beim entfallenen Standort-Typ 'lagerplatz').
+BLOCKED = "blocked"
+_BLOCKED_VALUES = (BLOCKED, "failed")
+
+
+def is_blocked(inst) -> bool:
+    """«Gesperrt» auf einem geladenen Objekt – Gegenstück zu ``blocked_clauses``."""
+    return (inst.quality or "") in _BLOCKED_VALUES
+
+
+def blocked_clauses() -> tuple:
+    """SQLAlchemy-Bedingung für „gesperrt" (nicht verwendbar)."""
+    return (Instance.quality.in_(_BLOCKED_VALUES),)
+
+
+def unblocked_clauses() -> tuple:
+    """SQLAlchemy-Bedingung für „nicht gesperrt"."""
+    return (Instance.quality.notin_(_BLOCKED_VALUES),)
+
+
 def is_in_stock(inst) -> bool:
     """Dieselbe Regel wie ``in_stock_clauses`` – nur auf einem **geladenen** Objekt
     statt als Query-Bedingung.
@@ -87,7 +117,10 @@ def is_in_stock(inst) -> bool:
     sogar in ZWEI Varianten: ``quality != 'failed'`` an der einen, ``quality ==
     'passed'`` an der nächsten Stelle. Beide meinten dasselbe – aber wer das liest,
     muss erst prüfen, ob der Unterschied Absicht ist. Jetzt gibt es eine Regel in
-    zwei Formen, nicht zwei Regeln."""
+    zwei Formen, nicht zwei Regeln.
+
+    Eine **gesperrte** Instanz fällt hier automatisch heraus (``quality != 'passed'``) –
+    darum kostet das Sperren keine einzige zusätzliche Abfrage."""
     return (
         inst.quality == "passed"
         and inst.disposition == "in_stock"

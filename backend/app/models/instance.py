@@ -37,7 +37,7 @@ class Instance(Base, TimestampMixin):
     serial_number: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
 
     # ZWEI getrennte Achsen statt eines überladenen qc_status:
-    #   quality     = QC-Verdikt:  pending | passed | failed   («ist es gut?»)
+    #   quality     = QC-Verdikt:  pending | passed | blocked  («darf man es verwenden?»)
     #   disposition = Verbleib:     in_process | in_stock | consumed | sold | scrapped  («wo ist es?»)
     # Verbrauchbar/zählbar ist eine Instanz nur, wenn quality=passed UND disposition=in_stock.
     quality: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)

@@ -85,10 +85,10 @@ const INSTANCE_STATUS: Record<string, StatusCfg> = {
   in_process: { label: 'In Arbeit',    ...TONE.pending, icon: Clock },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
   reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
-  // «Durchgefallen» (Prüfung) und «Gesperrt» (bewusst ausgesetzt) sind zwei
-  // verschiedene Dinge – vorher trugen beide dasselbe Wort.
-  failed:     { label: 'Durchgefallen', ...TONE.danger,  icon: XCircle },
-  // Gesperrt ist WARTEND, nicht tot: die Instanz kommt zurück (Wartung/Prüfung) –
+  // EIN Zustand «vorhanden, aber nicht verwendbar» – gleich ob eine Datenerfassung die
+  // Instanz durchfallen liess oder ein «Sperren»-Schritt sie bewusst ausgesetzt hat.
+  // Beides verhält sich identisch (fällt aus FIFO/Bestand, ist aufhebbar) und heisst
+  // darum auch gleich. Gesperrt ist WARTEND, nicht tot: die Instanz kommt zurück –
   // darum gelb wie alles Offene, nicht rot wie das endgültige Verschrotten.
   blocked:    { label: 'Gesperrt',     ...TONE.pending, icon: Ban },
   consumed:   { label: 'Verbaut',      ...TONE.done,    icon: PackageMinus },
@@ -109,8 +109,8 @@ export function instanceStatusConfig(
   if (disposition === 'scrapped') return INSTANCE_STATUS.scrapped;
   if (disposition === 'sold') return INSTANCE_STATUS.sold;
   if (disposition === 'consumed') return INSTANCE_STATUS.consumed;
-  if (quality === 'blocked') return INSTANCE_STATUS.blocked;
-  if (quality === 'failed') return INSTANCE_STATUS.failed;
+  // 'failed' ist Altbestand vor Migration 085 und meint dasselbe wie 'blocked'.
+  if (quality === 'blocked' || quality === 'failed') return INSTANCE_STATUS.blocked;
   if (quality === 'passed' && disposition === 'in_stock')
     return reserved ? INSTANCE_STATUS.reserved : INSTANCE_STATUS.in_stock;
   return INSTANCE_STATUS.in_process;

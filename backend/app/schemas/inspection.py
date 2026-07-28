@@ -53,6 +53,8 @@ class InspectionEmbed(BaseModel):
     sample_percent: Optional[int] = None
     required_count: Optional[int] = None
     escalated: bool = False             # auf 100 % hochgestuft (Stichprobe ungenügend)
+    # Fehlgeschlagen, aber durch diesen Folgeauftrag (Abweichung) geklärt → Schritt erledigt.
+    resolved_by_order_id: Optional[int] = None
     inspector_name: Optional[str] = None
     fields: list[CaptureField] = []     # Maske (aus der Prozessdefinition)
     samples: list[InspectionSample] = []  # konkrete Stichproben (Instanz + erfasste Werte)

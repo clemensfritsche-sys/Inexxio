@@ -6,11 +6,10 @@ import { cn, userDisplayName } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderSummary, PurchaseOrderStatus, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
-import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { instanceStatusConfig } from '@/lib/process';
 import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
@@ -66,12 +65,14 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
   else if (row.type === 'article') badge = statusConfig(row.data.status);
   else if (row.type === 'order') {
     // EINHEITLICHER Status für ALLE Aufträge – auch Unter-Aufträge (kein Sonder-«Abweichung»-
-    // Badge mehr): wiederkehrend & fällig zuerst, sonst Beschaffungs-/Auftragsstatus.
+    // Badge mehr): wiederkehrend & fällig zuerst, sonst der Status des AUFTRAGS.
+    // Früher schlug bei einem freigegebenen Auftrag der **Beschaffungs**-Status durch – ein
+    // Auftrag, dessen Bestellung geliefert war, stand auf «Geliefert», obwohl Prüfung,
+    // Bewegung und Verkauf noch offen waren. Der Stand eines einzelnen Schritts ist nicht
+    // der Stand des Auftrags; er steht im Detail am Ablauf. Hier zählt: läuft er noch?
     badge = row.data.recurrence_due
       ? { label: 'fällig', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Repeat }
-      : row.data.status === 'released' && row.data.purchase_status
-        ? purchaseStatusConfig(row.data.purchase_status as PurchaseOrderStatus)
-        : orderStatusConfig(row.data.status);
+      : orderStatusConfig(row.data.status);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
   // Unternehmen ist ein aktiver Stammdaten-Singleton → GRÜN (wie ein aktiver Benutzer),

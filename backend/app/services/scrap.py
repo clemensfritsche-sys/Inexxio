@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from ..domain import event_types
 from ..models import Disposal, Order
-from . import location_split, process
+from . import inventory, location_split, process
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
@@ -173,11 +173,11 @@ def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
             raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
         if inst.disposition == "scrapped":
             raise HTTPException(409, detail=f"Instanz {oid} ist verschrottet – Sperren sinnlos")
-        if inst.quality == "blocked":
+        if inventory.is_blocked(inst):
             continue                                # idempotent: schon gesperrt
         old = inst.quality
-        inst.quality = "blocked"
-        log_audit(db, "instances", "quality", "blocked", actor_id,
+        inst.quality = inventory.BLOCKED
+        log_audit(db, "instances", "quality", inventory.BLOCKED, actor_id,
                   object_id=inst.object_id, old_value=old)
         emit(db, "instance.blocked", object_type="instance", object_id=inst.object_id,
              payload={"order": order.object_id}, actor_id=actor_id)
@@ -202,11 +202,11 @@ def record_block(db: Session, order: Order, data, actor_id: int) -> Disposal:
 
 def unblock(db: Session, inst, actor_id: int):
     """Sperre einer Instanz aufheben (z. B. Maschine nach der Wartung wieder freigeben)."""
-    if inst.quality != "blocked":
+    if not inventory.is_blocked(inst):
         raise HTTPException(409, detail="Diese Instanz ist nicht gesperrt")
     inst.quality = _restore_quality(inst)
     log_audit(db, "instances", "quality", inst.quality, actor_id,
-              object_id=inst.object_id, old_value="blocked")
+              object_id=inst.object_id, old_value=inventory.BLOCKED)
     emit(db, "instance.unblocked", object_type="instance", object_id=inst.object_id,
          payload={"quality": inst.quality}, actor_id=actor_id)
     db.commit()

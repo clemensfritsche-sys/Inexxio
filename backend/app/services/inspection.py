@@ -13,8 +13,16 @@ Erfassungsmaske je Probe:
 
 Ohne definierte Maske wird je Probe ein Gut/Schlecht erfasst (synthetisches Feld
 ``_ok``). Das Ergebnis (passed/failed) leitet sich aus allen Proben ab; Durchfaller
-werden auf der Instanz mit ``quality='failed'`` gesperrt (der Verbleib ``disposition``
-bleibt davon unberührt).
+werden auf der Instanz **gesperrt** (``quality='blocked'``, ``inventory.BLOCKED`` – derselbe
+Zustand wie beim Schritt «Sperren»: vorhanden, aber nicht verwendbar; der Verbleib
+``disposition`` bleibt unberührt).
+
+**Fehlgeschlagen ist nicht terminal – aber nur ein Folgeauftrag löst es.** Eine
+fehlgeschlagene Datenerfassung legt automatisch eine Abweichung an; schliesst dieser
+Unter-Auftrag ab, gilt der Befund als geklärt (``Inspection.resolved_by_order_id``) und der
+Schritt zählt als erledigt. Der aufgezeichnete Befund bleibt dabei **unverändert
+fehlgeschlagen** – was gemessen wurde, wird nicht nachträglich schöngeschrieben; geklärt
+wird es durch einen eigenen, nachvollziehbaren Vorgang.
 """
 
 import hashlib
@@ -23,7 +31,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from ..models import ArticleProcessStep, Inspection, Order
-from . import process
+from . import inventory, process
 from .admin import log_audit
 from .deviation import auto_deviation_from_inspection
 from .events import emit
@@ -52,12 +60,29 @@ def escalate_decision(currently_escalated: bool, step_percent: int | None, all_o
     return "failed" if (currently_escalated or pct >= 100) else "escalate"
 
 
-def required_count(db: Session, order: Order, step: ArticleProcessStep | None) -> int:
+def inspected_quantity(db: Session, order: Order):
+    """Menge, auf die sich der Prüfumfang bezieht: die **tatsächlich geprüften Instanzen**.
+
+    Nicht ``order.quantity`` – das ist die *deklarierte* Menge und sagt bei einem Auftrag
+    auf vorhandenen Instanzen etwas anderes aus. Eine Abweichung auf EINE Charge à 5 Stk
+    trägt ``quantity=1`` (ein Subjekt), zu prüfen sind aber 5 Stück: bei «jede» kamen so
+    statt fünf Proben nur eine. Die Stichprobe wird jetzt aus derselben Quelle bemessen,
+    aus der auch die Proben gezogen und die Instanzen bewertet werden
+    (``order_active_instances``) – Zahl und Ziele können nicht mehr auseinanderlaufen.
+    Ohne Instanzen (Entwurf/Vorschau) bleibt die deklarierte Menge."""
     from .order_lines import effective_quantity
+    from .quantity import qty_sum
+    insts = order_active_instances(db, order)
+    if insts:
+        return qty_sum(i.quantity for i in insts)
+    return effective_quantity(db, order)
+
+
+def required_count(db: Session, order: Order, step: ArticleProcessStep | None) -> int:
     insp = _current_inspection(db, order, step)
     # Nach Hochstufung wird zu 100 % geprüft, sonst gemäss Stichprobenumfang.
     pct = 100 if (insp and insp.escalated) else (step.sample_percent if step else None)
-    return process.required_sample(effective_quantity(db, order), pct)
+    return process.required_sample(inspected_quantity(db, order), pct)
 
 
 def eval_fields(step: ArticleProcessStep | None) -> list[dict]:
@@ -69,22 +94,23 @@ def eval_fields(step: ArticleProcessStep | None) -> list[dict]:
 def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
     """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes.
 
-    Es werden nur **Durchfaller** gesperrt (``failed``). Bestandene bleiben ``pending``
-    («In Arbeit») und werden erst beim Auftrags-Abschluss freigegeben
+    Es werden nur **Durchfaller gesperrt** (``inventory.BLOCKED``) – derselbe Zustand, den
+    auch der Schritt «Sperren» setzt: vorhanden, aber nicht verwendbar. Bestandene bleiben
+    ``pending`` («In Arbeit») und werden erst beim Auftrags-Abschluss freigegeben
     (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig.
 
-    **Eine Sperre ist rücknehmbar** (Nacharbeit): besteht eine zuvor durchgefallene
-    Instanz die *erneute* Erfassung, geht sie von ``failed`` zurück auf ``pending``.
-    Ohne das wäre ein Durchfaller endgültig verloren – auch wenn die Abweichung ihn
-    nachweislich in Ordnung gebracht hat. Terminale Instanzen (verschrottet/verkauft/
-    verbaut) bleiben unangetastet: dort ist nichts mehr zu bewerten."""
+    **Eine Sperre ist rücknehmbar** (Nacharbeit): besteht eine zuvor gesperrte Instanz die
+    Erfassung eines **Folgeauftrags**, geht sie zurück auf ``pending``. Ohne das wäre ein
+    Durchfaller endgültig verloren – auch wenn die Abweichung ihn nachweislich in Ordnung
+    gebracht hat. Terminale Instanzen (verschrottet/verkauft/verbaut) bleiben unangetastet:
+    dort ist nichts mehr zu bewerten."""
     insts = order_active_instances(db, order)
     reworkable = "in_process"
 
     def verdict(inst, ok: bool) -> None:
         if not ok:
-            inst.quality = "failed"
-        elif inst.quality == "failed" and inst.disposition == reworkable:
+            inst.quality = inventory.BLOCKED
+        elif inventory.is_blocked(inst) and inst.disposition == reworkable:
             inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
 
     if len(insts) == 1 and insts[0].kind == "batch":
@@ -97,6 +123,36 @@ def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored
         ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
     for inst in insts:
         verdict(inst, ok_by_inst.get(inst.object_id, False))
+
+
+def resolve_failed_by(db: Session, parent: Order, resolver: Order) -> int:
+    """Fehlgeschlagene Datenerfassungen des Eltern-Auftrags als **geklärt** vermerken.
+
+    Aufgerufen, wenn eine **Abweichung** abschliesst – der Unter-Auftrag IST die Klärung
+    (nachgearbeitet, ersetzt, ausgesondert). Ohne diesen Schritt bliebe der fehlgeschlagene
+    Schritt für immer ``failed``, der Eltern-Auftrag könnte nie abschliessen und seine
+    Instanzen nie freigegeben werden – sie hingen dauerhaft in «In Arbeit».
+
+    **Nur ein Folgeauftrag klärt.** Es gibt bewusst keinen Knopf «erneut erfassen» am
+    fehlgeschlagenen Schritt: was gemessen wurde, wird nicht überschrieben, und wer den
+    Befund aus der Welt schaffen will, muss den Vorgang durchlaufen, der ihn behandelt.
+    (Der Knopf war ohnehin eine Sackgasse: ``resolve_exec_step`` lässt nur einen *aktiven*
+    Schritt ausführen, ein fehlgeschlagener ist es nicht – der Server hätte mit 409 geantwortet.)
+
+    Idempotent: bereits geklärte Befunde bleiben bei ihrem ursprünglichen Klärer."""
+    rows = (
+        db.query(Inspection)
+        .filter(Inspection.order_id == parent.id, Inspection.is_active == True,
+                Inspection.result == "failed", Inspection.resolved_by_order_id.is_(None))
+        .all()
+    )
+    for insp in rows:
+        insp.resolved_by_order_id = resolver.object_id
+        log_audit(db, "inspections", "resolved_by_order_id", str(resolver.object_id), None,
+                  object_id=parent.object_id)
+        emit(db, "inspection.resolved", object_type="order", object_id=parent.object_id,
+             payload={"resolved_by": resolver.object_id, "inspection_id": insp.id})
+    return len(rows)
 
 
 def _shuffle_key(object_id: int, seed: int) -> int:
