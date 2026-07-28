@@ -1479,8 +1479,10 @@ def test_abort_is_reversible_and_supply_not_special_cased():
     from app.services import deactivation, deviation
 
     assert hasattr(deviation, "revoke") and hasattr(orders, "revoke_followup")
-    rv = _inspect.getsource(deviation.revoke)
-    assert 'status != "draft"' in rv                  # nur Entwurf rücknehmbar
+    assert 'status != "draft"' in _inspect.getsource(deviation.revoke)   # nur Entwurf rücknehmbar
+    # Die Aufräumarbeit selbst liegt in ``detach_sub_order`` – geteilt mit dem Abbruch eines
+    # Unter-Auftrags, damit beide Türen dasselbe tun. Geprüft wird darum das Modul.
+    rv = _inspect.getsource(deviation)
     assert "abort_into_id = None" in rv               # ausstehender Abbruch gelöscht
     # Instanzen ans Original zurück – hält der Eltern noch eine Reservierung, wandert die
     # Subjekt-Bindung dorthin ZURÜCK statt auf None (Review 2026-07).
@@ -2720,6 +2722,49 @@ class _Q:
 
     def __init__(self, quality):
         self.quality = quality
+
+
+def test_sub_order_deactivation_goes_through_one_cleanup():
+    """Ein Unter-Auftrag hält drei Fäden zum Eltern – wer nur den Status setzt, reisst keinen.
+
+    Subjekt-Bindung, Verarbeitungs-Links und ``abort_into_id``: blieben sie stehen, wäre der
+    Eltern für immer pausiert (``abort_into_id`` nie NULL → auch kein neuer Abbruch möglich)
+    und seine Instanzen zeigten auf einen toten Auftrag. Beide Türen – «Zurücknehmen»
+    (Entwurf) und «Abbrechen» (freigegeben) – gehen darum durch DIESELBE Aufräum-Stelle.
+    Und ein Unter-Auftrag bekommt nie einen eigenen Folgeauftrag: sein Subjekt gehört ohnehin
+    dem Eltern (Abweichung/Retoure) bzw. er transportiert nur (Bereitstellung)."""
+    import inspect as _inspect
+
+    from app.routers import orders as orders_router
+    from app.services import deviation
+
+    src = _inspect.getsource(deviation.detach_sub_order)
+    assert "parent.abort_into_id = None" in src
+    assert "link.is_active = False" in src
+    assert "inst.subject_of_order_id = (" in src
+    # «Zurücknehmen» hat die Logik nicht mehr selbst, sondern ruft sie.
+    assert "detach_sub_order(db, followup, actor_id)" in _inspect.getsource(deviation.revoke)
+    # … und der Abbruch eines Unter-Auftrags ebenso, statt still nur den Status zu setzen.
+    abort_src = _inspect.getsource(orders_router.abort_order)
+    assert "if order.parent_order_id is not None:" in abort_src
+    assert "deviation.detach_sub_order(db, order, current_user.id)" in abort_src
+
+
+def test_cancelled_provisioning_is_not_recreated():
+    """Eine Bereitstellung entsteht automatisch – also muss sie auch abbrechbar sein.
+
+    Sie blockiert den betroffenen Schritt UND den Abschluss; läuft sie nicht durch, wäre der
+    Auftrag ohne Ausweg tot. Der Abbruch ist die Aussage «das mache ich von Hand». Damit das
+    hält, darf die nächste Auswertung sie nicht sofort neu anlegen – Marker ist der
+    abgebrochene Unter-Auftrag selbst (kein zusätzliches Feld, keine zweite Wahrheit)."""
+    import inspect as _inspect
+
+    from app.services import provisioning
+
+    src = _inspect.getsource(provisioning.cancelled_for_step)
+    assert 'Order.status == "inactive"' in src
+    assert "Order.provisioning_step_id == step_id" in src
+    assert "cancelled_for_step(db, order, step.id)" in _inspect.getsource(provisioning.ensure_provisioning)
 
 
 def test_only_a_deviation_counts_as_an_open_deviation():

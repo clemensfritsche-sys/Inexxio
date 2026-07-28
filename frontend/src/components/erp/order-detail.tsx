@@ -14,7 +14,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { ProcessStepper } from '@/components/erp/process-stepper';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -638,6 +638,34 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             </div>
           </div>
         )}
+        {/* Bereitstellungen sichtbar machen. Sie entstehen als EINZIGE Unter-Auftragsart
+            **automatisch** (Material liegt am falschen Ort) – und genau darum müssen sie
+            sichtbar sein: ein Auftrag, in dem plötzlich ein fremder Folgeauftrag mit aktivem
+            Bewegen-Modul auftaucht, ist sonst nicht erklärbar. Sie blockieren den betroffenen
+            Schritt UND den Abschluss; wer sie nicht braucht, bricht sie am Datensatz ab
+            (sie wird dann nicht neu angelegt). */}
+        {!isCreate && isStaff && (record.provisionings?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
+              <Truck size={16} style={{ color: 'var(--warning)' }} />
+              Bereitstellung
+              <InfoHint text="Vom System abgeleitet: das Material eines Schritts liegt nicht dort, wo der Schritt es braucht. Die Bewegung holt es – solange sie läuft, wartet der Schritt. Nicht nötig? Am Datensatz abbrechen." />
+              <span style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--warning)' }}>{record.provisionings!.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {record.provisionings!.map((d) => (
+                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+                  <ObjId value={d.object_id} />
+                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
+                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
+                  </span>
+                  <StatusBadge cfg={orderStatusConfig(d.status)} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Retouren sichtbar machen – Unteraufträge auf die verkauften Instanzen dieses Verkaufs
             (Rücknahme + Gutschrift). Wie ein Nachschub pausieren sie den Eltern NICHT. */}
         {!isCreate && isStaff && (record.returns?.length ?? 0) > 0 && (
@@ -893,10 +921,15 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         <DeactivateDialog
           mode={dialog}
           title="Auftrag abbrechen"
-          message={record.status === 'released'
-            ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
-            : 'Der Entwurf wird inaktiv gesetzt.'}
-          confirmLabel={record.status === 'released' ? 'Folgeauftrag anlegen' : 'Abbrechen'}
+          /* Ein Unter-Auftrag bekommt NIE einen eigenen Folgeauftrag – sein Subjekt gehört
+             ohnehin dem Eltern bzw. er transportiert nur. Er wird direkt inaktiv, und der
+             Eltern läuft danach weiter. */
+          message={isSubOrder
+            ? 'Der Unter-Auftrag wird inaktiv. Die Instanzen gehen an den übergeordneten Auftrag zurück, der danach weiterläuft.'
+            : record.status === 'released'
+              ? 'Es wird ein Folgeauftrag (Abweichung) mit den im Prozess befindlichen Instanzen angelegt. Du legst dort fest, was mit ihnen geschieht; das Original wird erst inaktiv, wenn der Folgeauftrag freigegeben ist.'
+              : 'Der Entwurf wird inaktiv gesetzt.'}
+          confirmLabel={record.status === 'released' && !isSubOrder ? 'Folgeauftrag anlegen' : 'Abbrechen'}
           onConfirm={confirmCancel}
           onClose={() => setDialog(null)}
         />

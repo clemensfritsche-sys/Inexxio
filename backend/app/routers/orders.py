@@ -580,6 +580,27 @@ async def abort_order(
     if order.abort_into_id:
         raise HTTPException(409, detail="Für diesen Auftrag ist bereits ein Folgeauftrag offen")
 
+    # Ein **Unter-Auftrag** bekommt NIE einen eigenen Folgeauftrag: sein Subjekt gehört
+    # ohnehin dem Eltern (Abweichung/Retoure) bzw. er transportiert nur (Bereitstellung) –
+    # es gibt nichts zu übergeben. Er geht direkt inaktiv, aber ÜBER die eine Aufräum-Stelle
+    # (`detach_sub_order`): Subjekt-Bindung zurück an den Eltern, Verarbeitungs-Links lösen,
+    # `abort_into_id` löschen. Ohne das bliebe der Eltern für immer pausiert und liesse sich
+    # nie wieder abbrechen («Für diesen Auftrag ist bereits ein Folgeauftrag offen»).
+    if order.parent_order_id is not None:
+        was_released = order.status == "released"
+        parent = deviation.detach_sub_order(db, order, current_user.id)
+        order.status = "inactive"
+        if was_released:
+            deactivation.cancel_order_effects(db, order, current_user.id)
+        log_audit(db, "orders", "status", "inactive", current_user.id,
+                  object_id=order.object_id, old_value="released" if was_released else "draft")
+        # Der Eltern ist damit nicht mehr pausiert – er läuft weiter bzw. schliesst ab.
+        if parent and parent.status == "released":
+            process.recompute_completion(db, parent)
+        db.commit()
+        db.refresh(order)
+        return to_order_response(db, order)
+
     # Entwurf oder ein Auftrag ohne (noch aktive) im Prozess befindliche Instanzen → direkt
     # inaktiv. Verschrottete/terminale Teile zählen nicht als «zu retten».
     if order.status == "draft" or not subject.order_active_instances(db, order):
