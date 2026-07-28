@@ -161,6 +161,40 @@ def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | No
     return create_deviation(db, order, failed, actor_id, title_prefix="Datenerfassung-Abweichung zu")
 
 
+def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | None:
+    """Einen Unter-Auftrag sauber aus dem Verkehr nehmen – **die EINE Aufräum-Stelle**.
+
+    Ein Unter-Auftrag hält drei Fäden zum Eltern: die **Subjekt-Bindung** der Instanzen, die
+    **Verarbeitungs-Links** und – beim Abbruch-Folgeauftrag – den Zeiger ``abort_into_id``.
+    Wer nur den Status auf «inaktiv» setzt, lässt alle drei stehen; der Eltern bliebe dann für
+    immer pausiert (``abort_into_id`` ist nie NULL) und seine Instanzen zeigten auf einen toten
+    Auftrag. Genau deshalb gibt es hier **eine** Stelle, die beide Türen bedient: das
+    «Zurücknehmen» (Entwurf) und der Abbruch (freigegeben).
+
+    Setzt den Status NICHT (der Aufrufer tut es) und committet nicht. Liefert den Eltern."""
+    parent = db.query(Order).filter(Order.object_id == sub.parent_order_id).first()
+    # Vorgemerkte Instanzen ans Original zurückgeben (Bindung + Verarbeitungs-Link lösen).
+    # Hält der Eltern-Auftrag noch eine Reservierung auf der Instanz (Bestands-Subjekt),
+    # wandert die Subjekt-Bindung dorthin ZURÜCK statt auf None – «läuft unverändert weiter»
+    # heisst auch: ``chosen_subjects(parent)`` sieht seine Instanzen wieder.
+    from .reservation import reserved_for
+    for inst in db.query(Instance).filter(
+        Instance.subject_of_order_id == sub.id, Instance.is_active == True
+    ).all():
+        inst.subject_of_order_id = (
+            parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
+        )
+    for link in db.query(InstanceOrderLink).filter(
+        InstanceOrderLink.order_id == sub.id, InstanceOrderLink.is_active == True
+    ).all():
+        link.is_active = False
+    if parent and parent.abort_into_id == sub.object_id:
+        log_audit(db, "orders", "abort_into_id", None, actor_id,
+                  object_id=parent.object_id, old_value=str(sub.object_id))
+        parent.abort_into_id = None
+    return parent
+
+
 def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
     """**Abbruch/Abweichung zurücknehmen** – solange der Folgeauftrag erst **Entwurf** ist
     (noch nicht vollzogen). Die vorgemerkten Instanzen gehen ans Original zurück, ein
@@ -175,26 +209,7 @@ def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
     if followup.status != "draft":
         raise HTTPException(
             409, detail="Nur ein noch nicht freigegebener Folgeauftrag kann zurückgenommen werden.")
-    parent = db.query(Order).filter(Order.object_id == followup.parent_order_id).first()
-    # Vorgemerkte Instanzen ans Original zurückgeben (Bindung + Verarbeitungs-Link lösen).
-    # FIX: hält der Eltern-Auftrag noch eine Reservierung auf der Instanz (Bestands-Subjekt),
-    # wandert die Subjekt-Bindung dorthin ZURÜCK statt auf None – «läuft unverändert weiter»
-    # heisst auch: ``chosen_subjects(parent)`` sieht seine Instanzen wieder.
-    from .reservation import reserved_for
-    for inst in db.query(Instance).filter(
-        Instance.subject_of_order_id == followup.id, Instance.is_active == True
-    ).all():
-        inst.subject_of_order_id = (
-            parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
-        )
-    for link in db.query(InstanceOrderLink).filter(
-        InstanceOrderLink.order_id == followup.id, InstanceOrderLink.is_active == True
-    ).all():
-        link.is_active = False
-    if parent and parent.abort_into_id == followup.object_id:
-        log_audit(db, "orders", "abort_into_id", None, actor_id,
-                  object_id=parent.object_id, old_value=str(followup.object_id))
-        parent.abort_into_id = None
+    parent = detach_sub_order(db, followup, actor_id)
     old = followup.status
     followup.status = "inactive"
     log_audit(db, "orders", "status", "inactive", actor_id,

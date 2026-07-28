@@ -1515,6 +1515,33 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_blocked_is_one_state_with_one_word`, `test_only_a_deviation_counts_as_an_open_deviation`,
   `test_sample_size_comes_from_the_inspected_instances`.
 
+- **Unter-Aufträge: sichtbar, abbrechbar, sauber gelöst** (Juli 2026, Folge-Analyse zu Runde 6):
+  Drei Lücken desselben Themas – *was das System selbst anlegt, muss der Mensch sehen und wieder
+  loswerden können*.
+  (1) **Bereitstellungen waren unsichtbar**: `OrderResponse.provisionings` wurde geliefert, aber
+  nirgends gerendert – Abweichung/Nachschub/Retoure hatten je eine Karte, die Bereitstellung
+  nicht. Sie ist die **einzige automatisch entstehende** Unter-Auftragsart; genau darum muss sie
+  sichtbar sein (sonst taucht wie in Notiz #75 ein fremder «Folgeauftrag mit aktivem Bewegen-Modul»
+  auf, den niemand angelegt hat). Jetzt eigene Karte im Auftrag-Detail, Erklärung im Hover.
+  (2) **Eine steckengebliebene Bereitstellung hat einen Ausweg**: sie blockiert den Schritt UND
+  den Abschluss – lief sie nicht durch, war der Auftrag ohne Ausstieg tot. «Abbrechen» am
+  Bereitstellungs-Datensatz ist die Aussage «das mache ich von Hand»; damit das hält, legt
+  `provisioning.cancelled_for_step` sie **nicht neu an**. Marker ist der **abgebrochene
+  Unter-Auftrag selbst** (`status='inactive'` zu diesem Schritt) – kein zusätzliches Feld, keine
+  zweite Wahrheit, und das Audit-Log zeigt, wer die Bereitstellung wann übersprungen hat.
+  (3) **EINE Aufräum-Stelle für Unter-Aufträge** (`deviation.detach_sub_order`): ein Unter-Auftrag
+  hält drei Fäden zum Eltern – Subjekt-Bindung der Instanzen, Verarbeitungs-Links und (beim
+  Abbruch-Folgeauftrag) `abort_into_id`. Wer nur den Status auf «inaktiv» setzte, liess alle drei
+  stehen: der Eltern blieb **für immer pausiert** (`abort_into_id` nie NULL → auch kein neuer
+  Abbruch mehr möglich) und seine Instanzen zeigten auf einen toten Auftrag. Beide Türen –
+  «Zurücknehmen» (Entwurf) und «Abbrechen» (freigegeben) – gehen jetzt durch dieselbe Stelle, und
+  ein Unter-Auftrag bekommt **nie** einen eigenen Folgeauftrag (sein Subjekt gehört ohnehin dem
+  Eltern bzw. er transportiert nur); danach läuft der Eltern automatisch weiter.
+  (4) Dazu: **«Abbruch ausstehend» ist im Feed ein eigener Zustand** statt «In Arbeit» – ein
+  beantragter Abbruch sah sonst aus, als hätte er nichts bewirkt.
+  Wächter: `test_smoke.py: test_sub_order_deactivation_goes_through_one_cleanup`,
+  `test_cancelled_provisioning_is_not_recreated`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

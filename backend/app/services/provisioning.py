@@ -222,6 +222,26 @@ def open_provisioning(db: Session, parent: Order, step_id: int | None = None) ->
     return [o for o in rows if o.provisioning_step_id == step_id]
 
 
+def cancelled_for_step(db: Session, parent: Order, step_id: int) -> bool:
+    """Wurde die Bereitstellung dieses Schritts **von Hand abgebrochen**?
+
+    Eine Bereitstellung entsteht automatisch – also muss der Mensch sie auch wieder
+    loswerden können, sonst ist ein Auftrag, dessen Bereitstellung nicht durchläuft, tot
+    (sie blockiert den Schritt UND den Abschluss). Der Abbruch ist die ausdrückliche
+    Aussage «das mache ich von Hand» bzw. «das liegt längst richtig».
+
+    Damit das hält, darf die nächste Auswertung sie nicht sofort neu anlegen. Der Marker
+    dafür ist der **abgebrochene Unter-Auftrag selbst** (Status ``inactive`` zu genau diesem
+    Schritt) – kein zusätzliches Feld, keine zweite Wahrheit, und im Audit steht, wer die
+    Bereitstellung wann übersprungen hat."""
+    if not parent.object_id:
+        return False
+    return db.query(Order.id).filter(
+        Order.parent_order_id == parent.object_id, Order.reason == REASON,
+        Order.provisioning_step_id == step_id, Order.status == "inactive",
+    ).first() is not None
+
+
 def ensure_provisioning(db: Session, order: Order, actor_id: int | None) -> list[Order]:
     """Für jeden Schritt, der dran ist oder gerade war, die nötige Bereitstellung anlegen.
 
@@ -256,6 +276,8 @@ def ensure_provisioning(db: Session, order: Order, actor_id: int | None) -> list
             continue
         if open_provisioning(db, order, step.id):
             continue          # läuft bereits
+        if cancelled_for_step(db, order, step.id):
+            continue          # bewusst übersprungen – nicht gegen den Menschen neu anlegen
         insts, t_type, t_id = misplaced(db, order, step)
         if not insts:
             continue

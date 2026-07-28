@@ -231,6 +231,8 @@ def test_scrap_checks_replenishment_before_completion():
 
 
 def test_revoke_restores_parent_subject_binding():
-    from app.services.deviation import revoke
-    src = inspect.getsource(revoke)
+    # Modul statt Einzelfunktion: die Aufräumarbeit liegt in ``detach_sub_order`` (geteilt mit
+    # dem Abbruch eines Unter-Auftrags) – die Fachaussage ist dieselbe.
+    from app.services import deviation
+    src = inspect.getsource(deviation)
     assert "reserved_for" in src   # Bindung wandert zum Eltern zurück, wenn er reserviert hält
