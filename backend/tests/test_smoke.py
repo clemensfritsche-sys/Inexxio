@@ -2799,6 +2799,28 @@ def test_open_provisioning_holds_the_whole_order():
     assert provisioning._STAGE_BEFORE == ("resource",)
 
 
+def test_sub_orders_know_where_they_came_from():
+    """Jeder Unter-Auftrag trägt seinen **Ursprungs-Schritt** – und damit eine Position im Ablauf.
+
+    ``orders.origin_step_id`` beantwortet für JEDE Art dieselbe Frage: aus welchem Schritt des
+    Eltern ist er hervorgegangen? Die Bereitstellung wartet für genau diesen Schritt, die
+    Abweichung wurde an genau dieser Stelle gemeldet. Vorher hiess die Spalte
+    ``provisioning_step_id`` und beantwortete die Frage nur für eine Art (Migration 087)."""
+    import inspect as _inspect
+
+    from app.models import Order
+    from app.services import deviation, orders as orders_svc
+
+    assert hasattr(Order, "origin_step_id") and not hasattr(Order, "provisioning_step_id")
+    assert "origin_step_id=_active_step_id(db, parent)" in _inspect.getsource(deviation.create_deviation)
+    # Der Ursprungs-Schritt ist der, an dem der Eltern gerade steht.
+    act = _inspect.getsource(deviation._active_step_id)
+    assert '("active", "blocked", "failed")' in act
+    # … und er wird je Schritt mitgeliefert, damit der Ablauf sie an ihrer Stelle zeigen kann.
+    fill = _inspect.getsource(orders_svc._fill_step_provisioning)
+    assert "Order.origin_step_id == step.id" in fill and 'Order.reason == "deviation"' in fill
+
+
 def test_cancelled_provisioning_is_not_recreated():
     """Eine Bereitstellung entsteht automatisch – also muss sie auch abbrechbar sein.
 
@@ -2812,7 +2834,7 @@ def test_cancelled_provisioning_is_not_recreated():
 
     src = _inspect.getsource(provisioning.cancelled_for_step)
     assert 'Order.status == "inactive"' in src
-    assert "Order.provisioning_step_id == step_id" in src
+    assert "Order.origin_step_id == step_id" in src
     assert "cancelled_for_step(db, order, step.id)" in _inspect.getsource(provisioning.ensure_provisioning)
 
 

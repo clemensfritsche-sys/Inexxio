@@ -107,7 +107,7 @@ _COLUMN_SAFETY_NET = (
     # (Migration 080). ``locked`` ist die abgelöste Sperr-Spalte aus der Zeit davor.
     ("article_process_steps", "companion", "BOOLEAN DEFAULT FALSE NOT NULL"),
     # Bereitstellung (Unter-Auftrag) → welcher Schritt des Eltern auf sie wartet
-    ("orders", "provisioning_step_id", "BIGINT"),
+    ("orders", "origin_step_id", "BIGINT"),
     # Ersetzen statt Versionierung: Nachfolger-Objektnummer (alt → neu)
     ("articles", "replaced_by_id", "BIGINT"),
     ("orders", "replaced_by_id", "BIGINT"),

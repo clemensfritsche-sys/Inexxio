@@ -84,6 +84,21 @@ def _resolve_subjects(db: Session, parent: Order, instance_object_ids: list[int]
     return order_active_instances(db, parent)
 
 
+def _active_step_id(db: Session, parent: Order) -> int | None:
+    """Der Schritt, an dem der Eltern-Auftrag gerade steht – die **Stelle**, an der die
+    Abweichung gemeldet wird. Damit bekommt sie eine Position im Ablauf und erscheint dort,
+    wo sie angesetzt wurde, statt als Karte irgendwo über dem Prozess."""
+    from .process import build_order_steps
+    try:
+        steps = build_order_steps(db, parent)
+    except Exception:
+        return None
+    for s in steps:
+        if s["state"] in ("active", "blocked", "failed"):
+            return s["id"]
+    return steps[-1]["id"] if steps else None
+
+
 def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] | None,
                      actor_id: int | None, title_prefix: str = "Abweichung zu") -> Order:
     """Eine **Abweichung** (Unter-Auftrag) zu ``parent`` anlegen, die auf die betroffenen
@@ -111,6 +126,7 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         # NICHT die Zahl der Instanzen: eine Charge à 5 Stk ist EIN Subjekt, aber 5 Stück.
         article_id=parent.article_id, quantity=qty_sum(i.quantity for i in insts),
         parent_order_id=parent.object_id, reason="deviation",
+        origin_step_id=_active_step_id(db, parent),
         title=f"{title_prefix} {parent.object_id}",
     )
     db.add(devi)

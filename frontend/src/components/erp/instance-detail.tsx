@@ -89,7 +89,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const inStock = inst.quality === 'passed' && inst.disposition === 'in_stock';
   const bestand = inStock ? inst.quantity : 0;
   // Die Unterzeile erklärt die ZAHL – nicht den Zustand. Welcher Zustand vorliegt
-  // (Verkauft · Verschrottet · Verbaut · Fehler · In Arbeit), sagt bereits die Badge im
+  // (Verkauft · Verschrottet · Verbaut · Fehler · Im Prozess), sagt bereits die Badge im
   // Kopf; sie hier ein zweites Mal auszuschreiben, war reine Doppelung wenige Zentimeter
   // daneben. Zusätzlich ist nur die reservierte MENGE – die steht nirgends sonst.
   const reserved = inst.reserved_quantity ?? 0;

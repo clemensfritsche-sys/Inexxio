@@ -346,6 +346,16 @@ def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
                            instance_count=0, instance_object_ids=[], title=o.title)
         for o in sub_orders_for_step(db, order, step.id) if o.object_id
     ]
+    # Abweichungen an ihrer Stelle im Ablauf: ``origin_step_id`` hält fest, wo sie gemeldet
+    # wurden. Auch abgeschlossene bleiben stehen – sie sind Teil der Geschichte des Schritts.
+    si.deviations = [
+        OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
+                           instance_count=0, instance_object_ids=[], title=o.title)
+        for o in db.query(Order).filter(
+            Order.parent_order_id == order.object_id, Order.reason == "deviation",
+            Order.origin_step_id == step.id, Order.is_active == True,
+        ).order_by(Order.object_id).all() if o.object_id
+    ]
 
 
 def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:

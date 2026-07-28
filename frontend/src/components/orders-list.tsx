@@ -9,7 +9,7 @@ import { formatMoney as fmtMoney } from '@/lib/utils';
 // storniert = ROT. Tokens statt Hex.
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
   requested:  { label: 'Offen',         color: 'var(--warning)', bg: 'var(--warning-bg)' },
-  processing: { label: 'In Arbeit',     color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  processing: { label: 'Im Prozess',   color: 'var(--warning)', bg: 'var(--warning-bg)' },
   completed:  { label: 'Abgeschlossen', color: 'var(--success)', bg: 'var(--success-bg)' },
   cancelled:  { label: 'Storniert',     color: 'var(--danger)',  bg: 'var(--danger-bg)' },
 };

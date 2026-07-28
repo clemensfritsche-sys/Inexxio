@@ -4408,6 +4408,11 @@ export interface components {
              * @default after
              */
             provisioning_stage: string;
+            /**
+             * Deviations
+             * @default []
+             */
+            deviations: components["schemas"]["OrderDeviationInfo"][];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Purchases
