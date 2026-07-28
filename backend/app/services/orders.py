@@ -330,6 +330,24 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
     return deviations, supplies, returns, provisionings, process._is_paused_by_deviation(db, order)
 
 
+def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
+                            si: OrderStepInfo) -> None:
+    """Die Bereitstellungen dieses Schritts als **Knoten im Ablauf** mitgeben.
+
+    Eine Bereitstellung ist kein Prozessschritt (sie wird abgeleitet, nicht modelliert) – aber
+    sie findet **zwischen** zwei Schritten statt, und genau dort gehört sie in die Darstellung.
+    Ihre Position folgt aus der bereits deklarierten Zeitpunkt-Regel (``provisioning._STAGE_
+    BEFORE``): Ressource stellt VOR der Ausführung bereit, Beschaffung/Verkauf DANACH. Das
+    Frontend platziert nur – die Regel bleibt hier."""
+    from .provisioning import _STAGE_BEFORE, sub_orders_for_step
+    si.provisioning_stage = "before" if step.step_type in _STAGE_BEFORE else "after"
+    si.provisionings = [
+        OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
+                           instance_count=0, instance_object_ids=[], title=o.title)
+        for o in sub_orders_for_step(db, order, step.id) if o.object_id
+    ]
+
+
 def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
     """Einen blockierten Schritt anreichern – mit dem GRUND seiner Blockade.
 
@@ -526,6 +544,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         fact = s["fact"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
+        _fill_step_provisioning(db, order, step, si)
         if s["state"] == "blocked":
             _fill_step_shortfall(db, order, step, si)
         by_name, at = _attach_step_embed(db, order, s, si, first,

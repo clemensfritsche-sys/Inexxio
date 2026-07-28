@@ -33,6 +33,17 @@ class StepShortfall(BaseModel):
     available_instances: list[ShortfallInstance] = []
 
 
+class OrderDeviationInfo(BaseModel):
+    """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
+    Eltern-Auftrag."""
+    object_id: int
+    status: str
+    reason: Optional[str] = None   # deviation | supply
+    instance_count: int = 0
+    instance_object_ids: list[int] = []
+    title: Optional[str] = None
+
+
 class OrderStepInfo(BaseModel):
     """Ein Schritt im Auftrag-Stepper (für die Fortschritts-Visualisierung).
 
@@ -55,6 +66,14 @@ class OrderStepInfo(BaseModel):
     # falschen Ort – diese Bereitstellungs-Unteraufträge bringen es her (Objektnummern).
     # Zwei Gründe zu blockieren, zwei getrennte Felder: «zu wenig da» ≠ «noch nicht hier».
     provisioning_order_object_ids: list[int] = []
+    # ALLE Bereitstellungen dieses Schritts (offen wie erledigt) – sie werden im Ablauf als
+    # eigener Knoten an ihrer Position gezeigt. ``provisioning_stage`` sagt, wo diese Position
+    # ist: **vor** der Ausführung (Ressource – die Komponente muss da sein, bevor verbaut wird)
+    # oder **danach** (Beschaffung/Verkauf – die Ware kommt an bzw. geht hinaus, nachdem der
+    # kaufmännische Vorgang durch ist). Die Deklaration liegt im Backend (``_STAGE_BEFORE``);
+    # das Frontend platziert nur, es entscheidet nicht.
+    provisionings: list[OrderDeviationInfo] = []
+    provisioning_stage: str = "after"     # before | after
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt).
     # «Beschaffung» und «Verkauf» sind – wie jeder andere Schritttyp – GENAU EIN Schritt,
@@ -221,17 +240,6 @@ class OrderLineInfo(BaseModel):
     article_unit: Optional[str] = None
     quantity: float   # Bruchmenge möglich (kg/m²/…)
     position: int
-
-
-class OrderDeviationInfo(BaseModel):
-    """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
-    Eltern-Auftrag."""
-    object_id: int
-    status: str
-    reason: Optional[str] = None   # deviation | supply
-    instance_count: int = 0
-    instance_object_ids: list[int] = []
-    title: Optional[str] = None
 
 
 class OrderSummary(BaseModel):

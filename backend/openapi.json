@@ -13074,6 +13074,19 @@
             "title": "Provisioning Order Object Ids",
             "default": []
           },
+          "provisionings": {
+            "items": {
+              "$ref": "#/components/schemas/OrderDeviationInfo"
+            },
+            "type": "array",
+            "title": "Provisionings",
+            "default": []
+          },
+          "provisioning_stage": {
+            "type": "string",
+            "title": "Provisioning Stage",
+            "default": "after"
+          },
           "purchase": {
             "anyOf": [
               {

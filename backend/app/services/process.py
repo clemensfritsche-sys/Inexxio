@@ -478,15 +478,21 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
 
 
 def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
-    """Blockiert, weil ein Bedarf dieses Schritts (noch) nicht gedeckt ist?
+    """Blockiert, weil ein Bedarf (noch) nicht gedeckt ist?
 
-    Zwei Gründe, dieselbe Konsequenz: **Menge** fehlt (``step_shortfalls`` → Nachschub)
-    oder das Material liegt am **falschen Ort** (offene Bereitstellung → sie muss erst
-    ankommen). Beide blockieren nur diesen Schritt, nicht den Auftrag."""
+    Zwei Gründe, dieselbe Konsequenz: **Menge** fehlt (``step_shortfalls`` → Nachschub; das
+    gilt je Schritt) oder Material ist **unterwegs** (offene Bereitstellung).
+
+    **Eine offene Bereitstellung hält den ganzen Auftrag an – nicht nur „ihren" Schritt.**
+    Sie gehört zu dem Schritt, der sie ausgelöst hat (Beschaffung: die Ware kommt an,
+    NACHDEM die Bestellung geliefert ist) und liegt im Ablauf damit VOR dem nächsten
+    Schritt. Prüfte man nur den eigenen Schritt, liefe der nächste weiter, während das
+    Material noch unterwegs ist: eine Eingangskontrolle liesse sich abschliessen, bevor die
+    Ware überhaupt im Betrieb gebucht ist. Eine Regel, kein Sonderfall je Schritttyp."""
     if step_shortfalls(db, order, step):
         return True
     from .provisioning import open_provisioning
-    return bool(open_provisioning(db, order, step.id))
+    return bool(open_provisioning(db, order))
 
 
 def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:

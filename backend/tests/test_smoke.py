@@ -2770,6 +2770,35 @@ def test_sub_order_deactivation_goes_through_one_cleanup():
     assert "deviation.detach_sub_order(db, order, current_user.id)" in abort_src
 
 
+def test_open_provisioning_holds_the_whole_order():
+    """**Eine offene Bereitstellung hält den ganzen Auftrag an – nicht nur „ihren" Schritt.**
+
+    Sie gehört zu dem Schritt, der sie ausgelöst hat (Beschaffung: die Ware kommt an, NACHDEM
+    die Bestellung geliefert ist) und liegt im Ablauf damit VOR dem nächsten Schritt. Prüfte
+    man nur den eigenen Schritt, liesse sich die Eingangskontrolle abschliessen, während die
+    Ware buchhalterisch noch beim Lieferanten liegt – genau der gemeldete Fall. Eine Regel,
+    kein Sonderfall je Schritttyp.
+
+    Die **Position** im Ablauf folgt derselben, schon deklarierten Zeitpunkt-Regel: Ressource
+    stellt vorher bereit, Beschaffung/Verkauf nachher. Das Frontend platziert nur."""
+    import inspect as _inspect
+
+    from app.services import orders as orders_svc, process, provisioning
+    from app.schemas.order import OrderStepInfo
+
+    blocked = _inspect.getsource(process._step_blocked)
+    assert "open_provisioning(db, order)" in blocked
+    assert "open_provisioning(db, order, step.id)" not in blocked
+
+    # Knoten-Daten je Schritt: alle Bereitstellungen + die Stufe (vor/nach).
+    si = OrderStepInfo(step_type="purchase", position=1, label="x", state="done")
+    assert si.provisionings == [] and si.provisioning_stage == "after"
+    fill = _inspect.getsource(orders_svc._fill_step_provisioning)
+    assert 'si.provisioning_stage = "before" if step.step_type in _STAGE_BEFORE else "after"' in fill
+    assert "sub_orders_for_step(db, order, step.id)" in fill
+    assert provisioning._STAGE_BEFORE == ("resource",)
+
+
 def test_cancelled_provisioning_is_not_recreated():
     """Eine Bereitstellung entsteht automatisch – also muss sie auch abbrechbar sein.
 

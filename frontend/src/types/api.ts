@@ -4398,6 +4398,16 @@ export interface components {
              * @default []
              */
             provisioning_order_object_ids: number[];
+            /**
+             * Provisionings
+             * @default []
+             */
+            provisionings: components["schemas"]["OrderDeviationInfo"][];
+            /**
+             * Provisioning Stage
+             * @default after
+             */
+            provisioning_stage: string;
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Purchases
