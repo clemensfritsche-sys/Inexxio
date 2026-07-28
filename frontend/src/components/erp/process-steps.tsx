@@ -1029,16 +1029,16 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
 };
 // Begleit-Bewegungen sind normale Schritte und werden darum auch normal eingefärbt –
 // die frühere Graufärbung signalisierte «gesperrt» und ist mit der Sperre entfallen.
-function kindColor(type: StepType) {
+export function kindColor(type: StepType) {
   return KIND_COLORS[type] ?? KIND_COLORS.purchase;
 }
 
-function Connector() {
+export function Connector() {
   return <div style={{ width: 2, height: 28, background: 'var(--border-2)', flex: 'none' }} />;
 }
 
 // Start-/Endknoten als runder Terminal-Knoten (grün «Start» / dunkel «Ende»).
-function FlowTerm({ kind }: { kind: 'start' | 'end' }) {
+export function FlowTerm({ kind }: { kind: 'start' | 'end' }) {
   const start = kind === 'start';
   return (
     <div style={{
@@ -1095,7 +1095,7 @@ function Chip({ label, on, locked, onClick }: { label: string; on?: boolean; loc
   );
 }
 
-const STEP_MAXW = 600;   // Kartenbreite im zentrierten Fluss
+export const STEP_MAXW = 600;   // Kartenbreite im zentrierten Fluss
 // Karten-Unterbereich (unter dem Kopf): Haarlinie oben, gleiche horizontale Polsterung.
 const cardBody: React.CSSProperties = {
   borderTop: '1px solid var(--border-1)', padding: '12px 18px 15px',
