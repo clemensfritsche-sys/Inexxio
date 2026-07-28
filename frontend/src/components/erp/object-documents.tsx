@@ -94,7 +94,7 @@ export function ObjectDocuments({ objectId, contextLabel }: {
   }
 
   return (
-    <div style={{ maxWidth: 880 }}>
+    <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
       {/* Kompakte Kopfzeile (der Reiter heisst bereits «Dokumente») */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)', flex: 1 }}>
@@ -327,6 +327,32 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
     else setError('Bitte eine gültige 9-stellige Objektnummer eingeben.');
   }
 
+  // **Kamera-Phase = Scanner-Design** (Notiz #119): die ganze Fläche ist die Kamera, alle
+  // Bedienelemente liegen als milchige Chips darin – dieselbe Bildsprache wie der
+  // Objekt-Scanner, nur mit den Zusatzfunktionen Auslöser/Upload/Nummer. Erst ab «Analyse»
+  // wird es ein normales Formular-Fenster (dort geht es um Text, nicht um Bild).
+  if (phase === 'camera') {
+    return (
+      <div onClick={reject} style={darkBackdrop}>
+        <div onClick={(e) => e.stopPropagation()} style={darkSheet}>
+          <DocumentCamera
+            onCapture={onFile} onCode={onCode} captureEnabled={captureEnabled}
+            extra={onCode ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input value={manualId} onChange={(e) => setManualId(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); manualOpen(); } }}
+                  placeholder="Objektnummer öffnen, z. B. 100000123" inputMode="numeric"
+                  style={glassInput} />
+                <button type="button" onClick={manualOpen} style={glassBtn}>Öffnen</button>
+              </div>
+            ) : undefined}
+          />
+          {error && <div style={{ position: 'absolute', top: 14, left: 14, right: 14, ...errBox }}>{error}</div>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div onClick={phase === 'analyzing' ? undefined : reject}
       style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -341,30 +367,6 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
         </div>
 
         <div style={{ padding: '16px 18px' }}>
-          {phase === 'camera' && (
-            <>
-              <DocumentCamera onCapture={onFile} onCode={onCode} captureEnabled={captureEnabled} />
-              {onCode && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-1)' }}>
-                  <div style={{ font: '600 10.5px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--fg-4)', marginBottom: 6 }}>Oder Datensatz per Nummer öffnen</div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <input value={manualId} onChange={(e) => setManualId(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); manualOpen(); } }}
-                      placeholder="Objektnummer, z. B. 100000123" className={FIN} inputMode="numeric" />
-                    <button type="button" onClick={manualOpen} style={neutralBtn}>Öffnen</button>
-                  </div>
-                </div>
-              )}
-              {error && <div style={{ marginTop: 12, ...errBox }}>{error}</div>}
-              {captureEnabled && (
-                <div style={{ marginTop: 12, display: 'flex', gap: 7, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
-                  <Info size={13} style={{ flex: 'none', marginTop: 1, color: 'var(--accent)' }} />
-                  <span>Die KI liest das Dokument, vergibt einen Namen und schlägt die Objektzuordnung vor. Sie bestätigen anschliessend.</span>
-                </div>
-              )}
-            </>
-          )}
-
           {phase === 'analyzing' && (
             <div style={{ padding: '40px 10px', textAlign: 'center' }}>
               <Loader2 size={30} className="animate-spin" style={{ color: 'var(--accent)', margin: '0 auto 12px' }} />
@@ -453,6 +455,24 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
 
 const FIN = 'w-full rounded-ds-md border border-border-2 bg-white px-3 py-2.5 text-[14px] font-medium text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent focus:ring-2 focus:ring-accent-soft';
 const errBox: React.CSSProperties = { padding: '9px 12px', borderRadius: 8, background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' };
+const darkBackdrop: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,.62)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+};
+const darkSheet: React.CSSProperties = {
+  position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '3 / 4', maxHeight: '86vh',
+  background: '#0B1220', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 60px rgba(15,23,42,.4)',
+};
+const glassInput: React.CSSProperties = {
+  flex: 1, minWidth: 0, padding: '11px 12px', fontSize: 13.5, borderRadius: 12, outline: 'none',
+  border: '1px solid rgba(255,255,255,.22)', background: 'rgba(15,23,42,.5)',
+  backdropFilter: 'blur(10px)', color: '#fff', boxSizing: 'border-box',
+};
+const glassBtn: React.CSSProperties = {
+  padding: '0 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,.22)',
+  background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(10px)', color: '#fff',
+  fontSize: 13, fontWeight: 700, cursor: 'pointer', flex: 'none',
+};
 const neutralBtn: React.CSSProperties = { flex: 'none', padding: '0 14px', minHeight: 42, borderRadius: 'var(--r-md)', border: '1px solid var(--border-2)', background: '#fff', color: 'var(--fg-2)', font: '600 13px var(--font-body)', cursor: 'pointer' };
 
 function Label({ children }: { children: React.ReactNode }) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, Package, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
+import { Ban, X, Package, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -488,6 +488,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     { value: '', label: '— Artikel wählen —' },
     ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
   ];
+  const statusActions = isCreate || !record ? [] : orderActions(record.status, canRelease, releaseHint);
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
 
   return (
@@ -512,7 +513,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={H.eyebrow}>{!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}</div>
             <h1 style={{ ...H.title, ...(isCreate ? H.titleEmpty : null) }}>
-              {isCreate ? 'Neuer Auftrag' : (record.article_name ?? 'Auftrag')}
+              {isCreate ? 'Neuer Auftrag' : orderTitle(record)}
             </h1>
             <div style={H.sub}>
               <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id ?? null)}</span>
@@ -533,8 +534,23 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                       selbst anlegt, braucht einen Ausstieg – sonst ist ein Auftrag, dessen
                       Bereitstellung nicht durchläuft, ohne Ausweg. Bewusste Entscheidung mit
                       klarem Namen statt eines generischen «Verwerfen». */}
+                  {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen statt rechts
+                      am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an. */}
+                  {isStaff && !isCompleted && statusActions.length > 0 && (
+                    <>
+                      <span style={H.idsep} />
+                      {statusActions.map((a) => (
+                        <button key={a.target} type="button" className="erp-actbtn erp-actbtn-primary"
+                          style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
+                          title={a.hint} disabled={statusBusy || a.disabled}
+                          onClick={() => onStatusAction(a.target)}>
+                          {a.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
                   {canSkipProvisioning && (
-                    <button className="erp-idbtn" style={{ color: 'var(--danger)' }} data-tip-pos="bottom"
+                    <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
                       data-tip="Bereitstellung übergehen – ich bringe das Material von Hand an seinen Ort"
                       aria-label="Bereitstellung übergehen" disabled={statusBusy}
                       onClick={() => setDialog('skip-provisioning')}>
@@ -548,14 +564,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           <div style={H.right}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
-              {isCreate ? (
-                <StatusBadge cfg={orderStatusConfig('draft')} />
-              ) : (isCompleted || !isStaff) ? (
-                <StatusBadge cfg={orderStatusConfig(record.status, record.abort_into_id != null)} />
-              ) : (
-                <StatusFlow cfg={orderStatusConfig(record.status, record.abort_into_id != null)}
-                  actions={orderActions(record.status, canRelease, releaseHint)} busy={statusBusy} onAction={onStatusAction} />
-              )}
+              <StatusBadge cfg={isCreate
+                ? orderStatusConfig('draft')
+                : orderStatusConfig(record.status, record.abort_into_id != null)} />
             </div>
           </div>
         </div>
@@ -678,6 +689,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <SpecTile icon={CalendarClock} label="Wunsch-Liefertermin">
                 {record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'}
               </SpecTile>
+              {/* Erstellt/Geändert: früher ein Fussleisten-Streifen am Fensterrand – jetzt
+                  eine Angabe unter den übrigen, wo sie hingehört (kein Footer mehr). */}
+              {record && (
+                <SpecTile icon={HistoryIcon} label="Angelegt">
+                  {localDate(record.created_at)}
+                  <span style={TILE.sub}>geändert {localDate(record.updated_at)}</span>
+                </SpecTile>
+              )}
               {/* Die bei der Freigabe entstandenen Instanzen: eine Kachel über die volle
                   Breite – Ergebnis derselben Aussage, darum dasselbe Raster. */}
               {record && <OrderInstances order={record} embedded />}
@@ -762,13 +781,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             was mit den Instanzen geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
         {isStaff && record?.status === 'draft' && isSubOrder && (
           <>
-            <SectionTitle icon={Workflow} info={isSupply
-              ? 'Lege fest, wie die fehlende Menge entsteht oder beschafft wird (herstellen, beschaffen …). Mit der Freigabe läuft der Nachschub.'
-              : isReturn
-                ? 'Lege fest, was mit der zurückkommenden Ware geschieht (Rücknahme ins Lager, Gutschrift, optional Prüfung/Verschrottung). Mit der Freigabe wird die Retoure scharf.'
-                : 'Lege fest, was mit den oben genannten Instanzen geschieht (bewegen, verschrotten, prüfen, beschaffen …). Mit der Freigabe wird die Abweichung scharf.'}>
-              {isSupply ? 'Prozess des Nachschubs' : isReturn ? 'Prozess der Retoure' : 'Prozess der Abweichung'}
-            </SectionTitle>
             {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
             <div style={{ marginBottom: 12 }}>
               {/* FIX: suppliers war hier (und an den zwei weiteren Stellen) als [] hartkodiert –
@@ -786,7 +798,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             also soll er auch gleich aussehen. */}
         {isStaff && record?.status === 'draft' && !isSubOrder && (isMultiPosition || goal !== 'produce') && (
           <>
-            <SectionTitle icon={Workflow} info="Was mit den Positionen geschieht: bewegen, verkaufen, prüfen, verschrotten … Jedes Modul ist frei kombinierbar.">Prozess</SectionTitle>
             <div style={{ marginBottom: 12 }}>
               <ProcessSteps owner="orders" ownerObjectId={record.object_id ?? null} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id ?? null} onStepsCount={onStepsCount} />
@@ -855,14 +866,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         </>)}
       </div>
 
-      {/* Meta footer (edit only) */}
-      {!isCreate && (
-        <div style={{ padding: '8px 20px', borderTop: '1px solid #E2E8F0', background: '#fff', flexShrink: 0, fontSize: 11, color: '#94a3b8', display: 'flex', gap: 16 }}>
-          <span>Erstellt: {localDate(record.created_at)}</span>
-          <span>Zuletzt geändert: {localDate(record.updated_at)}</span>
-        </div>
-      )}
-
       {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
       {demandEditable && (
         <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -899,6 +902,17 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
+// Titel eines Auftrags. Ein Mehrpositionen-Auftrag hat keinen EINEN Artikel – dann nennt
+// der Titel den ersten und wie viele noch dazugehören («Schraubendreher +2»). Ohne jeden
+// Artikel bleibt es beim schlichten «Auftrag».
+function orderTitle(record: Order): string {
+  if (record.article_name) return record.article_name;
+  const lines = record.order_lines ?? [];
+  if (lines.length === 0) return 'Auftrag';
+  const first = lines[0].article_name ?? 'Auftrag';
+  return lines.length > 1 ? `${first} +${lines.length - 1}` : first;
+}
+
 // Kachel-Raster der Auftragsspezifikation – identisch zu Artikel-Spezifikation und
 // Instanz-Merkmalen: jede Kachel trägt ihre eigene Haarlinie und steht in Weissraum,
 // responsiv bis Mobile (eine Spalte, sobald 260px unterschritten werden).

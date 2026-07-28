@@ -373,7 +373,7 @@ function buildNodes(status: string, isWebshop: boolean, hist: Record<string, His
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {children}
     </div>
   );

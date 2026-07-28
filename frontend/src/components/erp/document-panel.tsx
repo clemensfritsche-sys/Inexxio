@@ -109,7 +109,7 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
   }
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #E9E7E1', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <PanelHeader
         icon={FileText}
         title="Dokument"

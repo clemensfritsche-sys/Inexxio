@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, ChevronRight } from 'lucide-react';
+import { Boxes, ChevronRight, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
@@ -16,6 +16,7 @@ const INST = TYPE_META.instance;
 export function InstanceList({ articleObjectId, unit }: { articleObjectId: number | null; unit?: string }) {
   const [items, setItems] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
   const nav = useErpNav();
 
   useEffect(() => {
@@ -37,19 +38,28 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
     return <Placeholder icon={Boxes} title="Kein Bestand" text="Instanzen entstehen bei der Serialisierung eines freigegebenen Auftrags." />;
   }
 
+  // **Neueste zuerst** (wie im Feed: Objektnummern werden aufsteigend vergeben, gemeint ist
+  // fast immer die zuletzt entstandene Instanz) + Suche über Objektnummer/Auftrag/Status.
+  const shown = [...items]
+    .sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0))
+    .filter((i) => {
+      const needle = q.trim().toLowerCase();
+      if (!needle) return true;
+      const cfg = instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0);
+      return `${fmtObjId(i.object_id)} ${fmtObjId(i.order_object_id ?? null)} ${cfg.label}`.toLowerCase().includes(needle);
+    });
+
   return (
     // Zentriert und breiter: auf einem 3440er-Schirm klebte die Liste sonst links
-    // in einer 720-px-Spalte.
+    // in einer 720-px-Spalte. Die Überschrift «Bestand» steht bereits im Reiter darüber.
     <div style={{ maxWidth: 980, marginInline: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: INST.bg, color: INST.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-          <Boxes size={18} />
-        </div>
-        {/* Keine Summenzeile: jede Instanz nennt ihre Menge in der Zeile darunter. */}
-        <h3 style={{ font: '800 19px var(--font-display)', letterSpacing: '-.02em', margin: 0, color: 'var(--fg-1)' }}>Bestand</h3>
+      <div style={{ position: 'relative', marginBottom: 12 }}>
+        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4)', pointerEvents: 'none' }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Instanz, Auftrag oder Status suchen"
+          style={{ width: '100%', padding: '9px 12px 9px 34px', fontSize: 13.5, borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: '#fff', outline: 'none', boxSizing: 'border-box' }} />
       </div>
       <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: '#fff' }}>
-        {items.map((i, idx) => (
+        {shown.map((i, idx) => (
           <button
             key={i.id}
             className="erp-orow"
@@ -68,7 +78,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
                 {instanceLabel(i.kind, i.quantity, unit)}
               </div>
               <div style={{ font: 'var(--mono-sm)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
-                {fmtObjId(i.object_id)}{i.order_object_id ? ` · Auftrag ${fmtObjId(i.order_object_id)}` : ''}
+                {fmtObjId(i.object_id)}
               </div>
             </div>
             <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} size={11} />

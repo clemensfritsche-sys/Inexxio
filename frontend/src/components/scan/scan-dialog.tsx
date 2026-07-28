@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CameraOff, Check, AlertTriangle, X, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
+import { CameraOff, Check, AlertTriangle, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
   type ScanCandidate, type ScanKind, type ScanStep, type ScanRequest,
@@ -146,8 +146,6 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
           </div>
         )}
 
-        <button onClick={onClose} aria-label="Schliessen" style={closeBtn}><X size={18} /></button>
-
         {/* Zielrahmen mit Suchstrahl + der EINEN Angabe, die zählt: was soll gescannt werden. */}
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
@@ -174,7 +172,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && typedDirectOk) submitQuery(); }}
               autoFocus
-              placeholder="Objektnummer suchen, z. B. 003"
+              placeholder={step ? `${step.label} suchen` : 'Objektnummer suchen'}
               style={input}
             />
           </div>
@@ -218,11 +216,6 @@ const cameraOff: React.CSSProperties = {
 };
 const progressBar: React.CSSProperties = {
   position: 'absolute', top: 10, left: 14, right: 14, display: 'flex', gap: 5,
-};
-const closeBtn: React.CSSProperties = {
-  position: 'absolute', top: 10, right: 10, border: 'none', cursor: 'pointer', display: 'flex',
-  padding: 11, borderRadius: 999, color: '#fff', background: 'rgba(15,23,42,.45)',
-  backdropFilter: 'blur(6px)',
 };
 const frame: React.CSSProperties = {
   position: 'absolute', width: '64%', aspectRatio: '1 / 1', border: '2px solid rgba(255,255,255,.85)',

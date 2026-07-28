@@ -386,9 +386,9 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                   {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer (Claude-Design):
                       nur bei freigegebenem Artikel, öffnet den Dialog (mit «Ersetzen»-Option). */}
                   {record.status === 'released' && (
-                    <button className="erp-idbtn" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
+                    <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
                       aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
-                      style={{ color: 'var(--danger)' }} onClick={() => onStatusAction('inactive')}>
+                      onClick={() => onStatusAction('inactive')}>
                       <Ban size={15} />
                     </button>
                   )}
@@ -439,7 +439,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
         style={{ flex: 1, overflowY: 'auto', padding: '24px clamp(14px, 4vw, 28px) 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'spezifikation' && (
-          <div style={{ maxWidth: 880 }}>
+          <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
             {locked ? (
               <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} mapsApiKey={mapsApiKey} />
             ) : (
@@ -556,7 +556,7 @@ const H: Record<string, React.CSSProperties> = {
   idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
   right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
   statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
-  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 },
+  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 'clamp(16px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
 };
 
 
@@ -888,7 +888,10 @@ function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, sprea
         </span>
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)' }}>{label}</div>
+        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          {label}
+          {autoHint && <span style={{ display: 'inline-flex', color: 'var(--fg-4)', cursor: 'help' }} data-tip={autoHint}><Sparkles size={12} /></span>}
+        </div>
         {link ? (
           <a href={link} target="_blank" rel="noreferrer"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
@@ -903,11 +906,6 @@ function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, sprea
         {spread && (
           <div style={{ marginTop: 4, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
             {spread}
-          </div>
-        )}
-        {autoHint && (
-          <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, font: '500 12px var(--font-body)', color: 'var(--fg-4)' }}>
-            <Sparkles size={12} /> {autoHint}
           </div>
         )}
       </div>
