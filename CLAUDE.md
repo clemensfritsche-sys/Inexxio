@@ -1660,6 +1660,41 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Kachel über die volle Breite im selben Raster.
   (5) **«Prozess» statt «Ablauf»** (#91) – auch bei Nachschub/Retoure/Abweichung.
 
+- **Testnotizen-Runde 10 (Kamera-Sprache überall, Kopf aufgeräumt, Notizen #105–#122)**:
+  (1) **Der Dokument-Dialog spricht die Scanner-Sprache** (#119): die Kamera-Phase ist jetzt
+  dieselbe Fläche wie beim Objekt-Scanner – ganz Kamera, Zielrahmen mit Suchstrahl, alle
+  Bedienelemente als milchige Chips **im Bild** (Auslöser · Datei hochladen · Objektnummer
+  öffnen). Erst ab «Analyse» wird es ein normales Formular-Fenster: dort geht es um Text,
+  nicht um Bild. `DocumentCamera` hat dafür einen `extra`-Slot für die Zusatzfunktion.
+  Im Scanner selbst entfällt das × (#108 – Klick daneben und Esc schliessen ohnehin), und der
+  Such-Platzhalter nennt das Ziel (#109: «Instanz 100000479 suchen»).
+  (2) **Kein Footer mehr** (#105): der Streifen «Erstellt … Zuletzt geändert» am Fensterrand
+  ist weg; die Angabe steht als Kachel in der Auftragsspezifikation, wo die übrigen Angaben
+  stehen.
+  (3) **Die Status-Aktion sitzt bei den Aktionen** (#117): «Freigeben» steht neben QR-Druck
+  und Abweichung unter dem Titel; rechts bleibt nur der **Zustand**. Eine Aktion gehört zu den
+  Aktionen, der Status zeigt an.
+  (4) **Titel eines Mehrpositionen-Auftrags** (#107): es gibt keinen EINEN Artikel – der Titel
+  nennt den ersten und wie viele noch dazugehören («Schraubendreher +2»), ohne Artikel bleibt
+  es beim schlichten «Auftrag».
+  (5) **Alle Symbol-Aktionen sind getönt** (#113/#115): ein Knopf ohne Fläche sah neben den
+  getönten Nachbarn aus wie deaktiviert. `.erp-idbtn` trägt jetzt grundsätzlich eine dezente
+  Tönung, Deaktivieren/Ersetzen eine rote (`.erp-idbtn-danger`).
+  (6) **Bestand am Artikel**: neueste Instanz zuerst + Suchfeld (#111), ohne Auftragsnummer
+  (#112 – am Artikel zählt die Instanz) und ohne die Überschrift «Bestand» (#114 – der Reiter
+  sagt es bereits).
+  (7) **Inhalte zentriert und responsiv** (#120/#121): Spezifikation und Dokumente stehen
+  mittig statt links geklebt; die Spezifikations-Karte wächst mit (`clamp`-Polsterung, keine
+  feste 720-px-Breite mehr).
+  (8) **Herkunft einer Zahl gehört ans Label** (#122): «Median aus erledigten Aufträgen» ist
+  ein ⓘ neben «Lieferzeit»/«Einstandspreis» statt einer eigenen Zeile darunter.
+  (9) Datenerfassung: kein Live-Häkchen je Stichprobe mehr (#110) – es bewertete, während man
+  noch tippt; das Ergebnis steht nach dem Abschluss da. Die Panels mit eigenem Kopf
+  (Beschaffung/Verkauf/Dokument) haben ihren weissen Kasten verloren (#118) und tragen jetzt
+  ebenfalls die Modulfarbe der Karte.
+  (10) Die Prozess-Überschriften im **Entwurf** entfallen (#106/#116) – der Fluss mit
+  Start-/Endknoten sagt selbst, was er ist; am laufenden Auftrag bleibt «Prozess».
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

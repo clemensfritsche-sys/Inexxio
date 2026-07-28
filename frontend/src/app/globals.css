@@ -662,12 +662,14 @@
 [data-tip][data-tip-hidden]::after { display: none; }
 
 /* ── Detail-Kopf: Icon-Knöpfe (QR, Abweichung, Werkzeuge) ── */
+/* Symbol-Aktionen neben der Objektnummer. Alle tragen eine dezente Tönung – ein Knopf ohne
+   Fläche sieht neben den getönten Nachbarn aus, als wäre er inaktiv (Notizen #113/#115). */
 .erp-idbtn {
-  width: 28px; height: 28px; border-radius: var(--r-sm); border: none; background: transparent;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-4);
+  width: 28px; height: 28px; border-radius: var(--r-sm); border: none; background: var(--bg-2);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3);
   cursor: pointer; padding: 0; transition: background .15s, color .15s;
 }
-.erp-idbtn:hover { background: var(--bg-2); color: var(--fg-1); }
+.erp-idbtn:hover { background: var(--bg-3); color: var(--fg-1); }
 /* Abweichung-Knopf hebt sich dezent hervor: ruhend leicht amber hinterlegt, beim Hover satter. */
 .erp-idbtn-flag { background: var(--warning-bg); color: var(--warning); }
 .erp-idbtn-flag:hover { background: var(--warning); color: #fff; }
@@ -675,10 +677,13 @@
    leisen Stimme (Slate) statt Amber – eine Handlung, keine Warnung. */
 .erp-idbtn-act { background: var(--accent-soft); color: var(--accent-ink); }
 .erp-idbtn-act:hover { background: var(--accent); color: #fff; }
-.erp-idbtn-act:disabled, .erp-idbtn-act:disabled:hover { background: transparent; color: var(--fg-4); }
+/* Deaktivieren/Ersetzen: dieselbe Mechanik in Rot – die Aktion ist eine Verwerfung. */
+.erp-idbtn-danger { background: var(--danger-bg); color: var(--danger); }
+.erp-idbtn-danger:hover { background: var(--danger); color: #fff; }
+.erp-idbtn-act:disabled, .erp-idbtn-act:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 .erp-idbtn:disabled { opacity: .4; cursor: not-allowed; }
-.erp-idbtn:disabled:hover { background: transparent; color: var(--fg-4); }
-.erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: transparent; color: var(--fg-4); }
+.erp-idbtn:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
+.erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 
 .erp-tool {
   width: 40px; height: 40px; border: 1px solid var(--border-1); background: #fff; border-radius: var(--r-sm);

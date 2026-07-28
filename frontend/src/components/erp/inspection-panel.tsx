@@ -201,8 +201,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
             return (
               <div key={key} style={{ border: `1px solid ${done ? (ok ? '#bbf7d0' : '#fecaca') : '#e2e8f0'}`, borderRadius: 8, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
-                  {!done && (ok ? <CheckCircle2 size={15} style={{ color: '#16a34a' }} /> : <XCircle size={15} style={{ color: '#cbd5e1' }} />)}
+                  <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--fg-2)', flex: 1 }}>{sampleLabel(s.instance_id, s.slot)}</span>
                 </div>
                 {/* Nur die konfigurierten Erfassungsfelder – Bild UND Unterschrift sind eigene
                     Feldtypen (CaptureRow rendert sie). KEIN unbedingtes Foto-Feld mehr: wer nur

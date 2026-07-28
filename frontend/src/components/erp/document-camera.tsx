@@ -20,11 +20,12 @@ const THROTTLE_MS = 1200;
  * Auslöser = Dokument. Ein Barcode auf einem Lieferschein kapert also nichts – man drückt
  * einfach den Auslöser.
  */
-export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument erfassen', captureEnabled = true }: {
+export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument erfassen', captureEnabled = true, extra }: {
   onCapture: (file: File) => void;
   onCode?: (objectId: number) => void;
   captureLabel?: string;
   captureEnabled?: boolean;   // false = reiner Scanner (kein Auslöser/Upload), z. B. Lieferant
+  extra?: React.ReactNode;    // Zusatzfunktion im Bild (z. B. Nummern-Eingabe)
 }) {
   const [detected, setDetected] = useState<number | null>(null);
   const lastRef = useRef<{ id: number; at: number } | null>(null);
@@ -58,70 +59,83 @@ export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={viewport}>
-        {live ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <video ref={videoRef} style={video} muted playsInline autoPlay />
-        ) : (
-          <div style={cameraOff}>
-            <CameraOff size={28} strokeWidth={1.5} />
-            <span style={{ fontSize: 12, marginTop: 8, maxWidth: 240, textAlign: 'center' }}>
-              {state === 'denied' ? 'Kein Kamerazugriff – bitte «Datei hochladen» nutzen.'
-                : 'Kamera nicht verfügbar – bitte «Datei hochladen» nutzen.'}
-            </span>
-          </div>
-        )}
-        {live && <div style={frame} />}
-        {live && !detected && (
-          <div style={hintChip}><ScanLine size={13} /> Dokument in den Rahmen halten</div>
-        )}
-        {onCode && detected != null && (
-          <button type="button" onClick={() => onCode(detected)} style={openChip}>
-            <ScanLine size={14} /> Datensatz {fmtObjId(detected)} öffnen <ArrowRight size={14} />
-          </button>
+    // **Dieselbe Bildsprache wie der Objekt-Scanner** (Notiz #119): die Fläche IST die Kamera,
+    // alle Bedienelemente liegen als milchige Chips darüber. Der Unterschied ist die
+    // Zusatzfunktion – Auslöser, Datei-Upload und (optional) die Nummern-Eingabe.
+    <div style={surface}>
+      {live ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video ref={videoRef} style={video} muted playsInline autoPlay />
+      ) : (
+        <div style={cameraOff}>
+          <CameraOff size={28} strokeWidth={1.5} />
+          <span style={{ fontSize: 12, marginTop: 8, maxWidth: 240, textAlign: 'center' }}>
+            {state === 'denied' ? 'Kein Kamerazugriff – bitte Datei hochladen.'
+              : 'Kamera nicht verfügbar – bitte Datei hochladen.'}
+          </span>
+        </div>
+      )}
+
+      {live && (
+        <div style={frame}>
+          {!detected && <div className="ix-scanbeam" style={beam} />}
+        </div>
+      )}
+      {live && !detected && <div style={hintChip}>Dokument in den Rahmen halten</div>}
+
+      {onCode && detected != null && (
+        <button type="button" onClick={() => onCode(detected)} style={openChip}>
+          <ScanLine size={14} /> Datensatz {fmtObjId(detected)} öffnen <ArrowRight size={14} />
+        </button>
+      )}
+
+      <div style={controls}>
+        {extra}
+        {captureEnabled && (
+          <>
+            <button type="button" onClick={capture} disabled={!live} style={{ ...shutter, opacity: live ? 1 : 0.5 }}>
+              <Camera size={19} /> {captureLabel}
+            </button>
+            <button type="button" onClick={() => fileRef.current?.click()} style={uploadLink}>
+              <Upload size={15} /> Datei hochladen (PDF/Bild)
+            </button>
+            <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onCapture(f); }} />
+          </>
         )}
       </div>
-
-      {captureEnabled && (
-        <>
-          {/* Auslöser (Kamera-first) */}
-          <button type="button" onClick={capture} disabled={!live} style={{ ...shutter, opacity: live ? 1 : 0.5 }}>
-            <Camera size={19} /> {captureLabel}
-          </button>
-
-          {/* Rückfall: Datei hochladen (PDF/Bild) */}
-          <button type="button" onClick={() => fileRef.current?.click()} style={uploadLink}>
-            <Upload size={15} /> Stattdessen Datei hochladen (PDF/Bild)
-          </button>
-          <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onCapture(f); }} />
-        </>
-      )}
     </div>
   );
 }
 
-const viewport: React.CSSProperties = {
-  position: 'relative', width: '100%', aspectRatio: '4 / 3', background: '#0f172a',
-  borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+const surface: React.CSSProperties = {
+  position: 'absolute', inset: 0, background: '#0B1220',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
 };
 // pointerEvents:none – auf iOS/Safari rendert das <video> sonst ÜBER den absolut
 // positionierten Overlays und verschluckt Taps auf den «öffnen»-Chip (Bug: Chip reagiert nicht).
-const video: React.CSSProperties = { width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' };
-const cameraOff: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#94a3b8', padding: 24 };
+const video: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' };
+const cameraOff: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'rgba(255,255,255,.6)', padding: 24 };
 const frame: React.CSSProperties = {
-  position: 'absolute', inset: '10% 8%', border: '3px solid rgba(255,255,255,0.85)', borderRadius: 12,
-  boxShadow: '0 0 0 9999px rgba(0,0,0,0.18)', pointerEvents: 'none',
+  position: 'absolute', inset: '12% 8% 26%', border: '2px solid rgba(255,255,255,.85)', borderRadius: 18,
+  boxShadow: '0 0 0 9999px rgba(4,8,16,0.42)', pointerEvents: 'none', overflow: 'hidden',
+};
+const beam: React.CSSProperties = {
+  position: 'absolute', left: '5%', right: '5%', top: '50%', height: 2, borderRadius: 2,
+  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent)',
+  boxShadow: '0 0 12px rgba(255,255,255,.6)',
 };
 const hintChip: React.CSSProperties = {
-  position: 'absolute', top: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px',
-  borderRadius: 999, background: 'rgba(15,23,42,.6)', color: '#fff', fontSize: 11.5, fontWeight: 600, pointerEvents: 'none',
+  position: 'absolute', top: 14, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+  borderRadius: 999, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)',
+  color: '#fff', font: '700 12.5px var(--font-body)', pointerEvents: 'none',
 };
 const openChip: React.CSSProperties = {
-  position: 'absolute', bottom: 12, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px',
-  borderRadius: 999, background: '#2563eb', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: 'none',
-  boxShadow: '0 6px 18px rgba(37,99,235,.4)',
+  position: 'absolute', top: 52, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px',
+  borderRadius: 999, background: '#fff', color: 'var(--fg-1)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: 'none',
+};
+const controls: React.CSSProperties = {
+  position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 8,
 };
 const shutter: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, width: '100%', minHeight: 48,
@@ -130,6 +144,6 @@ const shutter: React.CSSProperties = {
 };
 const uploadLink: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 42,
-  borderRadius: 10, border: '1px solid var(--border-2, #e2e8f0)', background: '#fff', color: 'var(--fg-2, #475569)',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  borderRadius: 12, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(15,23,42,.5)',
+  backdropFilter: 'blur(10px)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
