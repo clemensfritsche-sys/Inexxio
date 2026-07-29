@@ -5,7 +5,7 @@ import { Trash2, Lock, CheckCircle2, Info, ScanLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
-import { StatusBadge } from '@/components/erp/fields';
+import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useScan } from '@/components/scan/scan-provider';
@@ -96,6 +96,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
   async function submit() {
     const ids = [...scanned];
     if (ids.length === 0) { setError(`Bitte zuerst die Instanzen zum ${T.verb} scannen`); return; }
+    if (!note.trim()) { setError('Bitte den Grund angeben'); return; }
     // Teilmenge NUR beim Verschrotten – eine halbe Maschine lässt sich nicht sperren.
     const items = ids.map((oid) => ({ instance_id: oid, quantity: mode === 'scrap' ? (qtys[oid] ?? null) : null }));
     const payload = { items, note: note.trim() || null, step_id: stepId ?? null };
@@ -196,10 +197,16 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
         })}
       </div>
 
-      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
-        placeholder="Grund (optional) – z. B. Defekt, Bruch, Falschteil"
-        className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
-        style={{ borderColor: '#e2e8f0', resize: 'vertical' }} />
+      {/* Der Grund ist **Pflicht** (Notiz #255): warum etwas ausgeschleust wurde, ist die
+          eigentliche Information dieses Schritts – ohne sie bleibt im Nachhinein nur «weg».
+          Dass er verlangt wird, steht bereits in der Schritt-Definition. */}
+      <div>
+        <Label required>Grund</Label>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+          placeholder="z. B. Defekt, Bruch, Falschteil"
+          className="w-full px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+          style={{ borderColor: 'var(--border-1)', resize: 'vertical' }} />
+      </div>
 
       {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
 
@@ -213,15 +220,13 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
           <Trash2 size={18} /> {saving ? T.running : `${T.verb} (${scanned.size})`}
         </button>
       )}
+      {/* Das **Scannen** ist Routine – also die ruhige, schwarze Hauptaktion wie überall
+          (Notiz #256). Rot bleibt dem Vollzug oben vorbehalten: das ist die Entscheidung,
+          die etwas endgültig aus dem Bestand nimmt. */}
       {!allScanned && (
-        <button onClick={() => startScan()} disabled={saving}
-          style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
-            minHeight: 44, padding: '0 16px', borderRadius: 10, border: '1px solid #fecaca', background: '#fff', color: '#dc2626',
-            fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.55 : 1,
-          }}>
-          <ScanLine size={18} /> {scanned.size > 0 ? 'Weitere scannen' : 'Scannen & verschrotten'}
-        </button>
+        <PrimaryButton icon={ScanLine} onClick={() => startScan()} disabled={saving}>
+          {scanned.size > 0 ? 'Weitere scannen' : `Scannen & ${T.verb.toLowerCase()}`}
+        </PrimaryButton>
       )}
     </div>
   );

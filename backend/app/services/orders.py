@@ -349,13 +349,20 @@ def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
     ]
     # Abweichungen an ihrer Stelle im Ablauf: ``origin_step_id`` hält fest, wo sie gemeldet
     # wurden. Auch abgeschlossene bleiben stehen – sie sind Teil der Geschichte des Schritts.
+    # Abweichungen UND Nachschub an ihrer Stelle im Ablauf: beide sind Unter-Aufträge, die
+    # aus genau diesem Schritt hervorgegangen sind (``origin_step_id``) – und beide gehören
+    # dorthin, wo sie entstanden sind, statt in eine Liste daneben (Notizen #259/#260).
+    subs = (
+        db.query(Order).filter(
+            Order.parent_order_id == order.object_id,
+            Order.reason.in_(("deviation", "supply")),
+            Order.origin_step_id == step.id, Order.is_active == True,
+        ).order_by(Order.object_id).all()
+    )
     si.deviations = [
         OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
                            instance_count=0, instance_object_ids=[], title=o.title)
-        for o in db.query(Order).filter(
-            Order.parent_order_id == order.object_id, Order.reason == "deviation",
-            Order.origin_step_id == step.id, Order.is_active == True,
-        ).order_by(Order.object_id).all() if o.object_id
+        for o in subs if o.object_id
     ]
 
 

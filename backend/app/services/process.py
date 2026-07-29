@@ -515,12 +515,23 @@ def release_instances(db: Session, order: Order) -> None:
     Instanzen werden zu «Freigegeben» und damit für den Ressource-Verbrauch (FIFO)
     nutzbar. ``released_at`` ist die FIFO-Basis. Bereits bewertete Instanzen
     (failed/consumed/passed) bleiben unverändert. **Terminale Teile** (verschrottet/verkauft/
-    verbaut) werden NICHT ans Lager freigegeben – nur noch «im Prozess» befindliche."""
+    verbaut) werden NICHT ans Lager freigegeben – nur noch «im Prozess» befindliche.
+
+    **Freigegeben wird von dem Auftrag, der zuletzt an der Instanz gearbeitet hat** – nicht
+    nur vom erzeugenden (Testnotiz #262). Wird ein Auftrag abgebrochen und ein
+    **Abweichungsauftrag** führt seine Instanzen fort (``subject_of_order_id``), bleibt deren
+    ``order_id`` beim abgebrochenen Original: Nur auf den Erzeuger zu schauen hiess, dass
+    diese Instanzen **nie** freigegeben werden – für immer «Im Prozess», unsichtbar für FIFO
+    und Bestandszählung. Darum zählt hier BEIDES: erzeugt von diesem Auftrag **oder** von ihm
+    als Subjekt verarbeitet."""
     now = utcnow()
     rows = (
         db.query(Instance)
-        .filter(Instance.order_id == order.id, Instance.is_active == True,
-                Instance.quality == "pending", Instance.disposition == "in_process")
+        .filter(
+            or_(Instance.order_id == order.id, Instance.subject_of_order_id == order.id),
+            Instance.is_active == True,
+            Instance.quality == "pending", Instance.disposition == "in_process",
+        )
         .all()
     )
     total = ZERO

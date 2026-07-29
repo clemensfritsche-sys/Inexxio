@@ -1193,20 +1193,23 @@ def test_instance_order_ref_has_no_mode_flag():
         assert f in InstanceOrderRef.model_fields
 
 
-def test_step_type_whitelist_per_context():
-    """Kompatibilität: Artikel-Prozess = Herstellung (kein Verkauf); Auftrags-Ablauf =
-    Bestands-Operation (keine Beschaffung/Ressource). Verhindert gemischte Prozesse."""
+def test_every_step_module_is_universally_usable():
+    """**Jedes Prozessschrittmodul ist universell einsetzbar** – am Artikel wie am Auftrag
+    (Testnotiz #246).
+
+    Früher waren Verkauf/Verschrotten/Sperren im Artikel-Prozess gesperrt, weil sie „auf
+    vorhandenen Bestand wirken". Das stimmt, ist aber kein Grund für ein Verbot: ein
+    Artikel-Prozess läuft immer IN einem Auftrag, dessen Instanzen existieren, sobald der
+    Schritt an der Reihe ist. Eine Sperre gegen selten sinnvolle Kombinationen kostet mehr,
+    als sie nützt.
+    """
     from app.domain import event_types
 
     art = event_types.allowed_step_types("article")
     order = event_types.allowed_step_types("order")
-    # Artikel-Prozess (Herstellung): kein Verkauf UND kein Verschrotten (beides wirkt
-    # auf vorhandenen Bestand, läuft über einen Auftrag).
-    assert "sale" not in art and "scrap" not in art and "block" not in art
-    assert {"purchase", "resource", "inspection", "movement"} <= set(art)
-    # Auftrags-Ablauf (Bestands-Operation): ALLE Typen – inkl. Beschaffung/Ressource
-    # (z. B. Wartung) und der Abweichungs-Auflösung Verschrotten.
-    assert set(order) == {"purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document"}
+    assert set(art) == set(order) == set(event_types.STEP_TYPES)
+    # Jeder in der Registry deklarierte Typ ist auch wählbar – keine toten Module.
+    assert {"purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document"} == set(art)
 
 
 def test_webshop_url_is_validated():
@@ -2838,7 +2841,13 @@ def test_sub_orders_know_where_they_came_from():
     assert '("active", "blocked", "failed")' in act
     # … und er wird je Schritt mitgeliefert, damit der Ablauf sie an ihrer Stelle zeigen kann.
     fill = _inspect.getsource(orders_svc._fill_step_provisioning)
-    assert "Order.origin_step_id == step.id" in fill and 'Order.reason == "deviation"' in fill
+    assert "Order.origin_step_id == step.id" in fill
+    # Abweichung UND Nachschub – beide sind Unter-Aufträge eines Schritts und stehen an
+    # seiner Stelle im Ablauf (Testnotizen #259/#260).
+    assert 'Order.reason.in_(("deviation", "supply"))' in fill
+    # Auch der Nachschub merkt sich, aus welchem Schritt sein Bedarf stammt.
+    from app.services import supply as supply_svc
+    assert "origin_step_id=_blocked_step_id(db, order, art_id)" in _inspect.getsource(supply_svc)
 
 
 def test_cancelled_provisioning_is_not_recreated():
@@ -2917,7 +2926,8 @@ def test_block_is_reversible_scrap_is_not():
     assert block.provisioning == ev.PROV_NONE
     assert ev.REGISTRY["scrap"].provisioning == ev.PROV_NOWHERE
     # Nur im Auftrags-Ablauf, nie im Artikel-Prozess (wie das Verschrotten).
-    assert "block" not in ev.allowed_step_types("article")
+    # Wählbar ist «Sperren» in JEDEM Prozess-Kontext (Testnotiz #246).
+    assert "block" in ev.allowed_step_types("article") and "block" in ev.allowed_step_types("order")
     assert "block" in ev.allowed_step_types("order")
 
     src = _inspect.getsource(scrap)
@@ -2968,3 +2978,21 @@ def test_auto_provisioning_is_switched_off_at_exactly_one_place():
         assert "if not AUTO_PROVISIONING" in _inspect_source_fn(fn)
     # Die Ableitung ist NICHT entfernt, nur stillgelegt.
     assert callable(provisioning.target_for) and callable(provisioning.misplaced)
+
+
+def test_the_order_that_finishes_an_instance_releases_it():
+    """**Freigegeben wird von dem Auftrag, der zuletzt an der Instanz gearbeitet hat.**
+
+    Wird ein Auftrag abgebrochen und ein Abweichungsauftrag führt seine Instanzen fort, bleibt
+    deren ``order_id`` beim abgebrochenen Original. Sah die Freigabe nur auf den **Erzeuger**,
+    wurden diese Instanzen NIE freigegeben – für immer «Im Prozess», unsichtbar für FIFO und
+    Bestandszählung (Testnotiz #262). Massgeblich ist darum erzeugt-von ODER Subjekt-von.
+    """
+    from app.services import process
+
+    src = _inspect_source_fn(process.release_instances)
+    assert "Instance.order_id == order.id" in src
+    assert "Instance.subject_of_order_id == order.id" in src
+    # Terminale/bereits bewertete Teile bleiben ausgenommen – nur «im Prozess» wird frei.
+    assert 'Instance.quality == "pending"' in src
+    assert 'Instance.disposition == "in_process"' in src

@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
-import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
-import { Row, StatusBadge, TextField } from '@/components/erp/fields';
+import { Row, TextField, numericOnly } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 import { ObjId } from '@/components/erp/obj-id';
 import { formatAmount as fmtMoney } from '@/lib/utils';
@@ -209,17 +208,13 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     return { key, label: fieldLabel(key), value };
   });
 
-  const cfg = purchaseStatusConfig(s);
 
   return (
     <>
       <Card>
-        {/* Kein eigener Kopf (#201): die Modul-Karte des Flusses heisst bereits
-            «Beschaffung» – der Zustand steht als Badge rechts über dem Ablauf. */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <StatusBadge cfg={cfg} size={11} />
-        </div>
-
+        {/* Kein eigener Kopf und keine Status-Badge hier (#201/#247): die Modul-Karte
+            des Flusses heisst «Beschaffung» und trägt den Zustand; welche Stufe gerade
+            dran ist, zeigt der Ablauf darunter. */}
         {/* Bei mehreren Positionen: welcher Artikel diese Bestellung betrifft */}
         {showArticle && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#0F172A' }}>
@@ -230,7 +225,73 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
 
         {/* Der Beschaffungs-Ablauf als Prozess IM Prozess – gleiche Bildsprache wie der
             Auftrags-Fluss, nur eine Nummer kleiner (#194). */}
-        <PurchaseProgress nodes={nodes} delivery={delivery} />
+        <PurchaseProgress nodes={nodes} delivery={delivery} renderActive={() => (
+          <>
+            {/* Offerte / Bestellsumme */}
+            {canEditOffer ? (
+              <>
+                {/* Beschriftung nennt die Sache, der Platzhalter erklärt sie (#183–#186). */}
+                <TextField label="Bestellsumme" value={form.order_total} onChange={(v) => set('order_total', v)} required
+                  placeholder="ganze Menge, netto in CHF – z. B. 1250" />
+                {isWebshop ? (
+                  <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', numericOnly(v, { decimals: false }))} required placeholder="z. B. 14 Tage" />
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
+                    <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', numericOnly(v, { decimals: false }))} required placeholder="z. B. 14 Tage" />
+                    <TextField label="Zahlungsziel" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', numericOnly(v, { decimals: false }))} placeholder="z. B. 30 Tage" />
+                  </div>
+                )}
+              </>
+            ) : (po.order_total != null || s !== 'requested') && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Row k="Bestellsumme netto" v={`CHF ${fmtMoney(po.order_total)}`} />
+                <Row k="Lieferzeit" v={po.lead_time_days != null ? `${po.lead_time_days} Tage` : '—'} />
+                {!isWebshop && <Row k="Zahlungsziel" v={po.payment_terms_days != null ? `${po.payment_terms_days} Tage` : 'sofort'} />}
+              </div>
+            )}
+
+            {/* Preis pro Stück (berechnet) */}
+            {perUnit != null && (
+              <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Calculator size={13} style={{ color: 'var(--fg-3)' }} />
+                  <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>Preis pro Stück (netto)</span>
+                </div>
+                <div style={{ font: '800 18px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>CHF {fmtMoney(perUnit)}</div>
+              </div>
+            )}
+
+            {/* Tracking (optionales Detail von «Bestellt») */}
+            {canEditTracking ? (
+              <div onBlur={saveTracking}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveTracking(); } }}>
+                {/* Auto-Save wie überall: gespeichert wird beim Verlassen des Felds bzw. mit
+                    Enter – ein «Tracking speichern»-Knopf wäre ein zweiter Weg (#198–#200). */}
+                <TextField label="Tracking-Nummer" value={form.tracking_number} onChange={(v) => set('tracking_number', v)}
+                  placeholder="Tracking-Nummer" />
+                {trackingSaved && <div style={{ marginTop: 4, font: '600 11px var(--font-body)', color: 'var(--success)' }}>✓ gespeichert</div>}
+              </div>
+            ) : (
+              po.tracking_number && <Row k="Tracking-Nummer" v={po.tracking_number} />
+            )}
+
+            {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick.
+                Kein Statuswort mehr in der Zeile (#188): der Zustand steht oben rechts als
+                Badge. Die Knöpfe sprechen die Design-Sprache des ERP (#187): schwarz für die
+                Routine-Hauptaktion, rot nur fürs Ablehnen. */}
+            {(actions.length > 0 || error) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
+                {error && <span style={{ flex: 1, font: '500 12px var(--font-body)', color: 'var(--danger)', minWidth: 120 }}>{error}</span>}
+                {actions.map((a) => (
+                  <button key={a.target} onClick={() => run(a.target, a.needsTotal)} disabled={saving}
+                    className={`erp-actbtn ${a.variant === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-primary'}`}>
+                    {saving ? '…' : a.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )} />
 
         {/* Bezugsquelle + Lieferadresse – zwei Tatsachen, eine Zeile je Angabe. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
@@ -257,69 +318,6 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
           )}
         </div>
 
-        {/* Offerte / Bestellsumme */}
-        {canEditOffer ? (
-          <>
-            {/* Beschriftung nennt die Sache, der Platzhalter erklärt sie (#183–#186). */}
-            <TextField label="Bestellsumme" value={form.order_total} onChange={(v) => set('order_total', v)} required
-              placeholder="ganze Menge, netto in CHF – z. B. 1250" />
-            {isWebshop ? (
-              <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} required placeholder="z. B. 14 Tage" />
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
-                <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} required placeholder="z. B. 14 Tage" />
-                <TextField label="Zahlungsziel" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30 Tage" />
-              </div>
-            )}
-          </>
-        ) : (po.order_total != null || s !== 'requested') && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Row k="Bestellsumme netto" v={`CHF ${fmtMoney(po.order_total)}`} />
-            <Row k="Lieferzeit" v={po.lead_time_days != null ? `${po.lead_time_days} Tage` : '—'} />
-            {!isWebshop && <Row k="Zahlungsziel" v={po.payment_terms_days != null ? `${po.payment_terms_days} Tage` : 'sofort'} />}
-          </div>
-        )}
-
-        {/* Preis pro Stück (berechnet) */}
-        {perUnit != null && (
-          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calculator size={13} style={{ color: 'var(--fg-3)' }} />
-              <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>Preis pro Stück (netto)</span>
-            </div>
-            <div style={{ font: '800 18px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>CHF {fmtMoney(perUnit)}</div>
-          </div>
-        )}
-
-        {/* Tracking (optionales Detail von «Bestellt») */}
-        {canEditTracking ? (
-          <div onBlur={saveTracking}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveTracking(); } }}>
-            {/* Auto-Save wie überall: gespeichert wird beim Verlassen des Felds bzw. mit
-                Enter – ein «Tracking speichern»-Knopf wäre ein zweiter Weg (#198–#200). */}
-            <TextField label="Tracking-Nummer" value={form.tracking_number} onChange={(v) => set('tracking_number', v)}
-              placeholder="Sendungsnummer des Transporteurs" />
-            {trackingSaved && <div style={{ marginTop: 4, font: '600 11px var(--font-body)', color: 'var(--success)' }}>✓ gespeichert</div>}
-          </div>
-        ) : (
-          po.tracking_number && <Row k="Tracking-Nummer" v={po.tracking_number} />
-        )}
-
-        {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick.
-            Kein Statuswort mehr in der Zeile (#188): der Zustand steht oben rechts als
-            Badge. Die Knöpfe sprechen die Design-Sprache des ERP (#187): schwarz für die
-            Routine-Hauptaktion, rot nur fürs Ablehnen. */}
-        {(actions.length > 0 || error) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
-            {error && <span style={{ flex: 1, font: '500 12px var(--font-body)', color: 'var(--danger)', minWidth: 120 }}>{error}</span>}
-            {actions.map((a) => (
-              <button key={a.target} onClick={() => run(a.target, a.needsTotal)} disabled={saving}
-                className={`erp-actbtn ${a.variant === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-primary'}`}>
-                {saving ? '…' : a.label}
-              </button>
-            ))}
-          </div>
-        )}
       </Card>
 
       {/* Für den Lieferanten freigegebene Stammdaten */}

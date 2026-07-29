@@ -706,30 +706,10 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
             klickbare Objektnummern, grüne Badge bei erledigter Abweichung. Pausiert der Auftrag,
             steht das gross zuoberst. (Der Abbruch-Folgeauftrag hat oben schon seinen Banner.) */}
-        {/* Nachschub-Unteraufträge sichtbar machen – decken die Fehlmenge blockierter Schritte.
-            Anders als eine Abweichung pausiert ein Nachschub den Auftrag NICHT; sobald er liefert,
-            wird der betroffene Schritt von selbst wieder aktiv. */}
-        {!isCreate && isStaff && (record.supply_orders?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f5f9' }}>
-              <PackagePlus size={16} style={{ color: '#d97706' }} />
-              Nachschub
-              <span style={{ marginLeft: 'auto', fontWeight: 700, color: '#b45309' }}>{record.supply_orders!.length}</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {record.supply_orders!.map((d) => (
-                <button key={d.object_id} type="button" onClick={() => nav?.(d.object_id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderTop: '1px solid #f8fafc', border: 'none', borderTopColor: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' }}>
-                  <ObjId value={d.object_id} />
-                  <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                    {d.title ?? (d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`)}
-                  </span>
-                  <StatusBadge cfg={orderStatusConfig(d.status)} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Der Nachschub steht im **Ablauf** an seinem Schritt (Notizen #259/#260) –
+            wie eine Abweichung. Eine zweite Liste daneben sagte dasselbe noch einmal und
+            verschwieg, WO im Prozess der Bedarf entstand. */}
+
         {/* Retouren sichtbar machen – Unteraufträge auf die verkauften Instanzen dieses Verkaufs
             (Rücknahme + Gutschrift). Wie ein Nachschub pausieren sie den Eltern NICHT. */}
         {!isCreate && isStaff && (record.returns?.length ?? 0) > 0 && (
@@ -1002,7 +982,7 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
   // (#173): «angehalten» sagt bereits, dass nichts geht.
   if (reason === 'deviation') {
     return (
-      <HoldFrame title="Prozess angehalten – Abweichung offen">
+      <HoldFrame title="Angehalten – Abweichung offen">
         {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       </HoldFrame>
     );
@@ -1014,7 +994,7 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
   const staging = step?.provisioning_order_object_ids ?? [];
   if (staging.length > 0) {
     return (
-      <HoldFrame title="Prozess angehalten – Material unterwegs">
+      <HoldFrame title="Material unterwegs">
         <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
           Das benötigte Material ist vorhanden, liegt aber noch nicht am richtigen Ort. Es wird
           gerade bereitgestellt – sobald es da ist, läuft dieser Schritt automatisch weiter.
@@ -1048,32 +1028,29 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
   }
 
   return (
-    <HoldFrame title="Prozess angehalten – Unterdeckung">
-      <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-        Dieser Schritt ruht – das benötigte Material ist nicht (mehr) am Lager
-        {isSubjectStep && <> (z. B. weil ein Stück per Abweichung ausgesteuert wurde)</>}.
-        {canRecover && isSubjectStep
-          ? ' Wählen Sie, wie es weitergeht:'
-          : ' Sobald der Nachschub geliefert hat, läuft der Schritt automatisch weiter.'}
-      </div>
+    // **Kurz und prägnant** (Notizen #257/#258): «Es fehlt» sagt alles, was der Titel
+    // sagen muss; WAS fehlt, steht als Zeile darunter – der Erklärabsatz («Dieser Schritt
+    // ruht – das benötigte Material ist nicht (mehr) am Lager …») wiederholte nur beides.
+    <HoldFrame title="Es fehlt">
       {shortfall.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {shortfall.map((sf, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a' }}>
-              <PackageMinus size={14} style={{ color: '#b45309', flexShrink: 0 }} />
-              <span>
-                <strong>{sf.quantity}</strong> × {sf.article_name ?? 'Artikel'}
-                {sf.article_object_id != null && <> (<ObjId value={sf.article_object_id} />)</>} fehlt
-                {(sf.available_quantity ?? 0) > 0 && <span style={{ color: '#64748b' }}> · {sf.available_quantity} am Lager frei</span>}
-              </span>
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', font: '500 13px var(--font-body)', color: 'var(--fg-1)' }}>
+              <PackageMinus size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+              <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{sf.quantity}×</span>
+              <span>{sf.article_name ?? 'Artikel'}</span>
+              {sf.article_object_id != null && <ObjId value={sf.article_object_id} />}
+              {(sf.available_quantity ?? 0) > 0 && (
+                <span style={{ color: 'var(--fg-4)' }}>{sf.available_quantity} am Lager frei</span>
+              )}
             </div>
           ))}
         </div>
       )}
       {hasRunning && (
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, fontSize: 13, color: '#92400e', fontWeight: 600 }}>
-          <PackagePlus size={15} style={{ color: '#b45309', flexShrink: 0 }} />
-          Nachschub läuft:
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, font: '600 13px var(--font-body)', color: 'var(--warning)' }}>
+          <PackagePlus size={15} style={{ flexShrink: 0 }} />
+          Nachschub läuft
           {running.map((oid) => <ObjId key={oid} value={oid} />)}
         </div>
       )}
@@ -1132,15 +1109,15 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
 }
 
 // Einheitlicher Rahmen für «Prozess angehalten» – gleiche Optik/Ikonografie wie die Pause-Leiste.
+// Die Notiz sitzt IM Modul des Flusses – also ohne eigenen Kasten, nur mit einer
+// Haarlinie unter dem Titel (Notiz #258). Tokens statt fixer Amber-Werte.
 function HoldFrame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ border: '1px solid #fde68a', borderRadius: 10, background: '#fffbeb', overflow: 'hidden', marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', fontSize: 14, fontWeight: 700, color: '#92400e', borderBottom: '1px solid #fde68a' }}>
-        <PauseCircle size={17} /> {title}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '700 13.5px var(--font-body)', color: 'var(--warning)' }}>
+        <PauseCircle size={16} /> {title}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px' }}>
-        {children}
-      </div>
+      {children}
     </div>
   );
 }
