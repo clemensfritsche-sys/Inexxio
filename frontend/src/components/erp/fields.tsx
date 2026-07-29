@@ -150,41 +150,66 @@ export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white
  * Stellen, an denen das Wort ohnehin nur Platz füllt. Gesperrte Optionen bleiben sichtbar
  * und nennen ihren Grund ebenfalls im Hover.
  */
-export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly }: {
+export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly, labelActiveOnly }: {
   value: T; onChange: (v: T) => void;
   /** ``mark`` setzt einen dezenten Punkt an eine (nicht gewählte) Option – z. B. die
    *  abgeleitete Empfehlung: sie markiert sich selbst, statt einen Erklärsatz zu brauchen. */
   options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean; mark?: boolean }[];
   symbolOnly?: boolean;
+  /** Nur die AKTIVE Option zeigt ihr Wort, die übrigen nur ihr Symbol – für Achsen mit
+   *  vielen Werten (Mengeneinheit): man sieht auf einen Blick, was gilt, ohne dass sechs
+   *  Wörter nebeneinander um Aufmerksamkeit ringen. */
+  labelActiveOnly?: boolean;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
-  const width = 100 / options.length;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Der gleitende Reiter wird **gemessen**, nicht gerechnet: sobald die Optionen
+  // unterschiedlich breit sind (aktives Wort sichtbar, übrige nur Symbol), stimmt ein
+  // «100/N %»-Raster nicht mehr.
+  const [thumb, setThumb] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const measure = () => {
+      const el = wrap.querySelector<HTMLElement>(`[data-ix-idx="${index}"]`);
+      if (el) setThumb({ left: el.offsetLeft, width: el.offsetWidth });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [index, options.length, labelActiveOnly, symbolOnly]);
+
   return (
-    <div style={{
+    <div ref={wrapRef} style={{
       position: 'relative', display: symbolOnly ? 'inline-flex' : 'flex',
       padding: 3, borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
     }}>
       <span aria-hidden style={{
-        position: 'absolute', top: 3, bottom: 3, left: 3, width: `calc(${width}% - 2px)`,
-        transform: `translateX(${index * 100}%)`, transition: 'transform .18s cubic-bezier(.4,0,.2,1)',
+        position: 'absolute', top: 3, bottom: 3,
+        left: thumb ? thumb.left : 3, width: thumb ? thumb.width : 0,
+        opacity: thumb ? 1 : 0,
+        transition: 'left .18s cubic-bezier(.4,0,.2,1), width .18s cubic-bezier(.4,0,.2,1)',
         borderRadius: 999, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,.12)',
       }} />
-      {options.map((o) => {
+      {options.map((o, i) => {
         const active = o.value === value;
         const Icon = o.icon;
+        const showLabel = !symbolOnly && (!labelActiveOnly || active);
         return (
-          <button key={o.value} type="button" role="tab" aria-selected={active}
+          <button key={o.value} type="button" role="tab" aria-selected={active} data-ix-idx={i}
             aria-label={o.label} title={o.hint ?? o.label}
             onClick={o.disabled ? undefined : () => onChange(o.value)} disabled={o.disabled}
             style={{
-              position: 'relative', flex: 1, display: 'inline-flex', alignItems: 'center',
-              justifyContent: 'center', gap: 6, padding: symbolOnly ? '6px 16px' : '7px 10px',
+              position: 'relative', flex: labelActiveOnly ? '0 0 auto' : (symbolOnly ? undefined : 1),
+              display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', gap: 6, padding: symbolOnly ? '6px 16px' : '7px 12px',
               border: 'none', background: 'none', borderRadius: 999,
               font: '600 12px var(--font-body)', cursor: o.disabled ? 'not-allowed' : 'pointer',
               opacity: o.disabled ? 0.4 : 1, transition: 'color .18s',
-              color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
+              color: active ? 'var(--accent-ink)' : 'var(--fg-3)', whiteSpace: 'nowrap',
             }}>
-            <Icon size={14} />{!symbolOnly && o.label}
+            <Icon size={14} />{showLabel && o.label}
             {o.mark && !active && <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--accent)', flexShrink: 0 }} />}
           </button>
         );

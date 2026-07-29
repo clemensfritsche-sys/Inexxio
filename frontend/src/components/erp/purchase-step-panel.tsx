@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin, ShoppingCart } from 'lucide-react';
+import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { unitLabel, serializationLabel } from '@/lib/article';
 import { fieldLabel } from '@/lib/article-fields';
-import { PanelHeader, Row, StatusBadge, TextField } from '@/components/erp/fields';
+import { Row, StatusBadge, TextField } from '@/components/erp/fields';
 import { PurchaseProgress, type PNode, type Delivery } from '@/components/erp/purchase-progress';
 import { ObjId } from '@/components/erp/obj-id';
 import { formatAmount as fmtMoney } from '@/lib/utils';
@@ -140,6 +140,9 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
 
   async function run(target: PurchaseOrderStatus, needsTotal?: boolean) {
     if (needsTotal && !form.order_total.trim()) { setError('Bitte eine Bestellsumme erfassen'); return; }
+    // Die Lieferzeit ist Pflicht (#195): ohne sie gibt es keinen Termin, an dem die
+    // Lieferung fällig wäre – und damit auch keine Überfälligkeit.
+    if (needsTotal && !form.lead_time_days.trim()) { setError('Bitte die Lieferzeit erfassen'); return; }
     setSaving(true); setError(null);
     try {
       const payload: PurchaseOrderUpdateInput = { ...buildEditable(), status: target };
@@ -211,8 +214,11 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
   return (
     <>
       <Card>
-        {/* Kopf */}
-        <PanelHeader icon={ShoppingCart} title="Bestellung" right={<StatusBadge cfg={cfg} size={11} />} />
+        {/* Kein eigener Kopf (#201): die Modul-Karte des Flusses heisst bereits
+            «Beschaffung» – der Zustand steht als Badge rechts über dem Ablauf. */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <StatusBadge cfg={cfg} size={11} />
+        </div>
 
         {/* Bei mehreren Positionen: welcher Artikel diese Bestellung betrifft */}
         {showArticle && (
@@ -222,10 +228,9 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
           </div>
         )}
 
-        {/* Fortschritt inkl. Lieferungs-Animation + Audit-Hover */}
-        <div style={{ padding: '8px 2px 2px' }}>
-          <PurchaseProgress nodes={nodes} delivery={delivery} />
-        </div>
+        {/* Der Beschaffungs-Ablauf als Prozess IM Prozess – gleiche Bildsprache wie der
+            Auftrags-Fluss, nur eine Nummer kleiner (#194). */}
+        <PurchaseProgress nodes={nodes} delivery={delivery} />
 
         {/* Bezugsquelle + Lieferadresse – zwei Tatsachen, eine Zeile je Angabe. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
@@ -259,10 +264,10 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
             <TextField label="Bestellsumme" value={form.order_total} onChange={(v) => set('order_total', v)} required
               placeholder="ganze Menge, netto in CHF – z. B. 1250" />
             {isWebshop ? (
-              <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14 Tage" />
+              <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} required placeholder="z. B. 14 Tage" />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
-                <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14 Tage" />
+                <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} required placeholder="z. B. 14 Tage" />
                 <TextField label="Zahlungsziel" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30 Tage" />
               </div>
             )}
@@ -283,42 +288,30 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
               <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>Preis pro Stück (netto)</span>
             </div>
             <div style={{ font: '800 18px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>CHF {fmtMoney(perUnit)}</div>
-            <div style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>
-              Bestellsumme ÷ Menge ({qty || '—'}){isStaff ? ' · wird als Einstandspreis übernommen' : ''}
-            </div>
           </div>
         )}
 
         {/* Tracking (optionales Detail von «Bestellt») */}
         {canEditTracking ? (
-          <div>
-            <TextField label="Tracking-Nummer (optional)" value={form.tracking_number} onChange={(v) => set('tracking_number', v)} placeholder="wird automatisch gespeichert" />
-            {trackingSaved && <div style={{ marginTop: 4, fontSize: 11, color: '#16a34a' }}>✓ gespeichert</div>}
+          <div onBlur={saveTracking}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveTracking(); } }}>
+            {/* Auto-Save wie überall: gespeichert wird beim Verlassen des Felds bzw. mit
+                Enter – ein «Tracking speichern»-Knopf wäre ein zweiter Weg (#198–#200). */}
+            <TextField label="Tracking-Nummer" value={form.tracking_number} onChange={(v) => set('tracking_number', v)}
+              placeholder="Sendungsnummer des Transporteurs" />
+            {trackingSaved && <div style={{ marginTop: 4, font: '600 11px var(--font-body)', color: 'var(--success)' }}>✓ gespeichert</div>}
           </div>
         ) : (
           po.tracking_number && <Row k="Tracking-Nummer" v={po.tracking_number} />
-        )}
-
-        {/* Wareneingang/Transport läuft über den Pflicht-Bewegungsschritt – hier nur kaufmännisch */}
-        {s === 'ordered' && isBuyer && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, color: '#64748b' }}>
-            <MapPin size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span>«Lieferung bestätigen» ist rein kaufmännisch. Das Einlagern (Lagerplatz) erfolgt anschliessend im Bewegungs-Schritt.</span>
-          </div>
         )}
 
         {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick.
             Kein Statuswort mehr in der Zeile (#188): der Zustand steht oben rechts als
             Badge. Die Knöpfe sprechen die Design-Sprache des ERP (#187): schwarz für die
             Routine-Hauptaktion, rot nur fürs Ablehnen. */}
-        {(actions.length > 0 || canEditTracking || error) && (
+        {(actions.length > 0 || error) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
             {error && <span style={{ flex: 1, font: '500 12px var(--font-body)', color: 'var(--danger)', minWidth: 120 }}>{error}</span>}
-            {canEditTracking && (
-              <button onClick={saveTracking} disabled={saving} className="erp-actbtn erp-actbtn-neutral">
-                Tracking speichern
-              </button>
-            )}
             {actions.map((a) => (
               <button key={a.target} onClick={() => run(a.target, a.needsTotal)} disabled={saving}
                 className={`erp-actbtn ${a.variant === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-primary'}`}>

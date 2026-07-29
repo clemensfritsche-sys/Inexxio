@@ -2943,6 +2943,28 @@ def test_order_name_never_falls_back_to_the_type_word_when_there_is_a_name():
     assert order_display_name(o, "Schraubendreher", None) == "Schraubendreher"
     assert order_display_name(o, None, ["Schraube", "Mutter", "Blech"]) == "Schraube +2"
     assert order_display_name(o, None, ["Schraube"]) == "Schraube"
-    # Ein bewusst vergebener Titel schlägt alles – er ist die genauere Aussage.
-    o2 = Order(title="Nachschub für 100000497: Schraubendreher")
-    assert order_display_name(o2, "Schraubendreher", None).startswith("Nachschub")
+    # Der Name benennt die SACHE, nicht die Herkunft (Notiz #205): ein Unter-Auftrag heisst
+    # nach dem Artikel seiner fixierten Instanzen, nicht «Bereitstellung für … Auftrag …».
+    o2 = Order(title="Bereitstellung für Beschaffung · Auftrag 100000500")
+    assert order_display_name(o2, None, None, ["Schraubendreher"]) == "Schraubendreher"
+    # Ohne jedes Subjekt bleibt der bewusst vergebene Titel der beste verfügbare Name.
+    assert order_display_name(o2, None, None, None).startswith("Bereitstellung")
+
+
+def test_auto_provisioning_is_switched_off_at_exactly_one_place():
+    """Die abgeleitete Bereitstellung ist **vorübergehend abgeschaltet** (Testnotiz #204) –
+    und zwar an EINER Stelle, nicht verstreut über die Aufrufer.
+
+    ``AUTO_PROVISIONING=False`` heisst: es entsteht keine neue Bereitstellung, und eine
+    bereits vorhandene hält keinen Auftrag mehr an (sonst hinge ein Auftrag an einem
+    Mechanismus fest, den es gerade nicht gibt). Die Ableitung selbst (Deklaration,
+    ``target_for``, ``misplaced``) bleibt vollständig bestehen – Wiedereinschalten ist ein
+    Ein-Zeilen-Wechsel.
+    """
+    from app.services import provisioning
+
+    assert provisioning.AUTO_PROVISIONING is False
+    for fn in (provisioning.ensure_provisioning, provisioning.open_provisioning):
+        assert "if not AUTO_PROVISIONING" in _inspect_source_fn(fn)
+    # Die Ableitung ist NICHT entfernt, nur stillgelegt.
+    assert callable(provisioning.target_for) and callable(provisioning.misplaced)

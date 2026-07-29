@@ -85,7 +85,7 @@ def test_duplicate_article_copies_spec_and_procurement_fields():
     src = inspect.getsource(duplicate_article)
     # (``fixed_location_*`` ist mit Migration 088 ersatzlos entfallen – ein Artikel ist eine
     #  Gattung, einen Ort hat nur die Instanz.)
-    for field in ("is_hazmat", "reorder_target",
+    for field in ("is_hazmat",
                   "procurement_mode", "default_supplier_id", "default_webshop_url"):
         assert field in src, f"duplicate_article kopiert «{field}» nicht"
 

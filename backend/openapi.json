@@ -6687,20 +6687,6 @@
             ],
             "title": "Safety Stock"
           },
-          "reorder_target": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reorder Target"
-          },
           "is_hazmat": {
             "anyOf": [
               {
@@ -7750,17 +7736,6 @@
             ],
             "title": "Safety Stock"
           },
-          "reorder_target": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reorder Target"
-          },
           "is_hazmat": {
             "type": "boolean",
             "title": "Is Hazmat",
@@ -8236,20 +8211,6 @@
               }
             ],
             "title": "Safety Stock"
-          },
-          "reorder_target": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reorder Target"
           },
           "is_hazmat": {
             "anyOf": [

@@ -2314,8 +2314,6 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
-            /** Reorder Target */
-            reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
             /** Procurement Mode */
@@ -2610,8 +2608,6 @@ export interface components {
             min_order_qty?: string | null;
             /** Safety Stock */
             safety_stock?: string | null;
-            /** Reorder Target */
-            reorder_target?: string | null;
             /**
              * Is Hazmat
              * @default false
@@ -2754,8 +2750,6 @@ export interface components {
             min_order_qty?: number | string | null;
             /** Safety Stock */
             safety_stock?: number | string | null;
-            /** Reorder Target */
-            reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
             /** Procurement Mode */

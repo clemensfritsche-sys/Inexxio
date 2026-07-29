@@ -10,7 +10,7 @@ from sqlalchemy.orm import Query, Session
 from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
-    InstanceOrderLink, Movement, Order, OrderLine, PurchaseOrder, Sale, UserProfile,
+    Instance, InstanceOrderLink, Movement, Order, OrderLine, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
@@ -565,8 +565,12 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
             si.completed_at = at
         steps.append(si)
 
+    # Dieselbe Ableitung wie im Feed – hier stehen die Subjekt-Instanzen bereits als Embed
+    # bereit (kein zusätzlicher Zugriff nötig).
     resp.name = order_display_name(
-        order, resp.article_name, [l.article_name for l in (resp.order_lines or [])])
+        order, resp.article_name,
+        [l.article_name for l in (resp.order_lines or [])],
+        _subject_article_names(db, resp.instances))
 
     resp.steps = steps
     # Subjektart aus der Auftragsgestalt (produce | stock) und Bestandswirkung als
@@ -583,27 +587,43 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     return resp
 
 
+def _subject_article_names(db: Session, instances: list[InstanceEmbed]) -> list[str]:
+    """Artikelnamen der Subjekt-Instanzen (für den Namen eines Unter-Auftrags), ohne
+    Dubletten und in stabiler Reihenfolge."""
+    ids = list(dict.fromkeys(i.article_id for i in instances if i.article_id))
+    if not ids:
+        return []
+    by_id = {a.id: a.name for a in db.query(Article).filter(Article.id.in_(ids)).all()}
+    return [by_id[i] for i in ids if i in by_id]
+
+
 def order_display_name(order: Order, article_name: Optional[str],
-                       line_names: Optional[list[str]] = None) -> str:
+                       line_names: Optional[list[str]] = None,
+                       subject_names: Optional[list[str]] = None) -> str:
     """**Der EINE Name eines Auftrags** – im Feed wie im Detail, für jede Auftragsart.
 
     Ein Datensatz zeigt im ERP immer dasselbe: Name · Objektnummer · Status; **welcher Typ**
     er ist, sagt sein Symbol. Darum darf im Namensfeld nie das Wort «Auftrag» als Platzhalter
-    für den Typ stehen (Notiz #177). Die Ableitung, in dieser Reihenfolge:
+    für den Typ stehen (Notiz #177).
 
-    1. ``title`` – ein bewusst vergebener, sprechender Name (Unter-Aufträge, Shop-Käufe);
-    2. der **Artikel** des Auftrags (Einzel-Artikel-Auftrag);
-    3. bei mehreren Positionen der erste Artikel + wie viele noch dazugehören;
-    4. «Auftrag» nur, wenn es wirklich nichts zu benennen gibt (Entwurf ohne Bedarf).
+    **Der Name benennt die SACHE, nicht die Herkunft** (Notiz #205): ein Unter-Auftrag hiess
+    «Bereitstellung für Beschaffung · Auftrag 100000500» – das ist eine Beschreibung seiner
+    Entstehung, kein Name. Worum es geht, ist der Artikel bzw. die Instanz. Der ``title``
+    bleibt als Rückfall für Aufträge, die gar kein Subjekt tragen. Die Reihenfolge:
+
+    1. der **Artikel** des Auftrags (Einzel-Artikel-Auftrag);
+    2. bei mehreren Positionen der erste Artikel + wie viele noch dazugehören;
+    3. der Artikel der **fixierten Subjekt-Instanzen** (Abweichung/Bereitstellung/Retoure);
+    4. ``title`` – ein bewusst vergebener Name für Aufträge ohne Subjekt;
+    5. «Auftrag» nur, wenn es wirklich nichts zu benennen gibt (Entwurf ohne Bedarf).
     """
-    if order.title:
-        return order.title
     if article_name:
         return article_name
-    names = [n for n in (line_names or []) if n]
-    if names:
-        return names[0] if len(names) == 1 else f"{names[0]} +{len(names) - 1}"
-    return "Auftrag"
+    for group in (line_names, subject_names):
+        names = [n for n in (group or []) if n]
+        if names:
+            return names[0] if len(names) == 1 else f"{names[0]} +{len(names) - 1}"
+    return order.title or "Auftrag"
 
 
 def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
@@ -628,6 +648,23 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
         )
         for oid, name in rows:
             line_names.setdefault(oid, []).append(name)
+    # Unter-Aufträge (Abweichung/Bereitstellung/Retoure) tragen ihr Subjekt als **fixierte
+    # Instanzen** statt als Artikel/Positionen – auch sie sollen nach ihrer Sache heissen.
+    subject_names: dict[int, list[str]] = {}
+    fixed = [o.id for o in orders if o.article_id is None and o.id not in line_names]
+    if fixed:
+        seen: set[tuple[int, str]] = set()
+        for oid, name in (
+            db.query(Instance.subject_of_order_id, Article.name)
+            .join(Article, Article.id == Instance.article_id)
+            .filter(Instance.subject_of_order_id.in_(fixed), Instance.is_active == True)
+            .order_by(Instance.subject_of_order_id, Instance.object_id)
+            .all()
+        ):
+            if (oid, name) in seen:
+                continue
+            seen.add((oid, name))
+            subject_names.setdefault(oid, []).append(name)
     po_status: dict[int, str] = {}
     # FIX: deterministisch (nach id) statt unsortiert – bei einem Mehrpositionen-Auftrag
     # zeigte das Feed-Badge sonst je nach Query-Plan mal die eine, mal die andere Bestellung.
@@ -648,7 +685,7 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
             s.article_unit = art.unit
         s.purchase_status = po_status.get(o.id)
         s.recurrence_due = recurrence_due(o)
-        s.name = order_display_name(o, s.article_name, line_names.get(o.id))
+        s.name = order_display_name(o, s.article_name, line_names.get(o.id), subject_names.get(o.id))
         out.append(s)
     return out
 

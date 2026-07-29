@@ -1215,15 +1215,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     `table-layout:fixed` + Wortumbruch (Web **und** PDF `document_render`), lange Wörter/URLs/Code
     brechen um – **nichts kann breiter als der Satzspiegel werden** (kein horizontaler Überlauf/
     Beschnitt, auch bei KI-generierten breiten Tabellen).
-- **Meldebestand + Auto-Nachbestellung (E, «Nicht die Zeit soll bestellen, sondern der Bestand»)**:
-  **Meldebestand** = `articles.safety_stock`; fällt der **freie** Bestand darunter, legt
+- **Sicherheitsbestand + Auto-Nachbestellung (E, «Nicht die Zeit soll bestellen, sondern der Bestand»)**:
+  **Sicherheitsbestand** = `articles.safety_stock`; fällt der **freie** Bestand darunter, legt
   `services/replenishment.check_article` einen eigenständigen Nachschub-Auftrag (`orders.reason=
-  'replenishment'`, ohne Eltern) an und gibt ihn frei – füllt bis `articles.reorder_target` (bzw.
-  Meldebestand) auf (MOQ-gerundet), fährt den Artikel-Prozess (produzieren/beschaffen). Reuse von
+  'replenishment'`, ohne Eltern) an und gibt ihn frei – füllt **auf den Sicherheitsbestand** auf
+  (MOQ-gerundet), fährt den Artikel-Prozess (produzieren/beschaffen). *Der frühere separate
+  «Zielbestand» (`reorder_target`) ist mit Migration `089` entfallen (Notiz #221): zwei Zahlen
+  für dieselbe Frage, von denen die zweite fast immer leer blieb.* Reuse von
   `orders.release_order` (wie ADR-003-Nachschub, nur ohne Pegging), idempotent (ein offener Nachschub je
   Artikel). **Auslöser** reaktiv (nach Bestandsabgang – `scrap.record_scrap` ruft `check_article`) +
   periodisch über `POST /api/v1/erp/maintenance/sweep` (`replenishment.evaluate_all`, Personal-Knopf
-  «Lagerwartung», künftig Cloud Scheduler). Logistik-Felder (safety_stock/reorder_target) sind **auch am
+  «Lagerwartung», künftig Cloud Scheduler). Der Sicherheitsbestand ist **auch am
   freigegebenen Artikel tunebar** (operative Steuergrössen, nicht eingefrorene Spezifikation).
   *Die frühere MHD-/Haltbarkeits-Achse (`instances.expires_at`, `articles.shelf_life_days`,
   `services/expiry.py`) ist bewusst entfernt (Migration 061) – eine Instanz „läuft" nicht mehr ab.*
@@ -1886,6 +1888,53 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Versand** statt einer innerbetrieblichen Bewegung, weil die Adressen sich unterscheiden.
   Genau das ist der Beweis, dass die Ableitung richtig gebaut ist: Multi-Site fällt aus der
   bestehenden Regel heraus, statt eine zweite zu brauchen.
+
+- **Testnotizen-Runde 15 (der Name benennt die Sache, Notizen #194–#222, Migration `089`)**:
+  (1) **Die abgeleitete Bereitstellung ist VORÜBERGEHEND ABGESCHALTET** (#204,
+  `provisioning.AUTO_PROVISIONING = False`): Im Praxistest war der Bereitstellungs-Unter-Auftrag
+  (a) im Ablauf nicht als Unter-Auftrag erkennbar – er sah aus wie ein regulärer Schritt des
+  Hauptprozesses – und (b) seine Blockade traf nicht das Gewollte. Statt an der Oberfläche zu
+  flicken, ist der **Auslöser** stillgelegt: es entsteht keine neue Bereitstellung, und eine
+  vorhandene hält keinen Auftrag mehr an (sonst hinge ein Auftrag an einem Mechanismus fest,
+  den es gerade nicht gibt). Bestehende Datensätze bleiben als Historie und lassen sich normal
+  abschliessen/verwerfen. **EINE Konstante**, die ganze Ableitung (`target_for`, `misplaced`,
+  `reconcile_to`, alle Tests) bleibt intakt – Wiedereinschalten ist ein Ein-Zeilen-Wechsel.
+  Wächter `test_auto_provisioning_is_switched_off_at_exactly_one_place`.
+  (2) **Der Name benennt die SACHE, nicht die Herkunft** (#205): ein Unter-Auftrag hiess
+  «Bereitstellung für Beschaffung · Auftrag 100000500» – das beschreibt seine Entstehung, es
+  ist kein Name. `order_display_name` bevorzugt jetzt Artikel ≻ Positionen ≻ **Artikel der
+  fixierten Subjekt-Instanzen** ≻ `title` ≻ «Auftrag». Der Subjekt-Artikel kommt über EINE
+  zusätzliche Batch-Abfrage im Feed bzw. aus dem bereits geladenen Instanz-Embed im Detail.
+  (3) **«Zielbestand» ersatzlos entfernt** (#221, Migration `089`): zwei Zahlen für dieselbe
+  Frage – `safety_stock` («ab wann nachbestellen?») und `reorder_target` («bis wohin?»), wobei
+  die zweite fast immer leer blieb und die Nachbestellung dann ohnehin auf den
+  Sicherheitsbestand auffüllte. Genau das ist jetzt die einzige Regel.
+  (4) **Der Beschaffungs-Ablauf ist ein Prozess IM Prozess** (#194, `purchase-progress.tsx`):
+  senkrechte Karten in der Modulfarbe, durch `Connector` verbunden – dieselben Bausteine wie
+  der Auftrags-Fluss, nur eine Nummer kleiner; Start-/Endknoten entfallen (die Modul-Karte IST
+  der Rahmen). Zustand ohne Wort, Lieferfrist als Balken **in** der Karte «Bestellt».
+  (5) **Schieberegler, der nur die aktive Option ausschreibt** (#219/#220, `IconSwitch
+  labelActiveOnly`): bei sechs Mengeneinheiten ringen sonst sechs Wörter nebeneinander um
+  Aufmerksamkeit, obwohl nur eines gilt. Dafür wird der gleitende Reiter jetzt **gemessen**
+  (ResizeObserver) statt als `100/N %` gerechnet – sonst stimmt er nicht mehr, sobald die
+  Optionen unterschiedlich breit sind.
+  (6) **Beschriftung nennt die Sache, der Platzhalter erklärt sie** (#207–#209, #211–#214,
+  #216, #217): alle erklärenden Zeilen unter den Spezifikations-Feldern sind entfallen und in
+  den Platzhalter gewandert («aufsteigend, mit «x» getrennt – z. B. 3x40x600»); «MOQ
+  (Mindestbestellmenge)» → **Mindestbestellmenge**, «Meldebestand (Sicherheitsbestand)» →
+  **Sicherheitsbestand**.
+  (7) **Beschaffungs-Panel**: kein eigener Kopf mehr (#201 – die Modul-Karte heisst bereits
+  «Beschaffung»), Lieferzeit ist **Pflicht** (#195 – ohne sie gibt es keinen Termin und keine
+  Überfälligkeit), Tracking mit **Auto-Save** statt Speichern-Knopf und ohne «(optional)»
+  (#198–#200), Rechenweg unter dem Stückpreis (#196) und der Kaufmännisch-Hinweis (#197)
+  entfallen.
+  (8) **Bewegen**: weder Überschrift «Versand» (#202 – die Karte heisst «Bewegen») noch der
+  abgeleitete «Extern»-Chip (#203 – die getroffene Wahl steht direkt darunter; zwei
+  gleichzeitig gültige Aussagen nebeneinander verwirren). Übrig bleibt die einzige Warnung mit
+  Konsequenz: Gefahrgut.
+  (9) **Der Schritt-Editor trägt die Farbe seines Moduls** (#222): man konfiguriert die Karte,
+  die gleich im Fluss stehen wird – also sieht sie schon so aus (getöntes Symbol + Name als
+  Kopf). (10) Feed etwas leichter (#206: 32-px-Symbol, halbfetter statt fetter Titel).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
