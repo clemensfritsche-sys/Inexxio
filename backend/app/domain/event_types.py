@@ -110,20 +110,23 @@ RESOURCE_TYPES: tuple[str, ...] = ("resource",)
 # **Auftrags-Ablauf alle Schritttypen** sinnvoll und zulässig – z. B. Wartung mit
 # Verbrauchsmaterial/Betriebsmitteln (resource) oder auswärtiger Vergabe (purchase).
 #
-# Im **Artikel-Prozess** (HERSTELLUNG, „wie etwas entsteht") sind **kein Verkauf** und
-# **kein Verschrotten** erlaubt: beides wirkt auf vorhandenen Bestand und läuft über einen
-# Auftrag (sonst würden die erzeugten Instanzen nicht korrekt markiert). Sonst alles erlaubt.
-# **Verschrotten** (scrap) ist die definierte Auflösung einer Abweichung (defektes Teil raus).
-# «document» ist im **Artikel-Prozess** zulässig (die Vorlage „wie das Dokument entsteht")
-# und ebenso im Auftrags-Ablauf (individuelles Einzeldokument).
-ARTICLE_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "document")
-ORDER_STEP_TYPES: tuple[str, ...] = ("purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document")
+# **Jedes Prozessschrittmodul ist universell einsetzbar** – am Artikel wie am Auftrag
+# (Testnotiz #246). Früher waren Verkauf/Verschrotten/Sperren im Artikel-Prozess gesperrt,
+# weil sie „auf vorhandenen Bestand wirken". Das stimmt, ist aber kein Grund für ein Verbot:
+# ein Artikel-Prozess läuft immer IN einem Auftrag, und dessen Instanzen existieren, sobald
+# der Schritt an der Reihe ist. Eine Sperre, die nur selten sinnvolle Kombinationen
+# verhindert, kostet mehr (der Nutzer stösst an eine Wand) als sie nützt – wer einen
+# unsinnigen Ablauf modelliert, sieht das am Ergebnis.
+STEP_TYPES_BY_OWNER: tuple[str, ...] = (
+    "purchase", "resource", "inspection", "movement", "scrap", "block", "sale", "document",
+)
+ARTICLE_STEP_TYPES = STEP_TYPES_BY_OWNER
+ORDER_STEP_TYPES = STEP_TYPES_BY_OWNER
 
 
-def allowed_step_types(owner_kind: str) -> tuple[str, ...]:
-    """Zulässige Schritttypen je Träger: ``article`` (Herstellung, kein Verkauf) |
-    ``order`` (Bestands-Operation, alle Typen)."""
-    return ARTICLE_STEP_TYPES if owner_kind == "article" else ORDER_STEP_TYPES
+def allowed_step_types(owner_kind: str) -> tuple[str, ...]:  # noqa: ARG001 - Signatur bleibt
+    """Zulässige Schritttypen je Träger – **dieselben für Artikel und Auftrag**."""
+    return STEP_TYPES_BY_OWNER
 
 
 # ─── Reine Helfer (kein DB-Zugriff – testbar) ────────────────────────────────────

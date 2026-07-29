@@ -44,8 +44,10 @@ function emptyDocCfg(): DocCfg {
 // Artikel = Herstellung (kein Verkauf); Auftrag = Operation am Bestand mit **allen**
 // Typen – auch purchase (auswärtige Vergabe, z. B. Wartung) und resource (Verbrauchs-/
 // Hilfsmaterial, Ersatzteile). So sind die Prozessschritte immer kompatibel.
-const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'document'];
-const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
+// **Jedes Prozessschrittmodul ist universell einsetzbar** – am Artikel wie am Auftrag
+// (Notiz #246, Spiegel von `domain/event_types.STEP_TYPES_BY_OWNER`). «Sperren» war zuvor
+// in KEINER Liste und damit gar nicht wählbar.
+const STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'block', 'sale', 'document'];
 
 export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
@@ -295,8 +297,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     setDrag(null); setOver(null);
   }
 
-  // Jeder Artikel kann alle Schritttypen enthalten (universelle Prozessschrittmodule).
-  const chooserTypes: StepType[] = owner === 'articles' ? ARTICLE_STEP_ORDER : ORDER_STEP_ORDER;
+  const chooserTypes: StepType[] = STEP_ORDER;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -433,6 +434,14 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     </span>
                   </div>
                   <DocConfigView step={s} users={allUsers} />
+                </div>
+              )}
+
+              {/* Verschrotten/Sperren deklarieren, was der Ausführende liefern muss –
+                  wie die Datenerfassung ihre Felder (Notiz #255). */}
+              {(s.step_type === 'scrap' || s.step_type === 'block') && (
+                <div style={{ ...cardBody, fontSize: 12.5, color: 'var(--fg-2)' }}>
+                  • Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht)</span>
                 </div>
               )}
 

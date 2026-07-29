@@ -799,3 +799,22 @@
   }
   .erp-devbranch::before { display: none; }
 }
+
+/* ── Lieferung unterwegs: der Lastwagen fährt auf dem Fortschrittsbalken ──────
+   Eine kleine, schlichte Freude an einer Stelle, an der man ohnehin wartet
+   (Notiz #251). Er FÄHRT nicht von selbst – seine Position ist der echte
+   Fortschritt; nur das leichte Wippen und der laufende Strassenstrich sind
+   Animation. Bei `prefers-reduced-motion` steht beides still. */
+.ix-truck { animation: ix-truck-bob 1.6s ease-in-out infinite; }
+@keyframes ix-truck-bob {
+  0%, 100% { transform: translate(-50%, -50%); }
+  50%      { transform: translate(-50%, calc(-50% - 1.5px)); }
+}
+.ix-road { animation: ix-road-flow .9s linear infinite; }
+@keyframes ix-road-flow {
+  from { background-position: 0 0; }
+  to   { background-position: 12px 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ix-truck, .ix-road { animation: none; }
+}

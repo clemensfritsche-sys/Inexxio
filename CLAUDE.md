@@ -1974,6 +1974,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ungleich breite Optionen – der Regler ist darum `inline-flex` und füllt nicht mehr die
   ganze Spalte.
 
+- **Testnotizen-Runde 17 (der Auftrag, der zuletzt arbeitet, gibt frei; Notizen #244–#262)**:
+  (1) **Wer zuletzt an einer Instanz gearbeitet hat, gibt sie frei** (#262, `process.release_
+  instances`): Freigegeben wurde bislang nur, was der **erzeugende** Auftrag hervorgebracht
+  hat (`Instance.order_id`). Wird ein Auftrag abgebrochen und ein **Abweichungsauftrag** führt
+  seine Instanzen fort, bleibt deren `order_id` beim abgebrochenen Original – sie wurden
+  damit **nie** freigegeben: für immer «Im Prozess», unsichtbar für FIFO und Bestandszählung.
+  Jetzt zählt beides: erzeugt-von **oder** Subjekt-von. Terminale/bewertete Teile bleiben wie
+  bisher ausgenommen. Wächter `test_the_order_that_finishes_an_instance_releases_it`.
+  (2) **Jedes Prozessschrittmodul ist universell einsetzbar** (#246): Verkauf/Verschrotten
+  waren im Artikel-Prozess gesperrt, **«Sperren» stand in gar keiner Liste** und war damit
+  nirgends wählbar. `STEP_TYPES_BY_OWNER` ist jetzt EINE Liste für Artikel und Auftrag – eine
+  Sperre gegen selten sinnvolle Kombinationen kostet mehr, als sie nützt.
+  (3) **Unter-Aufträge stehen an ihrem Schritt** (#259/#260): Nicht nur die Abweichung, auch
+  der **Nachschub** merkt sich jetzt, aus welchem Schritt sein Bedarf stammt
+  (`supply._blocked_step_id` → `orders.origin_step_id`) und erscheint als Pille am Ast neben
+  der Modul-Karte. Die separate «Nachschub»-Liste im Auftrag ist entfallen – sie sagte
+  dasselbe noch einmal und verschwieg, WO der Bedarf entstand.
+  (4) **Der Beschaffungs-Ablauf trägt seine Eingaben in der aktiven Stufe** (#248,
+  `PurchaseProgress renderActive`): Bestellsumme, Lieferzeit, Zahlungsziel und die Aktion
+  sitzen in der Karte der Stufe, die gerade dran ist – genau wie ein Schritt-Panel in seiner
+  Modul-Karte. Der fachliche Zustand («Angefragt») wanderte in den **Modul-Kopf** des Flusses
+  (#247, `FlowCard badge`), wo man ihn ohne Öffnen sieht.
+  (5) **Zahlenfelder ohne Minus** (#249/#250): Bestellsumme/Lieferzeit/Zahlungsziel laufen
+  über `numericOnly` – eine negative Bestellsumme gibt es nicht.
+  (6) **Der Lastwagen fährt wieder** (#251, `.ix-truck`/`.ix-road` in `globals.css`): er steht
+  auf dem **echten** Fortschritt und wippt, die gestrichelte Strasse läuft ihm entgegen;
+  `prefers-reduced-motion` stellt beides still. Die `@keyframes` liegen im Stylesheet, nicht
+  als `<style>` in der Fläche (das war die Kritik aus #182).
+  (7) **Ein Erfolg, eine Meldung** (#253): der Scanner meldete den Treffer doppelt – grüner
+  Rahmen UND grüne Textpille. Geblieben ist der Rahmen; Text gibt es nur beim Fehlschlag,
+  wo der GRUND zählt.
+  (8) **Verschrotten/Sperren verlangen einen Grund** (#255): warum etwas ausgeschleust wurde,
+  ist die eigentliche Information des Schritts – ohne sie bleibt im Nachhinein nur «weg». Der
+  Schritt **deklariert** die Pflicht (wie die Datenerfassung ihre Felder); das Scannen ist die
+  ruhige schwarze Hauptaktion (#256), rot bleibt dem Vollzug vorbehalten.
+  (9) **«Es fehlt» statt eines Absatzes** (#257/#258): die Unterdeckungs-Notiz nennt Menge,
+  Artikel und Objektnummer – der Erklärtext wiederholte nur, was Titel und Zeile ohnehin
+  sagen; der Kasten ist zur Haarlinie geworden (sie sitzt IM Modul).
+  (10) Kleineres: Tracking-Platzhalter «Tracking-Nummer» (#252). *#244/#245 (Unternehmens-Kopf
+  und Status-Farbe) waren mit dem gemeinsamen `DetailHeader` aus Runde 16 bereits erledigt.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

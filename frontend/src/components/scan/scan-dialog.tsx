@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CameraOff, Check, AlertTriangle, Search } from 'lucide-react';
+import { CameraOff, AlertTriangle, Search } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
   type ScanCandidate, type ScanStep, type ScanRequest,
@@ -141,9 +141,12 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
         </div>
-        {feedback && (
-          <div style={{ ...badge, background: feedback.kind === 'ok' ? 'var(--success)' : 'var(--danger)' }}>
-            {feedback.kind === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />} {feedback.text}
+        {/* Erfolg meldet der **Rahmen** (er wird grün und der Scanner schaltet weiter) –
+            eine zweite grüne Meldung daneben sagte dasselbe noch einmal (Notiz #253).
+            Ein Text braucht es nur beim Fehlschlag: dort zählt der GRUND. */}
+        {feedback?.kind === 'bad' && (
+          <div style={{ ...badge, background: 'var(--danger)' }}>
+            <AlertTriangle size={14} /> {feedback.text}
           </div>
         )}
 

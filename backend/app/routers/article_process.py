@@ -165,12 +165,10 @@ def _get_step(db: Session, owner: _Owner, step_id: int) -> ArticleProcessStep:
 
 def _create(db: Session, owner: _Owner, data: ArticleProcessStepCreate, user: UserProfile) -> ArticleProcessStepResponse:
     owner.ensure_editable()
-    # Kompatibilität erzwingen: nur kontext-zulässige Schritttypen. Am Auftrag sind ALLE
-    # Typen erlaubt (Schema-Whitelist = ORDER_STEP_TYPES) – greifen kann das nur am Artikel.
+    # Jedes Modul ist universell einsetzbar (Testnotiz #246) – die Liste ist für Artikel
+    # und Auftrag dieselbe; die Prüfung bleibt als Schutz gegen unbekannte Typen.
     if data.step_type not in owner.allowed_step_types:
-        raise HTTPException(400, detail=(
-            "Im Artikel-Prozess (Herstellung) sind nur Beschaffung, Ressource, Datenerfassung, "
-            "Bewegung und Dokument zulässig – kein Verkauf/Verschrotten."))
+        raise HTTPException(400, detail=f"Unbekannter Schritt-Typ «{data.step_type}»")
     # Jedes Prozessschrittmodul ist universell einsetzbar – auch bei einem Mehrpositionen-
     # Auftrag (``order_lines`` statt Einzel-``article_id``): Beschaffung/Datenerfassung
     # legen je Position eine eigene Fachzeile an (analog Verkauf, ``services/purchase.py``);

@@ -1,9 +1,12 @@
 'use client';
 
-import { Truck, Check, X, PauseCircle, TriangleAlert } from 'lucide-react';
+import { Truck, Check, X, PauseCircle, TriangleAlert, PackagePlus } from 'lucide-react';
 import type { OrderDeviationInfo, OrderStep, StepType } from '@/types';
 import { STEP_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
+import { StatusBadge } from '@/components/erp/fields';
+import { purchaseStatusConfig } from '@/lib/purchase-order';
+import { saleStatusConfig } from '@/lib/sale';
 import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/process-steps';
 
 // ─── Der Ablauf eines laufenden Auftrags – dieselbe Darstellung wie die Definition ─
@@ -78,6 +81,7 @@ export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, on
         label={meta.label}
         icon={meta.icon}
         detail={stepDetail(s)}
+        badge={stepBadge(s)}
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
@@ -117,11 +121,13 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   failed:  { icon: X,           color: 'var(--danger)' },
 };
 
-function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, deviations, onOpenOrder, onClick, children }: {
+function FlowCard({ type, label, icon: Icon, detail, badge, state, hint, selected, deviations, onOpenOrder, onClick, children }: {
   type: StepType;
   label: string;
   icon: React.ElementType;
   detail?: React.ReactNode;
+  /** Fachlicher Zustand des Moduls (z. B. «Angefragt») – im Kopf, wo der Zustand hingehört. */
+  badge?: React.ReactNode;
   state: string;
   hint?: string;
   selected?: boolean;
@@ -164,6 +170,7 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, devi
           <span style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{label}</span>
           {detail && <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>{detail}</div>}
         </div>
+        {badge}
         {MarkIcon && <MarkIcon size={18} style={{ color: mark.color, flexShrink: 0 }} />}
       </div>
       {/* Der Schritt wird DORT bearbeitet, wo er im Fluss steht – nicht in einem eigenen
@@ -197,12 +204,22 @@ function DeviationBranch({ info, onOpen }: { info: OrderDeviationInfo; onOpen: (
   );
 }
 
-/** Die EINE Darstellung einer Abweichung im Fluss – offen (gelb) oder geklärt (still). */
+/**
+ * Die EINE Darstellung eines Unter-Auftrags im Fluss – offen (gelb) oder erledigt (still).
+ *
+ * Abweichung **und** Nachschub sind dasselbe Muster: aus einem Schritt hervorgegangen, an
+ * seiner Stelle sichtbar (Notizen #259/#260). Nur Symbol und Wort unterscheiden sie – die
+ * Abweichung ist ein Problem (Warnzeichen), der Nachschub eine Beschaffung (Paket).
+ */
 function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: number) => void }) {
   const open = info.status === 'draft' || info.status === 'released';
+  const supply = info.reason === 'supply';
+  const Icon = supply ? PackagePlus : TriangleAlert;
   return (
     <button type="button" onClick={() => onOpen?.(info.object_id)}
-      title={open ? 'Offene Abweichung – der Auftrag pausiert, bis sie geklärt ist' : 'Geklärte Abweichung'}
+      title={supply
+        ? (open ? 'Nachschub läuft – der Schritt wird von selbst wieder aktiv' : 'Erledigter Nachschub')
+        : (open ? 'Offene Abweichung – der Auftrag pausiert, bis sie geklärt ist' : 'Geklärte Abweichung')}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
         padding: '5px 11px', borderRadius: 'var(--r-pill)', font: '600 12px var(--font-body)',
@@ -210,9 +227,22 @@ function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (i
         background: open ? 'var(--warning-bg)' : '#fff',
         color: open ? 'var(--warning)' : 'var(--fg-4)',
       }}>
-      <TriangleAlert size={13} /> Abweichung <ObjId value={info.object_id} />
+      <Icon size={13} /> {supply ? 'Nachschub' : 'Abweichung'} <ObjId value={info.object_id} />
     </button>
   );
+}
+
+/**
+ * Fachlicher Zustand eines Moduls für seinen **Kopf** (Notiz #247): Beschaffung und Verkauf
+ * haben einen eigenen Fortschritt (Angefragt → Offeriert → Bestellt → Geliefert), und der
+ * gehört dorthin, wo man ihn ohne Öffnen sieht – nicht in die Fläche des Panels.
+ */
+function stepBadge(s: OrderStep): React.ReactNode {
+  const po = (s.purchases ?? [])[0];
+  if (po?.status) return <StatusBadge cfg={purchaseStatusConfig(po.status)} size={10} />;
+  const sale = (s.sales ?? [])[0];
+  if (sale?.status) return <StatusBadge cfg={saleStatusConfig(sale.status)} size={10} />;
+  return null;
 }
 
 // Kurzzeile je Modul: WAS gerade Sache ist – nicht die Konfiguration (die steht am Artikel).
