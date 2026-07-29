@@ -36,20 +36,31 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "company_settings",
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default="false"),
-    )
+    # **Jeder Schritt idempotent.** ``start.sh`` startet uvicorn auch dann, wenn Alembic
+    # scheitert – das Lifespan-Sicherheitsnetz (``main._ensure_columns``) zieht dieselbe
+    # Spalte dann nach. Wäre diese Migration nicht wiederholbar, liefe sie beim nächsten
+    # Deploy auf «column already exists» auf, bliebe für immer bei 089 stehen und würde
+    # damit JEDE künftige Migration blockieren.
+    conn = op.get_bind()
+    cols = {c["name"] for c in sa.inspect(conn).get_columns("company_settings")}
+    if "is_primary" not in cols:
+        op.add_column(
+            "company_settings",
+            sa.Column("is_primary", sa.Boolean(), nullable=False, server_default="false"),
+        )
     # Die bestehende Zeile IST der Hauptsitz. Bewusst über die kleinste ``id`` statt hart
     # ``id = 1``: der Singleton wurde immer als ``id=1`` angelegt, aber eine Datenbank, in
-    # der das je anders lief, soll hier nicht ohne Hauptsitz zurückbleiben.
+    # der das je anders lief, soll hier nicht ohne Hauptsitz zurückbleiben. Das
+    # ``NOT EXISTS`` macht die Zuweisung wiederholbar, ohne einen bereits gesetzten
+    # Hauptsitz zu überschreiben.
     op.execute(
         "UPDATE company_settings SET is_primary = true "
-        "WHERE id = (SELECT min(id) FROM company_settings)"
+        "WHERE id = (SELECT min(id) FROM company_settings) "
+        "AND NOT EXISTS (SELECT 1 FROM company_settings WHERE is_primary)"
     )
     # Genau EIN Hauptsitz – sonst hätte «die Firma» zwei Antworten.
     op.execute(
-        "CREATE UNIQUE INDEX uq_company_settings_primary "
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_primary "
         "ON company_settings (is_primary) WHERE is_primary"
     )
 

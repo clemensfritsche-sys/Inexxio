@@ -57,6 +57,16 @@ def _bootstrap_admin() -> None:
 # create_all() legt nur fehlende TABELLEN an – KEINE neuen Spalten auf bestehenden.
 _COLUMN_SAFETY_NET = (
     ("company_settings", "google_maps_api_key", "VARCHAR(255)"),
+    # Mehrstandort (Migration 090). Diese Zeile ist **kritischer als sie aussieht**:
+    # ``company_settings`` wird von JEDEM Standort-Label gelesen (Instanz-Feed, Standort-
+    # Kette) und von den öffentlichen Endpunkten (Impressum, Shop-Konfiguration). Fehlt
+    # die Spalte, während das Modell sie kennt, endet jede dieser Abfragen in einem 500 –
+    # das nimmt ERP **und** Website mit. Genau das ist passiert, als sie hier fehlte.
+    ("company_settings", "is_primary", "BOOLEAN NOT NULL DEFAULT false"),
+    # Zeiger auf die Rechtstext-Artikel (AGB/Datenschutz, Migration 057). Fehlte hier
+    # ebenso – vom Wächter ``test_every_company_settings_column_is_in_the_lifespan_
+    # safety_net`` gefunden, dieselbe Bombe, nur noch nicht gezündet.
+    ("company_settings", "legal_documents", "JSONB"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "NUMERIC(14,3)"),
@@ -313,6 +323,19 @@ _ARTICLE_DATA_FIXES = (
     "UPDATE articles SET sales_visibility='private' WHERE sales_visibility='unlisted'",
 )
 
+# Mehrstandort (Migration 090): genau EIN Hauptsitz. Wurde die Spalte gerade erst vom
+# Sicherheitsnetz ergänzt (Default ``false``), trüge sonst KEINE Zeile die Markierung –
+# lesend fiele ``sites.find_primary`` zwar auf die kleinste ``id`` zurück, aber die
+# Oberfläche zeigte die Firma als blossen «Standort» ohne Rechtsidentität. Beide
+# Anweisungen sind wiederholbar und lassen einen bereits gewählten Hauptsitz in Ruhe.
+_COMPANY_DATA_FIXES = (
+    "UPDATE company_settings SET is_primary = true "
+    "WHERE id = (SELECT min(id) FROM company_settings) "
+    "AND NOT EXISTS (SELECT 1 FROM company_settings WHERE is_primary)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_settings_primary "
+    "ON company_settings (is_primary) WHERE is_primary",
+)
+
 
 def _ensure_columns() -> None:
     """Fehlende Spalten idempotent ergänzen, obsolete entfernen und Altdaten
@@ -385,6 +408,16 @@ def _ensure_columns() -> None:
             if "articles" in tables:
                 for stmt in _ARTICLE_DATA_FIXES:
                     conn.execute(text(stmt))
+            if "company_settings" in tables:
+                # Über information_schema auf DERSELBEN Verbindung prüfen – ``insp`` stammt
+                # von VOR dem ADD-COLUMN-Lauf und sähe die eben ergänzte Spalte nicht
+                # (gleiche Begründung wie beim ``documents``-Block oben).
+                cs_cols = {r[0] for r in conn.execute(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='company_settings'"))}
+                if "is_primary" in cs_cols:
+                    for stmt in _COMPANY_DATA_FIXES:
+                        conn.execute(text(stmt))
             conn.commit()
     except Exception as e:
         print(f"WARNING: _ensure_columns() failed: {e}", flush=True)
