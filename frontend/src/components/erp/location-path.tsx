@@ -11,8 +11,15 @@
  * Die Kette beginnt beim **unmittelbaren Halter** – NICHT bei der Instanz selbst (die ist
  * ja bereits geöffnet). Jede Station trägt ihr Symbol und ist klickbar (ausser der
  * Anschrift, die keine Objektnummer hat). Die Kette kommt fertig aufgelöst vom Backend
- * (``InstanceResponse.location_path``). Diese Karte ersetzt die frühere Standort-Kachel
- * vollständig und zeigt auch den Einzel-Halter bzw. «Nicht festgelegt».
+ * (``InstanceResponse.location_path``).
+ *
+ * **Verteilte Charge (Notiz #147):** liegt EINE Objektnummer physisch auf mehreren
+ * Standorten (990 @ Eingang · 10 @ Band A), gibt es keinen einen Halter – also auch keine
+ * eine Kette. Dann steht die **Aufteilung an der Stelle der Kette**, im selben Container:
+ * je Standort eine Zeile mit Menge. Vorher hing sie als zweite Karte «Standort · verteilt»
+ * darunter – dieselbe Frage, zweimal beantwortet, und die Kette darüber galt ohnehin nur
+ * für die grösste Teilmenge. Das **Verteilen** selbst geschieht ausschliesslich über einen
+ * regulären Auftrag + Bewegungsschritt, nie hier.
  */
 
 import { MapPin, CornerDownRight } from 'lucide-react';
@@ -28,10 +35,18 @@ export type LocationHop = {
   label?: string | null;
 };
 
-export function LocationPathCard({ path, distributedCount, style }: {
+export type LocationSlice = {
+  location_type: string;
+  location_id: number;
+  quantity: number;
+  location_label?: string | null;
+};
+
+export function LocationPathCard({ path, slices, unit, style }: {
   path: LocationHop[] | null | undefined;
-  /** Ist die Charge auf mehrere Standorte verteilt: deren Anzahl (Aufteilung folgt darunter). */
-  distributedCount?: number | null;
+  /** Teilmengen einer verteilten Charge; ab zwei Einträgen ersetzen sie die Kette. */
+  slices?: LocationSlice[] | null;
+  unit?: string;
   /** Platzierung im Kachel-Raster der Instanz (volle Breite). */
   style?: React.CSSProperties;
 }) {
@@ -41,15 +56,33 @@ export function LocationPathCard({ path, distributedCount, style }: {
   const hops = Array.isArray(path)
     ? path.filter((h): h is LocationHop => !!h && typeof h.location_type === 'string')
     : [];
-  const distributed = (distributedCount ?? 0) > 1;
+  const parts = (slices ?? []).filter((s) => !!s && s.location_id != null);
+  const distributed = parts.length > 1;
 
   return (
-    <TileShell icon={MapPin} label="Standort" style={style}>
-      {distributed && (
-        <div style={ST.note}>Auf {distributedCount} Standorte verteilt – Aufteilung siehe unten.</div>
-      )}
-
-      {hops.length === 0 ? (
+    <TileShell
+      icon={MapPin} label="Standort" style={style}
+      right={distributed ? <span style={ST.pill}>verteilt · {parts.length} Standorte</span> : undefined}
+    >
+      {distributed ? (
+        <ol style={ST.list}>
+          {parts.map((s) => {
+            const Icon = LOCATION_META[s.location_type as LocationType]?.icon ?? MapPin;
+            return (
+              <li key={`${s.location_type}:${s.location_id}`} style={ST.row}>
+                <Icon size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                <button type="button" onClick={() => nav?.(s.location_id)}
+                  style={{ ...ST.label, cursor: 'pointer' }}
+                  title={locationTypeLabel(s.location_type)}>
+                  {s.location_label ?? locationTypeLabel(s.location_type)}
+                </button>
+                <span style={ST.nr}>{fmtObjId(s.location_id)}</span>
+                <span style={ST.qty}>{s.quantity}{unit ? <span style={ST.unit}>{unit}</span> : null}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : hops.length === 0 ? (
         <div style={ST.empty}>Nicht festgelegt</div>
       ) : (
         <ol style={ST.list}>
@@ -87,7 +120,10 @@ export function LocationPathCard({ path, distributedCount, style }: {
 }
 
 const ST: Record<string, React.CSSProperties> = {
-  note: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', marginTop: 6 },
+  pill: {
+    font: '600 11px var(--font-body)', color: 'var(--accent-ink)', background: 'var(--accent-soft)',
+    padding: '2px 9px', borderRadius: 'var(--r-pill)', textTransform: 'none', letterSpacing: 0,
+  },
   empty: { font: '500 13.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 6 },
   list: { listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 2 },
   row: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' },
@@ -101,4 +137,9 @@ const ST: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--fg-4)',
     fontVariantNumeric: 'tabular-nums', flexShrink: 0,
   },
+  qty: {
+    font: '700 13.5px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums',
+    flexShrink: 0, minWidth: 46, textAlign: 'right',
+  },
+  unit: { font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 },
 };

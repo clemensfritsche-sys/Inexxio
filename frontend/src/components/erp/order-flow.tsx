@@ -124,17 +124,21 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
     <div
       style={{
         width: '100%', maxWidth: STEP_MAXW,
-        border: `1px solid ${selected ? 'var(--fg-1)' : muted ? 'var(--border-1)' : kc.border}`,
-        borderRadius: 'var(--r-lg)', background: muted ? '#fff' : kc.bg,
+        border: `1px solid ${selected ? 'var(--fg-1)' : kc.border}`,
+        borderRadius: 'var(--r-lg)', background: kc.bg,
         boxShadow: selected ? '0 0 0 3px var(--bg-3)' : 'var(--shadow-sm)',
+        // Zurücktreten heisst gedämpft, nicht farblos: die Karte behält ihre Modulfarbe und
+        // verliert nur an Kraft. Weiss hätte einem erledigten Schritt seine Zugehörigkeit
+        // genommen – man sähe im Rückblick nicht mehr, welches Modul dort stand.
+        opacity: muted ? 0.5 : 1,
         transition: 'box-shadow .16s, border-color .16s, opacity .16s',
       }}
     >
       <div onClick={onClick} title={hint}
-        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', cursor: 'pointer', opacity: muted ? 0.55 : 1 }}>
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', cursor: 'pointer' }}>
         <div style={{
           width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
-          color: muted ? 'var(--fg-4)' : kc.fg, border: `1px solid ${muted ? 'var(--border-1)' : kc.border}`,
+          color: kc.fg, border: `1px solid ${kc.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <Icon size={19} />
@@ -148,7 +152,7 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
       {/* Der Schritt wird DORT bearbeitet, wo er im Fluss steht – nicht in einem eigenen
           Container darunter. Gleiche Anatomie wie die Konfiguration in der Definition. */}
       {children && (
-        <div style={{ borderTop: `1px solid ${muted ? 'var(--border-1)' : kc.border}`, padding: '14px 18px 16px' }}>
+        <div style={{ borderTop: `1px solid ${kc.border}`, padding: '14px 18px 16px' }}>
           {children}
         </div>
       )}

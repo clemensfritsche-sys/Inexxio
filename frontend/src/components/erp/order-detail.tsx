@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, Package, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderLineInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { useAutosave } from '@/lib/use-autosave';
@@ -17,7 +17,7 @@ import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, Secti
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
-import { OrderInstances } from '@/components/erp/order-instances';
+import { OrderPositions } from '@/components/erp/order-positions';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
@@ -567,6 +567,13 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <StatusBadge cfg={isCreate
                 ? orderStatusConfig('draft')
                 : orderStatusConfig(record.status, record.abort_into_id != null)} />
+              {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
+              {isCreate && (
+                <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
+                  style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}>
+                  Abbrechen
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -587,10 +594,18 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           Beschreibungen/Bild-URLs/Notizen) verschluckte preventDefault() aber jeden
           Zeilenumbruch. Textareas ausnehmen. */}
       <div onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}
-        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
+        style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'docs' && !isCreate ? (
           <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
         ) : (<>
+        {/* Fehler stehen zuoberst im Inhalt – direkt unter der Aktion, die sie ausgelöst
+            hat (Freigeben/Speichern sitzen im Kopf). Kein Fussleisten-Streifen mehr. */}
+        {error && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '11px 14px', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10, fontSize: 13, color: 'var(--danger)', fontWeight: 600 }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {error}
+          </div>
+        )}
+
         {/* Abgebrochen: der Auftrag ist im Moment des Abbruchs inaktiv – nicht «ausstehend»,
             nicht rücknehmbar. Der Abweichungsauftrag führt ihn fort. */}
         {!isCreate && record.abort_into_id != null && (
@@ -667,25 +682,24 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   </>
                 )}
               </div>
+
+              {/* Der frühere Footer-Satz – jetzt eine leise Zeile in der Karte, auf die er
+                  sich bezieht (und nur beim Anlegen, wo er etwas erklärt). */}
+              {isCreate && (
+                <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>
+                  {demandValid ? 'Wird automatisch angelegt, sobald vollständig' : 'Pflichtfelder: Artikel und Menge'}
+                </div>
+              )}
           </div>
         ) : (
           // Lese-Ansicht im **Kachel-Raster** – dieselbe Sprache wie die Artikel-Spezifikation
           // und die Instanz-Merkmale (``TileShell``): Symbol-Kasten + Versalien-Label + Wert,
           // je Kachel eine eigene Haarlinie, responsiv bis Mobile (auto-fit, min 260px).
           <div style={specGrid}>
-              {isMultiPosition ? (
-                <PositionsList lines={orderLines} />
-              ) : (
-                <>
-                  <SpecTile icon={Package} label="Artikel">
-                    {record?.article_object_id != null ? <ObjId value={record.article_object_id} /> : '—'}
-                    {record?.article_name && <span style={TILE.sub}>{record.article_name}</span>}
-                  </SpecTile>
-                  <SpecTile icon={Boxes} label="Menge">
-                    {record?.quantity != null ? `${record.quantity} ${record.article_unit ? unitLabel(record.article_unit) : ''}`.trim() : '—'}
-                  </SpecTile>
-                </>
-              )}
+              {/* Artikel → Menge → die dazugehörigen Instanzen: EINE Aufstellung statt
+                  «Positionen oben, alle Instanzen unten». Bei mehreren Positionen war
+                  sonst nicht erkennbar, welche Instanz zu welchem Artikel gehört. */}
+              {record && <OrderPositions order={record} />}
               <SpecTile icon={CalendarClock} label="Wunsch-Liefertermin">
                 {record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'}
               </SpecTile>
@@ -694,12 +708,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               {record && (
                 <SpecTile icon={HistoryIcon} label="Angelegt">
                   {localDate(record.created_at)}
-                  <span style={TILE.sub}>geändert {localDate(record.updated_at)}</span>
                 </SpecTile>
               )}
-              {/* Die bei der Freigabe entstandenen Instanzen: eine Kachel über die volle
-                  Breite – Ergebnis derselben Aussage, darum dasselbe Raster. */}
-              {record && <OrderInstances order={record} embedded />}
           </div>
         )}
 
@@ -866,20 +876,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         </>)}
       </div>
 
-      {/* Footer-Status (Auto-Save, kein manueller Speichern-Knopf) */}
-      {demandEditable && (
-        <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? (!demandValid ? 'Pflichtfelder: Artikel und Menge' : isCreate ? 'Wird automatisch angelegt, sobald vollständig' : 'Änderungen werden automatisch gespeichert')}
-          </span>
-          {isCreate && (
-            <button onClick={onCancel}
-              style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
-              Abbrechen
-            </button>
-          )}
-        </div>
-      )}
+      {/* Kein Footer mehr (Notiz #140). Die drei Dinge, die er trug, stehen jetzt dort,
+          wo sie hingehören: der **Fehler** direkt unter dem Kopf – bei der Aktion, die ihn
+          ausgelöst hat («Freigeben» steht im Kopf); der **Auto-Save-Status** als grüner
+          Flash im Kopf (SaveIndicator, war schon immer dort); das **Abbrechen** der Anlage
+          als Aktion neben dem Status. */}
 
       {dialog === 'deviation' && record && (
         <DeviationDialog busy={deviationBusy} onChoose={reportDeviation} onClose={() => setDialog(null)} />
@@ -1551,31 +1552,8 @@ function PinPicker({ line, onToggle, bare }: {
   return <div style={cardStyle}>{body}</div>;
 }
 
-// Positionen eines Mehrpositionen-Auftrags – der Bedarf steht dann hier statt in den
-// Artikel/Menge-Feldern. Ohne ``onRemove`` (read-only nach der Freigabe) kein Entfernen-Knopf.
-function PositionsList({ lines, onRemove }: { lines: OrderLineInfo[]; onRemove?: (lineId: number) => void }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {lines.map((l) => (
-        <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
-          {l.article_object_id != null && <ObjId value={l.article_object_id} />}
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {l.article_name ?? `Artikel #${l.article_id}`}
-          </span>
-          <span style={{ fontSize: 12, color: '#64748b', flexShrink: 0 }}>
-            {l.quantity} {l.article_unit ? unitLabel(l.article_unit) : ''}
-          </span>
-          {onRemove && (
-            <button type="button" onClick={() => onRemove(l.id)} title="Position entfernen"
-              style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', padding: 2, flexShrink: 0 }}>
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
+// (``PositionsList`` ist entfallen: die Lese-Ansicht der Positionen führt jetzt
+//  ``OrderPositions`` – dort trägt jede Position ihre eigenen Instanzen, Notiz #141.)
 
 // «+ Position hinzufügen» – jederzeit im Entwurf nutzbar (auch nach dem ersten Speichern),
 // nicht nur bei der Anlage. Macht den Auftrag bei der ersten zusätzlichen Position zu

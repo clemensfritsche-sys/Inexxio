@@ -137,7 +137,9 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     });
     if (fixedType && fixedId) {
       steps.push({
-        label: `Zielstandort ${fmtObjId(fixedId)}`,
+        // Die Nummer hängt der Scanner selbst an («Zielstandort 100000292 scannen») –
+        // hier steht nur, WAS gescannt wird (Notiz #145).
+        label: 'Zielstandort',
         expected: fixedId, kind: (fixedType as ScanKind) ?? undefined,
         candidates: [{ objectId: fixedId, label: mv?.target_location_label ?? locationTypeLabel(fixedType) }],
       });
@@ -244,9 +246,11 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
               ) : (
                 <CurrentLocation instance={i} />
               )}
+              {/* Dieselbe Aktion wie der grosse Knopf darunter – nur für EINE Instanz.
+                  Also dieselbe Stimme: schwarz auf hell (Notiz #144), nicht blau. */}
               <button onClick={() => startScan(i)} disabled={!scanReady}
                 title={scanReady ? 'Diese Instanz scannen' : 'Zielorte werden geladen…'}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', color: scanReady ? '#2563eb' : '#cbd5e1', cursor: scanReady ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: 'none', background: scanReady ? 'var(--inexxio-black)' : 'var(--bg-3)', color: scanReady ? '#fff' : 'var(--fg-4)', cursor: scanReady ? 'pointer' : 'not-allowed', flexShrink: 0 }}>
                 <ScanLine size={15} />
               </button>
             </div>
@@ -304,7 +308,7 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
   const mode = (sp.transport_mode ?? 'internal') as TransportMode;
   const recommended = (sp.recommended_mode ?? 'internal') as TransportMode;
   const isInternal = mode === 'internal';
-  const external = sp.transport_class === 'outside';
+  const external = sp.transport_class === 'outside' && !isInternal;
   const purchased = sp.status === 'purchased' || sp.status === 'done';
   const inbound = sp.direction === 'inbound';
   const chosen = rateId ?? sp.rates.find((r) => r.cheapest)?.rate_id ?? sp.rates[0]?.rate_id ?? null;

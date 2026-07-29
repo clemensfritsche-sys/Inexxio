@@ -13,7 +13,6 @@ import { instanceStatusConfig } from '@/lib/process';
 import { orderStatusConfig } from '@/lib/order';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
-import { InstanceLocationsCard } from '@/components/erp/instance-locations';
 import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -73,7 +72,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   }, [genDoc]);
 
   const status = instanceStatusConfig(inst.quality, inst.disposition, (inst.reserved_quantity ?? 0) > 0);
-  const distributed = (inst.locations?.length ?? 0) > 1;
 
   // Aufträge sortiert nach Zeitpunkt (an), Richtung umschaltbar.
   const sortedOrders = useMemo(() => {
@@ -260,14 +258,13 @@ export function InstanceDetail({ record, onBack, onChanged }: {
 
             {/* Standort gehört in dasselbe Raster – er ist eine Kennzahl der Instanz wie
                 jede andere, keine Karte für sich (Notiz #5). */}
+            {/* Verteilte Charge: die Aufteilung steht IM Standort-Container statt als
+                zweite Karte darunter – eine Frage, eine Antwort (Notiz #147). */}
             <LocationPathCard
               style={TILE.wide}
               path={inst.location_path ?? []}
-              distributedCount={distributed ? inst.locations?.length : undefined}
+              slices={inst.locations ?? []}
             />
-
-            {/* Standort-Verteilung einer Charge (read-only; verteilt wird über Auftrag + Bewegung) */}
-            <InstanceLocationsCard style={TILE.wide} instance={inst} />
           </div>
           </>
           )}
