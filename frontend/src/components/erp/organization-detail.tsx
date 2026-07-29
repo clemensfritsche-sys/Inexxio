@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, ArrowLeft, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen  } from 'lucide-react';
+import { Building2, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen  } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
-import { Field, Sec, fmtObjId } from '@/components/erp/user-detail';
+import { Field, Sec } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { DetailHeader, StatusBadge } from '@/components/erp/fields';
 import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 
@@ -102,32 +103,18 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header – analog zur Benutzer-Detailseite */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #E2E8F0', background: '#fff', flexShrink: 0 }}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
-          <ArrowLeft size={14} /> Zurück
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0, background: '#f0fdfa', color: '#0d9488', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Building2 size={20} />
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>{String(v('company_name') ?? 'Unternehmen')}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#f0fdfa', color: '#0d9488' }}>Unternehmen</span>
-            </div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{String(v('email') ?? '')}</div>
-          </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id)}</div>
-          </div>
-        </div>
-        <DetailTabs<OrgTab> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={[
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
+      <DetailHeader
+        icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
+        eyebrow="Unternehmen" title={(v('company_name') as string) || null}
+        objectId={record.object_id} onBack={onBack}
+        right={<StatusBadge cfg={{ label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }} />}
+      >
+        <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
-      </div>
+      </DetailHeader>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>

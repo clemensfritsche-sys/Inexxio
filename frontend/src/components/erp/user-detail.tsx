@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, ArrowLeft, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag, FolderOpen, Link2 } from 'lucide-react';
+import { User, Pencil, MapPin, Building2, Shield, Settings, Briefcase, Truck, UserCircle, ShoppingBag, FolderOpen, Link2 } from 'lucide-react';
 import { cn, userDisplayName } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
@@ -9,6 +9,7 @@ import { ObjectDocuments } from '@/components/erp/object-documents';
 import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
+import { DetailHeader, StatusBadge } from '@/components/erp/fields';
 import type { UserProfile, CustomerOrder } from '@/types';
 
 type UserTab = 'profil' | 'orders' | 'verwendung' | 'docs';
@@ -338,45 +339,34 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid #E2E8F0', background: '#fff', flexShrink: 0 }}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 mb-2 md:hidden">
-          <ArrowLeft size={14} /> Zurück
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242).
+          Der Benutzer hatte als einziger Typ ein ganz eigenes Layout (44-px-Avatar,
+          «Obj.-Nr.»-Block rechts); geblieben ist nur das runde Foto als `avatar`. */}
+      <DetailHeader
+        eyebrow="Benutzer" title={hasName ? name : null} placeholder="Kein Name"
+        objectId={record.object_id} onBack={onBack}
+        right={<StatusBadge cfg={{ label: rc.label, color: rc.color, bg: rc.bg }} />}
+        avatar={
           <div style={{
-            width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: record.photo_url ? 'transparent' : rc.bg,
-            color: rc.color, overflow: 'hidden',
+            width: 56, height: 56, borderRadius: '50%', flex: 'none',
+            background: record.photo_url ? 'transparent' : rc.bg, color: rc.color, overflow: 'hidden',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 15, fontWeight: 700,
+            font: '700 19px var(--font-body)',
           }}>
             {record.photo_url
               // eslint-disable-next-line @next/next/no-img-element
               ? <img src={record.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : initials}
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: hasName ? '#0F172A' : '#94a3b8', fontStyle: hasName ? 'normal' : 'italic' }}>
-                {hasName ? name : 'Kein Name'}
-              </span>
-              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: rc.bg, color: rc.color }}>{rc.label}</span>
-            </div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{record.email}</div>
-          </div>
-          <div style={{ flexShrink: 0, textAlign: 'right' }}>
-            <div style={{ fontSize: 10, color: '#CBD5E1', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>Obj.-Nr.</div>
-            <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>{fmtObjId(record.object_id)}</div>
-          </div>
-        </div>
-        <DetailTabs<UserTab> style={{ marginTop: 12 }} active={tab} onChange={setTab} tabs={[
+        }
+      >
+        <DetailTabs<UserTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'profil', label: 'Profil', icon: User },
           { key: 'orders', label: 'Bestellungen', icon: ShoppingBag },
           { key: 'verwendung', label: 'Verwendung', icon: Link2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
-      </div>
+      </DetailHeader>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>

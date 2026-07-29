@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Loader, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Blocks, Wrench, Loader, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 
@@ -6,7 +6,10 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   purchase:   { label: 'Beschaffung',    icon: ShoppingCart },
   inspection: { label: 'Datenerfassung', icon: ClipboardCheck },
   movement:   { label: 'Bewegung',       icon: ArrowLeftRight },
-  resource:   { label: 'Ressource',      icon: Wrench },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
+  // «Blocks» statt «Wrench» (Notiz #234): der Schritt setzt BEIDES ein – Material, das
+  // verbraucht wird, und Werkzeug, das genutzt wird. Der Schraubenschlüssel behauptete nur
+  // das Werkzeug (und ist innerhalb der Zeilen genau dafür reserviert).
+  resource:   { label: 'Ressource',      icon: Blocks },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
   scrap:      { label: 'Verschrotten',   icon: Trash2 },
   // Sperren = das reversible Gegenstück: die Instanz bleibt, darf aber nicht verwendet
   // werden (quality='blocked'); aufhebbar an der Instanz.

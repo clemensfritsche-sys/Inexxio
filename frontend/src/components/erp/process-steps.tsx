@@ -57,7 +57,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState<'choose' | StepType | null>(null);
+  const [adding, setAdding] = useState<StepType | null>(null);   // null = Palette offen
   // Bezugsquelle des Beschaffungs-Schritts (im Prozess definiert, je Schritt eigen):
   const [mode, setMode] = useState<ProcessStepMode>('supplier');
   const [supplierId, setSupplierId] = useState('');
@@ -429,7 +429,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 <div style={cardBody}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' }}>
-                      <Lock size={12} /> Freigabe & Anerkennung
+                      <Lock size={12} /> Dokumentenfreigabe
                     </span>
                   </div>
                   <DocConfigView step={s} users={allUsers} />
@@ -461,8 +461,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         </span>
                         {l.article_object_id != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)', fontWeight: 600, flexShrink: 0 }}>{fmtObjId(l.article_object_id)}</span>}
                         <span style={{ flex: 1, minWidth: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 9 }}>
+                          {/* Kein «Werkzeug»-Etikett (#233): das Symbol links sagt es bereits. */}
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.article_name ?? `#${l.article_id}`}</span>
-                          {tool && <span style={toolTag}>Werkzeug</span>}
                         </span>
                         <span style={{ font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{l.quantity}<span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>{l.unit ? unitLabel(l.unit) : 'Stk'}</span></span>
                       </div>
@@ -479,35 +479,24 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
       {steps.length > 0 && !adding && <Connector />}
       {steps.length > 0 && !adding && <FlowTerm kind="end" />}
 
-      {/* Hinzufügen */}
+      {/* **Die Palette steht offen** (Notiz #223): «jeder Klick ist ein Klick zu viel» –
+          die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.
+          Der frühere Zwischenschritt («Prozessschritt hinzufügen» → Auswahl) ist entfallen. */}
       {!readOnly && (
         <div style={{ width: '100%', maxWidth: STEP_MAXW, marginTop: 16 }}>
           {adding == null ? (
-            <button onClick={() => setAdding('choose')} style={addBtnStyle}>
-              <Plus size={15} /> Prozessschritt hinzufügen
-            </button>
-          ) : adding === 'choose' ? (
-            <div style={{ ...editorCard, gap: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>Welcher Schritt?</span>
-                <button onClick={resetForm} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
-              </div>
-              {/* Symbol statt Text, in der Farbe des Moduls: die Palette sieht damit aus wie
-                  der Fluss, den sie füllt. Der Name kommt beim Hover – die Kachel wächst auf
-                  und legt ihn frei (`.erp-palette`), zusätzlich erklärt der Tooltip die Rolle. */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {chooserTypes.map((t) => {
-                  const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t);
-                  return (
-                    <button key={t} onClick={() => setAdding(t)} data-tip={STEP_HINT[t]}
-                      aria-label={m.label} className="erp-palette"
-                      style={{ background: kc.bg, borderColor: kc.border, color: kc.fg }}>
-                      <Icon size={19} />
-                      <span className="erp-palette-label">{m.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+              {chooserTypes.map((t) => {
+                const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t);
+                return (
+                  <button key={t} onClick={() => setAdding(t)} data-tip={STEP_HINT[t]}
+                    aria-label={m.label} className="erp-palette"
+                    style={{ background: kc.bg, borderColor: kc.border, color: kc.fg }}>
+                    <Icon size={19} />
+                    <span className="erp-palette-label">{m.label}</span>
+                  </button>
+                );
+              })}
             </div>
           ) : (() => {
             // **Der Editor trägt die Farbe seines Moduls** (Notiz #222): man konfiguriert
@@ -517,8 +506,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
             const AddIcon = STEP_META[adding].icon;
             return (
             <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}>
-              <button onClick={() => setAdding('choose')}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'none', cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}>
+              {/* Kopf = Anatomie der Modul-Karte, die gleich im Fluss stehen wird (#222).
+                  Kein Zurück-Knopf mehr (#226/#232): «Abbrechen» ist der Weg heraus. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{
                   width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
                   color: kc.fg, border: `1px solid ${kc.border}`,
@@ -529,8 +519,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>
                   {STEP_META[adding].label}
                 </span>
-                <ArrowLeft size={13} style={{ color: 'var(--fg-4)' }} />
-              </button>
+              </div>
 
               {adding === 'purchase' && (
                 <>
@@ -600,8 +589,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
               {error && <ErrorText msg={error} />}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={resetForm} style={secondaryBtn}>Abbrechen</button>
-                <button onClick={() => addStep(adding)} disabled={saving} style={primaryBtn}>{saving ? 'Speichern…' : 'Hinzufügen'}</button>
+                <button onClick={resetForm} className="erp-actbtn erp-actbtn-neutral">Abbrechen</button>
+                <button onClick={() => addStep(adding)} disabled={saving} className="erp-actbtn erp-actbtn-primary">{saving ? 'Speichern…' : 'Hinzufügen'}</button>
               </div>
             </div>
             );
@@ -627,8 +616,15 @@ const STEP_HINT: Record<StepType, string> = {
 function ResourceLinesEditor({ lines, onChange, articles }: {
   lines: ResLine[]; onChange: (l: ResLine[]) => void; articles: Article[];
 }) {
-  function add() { onChange([...lines, { article_id: '', quantity: '1', mode: 'consume' }]); }
-  function upd(i: number, patch: Partial<ResLine>) { onChange(lines.map((l, idx) => (idx === i ? { ...l, ...patch } : l))); }
+  // **Kein «hinzufügen»-Klick** (Notiz #231): unten steht immer eine leere Zeile bereit;
+  // sobald sie einen Artikel bekommt, wächst die nächste nach. «Jeder Klick ist ein Klick
+  // zu viel» – und leere Zeilen werden beim Speichern ohnehin verworfen.
+  const rows: ResLine[] = [...lines, { article_id: '', quantity: '1', mode: 'consume' as ResourceMode }];
+  function upd(i: number, patch: Partial<ResLine>) {
+    const next = [...rows];
+    next[i] = { ...next[i], ...patch };
+    onChange(next.filter((l, idx) => l.article_id !== '' || idx < lines.length));
+  }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
     ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
@@ -639,8 +635,9 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
         <div style={noticeStyle}><Info size={14} style={{ flexShrink: 0, marginTop: 1 }} /><span>Kein freigegebener Artikel referenzierbar.</span></div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {lines.map((l, i) => {
+        {rows.map((l, i) => {
           const tool = l.mode === 'tool';
+          const isDraftRow = i === rows.length - 1;
           return (
             <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {/* Eleganter Modus-Toggle: ein Klick wechselt Verbrauch ↔ Betriebsmittel */}
@@ -656,13 +653,12 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
               </div>
               <input value={l.quantity} onChange={(e) => upd(i, { quantity: numericOnly(e.target.value) })} {...numericInputProps} placeholder="Menge/Einh."
                 className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', width: 92 }} />
-              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
+              <button onClick={() => del(i)} disabled={isDraftRow} title="Zeile entfernen"
+                style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: isDraftRow ? 'default' : 'pointer', opacity: isDraftRow ? 0 : 1 }}><Trash2 size={15} /></button>
             </div>
           );
         })}
       </div>
-      {/* Leere Liste braucht das Wort, danach genügt das Symbol (Bedeutung im Hover). */}
-      <AddRowButton label="Ressource hinzufügen" compact={lines.length > 0} onClick={add} />
     </div>
   );
 }
@@ -682,15 +678,6 @@ const SAMPLE_PRESETS = [
 ];
 
 /** Zeile hinzufügen: solange die Liste leer ist mit Wort, danach nur noch «+» (Hover erklärt). */
-function AddRowButton({ label, compact, onClick }: { label: string; compact: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} title={label} aria-label={label}
-      style={{ ...addBtnStyle, marginTop: 8, padding: '8px', width: compact ? 38 : undefined }}>
-      <Plus size={14} />{!compact && ` ${label}`}
-    </button>
-  );
-}
-
 function SampleScope({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const isPreset = SAMPLE_PRESETS.some((p) => p.pct === value);
   const [custom, setCustom] = useState(!isPreset && value !== '');
@@ -754,16 +741,16 @@ const CAPTURE_KINDS: { value: WField['type']; label: string; icon: React.Element
 ];
 
 function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange: (f: WField[]) => void }) {
-  const [picking, setPicking] = useState(false);
+  // **Die Palette steht offen** (Notiz #229, wie #223): ein Klick auf das Symbol legt das
+  // Feld an – der frühere Zwischenschritt «Erfassungsfeld hinzufügen» ist entfallen.
   function add(type: WField['type']) {
     onChange([...fields, { label: '', type, target: '', tolerance: '', unit: '' }]);
-    setPicking(false);
   }
   function upd(i: number, patch: Partial<WField>) { onChange(fields.map((f, idx) => (idx === i ? { ...f, ...patch } : f))); }
   function del(i: number) { onChange(fields.filter((_, idx) => idx !== i)); }
   return (
     <div>
-      <Label>Erfassungsfelder (was wird geprüft?)</Label>
+      <Label>Erfassungsfelder</Label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {fields.map((f, i) => {
           const kind = CAPTURE_KINDS.find((k) => k.value === f.type) ?? CAPTURE_KINDS[0];
@@ -794,23 +781,19 @@ function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange:
           );
         })}
       </div>
-      {picking ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-          {CAPTURE_KINDS.map((k) => {
-            const Icon = k.icon;
-            return (
-              <button key={k.value} type="button" onClick={() => add(k.value)} data-tip={k.hint}
-                aria-label={k.label} className="erp-palette"
-                style={{ background: 'var(--bg-2)', borderColor: 'var(--border-1)', color: 'var(--fg-2)' }}>
-                <Icon size={18} />
-                <span className="erp-palette-label">{k.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      ) : (
-        <AddRowButton label="Erfassungsfeld hinzufügen" compact={fields.length > 0} onClick={() => setPicking(true)} />
-      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: fields.length > 0 ? 10 : 0 }}>
+        {CAPTURE_KINDS.map((k) => {
+          const Icon = k.icon;
+          return (
+            <button key={k.value} type="button" onClick={() => add(k.value)} data-tip={k.hint}
+              aria-label={k.label} className="erp-palette"
+              style={{ background: 'var(--bg-2)', borderColor: 'var(--border-1)', color: 'var(--fg-2)' }}>
+              <Icon size={18} />
+              <span className="erp-palette-label">{k.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -836,10 +819,15 @@ const AUDIENCE_ROLE_LABELS: Record<string, string> = {
   customer: 'Kunden', supplier: 'Lieferanten', employee: 'Mitarbeiter', admin: 'Admins',
 };
 
-// Read-only-Ansicht der «Dokument»-Deklaration (freigegebener bzw. nicht editierter Prozess):
-// zeigt ALLE definierten Details – Freigabe-Parteien mit NAMEN, Aktion (Bestätigen/
-// Unterschreiben) und Reihenfolge, Sichtbarkeit sowie Anerkennungs-Publikum (mit Namen/Rollen).
-// So ist im freigegebenen Prozess vollständig nachvollziehbar, was der Dokument-Schritt tut.
+/**
+ * Read-only-Ansicht der «Dokument»-Deklaration im fertigen Schritt.
+ *
+ * **Aufgeräumt** (Notiz #241): eine Liste der Parteien in EINEM Raster (Nummer · Name ·
+ * Aktion · Objektnummer) und darunter die beiden Ein-Wert-Angaben als schlichte
+ * Schlüssel-Wert-Zeilen an einer Haarlinie. Vorher stapelten sich fünf Blöcke mit je
+ * eigener Versalien-Überschrift – dieselbe Information, dreimal so hoch. Die Überschrift
+ * «Freigabe-Parteien» ist entfallen: der Karten-Kopf sagt bereits «Dokumentenfreigabe».
+ */
 function DocConfigView({ step, users }: { step: ArticleProcessStep; users: UserProfile[] }) {
   const nameOf = (oid: number) => {
     const u = users.find((x) => x.object_id === oid);
@@ -850,58 +838,54 @@ function DocConfigView({ step, users }: { step: ArticleProcessStep; users: UserP
   const visLabel = vis === 'public' ? 'Öffentlich' : vis === 'confidential' ? 'Vertraulich' : 'Intern';
   const aud = step.doc_audience;
   const audienceText = !aud
-    ? 'Keine Anerkennungspflicht'
+    ? 'keine'
     : aud === 'all' ? 'Alle Angemeldeten'
     : aud === 'roles' ? ((step.doc_audience_roles ?? []).map((r) => AUDIENCE_ROLE_LABELS[r] ?? r).join(', ') || 'Rollen')
-    : `Bestimmte Personen: ${(step.doc_audience_person_ids ?? []).map(nameOf).join(', ') || '—'}`;
+    : ((step.doc_audience_person_ids ?? []).map(nameOf).join(', ') || '—');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
-        <div style={dv.label}>Freigabe-Parteien{step.sign_sequential && signers.length > 1 ? ' · der Reihe nach' : ''}</div>
-        {signers.length === 0 ? (
-          <div style={dv.muted}>Keine – mit «Ausstellen» sofort freigegeben.</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>
-            {signers.map((s, i) => (
-              <div key={i} style={dv.row}>
-                <span style={dv.idx}>{i + 1}.</span>
-                <span style={dv.name}>{nameOf(s.signer_object_id)}</span>
-                <span style={dv.tag}>{s.action === 'confirm' ? 'Bestätigen' : 'Unterschreiben'}</span>
-                <span style={dv.nr}>{fmtObjId(s.signer_object_id)}</span>
-              </div>
-            ))}
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {signers.length === 0 ? (
+        <div style={dv.muted}>Ohne Partei – mit «Ausstellen» sofort freigegeben.</div>
+      ) : (
+        signers.map((sg, i) => (
+          <div key={i} style={dv.row}>
+            <span style={dv.idx}>{i + 1}</span>
+            <span style={dv.name}>{nameOf(sg.signer_object_id)}</span>
+            <span style={dv.tag}>{sg.action === 'confirm' ? 'Bestätigen' : 'Unterschreiben'}</span>
+            <span style={dv.nr}>{fmtObjId(sg.signer_object_id)}</span>
           </div>
-        )}
-      </div>
-      <div style={dv.kv}>
-        <span style={dv.label}>Sichtbarkeit</span>
-        <span style={dv.value}>{visLabel}</span>
-      </div>
-      <div>
-        <div style={dv.label}>Anerkennungs-Publikum</div>
-        <div style={{ ...dv.value, marginTop: 3 }}>{audienceText}</div>
-      </div>
+        ))
+      )}
+      {signers.length > 1 && step.sign_sequential && (
+        <div style={dv.muted}>der Reihe nach</div>
+      )}
+      <div style={dv.kv}><span style={dv.label}>Leseberechtigung</span><span style={dv.value}>{visLabel}</span></div>
+      <div style={dv.kv}><span style={dv.label}>Anerkennung</span><span style={dv.value}>{audienceText}</span></div>
     </div>
   );
 }
 
+// EIN Raster für alle Zeilen der Deklaration – Parteien wie Schlüssel-Wert-Angaben.
 const dv: Record<string, React.CSSProperties> = {
-  label: { font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--fg-4)' },
-  muted: { font: '500 12.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 3 },
-  row: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 9px', borderRadius: 8, border: '1px solid var(--border-1)', background: '#fff' },
-  idx: { font: '700 11px var(--font-body)', color: 'var(--fg-4)', minWidth: 16 },
+  label: { font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' },
+  muted: { font: '500 12px var(--font-body)', color: 'var(--fg-4)', padding: '5px 0' },
+  row: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', minHeight: 26 },
+  idx: { font: '600 11.5px var(--font-body)', color: 'var(--fg-4)', minWidth: 12, fontVariantNumeric: 'tabular-nums' },
   name: { flex: 1, font: '600 13px var(--font-body)', color: 'var(--fg-1)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  tag: { font: '600 11px var(--font-body)', color: 'var(--accent-ink)', background: 'var(--accent-soft)', padding: '2px 8px', borderRadius: 999, flexShrink: 0 },
+  tag: { font: '500 11.5px var(--font-body)', color: 'var(--fg-3)', flexShrink: 0 },
   nr: { fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 },
-  kv: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  value: { font: '600 13px var(--font-body)', color: 'var(--fg-2)' },
+  kv: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    padding: '6px 0', borderTop: '1px solid var(--border-1)', minHeight: 26,
+  },
+  value: { font: '600 13px var(--font-body)', color: 'var(--fg-1)', textAlign: 'right' },
 };
 
 /**
- * Beschriftung im Dokument-Schritt als **Frage**: «Wer muss freigeben?» sagt einem Laien
- * sofort, was hier einzustellen ist – «Freigabe-Parteien (Unterschrift / Bestätigung)»
- * setzt das Vokabular des Systems voraus. Die genaue Wirkung steht im ⓘ-Hover, nicht als
+ * Beschriftung im Dokument-Schritt: **die Sache beim Namen** – «Dokumentenfreigabe»,
+ * «Leseberechtigung», «Anerkennung» (Notizen #237/#238). Die früheren Fragen («Wer muss
+ * freigeben?») und ihre Erklär-ⓘ sind entfallen (#235/#239). Ursprünglich war das als
  * Absatz in der Fläche.
  */
 function DocLabel({ text, hint }: { text: string; hint?: string }) {
@@ -960,8 +944,7 @@ function DocConfigEditor({ cfg, onChange, users }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Freigabe-Parteien (endlich, gated die Freigabe) */}
       <div>
-        <DocLabel text="Wer muss freigeben?"
-          hint="Das Dokument gilt erst als freigegeben, wenn ALLE hier genannten Personen unterschrieben bzw. bestätigt haben. Niemand eingetragen = mit «Ausstellen» sofort freigegeben." />
+        <DocLabel text="Dokumentenfreigabe" />
         {cfg.signers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
             {cfg.signers.map((s, i) => (
@@ -1000,7 +983,7 @@ function DocConfigEditor({ cfg, onChange, users }: {
 
       {/* Sichtbarkeit – Schieber mit Symbolen, Bedeutung im Hover. */}
       <div>
-        <DocLabel text="Wer darf es lesen?" />
+        <DocLabel text="Leseberechtigung" />
         <IconSwitch<DocCfg['visibility']> value={cfg.visibility} onChange={(v) => set({ visibility: v })}
           options={[
             { value: 'public', icon: Globe, label: 'Alle', hint: 'Jeder mit Zugang zum Auftrag – auch Kunden und Lieferanten.' },
@@ -1011,8 +994,7 @@ function DocConfigEditor({ cfg, onChange, users }: {
 
       {/* Anerkennungs-Publikum (offen, blockiert den Auftrag NIE) */}
       <div>
-        <DocLabel text="Wer muss es zur Kenntnis nehmen?"
-          hint="Nach der Freigabe müssen diese Personen das Dokument aktiv anerkennen (z. B. neue AGB). Das hält den Auftrag NICHT auf – es erscheint bei ihnen als offene Aufgabe." />
+        <DocLabel text="Anerkennung" />
         <IconSwitch<'none' | 'all' | 'roles' | 'persons'>
           value={(cfg.audience || 'none') as 'none' | 'all' | 'roles' | 'persons'}
           onChange={(v) => set({ audience: (v === 'none' ? '' : v) as DocCfg['audience'] })}
@@ -1071,7 +1053,9 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   // Eigene Farbfamilie (gedämpftes Pflaume): Datenerfassung und Bewegung trugen exakt
   // dieselbe Tönung – zwei verschiedene Schritttypen sahen damit gleich aus.
   inspection: { bg: '#F7F4FA', border: '#E2DBEC', fg: '#6B5B8A' },
-  document:   { bg: 'var(--bg-2)', border: 'var(--border-1)', fg: 'var(--fg-2)' },
+  // Eigene, kühl-graublaue Familie: `var(--bg-2)` war exakt die Flächenfarbe des
+  // Fensters – die Karte verschwand darin (Notiz #236).
+  document:   { bg: '#F2F5F7', border: '#DBE3E8', fg: '#4A6572' },
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
   // Sperren: warnend, nicht endgültig – bewusst amber statt dem Rot des Verschrottens.

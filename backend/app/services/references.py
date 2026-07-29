@@ -86,13 +86,23 @@ def instance_orders(db: Session, instance: Instance) -> list[dict]:
     if not hits:
         return []
     orders = {o.id: o for o in db.query(Order).filter(Order.id.in_(hits.keys())).all()}
+    from . import orders as orders_svc
+    art_ids = {o.article_id for o in orders.values() if o.article_id}
+    art_names = (
+        {a.id: a.name for a in db.query(Article).filter(Article.id.in_(art_ids)).all()}
+        if art_ids else {}
+    )
     out: list[dict] = []
     for order_db_id, h in hits.items():
         o = orders.get(order_db_id)
         if not o or not o.object_id:
             continue
         out.append({
-            "object_id": o.object_id, "status": o.status,
+            # Name + Art des Auftrags mitgeben: die Liste zeigt einen Datensatz, und ein
+            # Datensatz zeigt überall Name · Objektnummer · Status (Notizen #177/#243) –
+            # ein Abweichungsauftrag ist zudem als solcher gekennzeichnet.
+            "object_id": o.object_id, "status": o.status, "reason": o.reason,
+            "name": orders_svc.order_display_name(o, art_names.get(o.article_id)),
             "roles": h["roles"], "at": h["at"] or o.created_at,
         })
     # Nach der **tatsächlichen Aktionszeit** an der Instanz – jüngste zuerst (nicht nach

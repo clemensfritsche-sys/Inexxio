@@ -20,7 +20,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ErrorText, SaveIndicator, IconSwitch } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -309,87 +309,70 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
   const flush = useAutosave(sig, canSave, save);
 
   const statusCfg = statusConfig(isCreate || !record ? 'draft' : record.status);
-  const StatusCfgIcon = statusCfg.icon;
   const actions = isCreate || !record ? [] : articleActions(record.status, (stepsCount ?? 0) > 0);
 
   return (
     <div className="flex flex-col h-full bg-bg-1">
-      {/* Header */}
-      <div style={H.dhead}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
-          <ArrowLeft size={15} /> Zurück
-        </button>
-        <div style={H.top}>
-          <div style={H.ico}><Package size={26} /></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={H.eyebrow}>Artikel</div>
-            <h1 style={{ ...H.title, ...(form.name ? null : H.titleEmpty) }}>{form.name || 'Neuer Artikel'}</h1>
-            <div style={H.sub}>
-              <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id)}</span>
-              {!isCreate && record.object_id != null && (
-                <>
-                  <span style={H.idsep} />
-                  <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-                    onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
-                    <QrCode size={15} />
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
+      <DetailHeader
+        icon={Package} iconBg="#F4EBDD" iconFg="#9A7238"
+        eyebrow="Artikel" title={form.name || null} placeholder="Neuer Artikel"
+        objectId={isCreate ? null : record.object_id}
+        objectIdText={isCreate ? 'wird vergeben' : undefined}
+        onBack={onBack}
+        right={<div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <SaveIndicator saving={saving} flash={flash} />
+          <StatusBadge cfg={statusCfg} />
+        </div>}
+        actions={!isCreate && record.object_id != null ? (
+          <>
+            <HeaderSep />
+            <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+              onClick={() => printObjectLabel(record.object_id as number, form.name || record.name, 'Artikel')}>
+              <QrCode size={15} />
+            </button>
+            {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
+                auslösen (nur freigegebene Artikel sind auftragsfähig). */}
+            {record.status === 'released' && (
+              <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag anlegen" data-tip-pos="bottom"
+                aria-label="Auftrag zu diesem Artikel anlegen" disabled={orderBusy}
+                onClick={createOrderShortcut}>
+                {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
+              </button>
+            )}
+            {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer. */}
+            {record.status === 'released' && (
+              <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
+                aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
+                onClick={() => onStatusAction('inactive')}>
+                <Ban size={15} />
+              </button>
+            )}
+            {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen – genau wie
+                am Auftrag (#167): rechts steht nur der Zustand. */}
+            {actions.some((a) => a.tone !== 'danger') && (
+              <>
+                <HeaderSep />
+                {actions.filter((a) => a.tone !== 'danger').map((a) => (
+                  <button key={a.target} type="button"
+                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
+                    style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
+                    data-tip={a.hint} data-tip-pos="bottom"
+                    disabled={statusBusy || a.disabled}
+                    onClick={() => onStatusAction(a.target)}>
+                    {a.label}
                   </button>
-                  {/* Shortcut «Auftrag»: aus dem freigegebenen Artikel direkt einen Auftrag
-                      auslösen (nur freigegebene Artikel sind auftragsfähig). */}
-                  {record.status === 'released' && (
-                    <button className="erp-idbtn erp-idbtn-act" data-tip="Auftrag anlegen" data-tip-pos="bottom"
-                      aria-label="Auftrag zu diesem Artikel anlegen" disabled={orderBusy}
-                      onClick={createOrderShortcut}>
-                      {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
-                    </button>
-                  )}
-                  {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer:
-                      nur bei freigegebenem Artikel, öffnet den Dialog (mit «Ersetzen»-Option). */}
-                  {record.status === 'released' && (
-                    <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
-                      aria-label="Artikel deaktivieren oder ersetzen" disabled={statusBusy}
-                      onClick={() => onStatusAction('inactive')}>
-                      <Ban size={15} />
-                    </button>
-                  )}
-                  {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen – genau wie
-                      am Auftrag (Notiz #167): eine Aktion gehört zu den Aktionen, rechts
-                      steht nur der Zustand. Sie ist damit auf JEDEM Reiter erreichbar. */}
-                  {actions.some((a) => a.tone !== 'danger') && (
-                    <>
-                      <span style={H.idsep} />
-                      {actions.filter((a) => a.tone !== 'danger').map((a) => (
-                        <button key={a.target} type="button"
-                          className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
-                          style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
-                          data-tip={a.hint} data-tip-pos="bottom"
-                          disabled={statusBusy || a.disabled}
-                          onClick={() => onStatusAction(a.target)}>
-                          {a.label}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          <div style={H.right}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <SaveIndicator saving={saving} flash={flash} />
-              <span style={{ ...H.statusbig, background: statusCfg.bg, color: statusCfg.color }}>
-                {StatusCfgIcon && <StatusCfgIcon size={15} strokeWidth={2.5} />}{statusCfg.label}
-              </span>
-            </div>
-          </div>
-        </div>
-
+                ))}
+              </>
+            )}
+          </>
+        ) : undefined}
+      >
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
-
-        {/* Tabs (einheitliche Optik über alle Datensätze) */}
         <DetailTabs<TabKey> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={TABS} />
-      </div>
+      </DetailHeader>
 
       {/* Content */}
       {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
@@ -494,18 +477,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
 
 
 // Kopf-/Chrome-Styles (Inexxio Design System, analog Instanz-Detail)
+// Der Kopf kommt aus `fields.DetailHeader` (Notiz #242) – hier bleibt nur die Karte.
 const H: Record<string, React.CSSProperties> = {
-  dhead: { padding: '18px 28px', borderBottom: '1px solid var(--border-1)', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0 },
-  top: { display: 'flex', alignItems: 'flex-start', gap: 16 },
-  ico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
-  eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
-  title: { font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },
-  sub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 },
-  subN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
-  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
-  right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
-  statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', padding: 'clamp(16px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' },
 };
 

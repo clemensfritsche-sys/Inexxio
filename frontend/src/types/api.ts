@@ -3732,6 +3732,13 @@ export interface components {
             object_id: number;
             /** Status */
             status: string;
+            /**
+             * Name
+             * @default Auftrag
+             */
+            name: string;
+            /** Reason */
+            reason?: string | null;
             /** Roles */
             roles: string[];
             /**

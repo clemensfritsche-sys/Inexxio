@@ -11152,6 +11152,22 @@
             "type": "string",
             "title": "Status"
           },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "Auftrag"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "roles": {
             "items": {
               "type": "string"
