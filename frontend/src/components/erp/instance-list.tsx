@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Boxes, ChevronRight, Search } from 'lucide-react';
+import { Boxes, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
@@ -16,7 +16,6 @@ const INST = TYPE_META.instance;
 export function InstanceList({ articleObjectId, unit }: { articleObjectId: number | null; unit?: string }) {
   const [items, setItems] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(false);
-  const [q, setQ] = useState('');
   const nav = useErpNav();
 
   useEffect(() => {
@@ -39,25 +38,15 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
   }
 
   // **Neueste zuerst** (wie im Feed: Objektnummern werden aufsteigend vergeben, gemeint ist
-  // fast immer die zuletzt entstandene Instanz) + Suche über Objektnummer/Auftrag/Status.
-  const shown = [...items]
-    .sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0))
-    .filter((i) => {
-      const needle = q.trim().toLowerCase();
-      if (!needle) return true;
-      const cfg = instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0);
-      return `${fmtObjId(i.object_id)} ${fmtObjId(i.order_object_id ?? null)} ${cfg.label}`.toLowerCase().includes(needle);
-    });
+  // fast immer die zuletzt entstandene Instanz). Ein Suchfeld gab es hier zwischenzeitlich –
+  // es ist wieder entfallen (Notiz #157): der Bestand EINES Artikels ist die kurze Liste, für
+  // die es keine Suche braucht; gesucht wird im Feed.
+  const shown = [...items].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0));
 
   return (
     // Zentriert und breiter: auf einem 3440er-Schirm klebte die Liste sonst links
     // in einer 720-px-Spalte. Die Überschrift «Bestand» steht bereits im Reiter darüber.
     <div style={{ maxWidth: 980, marginInline: 'auto' }}>
-      <div style={{ position: 'relative', marginBottom: 12 }}>
-        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-4)', pointerEvents: 'none' }} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Instanz, Auftrag oder Status suchen"
-          style={{ width: '100%', padding: '9px 12px 9px 34px', fontSize: 13.5, borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: '#fff', outline: 'none', boxSizing: 'border-box' }} />
-      </div>
       <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: '#fff' }}>
         {shown.map((i, idx) => (
           <button

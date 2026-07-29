@@ -2318,18 +2318,6 @@ export interface components {
             reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Fixed Location Lat */
-            fixed_location_lat?: number | string | null;
-            /** Fixed Location Lng */
-            fixed_location_lng?: number | string | null;
-            /** Fixed Location Street */
-            fixed_location_street?: string | null;
-            /** Fixed Location Zip */
-            fixed_location_zip?: string | null;
-            /** Fixed Location City */
-            fixed_location_city?: string | null;
-            /** Fixed Location Country */
-            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */
@@ -2629,18 +2617,6 @@ export interface components {
              * @default false
              */
             is_hazmat: boolean;
-            /** Fixed Location Lat */
-            fixed_location_lat?: string | null;
-            /** Fixed Location Lng */
-            fixed_location_lng?: string | null;
-            /** Fixed Location Street */
-            fixed_location_street?: string | null;
-            /** Fixed Location Zip */
-            fixed_location_zip?: string | null;
-            /** Fixed Location City */
-            fixed_location_city?: string | null;
-            /** Fixed Location Country */
-            fixed_location_country?: string | null;
             /**
              * Procurement Mode
              * @default supplier
@@ -2782,18 +2758,6 @@ export interface components {
             reorder_target?: number | string | null;
             /** Is Hazmat */
             is_hazmat?: boolean | null;
-            /** Fixed Location Lat */
-            fixed_location_lat?: number | string | null;
-            /** Fixed Location Lng */
-            fixed_location_lng?: number | string | null;
-            /** Fixed Location Street */
-            fixed_location_street?: string | null;
-            /** Fixed Location Zip */
-            fixed_location_zip?: string | null;
-            /** Fixed Location City */
-            fixed_location_city?: string | null;
-            /** Fixed Location Country */
-            fixed_location_country?: string | null;
             /** Procurement Mode */
             procurement_mode?: string | null;
             /** Default Supplier Id */

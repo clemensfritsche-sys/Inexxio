@@ -261,7 +261,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   ten Charge zum Kunden; reine Teilmengen-Sendung quittiert ohne Umlagerung statt 409; (4) **Kopier-
   Vollständigkeit**: `_copy_steps` (Ersetzen/Wiederkehr) kopiert jetzt `doc_signers`/`sign_sequential`/
   `doc_audience*`/`doc_visibility`/`transport_mode`, `duplicate_article` auch `is_hazmat`/`reorder_
-  target`/`fixed_location_*`/Beschaffungsquelle (vorher: Consent-Lücke + Freigabe-Gate-Bruch beim
+  target`/Beschaffungsquelle (vorher: Consent-Lücke + Freigabe-Gate-Bruch beim
   Nachfolger); (5) **Unterschriften-Deadlocks**: Ausstellen prüft aktive Parteien, Admin-Deaktivierung
   blockiert bei offenen Signoffs, abgelehntes Signoff bleibt für den Eigentümer re-aktionabel und hält
   die sequenzielle Position; (6) **Consent-Supersede erst bei in Kraft getretener Nachfolge**
@@ -609,12 +609,14 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `company_settings.article_names` ist **vollständig entfernt** (Modell/Schema/API + Admin-UI) –
   Vorschläge stammen ausschliesslich aus echten Artikelnamen.
 - **Optionale Artikel-Stammdaten** (dynamische Feldliste, nur bei Bedarf): `material`, `cad_url`
-  (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand) sowie
-  **Fixierter Standort** (`fixed_location_*`, Migration 069): GPS-Koordinaten + reverse-geocodierte
-  Adresse – rein deskriptiv am Artikel (`MapPicker` + Adressblock,
-  `google_maps_api_key`). Rein deskriptiv am Artikel; friert wie die übrige Spezifikation bei der
-  Freigabe ein. Im Spezifikation-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden
-  gespeichert/angezeigt.
+  (CAD-Link), `surface` (Oberfläche), `min_order_qty` (MOQ), `safety_stock` (Sicherheitsbestand).
+  Im Spezifikation-Reiter über «+ Feld hinzufügen» einblendbar; nur befüllte Felder werden
+  gespeichert/angezeigt. *Der frühere **«Fixierte Standort»** (`fixed_location_*` + `MapPicker`,
+  Migration 069) ist mit Migration `088` **ersatzlos entfallen** (Notiz #168): er trug einen
+  GPS-Punkt samt reverse-geocodierter Adresse, war aber rein deskriptiv – kein Bestands-Standort,
+  keine Logik. Ein Artikel ist eine **Gattung**; einen Ort hat immer nur die **Instanz**
+  (`instances.location_*` + `locations.location_chain`). Die Angabe war damit eine zweite,
+  konkurrierende Antwort auf «wo ist das?» – und die schwächere.*
 - **Durchlaufzeit** je Artikel (read-only, analog Preisspanne): kürzeste–längste Zeit zwischen Freigabe
   (`orders.released_at`) und Abschluss (`orders.completed_at`) über erledigte Aufträge
   (`ArticleResponse.lead_time_days_low/high`, berechnet in `routers/articles.py`).
@@ -699,8 +701,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
 - **Adress-Autofill (Google Places) + verschrottet = standortlos**: alle editierbaren Adressfelder nutzen
   Google-Places-Autovervollständigung (`components/erp/address-autocomplete.tsx` + `use-maps-key.ts`;
   Loader mit `libraries=places`) – Strasse tippen, Vorschlag wählen → Strasse/PLZ/Ort/Land (+Koordinaten)
-  automatisch. Verdrahtet in Profil-Adresse/Rechnungsadresse, Unternehmens-Stammdaten und als Suchfeld im
-  `MapPicker` (Artikel-Fixstandort). **Bugfix:** eine **verschrottete** Instanz zählt NIE mehr als
+  automatisch. Verdrahtet in Profil-Adresse/Rechnungsadresse und Unternehmens-Stammdaten. **Bugfix:** eine **verschrottete** Instanz zählt NIE mehr als
   «liegt hier» (`references.object_references` filtert `disposition != 'scrapped'`; Migration `072` nullt den
   Alt-Standort bereits verschrotteter Instanzen).
   - **Unterdeckung → EINE Formel & zwei Deckungs-Wege für ALLE Auftragsarten** (`services/recovery.py`,
@@ -1768,6 +1769,60 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`api.getInstances()` ohne Begrenzung). Der Endpunkt kann bereits serverseitig suchen und
   paginieren (`search`/`limit`/`offset`), die Umstellung ist also eine Ein-Stellen-Änderung,
   sobald die Instanzzahl das rechtfertigt.*
+
+- **Testnotizen-Runde 13 (weniger Wege, weniger Text, Notizen #148–#175, Migration `088`)**:
+  (1) **Der Klick auf den Weg IST die Ausführung** (#152–#155, `deactivate-dialog.tsx`): Der
+  Deaktivieren-Dialog liess erst eine Option wählen und darunter noch einmal bestätigen –
+  zwei Schritte für EINE Entscheidung, dazu ein ×, ein «Abbrechen» und eine hervorgehobene
+  Vorauswahl. Jetzt führen zwei gleichwertige Wege selbst aus («Deaktivieren» ↔ «Ersetzen»,
+  #151 – derselbe prägnante Name, den der Artikel-Kopf ohnehin verwendet); geschlossen wird
+  per Klick daneben oder `Esc`. Die **Wirkungsanalyse** bleibt (sie ist die Tatsachengrundlage,
+  nicht die Erklärung), ihre Unterzeilen sind entfallen (#148–#150). Dialog-Rahmen und
+  Wege-Knopf sind dabei zu `fields.tsx` gewandert (`Dialog`/`ChoiceButton`) – der
+  Abweichungs-Dialog nutzte dieselbe Form schon, jetzt aus EINER Quelle.
+  (2) **«Fixierter Standort» am Artikel ersatzlos entfernt** (#168, Migration `088`): sechs
+  Spalten für GPS + reverse-geocodierte Adresse, rein deskriptiv – kein Bestands-Standort,
+  keine Logik, gelesen nur von Formular, Lese-Ansicht und Kopierfunktion. Ein Artikel ist eine
+  **Gattung**; einen Ort hat immer nur die **Instanz**. Damit ist auch `MapPicker` entfallen
+  (Google Places bleibt für die Adressfelder).
+  (3) **Die Bezugsquelle steht am Schritt. Punkt.** (#166): «Leer lassen, um den
+  Artikel-Standard zu erben» zeigte auf einen Wert, den **niemand mehr setzen kann** – der
+  Abschnitt «Beschaffung» in der Artikel-Spezifikation ist seit Runde 2 weg. Eine Option, deren
+  Gegenstück unerreichbar ist, ist keine Option. Lieferant bzw. Webshop-Link sind jetzt
+  Pflicht am Beschaffungs-Schritt; der Backend-Fallback auf den Artikel-Standard bleibt als
+  **Lesepfad für Altbestand** (tolerant lesen, streng schreiben – wie bei den Standort-Typen).
+  Dazu: der Hinweis in der Spezifikation entfällt (#169), das Lieferanten-Symbol ist ein
+  **Gebäude** statt eines Lastwagens (#164 – gemeint ist die Firma, nicht der Transport), und
+  der Chip-Hinweis unter «Für Lieferant sichtbar» ist weg (#165).
+  (4) **Erfassungsfelder wählt man wie ein Prozessschrittmodul** (#172): eine Palette aus
+  Symbolen, deren Name beim Hover aufklappt (`.erp-palette`) – erst WAS für ein Feld, dann die
+  Konfiguration. Vorher: «Feld hinzufügen» → leere Zeile → Dropdown, also drei Handgriffe für
+  eine Entscheidung, und eine Zeile, die vor der Wahl bereits «Soll-Ist» behauptete. Die Art ist
+  danach das Symbol der Zeile, kein Feld mehr (umentscheiden = löschen + neu, wie beim Schritt).
+  (5) **Die Abweichung gehört an den Schritt, den sie unterbrochen hat** (#175): Sie stand als
+  Abzweig **unter** der Karte – was suggerierte, sie käme NACH dem Schritt, obwohl sie während
+  seiner Ausführung gemeldet wurde. Eine Abweichung ist aber kein Knoten in der Reihenfolge,
+  sondern die Aussage «hier ist etwas schiefgegangen» – und «hier» ist genau eine Karte. Sie
+  steht jetzt **in** der Karte ihres Schritts (`origin_step_id`), als schmale Zeile unter dem
+  Kopf. Eine Abweichung **ohne** Ursprungsschritt (an der Instanz gemeldet, oder bevor ein
+  Schritt aktiv war) gehört keinem Schritt, sondern dem Auftrag – sie bleibt ein Abzweig, aber
+  **vor** dem ersten Schritt. Damit ist die Liste in der Angehalten-Notiz überflüssig (#174),
+  und deren Erklärabsatz ebenso (#173): «angehalten» sagt bereits, dass nichts geht.
+  (6) **Schieberegler im Verkauf** (#159–#161): Status · Sichtbarkeit · Verfügbarkeit (und im
+  gleichen Zug Art · Intervall · Abo-Typ) laufen über denselben `IconSwitch` wie am Bedarf und
+  am Beschaffungs-Schritt – dass die Optionen einander ausschliessen, zeigt die Bewegung des
+  Reiters statt ein zweiter Rahmen.
+  (7) **Positionen dezenter** (#171): kein Zähler im Kopf (die Instanzen stehen darunter), das
+  Wort «Instanz» nicht mehr in jeder Zeile (unter einer Position IST jede Zeile eine), und die
+  Menge trägt kein zweites Fettgewicht neben dem Artikelnamen – in einer Zeile darf genau EINE
+  Angabe laut sein.
+  (8) **Freigeben steht bei den Aktionen** (#167): am Artikel wie am Auftrag unter dem Titel
+  neben QR-Druck/Deaktivieren – rechts bleibt nur der Zustand. Nebeneffekt: die Aktion ist jetzt
+  auf **jedem** Reiter erreichbar, nicht nur auf «Spezifikation».
+  (9) Entfallen: Suchfeld im Artikel-Bestand (#157 – der Bestand EINES Artikels ist die kurze
+  Liste; gesucht wird im Feed; revidiert #111), ⓘ bei «Inhalt»/«Preise» (#162/#163), «Noch kein
+  Preis …» (#158), «verteilt · N Standorte» (#170 – die Zeilen sind die Aussage), «Nachfolger:»
+  (#156).
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

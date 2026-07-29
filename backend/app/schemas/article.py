@@ -107,27 +107,6 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 _OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
 _OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock", "reorder_target")
 
-# Fixierter Standort (optionales Spezifikationsfeld): GPS + Adresse, rein deskriptiv.
-_FIXED_LOC_TEXT_FIELDS = (
-    "fixed_location_street", "fixed_location_zip", "fixed_location_city", "fixed_location_country",
-)
-
-
-def _check_lat(v: Optional[Decimal]) -> Optional[Decimal]:
-    if v is None:
-        return None
-    if not (Decimal("-90") <= v <= Decimal("90")):
-        raise ValueError("Breitengrad muss zwischen -90 und 90 liegen")
-    return v
-
-
-def _check_lng(v: Optional[Decimal]) -> Optional[Decimal]:
-    if v is None:
-        return None
-    if not (Decimal("-180") <= v <= Decimal("180")):
-        raise ValueError("Längengrad muss zwischen -180 und 180 liegen")
-    return v
-
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
@@ -153,20 +132,13 @@ class ArticleCreate(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
-    fixed_location_lat: Optional[Decimal] = None
-    fixed_location_lng: Optional[Decimal] = None
-    fixed_location_street: Optional[str] = None
-    fixed_location_zip: Optional[str] = None
-    fixed_location_city: Optional[str] = None
-    fixed_location_country: Optional[str] = None
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
     procurement_mode: Optional[str] = None   # Default 'supplier'
     default_supplier_id: Optional[int] = None
     default_webshop_url: Optional[str] = None
 
-    @field_validator(*_OPTIONAL_TEXT_FIELDS, *_FIXED_LOC_TEXT_FIELDS)
+    @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
     def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
         return _opt_text(v)
@@ -175,16 +147,6 @@ class ArticleCreate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
-
-    @field_validator("fixed_location_lat")
-    @classmethod
-    def _lat_ok(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        return _check_lat(v)
-
-    @field_validator("fixed_location_lng")
-    @classmethod
-    def _lng_ok(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        return _check_lng(v)
 
     @field_validator("procurement_mode")
     @classmethod
@@ -264,13 +226,6 @@ class ArticleUpdate(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
-    fixed_location_lat: Optional[Decimal] = None
-    fixed_location_lng: Optional[Decimal] = None
-    fixed_location_street: Optional[str] = None
-    fixed_location_zip: Optional[str] = None
-    fixed_location_city: Optional[str] = None
-    fixed_location_country: Optional[str] = None
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
     default_supplier_id: Optional[int] = None
@@ -279,7 +234,7 @@ class ArticleUpdate(BaseModel):
     # Optimistic Locking: Stand, den der Client zuletzt gesehen hat (optional).
     expected_updated_at: Optional[datetime] = None
 
-    @field_validator(*_OPTIONAL_TEXT_FIELDS, *_FIXED_LOC_TEXT_FIELDS)
+    @field_validator(*_OPTIONAL_TEXT_FIELDS)
     @classmethod
     def _opt_text_clean(cls, v: Optional[str]) -> Optional[str]:
         return _opt_text(v)
@@ -288,16 +243,6 @@ class ArticleUpdate(BaseModel):
     @classmethod
     def _opt_qty_clean(cls, v: Optional[Decimal]) -> Optional[Decimal]:
         return _opt_qty(v)
-
-    @field_validator("fixed_location_lat")
-    @classmethod
-    def _lat_ok(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        return _check_lat(v)
-
-    @field_validator("fixed_location_lng")
-    @classmethod
-    def _lng_ok(cls, v: Optional[Decimal]) -> Optional[Decimal]:
-        return _check_lng(v)
 
     @field_validator("procurement_mode")
     @classmethod
@@ -380,13 +325,6 @@ class ArticleResponse(BaseModel):
     safety_stock: Optional[Decimal] = None
     reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
     is_hazmat: bool = False                     # Gefahrgut (Versand-Warnung, ADR 005)
-    # Fixierter Standort (optional): GPS + Adresse, rein deskriptiv.
-    fixed_location_lat: Optional[Decimal] = None
-    fixed_location_lng: Optional[Decimal] = None
-    fixed_location_street: Optional[str] = None
-    fixed_location_zip: Optional[str] = None
-    fixed_location_city: Optional[str] = None
-    fixed_location_country: Optional[str] = None
     # Beschaffungsquelle (Spezifikation) + denormalisierter Lieferantenname (Router)
     procurement_mode: str = "supplier"
     default_supplier_id: Optional[int] = None

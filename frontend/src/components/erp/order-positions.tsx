@@ -2,7 +2,7 @@
 
 import { Boxes, MapPin } from 'lucide-react';
 import type { LocationType, Order, OrderInstance } from '@/types';
-import { instanceStatusConfig, instanceLabel, LOCATION_META } from '@/lib/process';
+import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge, TileShell, TILE } from '@/components/erp/fields';
@@ -25,19 +25,18 @@ export function OrderPositions({ order }: { order: Order }) {
   const groups = buildGroups(order);
   if (groups.length === 0) return null;
 
-  const total = (order.instances ?? []).length;
   const onlyInstances = groups.length === 1 && !groups[0].name;
 
+  // Kein Zähler im Kopf (Notiz #171): die Instanzen stehen darunter – sie zu zählen macht
+  // die Kachel nur schwerer. Ebenso trägt die Menge kein zweites Fettgewicht neben dem
+  // Artikelnamen: in einer Zeile darf genau EINE Angabe laut sein.
   return (
     <TileShell
       icon={Boxes}
       label={onlyInstances ? 'Instanzen' : groups.length === 1 ? 'Position' : 'Positionen'}
       style={{ gridColumn: '1 / -1' }}
-      right={total > 0 && !onlyInstances
-        ? <span style={countStyle}>{total === 1 ? '1 Instanz' : `${total} Instanzen`}</span>
-        : undefined}
     >
-      <div style={{ ...TILE.v, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 14, whiteSpace: 'normal', overflow: 'visible' }}>
+      <div style={{ ...TILE.v, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12, whiteSpace: 'normal', overflow: 'visible' }}>
         {groups.map((g) => (
           <div key={g.key}>
             {/* Kopfzeile der Position: Nummer · Artikel · Menge. */}
@@ -66,15 +65,20 @@ export function OrderPositions({ order }: { order: Order }) {
   );
 }
 
-/** Eine Instanz – Nummer, Art/Menge, Standort, Zustand. Umbricht statt zu überlaufen. */
+/**
+ * Eine Instanz – Nummer, Menge (nur wenn sie etwas sagt), Standort, Zustand.
+ *
+ * Das Wort «Instanz» steht nicht mehr in jeder Zeile (Notiz #171): unter einer Position
+ * IST jede Zeile eine Instanz, das sagt schon die Kachel. Übrig bleibt, was unterscheidet –
+ * bei einer Charge ihre Menge, beim Einzelstück nichts.
+ */
 function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: string }) {
   const Icon = LOCATION_META[(i.location_type as LocationType)]?.icon ?? MapPin;
+  const qty = i.kind === 'batch' && i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
   return (
     <div style={lineStyle}>
       <ObjId value={i.object_id} />
-      <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)' }}>
-        {instanceLabel(i.kind, i.quantity, unit)}
-      </span>
+      {qty && <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums' }}>{qty}</span>}
       {i.location_label && (
         <span style={locStyle}>
           <Icon size={11} /> {i.location_label}
@@ -156,30 +160,26 @@ function buildGroups(order: Order): Group[] {
 
 // ─── Stile ────────────────────────────────────────────────────────────────────
 
-const countStyle: React.CSSProperties = {
-  font: '600 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums',
-  textTransform: 'none', letterSpacing: 0,
-};
 const headStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap',
 };
 const nameStyle: React.CSSProperties = {
-  font: '700 15px var(--font-body)', color: 'var(--fg-1)', flex: '1 1 140px', minWidth: 0,
+  font: '700 14px var(--font-body)', color: 'var(--fg-1)', flex: '1 1 140px', minWidth: 0,
   overflow: 'hidden', textOverflow: 'ellipsis',
 };
 const qtyStyle: React.CSSProperties = {
-  font: '700 15px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+  font: '500 13px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums', flexShrink: 0,
 };
 const unitStyle: React.CSSProperties = {
-  font: '500 12.5px var(--font-body)', color: 'var(--fg-4)', marginLeft: 4,
+  font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3,
 };
 // Zugehörigkeit als Einrückung an einer Haarlinie – ohne Kästen, ohne zweite Karte.
 const nestStyle: React.CSSProperties = {
-  marginTop: 8, marginLeft: 3, paddingLeft: 13, borderLeft: '1px solid var(--border-1)',
-  display: 'flex', flexDirection: 'column', gap: 7,
+  marginTop: 6, marginLeft: 3, paddingLeft: 13, borderLeft: '1px solid var(--border-1)',
+  display: 'flex', flexDirection: 'column', gap: 5,
 };
 const plainStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', gap: 7,
+  display: 'flex', flexDirection: 'column', gap: 5,
 };
 const lineStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',

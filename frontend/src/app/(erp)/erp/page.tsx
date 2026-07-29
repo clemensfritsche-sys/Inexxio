@@ -164,7 +164,6 @@ export default function ErpPage() {
   const loadMoreRef = useRef<() => void>(() => {});
   const lastLoadRef = useRef<number>(0);   // Zeitpunkt des letzten Feed-Ladens (Rückkehr-Refresh)
 
-  const mapsApiKey = settings?.google_maps_api_key ?? null;
   const suppliers = users.filter((u) => u.role === 'supplier');
   // Kombinierte Kamera im Feed: EIN Knopf für Scannen (Code → Datensatz öffnen) UND
   // Dokument erfassen (Auslöser → KI-Aufnahme). Kein Moduswechsel.
@@ -573,7 +572,7 @@ export default function ErpPage() {
             onReset={() => { setSel(null); setCreating(null); setMobileView('list'); }}
           >
           {creating === 'article' && (
-            <ArticleDetail key="new-article" record={null} suppliers={suppliers} mapsApiKey={mapsApiKey} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
+            <ArticleDetail key="new-article" record={null} suppliers={suppliers} onSaved={handleArticleSaved} onCancel={cancelCreate} onBack={cancelCreate} />
           )}
           {creating === 'order' && (
             <OrderDetail key="new-order" record={null} articles={articles} viewerRole={viewerRole} company={settings} suppliers={suppliers} onSaved={handleOrderSaved} onCancel={cancelCreate} onBack={cancelCreate} />
@@ -582,7 +581,7 @@ export default function ErpPage() {
             <UserDetail key={activeRow.key} record={activeRow.data} onSave={handleUserSaved} isAdmin={isAdmin} onBack={() => setMobileView('list')} />
           )}
           {!creating && activeRow?.type === 'article' && (
-            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} mapsApiKey={mapsApiKey} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
+            <ArticleDetail key={activeRow.key} record={activeRow.data} suppliers={suppliers} onSaved={handleArticleSaved} onRefresh={() => api.getArticles().then(setArticles).catch(() => {})} onCancel={() => setMobileView('list')} onBack={() => setMobileView('list')} />
           )}
           {!creating && sel?.type === 'order' && (
             orderDetail && orderDetail.object_id === sel.objectId ? (

@@ -59,11 +59,10 @@ export function LocationPathCard({ path, slices, unit, style }: {
   const parts = (slices ?? []).filter((s) => !!s && s.location_id != null);
   const distributed = parts.length > 1;
 
+  // Kein «verteilt · N Standorte»-Zusatz (Notiz #170): die Zeilen darunter SIND die
+  // Aussage – sie zu zählen und zu benennen, sagt nichts Neues.
   return (
-    <TileShell
-      icon={MapPin} label="Standort" style={style}
-      right={distributed ? <span style={ST.pill}>verteilt · {parts.length} Standorte</span> : undefined}
-    >
+    <TileShell icon={MapPin} label="Standort" style={style}>
       {distributed ? (
         <ol style={ST.list}>
           {parts.map((s) => {
@@ -120,10 +119,6 @@ export function LocationPathCard({ path, slices, unit, style }: {
 }
 
 const ST: Record<string, React.CSSProperties> = {
-  pill: {
-    font: '600 11px var(--font-body)', color: 'var(--accent-ink)', background: 'var(--accent-soft)',
-    padding: '2px 9px', borderRadius: 'var(--r-pill)', textTransform: 'none', letterSpacing: 0,
-  },
   empty: { font: '500 13.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 6 },
   list: { listStyle: 'none', margin: '4px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 2 },
   row: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' },

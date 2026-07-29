@@ -26,7 +26,6 @@ import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { MapPicker, type ParsedAddress } from '@/components/erp/map-picker';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
@@ -56,16 +55,13 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 ];
 
 type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'is_hazmat';
-// Der «Fixierte Standort» ist ebenfalls ein optionales Spezifikationsfeld – aber kein simples
-// Textfeld, sondern (exakt wie am Lagerplatz) ein GPS-/Adressblock. Deshalb ein eigener Key.
-type AddKey = OptKey | 'fixed_location';
+// Der frühere «Fixierte Standort» (GPS + Adresse am Artikel) ist ersatzlos entfallen
+// (Notiz #168): Ein Artikel ist eine Gattung – einen Ort hat immer nur die Instanz.
+type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
   reorder_target: string; is_hazmat: string;
-  // Fixierter Standort (optional): GPS + reverse-geocodierte Adresse – exakt wie am Lagerplatz.
-  fixed_lat: string; fixed_lng: string;
-  fixed_street: string; fixed_zip: string; fixed_city: string; fixed_country: string;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
   procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
@@ -86,7 +82,6 @@ function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
     reorder_target: '', is_hazmat: '',
-    fixed_lat: '', fixed_lng: '', fixed_street: '', fixed_zip: '', fixed_city: '', fixed_country: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
   return {
@@ -99,10 +94,6 @@ function seedFrom(record: Article | null): Form {
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
     reorder_target: record.reorder_target != null ? String(record.reorder_target) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
-    fixed_lat: record.fixed_location_lat != null ? String(record.fixed_location_lat) : '',
-    fixed_lng: record.fixed_location_lng != null ? String(record.fixed_location_lng) : '',
-    fixed_street: record.fixed_location_street ?? '', fixed_zip: record.fixed_location_zip ?? '',
-    fixed_city: record.fixed_location_city ?? '', fixed_country: record.fixed_location_country ?? '',
     procurement_mode: record.procurement_mode ?? 'supplier',
     default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
     default_webshop_url: record.default_webshop_url ?? '',
@@ -121,9 +112,6 @@ function signatureOf(form: Form): string {
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
     reorder_target: form.reorder_target.trim(), is_hazmat: form.is_hazmat,
-    fixed_lat: form.fixed_lat.trim(), fixed_lng: form.fixed_lng.trim(),
-    fixed_street: form.fixed_street.trim(), fixed_zip: form.fixed_zip.trim(),
-    fixed_city: form.fixed_city.trim(), fixed_country: form.fixed_country.trim(),
     procurement_mode: form.procurement_mode,
     default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
     default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
@@ -137,10 +125,9 @@ function isTransient(msg: string): boolean {
   return /keine verbindung|server nicht erreichbar|netzwerkfehler|failed to fetch|networkerror|load failed/i.test(msg);
 }
 
-export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSaved, onCancel, onBack, onRefresh }: {
+export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBack, onRefresh }: {
   record: Article | null;          // null ⇒ Anlage-Modus
   suppliers?: UserProfile[];
-  mapsApiKey?: string | null;      // Google-Maps-Key für den «Fixierten Standort» (wie Lagerplatz)
   onSaved: (a: Article) => void;
   onCancel: () => void;
   onBack: () => void;
@@ -185,11 +172,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
   // Welche optionalen Felder werden angezeigt (mit Wert oder bewusst hinzugefügt)
   const [added, setAdded] = useState<AddKey[]>(() => {
     const s = seedFrom(record);
-    const keys: AddKey[] = OPTIONAL_FIELDS.filter((f) => s[f.key].trim() !== '').map((f) => f.key);
-    if (s.fixed_lat.trim() || s.fixed_lng.trim() || s.fixed_street.trim() || s.fixed_city.trim()) {
-      keys.push('fixed_location');
-    }
-    return keys;
+    return OPTIONAL_FIELDS.filter((f) => s[f.key].trim() !== '').map((f) => f.key);
   });
 
   function set<K extends keyof Form>(key: K, value: Form[K]) {
@@ -199,24 +182,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
   function addField(key: AddKey) { setAdded((a) => (a.includes(key) ? a : [...a, key])); }
   function removeField(key: AddKey) {
     setAdded((a) => a.filter((k) => k !== key));
-    if (key === 'fixed_location') {
-      setForm((p) => ({ ...p, fixed_lat: '', fixed_lng: '', fixed_street: '', fixed_zip: '', fixed_city: '', fixed_country: '' }));
-    } else {
-      set(key, '');
-    }
-  }
-
-  // «Fixierter Standort»: GPS-Pick spiegelt Koordinaten + (falls vorhanden) reverse-geocodierte
-  // Adresse ins Formular – exakt wie am Lagerplatz (`handlePick`).
-  function pickFixedLocation(la: number, ln: number, address?: ParsedAddress) {
-    setForm((p) => ({
-      ...p,
-      fixed_lat: la.toFixed(6), fixed_lng: ln.toFixed(6),
-      fixed_street: address?.street || p.fixed_street,
-      fixed_zip: address?.zip || p.fixed_zip,
-      fixed_city: address?.city || p.fixed_city,
-      fixed_country: address?.country || p.fixed_country,
-    }));
+    set(key, '');
   }
 
   // Nach der Freigabe ist der Artikel schreibgeschützt (keine Versionierung).
@@ -311,13 +277,6 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
         safety_stock: form.safety_stock.trim() || null,
         reorder_target: form.reorder_target.trim() || null,
         is_hazmat: form.is_hazmat === 'ja',
-        // Fixierter Standort (optional): GPS + Adresse, exakt wie am Lagerplatz.
-        fixed_location_lat: form.fixed_lat.trim() || null,
-        fixed_location_lng: form.fixed_lng.trim() || null,
-        fixed_location_street: form.fixed_street.trim() || null,
-        fixed_location_zip: form.fixed_zip.trim() || null,
-        fixed_location_city: form.fixed_city.trim() || null,
-        fixed_location_country: form.fixed_country.trim() || null,
         // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
         procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
         default_supplier_id: form.procurement_mode === 'supplier' && form.default_supplier_id
@@ -383,7 +342,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                       {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
                     </button>
                   )}
-                  {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer (Claude-Design):
+                  {/* Deaktivieren/Ersetzen als kleines Symbol neben der Objektnummer:
                       nur bei freigegebenem Artikel, öffnet den Dialog (mit «Ersetzen»-Option). */}
                   {record.status === 'released' && (
                     <button className="erp-idbtn erp-idbtn-danger" data-tip="Deaktivieren / ersetzen" data-tip-pos="bottom"
@@ -391,6 +350,24 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                       onClick={() => onStatusAction('inactive')}>
                       <Ban size={15} />
                     </button>
+                  )}
+                  {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen – genau wie
+                      am Auftrag (Notiz #167): eine Aktion gehört zu den Aktionen, rechts
+                      steht nur der Zustand. Sie ist damit auf JEDEM Reiter erreichbar. */}
+                  {actions.some((a) => a.tone !== 'danger') && (
+                    <>
+                      <span style={H.idsep} />
+                      {actions.filter((a) => a.tone !== 'danger').map((a) => (
+                        <button key={a.target} type="button"
+                          className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
+                          style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
+                          data-tip={a.hint} data-tip-pos="bottom"
+                          disabled={statusBusy || a.disabled}
+                          onClick={() => onStatusAction(a.target)}>
+                          {a.label}
+                        </button>
+                      ))}
+                    </>
                   )}
                 </>
               )}
@@ -403,24 +380,6 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                 {StatusCfgIcon && <StatusCfgIcon size={15} strokeWidth={2.5} />}{statusCfg.label}
               </span>
             </div>
-            {/* «Deaktivieren» (danger) ist als kleines Symbol neben der Objektnummer platziert –
-                hier nur die übrigen Aktionen (z. B. «Freigeben» beim Entwurf). */}
-            {actions.some((a) => a.tone !== 'danger') && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                {actions.filter((a) => a.tone !== 'danger').map((a) => (
-                  <button
-                    key={a.target}
-                    onClick={() => onStatusAction(a.target)}
-                    disabled={statusBusy || a.disabled}
-                    data-tip={a.hint}
-                    data-tip-pos="bottom"
-                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
-                  >
-                    {a.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -441,7 +400,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
         {tab === 'spezifikation' && (
           <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
             {locked ? (
-              <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} mapsApiKey={mapsApiKey} />
+              <SpecRead record={record!} form={form} weightIsComputed={weightIsComputed} computedWeight={computedWeight} />
             ) : (
               <div style={SPEC.card}>
                 {/* Karten-Kopf «Spezifikation» + «+»-Knopf (nur Entwurf) für optionale Felder. */}
@@ -470,11 +429,6 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                       {OPTIONAL_FIELDS.filter((f) => added.includes(f.key)).map((f) => (
                         <OptField key={f.key} f={f} form={form} onSet={set} onRemove={removeField} />
                       ))}
-                      {/* Fixierter Standort (GPS + Adresse, exakt wie am Lagerplatz) – volle Breite. */}
-                      {added.includes('fixed_location') && (
-                        <FixedLocationField mapsApiKey={mapsApiKey} form={form} onSet={set}
-                          onPick={pickFixedLocation} onRemove={() => removeField('fixed_location')} />
-                      )}
                       {!isCreate && record!.lead_time_days_low != null && (
                         <ReadField icon={Truck} label="Lieferzeit" value={leadValue(record!)} spread={leadSpread(record!)}
                           autoHint="Median aus erledigten Aufträgen" />
@@ -485,9 +439,6 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
                       )}
                     </div>
                   )}
-                  <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5 }}>
-                    Bezugsquelle &amp; Lieferant legst du im Reiter «Prozess» am Beschaffungs-Schritt fest.
-                  </div>
                 </div>
               </div>
             )}
@@ -496,8 +447,7 @@ export function ArticleDetail({ record, suppliers = [], mapsApiKey = null, onSav
         {tab === 'prozess' && (
           <ProcessSteps owner="articles" ownerObjectId={record?.object_id ?? null} suppliers={suppliers}
             readOnly={record?.status !== 'draft'} selfArticleObjectId={record?.object_id ?? null}
-            onStepsCount={setStepsCount}
-            procurementReady={form.procurement_mode === 'webshop' ? !!form.default_webshop_url.trim() : !!form.default_supplier_id} />
+            onStepsCount={setStepsCount} />
         )}
         {tab === 'bestand' && (
           <InstanceList articleObjectId={record?.object_id ?? null} unit={record ? unitLabel(record.unit) : undefined} />
@@ -704,12 +654,10 @@ function SubSection({ icon: Icon, title, children }: {
   );
 }
 
-// Kombiniertes Add-Menü: alle optionalen Text-/Mengenfelder + der «Fixierte Standort»
-// (GPS-/Adressblock). EIN Menü im Sektions-Kopf bietet alle noch nicht sichtbaren Felder an.
-const ADD_MENU: { key: AddKey; label: string; hint?: string }[] = [
-  ...OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label, hint: f.hint })),
-  { key: 'fixed_location', label: 'Fixierter Standort', hint: 'Fester GPS-Standort + Adresse (wie am Lagerplatz)' },
-];
+// Add-Menü: die optionalen Text-/Mengenfelder. EIN Menü im Sektions-Kopf bietet alle noch
+// nicht sichtbaren Felder an.
+const ADD_MENU: { key: AddKey; label: string; hint?: string }[] =
+  OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label, hint: f.hint }));
 
 // «Feld hinzufügen» als kleines +-Symbol (Hover-Tooltip) im Sektions-Kopf → Dropdown der
 // noch nicht sichtbaren optionalen Felder DIESER Sektion. Kein eigener «Zusätzliche»-Bereich.
@@ -779,52 +727,6 @@ function OptField({ f, form, onSet, onRemove }: {
         <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
       )}
       {f.hint && <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{f.hint}</div>}
-    </div>
-  );
-}
-
-// Optionales Feld «Fixierter Standort»: GPS-Karte + reverse-geocodierte Adresse – exakt wie
-// die Standort-Definition am Lagerplatz-Datensatz. Volle Breite (Karte + Adressblock).
-function FixedLocationField({ mapsApiKey, form, onSet, onPick, onRemove }: {
-  mapsApiKey: string | null;
-  form: Form;
-  onSet: (k: keyof Form, v: string) => void;
-  onPick: (lat: number, lng: number, address?: ParsedAddress) => void;
-  onRemove: () => void;
-}) {
-  const lat = form.fixed_lat.trim() ? Number(form.fixed_lat) : null;
-  const lng = form.fixed_lng.trim() ? Number(form.fixed_lng) : null;
-  return (
-    <div style={{ gridColumn: '1 / -1' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: '700 13px var(--font-body)', color: 'var(--fg-1)' }}>
-          <MapPin size={14} style={{ color: 'var(--fg-4)' }} /> Fixierter Standort
-        </span>
-        <button type="button" onClick={onRemove} title="Feld entfernen"
-          style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 0 }}>
-          <Trash2 size={13} />
-        </button>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <MapPicker apiKey={mapsApiKey} lat={lat} lng={lng} onPick={onPick} />
-        <div style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>Adresse (wird aus Karte/GPS ermittelt, anpassbar):</div>
-        <LocInput label="Strasse & Nr." value={form.fixed_street} onChange={(v) => onSet('fixed_street', v)} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14 }}>
-          <LocInput label="PLZ" value={form.fixed_zip} onChange={(v) => onSet('fixed_zip', v)} />
-          <LocInput label="Ort" value={form.fixed_city} onChange={(v) => onSet('fixed_city', v)} />
-        </div>
-        <LocInput label="Land" value={form.fixed_country} onChange={(v) => onSet('fixed_country', v)} />
-      </div>
-    </div>
-  );
-}
-
-// Kleines Adress-Eingabefeld (Overline-Label + `.fin`-Input) für den Fixierten Standort.
-function LocInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <FieldLabel>{label}</FieldLabel>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className={FIN_CLS} />
     </div>
   );
 }
@@ -957,9 +859,8 @@ function IconPick({ label, value, onChange, options, required }: {
 }
 
 // Read-only-Spezifikation (freigegebener Artikel) – in Sektionen gegliedert.
-function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }: {
+function SpecRead({ record, form, weightIsComputed, computedWeight }: {
   record: Article; form: Form; weightIsComputed: boolean; computedWeight: string | number | null;
-  mapsApiKey: string | null;
 }) {
   const has = (k: OptKey) => form[k].trim() !== '';
   const hasPhysical = !!record.size || weightIsComputed || record.weight_kg != null;
@@ -969,10 +870,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
   // ehrlich getrennte Dinge: **abgeleitete Kennzahlen** (aus der Historie gerechnet) und
   // die restlichen optionalen Angaben, die zur Spezifikation selbst gehören.
   const hasMetrics = record.lead_time_days_low != null || costValue(record) != null;
-  const fixedLat = form.fixed_lat.trim() ? Number(form.fixed_lat) : null;
-  const fixedLng = form.fixed_lng.trim() ? Number(form.fixed_lng) : null;
-  const hasFixedLoc = fixedLat != null || fixedLng != null
-    || form.fixed_street.trim() !== '' || form.fixed_city.trim() !== '';
   return (
     <div style={SPEC.card}>
       {/* Karten-Kopf «Spezifikation» (ohne «+»-Knopf – freigegeben ist read-only). */}
@@ -1012,21 +909,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
           )}
         </SubSection>
       )}
-      {hasFixedLoc && (
-        <SubSection icon={MapPin} title="Fixierter Standort">
-          <div style={{ gridColumn: '1 / -1' }}>
-            <MapPicker apiKey={mapsApiKey} lat={fixedLat} lng={fixedLng} onPick={() => {}} readOnly />
-          </div>
-          {form.fixed_street.trim() && <ReadField icon={MapPin} label="Strasse" value={form.fixed_street} />}
-          {(form.fixed_zip.trim() || form.fixed_city.trim()) && (
-            <ReadField icon={Boxes} label="PLZ / Ort" value={`${form.fixed_zip} ${form.fixed_city}`.trim()} />
-          )}
-          {form.fixed_country.trim() && <ReadField icon={ExternalLink} label="Land" value={form.fixed_country} />}
-          {fixedLat != null && fixedLng != null && (
-            <ReadField icon={Scaling} label="GPS" value={`${fixedLat.toFixed(5)}, ${fixedLng.toFixed(5)}`} mono />
-          )}
-        </SubSection>
-      )}
     </div>
   );
 }
@@ -1034,7 +916,6 @@ function SpecRead({ record, form, weightIsComputed, computedWeight, mapsApiKey }
 // Symbole für die optionalen Felder (im Sektions-«+»-Menü).
 const MENU_ICON: Record<string, React.ElementType> = {
   material: Layers, surface: Sparkles, min_order_qty: Package, safety_stock: Shield,
-  fixed_location: MapPin,
 };
 
 function formatDuration(days: number): string {

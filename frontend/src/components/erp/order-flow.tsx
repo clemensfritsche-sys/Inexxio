@@ -21,8 +21,16 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 // zurück (ausgegraut), nur der aktive trägt seine Farbe. Dazu ein Symbol statt eines Wortes –
 // Haken (erledigt), Pause (angehalten), Kreuz (Fehler). Der Hover nennt Wer/Wann.
 //
-// **Abweichungen** (Notiz #85) stehen als dezenter Abzweig an der Stelle, an der sie gemeldet
-// wurden (``origin_step_id``) – sichtbar, aber ohne den Hauptfluss zu verstellen.
+// **Abweichungen** (Notizen #85, #175) gehören **an den Schritt, den sie unterbrochen haben** –
+// nicht davor und nicht danach. Eine Abweichung ist kein Knoten in der Reihenfolge: sie ist die
+// Aussage «hier ist etwas schiefgegangen», und «hier» ist genau eine Karte. Darum steht sie IN
+// der Karte ihres Schritts (``origin_step_id``), als schmale Zeile unter dem Kopf. Vorher stand
+// sie als eigener Abzweig darunter – was suggerierte, sie käme NACH dem Schritt, obwohl sie
+// während seiner Ausführung gemeldet wurde.
+//
+// Eine Abweichung OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt aktiv
+// war) gehört keinem Schritt – sie gehört dem Auftrag und steht darum als Abzweig **vor** dem
+// ersten Schritt, am Anfang des Flusses.
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -30,8 +38,10 @@ function completionHint(s: OrderStep): string | undefined {
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
-export function OrderFlow({ steps, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
+export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, onOpenOrder, renderPanel }: {
   steps: OrderStep[];
+  /** Alle Abweichungen des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
+  deviations?: OrderDeviationInfo[];
   selectedId?: string | null;
   onSelectStep: (stepId: string) => void;
   onOpenOrder: (objectId: number) => void;
@@ -40,6 +50,12 @@ export function OrderFlow({ steps, selectedId, onSelectStep, onOpenOrder, render
   if (steps.length === 0) return null;
 
   const rows: React.ReactNode[] = [];
+
+  // Was kein Schritt für sich beansprucht, gehört dem Auftrag – und steht am Anfang.
+  const claimed = new Set(steps.flatMap((s) => (s.deviations ?? []).map((d) => d.object_id)));
+  for (const d of deviations.filter((x) => !claimed.has(x.object_id))) {
+    rows.push(<DeviationBranch key={`dev-order-${d.object_id}`} info={d} onOpen={onOpenOrder} />);
+  }
   const provisioningCards = (s: OrderStep) => (s.provisionings ?? []).map((p) => (
     <FlowCard
       key={`prov-${p.object_id}`}
@@ -65,6 +81,8 @@ export function OrderFlow({ steps, selectedId, onSelectStep, onOpenOrder, render
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
+        deviations={s.deviations ?? []}
+        onOpenOrder={onOpenOrder}
         onClick={() => onSelectStep(String(s.id))}
       >
         {selected && renderPanel?.(s)}
@@ -74,10 +92,6 @@ export function OrderFlow({ steps, selectedId, onSelectStep, onOpenOrder, render
     // (Beschaffung/Verkauf) – die Regel steht im Backend, hier wird nur platziert.
     if (s.provisioning_stage === 'before') rows.push(...provisioningCards(s), card);
     else rows.push(card, ...provisioningCards(s));
-    // Abweichungen: dezenter Abzweig an genau dieser Stelle.
-    for (const d of s.deviations ?? []) {
-      rows.push(<DeviationBranch key={`dev-${d.object_id}`} info={d} onOpen={onOpenOrder} />);
-    }
   }
 
   return (
@@ -103,7 +117,7 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   failed:  { icon: X,           color: 'var(--danger)' },
 };
 
-function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onClick, children }: {
+function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, deviations, onOpenOrder, onClick, children }: {
   type: StepType;
   label: string;
   icon: React.ElementType;
@@ -111,6 +125,8 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
   state: string;
   hint?: string;
   selected?: boolean;
+  deviations?: OrderDeviationInfo[];
+  onOpenOrder?: (objectId: number) => void;
   onClick: () => void;
   children?: React.ReactNode;
 }) {
@@ -149,6 +165,13 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
         </div>
         {MarkIcon && <MarkIcon size={18} style={{ color: mark.color, flexShrink: 0 }} />}
       </div>
+      {/* Was diesen Schritt unterbrochen hat, steht IN seiner Karte – auf seiner Höhe,
+          nicht davor oder danach (Notiz #175). */}
+      {(deviations ?? []).length > 0 && (
+        <div style={{ borderTop: `1px solid ${kc.border}`, padding: '9px 18px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {deviations!.map((d) => <DeviationPill key={d.object_id} info={d} onOpen={onOpenOrder} />)}
+        </div>
+      )}
       {/* Der Schritt wird DORT bearbeitet, wo er im Fluss steht – nicht in einem eigenen
           Container darunter. Gleiche Anatomie wie die Konfiguration in der Definition. */}
       {children && (
@@ -160,27 +183,34 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, onCl
   );
 }
 
-// Abweichung als **Abzweig** vom Hauptfluss: schmaler als eine Modul-Karte, eingerückt und
-// mit einem kurzen Aststück – sichtbar, ohne den Fluss zu verstellen.
+// Abweichung OHNE Ursprungsschritt: als **Abzweig** am Anfang des Flusses – eingerückt und
+// mit kurzem Aststück, sichtbar, ohne den Fluss zu verstellen.
 function DeviationBranch({ info, onOpen }: { info: OrderDeviationInfo; onOpen: (id: number) => void }) {
-  const open = info.status === 'draft' || info.status === 'released';
   return (
     <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', justifyContent: 'flex-start', paddingLeft: 26 }}>
       <div style={{ display: 'flex', alignItems: 'stretch' }}>
         <div style={{ width: 18, borderLeft: '2px solid var(--border-2)', borderBottom: '2px solid var(--border-2)', borderBottomLeftRadius: 8, marginBottom: 13 }} />
-        <button type="button" onClick={() => onOpen(info.object_id)}
-          title={open ? 'Offene Abweichung – der Auftrag pausiert, bis sie geklärt ist' : 'Geklärte Abweichung'}
-          style={{
-            marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-            padding: '5px 11px', borderRadius: 'var(--r-pill)', font: '600 12px var(--font-body)',
-            border: `1px solid ${open ? 'var(--warning)' : 'var(--border-1)'}`,
-            background: open ? 'var(--warning-bg)' : '#fff',
-            color: open ? 'var(--warning)' : 'var(--fg-4)',
-          }}>
-          <TriangleAlert size={13} /> Abweichung <ObjId value={info.object_id} />
-        </button>
+        <span style={{ marginLeft: 8 }}><DeviationPill info={info} onOpen={onOpen} /></span>
       </div>
     </div>
+  );
+}
+
+/** Die EINE Darstellung einer Abweichung im Fluss – offen (gelb) oder geklärt (still). */
+function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: number) => void }) {
+  const open = info.status === 'draft' || info.status === 'released';
+  return (
+    <button type="button" onClick={() => onOpen?.(info.object_id)}
+      title={open ? 'Offene Abweichung – der Auftrag pausiert, bis sie geklärt ist' : 'Geklärte Abweichung'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
+        padding: '5px 11px', borderRadius: 'var(--r-pill)', font: '600 12px var(--font-body)',
+        border: `1px solid ${open ? 'var(--warning)' : 'var(--border-1)'}`,
+        background: open ? 'var(--warning-bg)' : '#fff',
+        color: open ? 'var(--warning)' : 'var(--fg-4)',
+      }}>
+      <TriangleAlert size={13} /> Abweichung <ObjId value={info.object_id} />
+    </button>
   );
 }
 
