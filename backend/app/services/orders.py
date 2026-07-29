@@ -20,7 +20,7 @@ from ..schemas.instance import InstanceEmbed
 from ..schemas.movement import MovementEmbed
 from ..schemas.order import (
     OrderDeviationInfo, OrderLineInfo, OrderResponse, OrderStepInfo, OrderSummary,
-    ShortfallInstance, StepShortfall,
+    ShortfallInstance, StepResolution, StepShortfall,
 )
 from ..schemas.purchase_order import PurchaseEmbed, PurchaseHistoryEntry
 from ..models.base import utcnow
@@ -369,6 +369,52 @@ def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
     ]
 
 
+# Entscheidungen, die eine Unterdeckung an diesem Schritt aufgelöst haben (Notiz #281).
+_RESOLUTION_EVENTS = ("order.covered_from_stock", "order.quantity_confirmed")
+
+
+def _fill_step_resolutions(db: Session, order: Order, step: ArticleProcessStep,
+                           si: OrderStepInfo) -> None:
+    """**Was hier entschieden wurde** – aus dem Event-Strom, nicht aus einem neuen Feld.
+
+    Der Schritt zeigt damit auch dann noch, wie eine frühere Unterdeckung aufgelöst wurde
+    (ersetzt bzw. ohne Ersatz weiter), wenn er längst wieder läuft. Der Nachschub selbst
+    braucht hier nichts: er ist ein Unter-Auftrag und steht bereits als Pille am Schritt."""
+    from ..models import Event
+    rows = (
+        db.query(Event)
+        .filter(Event.event_type.in_(_RESOLUTION_EVENTS), Event.object_type == "order",
+                Event.object_id == order.object_id)
+        .order_by(Event.id)
+        .all()
+    )
+    rows = [e for e in rows if (e.payload or {}).get("step_id") == step.id]
+    if not rows:
+        return
+    art_ids = {(e.payload or {}).get("article_id") for e in rows}
+    arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()}
+    actors = _actor_names(db, [e.actor_id for e in rows])
+    for e in rows:
+        p = e.payload or {}
+        art = arts.get(p.get("article_id"))
+        si.resolutions.append(StepResolution(
+            kind=e.event_type.split(".", 1)[1],
+            article_object_id=(art.object_id if art else None),
+            article_name=(art.name if art else None),
+            quantity=p.get("quantity"), quantity_from=p.get("from"), quantity_to=p.get("to"),
+            at=e.created_at, by=actors.get(e.actor_id),
+        ))
+
+
+def _actor_names(db: Session, ids: list) -> dict:
+    """Anzeigenamen der Handelnden – EINE Abfrage, kein N+1."""
+    wanted = {i for i in ids if i}
+    if not wanted:
+        return {}
+    return {u.id: u.display_name
+            for u in db.query(UserProfile).filter(UserProfile.id.in_(wanted)).all()}
+
+
 def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si: OrderStepInfo) -> None:
     """Einen blockierten Schritt anreichern – mit dem GRUND seiner Blockade.
 
@@ -571,6 +617,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
         _fill_step_provisioning(db, order, step, si)
+        _fill_step_resolutions(db, order, step, si)
         if s["state"] == "blocked":
             _fill_step_shortfall(db, order, step, si)
         by_name, at = _attach_step_embed(db, order, s, si, first,

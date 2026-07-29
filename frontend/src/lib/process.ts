@@ -35,12 +35,19 @@ export function locationTypeLabel(type: string | null | undefined): string {
 
 /** Eine Instanz heisst schlicht «Instanz». Bei einer Charge (kind='batch') kann
  *  optional die Menge ergänzt werden (z. B. «Instanz · 5 Stk»). */
+/**
+ * Beschriftung einer Instanz-Zeile: «Instanz · 5 Stk».
+ *
+ * Die Menge steht bei **jeder** Instanz, auch beim Einzelstück (Notiz #285) – bei einer
+ * Charge trägt sie die eigentliche Information, beim Einzelteil schafft sie Einheitlichkeit:
+ * man sucht die Angabe nicht mal hier, mal dort. Fehlt die Menge, bleibt es beim Wort.
+ */
 export function instanceLabel(
   kind?: string | null,
   quantity?: number | null,
   unit?: string,
 ): string {
-  if (kind === 'batch' && quantity != null) return `Instanz · ${quantity} ${unit ?? ''}`.trim();
+  if (quantity != null) return `Instanz · ${quantity} ${unit ?? ''}`.trim();
   return 'Instanz';
 }
 

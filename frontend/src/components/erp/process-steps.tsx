@@ -568,8 +568,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
               {/* Ausschleusen: EINE Entscheidung – endgültig oder vorübergehend (#277). */}
               {(adding === 'scrap' || adding === 'block') && (
                 <>
+                  {/* Kein Label «Wirkung» (#283): die beiden Optionen sagen selbst, was
+                      sie tun – und der Hover nennt den Unterschied. */}
                   <div>
-                    <Label>Wirkung</Label>
                     <IconSwitch<'scrap' | 'block'> value={adding} onChange={(v) => setAdding(v)}
                       options={[
                         { value: 'scrap', icon: Trash2, label: 'Verschrotten', hint: 'Endgültig aus dem Bestand – die Instanz ist danach Ausschuss und standortlos.' },

@@ -2193,6 +2193,30 @@ def test_waiting_is_a_state_not_a_button():
     assert 'Order.reason == "deviation"' in src and 'Order.reason == "supply"' in src
 
 
+def test_what_happened_stays_at_its_step():
+    """**Was entschieden wurde, steht im Ablauf** (Notiz #281): dass eine Fehlmenge ersetzt
+    oder die Menge angepasst wurde, ist die Geschichte des Auftrags – ohne Spur sieht man
+    später nur das Ergebnis. Quelle ist der **Event-Strom**, kein neues Feld; die Zuordnung
+    macht die Schritt-id im Payload (dieselbe Frage wie beim Nachschub-Ursprung)."""
+    import inspect as _inspect
+    from app.schemas.order import OrderStepInfo, StepResolution
+    from app.services import orders, process, recovery
+
+    assert "resolutions" in OrderStepInfo.model_fields
+    assert {"kind", "quantity_from", "quantity_to"} <= set(StepResolution.model_fields)
+    rec = _inspect.getsource(recovery._record_at_step)
+    assert "blocked_step_for_article" in rec and '"step_id"' in rec
+    # Beide Antworten hinterlassen ihre Spur …
+    src = _inspect.getsource(recovery)
+    assert '_record_at_step(db, order, aid, "order.covered_from_stock"' in src
+    assert '"order.quantity_confirmed"' in src
+    # … und der Ablauf liest sie je Schritt zurück.
+    fill = _inspect.getsource(orders._fill_step_resolutions)
+    assert 'payload or {}).get("step_id") == step.id' in fill
+    # EINE Stelle beantwortet «welcher Schritt vermisst diesen Artikel?» (Nachschub + Deckung).
+    assert hasattr(process, "blocked_step_for_article")
+
+
 def test_recovery_endpoints_are_wired_and_staff_gated():
     """Beide Antworten sind über freigegeben-gescopte Endpunkte erreichbar – und die beiden
     alten Einzelwege («/supply», «/cover-stock») sind zu EINEM «/cover» zusammengefallen."""
@@ -2889,7 +2913,7 @@ def test_sub_orders_know_where_they_came_from():
     assert 'Order.reason.in_(("deviation", "supply"))' in fill
     # Auch der Nachschub merkt sich, aus welchem Schritt sein Bedarf stammt.
     from app.services import supply as supply_svc
-    assert "origin_step_id=_blocked_step_id(db, order, art_id)" in _inspect.getsource(supply_svc)
+    assert "origin_step_id=process.blocked_step_for_article(db, order, art_id)" in _inspect.getsource(supply_svc)
 
 
 def test_cancelled_provisioning_is_not_recreated():

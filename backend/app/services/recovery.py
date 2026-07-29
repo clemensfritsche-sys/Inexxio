@@ -36,9 +36,24 @@ from .admin import log_audit
 from .events import emit
 from . import inventory
 from .inventory import allocate, fifo_candidates
-from .quantity import ZERO, to_qty
+from .quantity import ZERO, qty_sum, to_qty
 from .reservation import free_qty, reserve
 from .subject import record_link
+
+
+def _record_at_step(db: Session, order: Order, article_id: int, event_type: str,
+                    payload: dict, actor_id: int) -> None:
+    """Die Entscheidung an dem Schritt vermerken, an dem sie gefallen ist.
+
+    **Was passiert ist, muss im Ablauf stehen** (Notiz #281): dass eine Fehlmenge ersetzt
+    oder die Menge angepasst wurde, ist die eigentliche Geschichte des Auftrags – ohne
+    Spur sieht man später nur noch das Ergebnis und nicht, wie es dazu kam. Die Spur ist
+    kein neues Feld, sondern der **Event-Strom**; sie trägt lediglich die Schritt-id, damit
+    der Ablauf sie an ihrer Stelle zeigen kann (``OrderStepInfo.resolutions``)."""
+    emit(db, event_type, object_type="order", object_id=order.object_id,
+         payload={**payload, "article_id": article_id,
+                  "step_id": process.blocked_step_for_article(db, order, article_id)},
+         actor_id=actor_id)
 
 
 def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
@@ -57,14 +72,14 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
 
 
 def _cover_from_stock(db: Session, order: Order,
-                      instance_object_ids: list[int] | None) -> Decimal:
+                      instance_object_ids: list[int] | None) -> dict[int, Decimal]:
     """Soviel der offenen **Subjekt**-Fehlmenge wie möglich aus vorhandenem Lagerbestand
     decken. Ohne ``instance_object_ids`` → FIFO über den freien Bestand; mit Auswahl → genau
-    diese freigegebenen & freien Instanzen. Liefert die gedeckte Menge (0 = nichts frei)."""
+    diese freigegebenen & freien Instanzen. Liefert die gedeckte Menge je Artikel."""
     short = process.subject_shortfalls(db, order)
     if not short:
-        return ZERO
-    covered = ZERO
+        return {}
+    covered: dict[int, Decimal] = {}
     if instance_object_ids:
         chosen = list(dict.fromkeys(instance_object_ids))
         # Row-Lock auch im «bestimmte Instanz wählen»-Pfad – wie in JEDEM anderen
@@ -92,10 +107,12 @@ def _cover_from_stock(db: Session, order: Order,
             inst.subject_of_order_id = order.id
             record_link(db, inst.object_id, order.id)
             short[inst.article_id] = rem - take
-            covered += take
+            covered[inst.article_id] = covered.get(inst.article_id, ZERO) + take
     else:
         for aid, need in short.items():
-            covered += _fifo_cover(db, order, aid, need)
+            got = _fifo_cover(db, order, aid, need)
+            if got > 0:
+                covered[aid] = covered.get(aid, ZERO) + got
     return covered
 
 
@@ -112,15 +129,19 @@ def cover_shortfall(db: Session, order: Order, actor_id: int,
     Subjekt-Lagerweg, ``ensure_supply`` übernimmt ihn vollständig. Committet NICHT."""
     from .supply import ensure_supply
     covered = _cover_from_stock(db, order, instance_object_ids)
+    # Die Spur entsteht VOR dem Nachschub: danach ist der Schritt womöglich nicht mehr
+    # blockiert und liesse sich nicht mehr zuordnen.
+    for aid, qty in covered.items():
+        _record_at_step(db, order, aid, "order.covered_from_stock",
+                        {"quantity": qty}, actor_id)
     created = ensure_supply(db, order, actor_id)
-    if covered <= 0 and not created:
+    total = qty_sum(covered.values())
+    if total <= 0 and not created:
         raise HTTPException(409, detail="Nichts zu decken – der Bedarf ist bereits gedeckt")
-    if covered > 0:
-        log_audit(db, "orders", None, f"{covered} Stück aus Lager gedeckt", actor_id,
+    if total > 0:
+        log_audit(db, "orders", None, f"{total} Stück aus Lager gedeckt", actor_id,
                   object_id=order.object_id)
-        emit(db, "order.covered_from_stock", object_type="order", object_id=order.object_id,
-             payload={"quantity": covered}, actor_id=actor_id)
-    return {"covered": covered, "supply_object_ids": [o.object_id for o in created]}
+    return {"covered": total, "supply_object_ids": [o.object_id for o in created]}
 
 
 def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
@@ -146,6 +167,8 @@ def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
         if rest <= 0:
             raise HTTPException(
                 409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+        _record_at_step(db, order, order.article_id, "order.quantity_confirmed",
+                        {"from": to_qty(order.quantity or 0), "to": rest}, actor_id)
         order.quantity = rest
         changed[order.article_id] = rest
     else:
@@ -157,13 +180,13 @@ def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
             if rest <= 0:
                 raise HTTPException(
                     409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+            _record_at_step(db, order, line.article_id, "order.quantity_confirmed",
+                            {"from": to_qty(line.quantity), "to": rest}, actor_id)
             line.quantity = rest
             changed[line.article_id] = rest
     log_audit(db, "orders", None,
               "Menge bestätigt: " + ", ".join(f"Artikel {a} → {q}" for a, q in changed.items()),
               actor_id, object_id=order.object_id)
-    emit(db, "order.quantity_confirmed", object_type="order", object_id=order.object_id,
-         payload={"quantities": {str(a): float(q) for a, q in changed.items()}}, actor_id=actor_id)
     return {"quantities": {a: q for a, q in changed.items()}}
 
 

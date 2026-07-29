@@ -2091,6 +2091,41 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Teile überspringen erledigte Schritte» (ausdrücklich verworfen: ein Schritt wirkt auf die
   Instanzen seines Auftrags, eine Ausnahme je Herkunft wäre eine zweite Regel).*
 
+- **Testnotizen-Runde 19 (die Entscheidung bleibt am Schritt, Notizen #279–#286)**:
+  (1) **Was entschieden wurde, steht im Ablauf** (#281, `OrderStepInfo.resolutions`): Dass
+  eine Fehlmenge **ersetzt** oder die **Menge angepasst** wurde, ist die eigentliche
+  Geschichte des Auftrags – ohne Spur sah man später nur noch das Ergebnis («läuft») und
+  nicht, wie es dazu kam. Die Spur ist **kein neues Feld**, sondern der **Event-Strom**:
+  `recovery._record_at_step` hängt jeder Entscheidung die Schritt-id an, `orders.
+  _fill_step_resolutions` liest sie je Schritt zurück, der Fluss zeigt eine Zeile
+  («Menge angepasst 5 → 4», «1 ab Lager ersetzt», Wer/Wann im Hover) – auch dann noch, wenn
+  der Schritt längst wieder läuft. Die Frage «welcher Schritt vermisst diesen Artikel?» hat
+  damit zwei Nutzer (Nachschub-Ursprung + Deckungs-Spur) und liegt an EINER Stelle
+  (`process.blocked_step_for_article`, aus `supply.py` herausgezogen).
+  (2) **«Ohne Ersatz weiter» statt «Menge bestätigen»** (#280): der alte Name sagte, was das
+  System tut, nicht was der Mensch entscheidet – und der Gegensatz zu «Ersetzen» ist eben:
+  gar nicht ersetzen.
+  (3) **Eine Objektnummer sieht überall gleich aus** (#282, `ObjId`): sie erbte die
+  Schriftgrösse ihrer Umgebung und wurde im 15,5-px-Lesefeld der Auftragsspezifikation zur
+  lautesten Angabe der Zeile – obwohl sie eine **Kennung** ist, keine Aussage. Jetzt feste
+  12,5 px/600, tabellarisch (Fortsetzung von #263); die Positions-Aufstellung beginnt
+  wieder bei der normalen Lesegrösse.
+  (4) **Zustand nur, solange er etwas sagt** (#279): der fachliche Zwischenstand im
+  Modul-Kopf (Beschaffung/Verkauf) entfällt, sobald der Schritt erledigt ist – dass er durch
+  ist, sagt der Haken daneben, «Geliefert» stünde als zweites Wort für dieselbe Aussage.
+  (5) **Abweichungs-Dialog kurz und prägnant** (#284, `ChoiceButton` mit Symbol):
+  «Läuft weiter – nur das betroffene Stück wird herausgenommen» ↔ «Abbrechen – endgültig,
+  nur die Abweichung läuft weiter». Der alte Untertitel behauptete noch die Pause, die es
+  seit der Unterdeckungs-Runde nicht mehr gibt. Die lokale Dublette von `ChoiceButton` in
+  `order-detail.tsx` ist im gemeinsamen Vokabular aufgegangen.
+  (6) **Der Kopf skaliert nicht mehr** (#286, `fields.HeaderAction`): die Status-Aktion war
+  32 px hoch neben 28-px-Symbolknöpfen – die Zeile wuchs in dem Moment, in dem «Freigeben»
+  erschien, und schrumpfte wieder, sobald es wegfiel. Artikel und Auftrag hatten dieselbe
+  Zeile zweimal ausgeschrieben; jetzt eine Stelle, exakt 28 px.
+  (7) Kleineres: Menge bei **jeder** Instanz auch im Artikel-Bestand (#285, `instanceLabel`
+  – Einheitlichkeit statt «bei Chargen ja, bei Einzelteilen nein»); Label «Wirkung» im
+  Ausschleusen-Editor entfällt (#283 – die beiden Optionen sagen es selbst).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

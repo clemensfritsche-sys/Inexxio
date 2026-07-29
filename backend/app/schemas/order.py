@@ -33,6 +33,22 @@ class StepShortfall(BaseModel):
     available_instances: list[ShortfallInstance] = []
 
 
+class StepResolution(BaseModel):
+    """**Was an diesem Schritt entschieden wurde**, als er unterdeckt war (Notiz #281).
+
+    Ohne diese Spur sieht man später nur das Ergebnis (der Auftrag lief weiter), nicht den
+    Weg dorthin – dabei ist gerade die Entscheidung die Geschichte des Auftrags. Quelle ist
+    der **Event-Strom**, kein neues Feld; die Formulierung macht das Frontend."""
+    kind: str                              # covered_from_stock | quantity_confirmed
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
+    quantity: Optional[float] = None       # gedeckte Menge (covered_from_stock)
+    quantity_from: Optional[float] = None  # vorherige Sollmenge (quantity_confirmed)
+    quantity_to: Optional[float] = None    # neue Sollmenge
+    at: Optional[datetime] = None
+    by: Optional[str] = None
+
+
 class OrderDeviationInfo(BaseModel):
     """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
     Eltern-Auftrag."""
@@ -66,6 +82,9 @@ class OrderStepInfo(BaseModel):
     # Solange etwas hier steht, ist die Entscheidung getroffen: die Oberfläche zeigt nur noch
     # den Zustand, statt dieselbe Frage ein zweites Mal zu stellen.
     waiting_for: list[int] = []
+    # Was an diesem Schritt bereits entschieden wurde (ersetzt / ohne Ersatz weiter) –
+    # auch dann noch, wenn er längst wieder läuft.
+    resolutions: list[StepResolution] = []
     # Bei state='blocked' **ohne** Fehlmenge: das Material existiert, liegt aber noch am
     # falschen Ort – diese Bereitstellungs-Unteraufträge bringen es her (Objektnummern).
     # Zwei Gründe zu blockieren, zwei getrennte Felder: «zu wenig da» ≠ «noch nicht hier».
