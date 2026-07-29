@@ -152,7 +152,9 @@ export const inputCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border bg-white
  */
 export function IconSwitch<T extends string>({ value, onChange, options, symbolOnly }: {
   value: T; onChange: (v: T) => void;
-  options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean }[];
+  /** ``mark`` setzt einen dezenten Punkt an eine (nicht gewählte) Option – z. B. die
+   *  abgeleitete Empfehlung: sie markiert sich selbst, statt einen Erklärsatz zu brauchen. */
+  options: { value: T; icon: ElementType; label: string; hint?: string; disabled?: boolean; mark?: boolean }[];
   symbolOnly?: boolean;
 }) {
   const index = Math.max(0, options.findIndex((o) => o.value === value));
@@ -183,6 +185,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
               color: active ? 'var(--accent-ink)' : 'var(--fg-3)',
             }}>
             <Icon size={14} />{!symbolOnly && o.label}
+            {o.mark && !active && <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--accent)', flexShrink: 0 }} />}
           </button>
         );
       })}

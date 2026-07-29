@@ -5,7 +5,7 @@ import type { LocationType, Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
-import { StatusBadge, TileShell, TILE } from '@/components/erp/fields';
+import { StatusBadge, TileShell } from '@/components/erp/fields';
 
 /**
  * **Was dieser Auftrag betrifft – in EINER Aufstellung.**
@@ -27,34 +27,31 @@ export function OrderPositions({ order }: { order: Order }) {
 
   const onlyInstances = groups.length === 1 && !groups[0].name;
 
-  // Kein Zähler im Kopf (Notiz #171): die Instanzen stehen darunter – sie zu zählen macht
-  // die Kachel nur schwerer. Ebenso trägt die Menge kein zweites Fettgewicht neben dem
-  // Artikelnamen: in einer Zeile darf genau EINE Angabe laut sein.
+  // **Ruhig und ausgerichtet** (Notiz #176): keine grossen Schriftgrade, sondern EIN Raster
+  // über alle Zeilen – Objektnummer links, Bezeichnung in der Mitte, Zahl bzw. Zustand
+  // rechts. Was Struktur schafft, ist die Ausrichtung, nicht die Schriftgrösse. Die Kachel
+  // erbt darum bewusst NICHT `TILE.v` (18 px/700), sondern beginnt bei der Lesegrösse.
   return (
     <TileShell
       icon={Boxes}
       label={onlyInstances ? 'Instanzen' : groups.length === 1 ? 'Position' : 'Positionen'}
       style={{ gridColumn: '1 / -1' }}
     >
-      <div style={{ ...TILE.v, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 12, whiteSpace: 'normal', overflow: 'visible' }}>
-        {groups.map((g) => (
-          <div key={g.key}>
-            {/* Kopfzeile der Position: Nummer · Artikel · Menge. */}
+      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' }}>
+        {groups.map((g, gi) => (
+          <div key={g.key} style={gi > 0 ? groupSep : undefined}>
             {g.name && (
-              <div style={headStyle}>
-                {g.articleObjectId != null && <ObjId value={g.articleObjectId} />}
+              <div style={rowGrid}>
+                {g.articleObjectId != null ? <ObjId value={g.articleObjectId} /> : <span />}
                 <span style={nameStyle}>{g.name}</span>
-                {g.quantity != null && (
-                  <span style={qtyStyle}>
-                    {g.quantity}
-                    {g.unit && <span style={unitStyle}>{g.unit}</span>}
-                  </span>
-                )}
+                <span style={qtyStyle}>
+                  {g.quantity != null ? <>{g.quantity}{g.unit && <span style={unitStyle}>{g.unit}</span>}</> : null}
+                </span>
               </div>
             )}
 
             {g.instances.length > 0 && (
-              <div style={g.name ? nestStyle : plainStyle}>
+              <div style={g.name ? nestStyle : undefined}>
                 {g.instances.map((i) => <InstanceLine key={i.id} instance={i} unit={g.unit} />)}
               </div>
             )}
@@ -66,30 +63,30 @@ export function OrderPositions({ order }: { order: Order }) {
 }
 
 /**
- * Eine Instanz – Nummer, Menge (nur wenn sie etwas sagt), Standort, Zustand.
+ * Eine Instanz – Nummer, Menge (nur wenn sie etwas sagt), Standort, Zustand; im selben
+ * Raster wie die Position darüber, damit die Spalten fluchten.
  *
- * Das Wort «Instanz» steht nicht mehr in jeder Zeile (Notiz #171): unter einer Position
- * IST jede Zeile eine Instanz, das sagt schon die Kachel. Übrig bleibt, was unterscheidet –
- * bei einer Charge ihre Menge, beim Einzelstück nichts.
+ * Das Wort «Instanz» steht nicht in jeder Zeile (Notiz #171): unter einer Position IST jede
+ * Zeile eine Instanz. Übrig bleibt, was unterscheidet – bei einer Charge ihre Menge.
  */
 function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: string }) {
   const Icon = LOCATION_META[(i.location_type as LocationType)]?.icon ?? MapPin;
   const qty = i.kind === 'batch' && i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
   return (
-    <div style={lineStyle}>
+    <div style={rowGrid}>
       <ObjId value={i.object_id} />
-      {qty && <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums' }}>{qty}</span>}
-      {i.location_label && (
-        <span style={locStyle}>
-          <Icon size={11} /> {i.location_label}
-          {i.location_type === 'instance' && i.physical_location_label && (
-            <span style={{ color: 'var(--fg-4)' }}> · {i.physical_location_label}</span>
-          )}
-        </span>
-      )}
-      <span style={{ marginLeft: 'auto' }}>
-        <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
+      <span style={instMid}>
+        {qty && <span style={{ fontVariantNumeric: 'tabular-nums' }}>{qty}</span>}
+        {i.location_label && (
+          <span style={locStyle}>
+            <Icon size={11} /> {i.location_label}
+            {i.location_type === 'instance' && i.physical_location_label && (
+              <span style={{ color: 'var(--fg-4)' }}> · {i.physical_location_label}</span>
+            )}
+          </span>
+        )}
       </span>
+      <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} />
     </div>
   );
 }
@@ -160,31 +157,35 @@ function buildGroups(order: Order): Group[] {
 
 // ─── Stile ────────────────────────────────────────────────────────────────────
 
-const headStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap',
+// EIN Raster für Positions- und Instanz-Zeilen: Nummer · Bezeichnung · Zahl/Zustand.
+const rowGrid: React.CSSProperties = {
+  display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+  alignItems: 'center', gap: 10, padding: '5px 0', minHeight: 26,
 };
 const nameStyle: React.CSSProperties = {
-  font: '700 14px var(--font-body)', color: 'var(--fg-1)', flex: '1 1 140px', minWidth: 0,
-  overflow: 'hidden', textOverflow: 'ellipsis',
+  font: '600 13.5px var(--font-body)', color: 'var(--fg-1)', minWidth: 0,
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 const qtyStyle: React.CSSProperties = {
-  font: '500 13px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+  font: '500 13px var(--font-body)', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums',
+  whiteSpace: 'nowrap',
 };
 const unitStyle: React.CSSProperties = {
-  font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3,
+  font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3,
+};
+const instMid: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, flexWrap: 'wrap',
+  font: '500 12.5px var(--font-body)', color: 'var(--fg-3)',
 };
 // Zugehörigkeit als Einrückung an einer Haarlinie – ohne Kästen, ohne zweite Karte.
 const nestStyle: React.CSSProperties = {
-  marginTop: 6, marginLeft: 3, paddingLeft: 13, borderLeft: '1px solid var(--border-1)',
-  display: 'flex', flexDirection: 'column', gap: 5,
+  marginLeft: 3, paddingLeft: 13, borderLeft: '1px solid var(--border-1)',
 };
-const plainStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', gap: 5,
-};
-const lineStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+// Positionen trennt eine Haarlinie, nicht ein grosser Abstand.
+const groupSep: React.CSSProperties = {
+  marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-1)',
 };
 const locStyle: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
-  font: '500 11.5px var(--font-body)', color: 'var(--fg-4)',
+  font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', minWidth: 0,
 };

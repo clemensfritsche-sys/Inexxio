@@ -262,6 +262,9 @@ class OrderSummary(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    # **Der Name dieses Datensatzes** – abgeleitet in `orders.order_display_name`, damit
+    # Feed und Detail dasselbe zeigen (nie das Wort «Auftrag» als Typ-Platzhalter).
+    name: str = "Auftrag"
     # denormalisiert (Batch-geladen, nicht je Auftrag)
     article_name: Optional[str] = None
     article_object_id: Optional[int] = None
@@ -286,6 +289,8 @@ class OrderResponse(BaseModel):
     # Aggregierte Bestandswirkung des Prozesses: increase | decrease | mixed | neutral
     stock_effect: str = "neutral"
     title: Optional[str]
+    # Der Name dieses Datensatzes (dieselbe Ableitung wie im Feed – `order_display_name`).
+    name: str = "Auftrag"
     article_id: Optional[int]
     quantity: Optional[float]   # Bruchmenge möglich (kg/m²/…)
     desired_delivery_date: Optional[date]

@@ -2925,3 +2925,24 @@ def test_block_is_reversible_scrap_is_not():
     assert "def unblock(" in src                    # … und wieder aufhebbar
     # Der Zustand nach dem Entsperren wird ABGELEITET (kein gemerktes drittes Feld).
     assert "def _restore_quality(" in src
+
+
+def test_order_name_never_falls_back_to_the_type_word_when_there_is_a_name():
+    """Ein Datensatz zeigt **Name · Objektnummer · Status** – der TYP steht im Symbol.
+
+    Vorher trug ein Auftrag im Feed als «Namen» das Wort «Auftrag»; zwei Aufträge sahen
+    damit identisch aus. Der Name wird jetzt an EINER Stelle abgeleitet (Feed und Detail
+    lesen dasselbe Feld), in dieser Reihenfolge: bewusster Titel ≻ Artikel ≻ erste Position
+    «+N» ≻ und nur wenn es nichts zu benennen gibt: «Auftrag».
+    """
+    from app.models import Order
+    from app.services.orders import order_display_name
+
+    o = Order(title=None)
+    assert order_display_name(o, None, None) == "Auftrag"          # nichts zu benennen
+    assert order_display_name(o, "Schraubendreher", None) == "Schraubendreher"
+    assert order_display_name(o, None, ["Schraube", "Mutter", "Blech"]) == "Schraube +2"
+    assert order_display_name(o, None, ["Schraube"]) == "Schraube"
+    # Ein bewusst vergebener Titel schlägt alles – er ist die genauere Aussage.
+    o2 = Order(title="Nachschub für 100000497: Schraubendreher")
+    assert order_display_name(o2, "Schraubendreher", None).startswith("Nachschub")

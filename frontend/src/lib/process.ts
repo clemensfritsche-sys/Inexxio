@@ -1,4 +1,4 @@
-import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Clock, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
+import { ShoppingCart, ClipboardCheck, ArrowLeftRight, User as UserIcon, Boxes, Wrench, Loader, CheckCircle2, XCircle, PackageMinus, Trash2, Receipt, Banknote, Lock, Ban, FileText, Building2 } from 'lucide-react';
 import type { StepType, LocationType } from '@/types';
 import { TONE, type StatusCfg } from '@/lib/status-flow';
 
@@ -73,7 +73,7 @@ export function isStockOperation(stepTypes: StepType[]): boolean {
 // = GRÜN (am Lager, frei). Terminal: «Verbaut»/«Verkauft» = GRÜN (positiv erfüllt),
 // «Gesperrt»/«Verschrottet» = ROT (Ampel auf «Stopp», nicht mehr verwendbar).
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
-  in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Clock },
+  in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Loader },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },
   reserved:   { label: 'Reserviert',   ...TONE.pending, icon: Lock },
   // EIN Zustand «vorhanden, aber nicht verwendbar» – gleich ob eine Datenerfassung die

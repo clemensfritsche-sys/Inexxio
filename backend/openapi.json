@@ -12418,6 +12418,11 @@
             ],
             "title": "Title"
           },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "Auftrag"
+          },
           "article_id": {
             "anyOf": [
               {
@@ -13050,6 +13055,11 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "Auftrag"
           },
           "article_name": {
             "anyOf": [

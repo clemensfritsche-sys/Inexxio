@@ -21,16 +21,16 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 // zurück (ausgegraut), nur der aktive trägt seine Farbe. Dazu ein Symbol statt eines Wortes –
 // Haken (erledigt), Pause (angehalten), Kreuz (Fehler). Der Hover nennt Wer/Wann.
 //
-// **Abweichungen** (Notizen #85, #175) gehören **an den Schritt, den sie unterbrochen haben** –
-// nicht davor und nicht danach. Eine Abweichung ist kein Knoten in der Reihenfolge: sie ist die
-// Aussage «hier ist etwas schiefgegangen», und «hier» ist genau eine Karte. Darum steht sie IN
-// der Karte ihres Schritts (``origin_step_id``), als schmale Zeile unter dem Kopf. Vorher stand
-// sie als eigener Abzweig darunter – was suggerierte, sie käme NACH dem Schritt, obwohl sie
-// während seiner Ausführung gemeldet wurde.
+// **Abweichungen** (Notizen #85, #175, #178) gehören **an den Schritt, den sie unterbrochen
+// haben** – nicht davor, nicht danach und nicht IN ihm. Eine Abweichung ist kein Knoten in der
+// Reihenfolge (dann läse sie sich als «danach»), aber auch kein Teil des Moduls (sie ist das,
+// was das Modul unterbrochen hat). Sie hängt darum **seitlich an der Karte, auf deren Höhe** –
+// verbunden durch ein kurzes Aststück. Auf schmalen Schirmen rutscht sie unter die Karte
+// (`.erp-devbranch`), weil daneben kein Platz mehr ist.
 //
 // Eine Abweichung OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt aktiv
-// war) gehört keinem Schritt – sie gehört dem Auftrag und steht darum als Abzweig **vor** dem
-// ersten Schritt, am Anfang des Flusses.
+// war) gehört keinem Schritt – sie gehört dem Auftrag und steht darum als eigener Abzweig
+// **vor** dem ersten Schritt, am Anfang des Flusses.
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -136,10 +136,11 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, devi
   const muted = state === 'done' || state === 'locked';
   const mark = STATE_MARK[state];
   const MarkIcon = mark?.icon;
+  const branch = deviations ?? [];
   return (
     <div
       style={{
-        width: '100%', maxWidth: STEP_MAXW,
+        position: 'relative', width: '100%', maxWidth: STEP_MAXW,
         border: `1px solid ${selected ? 'var(--fg-1)' : kc.border}`,
         borderRadius: 'var(--r-lg)', background: kc.bg,
         boxShadow: selected ? '0 0 0 3px var(--bg-3)' : 'var(--shadow-sm)',
@@ -165,18 +166,18 @@ function FlowCard({ type, label, icon: Icon, detail, state, hint, selected, devi
         </div>
         {MarkIcon && <MarkIcon size={18} style={{ color: mark.color, flexShrink: 0 }} />}
       </div>
-      {/* Was diesen Schritt unterbrochen hat, steht IN seiner Karte – auf seiner Höhe,
-          nicht davor oder danach (Notiz #175). */}
-      {(deviations ?? []).length > 0 && (
-        <div style={{ borderTop: `1px solid ${kc.border}`, padding: '9px 18px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {deviations!.map((d) => <DeviationPill key={d.object_id} info={d} onOpen={onOpenOrder} />)}
-        </div>
-      )}
       {/* Der Schritt wird DORT bearbeitet, wo er im Fluss steht – nicht in einem eigenen
           Container darunter. Gleiche Anatomie wie die Konfiguration in der Definition. */}
       {children && (
         <div style={{ borderTop: `1px solid ${kc.border}`, padding: '14px 18px 16px' }}>
           {children}
+        </div>
+      )}
+
+      {/* Was diesen Schritt unterbrochen hat – NEBEN der Karte, auf ihrer Höhe (Notiz #178). */}
+      {branch.length > 0 && (
+        <div className="erp-devbranch">
+          {branch.map((d) => <DeviationPill key={d.object_id} info={d} onOpen={onOpenOrder} />)}
         </div>
       )}
     </div>

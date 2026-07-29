@@ -10,7 +10,7 @@ import { LOCATION_META, locationTypeLabel, instanceLabel } from '@/lib/process';
 import { userDisplayName } from '@/lib/utils';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { ObjId } from '@/components/erp/obj-id';
-import { PrimaryButton } from '@/components/erp/fields';
+import { PrimaryButton, IconSwitch } from '@/components/erp/fields';
 import { useScan } from '@/components/scan/scan-provider';
 
 // Standort-Typ → gültiger ScanKind (Symbol/Icon im Scanner). Unbekannte/veraltete Typen
@@ -342,7 +342,10 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
   const ModeIcon = MODE_META[mode].icon;
 
   return (
-    <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-2)' }}>
+    // Kein eigener Kasten mehr (Notiz #179): der Versand sitzt bereits im Panel, das im
+    // Modul des Flusses steckt – ein dritter Rahmen um dieselbe Sache. Übrig bleibt, was
+    // trägt: eine Beschriftungszeile und die EINE Wahl als Schieberegler.
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <Truck size={15} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
         <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)' }}>Versand</span>
@@ -363,25 +366,16 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
         )}
       </div>
 
-      {/* EINE Wahl: innerbetrieblich | Paket | Fracht. Empfohlener (abgeleiteter) Modus vorgewählt. */}
+      {/* EINE Wahl: innerbetrieblich | Paket | Fracht – derselbe Schieberegler wie überall
+          sonst, wo Optionen einander ausschliessen. Die abgeleitete Empfehlung markiert sich
+          selbst mit einem Punkt (Hover erklärt sie). */}
       {!readOnly && (
-        <div>
-          <div style={{ display: 'flex', border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', overflow: 'hidden' }}>
-            {(['internal', 'parcel', 'freight'] as TransportMode[]).map((m, i) => {
-              const on = mode === m;
-              const rec = recommended === m;
-              const M = MODE_META[m];
-              return (
-                <button key={m} type="button" disabled={busy !== null} onClick={() => !on && setMode(m)}
-                  title={M.tip + (rec ? ' · Empfohlen (aus Ziel & Last abgeleitet).' : '')}
-                  style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '8px 6px', border: 'none', borderLeft: i === 0 ? 'none' : '1px solid var(--border-1)', cursor: busy ? 'wait' : 'pointer', background: on ? 'var(--accent)' : 'var(--bg-1)', color: on ? '#fff' : 'var(--fg-3)' }}>
-                  <M.icon size={14} /> {M.label}
-                  {rec && !on && <span title="Empfohlen" style={{ width: 5, height: 5, borderRadius: 999, background: 'var(--accent)', flexShrink: 0 }} />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <IconSwitch<TransportMode> value={mode} onChange={(m) => m !== mode && setMode(m)}
+          options={(['internal', 'parcel', 'freight'] as TransportMode[]).map((m) => ({
+            value: m, icon: MODE_META[m].icon, label: MODE_META[m].label,
+            hint: MODE_META[m].tip + (recommended === m ? ' · Empfohlen (aus Ziel & Last abgeleitet).' : ''),
+            disabled: busy !== null, mark: recommended === m,
+          }))} />
       )}
 
       {!isInternal && !purchased && (sp.from_label || sp.to_label) && (

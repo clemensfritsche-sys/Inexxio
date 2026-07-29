@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Package, ClipboardList, ScanLine, X, Repeat, Loader2, Building2, AlertTriangle } from 'lucide-react';
-import { cn, userDisplayName } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
+import { userName, articleName, orderName, instanceName, organizationName } from '@/lib/record-name';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile, ErpRecordType } from '@/types';
@@ -37,28 +38,29 @@ type Row =
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
   | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
 
-function rowTitle(row: Row): string {
-  if (row.type === 'user') return userDisplayName(row.data);
-  if (row.type === 'order') return 'Auftrag';   // starr – Auftrag trägt keinen freien Namen
-  if (row.type === 'instance') return 'Instanz';   // starr – Instanz trägt keinen freien Namen
-  if (row.type === 'organization') return row.data.company_name || 'Unternehmen';
-  return row.data.name; // article
+// Der Name eines Datensatzes kommt aus der EINEN Ableitung (`lib/record-name`) – nie steht
+// hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
+function rowTitle(row: Row): string | null {
+  if (row.type === 'user') return userName(row.data);
+  if (row.type === 'order') return orderName(row.data);
+  if (row.type === 'instance') return instanceName(row.data);
+  if (row.type === 'organization') return organizationName(row.data);
+  return articleName(row.data);
 }
 
+// Gesucht wird über Name + Typ-Wort + Objektnummer: «auftrag» bleibt als Suchwort nützlich,
+// obwohl es nicht mehr als Bezeichnung angezeigt wird.
 function rowSearchText(row: Row): string {
-  const id = String(row.objectId ?? '');
-  if (row.type === 'user') return `${userDisplayName(row.data)} ${row.data.email} ${id}`.toLowerCase();
-  if (row.type === 'order') return `auftrag ${row.data.article_name ?? ''} ${id}`.toLowerCase();
-  if (row.type === 'instance') return `instanz ${row.data.article_name ?? ''} ${id}`.toLowerCase();
-  if (row.type === 'organization') return `unternehmen firma ${row.data.company_name} ${id}`.toLowerCase();
-  return `${row.data.name} ${row.data.size} ${id}`.toLowerCase();   // article
+  const parts = [rowTitle(row) ?? '', TYPE_META[row.type].label, String(row.objectId ?? '')];
+  if (row.type === 'user') parts.push(row.data.email);
+  if (row.type === 'article') parts.push(row.data.size ?? '');
+  return parts.join(' ').toLowerCase();
 }
 
 // ─── Feed item ───────────────────────────────────────────────────────────────
 
 function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () => void }) {
   const title = rowTitle(row);
-  const hasTitle = row.type === 'user' ? title !== row.data.email : !!title;
 
   let badge: StatusCfg;
   if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;
@@ -106,7 +108,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
           style={{ background: meta.bg, color: meta.fg }}
         >
           {row.type === 'user'
-            ? <span className="text-xs font-bold">{userInitials(title, row.data.email)}</span>
+            ? <span className="text-xs font-bold">{userInitials(title ?? '', row.data.email)}</span>
             : <TypeIcon size={17} />}
           {isDeviation && (
             <span
@@ -120,8 +122,8 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className={cn('text-sm font-bold truncate', sel ? 'text-accent-ink' : hasTitle ? 'text-fg-1' : 'text-fg-4 italic')}>
-          {hasTitle ? title : (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
+        <div className={cn('text-sm font-bold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
+          {title ?? (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
         </div>
         <div className="flex items-center gap-2 mt-0.5">
           <span className="text-fg-3 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{fmtObjId(row.objectId)}</span>
