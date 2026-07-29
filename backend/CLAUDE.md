@@ -101,8 +101,10 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/shop/payments/webhook | – | Stripe-Webhook (signaturgeprüft): Zahlung/Abo spiegeln |
 | GET | /api/v1/shop/payment/{token} | user | Zahlungsstatus (manueller Fallback-Provider) |
 | POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung simulieren (nur ohne Stripe) |
-| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen (inkl. Shop-Währungen/Provider) |
-| GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos |
+| GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen des **Hauptsitzes** (Rechtsidentität + Systemkonfiguration, inkl. Shop-Währungen/Provider) |
+| GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos (immer der Hauptsitz – das Impressum nennt die Rechtsperson) |
+| GET/POST | /api/v1/admin/sites | admin | **Standorte** (Mehrstandort): alle lesen (Hauptsitz zuerst) / neuen anlegen |
+| PATCH | /api/v1/admin/sites/{object_id} | admin | Standortfelder ändern (Name/Anschrift/Kontakt – für Hauptsitz und Nebenstandort derselbe Pfad) |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
 | PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
 | DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |
@@ -128,6 +130,13 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 >
 > Objektnummern (9-stellig) werden objekttyp-übergreifend in `app/services/objects.py`
 > vergeben (Maximum über alle Objekttabellen + 1).
+>
+> **Standorte:** `company_settings` trägt seit Migration `090` **mehrere** Zeilen (eine je
+> Standort, Typ `organization` mit eigener Objektnummer). «Die Firma» = der **Hauptsitz**
+> (`is_primary`). Die EINE Auflösung ist `services/sites.py`: `primary()` schreibend,
+> `find_primary()` rein lesend (in fremden Transaktionen Pflicht), `by_object_id()` für
+> «genau dieser Standort». **Nie** `CompanySettings.id == 1` oder ein blosses `.first()` –
+> das wählt ab dem zweiten Standort willkürlich; `tests/test_sites.py` erzwingt es.
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete

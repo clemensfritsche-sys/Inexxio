@@ -121,14 +121,20 @@ def physical_location_labels(db: Session, pairs: list[LocKey]) -> dict[LocKey, s
 
 
 def company_location(db: Session) -> tuple[str | None, int | None]:
-    """Der Standort «im Betrieb» – die EINE Auflösung des eigenen Unternehmens als Halter.
+    """Der Standort «im Betrieb» – der **Hauptsitz** als Halter.
 
     Ersetzt den früheren konfigurierten Wareneingangs-Lagerplatz: seit dem Wegfall des
     Datensatztyps «Lagerplatz» ist das Unternehmen selbst der Halter (Adresse aus den
     Firmen-Stammdaten). Gibt ``(None, None)``, solange die Firma keine Objektnummer hat –
-    dann findet keine Bereitstellung statt, statt auf eine Phantom-Nummer zu buchen."""
-    from ..models import CompanySettings
-    c = db.query(CompanySettings).filter(CompanySettings.object_id.isnot(None)).first()
+    dann findet keine Bereitstellung statt, statt auf eine Phantom-Nummer zu buchen.
+
+    Seit es **mehrere** Standorte gibt (Migration 090), ist die Wahl ausdrücklich der
+    Hauptsitz. Vorher stand hier ein ``.first()`` über alle Zeilen mit Objektnummer – ab
+    dem zweiten Standort hätte der Wareneingang je nach Zeilenreihenfolge der Datenbank
+    mal hier, mal dort gebucht. *Dass der Wareneingang je Beschaffungsschritt wählbar
+    wird, ist ein späterer Schritt; heute ist er bewusst EINE definierte Adresse.*"""
+    from .sites import find_primary
+    c = find_primary(db)
     return ("company", c.object_id) if c and c.object_id else (None, None)
 
 

@@ -41,6 +41,8 @@ export function instanceName(i: Instance): string | null {
   return i.article_name?.trim() || null;
 }
 
-export function organizationName(c: CompanySettings): string | null {
+/** Standort **und** Unternehmen tragen ihren Namen im selben Feld – der Hauptsitz führt
+ *  die Firma, eine Aussenstelle ihren Standortnamen («Werk Nord»). */
+export function organizationName(c: Pick<CompanySettings, 'company_name'>): string | null {
   return c.company_name?.trim() || null;
 }

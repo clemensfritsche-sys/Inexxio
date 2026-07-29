@@ -28,7 +28,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..models import Article, ArticlePrice, CompanySettings
+from ..models import Article, ArticlePrice
 from . import fx, tax
 
 CENT = Decimal("0.01")
@@ -125,7 +125,8 @@ def _zone_factor(db: Session, country: str | None) -> Decimal:
     ``pricing_zone_factors`` (Land→Faktor) gepflegt ist – sonst neutral (1.0)."""
     if not country:
         return ONE
-    s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    from .sites import find_primary
+    s = find_primary(db)          # Preis-Pipeline: Systemkonfiguration am Hauptsitz
     factors = getattr(s, "pricing_zone_factors", None) if s else None
     if not factors:
         return ONE

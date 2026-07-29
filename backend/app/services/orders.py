@@ -9,7 +9,7 @@ from sqlalchemy.orm import Query, Session
 
 from ..domain import event_types
 from ..models import (
-    Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
+    Article, ArticleProcessStep, AuditLog, Disposal, Inspection,
     Instance, InstanceOrderLink, Movement, Order, OrderLine, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
@@ -121,9 +121,14 @@ def _receiving_label(db: Session, po: PurchaseOrder) -> str | None:
 
     Früher stand hier die Objektnummer eines Lagerplatzes – damit konnte ein Lieferant
     nichts anfangen. Wohin die Ware im Betrieb wandert, entscheidet ohnehin erst die
-    Pflicht-Bewegung «Wareneingang» nach der Beschaffung."""
+    Pflicht-Bewegung «Wareneingang» nach der Beschaffung.
+
+    Gemeint ist der **Hauptsitz** – nicht irgendeine Standort-Zeile. (Eine Bestellung an
+    einen Nebenstandort liefern zu lassen, ist ein späterer Schritt: dafür bräuchte der
+    Beschaffungs-Schritt einen eigenen Wareneingangs-Standort.)"""
     from . import address
-    return address.one_line(address.of_company(db.query(CompanySettings).first()))
+    from .sites import find_primary
+    return address.one_line(address.of_company(find_primary(db)))
 
 
 def _purchase_embed(db: Session, order: Order, step: ArticleProcessStep,

@@ -1797,18 +1797,25 @@ def test_sale_customer_is_never_optional():
 
 def test_company_is_numbered_erp_record():
     """#5: Das Unternehmen ist ein vollwertiger ERP-Datensatz mit universeller Objektnummer.
-    Die Nummer wird lazy bei der ersten Abfrage vergeben (kein Profil-Sonderfall mehr)."""
+    Die Nummer wird lazy bei der ersten Abfrage vergeben (kein Profil-Sonderfall mehr).
+
+    Geprüft wird das **Modul** ``services/sites.py``, nicht eine einzelne Funktion: seit
+    Migration 090 trägt ``company_settings`` mehrere Zeilen, und die Vergabe sitzt dort
+    statt in ``admin.get_or_create_settings`` (das nur noch auf den Hauptsitz delegiert).
+    Die Fachaussage ist unverändert – nur die Stelle hat sich verschoben."""
     import inspect as _inspect
     from app.models import CompanySettings
     from app.schemas.admin import CompanySettingsResponse
-    from app.services import admin
+    from app.services import admin, sites
 
     assert "object_id" in CompanySettings.__table__.columns.keys()
     assert "object_id" in CompanySettingsResponse.model_fields
-    # get_or_create_settings vergibt die Objektnummer lazy (Typ "organization").
-    src = _inspect.getsource(admin.get_or_create_settings)
+    # Die Objektnummer wird lazy vergeben (Typ "organization") – für JEDEN Standort.
+    src = _inspect.getsource(sites)
     assert "object_id is None" in src
     assert 'next_object_id(db, "organization")' in src
+    # …und «die Firma» bleibt über den vertrauten Einstieg erreichbar.
+    assert "primary" in _inspect.getsource(admin.get_or_create_settings)
 
 
 def test_company_object_id_assigned_at_startup_and_exposed_public():

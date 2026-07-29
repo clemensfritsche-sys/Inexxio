@@ -6,23 +6,20 @@ from ..models import AuditLog, CompanySettings
 
 
 def get_or_create_settings(db: Session) -> CompanySettings:
-    """Return the singleton company settings row, creating it if absent.
+    """«Die Firma» – der **Hauptsitz**, angelegt falls die Datenbank leer ist.
 
-    Das Unternehmen ist ein vollwertiger ERP-Datensatz: fehlt die universelle
-    Objektnummer noch, wird sie hier **lazy** vergeben (einmalig, race-arm dank
-    Sequence) und committet – so erscheint die Firma im ERP-Feed als «Unternehmen»."""
-    settings_obj = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
-    if not settings_obj:
-        settings_obj = CompanySettings(id=1)
-        db.add(settings_obj)
-        db.commit()
-        db.refresh(settings_obj)
-    if settings_obj.object_id is None:
-        from .objects import next_object_id
-        settings_obj.object_id = next_object_id(db, "organization")
-        db.commit()
-        db.refresh(settings_obj)
-    return settings_obj
+    Seit Migration 090 trägt ``company_settings`` mehrere Zeilen (eine je Standort). Die
+    Rechtsidentität und die Systemkonfiguration hängen am Hauptsitz, und genau den meinen
+    alle bestehenden Aufrufer dieser Funktion – deshalb bleibt der Name und es ändert sich
+    an keiner Aufrufstelle etwas. Die Auflösung selbst steht in ``services/sites.py``,
+    damit «welcher Standort ist gemeint» nur EINE Antwort hat.
+
+    Wer die Anschrift eines **bestimmten** Standorts braucht (Bewegungs-Ziel, Halter-
+    Label), nimmt ``sites.by_object_id`` – nicht diese Funktion.
+
+    (Import bewusst lazy: ``sites`` holt sich von hier ``log_audit``.)"""
+    from .sites import primary
+    return primary(db)
 
 
 def log_audit(

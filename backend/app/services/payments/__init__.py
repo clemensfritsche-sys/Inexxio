@@ -9,7 +9,6 @@ Schlüssel im Secret Manager liegt; ``manual`` bleibt der Fallback für Tests oh
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
-from ...models import CompanySettings
 from .base import PaymentProvider
 from .manual import ManualProvider
 from .stripe_provider import StripeProvider
@@ -26,7 +25,8 @@ def provider_name(db: Session | None = None) -> str:
     # 1) Ausdrückliche Konfiguration (Admin) hat Vorrang.
     explicit = ""
     if db is not None:
-        s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+        from ..sites import find_primary
+        s = find_primary(db)          # Provider-Wahl: Systemkonfiguration am Hauptsitz
         explicit = (s.payments_provider or "") if s else ""
     if explicit in _PROVIDERS:
         if explicit == "stripe" and not has_key:

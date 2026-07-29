@@ -6,7 +6,7 @@ import type {
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference,
-  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
+  CompanySettings, Site, SiteInput, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
@@ -267,6 +267,22 @@ class ApiClient {
 
   updateSettings(data: Partial<CompanySettings>): Promise<CompanySettings> {
     return this.patch<Record<string, unknown>>('/api/v1/admin/settings', mapSettingsToBackend(data)).then(mapSettingsFromBackend);
+  }
+
+  // ─── Admin: Standorte (Mehrstandort) ───────────────────────────────────────
+  // Ein Standort ist derselbe Datensatztyp wie das Unternehmen (`organization`),
+  // nur ohne Rechtsidentität – die hängt am Hauptsitz. Anlegen/Ändern nur Admin.
+
+  getSites(): Promise<Site[]> {
+    return this.get<Record<string, unknown>[]>('/api/v1/admin/sites').then((rows) => rows.map(mapSiteFromBackend));
+  }
+
+  createSite(data: SiteInput): Promise<Site> {
+    return this.post<Record<string, unknown>>('/api/v1/admin/sites', mapSiteToBackend(data)).then(mapSiteFromBackend);
+  }
+
+  updateSite(objectId: number, data: SiteInput): Promise<Site> {
+    return this.patch<Record<string, unknown>>(`/api/v1/admin/sites/${objectId}`, mapSiteToBackend(data)).then(mapSiteFromBackend);
   }
 
   // ─── ERP Records ──────────────────────────────────────────────────────────
@@ -766,6 +782,40 @@ class ApiClient {
   }): Promise<{ ok: boolean }> {
     return this.post('/api/v1/contact', data);
   }
+}
+
+// ─── Standort-Mapping (frontend ↔ backend) ───────────────────────────────────
+// Dieselbe Umbenennung wie bei den Firmeneinstellungen (`street_nr`→`street_number`,
+// `zip_code`→`zip`) – ein Standort trägt dieselben Adressfelder, also auch dieselben
+// Namen; zwei Schreibweisen für dieselbe Anschrift wären eine Fehlerquelle.
+
+function mapSiteFromBackend(s: Record<string, unknown>): Site {
+  return {
+    object_id: (s.object_id as number | null) ?? null,
+    is_primary: (s.is_primary as boolean) ?? false,
+    company_name: (s.company_name as string) ?? '',
+    street: (s.street as string | null) ?? null,
+    street_number: (s.street_nr as string | null) ?? null,
+    zip: (s.zip_code as string | null) ?? null,
+    city: (s.city as string | null) ?? null,
+    country: (s.country as string | null) ?? null,
+    email: (s.email as string | null) ?? null,
+    phone: (s.phone as string | null) ?? null,
+    has_address: (s.has_address as boolean) ?? false,
+  };
+}
+
+function mapSiteToBackend(s: SiteInput): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (s.company_name !== undefined) out.company_name = s.company_name;
+  if (s.street !== undefined) out.street = s.street;
+  if (s.street_number !== undefined) out.street_nr = s.street_number;
+  if (s.zip !== undefined) out.zip_code = s.zip;
+  if (s.city !== undefined) out.city = s.city;
+  if (s.country !== undefined) out.country = s.country;
+  if (s.email !== undefined) out.email = s.email;
+  if (s.phone !== undefined) out.phone = s.phone;
+  return out;
 }
 
 // ─── CompanySettings field mapping (frontend ↔ backend) ──────────────────────

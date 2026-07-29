@@ -345,6 +345,8 @@ export interface paths {
         /**
          * Get Public Settings
          * @description No auth — used by Impressum, AGB, Datenschutz pages.
+         *
+         *     Immer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle.
          */
         get: operations["get_public_settings_api_v1_admin_settings_public_get"];
         put?: never;
@@ -353,6 +355,59 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sites
+         * @description Alle Standorte, Hauptsitz zuerst.
+         */
+        get: operations["list_sites_api_v1_admin_sites_get"];
+        put?: never;
+        /**
+         * Create Site
+         * @description Neuen Standort anlegen (nur Admin).
+         *
+         *     Er bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen
+         *     können dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –
+         *     sobald er eine eigene Anschrift trägt – automatisch als Versand statt als
+         *     innerbetriebliche Bewegung klassifiziert (ADR 005).
+         */
+        post: operations["create_site_api_v1_admin_sites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sites/{object_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Site
+         * @description Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.
+         *
+         *     Rechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über
+         *     ``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie
+         *     bewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann.
+         */
+        patch: operations["update_site_api_v1_admin_sites__object_id__patch"];
         trace?: never;
     };
     "/api/v1/admin/operating-costs": {
@@ -2831,6 +2886,11 @@ export interface components {
             id: number;
             /** Object Id */
             object_id?: number | null;
+            /**
+             * Is Primary
+             * @default false
+             */
+            is_primary: boolean;
             /** Company Name */
             company_name: string;
             /** Legal Form */
@@ -5407,6 +5467,91 @@ export interface components {
             acted_at?: string | null;
         };
         /**
+         * SiteCreate
+         * @description Neuer Standort. Der Name ist Pflicht – er ist zugleich das Label, das überall dort
+         *     erscheint, wo eine Instanz an diesem Standort liegt.
+         */
+        SiteCreate: {
+            /** Company Name */
+            company_name: string;
+            /** Street */
+            street?: string | null;
+            /** Street Nr */
+            street_nr?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
+         * SiteResponse
+         * @description Ein Standort als ERP-Datensatz.
+         *
+         *     Ohne Anschrift ist ein Standort gültig, aber logistisch stumm: die Klassifikation
+         *     Versand ↔ innerbetrieblich vergleicht **Adressen** (ADR 005), und ein Standort ohne
+         *     PLZ/Ort zählt darum wie «keine Adresse» – eine Bewegung dorthin bleibt
+         *     innerbetrieblich. ``has_address`` macht das in der Oberfläche sichtbar, statt es den
+         *     Nutzer raten zu lassen.
+         */
+        SiteResponse: {
+            /** Company Name */
+            company_name: string;
+            /** Street */
+            street?: string | null;
+            /** Street Nr */
+            street_nr?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Object Id */
+            object_id?: number | null;
+            /**
+             * Is Primary
+             * @default false
+             */
+            is_primary: boolean;
+            /**
+             * Has Address
+             * @default false
+             */
+            has_address: boolean;
+        };
+        /**
+         * SiteUpdate
+         * @description Standortfelder ändern (Hauptsitz wie Nebenstandort, gleiche Felder).
+         */
+        SiteUpdate: {
+            /** Company Name */
+            company_name?: string | null;
+            /** Street */
+            street?: string | null;
+            /** Street Nr */
+            street_nr?: string | null;
+            /** Zip Code */
+            zip_code?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country */
+            country?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
          * StepReorder
          * @description Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
          *     werden serverseitig automatisch neu eingefügt/positioniert.
@@ -6261,6 +6406,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_sites_api_v1_admin_sites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteResponse"][];
+                };
+            };
+        };
+    };
+    create_site_api_v1_admin_sites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_site_api_v1_admin_sites__object_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

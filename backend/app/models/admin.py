@@ -9,13 +9,46 @@ from ..core.database import Base
 
 
 class CompanySettings(Base):
+    """Ein **Standort** des Unternehmens (Migration 090, Variante A).
+
+    Bis Juli 2026 war das ein Singleton (``id == 1``). Jetzt trägt die Tabelle n Zeilen:
+    eine je Standort. Ein Standort ist ein vollwertiger ERP-Datensatz vom Typ
+    ``organization`` – mit Objektnummer, im Feed, und als **Halter** verwendbar
+    (``instances.location_type='company'`` zeigt auf seine Objektnummer).
+
+    **Nicht jede Spalte gilt je Standort.** Die Zeile trägt drei Gruppen mit
+    unterschiedlicher Reichweite – und wo eine Angabe gilt, entscheidet die
+    **Schreibstelle**, nicht die Tabelle (``services/sites.py`` ist die eine Auflösung):
+
+      * **je Standort** – ``company_name`` (der Standortname, z. B. «Werk Nord»),
+        Anschrift (``street``…``country``), ``email``, ``phone``.
+      * **nur am Hauptsitz** (``is_primary``) – die **Rechtsidentität**: ``legal_form``,
+        ``uid_number``, ``vat_number``, Handelsregister, ``share_capital``, IBAN/Bank,
+        ``website``, MWST-Verfahren, Zahlungsfristen.
+      * **nur am Hauptsitz** – die **Systemkonfiguration**: Stripe-Key, Shop-Währungen,
+        ``pricing_zone_factors``, ``legal_documents``, Plausible, hCaptcha, Maps.
+
+    Die beiden hinteren Gruppen werden ausschliesslich über ``sites.primary(db)``
+    gelesen und sind an einem Nebenstandort weder editierbar noch wirksam – sonst gäbe
+    es dieselbe Angabe an n Stellen (verboten, siehe Leitbild «Eine Sache, eine Stelle»).
+    """
+
     __tablename__ = "company_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    # Universelle Objektnummer: Das Unternehmen ist ein vollwertiger ERP-Datensatz
+    # Universelle Objektnummer: Jeder Standort ist ein vollwertiger ERP-Datensatz
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
-    # Abfrage lazy vergeben (services/admin.get_or_create_settings).
+    # Abfrage lazy vergeben (services/sites.primary) bzw. beim Anlegen (sites.create).
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
+    # **Der Hauptsitz** – die EINE Zeile, die Rechtsidentität und Systemkonfiguration
+    # trägt. Genau eine Zeile darf ``true`` sein (partieller Unique-Index, Migration 090):
+    # «die Firma» darf nicht zwei Antworten haben. Er ist zugleich der Absender auf
+    # Belegen und die Lieferadresse gegenüber Lieferanten.
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    # Am Hauptsitz die Firma, an einem Nebenstandort dessen Name («Werk Nord»). Das ist
+    # zugleich das Standort-Label: ``locations.location_label`` gibt für einen
+    # ``company``-Halter genau dieses Feld zurück.
     company_name: Mapped[str] = mapped_column(String(255), default="Inexxio AG")
     legal_form: Mapped[str] = mapped_column(String(50), default="AG")
     street: Mapped[Optional[str]] = mapped_column(String(255))

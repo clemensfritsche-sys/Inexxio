@@ -27,7 +27,10 @@ DEFAULT_SHOP_CURRENCIES = ["CHF", "EUR", "USD"]
 # ─── Shop-Währungen / Konfiguration ──────────────────────────────────────────────
 
 def _settings(db: Session) -> CompanySettings | None:
-    return db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    """Shop-Konfiguration – sie hängt am **Hauptsitz** (der Shop ist standortunabhängig:
+    ein Artikel, ein Preis, ein Stripe-Konto)."""
+    from .sites import find_primary
+    return find_primary(db)
 
 
 def shop_currencies(db: Session) -> list[str]:
