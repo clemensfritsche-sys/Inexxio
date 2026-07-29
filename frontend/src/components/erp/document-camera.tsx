@@ -81,8 +81,6 @@ export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument
           {!detected && <div className="ix-scanbeam" style={beam} />}
         </div>
       )}
-      {live && !detected && <div style={hintChip}>Dokument in den Rahmen halten</div>}
-
       {onCode && detected != null && (
         <button type="button" onClick={() => onCode(detected)} style={openChip}>
           <ScanLine size={14} /> Datensatz {fmtObjId(detected)} öffnen <ArrowRight size={14} />
@@ -127,11 +125,6 @@ const beam: React.CSSProperties = {
   position: 'absolute', left: '5%', right: '5%', top: '50%', height: 2, borderRadius: 2,
   background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent)',
   boxShadow: '0 0 12px rgba(255,255,255,.6)',
-};
-const hintChip: React.CSSProperties = {
-  position: 'absolute', top: 14, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-  borderRadius: 999, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)',
-  color: '#fff', font: '700 12.5px var(--font-body)', pointerEvents: 'none',
 };
 const openChip: React.CSSProperties = {
   position: 'absolute', top: 52, zIndex: 3, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px',

@@ -1725,6 +1725,50 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (7) **Feed ohne Scrollbalken** (#137, `.ix-noscrollbar`): gescrollt wird weiterhin (Rad,
   Trackpad, Touch, Tastatur), nur der Balken verschwindet.
 
+- **Testnotizen-Runde 12 (eine Frage – eine Antwort, Notizen #138–#147)**: Der rote Faden
+  dieser Runde ist Entdopplung: dieselbe Aussage stand jeweils an zwei Stellen oder in zwei
+  Formen.
+  (1) **Positionen tragen ihre Instanzen** (#141, `components/erp/order-positions.tsx`,
+  ersetzt `order-instances.tsx` + `PositionsList`): Die Auftragsspezifikation zeigte oben die
+  Positionen (Artikel → Menge) und darunter **alle** Instanzen des Auftrags als zweite flache
+  Liste – bei mehreren Positionen war damit ausgerechnet die entscheidende Zuordnung
+  unsichtbar: welche Instanz gehört zu welchem Artikel? Jetzt hängen die Instanzen eingerückt
+  an einer Haarlinie unter **ihrer** Position (`InstanceEmbed.article_id` liefert die
+  Zuordnung, sie war längst da). Der Einzel-Artikel-Auftrag ist dabei kein Sonderfall mehr,
+  sondern ein Auftrag mit EINER Position – die getrennten Kacheln «Artikel»/«Menge» sind
+  entfallen; ein Unter-Auftrag ohne Artikel zeigt titellos nur seine Instanzen. Eine Form für
+  alle drei Fälle, umbrechend statt überlaufend (Mobile).
+  (2) **Die verteilte Charge steht IM Standort-Container** (#147): «Standort» (Kette) und
+  «Standort · verteilt» (Teilmengen) waren zwei Karten für dieselbe Frage – und die Kette
+  darüber galt ohnehin nur für die **grösste** Teilmenge, war also bei einer verteilten Charge
+  die halbe Wahrheit. Ab zwei Standorten ersetzen die Teilmengen die Kette an Ort und Stelle
+  (Symbol · Halter · Objektnummer · Menge, Pille «verteilt · N Standorte» im Kachel-Kopf);
+  `instance-locations.tsx` ist entfallen.
+  (3) **Kein Footer mehr am Auftrag** (#140): Die Fussleiste trug drei Dinge, jedes hat einen
+  besseren Ort – der **Fehler** steht zuoberst im Inhalt, direkt unter der Aktion, die ihn
+  ausgelöst hat («Freigeben» sitzt im Kopf); der **Auto-Save-Status** war ohnehin schon als
+  grüner Flash im Kopf; **«Abbrechen»** der Anlage steht bei den übrigen Aktionen. Der
+  Anlage-Hinweis ist eine leise Zeile in der Karte, auf die er sich bezieht.
+  (4) **Der Platzhalter sagt, was zu TUN ist** (#145): «Standort 100000292 scannen» statt
+  «Aktueller Standort suchen» – die Zielnummer hängt der Scanner selbst an (`ScanStep.expected`),
+  die Aufrufstellen nennen nur noch, WAS gescannt wird. Das Eingabefeld bleibt daneben
+  unverändert benutzbar; die Platzhalter-Fläche wird lediglich zweckentfremdet.
+  (5) **Die abgeleitete Klasse ist eine Empfehlung, die Wahl ist die Wahrheit** (#138): der
+  Chip «Extern · Versand» beschrieb weiter die Ableitung, nachdem der Nutzer «Im Betrieb»
+  gewählt hatte – jetzt richtet er sich nach der getroffenen Wahl.
+  (6) Kleineres: ausgegraute Schritte behalten die **Farbe ihres Moduls** statt weiss zu
+  werden (#139); der Einzel-Instanz-Scan-Knopf trägt dieselbe Stimme wie der grosse Knopf
+  darunter (#144, schwarz statt blau); Vorschlagsliste im Scanner ohne Scrollbalken (#146);
+  «Dokument in den Rahmen halten» (#143) und «geändert …» in der Angelegt-Kachel (#142)
+  entfallen.
+  *Zur Suchleistung (Frage in #146): das Filtern im Scanner ist eine lineare Suche über die
+  Kandidaten mit Abbruch bei 6 Treffern – auch bei fünfstelligen Beständen unter einer
+  Millisekunde je Tastendruck. Die Grenze liegt nicht dort, sondern im **Vorladen**: das
+  Bewegungs-Panel holt für die freie Zielwahl einmal alle Personen + alle Instanzen
+  (`api.getInstances()` ohne Begrenzung). Der Endpunkt kann bereits serverseitig suchen und
+  paginieren (`search`/`limit`/`offset`), die Umstellung ist also eine Ein-Stellen-Änderung,
+  sobald die Instanzzahl das rechtfertigt.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
