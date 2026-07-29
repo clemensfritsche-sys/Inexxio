@@ -511,7 +511,7 @@ export default function ErpPage() {
             })}
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0 p-2 pb-24">
+          <div className="ix-noscrollbar flex-1 overflow-y-auto min-h-0 p-2 pb-24">
             {loading && <div className="p-6 text-center text-sm text-fg-4">Laden…</div>}
             {!loading && filtered.length === 0 && (
               <div className="p-6 text-center text-sm text-fg-4">

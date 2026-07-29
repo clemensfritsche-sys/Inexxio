@@ -491,13 +491,18 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>Welcher Schritt?</span>
                 <button onClick={resetForm} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 2 }}><X size={16} /></button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+              {/* Symbol statt Text, in der Farbe des Moduls: die Palette sieht damit aus wie
+                  der Fluss, den sie füllt. Der Name kommt beim Hover – die Kachel wächst auf
+                  und legt ihn frei (`.erp-palette`), zusätzlich erklärt der Tooltip die Rolle. */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {chooserTypes.map((t) => {
                   const m = STEP_META[t]; const Icon = m.icon; const kc = kindColor(t);
                   return (
-                    <button key={t} onClick={() => setAdding(t)} title={STEP_HINT[t]} style={paletteTile}>
-                      <div style={{ width: 36, height: 36, borderRadius: 'var(--r-sm)', background: '#fff', border: `1px solid ${kc.border}`, color: kc.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={18} /></div>
-                      <span style={{ font: '600 13px var(--font-body)', color: 'var(--fg-1)' }}>{m.label}</span>
+                    <button key={t} onClick={() => setAdding(t)} data-tip={STEP_HINT[t]}
+                      aria-label={m.label} className="erp-palette"
+                      style={{ background: kc.bg, borderColor: kc.border, color: kc.fg }}>
+                      <Icon size={19} />
+                      <span className="erp-palette-label">{m.label}</span>
                     </button>
                   );
                 })}
@@ -1108,10 +1113,6 @@ const editorCard: React.CSSProperties = {
 };
 const delBtn: React.CSSProperties = {
   border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer', padding: 4, flexShrink: 0,
-};
-const paletteTile: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-  borderRadius: 'var(--r-md)', border: '1px solid var(--border-1)', background: '#fff', cursor: 'pointer',
 };
 const toolTag: React.CSSProperties = {
   fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',

@@ -93,12 +93,15 @@ export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument
         {extra}
         {captureEnabled && (
           <>
-            <button type="button" onClick={capture} disabled={!live} style={{ ...shutter, opacity: live ? 1 : 0.5 }}>
-              <Camera size={19} /> {captureLabel}
-            </button>
-            <button type="button" onClick={() => fileRef.current?.click()} style={uploadLink}>
-              <Upload size={15} /> Datei hochladen (PDF/Bild)
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={capture} disabled={!live} style={{ ...shutter, opacity: live ? 1 : 0.5 }}>
+                <Camera size={19} /> {captureLabel}
+              </button>
+              <button type="button" onClick={() => fileRef.current?.click()} style={uploadBtn}
+                aria-label="Datei hochladen (PDF/Bild)" title="Datei hochladen (PDF/Bild)">
+                <Upload size={17} />
+              </button>
+            </div>
             <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden
               onChange={(e) => { const f = e.target.files?.[0]; if (f) onCapture(f); }} />
           </>
@@ -137,13 +140,15 @@ const openChip: React.CSSProperties = {
 const controls: React.CSSProperties = {
   position: 'absolute', left: 14, right: 14, bottom: 14, display: 'flex', flexDirection: 'column', gap: 8,
 };
+// Auslöser: ruhig statt laut – das Fotografieren ist Routine, kein Rot-Moment.
 const shutter: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, width: '100%', minHeight: 48,
-  borderRadius: 12, border: 'none', background: 'var(--inexxio-red, #E51A14)', color: '#fff',
-  fontSize: 15, fontWeight: 700, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, flex: 1, minHeight: 48,
+  borderRadius: 12, border: '1px solid rgba(255,255,255,.28)', background: 'rgba(15,23,42,.62)',
+  backdropFilter: 'blur(10px)', color: '#fff', fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
 };
-const uploadLink: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 42,
+// Rückfall «Datei hochladen»: nur Symbol, Bedeutung im Hover.
+const uploadBtn: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, minHeight: 48, flex: 'none',
   borderRadius: 12, border: '1px solid rgba(255,255,255,.22)', background: 'rgba(15,23,42,.5)',
-  backdropFilter: 'blur(10px)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  backdropFilter: 'blur(10px)', color: '#fff', cursor: 'pointer',
 };

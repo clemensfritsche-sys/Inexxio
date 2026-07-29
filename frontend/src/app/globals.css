@@ -754,3 +754,29 @@
 }
 .ix-scanbeam { animation: ix-scanbeam 2.4s cubic-bezier(.45,0,.55,1) infinite; }
 @media (prefers-reduced-motion: reduce) { .ix-scanbeam { animation: none; opacity: .7; } }
+
+/* ── Prozessschritt-Palette: Symbol, das beim Hover seinen Namen freigibt ──────
+   Symbol statt Text (Design-Leitsatz), Modulfarbe statt Neutral – und der Name
+   erscheint erst, wenn man hinzeigt. */
+.erp-palette {
+  display: inline-flex; align-items: center; gap: 0; overflow: hidden;
+  height: 44px; padding: 0 12px; border: 1px solid; border-radius: var(--r-md);
+  cursor: pointer; transition: gap .18s ease, padding .18s ease, box-shadow .15s;
+}
+.erp-palette .erp-palette-label {
+  max-width: 0; opacity: 0; white-space: nowrap; font: 700 13px var(--font-body);
+  transition: max-width .18s ease, opacity .14s ease;
+}
+.erp-palette:hover, .erp-palette:focus-visible {
+  gap: 9px; padding-right: 16px; box-shadow: var(--shadow-sm);
+}
+.erp-palette:hover .erp-palette-label, .erp-palette:focus-visible .erp-palette-label {
+  max-width: 180px; opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) { .erp-palette { transition: none; } }
+
+/* ── Feed: ruhige Fläche ohne Scrollbalken ────────────────────────────────────
+   Gescrollt wird weiterhin (Rad, Trackpad, Touch, Tastatur) – nur der Balken
+   verschwindet. */
+.ix-noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.ix-noscrollbar::-webkit-scrollbar { width: 0; height: 0; }

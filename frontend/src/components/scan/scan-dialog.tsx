@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CameraOff, Check, AlertTriangle, Search, ScanLine, Building2, User as UserIcon, Boxes, Package, Layers } from 'lucide-react';
+import { CameraOff, Check, AlertTriangle, Search } from 'lucide-react';
 import {
   parseScannedCode, validateForStep, OBJECT_ID_MIN, OBJECT_ID_MAX,
-  type ScanCandidate, type ScanKind, type ScanStep, type ScanRequest,
+  type ScanCandidate, type ScanStep, type ScanRequest,
 } from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { fmtObjId } from '@/components/erp/user-detail';
@@ -13,22 +13,6 @@ export type { ScanRequest };
 
 // Mehrfach-Lesungen desselben Codes kurz ignorieren (ZXing feuert laufend).
 const THROTTLE_MS = 1200;
-
-// Symbol + Bezeichnung je erwartetem Objekttyp («was scanne ich jetzt?»).
-const KIND_META: Record<ScanKind, { icon: React.ElementType; label: string }> = {
-  company: { icon: Building2, label: 'Unternehmen' },
-  user:       { icon: UserIcon,  label: 'Person' },
-  instance:   { icon: Boxes,     label: 'Instanz' },
-  article:    { icon: Package,   label: 'Artikel' },
-  process:    { icon: Layers,    label: 'Prozess' },
-  object:     { icon: ScanLine,  label: 'Datensatz' },
-};
-
-// Defensiv: ein unerwarteter/neuer ``kind`` (z. B. eine Standort-Art wie «company», die kein
-// scannbarer Objekttyp ist) darf NIE die App crashen – Fallback auf das generische «Datensatz».
-function kindMeta(kind: ScanKind | undefined | null) {
-  return (kind && KIND_META[kind]) || KIND_META.object;
-}
 
 type Feedback = { kind: 'ok' | 'bad'; text: string } | null;
 
@@ -150,13 +134,6 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
         <div style={{ ...frame, borderColor: feedback?.kind === 'bad' ? 'var(--danger)' : feedback?.kind === 'ok' ? 'var(--success)' : 'rgba(255,255,255,.85)' }}>
           {cameraLive && !feedback && <div className="ix-scanbeam" style={beam} />}
         </div>
-        {step && !feedback && (
-          <div style={targetLabel}>
-            {step.kind && (() => { const K = kindMeta(step.kind).icon; return <K size={15} strokeWidth={2} />; })()}
-            {step.label}
-          </div>
-        )}
-
         {feedback && (
           <div style={{ ...badge, background: feedback.kind === 'ok' ? 'var(--success)' : 'var(--danger)' }}>
             {feedback.kind === 'ok' ? <Check size={14} /> : <AlertTriangle size={14} />} {feedback.text}
@@ -172,6 +149,8 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
               onChange={(e) => { setQuery(e.target.value); setFeedback(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter' && typedDirectOk) submitQuery(); }}
               autoFocus
+              // Die Zielangabe («Instanz 100000479») lebt HIER statt zusätzlich als Chip im
+              // Bild – eine Aussage, eine Stelle (Notiz #126).
               placeholder={step ? `${step.label} suchen` : 'Objektnummer suchen'}
               style={input}
             />
@@ -229,12 +208,6 @@ const beam: React.CSSProperties = {
   boxShadow: '0 0 12px rgba(255,255,255,.6)',
 };
 // Die EINE Angabe im Bild: was soll gescannt werden.
-const targetLabel: React.CSSProperties = {
-  position: 'absolute', top: 'calc(50% + 34%)', display: 'inline-flex', alignItems: 'center', gap: 7,
-  padding: '7px 14px', borderRadius: 999, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(6px)',
-  color: '#fff', font: '700 13px var(--font-body)', letterSpacing: '.01em', maxWidth: '82%',
-  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-};
 const badge: React.CSSProperties = {
   position: 'absolute', top: 'calc(50% + 34%)', display: 'inline-flex', alignItems: 'center', gap: 6,
   padding: '7px 14px', borderRadius: 999, color: '#fff', fontSize: 12.5, fontWeight: 700, maxWidth: '86%',

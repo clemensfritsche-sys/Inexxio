@@ -427,12 +427,16 @@ export function PrimaryButton({ icon: Icon, children, onClick, disabled, tone = 
   icon?: React.ElementType; children: React.ReactNode; onClick: () => void;
   disabled?: boolean; tone?: 'primary' | 'success';
 }) {
+  // **Ruhige Hauptaktion.** Rot ist im Design-System der EINE laute Akzent – er gehört zur
+  // Entscheidung über den Datensatz («Freigeben»), nicht zur alltäglichen Arbeit im Schritt.
+  // «Scannen & bewegen» in Rot las sich wie ein Fehler; die Aktion ist aber Routine. Darum
+  // Schwarz (dieselbe Stimme wie ``.erp-actbtn-primary``); GRÜN bleibt der Abschluss.
   return (
     <button onClick={onClick} disabled={disabled}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
         minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none',
-        background: tone === 'success' ? 'var(--success)' : 'var(--inexxio-red)', color: '#fff',
+        background: tone === 'success' ? 'var(--success)' : 'var(--inexxio-black)', color: '#fff',
         fontSize: 14, fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
       }}>

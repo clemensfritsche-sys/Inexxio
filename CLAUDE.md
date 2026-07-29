@@ -1695,6 +1695,36 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (10) Die Prozess-Überschriften im **Entwurf** entfallen (#106/#116) – der Fluss mit
   Start-/Endknoten sagt selbst, was er ist; am laufenden Auftrag bleibt «Prozess».
 
+- **Testnotizen-Runde 11 (gebundener Bestand, ruhige Aktionen, Notizen #123–#137)**:
+  (1) **Ein freigegebener Unter-Auftrag reserviert seinen Bestand** (#131, `subject._bind_
+  deviation_subjects`): eine Abweichung band ihre Instanzen bisher nur über
+  `subject_of_order_id` + Verarbeitungs-Link – **FIFO sah sie weiterhin als frei**, ein
+  beliebiger anderer Auftrag konnte sie wegnehmen, und die Badge zeigte «Freigegeben», obwohl
+  sie längst gebunden waren. Jetzt wird reserviert, was am Lager liegt (in Arbeit/verkauft/
+  gesperrt braucht es nicht – dort greift ohnehin kein FIFO); Abschluss und Verwerfen lösen
+  die Reservierung über die bestehende `release`-Mechanik. Wächter
+  `test_fixed_subject_sub_order_reserves_its_stock`.
+  (2) **Die Schritt-Palette spricht die Sprache des Flusses** (#123/#124): Symbol in der
+  **Modulfarbe** statt neutraler Kachel mit Text; der Name klappt beim Hover auf
+  (`.erp-palette`, `prefers-reduced-motion`-fest), die Rolle steht im Tooltip.
+  (3) **Ruhige Hauptaktion** (#125): `PrimaryButton` ist **schwarz** statt rot. Rot ist der
+  EINE laute Akzent für die Entscheidung über den Datensatz («Freigeben»), nicht für die
+  alltägliche Arbeit im Schritt – «Scannen & bewegen» in Rot las sich wie ein Fehler. Grün
+  bleibt der Abschluss. Ebenso der Foto-Auslöser im Dokument-Dialog (#135); «Datei hochladen»
+  ist dort nur noch ein Symbol (#136).
+  (4) **Weniger Text im Bewegungs-Panel**: die Empfehlung markiert die Option selbst (Punkt +
+  Hover) statt eines Erklärsatzes (#132); der Hinweis «Innerbetriebliche Bewegung – kein
+  Versand» entfällt (#133 – der Umschalter sagt es bereits).
+  (5) **Eine Aussage, eine Stelle** (#126): die Zielangabe im Scanner steht nur noch als
+  **Platzhalter** im Suchfeld («Aktueller Standort suchen») statt zusätzlich als Chip im Bild.
+  Im Dokument-Dialog entfällt die Objektnummer-Eingabe ganz (#134) – dafür gibt es die
+  Feed-Suche.
+  (6) **Abweichungs-Dialog** (#128–#130): kein Erklärtext, kein ×, und **nichts ist
+  vorausgewählt oder hervorgehoben** – zwei gleichwertige Wege, die Entscheidung trifft der
+  Mensch und nicht die Gestaltung.
+  (7) **Feed ohne Scrollbalken** (#137, `.ix-noscrollbar`): gescrollt wird weiterhin (Rad,
+  Trackpad, Touch, Tastatur), nur der Balken verschwindet.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

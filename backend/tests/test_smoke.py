@@ -2799,6 +2799,26 @@ def test_open_provisioning_holds_the_whole_order():
     assert provisioning._STAGE_BEFORE == ("resource",)
 
 
+def test_fixed_subject_sub_order_reserves_its_stock():
+    """Ein freigegebener Unter-Auftrag hat seine Instanzen **in der Hand** – also sind sie
+    reserviert, sobald sie am Lager liegen.
+
+    Vorher band eine Abweichung ihre Instanzen nur über ``subject_of_order_id`` und den
+    Verarbeitungs-Link: FIFO sah sie weiterhin als frei, ein beliebiger anderer Auftrag konnte
+    sie wegnehmen – und die Badge zeigte «Freigegeben», obwohl sie längst gebunden waren.
+    Reserviert wird nur, was am Lager liegt: in Arbeit / verkauft / gesperrt greift ohnehin
+    kein FIFO. Beim Abschluss oder Verwerfen löst ``release`` die Reservierung wieder."""
+    import inspect as _inspect
+
+    from app.services import subject
+
+    src = _inspect.getsource(subject._bind_deviation_subjects)
+    assert "is_in_stock(inst)" in src
+    assert "reserve(inst, order.id, to_qty(inst.quantity))" in src
+    # Idempotent: eine zweite Freigabe reserviert nicht doppelt.
+    assert "reserved_for(inst, order.id) <= 0" in src
+
+
 def test_sub_orders_know_where_they_came_from():
     """Jeder Unter-Auftrag trägt seinen **Ursprungs-Schritt** – und damit eine Position im Ablauf.
 
