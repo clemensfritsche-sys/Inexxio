@@ -191,6 +191,55 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
 }
 
 /**
+ * **Dialog** – die EINE Fensterform für eine Entscheidung. Klick daneben und `Esc`
+ * schliessen; ein × wäre ein zweiter Weg für dasselbe, ein «Abbrechen» ein dritter
+ * (Notizen #153/#154). Der Inhalt ist die Entscheidung, sonst nichts.
+ */
+export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520, onClose, children }: {
+  icon?: ElementType; title: string; tone?: string; width?: number;
+  onClose: () => void; children: ReactNode;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: `min(${width}px, 100%)`, maxHeight: '86vh', overflowY: 'auto', boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
+          {Icon && <Icon size={18} style={{ color: tone }} />}
+          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>{title}</span>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Ein Weg im Dialog – **der Klick IST die Ausführung**, keine zweite Bestätigung
+ * darunter (Notiz #155). Nichts ist vorausgewählt oder hervorgehoben: die Wege sind
+ * gleichwertig, die Entscheidung trifft der Mensch und nicht die Gestaltung (#152).
+ */
+export function ChoiceButton({ title, text, disabled, onClick }: {
+  title: string; text?: string; disabled?: boolean; onClick: () => void;
+}) {
+  return (
+    <button type="button" disabled={disabled} onClick={onClick}
+      style={{
+        textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
+        border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
+      }}>
+      <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</div>
+      {text && <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>}
+    </button>
+  );
+}
+
+/**
  * Die EINE Regel für Zahlenfelder (Mengen, Perioden, Prozente): nur Ziffern, optional
  * EIN Dezimaltrenner. Das Komma wird zum Punkt – wer «2,5» tippt, meint 2.5, und das
  * Backend rechnet mit Punkt.

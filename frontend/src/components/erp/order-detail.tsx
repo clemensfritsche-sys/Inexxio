@@ -841,6 +841,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             <div style={{ marginBottom: 12 }}>
               <OrderFlow
                 steps={steps}
+                deviations={record.deviations ?? []}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
@@ -852,7 +853,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                     <ProcessHoldNotice reason="deviation" step={step} isStaff={isStaff}
                       canSupply={false} busy={false} recoverBusy={false} error={error}
                       onSupply={requestSupply} onCoverStock={coverFromStock}
-                      deviations={record.deviations ?? []} onOpen={(oid) => nav?.(oid)} />
+                      onOpen={(oid) => nav?.(oid)} />
                   ) : step.state === 'blocked' ? (
                     <ProcessHoldNotice reason="shortfall" step={step} isStaff={isStaff} canSupply={record.status === 'released'}
                       busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
@@ -1009,7 +1010,7 @@ const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
 //     Schritt ruht. Zwei Wege: Nachschub (produzieren/beschaffen) ODER aus Lager decken
 //     (FIFO, mit Unterkategorie «bestimmte Instanz wählen»). Löst sich von selbst, sobald
 //     der Bedarf gedeckt ist. GLEICH für alle Auftragsarten (Bestand wie Erzeugung).
-function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, deviations, onOpen }: {
+function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onOpen }: {
   reason: 'deviation' | 'shortfall';
   step: OrderStep | null;
   isStaff: boolean;
@@ -1019,35 +1020,19 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
   error: string | null;
   onSupply: () => void;
   onCoverStock: (instanceObjectIds?: number[]) => void;
-  deviations?: OrderDeviationInfo[];
   onOpen?: (objectId: number) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [picked, setPicked] = useState<number[]>([]);
 
   // ── Angehalten wegen offener Abweichung (ganzer Auftrag ruht) ──────────────────
+  // Nur die Aussage, sonst nichts: WELCHE Abweichung es ist, steht als Pille in der Karte
+  // des Schritts, an dem sie gemeldet wurde (#174) – und der Erklärabsatz ist entfallen
+  // (#173): «angehalten» sagt bereits, dass nichts geht.
   if (reason === 'deviation') {
-    const open = (deviations ?? []).filter((d) => d.status === 'draft' || d.status === 'released');
     return (
       <HoldFrame title="Prozess angehalten – Abweichung offen">
-        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-          Solange eine Abweichung offen ist, ruht der gesamte Auftrag – es lässt sich kein Schritt
-          ausführen (auch die betroffene Instanz nicht). Bitte zuerst die Abweichung abschliessen
-          oder zurücknehmen; danach läuft der Prozess automatisch weiter.
-        </div>
-        {open.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {open.map((d) => (
-              <button key={d.object_id} type="button" onClick={() => onOpen?.(d.object_id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a', background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' }}>
-                <AlertTriangle size={14} style={{ color: '#b45309', flexShrink: 0 }} />
-                <span>Abweichung <ObjId value={d.object_id} /> {d.status === 'draft' ? 'bearbeiten' : 'abschliessen'}
-                  {d.instance_count > 0 && <span style={{ color: '#64748b' }}> · {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}</span>}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+        {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       </HoldFrame>
     );
   }

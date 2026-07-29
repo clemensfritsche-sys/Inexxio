@@ -234,9 +234,6 @@ def duplicate_article(db: Session, src: Article, actor_id: int) -> Article:
         # die Beschaffungsquelle (Artikel-Default) – ein purchase-Artikel liess sich dann
         # ohne Neueingabe nicht mehr freigeben (has_source-Gate).
         is_hazmat=src.is_hazmat, reorder_target=src.reorder_target,
-        fixed_location_lat=src.fixed_location_lat, fixed_location_lng=src.fixed_location_lng,
-        fixed_location_street=src.fixed_location_street, fixed_location_zip=src.fixed_location_zip,
-        fixed_location_city=src.fixed_location_city, fixed_location_country=src.fixed_location_country,
         procurement_mode=src.procurement_mode, default_supplier_id=src.default_supplier_id,
         default_webshop_url=src.default_webshop_url,
     )

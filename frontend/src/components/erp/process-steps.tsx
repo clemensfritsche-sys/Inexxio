@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Truck, Globe, Building2, Ban, Users as UsersIcon, Shield } from 'lucide-react';
+import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
 import { userDisplayName } from '@/lib/utils';
@@ -47,14 +47,13 @@ function emptyDocCfg(): DocCfg {
 const ARTICLE_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'document'];
 const ORDER_STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
 
-export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null, procurementReady }: {
+export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
   ownerObjectId: number | null;          // Objektnummer des Trägers
   suppliers?: UserProfile[];             // Auswahl der Bezugsquelle direkt im Beschaffungs-Schritt
   readOnly?: boolean;
   onStepsCount?: (n: number, isStockOp: boolean) => void;
   selfArticleObjectId?: number | null;   // Artikel des Trägers (Ressource-Selbst-Ausschluss)
-  procurementReady?: boolean;            // Artikel-Beschaffungsquelle hinterlegt? (Warnung am purchase-Schritt)
 }) {
   const [steps, setSteps] = useState<ArticleProcessStep[]>([]);
   const [loading, setLoading] = useState(false);
@@ -201,12 +200,16 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
   async function addStep(type: StepType) {
     setError(null);
-    // Beschaffung: Bezugsquelle wird **direkt im Prozessschritt** definiert (Lieferant ODER
-    // Webshop-Link), vorbelegt aus dem Artikel-Standard, je Schritt frei überschreibbar – so
-    // kann EIN Prozess mehrere Beschaffungen mit unterschiedlichen Quellen abbilden. Ein leer
-    // gelassener Schritt erbt automatisch den Artikel-Standard (Fallback im Backend).
-    if (type === 'purchase' && mode === 'webshop' && url.trim() && !isValidWebshopUrl(url)) {
-      setError('Bitte einen gültigen Webshop-Link angeben (https://…)'); return;
+    // Beschaffung: die Bezugsquelle wird **hier** festgelegt – Lieferant ODER Webshop-Link,
+    // je Schritt eigen (so bildet EIN Prozess mehrere Beschaffungen mit unterschiedlichen
+    // Quellen ab). Ein «Artikel-Standard erben» gibt es nicht mehr (Notiz #166): der
+    // Artikel-Standard liess sich nirgends mehr pflegen – die Option zeigte auf einen Wert,
+    // den niemand setzen konnte. Ohne Quelle wäre die Bestellung adressatenlos.
+    if (type === 'purchase') {
+      if (mode === 'webshop' && !isValidWebshopUrl(url)) {
+        setError('Bitte einen gültigen Webshop-Link angeben (https://…)'); return;
+      }
+      if (mode === 'supplier' && !supplierId) { setError('Bitte den Lieferanten wählen'); return; }
     }
     if (type === 'inspection') {
       const p = Number(samplePercent);
@@ -234,7 +237,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     try {
       await api.createStep(owner, ownerObjectId!, {
         step_type: type,
-        // Bezugsquelle direkt am Schritt (leer = Artikel-Standard erben).
+        // Bezugsquelle direkt am Schritt.
         mode: type === 'purchase' ? mode : undefined,
         supplier_id: type === 'purchase' && mode === 'supplier' && supplierId ? Number(supplierId) : null,
         webshop_url: type === 'purchase' && mode === 'webshop' && url.trim() ? url.trim() : null,
@@ -352,15 +355,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         // wird ausschliesslich ``supplier_object_id``.
                         return (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title="Lieferant">
-                            <Truck size={12} />
+                            <Building2 size={12} />
                             {s.supplier_object_id != null && <ObjId value={s.supplier_object_id} />}
                             {s.supplier_name}
                           </span>
                         );
-                      // Kein Schritt-Override → erbt den Artikel-Standard. Fehlt der ebenfalls, roter Hinweis.
-                      return owner === 'articles' && procurementReady === false
-                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: '#b91c1c', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt – Schritt oder Spezifikation ergänzen</span>
-                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ShoppingCart size={12} /> Bezugsquelle vom Artikel-Standard</span>;
+                      // Ohne Quelle am Schritt (nur bei Altbestand möglich) bleibt der Hinweis.
+                      return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger)', fontWeight: 600 }}><ShoppingCart size={12} /> Bezugsquelle fehlt</span>;
                     })()}
                     {/* Nur der Prüfumfang – WAS erfasst wird, steht ausformuliert im Schritt
                         selbst; die blosse Anzahl der Felder sagte nichts, was dort nicht steht. */}
@@ -516,34 +517,25 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
               {adding === 'purchase' && (
                 <>
-                  {/* Bezugsquelle direkt im Prozessschritt (Lieferant ODER Webshop-Link) –
-                      vorbelegt aus dem Artikel-Standard, je Schritt frei überschreibbar, sodass
-                      ein Prozess mehrere Beschaffungen mit unterschiedlichen Quellen abbilden kann. */}
+                  {/* Die Bezugsquelle wird HIER festgelegt (Lieferant ODER Webshop-Link),
+                      je Schritt eigen – kein «erben» mehr (#166). Das Symbol des Lieferanten
+                      ist ein Gebäude, nicht ein Lastwagen (#164): gemeint ist die Firma, bei
+                      der bestellt wird, nicht der Transport. */}
                   <div>
                     <Label>Bezugsquelle</Label>
                     <IconSwitch<ProcessStepMode> symbolOnly value={mode} onChange={setMode}
                       options={[
-                        { value: 'supplier', icon: Truck, label: 'Lieferant', hint: 'Bestellung bei einem Lieferanten' },
+                        { value: 'supplier', icon: Building2, label: 'Lieferant', hint: 'Bestellung bei einem Lieferanten' },
                         { value: 'webshop', icon: Globe, label: 'Webshop', hint: 'Kauf über einen Webshop-Link' },
                       ]} />
                   </div>
                   {mode === 'supplier' ? (
-                    <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId}
-                      placeholder="Artikel-Standard erben"
-                      options={[
-                        { value: '', label: 'Artikel-Standard erben' },
-                        ...suppliers.filter((s) => s.object_id != null).map((s) => ({
-                          value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` })),
-                      ]} />
+                    <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId} required
+                      options={suppliers.filter((s) => s.object_id != null).map((s) => ({
+                        value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` }))} />
                   ) : (
-                    <TextField label="Webshop-Link" value={url} onChange={setUrl}
-                      placeholder="https://shop.example.com/artikel" hint="Leer lassen, um den Artikel-Standard zu erben." />
-                  )}
-                  {owner === 'articles' && procurementReady === false && mode === 'supplier' && !supplierId && (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 12, color: '#b91c1c' }}>
-                      <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                      <span>Ohne Bezugsquelle (hier oder als Artikel-Standard) lässt sich der Artikel nicht freigeben.</span>
-                    </div>
+                    <TextField label="Webshop-Link" value={url} onChange={setUrl} required
+                      placeholder="https://shop.example.com/artikel" />
                   )}
                   <div><Label>Für Lieferant sichtbar</Label><FieldChips value={shared} onChange={setShared} optionalAvailable={optionalShareKeys} /></div>
                 </>
@@ -729,43 +721,78 @@ function SampleScope({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 // ─── Datenerfassungs-Maske bearbeiten ─────────────────────────────────────────
+//
+// **Dieselbe Geste wie beim Prozessschritt** (Notiz #172): erst wählt man, WAS für ein Feld
+// es ist – aus einer Palette aus Symbolen, deren Name beim Hover aufklappt (`.erp-palette`) –,
+// dann konfiguriert man es. Vorher hiess der Weg «Feld hinzufügen» → leere Zeile → Auswahl aus
+// einem Dropdown: drei Handgriffe für eine Entscheidung, und eine Zeile, die vor der Wahl
+// bereits ein «Soll-Ist» behauptete.
+const CAPTURE_KINDS: { value: WField['type']; label: string; icon: React.ElementType; hint: string }[] = [
+  { value: 'measure', label: 'Soll-Ist', icon: Ruler, hint: 'Messwert mit Sollwert und Toleranz – bestanden, wenn er darin liegt.' },
+  { value: 'bool', label: 'Gut/Schlecht', icon: ThumbsUp, hint: 'Eine Ja/Nein-Beurteilung ohne Zahl.' },
+  { value: 'text', label: 'Text', icon: Type, hint: 'Freie Notiz – wird erfasst, aber nicht bewertet.' },
+  { value: 'photo', label: 'Bild', icon: Camera, hint: 'Aufnahme mit der Kamera.' },
+  { value: 'signature', label: 'Unterschrift', icon: PenLine, hint: 'Handschriftliche Unterschrift auf dem Gerät.' },
+];
+
 function CaptureFieldsEditor({ fields, onChange }: { fields: WField[]; onChange: (f: WField[]) => void }) {
-  function add() { onChange([...fields, { label: '', type: 'measure', target: '', tolerance: '', unit: '' }]); }
+  const [picking, setPicking] = useState(false);
+  function add(type: WField['type']) {
+    onChange([...fields, { label: '', type, target: '', tolerance: '', unit: '' }]);
+    setPicking(false);
+  }
   function upd(i: number, patch: Partial<WField>) { onChange(fields.map((f, idx) => (idx === i ? { ...f, ...patch } : f))); }
   function del(i: number) { onChange(fields.filter((_, idx) => idx !== i)); }
   return (
     <div>
       <Label>Erfassungsfelder (was wird geprüft?)</Label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {fields.map((f, i) => (
-          <div key={i} style={{ border: '1px solid var(--border-1)', borderRadius: 8, padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={f.label} onChange={(e) => upd(i, { label: e.target.value })} placeholder="Bezeichnung (z. B. Länge)"
-                className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', flex: 1 }} />
-              <select value={f.type} onChange={(e) => upd(i, { type: e.target.value as WField['type'] })}
-                className="px-2 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }}>
-                <option value="measure">Soll-Ist</option>
-                <option value="bool">Gut/Schlecht</option>
-                <option value="text">Text</option>
-                <option value="photo">Bild</option>
-                <option value="signature">Unterschrift</option>
-              </select>
-              <button onClick={() => del(i)} style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
-            </div>
-            {f.type === 'measure' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 96px), 1fr))', gap: 8 }}>
-                <input value={f.target} onChange={(e) => upd(i, { target: e.target.value })} inputMode="decimal" placeholder="Soll"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
-                <input value={f.tolerance} onChange={(e) => upd(i, { tolerance: e.target.value })} inputMode="decimal" placeholder="± Toleranz"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
-                <input value={f.unit} onChange={(e) => upd(i, { unit: e.target.value })} placeholder="Einheit"
-                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
+        {fields.map((f, i) => {
+          const kind = CAPTURE_KINDS.find((k) => k.value === f.type) ?? CAPTURE_KINDS[0];
+          const KindIcon = kind.icon;
+          return (
+            <div key={i} style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-sm)', padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                {/* Die Art steht fest, sobald man sie gewählt hat – sie ist kein Feld mehr,
+                    sondern das Symbol der Zeile (umentscheiden = löschen + neu, wie beim Schritt). */}
+                <span title={kind.label} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)', color: 'var(--fg-2)', flexShrink: 0 }}>
+                  <KindIcon size={15} />
+                </span>
+                <input value={f.label} onChange={(e) => upd(i, { label: e.target.value })} placeholder="Bezeichnung (z. B. Länge)"
+                  className="px-2.5 py-1.5 text-sm rounded-md border bg-white outline-none focus:ring-2 focus:ring-[var(--accent)]" style={{ borderColor: 'var(--border-1)', flex: 1, minWidth: 0 }} />
+                <button onClick={() => del(i)} title="Feld entfernen" style={{ border: 'none', background: 'none', color: 'var(--fg-4)', cursor: 'pointer' }}><Trash2 size={15} /></button>
               </div>
-            )}
-          </div>
-        ))}
+              {f.type === 'measure' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 96px), 1fr))', gap: 8 }}>
+                  <input value={f.target} onChange={(e) => upd(i, { target: e.target.value })} inputMode="decimal" placeholder="Soll"
+                    className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
+                  <input value={f.tolerance} onChange={(e) => upd(i, { tolerance: e.target.value })} inputMode="decimal" placeholder="± Toleranz"
+                    className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
+                  <input value={f.unit} onChange={(e) => upd(i, { unit: e.target.value })} placeholder="Einheit"
+                    className="px-2.5 py-1.5 text-sm rounded-md border bg-white" style={{ borderColor: 'var(--border-1)' }} />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <AddRowButton label="Erfassungsfeld hinzufügen" compact={fields.length > 0} onClick={add} />
+      {picking ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          {CAPTURE_KINDS.map((k) => {
+            const Icon = k.icon;
+            return (
+              <button key={k.value} type="button" onClick={() => add(k.value)} data-tip={k.hint}
+                aria-label={k.label} className="erp-palette"
+                style={{ background: 'var(--bg-2)', borderColor: 'var(--border-1)', color: 'var(--fg-2)' }}>
+                <Icon size={18} />
+                <span className="erp-palette-label">{k.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <AddRowButton label="Erfassungsfeld hinzufügen" compact={fields.length > 0} onClick={() => setPicking(true)} />
+      )}
     </div>
   );
 }
@@ -1063,7 +1090,6 @@ function FieldChips({ value, onChange, optionalAvailable = [] }: {
   value: string[]; onChange: (v: string[]) => void; optionalAvailable?: string[];
 }) {
   const fields = SUPPLIER_FIELD_CATALOG.filter((f) => f.mandatory || optionalAvailable.includes(f.key));
-  const hasOptional = fields.some((f) => !f.mandatory);
   function toggle(key: string) {
     const set = new Set(value);
     if (set.has(key)) set.delete(key); else set.add(key);
@@ -1077,10 +1103,6 @@ function FieldChips({ value, onChange, optionalAvailable = [] }: {
             on={f.mandatory || value.includes(f.key)} locked={f.mandatory}
             onClick={f.mandatory ? undefined : () => toggle(f.key)} />
         ))}
-      </div>
-      <div style={{ marginTop: 6, fontSize: 11, color: 'var(--fg-4)' }}>
-        Pflicht-Stammdaten sind für den Lieferanten immer sichtbar.
-        {!hasOptional && ' Optionale Felder erscheinen hier nur, wenn sie am Artikel gepflegt sind.'}
       </div>
     </div>
   );

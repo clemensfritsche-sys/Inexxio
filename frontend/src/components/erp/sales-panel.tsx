@@ -22,7 +22,7 @@ import type {
   SalesVisibility, SalesFulfillment, SalesContent, SalesContentBlock,
   PriceKind, PriceInterval, PriceSubType, UserProfile,
 } from '@/types';
-import { Label, TextField, SectionTitle, Placeholder } from '@/components/erp/fields';
+import { Label, TextField, SectionTitle, Placeholder, IconSwitch } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { AiImageAssist } from '@/components/ai/image-assist';
 import { useAutosave } from '@/lib/use-autosave';
@@ -85,8 +85,10 @@ const card: React.CSSProperties = {
 type Choice<T extends string> = { value: T; label: string; icon: React.ElementType; hint: string };
 
 /**
- * Ersetzt Dropdown/Segment/Radio in diesem Reiter. Der Chip zeigt Symbol + Wort, der
- * `title`-Hover trägt die Erklärung – so steht nie ein Erklärsatz dauerhaft in der Fläche.
+ * **Schieberegler statt Chip-Reihe** (Notizen #159–#161): dass die Optionen einander
+ * ausschliessen, zeigt die Bewegung des Reiters – nicht ein zweiter Rahmen. Es ist
+ * derselbe `IconSwitch` wie am Bedarf und am Beschaffungs-Schritt: gleiche Bedeutung,
+ * gleiche Form. Die Erklärung sitzt im Hover, nie in der Fläche.
  */
 function IconChoice<T extends string>({ label, value, onChange, options }: {
   label: string; value: T; onChange: (v: T) => void; options: Choice<T>[];
@@ -94,25 +96,7 @@ function IconChoice<T extends string>({ label, value, onChange, options }: {
   return (
     <div>
       <Label>{label}</Label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {options.map((o) => {
-          const on = value === o.value;
-          const Icon = o.icon;
-          return (
-            <button key={o.value} type="button" title={o.hint} onClick={() => onChange(o.value)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                borderRadius: 'var(--r-md)', cursor: 'pointer', transition: 'all .13s',
-                font: '600 12.5px var(--font-body)',
-                border: `1px solid ${on ? 'var(--accent)' : 'var(--border-1)'}`,
-                background: on ? 'var(--accent-soft)' : '#fff',
-                color: on ? 'var(--accent-ink)' : 'var(--fg-3)',
-              }}>
-              <Icon size={14} /> {o.label}
-            </button>
-          );
-        })}
-      </div>
+      <IconSwitch value={value} onChange={onChange} options={options} />
     </div>
   );
 }
@@ -208,7 +192,7 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
       </div>
 
       <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 14 }}>
-        <SectionTitle icon={ImageIcon} info="Was der Kunde im Shop sieht. Sprache folgt später (KI-Übersetzung); aktuell einsprachig gepflegt.">Inhalt</SectionTitle>
+        <SectionTitle icon={ImageIcon}>Inhalt</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10 }}>
             <TextField label="Titel" value={block.title ?? ''} onChange={(v) => setBlock({ title: v })} placeholder="Produkttitel" />
@@ -243,10 +227,7 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
 
   return (
     <div style={card}>
-      <SectionTitle icon={Coins} info="Nur die Netto-Basis in CHF pflegen – Stripe zeigt an der Kasse die Lokalwährung und berechnet die Steuer. Mehrere Optionen je Produkt sind möglich.">Preise</SectionTitle>
-      {prices.length === 0 && !adding && (
-        <div style={{ fontSize: 12.5, color: 'var(--fg-4)' }}>Noch kein Preis – ohne Preis erscheint das Produkt nicht im Shop.</div>
-      )}
+      <SectionTitle icon={Coins}>Preise</SectionTitle>
       {prices.map((p) => (
         <PriceRow key={p.id} articleObjectId={articleObjectId} price={p} onChanged={onChanged} />
       ))}
