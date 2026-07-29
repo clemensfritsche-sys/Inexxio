@@ -51,12 +51,12 @@ class Article(Base, TimestampMixin):
     # – ein Paket mit Gefahrgut braucht Spezialbehandlung beim Carrier.
     is_hazmat: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
 
-    # ── Meldebestand / Auto-Nachbestellung (E) ─────────────────────────────────────
+    # ── Sicherheitsbestand / Auto-Nachbestellung (E) ───────────────────────────────
     # «Nicht die Zeit soll bestellen, sondern der Bestand»: fällt der freie Bestand unter
-    # ``safety_stock`` (= Meldebestand), legt das System einen Nachschub-Auftrag an (bis
-    # ``reorder_target`` bzw. – wenn leer – zurück auf ``safety_stock``). Setzt einen
-    # freigegebenen Artikel-Prozess voraus (produzierbar/beschaffbar).
-    reorder_target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 3), nullable=True)
+    # ``safety_stock``, legt das System einen Nachschub-Auftrag an, der **genau auf diese
+    # Menge auffüllt**. Ein separater «Zielbestand» ist mit Migration 089 entfallen (Notiz
+    # #221): zwei Zahlen für dieselbe Frage, von denen die zweite fast immer leer blieb.
+    # Setzt einen freigegebenen Artikel-Prozess voraus (produzierbar/beschaffbar).
 
     # ── Beschaffungsquelle (Teil der Spezifikation, friert bei Freigabe ein) ───────────
     # WO dieser Artikel beschafft wird, gehört zur Produktspezifikation – nicht in jeden

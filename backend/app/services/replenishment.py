@@ -3,7 +3,7 @@
 Fällt der **freie** Bestand eines Artikels unter seinen **Meldebestand** (``safety_stock``),
 legt das System einen eigenständigen **Nachschub-Auftrag** (``reason='replenishment'``, ohne
 Eltern) an und gibt ihn frei – er fährt den ganz normalen Artikel-Prozess (produzieren oder
-beschaffen) und füllt den Bestand bis ``reorder_target`` (bzw. – wenn leer – zurück auf den
+beschaffen) und füllt den Bestand zurück auf den
 Meldebestand) auf.
 
 Wiederverwendung statt neuer Maschinerie: dieselbe Freigabe (``orders.release_order``) und
@@ -54,12 +54,11 @@ def _open_replenishment(db: Session, article_id: int) -> Order | None:
 
 
 def _reorder_qty(article: Article, free) -> Decimal:
-    """Bestellmenge = Ziel − Frei, mindestens die MOQ (nie ≤ 0)."""
-    point = to_qty(article.safety_stock)
-    target = to_qty(article.reorder_target) if article.reorder_target is not None else point
-    if target < point:
-        target = point
-    qty = target - to_qty(free)
+    """Bestellmenge = Sicherheitsbestand − Frei, mindestens die MOQ (nie ≤ 0).
+
+    Aufgefüllt wird **auf den Sicherheitsbestand**; der frühere separate «Zielbestand»
+    ist entfallen (Notiz #221) – zwei Zahlen für dieselbe Frage."""
+    qty = to_qty(article.safety_stock) - to_qty(free)
     moq = to_qty(article.min_order_qty) if article.min_order_qty is not None else ZERO
     if qty < moq:
         qty = moq

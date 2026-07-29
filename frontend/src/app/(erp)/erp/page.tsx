@@ -93,23 +93,25 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-ds-md text-left transition-colors',
+        // Etwas leichter (Notiz #206): kleineres Symbol, halbfetter statt fetter Titel –
+        // der Feed ist eine Liste zum Überfliegen, nicht eine Reihe von Überschriften.
+        'w-full flex items-center gap-2.5 px-3 py-2.5 mb-0.5 rounded-ds-md text-left transition-colors',
         sel ? 'bg-accent-soft' : 'hover:bg-bg-2',
       )}
     >
       {row.type === 'user' && row.data.photo_url ? (
-        <div className="w-9 h-9 rounded-full flex-none overflow-hidden">
+        <div className="w-8 h-8 rounded-full flex-none overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={row.data.photo_url} alt="" className="w-full h-full object-cover" />
         </div>
       ) : (
         <div
-          className={cn('w-9 h-9 flex-none flex items-center justify-center relative', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
+          className={cn('w-8 h-8 flex-none flex items-center justify-center relative', row.type === 'user' ? 'rounded-full' : 'rounded-ds-sm')}
           style={{ background: meta.bg, color: meta.fg }}
         >
           {row.type === 'user'
             ? <span className="text-xs font-bold">{userInitials(title ?? '', row.data.email)}</span>
-            : <TypeIcon size={17} />}
+            : <TypeIcon size={16} />}
           {isDeviation && (
             <span
               title="Abweichungs-Auftrag"
@@ -122,7 +124,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <div className={cn('text-sm font-bold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
+        <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
           {title ?? (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
         </div>
         <div className="flex items-center gap-2 mt-0.5">

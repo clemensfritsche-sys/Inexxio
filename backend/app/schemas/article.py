@@ -105,7 +105,7 @@ def _opt_qty(v: Optional[Decimal]) -> Optional[Decimal]:
 
 # Optionale Stammdatenfelder (dynamische Feldliste): Validatoren je Feld.
 _OPTIONAL_TEXT_FIELDS = ("material", "cad_url", "surface", "supplier_article_number")
-_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock", "reorder_target")
+_OPTIONAL_QTY_FIELDS = ("min_order_qty", "safety_stock")
 
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
@@ -130,7 +130,6 @@ class ArticleCreate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    reorder_target: Optional[Decimal] = None    # Zielbestand nach Nachbestellung (E)
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
     # Beschaffungsquelle (Spezifikation): Modus + Lieferant/Webshop-Link (alle optional –
     # kann später ergänzt werden; der purchase-Schritt erbt sie als Default).
@@ -224,7 +223,6 @@ class ArticleUpdate(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    reorder_target: Optional[Decimal] = None    # E
     is_hazmat: Optional[bool] = None            # Gefahrgut (Versand-Warnung, ADR 005)
     # Beschaffungsquelle (Spezifikation; im Entwurf editierbar, bei Freigabe eingefroren)
     procurement_mode: Optional[str] = None
@@ -323,7 +321,6 @@ class ArticleResponse(BaseModel):
     supplier_article_number: Optional[str] = None
     min_order_qty: Optional[Decimal] = None
     safety_stock: Optional[Decimal] = None
-    reorder_target: Optional[Decimal] = None    # E: Zielbestand nach Nachbestellung
     is_hazmat: bool = False                     # Gefahrgut (Versand-Warnung, ADR 005)
     # Beschaffungsquelle (Spezifikation) + denormalisierter Lieferantenname (Router)
     procurement_mode: str = "supplier"

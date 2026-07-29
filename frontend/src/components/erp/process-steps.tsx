@@ -509,10 +509,27 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 })}
               </div>
             </div>
-          ) : (
-            <div style={{ ...editorCard, gap: 14 }}>
-              <button onClick={() => setAdding('choose')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0, alignSelf: 'flex-start' }}>
-                <ArrowLeft size={13} /> {STEP_META[adding].label}
+          ) : (() => {
+            // **Der Editor trägt die Farbe seines Moduls** (Notiz #222): man konfiguriert
+            // die Karte, die gleich im Fluss stehen wird – also sieht sie schon so aus.
+            // Kopf-Anatomie wie die Modul-Karte selbst: getöntes Symbol + Name.
+            const kc = kindColor(adding);
+            const AddIcon = STEP_META[adding].icon;
+            return (
+            <div style={{ ...editorCard, gap: 14, background: kc.bg, borderColor: kc.border }}>
+              <button onClick={() => setAdding('choose')}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'none', cursor: 'pointer', padding: 0, alignSelf: 'flex-start' }}>
+                <span style={{
+                  width: 34, height: 34, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
+                  color: kc.fg, border: `1px solid ${kc.border}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <AddIcon size={17} />
+                </span>
+                <span style={{ font: '800 15px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>
+                  {STEP_META[adding].label}
+                </span>
+                <ArrowLeft size={13} style={{ color: 'var(--fg-4)' }} />
               </button>
 
               {adding === 'purchase' && (
@@ -587,7 +604,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 <button onClick={() => addStep(adding)} disabled={saving} style={primaryBtn}>{saving ? 'Speichern…' : 'Hinzufügen'}</button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>

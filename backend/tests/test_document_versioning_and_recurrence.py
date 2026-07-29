@@ -67,6 +67,5 @@ def test_instance_expiry_mechanism_removed():
     from app.services import process
     assert "set_on_release" not in inspect.getsource(process.release_instances)
 
-    # 5. Meldebestand/Zielbestand (E) bleiben – nur die Haltbarkeit fällt weg
+    # 5. Der Sicherheitsbestand (E) bleibt – nur die Haltbarkeit fällt weg
     assert hasattr(Article, "safety_stock")
-    assert hasattr(Article, "reorder_target")

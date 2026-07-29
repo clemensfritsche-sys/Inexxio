@@ -12,6 +12,20 @@ verlangt.* Der Nutzer modelliert nur die fachlichen Schritte (kaufen, verbauen,
 verkaufen). Jeden physischen Transport, der daraus zwingend folgt, leitet dieses Modul
 zur Laufzeit ab.
 
+**⚠ VORÜBERGEHEND ABGESCHALTET** (``AUTO_PROVISIONING = False``, Testnotiz #204).
+
+Im Praxistest fiel auf: der abgeleitete Bereitstellungs-Unter-Auftrag war (a) im Ablauf
+nicht als Unter-Auftrag erkennbar – er sah aus wie ein regulärer Schritt des Hauptprozesses –
+und (b) seine Blockade-Logik traf nicht das Gewollte. Statt an der Oberfläche zu flicken,
+ist der **Auslöser** stillgelegt, bis das Modell überarbeitet ist: es entsteht keine neue
+Bereitstellung mehr, und bereits vorhandene halten keinen Auftrag mehr an (sonst hinge ein
+Auftrag an einem Mechanismus fest, den es gerade nicht mehr gibt). Die Datensätze bleiben
+als Historie erhalten und lassen sich normal abschliessen oder verwerfen.
+
+**Die Abschaltung ist EINE Stelle** – die Konstante unten. Alles Übrige (Deklaration der
+Bereitstellungsorte, ``target_for``, ``misplaced``, ``reconcile_to``, die Tests) bleibt
+unverändert bestehen; das Wiedereinschalten ist ein Ein-Zeilen-Wechsel.
+
 **Die vier Regeln:**
 
 1. Jeder Schritttyp deklariert in ``domain/event_types.py``, **wo sein Material sein muss**
@@ -64,6 +78,12 @@ from .events import emit
 from .objects import next_object_id
 
 REASON = "provisioning"
+
+# ⚠ **Der EINE Schalter** (Testnotiz #204). ``False`` legt die abgeleitete Bereitstellung
+# still: es entsteht keine neue, und eine bereits vorhandene hält keinen Auftrag mehr an.
+# Bestehende Datensätze bleiben unangetastet (Historie, normal abschliess-/verwerfbar).
+# Wiedereinschalten = ``True`` – die ganze Ableitung darunter ist unverändert intakt.
+AUTO_PROVISIONING = False
 
 # Schritttypen, deren Material VOR der Ausführung am Soll-Ort sein muss. Alle übrigen
 # (Beschaffung, Verkauf) stellen ihr Ergebnis DANACH bereit – die Ware kommt an bzw.
@@ -210,7 +230,12 @@ def misplaced(db: Session, order: Order, step: ArticleProcessStep) -> tuple[list
 # ─── 4) Der Bereitstellungs-Unter-Auftrag ────────────────────────────────────────
 
 def open_provisioning(db: Session, parent: Order, step_id: int | None = None) -> list[Order]:
-    """Offene Bereitstellungen eines Auftrags (optional für genau einen Schritt)."""
+    """Offene Bereitstellungen eines Auftrags (optional für genau einen Schritt).
+
+    Ist die Ableitung abgeschaltet, meldet sie **nichts** – sonst hinge ein Auftrag an einem
+    Mechanismus fest, den es gerade nicht mehr gibt (Testnotiz #204)."""
+    if not AUTO_PROVISIONING:
+        return []
     if not parent.object_id:
         return []
     q = db.query(Order).filter(
@@ -265,7 +290,11 @@ def ensure_provisioning(db: Session, order: Order, actor_id: int | None) -> list
 
     Idempotent (ein offener Bereitstellungs-Auftrag je Schritt) und **nicht rekursiv**:
     ein Bereitstellungs-Auftrag stellt selbst nichts bereit – er IST die Bereitstellung.
-    Committet NICHT (der Aufrufer schliesst ab)."""
+    Committet NICHT (der Aufrufer schliesst ab).
+
+    **Aktuell abgeschaltet** (``AUTO_PROVISIONING``) – siehe Modul-Kopf."""
+    if not AUTO_PROVISIONING:
+        return []
     if order.reason == REASON or order.status != "released":
         return []
 

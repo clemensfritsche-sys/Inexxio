@@ -20,7 +20,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ErrorText, SaveIndicator } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -54,34 +54,37 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'dokumente', label: 'Dokumente', icon: FolderOpen },
 ];
 
-type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'reorder_target' | 'is_hazmat';
+type OptKey = 'material' | 'cad_url' | 'surface' | 'supplier_article_number' | 'min_order_qty' | 'safety_stock' | 'is_hazmat';
 // Der frühere «Fixierte Standort» (GPS + Adresse am Artikel) ist ersatzlos entfallen
 // (Notiz #168): Ein Artikel ist eine Gattung – einen Ort hat immer nur die Instanz.
 type AddKey = OptKey;
 type Form = {
   name: string; unit: string; serialization: string; size: string; weight_kg: string;
   material: string; cad_url: string; surface: string; supplier_article_number: string; min_order_qty: string; safety_stock: string;
-  reorder_target: string; is_hazmat: string;
+  is_hazmat: string;
   // Beschaffungsquelle (Spezifikation): Modus + Lieferant (id als String für die Auswahl) / Webshop-Link
   procurement_mode: string; default_supplier_id: string; default_webshop_url: string;
 };
 
-// Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen)
-const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?: boolean; placeholder: string; hint?: string }[] = [
+// Optionale Stammdaten – dynamische Feldliste (nur bei Bedarf hinzufügen).
+//
+// **Die Beschriftung nennt die Sache, der Platzhalter erklärt sie** (Notizen #207, #212–#214,
+// #216, #217): erklärende Zeilen UNTER einem Feld standen dauerhaft in der Fläche, obwohl
+// man sie nur beim ersten Ausfüllen braucht – im Platzhalter sind sie genau dann da.
+const OPTIONAL_FIELDS: { key: OptKey; label: string; numeric?: boolean; boolean?: boolean; placeholder: string }[] = [
   { key: 'material', label: 'Material', placeholder: 'z. B. Stahl 1.4301' },
-  { key: 'cad_url', label: 'CAD-Link', placeholder: 'https://…', hint: 'Link zur CAD-Datei/Zeichnung' },
+  { key: 'cad_url', label: 'CAD-Link', placeholder: 'Link zur CAD-Datei/Zeichnung – https://…' },
   { key: 'surface', label: 'Oberfläche', placeholder: 'z. B. verzinkt, eloxiert' },
   { key: 'supplier_article_number', label: 'Lief.-Artikelnummer', placeholder: 'Artikelnummer des Lieferanten' },
-  { key: 'min_order_qty', label: 'MOQ (Mindestbestellmenge)', numeric: true, placeholder: 'z. B. 50' },
-  { key: 'safety_stock', label: 'Meldebestand (Sicherheitsbestand)', numeric: true, placeholder: 'z. B. 20', hint: 'Fällt der freie Bestand darunter, wird automatisch nachbestellt.' },
-  { key: 'reorder_target', label: 'Zielbestand (Nachbestellung)', numeric: true, placeholder: 'z. B. 100', hint: 'Auf diese Menge wird bei Nachbestellung aufgefüllt (leer = Meldebestand).' },
-  { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '', hint: 'Fliesst als Warnung in den Versand – Pakete mit Gefahrgut brauchen Spezialbehandlung.' },
+  { key: 'min_order_qty', label: 'Mindestbestellmenge', numeric: true, placeholder: 'z. B. 50' },
+  { key: 'safety_stock', label: 'Sicherheitsbestand', numeric: true, placeholder: 'darunter wird automatisch nachbestellt – z. B. 20' },
+  { key: 'is_hazmat', label: 'Gefahrgut', boolean: true, placeholder: '' },
 ];
 
 function seedFrom(record: Article | null): Form {
   const base = { name: '', unit: 'Stk', serialization: 'unit', size: '', weight_kg: '',
     material: '', cad_url: '', surface: '', supplier_article_number: '', min_order_qty: '', safety_stock: '',
-    reorder_target: '', is_hazmat: '',
+    is_hazmat: '',
     procurement_mode: 'supplier', default_supplier_id: '', default_webshop_url: '' };
   if (!record) return base;
   return {
@@ -92,7 +95,6 @@ function seedFrom(record: Article | null): Form {
     supplier_article_number: record.supplier_article_number ?? '',
     min_order_qty: record.min_order_qty != null ? String(record.min_order_qty) : '',
     safety_stock: record.safety_stock != null ? String(record.safety_stock) : '',
-    reorder_target: record.reorder_target != null ? String(record.reorder_target) : '',
     is_hazmat: record.is_hazmat ? 'ja' : '',
     procurement_mode: record.procurement_mode ?? 'supplier',
     default_supplier_id: record.default_supplier_id != null ? String(record.default_supplier_id) : '',
@@ -111,7 +113,6 @@ function signatureOf(form: Form): string {
     material: form.material.trim(), cad_url: form.cad_url.trim(), surface: form.surface.trim(),
     supplier_article_number: form.supplier_article_number.trim(),
     min_order_qty: form.min_order_qty.trim(), safety_stock: form.safety_stock.trim(),
-    reorder_target: form.reorder_target.trim(), is_hazmat: form.is_hazmat,
     procurement_mode: form.procurement_mode,
     default_supplier_id: form.procurement_mode === 'supplier' ? form.default_supplier_id : '',
     default_webshop_url: form.procurement_mode === 'webshop' ? form.default_webshop_url.trim() : '',
@@ -275,7 +276,6 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         supplier_article_number: form.supplier_article_number.trim() || null,
         min_order_qty: form.min_order_qty.trim() || null,
         safety_stock: form.safety_stock.trim() || null,
-        reorder_target: form.reorder_target.trim() || null,
         is_hazmat: form.is_hazmat === 'ja',
         // Beschaffungsquelle: nur das zum Modus passende Quellfeld senden (Backend spiegelt das).
         procurement_mode: (form.procurement_mode as 'supplier' | 'webshop') || 'supplier',
@@ -416,11 +416,11 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
                     <IconPick label="Serialisierung" required value={form.serialization} onChange={(v) => set('serialization', v)} options={SERIAL_PICK} />
                   </div>
                   <div style={GRID2}>
-                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="z. B. 3x40x600" hint="Masse in mm, aufsteigend & mit 'x' getrennt" error={form.size ? errs.size : null} />
+                    <EditField label="Abmessungen (mm)" required value={form.size} onChange={(v) => set('size', v)} placeholder="aufsteigend, mit «x» getrennt – z. B. 3x40x600" error={form.size ? errs.size : null} />
                     {weightIsComputed ? (
                       <ReadField icon={Weight} label="Gewicht" value={fmtWeight(computedWeight!)} unit="kg" autoHint="Automatisch aus der Stückliste berechnet" mono />
                     ) : (
-                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="z. B. 2.5" hint="Grösser als 0, max. 3 Nachkommastellen" error={form.weight_kg ? errs.weight : null} />
+                      <EditField label="Gewicht (kg)" required value={form.weight_kg} onChange={(v) => set('weight_kg', v)} placeholder="grösser als 0, max. 3 Nachkommastellen – z. B. 2.5" error={form.weight_kg ? errs.weight : null} />
                     )}
                   </div>
                   {/* Bei Bedarf hinzugefügte optionale Felder + abgeleitete Auto-Werte (nur wenn vorhanden). */}
@@ -565,11 +565,7 @@ function NameField({ value, onChange, error }: {
         <div style={{ marginTop: 4, fontSize: 11, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <AlertTriangle size={11} /> Ein Artikel mit diesem Namen besteht bereits ({exact.count}×) – ggf. wiederverwenden.
         </div>
-      ) : (
-        <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--fg-4)' }}>
-          Frei wählbar (max. {ARTICLE_NAME_MAX_LENGTH} Zeichen). Vorschläge helfen, Dubletten zu vermeiden.
-        </div>
-      )}
+      ) : null}
       {open && list.length > 0 && (
         <div className="absolute left-0 right-0 z-30 mt-1 max-h-60 overflow-y-auto rounded-ds-md border border-border-1 bg-bg-1 py-1 shadow-ds-md">
           {list.map((s) => (
@@ -658,8 +654,8 @@ function SubSection({ icon: Icon, title, children }: {
 
 // Add-Menü: die optionalen Text-/Mengenfelder. EIN Menü im Sektions-Kopf bietet alle noch
 // nicht sichtbaren Felder an.
-const ADD_MENU: { key: AddKey; label: string; hint?: string }[] =
-  OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label, hint: f.hint }));
+const ADD_MENU: { key: AddKey; label: string }[] =
+  OPTIONAL_FIELDS.map((f) => ({ key: f.key as AddKey, label: f.label }));
 
 // «Feld hinzufügen» als kleines +-Symbol (Hover-Tooltip) im Sektions-Kopf → Dropdown der
 // noch nicht sichtbaren optionalen Felder DIESER Sektion. Kein eigener «Zusätzliche»-Bereich.
@@ -694,10 +690,7 @@ function SectionAddButton({ added, onAdd }: {
                 <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--bg-2)', color: 'var(--fg-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                   <Icon size={16} />
                 </span>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: 'block', font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{f.label}</span>
-                  {f.hint && <span style={{ display: 'block', font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', marginTop: 1 }}>{f.hint}</span>}
-                </span>
+                <span style={{ minWidth: 0, font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{f.label}</span>
               </button>
             );
           })}
@@ -728,7 +721,6 @@ function OptField({ f, form, onSet, onRemove }: {
       ) : (
         <input value={form[f.key]} placeholder={f.placeholder} onChange={(e) => onSet(f.key, e.target.value)} className={FIN_CLS} />
       )}
-      {f.hint && <div style={{ marginTop: 5, font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>{f.hint}</div>}
     </div>
   );
 }
@@ -834,7 +826,14 @@ function EditField({ label, value, onChange, placeholder, hint, error, required,
   );
 }
 
-// Symbol-Auswahl (Pille mit Icon + Wort); aktiv = Akzent. Ersetzt Dropdown/Segmented.
+/**
+ * **Schieberegler** für die beiden Achsen der Spezifikation (Mengeneinheit, Serialisierung).
+ *
+ * Dass die Optionen einander ausschliessen, zeigt die Bewegung des Reiters – nicht eine
+ * Reihe gleich aussehender Pillen. Und nur die **aktive** Option trägt ihr Wort (Notizen
+ * #219/#220): bei sechs Einheiten ringen sonst sechs Wörter nebeneinander um Aufmerksamkeit,
+ * obwohl nur eines gilt. Die übrigen bleiben Symbol – ihr Name kommt im Hover.
+ */
 function IconPick({ label, value, onChange, options, required }: {
   label: string; value: string; onChange: (v: string) => void; required?: boolean;
   options: { value: string; label: string; icon: React.ElementType }[];
@@ -842,20 +841,8 @@ function IconPick({ label, value, onChange, options, required }: {
   return (
     <div>
       <FieldLabel required={required}>{label}</FieldLabel>
-      {/* Design `.chips`/`.chip`: Symbol + Wort, r-md, aktiv = Akzent-Füllung. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9 }}>
-        {options.map((o) => {
-          const on = value === o.value; const Icon = o.icon;
-          return (
-            <button key={o.value} type="button" onClick={() => onChange(o.value)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 15px', borderRadius: 'var(--r-md)', cursor: 'pointer', transition: 'all .13s',
-                border: `1px solid ${on ? 'var(--accent)' : 'var(--border-2)'}`, background: on ? 'var(--accent-soft)' : '#fff' }}>
-              <Icon size={16} style={{ color: on ? 'var(--accent-ink)' : 'var(--fg-4)' }} />
-              <b style={{ font: '600 14px var(--font-body)', color: on ? 'var(--accent-ink)' : 'var(--fg-2)' }}>{o.label}</b>
-            </button>
-          );
-        })}
-      </div>
+      <IconSwitch labelActiveOnly value={value} onChange={onChange}
+        options={options.map((o) => ({ value: o.value, icon: o.icon, label: o.label }))} />
     </div>
   );
 }

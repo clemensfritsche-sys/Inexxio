@@ -308,7 +308,6 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
   const mode = (sp.transport_mode ?? 'internal') as TransportMode;
   const recommended = (sp.recommended_mode ?? 'internal') as TransportMode;
   const isInternal = mode === 'internal';
-  const external = sp.transport_class === 'outside' && !isInternal;
   const purchased = sp.status === 'purchased' || sp.status === 'done';
   const inbound = sp.direction === 'inbound';
   const chosen = rateId ?? sp.rates.find((r) => r.cheapest)?.rate_id ?? sp.rates[0]?.rate_id ?? null;
@@ -346,13 +345,11 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
     // Modul des Flusses steckt – ein dritter Rahmen um dieselbe Sache. Übrig bleibt, was
     // trägt: eine Beschriftungszeile und die EINE Wahl als Schieberegler.
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Keine Überschrift «Versand» (#202) – die Modul-Karte heisst bereits «Bewegen»; und
+          kein abgeleiteter «Extern»-Chip mehr (#203): die getroffene Wahl steht direkt
+          darunter im Schieberegler, eine zweite, gleichzeitig gültige Aussage daneben
+          verwirrt nur. Was bleibt, ist die einzige Warnung mit Konsequenz: Gefahrgut. */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <Truck size={15} style={{ color: 'var(--fg-3)', flexShrink: 0 }} />
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--fg-1)' }}>Versand</span>
-        {external && (
-          <span title="Aus Ziel/Adresse abgeleitet – ein externer Transport ist nötig."
-            style={chipStyle('var(--warning-bg)', 'var(--warning)')}>{inbound ? 'Extern · Abholung' : 'Extern · Versand'}</span>
-        )}
         {sp.hazmat && (
           <span title="Mindestens ein Artikel ist als Gefahrgut markiert – Spezialversand erforderlich."
             style={{ ...chipStyle('var(--danger-bg)', 'var(--danger)'), display: 'inline-flex', alignItems: 'center', gap: 4 }}>
