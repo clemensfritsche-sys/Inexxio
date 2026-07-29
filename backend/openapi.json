@@ -2847,62 +2847,14 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/supply": {
+    "/api/v1/erp/orders/{object_id}/cover": {
       "post": {
         "tags": [
           "orders"
         ],
-        "summary": "Create Supply",
-        "description": "«Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags\neinen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft\n(rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt\nund der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück.",
-        "operationId": "create_supply_api_v1_erp_orders__object_id__supply_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/erp/orders/{object_id}/cover-stock": {
-      "post": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Cover Stock",
-        "description": "«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines\nblockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder\ngezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der\nBestand bereits am Lager liegt. Liefert den Auftrag zurück.",
-        "operationId": "cover_stock_api_v1_erp_orders__object_id__cover_stock_post",
+        "summary": "Cover Shortfall",
+        "description": "**«Ersetzen»** – die Fehlmenge eines blockierten Schritts decken, egal woher.\n\nEIN Endpunkt statt zweier Knöpfe («Aus Lager decken» + «Nachschub anlegen»): erst der\nfreie Lagerbestand (FIFO bzw. die in ``instance_object_ids`` gezielt gewählten\nInstanzen), für den Rest ein Nachschub-Unter-Auftrag. Idempotent; liefert den Auftrag.",
+        "operationId": "cover_shortfall_api_v1_erp_orders__object_id__cover_post",
         "security": [
           {
             "HTTPBearer": []
@@ -2929,6 +2881,54 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/erp/orders/{object_id}/confirm-quantity": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Confirm Quantity",
+        "description": "**«Menge bestätigen»** – der Auftrag wird mit dem fertig, was gesichert ist.\n\nDas Soll sinkt auf die gesicherte Menge (5 bestellt, 1 in Klärung → 4 bestellt); der\nblockierte Schritt ist damit frei. Bezahlte Verkaufspositionen sind ausgenommen – die\nkorrigiert eine Retoure/Gutschrift.",
+        "operationId": "confirm_quantity_api_v1_erp_orders__object_id__confirm_quantity_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -12754,11 +12754,6 @@
             "type": "array",
             "title": "Provisionings",
             "default": []
-          },
-          "paused": {
-            "type": "boolean",
-            "title": "Paused",
-            "default": false
           }
         },
         "type": "object",
@@ -12830,12 +12825,12 @@
             "title": "Shortfall",
             "default": []
           },
-          "supply_order_object_ids": {
+          "waiting_for": {
             "items": {
               "type": "integer"
             },
             "type": "array",
-            "title": "Supply Order Object Ids",
+            "title": "Waiting For",
             "default": []
           },
           "provisioning_order_object_ids": {

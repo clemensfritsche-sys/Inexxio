@@ -967,7 +967,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/supply": {
+    "/api/v1/erp/orders/{object_id}/cover": {
         parameters: {
             query?: never;
             header?: never;
@@ -977,20 +977,21 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create Supply
-         * @description «Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags
-         *     einen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft
-         *     (rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt
-         *     und der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück.
+         * Cover Shortfall
+         * @description **«Ersetzen»** – die Fehlmenge eines blockierten Schritts decken, egal woher.
+         *
+         *     EIN Endpunkt statt zweier Knöpfe («Aus Lager decken» + «Nachschub anlegen»): erst der
+         *     freie Lagerbestand (FIFO bzw. die in ``instance_object_ids`` gezielt gewählten
+         *     Instanzen), für den Rest ein Nachschub-Unter-Auftrag. Idempotent; liefert den Auftrag.
          */
-        post: operations["create_supply_api_v1_erp_orders__object_id__supply_post"];
+        post: operations["cover_shortfall_api_v1_erp_orders__object_id__cover_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/cover-stock": {
+    "/api/v1/erp/orders/{object_id}/confirm-quantity": {
         parameters: {
             query?: never;
             header?: never;
@@ -1000,13 +1001,14 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cover Stock
-         * @description «Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
-         *     blockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder
-         *     gezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der
-         *     Bestand bereits am Lager liegt. Liefert den Auftrag zurück.
+         * Confirm Quantity
+         * @description **«Menge bestätigen»** – der Auftrag wird mit dem fertig, was gesichert ist.
+         *
+         *     Das Soll sinkt auf die gesicherte Menge (5 bestellt, 1 in Klärung → 4 bestellt); der
+         *     blockierte Schritt ist damit frei. Bezahlte Verkaufspositionen sind ausgenommen – die
+         *     korrigiert eine Retoure/Gutschrift.
          */
-        post: operations["cover_stock_api_v1_erp_orders__object_id__cover_stock_post"];
+        post: operations["confirm_quantity_api_v1_erp_orders__object_id__confirm_quantity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4321,11 +4323,6 @@ export interface components {
              * @default []
              */
             provisionings: components["schemas"]["OrderDeviationInfo"][];
-            /**
-             * Paused
-             * @default false
-             */
-            paused: boolean;
         };
         /**
          * OrderStepInfo
@@ -4359,10 +4356,10 @@ export interface components {
              */
             shortfall: components["schemas"]["StepShortfall"][];
             /**
-             * Supply Order Object Ids
+             * Waiting For
              * @default []
              */
-            supply_order_object_ids: number[];
+            waiting_for: number[];
             /**
              * Provisioning Order Object Ids
              * @default []
@@ -7539,7 +7536,7 @@ export interface operations {
             };
         };
     };
-    create_supply_api_v1_erp_orders__object_id__supply_post: {
+    cover_shortfall_api_v1_erp_orders__object_id__cover_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7548,7 +7545,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCoverStock"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7570,7 +7571,7 @@ export interface operations {
             };
         };
     };
-    cover_stock_api_v1_erp_orders__object_id__cover_stock_post: {
+    confirm_quantity_api_v1_erp_orders__object_id__confirm_quantity_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7579,11 +7580,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrderCoverStock"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

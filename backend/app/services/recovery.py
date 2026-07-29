@@ -1,23 +1,28 @@
-"""Wiederherstellung nach einer **Aussteuerung** eines Auftrags-Subjekts.
+"""Unterdeckung: **eine Frage, drei Antworten.**
 
-Wird eine für einen Auftrag reservierte Instanz **ausgesteuert** (z. B. eine Abweichung
-verschrottet ein bereits verkauftes Teil), löst das Verschrotten alle Reservierungen der
-Instanz (``reservation.release_all``). Der Auftrag hat dann eine **ehrliche Fehlmenge**;
-sein Subjekt-Schritt (Bewegung/Versand/Kontrolle) ist «blockiert» (abgeleitet aus dem
-Bestand). Genau EIN Mechanismus, zwei vom Nutzer wählbare Wege, den Bedarf wieder zu decken:
+Ein Auftrag ist unterdeckt, wenn sein Soll nicht (mehr) gesichert ist – weil eine
+reservierte Instanz ausgesteuert wurde, weil ein Erzeugungsauftrag Ausschuss hatte oder
+weil ein Stück gerade in einer offenen **Abweichung** in Klärung ist. Der betroffene
+Subjekt-Schritt ist dann «blockiert» (abgeleitet aus dem Bestand, kein stilles
+Unterliefern).
 
-  1. **Nachschub** – produzieren/beschaffen (``services/supply.py``, unverändert).
-  2. **Aus Lager decken** – freien Bestand FIFO reservieren (``cover_from_stock`` ohne
-     Instanz-Auswahl) bzw. **gezielt eine andere Instanz** wählen (mit Auswahl) – EIN Weg mit
-     Unterkategorie.
+Der Mensch beantwortet genau EINE Frage – *was soll mit der Fehlmenge geschehen?* – und es
+gibt drei ehrliche Antworten:
 
-Beide Wege gelten **einheitlich für ALLE Auftragsarten** (Bestands-Verkauf wie Erzeugungs-
-auftrag): ein FIFO-Auftrag nutzt anderen Lagerbestand, ein gezielt fixierter Auftrag wählt
-eine Ersatz-Instanz, und wo gar nichts am Lager ist, produziert der Nachschub.
+1. **Wartet** – kein Knopf, sondern ein **Zustand**: ist die Fehlmenge bereits in einer
+   offenen Abweichung oder einem laufenden Nachschub gebunden, ist die Entscheidung längst
+   getroffen. Das System sagt nur, worauf gewartet wird (``orders._fill_step_shortfall``).
+2. **Ersetzen** (``cover_shortfall``) – EIN Weg statt zweier: was am Lager frei ist, wird
+   FIFO reserviert (oder gezielt gewählte Instanzen), und was danach offen bleibt, deckt ein
+   **Nachschub**-Unter-Auftrag. Ob produziert oder ab Lager genommen wird, ist eine
+   Verfügbarkeitsfrage – keine zweite Entscheidung für den Menschen.
+3. **Menge bestätigen** (``confirm_quantity``) – der Auftrag wird mit weniger fertig. Das
+   Soll sinkt auf das Gesicherte, der Schritt ist frei, der Auftrag läuft normal zu Ende.
+   Fehlte diese Antwort, blieb nur «warten oder ersetzen» – bei einem Erzeugungsauftrag mit
+   einem schlechten von fünf Stück beides falsch.
 
-**Menge reduzieren** ist bewusst NICHT eingebaut: eine bezahlte Position darf nur reduziert
-werden, wenn sie zugleich sauber (Stripe) gutgeschrieben wird – das kommt gebündelt mit der
-Gutschrift-Funktion (TODO), nicht als isolierte Mengen-Kürzung.
+**Geld bleibt ehrlich:** eine bereits **bezahlte** Verkaufsposition lässt sich hier NICHT
+kürzen – dafür gibt es die Retoure/Gutschrift (``sale``-Kredit-Modus mit Stripe-Refund).
 """
 
 from decimal import Decimal
@@ -31,7 +36,7 @@ from .admin import log_audit
 from .events import emit
 from . import inventory
 from .inventory import allocate, fifo_candidates
-from .quantity import ZERO
+from .quantity import ZERO, to_qty
 from .reservation import free_qty, reserve
 from .subject import record_link
 
@@ -51,21 +56,18 @@ def _fifo_cover(db: Session, order: Order, article_id: int, need) -> Decimal:
     return covered
 
 
-def cover_from_stock(db: Session, order: Order, actor_id: int,
-                     instance_object_ids: list[int] | None = None) -> int:
-    """Die offene **Subjekt-Fehlmenge** des Auftrags aus vorhandenem Lagerbestand decken.
-
-    Ohne ``instance_object_ids`` → **FIFO** über den freien Bestand jeder Fehlmenge
-    («Aus Lager decken»). Mit Auswahl → genau diese, **freigegebenen & freien** Instanzen
-    reservieren («Andere Instanz wählen»). Partielle Deckung ist erlaubt; was offen bleibt,
-    hält den Schritt weiter blockiert (Nachschub/Reduktion als weitere Wege). Committet NICHT."""
+def _cover_from_stock(db: Session, order: Order,
+                      instance_object_ids: list[int] | None) -> Decimal:
+    """Soviel der offenen **Subjekt**-Fehlmenge wie möglich aus vorhandenem Lagerbestand
+    decken. Ohne ``instance_object_ids`` → FIFO über den freien Bestand; mit Auswahl → genau
+    diese freigegebenen & freien Instanzen. Liefert die gedeckte Menge (0 = nichts frei)."""
     short = process.subject_shortfalls(db, order)
     if not short:
-        raise HTTPException(409, detail="Kein offener Bedarf – es ist nichts zu decken")
+        return ZERO
     covered = ZERO
     if instance_object_ids:
         chosen = list(dict.fromkeys(instance_object_ids))
-        # FIX: Row-Lock auch im «bestimmte Instanz wählen»-Pfad – wie in JEDEM anderen
+        # Row-Lock auch im «bestimmte Instanz wählen»-Pfad – wie in JEDEM anderen
         # Allokations-Schreibpfad (``fifo_candidates(lock=True)``). Ohne Sperre ist
         # ``free_qty``-Prüfung + ``reserve`` ein Check-then-Act: zwei gleichzeitige
         # Deckungen derselben Instanz reservieren doppelt (Überverkauf).
@@ -94,11 +96,88 @@ def cover_from_stock(db: Session, order: Order, actor_id: int,
     else:
         for aid, need in short.items():
             covered += _fifo_cover(db, order, aid, need)
-    if covered <= 0:
-        raise HTTPException(
-            409, detail="Kein freier Bestand verfügbar – bitte Nachschub anlegen (produzieren/beschaffen)")
-    log_audit(db, "orders", None, f"{covered} Stück aus Lager gedeckt", actor_id,
-              object_id=order.object_id)
-    emit(db, "order.covered_from_stock", object_type="order", object_id=order.object_id,
-         payload={"quantity": covered}, actor_id=actor_id)
     return covered
+
+
+def cover_shortfall(db: Session, order: Order, actor_id: int,
+                    instance_object_ids: list[int] | None = None) -> dict:
+    """**«Ersetzen»** – die Fehlmenge decken, egal woher.
+
+    EIN Weg statt zweier Knöpfe: erst der **freie Lagerbestand** (FIFO bzw. gezielt gewählte
+    Instanzen), für den Rest ein **Nachschub**-Unter-Auftrag (produzieren/beschaffen,
+    rekursiv über die Stückliste). Ob das eine, das andere oder beides greift, ist eine
+    Verfügbarkeitsfrage – der Mensch entscheidet nur, DASS ersetzt werden soll.
+
+    Deckt auch den reinen **Komponenten**-Bedarf ab (Ressource): dort gibt es keinen
+    Subjekt-Lagerweg, ``ensure_supply`` übernimmt ihn vollständig. Committet NICHT."""
+    from .supply import ensure_supply
+    covered = _cover_from_stock(db, order, instance_object_ids)
+    created = ensure_supply(db, order, actor_id)
+    if covered <= 0 and not created:
+        raise HTTPException(409, detail="Nichts zu decken – der Bedarf ist bereits gedeckt")
+    if covered > 0:
+        log_audit(db, "orders", None, f"{covered} Stück aus Lager gedeckt", actor_id,
+                  object_id=order.object_id)
+        emit(db, "order.covered_from_stock", object_type="order", object_id=order.object_id,
+             payload={"quantity": covered}, actor_id=actor_id)
+    return {"covered": covered, "supply_object_ids": [o.object_id for o in created]}
+
+
+def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
+    """**«Menge bestätigen»** – der Auftrag wird mit weniger fertig.
+
+    Das Soll sinkt auf das **Gesicherte**: aus «5 bestellt, 1 in Klärung» wird «4 bestellt».
+    Der blockierte Schritt ist damit frei und der Auftrag läuft normal zu Ende – ohne dass
+    jemand Ersatz beschaffen muss, den niemand haben will. Die Kürzung wird je Position
+    vorgenommen (Einzel-Artikel: ``order.quantity``; Mehrpositionen: die Positionsmenge).
+
+    **Nicht bei bezahlter Ware:** eine Position, deren Verkauf schon bezahlt ist, darf hier
+    nicht stillschweigend schrumpfen – das wäre eine Kürzung ohne Gutschrift. Dafür ist die
+    Retoure/Erstattung da (``sale``-Kredit-Modus, inkl. Stripe-Refund). Committet NICHT."""
+    from .order_lines import lines_for
+    short = process.subject_shortfalls(db, order)
+    if not short:
+        raise HTTPException(409, detail="Keine Fehlmenge – es gibt nichts zu bestätigen")
+    _assert_not_paid(db, order)
+    changed: dict[int, Decimal] = {}
+    if order.article_id:
+        gap = short.get(order.article_id, ZERO)
+        rest = to_qty(order.quantity or 0) - gap
+        if rest <= 0:
+            raise HTTPException(
+                409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+        order.quantity = rest
+        changed[order.article_id] = rest
+    else:
+        for line in lines_for(db, order):
+            gap = short.get(line.article_id, ZERO)
+            if gap <= 0:
+                continue
+            rest = to_qty(line.quantity) - gap
+            if rest <= 0:
+                raise HTTPException(
+                    409, detail="Nichts gesichert – hier ist der Abweichungsauftrag der Weg, nicht die Mengenbestätigung")
+            line.quantity = rest
+            changed[line.article_id] = rest
+    log_audit(db, "orders", None,
+              "Menge bestätigt: " + ", ".join(f"Artikel {a} → {q}" for a, q in changed.items()),
+              actor_id, object_id=order.object_id)
+    emit(db, "order.quantity_confirmed", object_type="order", object_id=order.object_id,
+         payload={"quantities": {str(a): float(q) for a, q in changed.items()}}, actor_id=actor_id)
+    return {"quantities": {a: q for a, q in changed.items()}}
+
+
+def _assert_not_paid(db: Session, order: Order) -> None:
+    """Bezahlte Verkaufspositionen dürfen nicht per Mengenbestätigung schrumpfen – Geld
+    zurück geht über die Retoure/Gutschrift, nicht über eine stille Kürzung."""
+    from ..models import Sale
+    paid = (
+        db.query(Sale.id)
+        .filter(Sale.order_id == order.id, Sale.is_active == True,
+                Sale.kind == "sale", Sale.status == "paid")
+        .first()
+    )
+    if paid:
+        raise HTTPException(
+            409,
+            detail="Bezahlte Position – die Menge wird über eine Retoure/Gutschrift korrigiert, nicht hier.")
