@@ -261,8 +261,9 @@ def record_inspection(db: Session, order: Order, data, actor) -> Inspection:
     emit(db, f"inspection.{insp.result}", object_type="order", object_id=order.object_id,
          payload={"checked": need, "step_id": step.id}, actor_id=actor_id)
     # Bei Nichtbestehen automatisch eine **Abweichung** auf die durchgefallenen Instanzen
-    # eröffnen (idempotent) – ersetzt die frühere Auto-Reklamation. Der Eltern-Auftrag
-    # pausiert dadurch, bis die Abweichung geklärt ist.
+    # eröffnen (idempotent) – ersetzt die frühere Auto-Reklamation. Sie NIMMT die Durchfaller
+    # aus dem Eltern-Auftrag heraus (Unterdeckung), statt ihn anzuhalten: die guten Stück
+    # laufen weiter.
     if insp.result == "failed":
         auto_deviation_from_inspection(db, order, actor_id)
     process.recompute_completion(db, order)

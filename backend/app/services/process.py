@@ -334,6 +334,32 @@ def sold_amounts_for_order(db: Session, order_object_id: int | None) -> dict[int
     return out
 
 
+def deviated_instance_ids(db: Session, order: Order) -> set[int]:
+    """Instanzen dieses Auftrags, die gerade in einer **offenen Abweichung** stecken.
+
+    **Eine Abweichung hält den Auftrag nicht an – sie nimmt ihr Stück heraus.** Früher
+    pausierte JEDE offene Abweichung den GANZEN Eltern-Auftrag, unabhängig davon, wie viele
+    Instanzen betroffen waren: ein schlechtes von fünf Stück legte die anderen vier still.
+    Das war ein **zweiter** Mechanismus für etwas, wofür es längst eine präzise Sprache gibt –
+    die **Unterdeckung**. Ein Stück in Klärung ist für den Eltern-Auftrag weder verloren noch
+    gesichert, es ist schlicht **fehlend**: es zählt nicht mehr als gesichert, der Rest läuft
+    weiter, und der Schritt, der das Subjekt braucht, meldet «Es fehlt 1 Stk».
+
+    Der Schutz, für den die Pause gedacht war – *eine Sendung darf nicht teil-versendet
+    werden, solange unklar ist, ob ein Stück ausgesteuert wird* – bleibt erhalten, aber
+    **abgeleitet statt deklariert**: Verkauf und Versand sind Subjekt-Schritte und sind bei
+    einer Fehlmenge ohnehin blockiert. Er greift damit genau dort, wo er nötig ist, statt
+    pauschal über den ganzen Auftrag."""
+    from .deviation import open_deviations
+    subs = [o.id for o in open_deviations(db, order)]
+    if not subs:
+        return set()
+    return {
+        r[0] for r in db.query(Instance.id).filter(
+            Instance.subject_of_order_id.in_(subs), Instance.is_active == True).all()
+    }
+
+
 def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     """Fehlmenge(n) des **Subjekts** je Artikel ({article_id: qty}) – **EINE Formel für
     ALLE Auftragsarten** (kein ``subject_kind``-Sonderpfad): ``Soll − Gesichert``.
@@ -342,7 +368,8 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     - **Gesichert** = gute Einheiten, die der Auftrag bereits hat: (a) für ihn **reservierte**
       Bestands-Instanzen (FIFO ab Lager / gepinnt / gepeggter Nachschub) PLUS (b) **selbst
       erzeugte** gute Instanzen (Erzeugungsauftrag). Terminal verlorene (verschrottet/verkauft/
-      verbaut) oder durchgefallene zählen NICHT.
+      verbaut), durchgefallene **oder in einer offenen Abweichung gebundene** zählen NICHT –
+      letztere sind in Klärung, also weder verloren noch verfügbar (``deviated_instance_ids``).
 
     So reagiert ein **Erzeugungsauftrag auf Ausschuss** identisch wie ein **Bestands-Auftrag**
     auf eine ausgesteuerte Reservierung – dieselbe Unterdeckung, dieselben Deckungs-Wege, kein
@@ -363,9 +390,12 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
         return {}
     # Gesichert je Artikel
     secured: dict[int, Decimal] = {}
+    in_clarification = deviated_instance_ids(db, order)
     for inst in db.query(Instance).filter(
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
+        if inst.id in in_clarification:
+            continue
         # FIX: Durchgefallene zählen laut Kontrakt (Docstring) NICHT als «gesichert» – der
         # Filter fehlte aber: eine gesperrte reservierte Instanz deckte das Soll
         # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
@@ -376,7 +406,7 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, *unblocked_clauses()
     ).all():
-        if (inst.disposition or "") in TERMINAL_DISPOSITIONS:
+        if (inst.disposition or "") in TERMINAL_DISPOSITIONS or inst.id in in_clarification:
             continue
         if (inst.reservations or {}).get(str(order.id)):
             continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
@@ -477,6 +507,22 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     return out
 
 
+def blocked_step_for_article(db: Session, order: Order, article_id: int) -> int | None:
+    """Der Schritt, dessen Fehlmenge genau diesen Artikel vermisst – oder ``None``.
+
+    Zwei Nutzer, dieselbe Frage: der **Nachschub** merkt sich damit, aus welchem Schritt sein
+    Bedarf stammt (``orders.origin_step_id``), und die **Deckung** schreibt ihre Spur an den
+    Schritt, an dem entschieden wurde (``OrderStepInfo.resolutions``). Findet sich kein
+    blockierter Schritt (Aktion von Hand angestossen), bleibt die Angabe leer."""
+    for info in build_order_steps(db, order):
+        if info["state"] != "blocked":
+            continue
+        step = info["step"]
+        if any(a == article_id for a in step_shortfalls(db, order, step)):
+            return step.id
+    return None
+
+
 def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
     """Blockiert, weil ein Bedarf (noch) nicht gedeckt ist?
 
@@ -523,8 +569,15 @@ def release_instances(db: Session, order: Order) -> None:
     ``order_id`` beim abgebrochenen Original: Nur auf den Erzeuger zu schauen hiess, dass
     diese Instanzen **nie** freigegeben werden – für immer «Im Prozess», unsichtbar für FIFO
     und Bestandszählung. Darum zählt hier BEIDES: erzeugt von diesem Auftrag **oder** von ihm
-    als Subjekt verarbeitet."""
+    als Subjekt verarbeitet.
+
+    **Was in einer offenen Abweichung steckt, gibt dieser Auftrag NICHT frei.** Seit die
+    Abweichung ihr Stück herausnimmt statt den Auftrag anzuhalten, kann der Eltern-Auftrag
+    abschliessen, während die Klärung noch läuft – ein Teil in Klärung würde dabei sonst mit
+    ans Lager freigegeben. Freigegeben wird es von dem Auftrag, der zuletzt daran arbeitet:
+    der Abweichung."""
     now = utcnow()
+    in_clarification = deviated_instance_ids(db, order)
     rows = (
         db.query(Instance)
         .filter(
@@ -536,6 +589,8 @@ def release_instances(db: Session, order: Order) -> None:
     )
     total = ZERO
     for inst in rows:
+        if inst.id in in_clarification:
+            continue
         inst.quality = "passed"          # QC-Verdikt: freigegeben
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
         if inst.released_at is None:
@@ -736,28 +791,12 @@ def _spawn_recurrence(db: Session, order: Order, subject_object_ids: list[int] |
          payload={"parent": order.object_id})
 
 
-def _is_paused_by_deviation(db: Session, order: Order) -> bool:
-    """Pausiert der Auftrag wegen einer offenen Abweichung? Solange darf er NICHT abschliessen –
-    erst muss die Abweichung geklärt sein.
-
-    Den früheren Zustand «Abbruch ausstehend» (``abort_into_id`` gesetzt, Auftrag läuft aber
-    weiter) gibt es nicht mehr: ein Abbruch wird sofort vollzogen, der Auftrag ist dann
-    inaktiv. ``abort_into_id`` ist nur noch der Zeiger «fortgeführt in …»."""
-    if not order.object_id:
-        return False
-    # NUR Abweichungen pausieren den Eltern; ein Nachschub (reason='supply') blockiert nur
-    # den betroffenen Schritt – der restliche Prozess darf weiterlaufen.
-    return db.query(Order.id).filter(
-        Order.parent_order_id == order.object_id, Order.is_active == True,
-        Order.reason == "deviation", Order.status.in_(("draft", "released")),
-    ).first() is not None
-
-
 def recompute_completion(db: Session, order: Order) -> None:
-    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind – aber NICHT,
-    solange eine Abweichung offen oder ein Abbruch ausstehend ist (der Auftrag pausiert)."""
-    if _is_paused_by_deviation(db, order):
-        return
+    """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind.
+
+    Eine offene **Abweichung** hält den Auftrag NICHT mehr an (``deviated_instance_ids``):
+    ihr Stück ist aus dem Auftrag herausgenommen und erscheint als Unterdeckung. Was noch
+    in Klärung ist, gibt dieser Auftrag darum auch nicht frei."""
     # Bereitstellung ableiten: Jeder Schritt, der dran ist oder gerade war, bekommt sein
     # Material an den Ort, den er verlangt – als Unter-Auftrag, falls es woanders liegt.
     # Hier, weil ``recompute_completion`` nach JEDEM Schritt-Abschluss läuft: sobald der
@@ -798,9 +837,9 @@ def recompute_completion(db: Session, order: Order) -> None:
         _spawn_recurrence(db, order, recurring_subjects)   # wiederkehrend: nächsten Auftrag nachziehen
         _peg_supply_to_parent(db, order)     # Nachschub: erzeugte Stück an den Eltern pinnen
         emit(db, "order.completed", object_type="order", object_id=order.object_id)
-        # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: er ist jetzt nicht
-        # mehr pausiert und schliesst automatisch ab, falls er nur noch auf diese Abweichung
-        # gewartet hat (sonst läuft er einfach normal weiter).
+        # War das eine Abweichung? Dann den Eltern-Auftrag neu bewerten: seine Fehlmenge
+        # kann sich soeben geschlossen haben (das Stück ist geklärt zurück), womit er
+        # weiterläuft bzw. abschliesst.
         if order.parent_order_id is not None:
             parent = db.query(Order).filter(Order.object_id == order.parent_order_id).first()
             if parent and parent.status == "released":

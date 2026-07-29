@@ -70,13 +70,15 @@ class Order(Base, TimestampMixin):
     # **Unter-Auftrag** (``parent_order_id`` = Objektnummer des Eltern-Auftrags). EIN
     # Mechanismus, mehrere Gründe (``reason``):
     #   'deviation'     – Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag: wirkt auf bereits
-    #                     vorhandene Instanzen des Eltern-Auftrags. Der Eltern **pausiert**, bis
-    #                     die Abweichung geklärt ist (``process._is_paused_by_deviation``).
+    #                     vorhandene Instanzen des Eltern-Auftrags. Sie **nimmt ihr Stück heraus**
+    #                     statt den Eltern anzuhalten: was in Klärung ist, zählt nicht mehr als
+    #                     gesichert (``process.deviated_instance_ids``) und erscheint als
+    #                     Unterdeckung am Schritt, der es braucht.
     #   'supply'        – Nachschub: deckt einen Bedarf (Verkauf/Verbrauch) des Eltern, der nicht
     #                     aus dem Bestand gedeckt war. Produziert/beschafft die Fehlmenge und
     #                     **pinnt** sie bei Abschluss an den Eltern (``process._peg_supply_to_parent``).
-    #                     Der Eltern pausiert NICHT – der betroffene Schritt ist «blockiert», bis der
-    #                     Nachschub liefert (abgeleiteter Zustand, kein Auto-Trigger).
+    #                     Der betroffene Schritt ist «blockiert», bis der Nachschub liefert
+    #                     (abgeleiteter Zustand, kein Auto-Trigger).
     #   'return'        – Retoure/Erstattung: festes Subjekt = **verkaufte** Instanzen,
     #                     ``parent`` = Original-Verkauf (Geld über das ``sale``-Modul im
     #                     Kredit-Modus, Ware über die Bewegung). KEINE Eltern-Pause.

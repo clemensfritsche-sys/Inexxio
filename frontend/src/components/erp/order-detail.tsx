@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Truck, Search } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { DH, DetailHeader, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -141,11 +141,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
   // «Abweichung melden» auf **Auftragsebene**: nur am LAUFENDEN Auftrag (ein abgeschlossener
-  // Prozess ist durch) und nicht, während bereits eine Abweichung offen/ein Abbruch ausstehend
-  // ist (erst die offene klären). Eine spätere Reklamation eines fertigen Teils läuft über die
-  // Instanz (Instanz-Detail), nicht über den abgeschlossenen Auftrag.
+  // Prozess ist durch). Eine bereits offene Abweichung sperrt das NICHT mehr – sie nimmt nur
+  // ihr Stück heraus, ein zweiter Befund an anderen Instanzen ist ein eigener Vorgang (das
+  // Backend lässt weiterhin höchstens EINE aktive Abweichung je Instanz zu). Eine spätere
+  // Reklamation eines fertigen Teils läuft über die Instanz, nicht über den fertigen Auftrag.
   const canReportDeviation = isStaff && !isCreate && record != null
-    && record.status === 'released' && record.abort_into_id == null && !record.paused;
+    && record.status === 'released' && record.abort_into_id == null;
   // Nur die **Bereitstellung** ist übergehbar: sie ist die einzige Unter-Auftragsart, die das
   // System selbst anlegt. Alles andere ist eine bewusste Entscheidung und wird durchgezogen.
   const canSkipProvisioning = isStaff && !isCreate && record != null
@@ -453,34 +454,35 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   }
 
 
-  // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag, der die Fehlmenge des
-  // blockierten Schritts deckt. Liefert den (aktualisierten) Auftrag zurück – der blockierte
-  // Schritt zeigt danach den laufenden Nachschub; sobald dieser liefert, wird er wieder aktiv.
-  async function requestSupply() {
-    if (!record) return;
-    setSupplyBusy(true);
-    setError(null);
-    try {
-      onSaved(await api.createSupply(record.object_id as number));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Nachschub konnte nicht angelegt werden');
-    } finally {
-      setSupplyBusy(false);
-    }
-  }
+  // **Unterdeckung: eine Frage, drei Antworten.** «Wartet» ist ein Zustand (das Backend
+  // sagt, worauf), hier stehen nur die beiden Antworten, die eine Handlung sind.
 
-  // «Aus Lager decken» (FIFO, ohne ids) / «Andere Instanz wählen» (gezielt): deckt die
-  // Subjekt-Fehlmenge eines blockierten Schritts aus vorhandenem Lagerbestand.
-  async function coverFromStock(instanceObjectIds?: number[]) {
+  // «Ersetzen»: erst freier Lagerbestand (FIFO bzw. gezielt gewählte Instanzen), den Rest
+  // per Nachschub – EIN Weg. Woher der Ersatz kommt, ist eine Verfügbarkeitsfrage.
+  async function replaceShortfall(instanceObjectIds?: number[]) {
     if (!record) return;
     setRecoverBusy(true);
     setError(null);
     try {
-      onSaved(await api.coverStock(record.object_id as number, instanceObjectIds));
+      onSaved(await api.coverShortfall(record.object_id as number, instanceObjectIds));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Aus Lager decken fehlgeschlagen');
+      setError(e instanceof Error ? e.message : 'Ersetzen fehlgeschlagen');
     } finally {
       setRecoverBusy(false);
+    }
+  }
+
+  // «Menge bestätigen»: der Auftrag wird mit dem fertig, was gesichert ist.
+  async function confirmQuantity() {
+    if (!record) return;
+    setSupplyBusy(true);
+    setError(null);
+    try {
+      onSaved(await api.confirmQuantity(record.object_id as number));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Menge konnte nicht bestätigt werden');
+    } finally {
+      setSupplyBusy(false);
     }
   }
 
@@ -544,12 +546,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <>
                 <HeaderSep />
                 {statusActions.map((a) => (
-                  <button key={a.target} type="button" className="erp-actbtn erp-actbtn-primary"
-                    style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
-                    title={a.hint} disabled={statusBusy || a.disabled}
-                    onClick={() => onStatusAction(a.target)}>
-                    {a.label}
-                  </button>
+                  <HeaderAction key={a.target} label={a.label} tone={a.tone} hint={a.hint}
+                    disabled={statusBusy || a.disabled} onClick={() => onStatusAction(a.target)} />
                 ))}
               </>
             )}
@@ -813,18 +811,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
-                  record.paused ? (
-                    // Angehalten wegen offener Abweichung: der GANZE Auftrag ruht (das Backend
-                    // lehnt jede Schritt-Ausführung ab). KEIN interaktives Panel – nur die
-                    // On-Hold-Notiz, die auf die zu klärende Abweichung verweist.
-                    <ProcessHoldNotice reason="deviation" step={step} isStaff={isStaff}
-                      canSupply={false} busy={false} recoverBusy={false} error={error}
-                      onSupply={requestSupply} onCoverStock={coverFromStock}
-                      onOpen={(oid) => nav?.(oid)} />
-                  ) : step.state === 'blocked' ? (
-                    <ProcessHoldNotice reason="shortfall" step={step} isStaff={isStaff} canSupply={record.status === 'released'}
-                      busy={supplyBusy} recoverBusy={recoverBusy} error={error} onSupply={requestSupply}
-                      onCoverStock={coverFromStock} onOpen={(oid) => nav?.(oid)} />
+                  // Es gibt nur noch EINEN Grund, warum ein Schritt nicht läuft: ihm fehlt
+                  // etwas. Eine offene Abweichung hält den Auftrag nicht mehr an – sie nimmt
+                  // ihr Stück heraus, und das erscheint hier als Unterdeckung.
+                  step.state === 'blocked' ? (
+                    <ProcessHoldNotice step={step} isStaff={isStaff} canAct={record.status === 'released'}
+                      busy={supplyBusy} recoverBusy={recoverBusy} error={error}
+                      onConfirmQuantity={confirmQuantity}
+                      onReplace={replaceShortfall} onOpen={(oid) => nav?.(oid)} />
                   ) : (
                     <StepPanel key={String(step.id)} step={step} order={record as Order}
                       viewerRole={viewerRole} company={company} onSaved={afterStep} />
@@ -903,104 +897,72 @@ function DeviationDialog({ busy, onChoose, onClose }: {
             die Entscheidung trifft der Mensch, nicht die Gestaltung. Der Erklärtext ist
             entfallen (#128): was ein Abweichungsauftrag ist, steht im Auftrag selbst. */}
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ChoiceButton disabled={busy} onClick={() => onChoose(false)}
-            title="Auftrag läuft weiter"
-            text="Pausiert, bis die Abweichung geklärt ist – danach läuft er normal weiter." />
-          <ChoiceButton disabled={busy} onClick={() => onChoose(true)}
-            title="Auftrag abbrechen"
-            text="Sofort abgebrochen – endgültig, keine Reaktivierung. Nur der Abweichungsauftrag läuft weiter." />
+          <ChoiceButton disabled={busy} onClick={() => onChoose(false)} icon={Play}
+            title="Läuft weiter" text="Nur das betroffene Stück wird herausgenommen." />
+          <ChoiceButton disabled={busy} onClick={() => onChoose(true)} icon={Ban} tone="var(--danger)"
+            title="Abbrechen" text="Endgültig – nur die Abweichung läuft weiter." />
         </div>
       </div>
     </div>
   );
 }
 
-function ChoiceButton({ title, text, disabled, onClick }: {
-  title: string; text: string; disabled?: boolean; onClick: () => void;
-}) {
-  return (
-    <button type="button" disabled={disabled} onClick={onClick}
-      style={{
-        textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
-        border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
-      }}>
-      <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</div>
-      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>
-    </button>
-  );
-}
-
 // Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
 const SUBJECT_STEP_TYPES = ['movement', 'inspection', 'scrap', 'block', 'sale'];
 
-// EIN einheitliches «Prozess angehalten» (on hold) für beide Gründe, warum ein Auftrag nicht
-// weiterläuft – konsistente Sprache/Optik statt zweier Metaphern:
-//   • reason='deviation' – eine offene Abweichung hält den GANZEN Auftrag an (Backend lehnt
-//     jede Schritt-Ausführung ab). Auflösung: die Abweichung abschliessen/zurücknehmen.
-//   • reason='shortfall' – ein Subjekt-/Komponentenbedarf ist unterdeckt; der betroffene
-//     Schritt ruht. Zwei Wege: Nachschub (produzieren/beschaffen) ODER aus Lager decken
-//     (FIFO, mit Unterkategorie «bestimmte Instanz wählen»). Löst sich von selbst, sobald
-//     der Bedarf gedeckt ist. GLEICH für alle Auftragsarten (Bestand wie Erzeugung).
-function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy, error, onSupply, onCoverStock, onOpen }: {
-  reason: 'deviation' | 'shortfall';
+// **Unterdeckung: eine Frage, drei Antworten.**
+//
+// Es gibt nur noch EINEN Grund, warum ein Schritt nicht läuft: ihm fehlt etwas. (Eine offene
+// Abweichung hält den Auftrag nicht mehr an – sie nimmt ihr Stück heraus, und genau das
+// erscheint hier als Fehlmenge.) Der Mensch beantwortet dann eine einzige Frage – *was soll
+// mit der Fehlmenge geschehen?*:
+//
+//   • **Wartet** – kein Knopf, sondern ein Zustand: ist die Menge bereits in einer offenen
+//     Abweichung oder einem laufenden Nachschub gebunden, ist die Entscheidung getroffen.
+//   • **Ersetzen** – EIN Weg: freier Lagerbestand (FIFO oder gezielt gewählte Instanz), was
+//     danach offen bleibt, deckt ein Nachschub. Woher der Ersatz kommt, ist eine
+//     Verfügbarkeitsfrage – keine zweite Entscheidung.
+//   • **Menge bestätigen** – der Auftrag wird mit weniger fertig. Fehlte diese Antwort, blieb
+//     nur «warten oder ersetzen»: bei einem schlechten von fünf Stück beides falsch.
+function ProcessHoldNotice({ step, isStaff, canAct, busy, recoverBusy, error, onReplace, onConfirmQuantity, onOpen }: {
   step: OrderStep | null;
   isStaff: boolean;
-  canSupply: boolean;
+  canAct: boolean;
   busy: boolean;
   recoverBusy: boolean;
   error: string | null;
-  onSupply: () => void;
-  onCoverStock: (instanceObjectIds?: number[]) => void;
+  onReplace: (instanceObjectIds?: number[]) => void;
+  onConfirmQuantity: () => void;
   onOpen?: (objectId: number) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [picked, setPicked] = useState<number[]>([]);
 
-  // ── Angehalten wegen offener Abweichung (ganzer Auftrag ruht) ──────────────────
-  // Nur die Aussage, sonst nichts: WELCHE Abweichung es ist, steht als Pille in der Karte
-  // des Schritts, an dem sie gemeldet wurde (#174) – und der Erklärabsatz ist entfallen
-  // (#173): «angehalten» sagt bereits, dass nichts geht.
-  if (reason === 'deviation') {
+  // ── Angehalten, weil Material noch unterwegs ist ───────────────────────────────
+  // Anderer Grund als Unterdeckung: das Material EXISTIERT, es liegt bloss noch nicht hier.
+  // Es gibt nichts zu entscheiden – die Bereitstellung bringt es, dann läuft es weiter.
+  const staging = step?.provisioning_order_object_ids ?? [];
+  if (staging.length > 0) {
     return (
-      <HoldFrame title="Angehalten – Abweichung offen">
+      <HoldFrame title="Material unterwegs">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {staging.map((oid) => (
+            <WaitLine key={oid} icon={Truck} objectId={oid} onOpen={onOpen} />
+          ))}
+        </div>
         {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
       </HoldFrame>
     );
   }
 
-  // ── Angehalten, weil Material noch unterwegs ist (nur der betroffene Schritt) ───
-  // Anderer Grund als Unterdeckung: das Material EXISTIERT, es liegt bloss noch nicht hier.
-  // Es gibt nichts zu beschaffen – die Bereitstellung bringt es, dann läuft es weiter.
-  const staging = step?.provisioning_order_object_ids ?? [];
-  if (staging.length > 0) {
-    return (
-      <HoldFrame title="Material unterwegs">
-        <div style={{ fontSize: 12, color: '#92400e', lineHeight: 1.5 }}>
-          Das benötigte Material ist vorhanden, liegt aber noch nicht am richtigen Ort. Es wird
-          gerade bereitgestellt – sobald es da ist, läuft dieser Schritt automatisch weiter.
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {staging.map((oid) => (
-            <button key={oid} type="button" onClick={() => onOpen?.(oid)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f172a', background: '#fff', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', textAlign: 'left' }}>
-              <Truck size={14} style={{ color: '#b45309', flexShrink: 0 }} />
-              <span>Bereitstellung <ObjId value={oid} /> öffnen</span>
-            </button>
-          ))}
-        </div>
-        {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
-      </HoldFrame>
-    );
-  }
-
-  // ── Angehalten wegen Unterdeckung (nur der betroffene Schritt) ─────────────────
-  const running = step?.supply_order_object_ids ?? [];
-  const hasRunning = running.length > 0;
+  // ── Es fehlt etwas ─────────────────────────────────────────────────────────────
+  const waiting = step?.waiting_for ?? [];
   const shortfall = step?.shortfall ?? [];
   const isSubjectStep = step ? SUBJECT_STEP_TYPES.includes(step.step_type) : false;
   const availableInstances = shortfall.flatMap((sf) => sf.available_instances ?? []);
-  const stockAvailable = shortfall.reduce((s, sf) => s + (sf.available_quantity ?? 0), 0);
-  const canRecover = isStaff && canSupply && !hasRunning;
+  // «Menge bestätigen» gibt es nur für das **Subjekt** (Fertigware): einen fehlenden
+  // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
+  const canAnswer = isStaff && canAct && waiting.length === 0;
   const busyAny = busy || recoverBusy;
 
   function togglePick(oid: number) {
@@ -1009,8 +971,7 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
 
   return (
     // **Kurz und prägnant** (Notizen #257/#258): «Es fehlt» sagt alles, was der Titel
-    // sagen muss; WAS fehlt, steht als Zeile darunter – der Erklärabsatz («Dieser Schritt
-    // ruht – das benötigte Material ist nicht (mehr) am Lager …») wiederholte nur beides.
+    // sagen muss; WAS fehlt, steht als Zeile darunter.
     <HoldFrame title="Es fehlt">
       {shortfall.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1020,55 +981,47 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
               <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{sf.quantity}×</span>
               <span>{sf.article_name ?? 'Artikel'}</span>
               {sf.article_object_id != null && <ObjId value={sf.article_object_id} />}
-              {(sf.available_quantity ?? 0) > 0 && (
-                <span style={{ color: 'var(--fg-4)' }}>{sf.available_quantity} am Lager frei</span>
-              )}
             </div>
           ))}
         </div>
       )}
-      {hasRunning && (
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, font: '600 13px var(--font-body)', color: 'var(--warning)' }}>
-          <PackagePlus size={15} style={{ flexShrink: 0 }} />
-          Nachschub läuft
-          {running.map((oid) => <ObjId key={oid} value={oid} />)}
+
+      {/* **Wartet** – die Entscheidung ist getroffen, hier steht nur noch, worauf. */}
+      {waiting.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {waiting.map((oid) => <WaitLine key={oid} icon={Clock} objectId={oid} onOpen={onOpen} />)}
         </div>
       )}
-      {canRecover && (
+
+      {canAnswer && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* Zwei Wege, EINHEITLICH für alle Auftragsarten: liegt der Artikel bereits am Lager,
-              ist «Aus Lager decken» (FIFO) der schnellste Weg – mit Unterkategorie «bestimmte
-              Instanz wählen». Sonst «Nachschub anlegen» (produzieren/beschaffen). */}
-          {isSubjectStep && stockAvailable > 0 ? (
-            <>
-              <PrimaryButton icon={Warehouse} onClick={() => onCoverStock()} disabled={busyAny}>
-                {recoverBusy ? 'Wird gedeckt…' : 'Aus Lager decken (FIFO)'}
-              </PrimaryButton>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {availableInstances.length > 0 && (
-                  <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
-                )}
-                <SecondaryAction icon={PackagePlus} label="Stattdessen Nachschub produzieren" onClick={onSupply} disabled={busyAny} />
-              </div>
-            </>
-          ) : (
-            <PrimaryButton icon={PackagePlus} onClick={onSupply} disabled={busyAny}>
-              {busy ? 'Nachschub wird angelegt…' : 'Nachschub anlegen'}
-            </PrimaryButton>
-          )}
+          <PrimaryButton icon={PackagePlus} onClick={() => onReplace()} disabled={busyAny}>
+            {recoverBusy ? 'Wird ersetzt…' : 'Ersetzen'}
+          </PrimaryButton>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {isSubjectStep && availableInstances.length > 0 && (
+              <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
+            )}
+            {/* «Menge bestätigen» sagte, was das System tut, nicht was der Mensch
+                entscheidet (Notiz #280). Der Gegensatz zu «Ersetzen» ist: gar nicht
+                ersetzen – der Auftrag wird mit dem fertig, was da ist. */}
+            {isSubjectStep && (
+              <SecondaryAction icon={CheckCircle2} label={busy ? 'Wird übernommen…' : 'Ohne Ersatz weiter'}
+                onClick={onConfirmQuantity} disabled={busyAny} />
+            )}
+          </div>
           {pickerOpen && availableInstances.length > 0 && (
-            <div style={{ border: '1px solid #fde68a', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 12, color: '#64748b' }}>Ersatz-Instanz(en) am Lager wählen:</div>
+            <div style={{ border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {availableInstances.map((ai) => {
                   const sel = picked.includes(ai.object_id);
                   return (
                     <button key={ai.object_id} type="button" onClick={() => togglePick(ai.object_id)}
                       style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                        padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                        border: `1px solid ${sel ? '#7c3aed' : '#e2e8f0'}`,
-                        background: sel ? '#f5f3ff' : '#fff', color: sel ? '#6d28d9' : '#475569',
+                        display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12,
+                        fontFamily: 'var(--font-mono)', padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
+                        border: `1px solid ${sel ? 'var(--success)' : 'var(--border-1)'}`,
+                        background: sel ? 'var(--success-bg)' : '#fff', color: sel ? 'var(--success)' : 'var(--fg-2)',
                       }}>
                       {sel && <CheckCircle2 size={12} />}
                       {fmtObjId(ai.object_id)}{ai.quantity > 1 ? ` ·${ai.quantity}` : ''}
@@ -1076,15 +1029,32 @@ function ProcessHoldNotice({ reason, step, isStaff, canSupply, busy, recoverBusy
                   );
                 })}
               </div>
-              <PrimaryButton icon={CheckCircle2} onClick={() => { onCoverStock(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
+              <PrimaryButton icon={CheckCircle2} onClick={() => { onReplace(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
                 {recoverBusy ? 'Wird übernommen…' : 'Gewählte Instanzen übernehmen'}
               </PrimaryButton>
             </div>
           )}
         </div>
       )}
-      {error && <span style={{ fontSize: 12, color: '#dc2626' }}>{error}</span>}
+      {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
     </HoldFrame>
+  );
+}
+
+// «Wartet auf …» – eine Zeile, die den Unter-Auftrag nennt und ihn öffnet. Dieselbe Form für
+// beide Wartegründe (Abweichung/Nachschub bzw. Bereitstellung).
+function WaitLine({ icon: Icon, objectId, onOpen }: {
+  icon: React.ElementType; objectId: number; onOpen?: (objectId: number) => void;
+}) {
+  return (
+    <button type="button" onClick={() => onOpen?.(objectId)}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 13px var(--font-body)',
+        color: 'var(--fg-1)', background: 'transparent', border: 'none', padding: 0,
+        cursor: 'pointer', textAlign: 'left' }}>
+      <Icon size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+      <span style={{ color: 'var(--fg-3)' }}>Wartet auf</span>
+      <ObjId value={objectId} />
+    </button>
   );
 }
 

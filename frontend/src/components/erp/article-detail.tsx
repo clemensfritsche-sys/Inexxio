@@ -20,7 +20,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderAction, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -28,7 +28,7 @@ import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { printObjectLabel } from '@/components/scan/object-label';
-import { cn, formatAmount as fmtChf, localDate } from '@/lib/utils';
+import { formatAmount as fmtChf, localDate } from '@/lib/utils';
 
 // Artikel-Lebenszyklus: Die Freigabe friert den **ganzen Artikel** ein –
 // Spezifikation UND Prozess. Sie ist nur möglich, wenn ein Prozess hinterlegt ist
@@ -352,14 +352,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
               <>
                 <HeaderSep />
                 {actions.filter((a) => a.tone !== 'danger').map((a) => (
-                  <button key={a.target} type="button"
-                    className={cn('erp-actbtn', a.tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral')}
-                    style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
-                    data-tip={a.hint} data-tip-pos="bottom"
-                    disabled={statusBusy || a.disabled}
-                    onClick={() => onStatusAction(a.target)}>
-                    {a.label}
-                  </button>
+                  <HeaderAction key={a.target} label={a.label} tone={a.tone} hint={a.hint}
+                    disabled={statusBusy || a.disabled} onClick={() => onStatusAction(a.target)} />
                 ))}
               </>
             )}

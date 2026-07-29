@@ -41,21 +41,6 @@ def _existing_open_supply(db: Session, parent: Order, article_id: int) -> Order 
     )
 
 
-def _blocked_step_id(db: Session, order: Order, article_id: int) -> int | None:
-    """Der Schritt, dessen Fehlmenge diesen Nachschub auslöst – für die Anzeige im Ablauf.
-
-    Gesucht wird der erste blockierte Schritt, der genau diesen Artikel vermisst. Findet
-    sich keiner (z. B. Nachschub von Hand angestossen), bleibt die Angabe leer und der
-    Nachschub erscheint – wie eine Abweichung ohne Ursprung – am Anfang des Ablaufs."""
-    for info in process.build_order_steps(db, order):
-        if info["state"] != "blocked":
-            continue
-        step = info["step"]
-        if any(a == article_id for a in process.step_shortfalls(db, order, step)):
-            return step.id
-    return None
-
-
 def ensure_supply(db: Session, order: Order, actor_id: int | None,
                   _chain: set | None = None) -> list[Order]:
     """Für jeden ungedeckten Bedarf des Auftrags einen Nachschub-Unter-Auftrag anlegen +
@@ -93,7 +78,7 @@ def ensure_supply(db: Session, order: Order, actor_id: int | None,
             # Aus WELCHEM Schritt der Bedarf stammt – dieselbe generische Angabe wie bei
             # Abweichung und Bereitstellung (``orders.origin_step_id``). Damit steht der
             # Nachschub im Ablauf an seiner Stelle statt in einer Liste daneben (#259/#260).
-            origin_step_id=_blocked_step_id(db, order, art_id),
+            origin_step_id=process.blocked_step_for_article(db, order, art_id),
             title=f"Nachschub für {order.object_id}: {art.name}",
         )
         db.add(sup)

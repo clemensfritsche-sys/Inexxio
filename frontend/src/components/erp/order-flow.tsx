@@ -1,7 +1,7 @@
 'use client';
 
-import { Truck, Check, X, PauseCircle, TriangleAlert, PackagePlus } from 'lucide-react';
-import type { OrderDeviationInfo, OrderStep, StepType } from '@/types';
+import { Truck, Check, X, PauseCircle, TriangleAlert, PackagePlus, CheckCircle2 } from 'lucide-react';
+import type { OrderDeviationInfo, OrderStep, StepResolution, StepType } from '@/types';
 import { STEP_META } from '@/lib/process';
 import { ObjId } from '@/components/erp/obj-id';
 import { StatusBadge } from '@/components/erp/fields';
@@ -82,6 +82,7 @@ export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, on
         icon={meta.icon}
         detail={stepDetail(s)}
         badge={stepBadge(s)}
+        resolutions={s.resolutions ?? []}
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
@@ -121,13 +122,15 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   failed:  { icon: X,           color: 'var(--danger)' },
 };
 
-function FlowCard({ type, label, icon: Icon, detail, badge, state, hint, selected, deviations, onOpenOrder, onClick, children }: {
+function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], state, hint, selected, deviations, onOpenOrder, onClick, children }: {
   type: StepType;
   label: string;
   icon: React.ElementType;
   detail?: React.ReactNode;
   /** Fachlicher Zustand des Moduls (z. B. «Angefragt») – im Kopf, wo der Zustand hingehört. */
   badge?: React.ReactNode;
+  /** Was an diesem Schritt bei einer Unterdeckung entschieden wurde (Notiz #281). */
+  resolutions?: StepResolution[];
   state: string;
   hint?: string;
   selected?: boolean;
@@ -169,6 +172,9 @@ function FlowCard({ type, label, icon: Icon, detail, badge, state, hint, selecte
         <div style={{ minWidth: 0, flex: 1 }}>
           <span style={{ font: '800 16px var(--font-display)', letterSpacing: '-.01em', color: 'var(--fg-1)' }}>{label}</span>
           {detail && <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-3)' }}>{detail}</div>}
+          {/* Was hier entschieden wurde, als etwas fehlte – bleibt sichtbar, auch wenn der
+              Schritt längst wieder läuft (Notiz #281). Eine Zeile je Entscheidung. */}
+          {resolutions.map((r, i) => <ResolutionLine key={i} r={r} />)}
         </div>
         {badge}
         {MarkIcon && <MarkIcon size={18} style={{ color: mark.color, flexShrink: 0 }} />}
@@ -187,6 +193,36 @@ function FlowCard({ type, label, icon: Icon, detail, badge, state, hint, selecte
           {branch.map((d) => <DeviationPill key={d.object_id} info={d} onOpen={onOpenOrder} />)}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * «Ersetzt» / «Ohne Ersatz weiter» – die Entscheidung, die eine Unterdeckung hier aufgelöst
+ * hat. Sie steht dort, wo sie gefallen ist: am Schritt, der blockiert war. Wer/wann im Hover.
+ */
+function ResolutionLine({ r }: { r: StepResolution }) {
+  const who = [r.by, r.at ? new Date(r.at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : null]
+    .filter(Boolean).join(' · ');
+  const Icon = r.kind === 'quantity_confirmed' ? CheckCircle2 : PackagePlus;
+  return (
+    <div title={who || undefined}
+      style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+        font: '500 12px var(--font-body)', color: 'var(--fg-3)', cursor: who ? 'help' : 'default' }}>
+      <Icon size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
+      {r.kind === 'quantity_confirmed' ? (
+        <span>
+          Menge angepasst
+          <b style={{ marginLeft: 5, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
+            {r.quantity_from} → {r.quantity_to}
+          </b>
+        </span>
+      ) : (
+        <span>
+          <b style={{ color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{r.quantity}</b> ab Lager ersetzt
+        </span>
+      )}
+      {r.article_name && <span style={{ color: 'var(--fg-4)' }}>· {r.article_name}</span>}
     </div>
   );
 }
@@ -237,7 +273,11 @@ function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (i
  * haben einen eigenen Fortschritt (Angefragt → Offeriert → Bestellt → Geliefert), und der
  * gehört dorthin, wo man ihn ohne Öffnen sieht – nicht in die Fläche des Panels.
  */
+// Fachlicher Zwischenstand im Modul-Kopf (Beschaffung/Verkauf) – aber NUR, solange der
+// Schritt läuft (Notiz #279): ist er erledigt, sagt das der Haken daneben, und «Geliefert»
+// stünde als zweites Wort für dieselbe Aussage daneben.
 function stepBadge(s: OrderStep): React.ReactNode {
+  if (s.state === 'done') return null;
   const po = (s.purchases ?? [])[0];
   if (po?.status) return <StatusBadge cfg={purchaseStatusConfig(po.status)} size={10} />;
   const sale = (s.sales ?? [])[0];

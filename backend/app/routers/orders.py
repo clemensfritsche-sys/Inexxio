@@ -16,7 +16,7 @@ from ..schemas.order import (
 from ..schemas.purchase_order import PurchaseOrderUpdate
 from ..schemas.resource import ResourceUpdate
 from ..schemas.sale import SaleUpdate
-from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject, supply
+from ..services import deactivation, deviation, inventory, order_lines as order_lines_svc, process, recovery, refund as refund_svc, sale as sale_svc, subject
 from ..services.admin import log_audit
 from ..services.document import (
     act_on_signoff, get_signoff, record_document, substitute_signer, withdraw_issuance,
@@ -44,16 +44,6 @@ def _get_staff_order(db: Session, object_id: int) -> Order:
     if not order:
         raise HTTPException(404, detail="Auftrag nicht gefunden")
     return order
-
-
-def _assert_not_paused(db: Session, order: Order) -> None:
-    """Ein durch eine offene Abweichung **pausierter** Auftrag darf nicht weiterverarbeitet
-    werden – erst die Abweichung klären. (Die Abweichung selbst pausiert nicht und läuft.)"""
-    if process._is_paused_by_deviation(db, order):
-        raise HTTPException(
-            409,
-            detail="Auftrag pausiert: erst die offene Abweichung abschliessen, dann den Prozess fortsetzen.",
-        )
 
 
 def _validate_article(db: Session, article_id: int | None) -> None:
@@ -676,40 +666,42 @@ async def open_deviation(
     return to_order_response(db, devi)
 
 
-@router.post("/{object_id}/supply", response_model=OrderResponse)
-async def create_supply(
-    object_id: int,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """«Nachschub anlegen»: für jeden ungedeckten Bedarf (blockierter Schritt) dieses Auftrags
-    einen **Nachschub-Unter-Auftrag** anlegen + freigeben, der die Fehlmenge produziert/beschafft
-    (rekursiv über die Stückliste). Bei Abschluss wird der Nachschub an diesen Auftrag gepinnt
-    und der blockierte Schritt von selbst wieder aktiv. Idempotent. Liefert den Auftrag zurück."""
-    order = _get_staff_order(db, object_id)
-    if order.status != "released":
-        raise HTTPException(400, detail="Nachschub kann nur für einen freigegebenen Auftrag angelegt werden")
-    supply.ensure_supply(db, order, current_user.id)
-    db.commit()
-    db.refresh(order)
-    return to_order_response(db, order)
-
-
-@router.post("/{object_id}/cover-stock", response_model=OrderResponse)
-async def cover_stock(
+@router.post("/{object_id}/cover", response_model=OrderResponse)
+async def cover_shortfall(
     object_id: int,
     data: OrderCoverStock,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_employee),
 ):
-    """«Aus Lager decken» / «Andere Instanz wählen»: die offene Subjekt-Fehlmenge eines
-    blockierten Schritts aus **vorhandenem** Lagerbestand decken – FIFO (ohne Auswahl) oder
-    gezielt gewählte Instanzen. Alternative zu «Nachschub anlegen» (produzieren), wenn der
-    Bestand bereits am Lager liegt. Liefert den Auftrag zurück."""
+    """**«Ersetzen»** – die Fehlmenge eines blockierten Schritts decken, egal woher.
+
+    EIN Endpunkt statt zweier Knöpfe («Aus Lager decken» + «Nachschub anlegen»): erst der
+    freie Lagerbestand (FIFO bzw. die in ``instance_object_ids`` gezielt gewählten
+    Instanzen), für den Rest ein Nachschub-Unter-Auftrag. Idempotent; liefert den Auftrag."""
     order = _get_staff_order(db, object_id)
     if order.status != "released":
-        raise HTTPException(400, detail="Nur ein freigegebener Auftrag lässt sich aus Lager decken")
-    recovery.cover_from_stock(db, order, current_user.id, data.instance_object_ids)
+        raise HTTPException(400, detail="Nur ein freigegebener Auftrag lässt sich decken")
+    recovery.cover_shortfall(db, order, current_user.id, data.instance_object_ids)
+    db.commit()
+    db.refresh(order)
+    return to_order_response(db, order)
+
+
+@router.post("/{object_id}/confirm-quantity", response_model=OrderResponse)
+async def confirm_quantity(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_employee),
+):
+    """**«Menge bestätigen»** – der Auftrag wird mit dem fertig, was gesichert ist.
+
+    Das Soll sinkt auf die gesicherte Menge (5 bestellt, 1 in Klärung → 4 bestellt); der
+    blockierte Schritt ist damit frei. Bezahlte Verkaufspositionen sind ausgenommen – die
+    korrigiert eine Retoure/Gutschrift."""
+    order = _get_staff_order(db, object_id)
+    if order.status != "released":
+        raise HTTPException(400, detail="Nur bei einem freigegebenen Auftrag lässt sich die Menge bestätigen")
+    recovery.confirm_quantity(db, order, current_user.id)
     db.commit()
     db.refresh(order)
     return to_order_response(db, order)
@@ -738,7 +730,6 @@ async def update_order_purchase(
     if user.role == "supplier":
         from ..services import consent as consent_svc
         consent_svc.assert_acknowledged(db, user)
-    _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "purchase", data.step_id)
     pos = process.facts_for_step(db, order, step)
     apply_purchase_update_bulk(db, pos, data, user)
@@ -760,7 +751,6 @@ async def update_order_sale(
     Zahlungsart) gilt für alle gemeinsam (eine Sendung, eine Zahlung) – siehe
     ``sale.apply_update_bulk``."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "sale", data.step_id)
     sales = process.facts_for_step(db, order, step)
     sale_svc.apply_update_bulk(db, sales, data, current_user)
@@ -777,7 +767,6 @@ async def update_order_inspection(
 ):
     """Schritt «Eingangskontrolle»: Stichprobenergebnis erfassen (passed/failed)."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_inspection(db, order, data, current_user)
     db.refresh(order)
     return to_order_response(db, order)
@@ -792,7 +781,6 @@ async def update_order_document(
 ):
     """Schritt «Dokument»: Inhalt verfassen (save) bzw. ausstellen (issue)."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_document(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -832,7 +820,6 @@ async def withdraw_order_document(
     """Ausstellung eines Dokuments zurücknehmen (Personal) – Inhalt wieder editierbar, alle
     Freigabe-Parteien verworfen. Nur solange das Dokument noch nicht vollständig freigegeben ist."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     withdraw_issuance(db, order, step_id, current_user)
     db.refresh(order)
     return to_order_response(db, order)
@@ -865,7 +852,6 @@ async def update_order_movement(
 ):
     """Schritt «Bewegung»: Instanzen einlagern/umlagern (Zielstandort je Instanz)."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_movement(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -881,7 +867,6 @@ async def quote_order_shipment(
     """Versand (ADR 005): Tarife laden (Rate-Shopping) für den Bewegungs-Schritt.
     Der Versand-Beleg entsteht dabei idempotent; günstigster Tarif = Default-Auswahl."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "movement", data.step_id)
     logistics.quote(db, order, step, _shipment_instances(db, order, step), current_user.id)
     db.refresh(order)
@@ -897,7 +882,6 @@ async def buy_order_shipment(
 ):
     """Versand: gewähltes Angebot kaufen → Label (PDF) + Tracking-Nummer (idempotent)."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "movement", data.step_id)
     logistics.buy(db, order, step, data.rate_id, current_user.id)
     db.refresh(order)
@@ -914,7 +898,6 @@ async def update_order_shipment(
     """Versand: Transport-Modus je Auftrag übersteuern (auto/carrier/self/none) bzw.
     manuelle Versanddaten erfassen (Carrier, Tracking, Kosten – manual-Provider)."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     step = process.resolve_exec_step(db, order, "movement", data.step_id)
     logistics.apply_update(db, order, step, _shipment_instances(db, order, step), data, current_user.id)
     db.refresh(order)
@@ -937,7 +920,6 @@ async def update_order_resource(
 ):
     """Schritt «Ressource»: Verbrauch (FIFO, Chargen-Teilentnahme) + Betriebsmittel."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_resource(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -952,7 +934,6 @@ async def update_order_scrap(
 ):
     """Schritt «Verschrotten»: gewählte Instanzen ausschleusen (disposition='scrapped')."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_scrap(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)
@@ -970,7 +951,6 @@ async def update_order_block(
     Gleiche Auswahl-Form wie das Verschrotten – nur eben umkehrbar: Standort, Menge und
     Reservierungen bleiben unangetastet, die Instanz ist nur nicht mehr verwendbar."""
     order = _get_staff_order(db, object_id)
-    _assert_not_paused(db, order)
     record_block(db, order, data, current_user.id)
     db.refresh(order)
     return to_order_response(db, order)

@@ -109,6 +109,8 @@ export type OrderSummary = Omit<OrderSummaryApi, 'status'> & { status: OrderStat
 export type StepType = 'purchase' | 'inspection' | 'movement' | 'resource' | 'scrap' | 'block' | 'sale' | 'document';
 export type ResourceMode = 'consume' | 'tool';
 export type OrderStep = OrderApi['steps'][number];
+// Was an einem Schritt entschieden wurde, als er unterdeckt war (ersetzt / ohne Ersatz weiter).
+export type StepResolution = OrderStep['resolutions'][number];
 
 // Dokument: Inhalt (Titel/Untertitel/Abschnitte) + eingebetteter Stand im Auftrag.
 // Der Inhalt wird WÄHREND der Auftragsausführung verfasst und ausgestellt.

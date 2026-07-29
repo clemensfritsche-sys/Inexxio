@@ -33,6 +33,22 @@ class StepShortfall(BaseModel):
     available_instances: list[ShortfallInstance] = []
 
 
+class StepResolution(BaseModel):
+    """**Was an diesem Schritt entschieden wurde**, als er unterdeckt war (Notiz #281).
+
+    Ohne diese Spur sieht man später nur das Ergebnis (der Auftrag lief weiter), nicht den
+    Weg dorthin – dabei ist gerade die Entscheidung die Geschichte des Auftrags. Quelle ist
+    der **Event-Strom**, kein neues Feld; die Formulierung macht das Frontend."""
+    kind: str                              # covered_from_stock | quantity_confirmed
+    article_object_id: Optional[int] = None
+    article_name: Optional[str] = None
+    quantity: Optional[float] = None       # gedeckte Menge (covered_from_stock)
+    quantity_from: Optional[float] = None  # vorherige Sollmenge (quantity_confirmed)
+    quantity_to: Optional[float] = None    # neue Sollmenge
+    at: Optional[datetime] = None
+    by: Optional[str] = None
+
+
 class OrderDeviationInfo(BaseModel):
     """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
     Eltern-Auftrag."""
@@ -61,7 +77,14 @@ class OrderStepInfo(BaseModel):
     # Bei state='blocked': ungedeckte Bedarfe + laufende Nachschub-Unteraufträge (Objektnummern),
     # die diese Fehlmenge gerade decken.
     shortfall: list[StepShortfall] = []
-    supply_order_object_ids: list[int] = []
+    # Worauf dieser Schritt **wartet**: offene Unter-Aufträge, die seine Fehlmenge bereits
+    # binden – eine **Abweichung** (das Stück ist in Klärung) oder ein laufender **Nachschub**.
+    # Solange etwas hier steht, ist die Entscheidung getroffen: die Oberfläche zeigt nur noch
+    # den Zustand, statt dieselbe Frage ein zweites Mal zu stellen.
+    waiting_for: list[int] = []
+    # Was an diesem Schritt bereits entschieden wurde (ersetzt / ohne Ersatz weiter) –
+    # auch dann noch, wenn er längst wieder läuft.
+    resolutions: list[StepResolution] = []
     # Bei state='blocked' **ohne** Fehlmenge: das Material existiert, liegt aber noch am
     # falschen Ort – diese Bereitstellungs-Unteraufträge bringen es her (Objektnummern).
     # Zwei Gründe zu blockieren, zwei getrennte Felder: «zu wenig da» ≠ «noch nicht hier».
@@ -335,9 +358,10 @@ class OrderResponse(BaseModel):
     # Sichtbarkeit der Unteraufträge im Eltern-Auftrag + Pause-Zustand
     deviations: list[OrderDeviationInfo] = []        # Abweichungen (pausieren den Eltern)
     supply_orders: list[OrderDeviationInfo] = []     # Nachschub (deckt Bedarf; blockiert nur Schritte)
-    returns: list[OrderDeviationInfo] = []           # Retouren/Erstattungen (pausieren NICHT)
-    # Bereitstellungen: bringen vorhandenes Material an den Ort, den ein Schritt verlangt
-    # (blockiert nur den betroffenen Schritt, pausiert den Eltern NICHT). Eigener Topf, weil
-    # eine Bereitstellung sonst im ``deviations``-Topf landete und als «Abweichung» erschiene.
+    returns: list[OrderDeviationInfo] = []           # Retouren/Erstattungen
+    # Bereitstellungen: bringen vorhandenes Material an den Ort, den ein Schritt verlangt.
+    # Eigener Topf, weil eine Bereitstellung sonst im ``deviations``-Topf landete und als
+    # «Abweichung» erschiene.
     provisionings: list[OrderDeviationInfo] = []
-    paused: bool = False   # pausiert, weil eine Abweichung offen / ein Abbruch ausstehend ist
+    # (``paused`` ist entfallen: eine Abweichung hält den Auftrag nicht mehr an, sie nimmt ihr
+    #  Stück heraus – was fehlt, blockiert den Schritt, der es braucht.)

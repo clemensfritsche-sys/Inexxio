@@ -714,12 +714,14 @@ def test_only_one_open_deviation_per_instance():
     assert "instance_open_deviation" in create and "409" in create
 
 
-def test_order_response_exposes_sub_deviations_and_pause():
-    """Der Eltern-Auftrag macht seine Abweichungs-Unteraufträge sichtbar (+ Pause-Zustand)."""
+def test_order_response_exposes_sub_deviations():
+    """Der Eltern-Auftrag macht seine Unter-Aufträge sichtbar – und trägt KEINEN Pause-
+    Zustand mehr: eine Abweichung nimmt ihr Stück heraus (Unterdeckung), sie hält den
+    Auftrag nicht an."""
     from app.schemas.order import OrderDeviationInfo, OrderResponse
 
     assert "deviations" in OrderResponse.model_fields
-    assert "paused" in OrderResponse.model_fields
+    assert "paused" not in OrderResponse.model_fields
     for f in ("object_id", "status", "instance_count", "instance_object_ids"):
         assert f in OrderDeviationInfo.model_fields
 
@@ -765,20 +767,32 @@ def test_no_order_level_deviation_on_completed_order():
     assert "not data.instance_object_ids" in src and '!= "released"' in src
 
 
-def test_paused_order_blocks_step_execution_and_parent_recompute():
-    """Ein durch eine offene Abweichung pausierter Auftrag darf nicht weiterverarbeitet werden;
-    schliesst die Abweichung ab, wird der Eltern-Auftrag neu bewertet (un-pausiert/abgeschlossen)."""
+def test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order():
+    """**Eine Abweichung hält den Auftrag nicht an – sie nimmt ihr Stück heraus.**
+
+    Früher pausierte JEDE offene Abweichung den GANZEN Eltern-Auftrag: ein schlechtes von
+    fünf Stück legte die anderen vier still. Das war ein zweiter Mechanismus für etwas,
+    wofür es längst eine Sprache gibt – die **Unterdeckung**. Ein Stück in Klärung zählt
+    nicht mehr als gesichert, der Rest läuft weiter, und der Schritt, der das Subjekt
+    braucht, meldet die Fehlmenge. Der Schutz vor Teil-Versand bleibt: Verkauf und Versand
+    sind Subjekt-Schritte und sind bei einer Fehlmenge ohnehin blockiert."""
     import inspect as _inspect
 
     from app.routers import orders
     from app.services import process
 
-    # Pause-Guard an den Schritt-Endpunkten
-    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_movement)
-    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_resource)
-    assert "_assert_not_paused" in _inspect.getsource(orders.update_order_inspection)
-    guard = _inspect.getsource(orders._assert_not_paused)
-    assert "_is_paused_by_deviation" in guard and "409" in guard
+    # Die Pause gibt es nicht mehr – weder als Regel noch als Wächter.
+    assert not hasattr(process, "_is_paused_by_deviation")
+    assert not hasattr(orders, "_assert_not_paused")
+    assert "_assert_not_paused" not in _inspect.getsource(orders)
+    # Stattdessen: in Klärung gebundene Instanzen zählen nicht als gesichert …
+    short = _inspect.getsource(process._subject_shortfalls)
+    assert "deviated_instance_ids" in short and "in_clarification" in short
+    dev = _inspect.getsource(process.deviated_instance_ids)
+    assert "open_deviations" in dev and "subject_of_order_id" in dev
+    # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben (der Auftrag darf
+    # jetzt abschliessen, während die Klärung noch läuft).
+    assert "deviated_instance_ids" in _inspect.getsource(process.release_instances)
     # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
     rc = _inspect.getsource(process.recompute_completion)
     assert "parent_order_id" in rc and "recompute_completion(db, parent)" in rc
@@ -1564,8 +1578,9 @@ def test_demand_supply_model_is_one_mechanism():
     rc = _inspect.getsource(process.recompute_completion)
     assert "_peg_supply_to_parent(db, order)" in rc
 
-    # NUR Abweichungen pausieren den Eltern (Nachschub blockiert nur den Schritt).
-    assert 'Order.reason == "deviation"' in _inspect.getsource(process._is_paused_by_deviation)
+    # Nachschub ist KEINE Abweichung: er deckt einen Bedarf, er nimmt nichts heraus.
+    assert 'Order.reason == "deviation"' in _inspect.getsource(
+        __import__("app.services.deviation", fromlist=["x"]).open_deviations)
 
     # Freigabe ist EIN Pfad: Router, Shop-Zahlung und Nachschub nutzen release_order.
     assert "release_order(" in _inspect.getsource(__import__("app.routers.orders", fromlist=["x"]).update_order)
@@ -1751,10 +1766,10 @@ def test_abort_is_a_deed_not_a_request():
     assert 'parent.status = "inactive"' in ap and "keep_instances=True" in ap
     assert "parent_order_id=parent.object_id" in _inspect.getsource(deviation.create_deviation)
 
-    # Kein «Abbruch ausstehend» mehr: die Pause hängt nur noch an offenen Abweichungen.
-    pause = _inspect.getsource(process._is_paused_by_deviation)
-    assert 'getattr(order, "abort_into_id", None) is not None' not in pause
-    assert "parent_order_id" in pause
+    # Kein «Abbruch ausstehend» mehr – und keine Pause: ``abort_into_id`` ist nur noch der
+    # Zeiger «fortgeführt in …», der Abbruch selbst ist im Moment des Meldens vollzogen.
+    assert not hasattr(process, "_is_paused_by_deviation")
+    assert 'abort_into_id' not in _inspect.getsource(process.recompute_completion)
     # Ein abgebrochener Auftrag lässt sich nicht über das Zurücknehmen wiederbeleben.
     assert 'holder.status == "inactive"' in _inspect.getsource(deviation.revoke)
 
@@ -2144,31 +2159,83 @@ def test_scrap_releases_all_reservations_of_the_instance():
     assert "release(inst, order.id)" not in src   # alter, undichter Aufruf ist ersetzt
 
 
-def test_recovery_offers_two_ways_to_close_a_subject_shortfall():
-    """Nach einer Aussteuerung/Unterdeckung stehen ZWEI vom Nutzer wählbare Wege bereit:
-    (1) aus Lager decken (FIFO ODER – als Unterkategorie – gezielte Instanz) und
-    (2) der bestehende Nachschub (produzieren/beschaffen). «Menge reduzieren» ist BEWUSST
-    NICHT gebaut (erst gebündelt mit einer Stripe-Gutschrift)."""
+def test_shortfall_is_one_question_with_three_answers():
+    """**Unterdeckung: eine Frage, drei Antworten.**
+
+    Vorher waren es zwei Knöpfe («Aus Lager decken» + «Nachschub anlegen»), die dem Menschen
+    eine Verfügbarkeitsfrage als Entscheidung vorlegten – und es fehlte die ehrlichste
+    Antwort: *der Auftrag wird mit weniger fertig*. Jetzt:
+
+    1. **Wartet** – ein Zustand, kein Knopf (siehe ``orders._fill_step_shortfall``).
+    2. **Ersetzen** – EIN Weg: erst freier Lagerbestand (FIFO oder gezielt), Rest per Nachschub.
+    3. **Menge bestätigen** – Soll sinkt auf das Gesicherte; bezahlte Ware ausgenommen."""
     import inspect as _inspect
     from app.services import process, recovery
 
     assert hasattr(process, "subject_shortfalls")
-    cover = _inspect.getsource(recovery.cover_from_stock)
-    assert "instance_object_ids" in cover           # gezielte Instanz-Auswahl (Unterkategorie)
-    assert "fifo_candidates" in _inspect.getsource(recovery._fifo_cover)   # FIFO ab freiem Lager
-    # «Menge reduzieren» ist entfernt (kommt erst mit Stripe-Gutschrift)
-    assert not hasattr(recovery, "reduce_to_available")
+    # (2) Ersetzen: EIN Aufruf, beide Quellen – kein zweiter Knopf mehr.
+    cover = _inspect.getsource(recovery.cover_shortfall)
+    assert "_cover_from_stock" in cover and "ensure_supply" in cover
+    assert "instance_object_ids" in _inspect.getsource(recovery._cover_from_stock)
+    assert "fifo_candidates" in _inspect.getsource(recovery._fifo_cover)
+    assert not hasattr(recovery, "cover_from_stock")   # der Einzelweg ist aufgegangen
+    # (3) Menge bestätigen: Soll sinkt, Geld bleibt ehrlich.
+    conf = _inspect.getsource(recovery.confirm_quantity)
+    assert "subject_shortfalls" in conf and "_assert_not_paid" in conf
+    assert 'Sale.status == "paid"' in _inspect.getsource(recovery._assert_not_paid)
 
 
-def test_recovery_endpoint_is_wired_and_staff_gated():
-    """Der Deckungs-Weg ist über einen freigegeben-gescopten Endpunkt erreichbar; der
-    entfernte «reduce»-Endpunkt existiert NICHT mehr."""
+def test_waiting_is_a_state_not_a_button():
+    """Ist die Fehlmenge bereits in einer offenen Abweichung oder einem laufenden Nachschub
+    gebunden, ist die Entscheidung getroffen – die Oberfläche sagt dann nur noch, WORAUF
+    gewartet wird. Die frühere Trennung «Nachschub läuft» ↔ «Abweichung offen» (zwei Felder,
+    zwei Sprachen) ist EIN Feld geworden."""
+    import inspect as _inspect
+    from app.schemas.order import OrderStepInfo
+    from app.services import orders
+
+    assert "waiting_for" in OrderStepInfo.model_fields
+    assert "supply_order_object_ids" not in OrderStepInfo.model_fields
+    src = _inspect.getsource(orders._fill_step_shortfall)
+    assert 'Order.reason == "deviation"' in src and 'Order.reason == "supply"' in src
+
+
+def test_what_happened_stays_at_its_step():
+    """**Was entschieden wurde, steht im Ablauf** (Notiz #281): dass eine Fehlmenge ersetzt
+    oder die Menge angepasst wurde, ist die Geschichte des Auftrags – ohne Spur sieht man
+    später nur das Ergebnis. Quelle ist der **Event-Strom**, kein neues Feld; die Zuordnung
+    macht die Schritt-id im Payload (dieselbe Frage wie beim Nachschub-Ursprung)."""
+    import inspect as _inspect
+    from app.schemas.order import OrderStepInfo, StepResolution
+    from app.services import orders, process, recovery
+
+    assert "resolutions" in OrderStepInfo.model_fields
+    assert {"kind", "quantity_from", "quantity_to"} <= set(StepResolution.model_fields)
+    rec = _inspect.getsource(recovery._record_at_step)
+    assert "blocked_step_for_article" in rec and '"step_id"' in rec
+    # Beide Antworten hinterlassen ihre Spur …
+    src = _inspect.getsource(recovery)
+    assert '_record_at_step(db, order, aid, "order.covered_from_stock"' in src
+    assert '"order.quantity_confirmed"' in src
+    # … und der Ablauf liest sie je Schritt zurück.
+    fill = _inspect.getsource(orders._fill_step_resolutions)
+    assert 'payload or {}).get("step_id") == step.id' in fill
+    # EINE Stelle beantwortet «welcher Schritt vermisst diesen Artikel?» (Nachschub + Deckung).
+    assert hasattr(process, "blocked_step_for_article")
+
+
+def test_recovery_endpoints_are_wired_and_staff_gated():
+    """Beide Antworten sind über freigegeben-gescopte Endpunkte erreichbar – und die beiden
+    alten Einzelwege («/supply», «/cover-stock») sind zu EINEM «/cover» zusammengefallen."""
     import inspect as _inspect
     from app.routers import orders
 
-    cover = _inspect.getsource(orders.cover_stock)
-    assert "recovery.cover_from_stock" in cover
+    cover = _inspect.getsource(orders.cover_shortfall)
+    assert "recovery.cover_shortfall" in cover
     assert 'order.status != "released"' in cover
+    conf = _inspect.getsource(orders.confirm_quantity)
+    assert "recovery.confirm_quantity" in conf and 'order.status != "released"' in conf
+    assert not hasattr(orders, "cover_stock") and not hasattr(orders, "create_supply")
     assert not hasattr(orders, "reduce_demand")
 
 
@@ -2202,19 +2269,20 @@ def test_step_shortfall_exposes_stock_availability_for_recovery():
     assert "available_instances" in _inspect.getsource(orders._fill_step_shortfall)
 
 
-def test_all_step_endpoints_reject_execution_while_paused():
-    """Ein durch eine offene Abweichung pausierter Auftrag darf keinen Schritt ausführen –
-    jeder Ausführungs-Endpoint prüft ``_assert_not_paused`` (Bewegen/Datenerfassung/Ressource/
-    Verkauf/Beschaffung/Verschrotten). So ist eine Instanz mit offener Abweichung nicht bewegbar."""
+def test_a_shortfall_blocks_only_the_step_that_needs_it():
+    """Kein Auftrag wird mehr pauschal angehalten: was fehlt, blockiert den Schritt, der es
+    braucht (``_step_blocked``) – und die Ausführungs-Endpunkte tragen keinen Pause-Wächter
+    mehr. Der Schutz vor Teil-Versand bleibt, weil Verkauf und Bewegung Subjekt-Schritte
+    sind und bei einer Fehlmenge ohnehin blockieren."""
     import inspect as _inspect
     from app.routers import orders
+    from app.services import process
 
-    guard = _inspect.getsource(orders._assert_not_paused)
-    assert "_is_paused_by_deviation" in guard
-
-    for fn in (orders.update_order_movement, orders.update_order_inspection, orders.update_order_resource,
-               orders.update_order_sale, orders.update_order_purchase, orders.update_order_scrap):
-        assert "_assert_not_paused" in _inspect.getsource(fn), f"{fn.__name__} prüft die Pause nicht"
+    assert "_assert_not_paused" not in _inspect.getsource(orders)
+    blocked = _inspect.getsource(process._step_blocked)
+    assert "step_shortfalls(db, order, step)" in blocked
+    for t in ("movement", "sale"):
+        assert t in process.SUBJECT_STEP_TYPES
 
 
 def test_sale_is_a_subject_step_that_blocks_on_shortfall():
@@ -2281,19 +2349,17 @@ def test_sale_step_serves_both_sale_and_credit():
         assert f in Sale.__table__.columns
 
 
-def test_return_order_is_fixed_subject_and_does_not_pause():
+def test_return_order_is_fixed_subject():
     """Eine Retoure/Erstattung (reason='return') wirkt auf fixierte (verkaufte) Instanzen –
-    wie eine Abweichung fixiertes Subjekt (keine Fehlmenge), aber sie pausiert den Eltern NICHT
-    (nur reason='deviation' pausiert)."""
+    wie eine Abweichung fixiertes Subjekt (keine Fehlmenge). Sie nimmt dem Eltern-Auftrag
+    nichts heraus: der Verkauf ist abgeschlossen, es gibt nichts mehr zu sichern."""
     import inspect as _inspect
-    from app.services import subject, process
+    from app.services import deviation, subject
 
     assert "return" in _inspect.getsource(subject.is_return)
     assert "is_deviation(order) or is_return(order)" in _inspect.getsource(subject.is_fixed_subject)
-    # Pause nur bei Abweichung:
-    assert 'reason="deviation"' in _inspect.getsource(process._is_paused_by_deviation) \
-        or "reason == \"deviation\"" in _inspect.getsource(process._is_paused_by_deviation) \
-        or "Order.reason == \"deviation\"" in _inspect.getsource(process._is_paused_by_deviation)
+    # Nur eine Abweichung nimmt Instanzen heraus – eine Retoure zählt dort nicht mit.
+    assert 'Order.reason == "deviation"' in _inspect.getsource(deviation.open_deviations)
 
 
 def test_credit_mode_derived_from_subject_with_stripe_refund():
@@ -2854,7 +2920,7 @@ def test_sub_orders_know_where_they_came_from():
     assert 'Order.reason.in_(("deviation", "supply"))' in fill
     # Auch der Nachschub merkt sich, aus welchem Schritt sein Bedarf stammt.
     from app.services import supply as supply_svc
-    assert "origin_step_id=_blocked_step_id(db, order, art_id)" in _inspect.getsource(supply_svc)
+    assert "origin_step_id=process.blocked_step_for_article(db, order, art_id)" in _inspect.getsource(supply_svc)
 
 
 def test_cancelled_provisioning_is_not_recreated():

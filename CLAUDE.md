@@ -2049,6 +2049,82 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (7) Kleineres: Menge bei **jeder** Instanz (#265 – Einheitlichkeit statt «mal hier, mal
   dort»), Startknoten auch beim leeren Prozess (#269), «Prozess des Artikels» entfällt (#270).
 
+- **Unterdeckung: EINE Frage, DREI Antworten – und die Abweichung hält nichts mehr an**
+  (Juli 2026, `services/recovery.py`, `process.deviated_instance_ids`): Praxistest an einem
+  Erzeugungsauftrag (Beschaffung → interne Bewegung → Abweichung an EINER Instanz) zeigte,
+  dass beide bisherigen Wege am Fall vorbeigingen: *Aus Lager decken* schickt ein fertiges
+  Teil noch einmal durch den Prozess, und *Nachschub* lässt vier Instanzen warten, bis ein
+  kompletter Unter-Auftrag durchgelaufen ist. Es fehlte die ehrlichste Antwort: **der
+  Auftrag wird mit weniger fertig.**
+  **(1) Eine Abweichung nimmt ihr Stück HERAUS, statt den Auftrag anzuhalten.** Früher
+  pausierte JEDE offene Abweichung den GANZEN Eltern (`_is_paused_by_deviation`, dazu ein
+  `_assert_not_paused`-Wächter an allen zwölf Ausführungs-Endpunkten) – unabhängig davon,
+  wie viele Instanzen betroffen waren: ein schlechtes von fünf Stück legte die anderen vier
+  still. Das war ein **zweiter** Mechanismus für etwas, wofür es längst eine präzise Sprache
+  gibt – die **Unterdeckung**. Ein Stück in Klärung ist weder verloren noch gesichert, es ist
+  **fehlend**: `deviated_instance_ids` nimmt es aus «Gesichert» heraus, der Schritt meldet
+  «Es fehlt 1 Stk», der Rest läuft weiter. Der Schutz, für den die Pause gedacht war – *eine
+  Sendung darf nicht teil-versendet werden* –, bleibt **abgeleitet statt deklariert**:
+  Verkauf und Versand sind Subjekt-Schritte und blockieren bei einer Fehlmenge ohnehin. Damit
+  ist es **eine Regel weniger**, nicht eine mehr: `_is_paused_by_deviation`, `_assert_not_paused`
+  und `OrderResponse.paused` sind ersatzlos entfallen. Gegenstück: `release_instances` gibt
+  nicht frei, was in einer offenen Abweichung steckt (der Eltern darf jetzt abschliessen,
+  während die Klärung läuft – freigegeben wird vom Auftrag, der zuletzt daran arbeitet).
+  **(2) Die Unterdeckung stellt genau EINE Frage** – *was soll mit der Fehlmenge geschehen?* –
+  mit drei Antworten: **Wartet** = kein Knopf, sondern ein **Zustand** (`OrderStepInfo.
+  waiting_for` – ist die Menge in einer offenen Abweichung oder einem laufenden Nachschub
+  gebunden, ist die Entscheidung getroffen; die frühere Trennung «Nachschub läuft» ↔
+  «Abweichung offen» ist EIN Feld geworden); **Ersetzen** = EIN Weg statt zweier Knöpfe
+  (`POST /orders/{id}/cover` → erst freier Lagerbestand FIFO bzw. gezielt gewählte Instanzen,
+  Rest per Nachschub – woher der Ersatz kommt, ist eine Verfügbarkeitsfrage, keine zweite
+  Entscheidung; `/supply` + `/cover-stock` sind darin aufgegangen); **Menge bestätigen** =
+  neu (`POST /orders/{id}/confirm-quantity`, `recovery.confirm_quantity`): das Soll sinkt auf
+  das Gesicherte (5 bestellt, 1 in Klärung → 4 bestellt), der Schritt ist frei, der Auftrag
+  läuft normal zu Ende. **Geld bleibt ehrlich:** eine bereits **bezahlte** Verkaufsposition
+  lässt sich so NICHT kürzen (409) – dafür ist die Retoure/Gutschrift da (`sale`-Kredit-Modus
+  + Stripe-Refund). Damit ist auch das alte «Menge reduzieren»-TODO sauber geschlossen.
+  Wächter: `test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order`,
+  `test_shortfall_is_one_question_with_three_answers`, `test_waiting_is_a_state_not_a_button`,
+  `test_a_shortfall_blocks_only_the_step_that_needs_it`.
+  *Bewusst NICHT gebaut: die **Lieferanten-Reklamation** (`purchase` im Kredit-Modus, analog
+  zum `sale`-Modul) – die Gegenrichtung des Einkaufs bleibt offen; und «ab Lager gedeckte
+  Teile überspringen erledigte Schritte» (ausdrücklich verworfen: ein Schritt wirkt auf die
+  Instanzen seines Auftrags, eine Ausnahme je Herkunft wäre eine zweite Regel).*
+
+- **Testnotizen-Runde 19 (die Entscheidung bleibt am Schritt, Notizen #279–#286)**:
+  (1) **Was entschieden wurde, steht im Ablauf** (#281, `OrderStepInfo.resolutions`): Dass
+  eine Fehlmenge **ersetzt** oder die **Menge angepasst** wurde, ist die eigentliche
+  Geschichte des Auftrags – ohne Spur sah man später nur noch das Ergebnis («läuft») und
+  nicht, wie es dazu kam. Die Spur ist **kein neues Feld**, sondern der **Event-Strom**:
+  `recovery._record_at_step` hängt jeder Entscheidung die Schritt-id an, `orders.
+  _fill_step_resolutions` liest sie je Schritt zurück, der Fluss zeigt eine Zeile
+  («Menge angepasst 5 → 4», «1 ab Lager ersetzt», Wer/Wann im Hover) – auch dann noch, wenn
+  der Schritt längst wieder läuft. Die Frage «welcher Schritt vermisst diesen Artikel?» hat
+  damit zwei Nutzer (Nachschub-Ursprung + Deckungs-Spur) und liegt an EINER Stelle
+  (`process.blocked_step_for_article`, aus `supply.py` herausgezogen).
+  (2) **«Ohne Ersatz weiter» statt «Menge bestätigen»** (#280): der alte Name sagte, was das
+  System tut, nicht was der Mensch entscheidet – und der Gegensatz zu «Ersetzen» ist eben:
+  gar nicht ersetzen.
+  (3) **Eine Objektnummer sieht überall gleich aus** (#282, `ObjId`): sie erbte die
+  Schriftgrösse ihrer Umgebung und wurde im 15,5-px-Lesefeld der Auftragsspezifikation zur
+  lautesten Angabe der Zeile – obwohl sie eine **Kennung** ist, keine Aussage. Jetzt feste
+  12,5 px/600, tabellarisch (Fortsetzung von #263); die Positions-Aufstellung beginnt
+  wieder bei der normalen Lesegrösse.
+  (4) **Zustand nur, solange er etwas sagt** (#279): der fachliche Zwischenstand im
+  Modul-Kopf (Beschaffung/Verkauf) entfällt, sobald der Schritt erledigt ist – dass er durch
+  ist, sagt der Haken daneben, «Geliefert» stünde als zweites Wort für dieselbe Aussage.
+  (5) **Abweichungs-Dialog kurz und prägnant** (#284, `ChoiceButton` mit Symbol):
+  «Läuft weiter – nur das betroffene Stück wird herausgenommen» ↔ «Abbrechen – endgültig,
+  nur die Abweichung läuft weiter». Der alte Untertitel behauptete noch die Pause, die es
+  seit der Unterdeckungs-Runde nicht mehr gibt. Die lokale Dublette von `ChoiceButton` in
+  `order-detail.tsx` ist im gemeinsamen Vokabular aufgegangen.
+  (6) **Der Kopf skaliert nicht mehr** (#286, `fields.HeaderAction`): die Status-Aktion war
+  32 px hoch neben 28-px-Symbolknöpfen – die Zeile wuchs in dem Moment, in dem «Freigeben»
+  erschien, und schrumpfte wieder, sobald es wegfiel. Artikel und Auftrag hatten dieselbe
+  Zeile zweimal ausgeschrieben; jetzt eine Stelle, exakt 28 px.
+  (7) Kleineres: Menge bei **jeder** Instanz auch im Artikel-Bestand (#285, `instanceLabel`
+  – Einheitlichkeit statt «bei Chargen ja, bei Einzelteilen nein»); Label «Wirkung» im
+  Ausschleusen-Editor entfällt (#283 – die beiden Optionen sagen es selbst).
 - **Mehrstandort – Schritt 1: «das Unternehmen» wird zu «die Standorte»** (Juli 2026,
   Migration `090`, Variante A): Ein Betrieb kann Aussenstellen haben. Umgesetzt ist bewusst
   nur das **Fundament**; Bestand, Rechte und Bedarf bleiben unverändert (siehe unten).
