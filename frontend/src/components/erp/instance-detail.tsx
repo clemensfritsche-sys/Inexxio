@@ -18,6 +18,7 @@ import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { TileShell, TILE } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
+import { instanceName } from '@/lib/record-name';
 
 type InstTab = 'spec' | 'orders' | 'verwendung' | 'docs';
 import { useErpNav } from '@/components/erp/obj-id';
@@ -167,7 +168,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           <div style={S.dico}><Boxes size={26} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={S.eyebrow}>Instanz</div>
-            <h1 style={S.dtitle}>{inst.article_name ?? 'Instanz'}</h1>
+            <h1 style={S.dtitle}>{instanceName(inst) ?? 'Ohne Bezeichnung'}</h1>
             <div style={S.dsub}>
               <span style={S.dsubN}>{fmtObjId(inst.object_id ?? null)}</span>
               <span style={S.idsep} />

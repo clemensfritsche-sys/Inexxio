@@ -2,6 +2,7 @@
 rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 
 from datetime import date, timedelta
+from typing import Optional
 
 from sqlalchemy import false
 from sqlalchemy.orm import Query, Session
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Query, Session
 from ..domain import event_types
 from ..models import (
     Article, ArticleProcessStep, AuditLog, CompanySettings, Disposal, Inspection,
-    InstanceOrderLink, Movement, Order, PurchaseOrder, Sale, UserProfile,
+    InstanceOrderLink, Movement, Order, OrderLine, PurchaseOrder, Sale, UserProfile,
 )
 from ..schemas.article_process_step import CaptureField
 from ..schemas.disposal import DisposalEmbed
@@ -564,6 +565,9 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
             si.completed_at = at
         steps.append(si)
 
+    resp.name = order_display_name(
+        order, resp.article_name, [l.article_name for l in (resp.order_lines or [])])
+
     resp.steps = steps
     # Subjektart aus der Auftragsgestalt (produce | stock) und Bestandswirkung als
     # Aggregat der Schritt-Polaritäten – EINE Quelle der Wahrheit (REA-Registry).
@@ -579,6 +583,29 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     return resp
 
 
+def order_display_name(order: Order, article_name: Optional[str],
+                       line_names: Optional[list[str]] = None) -> str:
+    """**Der EINE Name eines Auftrags** – im Feed wie im Detail, für jede Auftragsart.
+
+    Ein Datensatz zeigt im ERP immer dasselbe: Name · Objektnummer · Status; **welcher Typ**
+    er ist, sagt sein Symbol. Darum darf im Namensfeld nie das Wort «Auftrag» als Platzhalter
+    für den Typ stehen (Notiz #177). Die Ableitung, in dieser Reihenfolge:
+
+    1. ``title`` – ein bewusst vergebener, sprechender Name (Unter-Aufträge, Shop-Käufe);
+    2. der **Artikel** des Auftrags (Einzel-Artikel-Auftrag);
+    3. bei mehreren Positionen der erste Artikel + wie viele noch dazugehören;
+    4. «Auftrag» nur, wenn es wirklich nichts zu benennen gibt (Entwurf ohne Bedarf).
+    """
+    if order.title:
+        return order.title
+    if article_name:
+        return article_name
+    names = [n for n in (line_names or []) if n]
+    if names:
+        return names[0] if len(names) == 1 else f"{names[0]} +{len(names) - 1}"
+    return "Auftrag"
+
+
 def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
     """Schlanke Feed-Sicht – Artikel-Infos und Beschaffungsstatus **batch**-geladen
     (zwei Zusatz-Queries für die ganze Liste statt je Auftrag ein Embed-Aufbau)."""
@@ -587,6 +614,20 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
     art_ids = {o.article_id for o in orders if o.article_id}
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(art_ids)).all()} if art_ids else {}
     order_ids = [o.id for o in orders]
+    # Positions-Artikelnamen für Mehrpositionen-Aufträge – EINE Batch-Abfrage für die ganze
+    # Liste (der Name eines Auftrags darf nicht je Zeile eine eigene Query kosten).
+    line_names: dict[int, list[str]] = {}
+    multi = [o.id for o in orders if o.article_id is None]
+    if multi:
+        rows = (
+            db.query(OrderLine.order_id, Article.name)
+            .join(Article, Article.id == OrderLine.article_id)
+            .filter(OrderLine.order_id.in_(multi), OrderLine.is_active == True)
+            .order_by(OrderLine.order_id, OrderLine.position, OrderLine.id)
+            .all()
+        )
+        for oid, name in rows:
+            line_names.setdefault(oid, []).append(name)
     po_status: dict[int, str] = {}
     # FIX: deterministisch (nach id) statt unsortiert – bei einem Mehrpositionen-Auftrag
     # zeigte das Feed-Badge sonst je nach Query-Plan mal die eine, mal die andere Bestellung.
@@ -607,6 +648,7 @@ def to_order_summaries(db: Session, orders: list[Order]) -> list[OrderSummary]:
             s.article_unit = art.unit
         s.purchase_status = po_status.get(o.id)
         s.recurrence_due = recurrence_due(o)
+        s.name = order_display_name(o, s.article_name, line_names.get(o.id))
         out.append(s)
     return out
 

@@ -4210,6 +4210,11 @@ export interface components {
             stock_effect: string;
             /** Title */
             title: string | null;
+            /**
+             * Name
+             * @default Auftrag
+             */
+            name: string;
             /** Article Id */
             article_id: number | null;
             /** Quantity */
@@ -4427,6 +4432,11 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /**
+             * Name
+             * @default Auftrag
+             */
+            name: string;
             /** Article Name */
             article_name?: string | null;
             /** Article Object Id */

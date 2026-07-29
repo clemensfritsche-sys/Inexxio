@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Link2, Calculator, User as UserIcon, FileText, MapPin, ShoppingCart } from 'lucide-react';
+import { Link2, Calculator, Building2, ExternalLink, FileText, MapPin, ShoppingCart } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, OrderPurchase, PurchaseOrderStatus, PurchaseOrderUpdateInput } from '@/types';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
@@ -212,9 +212,7 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     <>
       <Card>
         {/* Kopf */}
-        <PanelHeader icon={ShoppingCart} title="Bestellung (Beschaffung)"
-          info="Beschaffung beim Lieferanten unter dieser Auftragsnummer: Anfrage → Offerte → Bestellung → Wareneingang."
-          right={<StatusBadge cfg={cfg} size={11} />} />
+        <PanelHeader icon={ShoppingCart} title="Bestellung" right={<StatusBadge cfg={cfg} size={11} />} />
 
         {/* Bei mehreren Positionen: welcher Artikel diese Bestellung betrifft */}
         {showArticle && (
@@ -229,35 +227,43 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
           <PurchaseProgress nodes={nodes} delivery={delivery} />
         </div>
 
-        {/* Bezugsquelle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
-          {po.mode === 'supplier'
-            ? <><UserIcon size={12} /> Lieferant: {po.supplier_name ?? (po.supplier_id ? `#${po.supplier_id}` : 'nicht zugewiesen (Selbst-Beschaffung)')}</>
-            : <><Link2 size={12} /> {po.webshop_url
-                ? <a href={po.webshop_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', wordBreak: 'break-all' }}>Webshop öffnen</a>
-                : 'Webshop'}</>}
-        </div>
-
-        {/* Lieferadresse: Firmenadresse aus der Systemkonfiguration */}
-        {company?.street && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
-            <MapPin size={12} />
-            <span>
-              Lieferadresse: {[company.street, company.street_number].filter(Boolean).join(' ')}, {company.zip} {company.city}
+        {/* Bezugsquelle + Lieferadresse – zwei Tatsachen, eine Zeile je Angabe. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', font: '500 12px var(--font-body)', color: 'var(--fg-3)' }}>
+          {po.mode === 'supplier' ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Building2 size={13} /> {po.supplier_name ?? (po.supplier_id ? `#${po.supplier_id}` : 'Selbst-Beschaffung')}
             </span>
-          </div>
-        )}
+          ) : po.webshop_url ? (
+            // Ein Link, der wie ein Link aussehen soll, ist ein Knopf mit Symbol – nicht
+            // blauer Fliesstext mitten in einer Angabenzeile (Notiz #193).
+            <a href={po.webshop_url} target="_blank" rel="noreferrer" className="erp-actbtn erp-actbtn-neutral"
+              style={{ height: 30, padding: '0 11px', fontSize: 12.5, textDecoration: 'none' }}>
+              <ExternalLink size={13} /> Webshop
+            </a>
+          ) : (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Link2 size={13} /> Webshop</span>
+          )}
+          {/* Lieferadresse = Adresse des Standorts, an den geliefert wird (heute: die eine
+              Firmenadresse aus der Systemkonfiguration). */}
+          {company?.street && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <MapPin size={13} /> {[company.street, company.street_number].filter(Boolean).join(' ')}, {company.zip} {company.city}
+            </span>
+          )}
+        </div>
 
         {/* Offerte / Bestellsumme */}
         {canEditOffer ? (
           <>
-            <TextField label="Bestellsumme netto, exkl. MWST (CHF)" value={form.order_total} onChange={(v) => set('order_total', v)} required placeholder="z. B. 1250" hint="Gesamtsumme für die ganze Bestellmenge" />
+            {/* Beschriftung nennt die Sache, der Platzhalter erklärt sie (#183–#186). */}
+            <TextField label="Bestellsumme" value={form.order_total} onChange={(v) => set('order_total', v)} required
+              placeholder="ganze Menge, netto in CHF – z. B. 1250" />
             {isWebshop ? (
-              <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" hint="Webshop wird sofort bezahlt – kein Zahlungsziel" />
+              <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14 Tage" />
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14 }}>
-                <TextField label="Lieferzeit (Tage)" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14" />
-                <TextField label="Zahlungsziel (Tage)" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30" />
+                <TextField label="Lieferzeit" value={form.lead_time_days} onChange={(v) => set('lead_time_days', v)} placeholder="z. B. 14 Tage" />
+                <TextField label="Zahlungsziel" value={form.payment_terms_days} onChange={(v) => set('payment_terms_days', v)} placeholder="z. B. 30 Tage" />
               </div>
             )}
           </>
@@ -271,13 +277,13 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
 
         {/* Preis pro Stück (berechnet) */}
         {perUnit != null && (
-          <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 8, padding: '10px 12px' }}>
+          <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calculator size={13} style={{ color: '#0f766e' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0f766e' }}>Preis pro Stück (netto)</span>
+              <Calculator size={13} style={{ color: 'var(--fg-3)' }} />
+              <span style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-3)' }}>Preis pro Stück (netto)</span>
             </div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#0f766e' }}>CHF {fmtMoney(perUnit)}</div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            <div style={{ font: '800 18px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>CHF {fmtMoney(perUnit)}</div>
+            <div style={{ font: '500 11px var(--font-body)', color: 'var(--fg-4)' }}>
               Bestellsumme ÷ Menge ({qty || '—'}){isStaff ? ' · wird als Einstandspreis übernommen' : ''}
             </div>
           </div>
@@ -301,20 +307,21 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
           </div>
         )}
 
-        {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick */}
+        {/* Aktionen – Primäraktion speichert Eingaben + Übergang in einem Klick.
+            Kein Statuswort mehr in der Zeile (#188): der Zustand steht oben rechts als
+            Badge. Die Knöpfe sprechen die Design-Sprache des ERP (#187): schwarz für die
+            Routine-Hauptaktion, rot nur fürs Ablehnen. */}
         {(actions.length > 0 || canEditTracking || error) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: 12 }}>
-            <span style={{ flex: 1, fontSize: 12, color: error ? '#dc2626' : '#94a3b8', minWidth: 120 }}>{error ?? cfg.label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', borderTop: '1px solid var(--border-1)', paddingTop: 12 }}>
+            {error && <span style={{ flex: 1, font: '500 12px var(--font-body)', color: 'var(--danger)', minWidth: 120 }}>{error}</span>}
             {canEditTracking && (
-              <button onClick={saveTracking} disabled={saving}
-                style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer' }}>
+              <button onClick={saveTracking} disabled={saving} className="erp-actbtn erp-actbtn-neutral">
                 Tracking speichern
               </button>
             )}
             {actions.map((a) => (
               <button key={a.target} onClick={() => run(a.target, a.needsTotal)} disabled={saving}
-                style={{ padding: '6px 14px', borderRadius: 7, border: 'none', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
-                  background: a.variant === 'danger' ? '#dc2626' : '#2563eb', color: '#fff' }}>
+                className={`erp-actbtn ${a.variant === 'danger' ? 'erp-actbtn-danger' : 'erp-actbtn-primary'}`}>
                 {saving ? '…' : a.label}
               </button>
             ))}
@@ -328,7 +335,7 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <FileText size={13} style={{ color: '#94a3b8' }} />
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-              Artikel-Spezifikation{isStaff ? ' (für Lieferant sichtbar)' : ''}
+              Spezifikation
             </span>
           </div>
           {sharedRows.map((r) => <Row key={r.key} k={r.label} v={r.value} />)}

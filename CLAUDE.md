@@ -1824,6 +1824,69 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Preis …» (#158), «verteilt · N Standorte» (#170 – die Zeilen sind die Aussage), «Nachfolger:»
   (#156).
 
+- **Testnotizen-Runde 14 (ein Name, eine Bildsprache, Notizen #176–#193)**:
+  (1) **Ein Datensatz zeigt Name · Objektnummer · Status – der TYP steht im Symbol** (#177,
+  `services/orders.order_display_name` + `lib/record-name.ts`): Im Feed trug ein Auftrag als
+  «Namen» das Wort **«Auftrag»** und eine Instanz das Wort **«Instanz»** – der Typ war in die
+  Namensspalte gerutscht, und zwei Datensätze desselben Typs sahen identisch aus. Der Name
+  wird jetzt **einmal im Backend** abgeleitet und als `OrderSummary.name`/`OrderResponse.name`
+  geliefert (Feed und Detail lesen dasselbe Feld, können also nicht auseinanderlaufen):
+  bewusst vergebener `title` ≻ Artikel ≻ erster Positions-Artikel «+N» ≻ «Auftrag» nur, wenn
+  es wirklich nichts zu benennen gibt. Die Positions-Namen kommen über **eine** Batch-Abfrage
+  (kein N+1). Frontend: `lib/record-name.ts` ist die EINE Ableitung für alle Typen und gibt
+  `null` zurück, wenn ein Datensatz (noch) keinen Namen hat – den Platzhalter setzt die
+  Oberfläche. Instanz-Detail und Auftrag-Detail lesen dieselbe Funktion; `orderTitle` in
+  `order-detail.tsx` ist entfallen. Wächter `test_smoke.py:
+  test_order_name_never_falls_back_to_the_type_word_when_there_is_a_name`.
+  (2) **Gleiches Wort → gleiches Symbol** (#191): «Im Prozess» hiess am Auftrag `Hammer`
+  (behauptete Fertigung – falsch für Beschaffung/Verkauf) und an der Instanz `Clock`
+  (behauptete Warten – falsch für etwas, das läuft). Beide tragen jetzt `Loader`. Die Uhr
+  bleibt, wo Warten die Aussage IST: «Angefragt».
+  (3) **Der Beschaffungs-Ablauf spricht die Fluss-Sprache** (#182, `purchase-progress.tsx`):
+  senkrecht, ein Knoten je Stufe an einer dünnen Linie – wie der Auftrags-Prozess. Der
+  waagrechte Punkte-Stepper mit animiertem Lieferwagen ist weg (er brachte `@keyframes` in
+  die Fläche); die **Lieferfrist ist keine Stufe, sondern eine Eigenschaft der Stufe
+  «Bestellt»** und steht als schmaler Balken an ihrer Zeile.
+  (4) **Beschaffungs-Panel entrümpelt**: ⓘ am Kopf (#192) und Statuswort in der Aktionszeile
+  (#188 – der Zustand steht als Badge oben rechts) entfallen; Knöpfe in der Design-Sprache
+  statt Blau (#187); «Webshop öffnen» ist ein Knopf mit Symbol statt blauer Fliesstext (#193);
+  Beschriftungen nennen die Sache, der **Platzhalter** erklärt sie («Bestellsumme» +
+  «ganze Menge, netto in CHF – z. B. 1250», #183–#186); «Artikel-Spezifikation (für Lieferant
+  sichtbar)» → **«Spezifikation»** (#189).
+  (5) **Die Abweichung hängt SEITLICH an ihrer Karte** (#178, `.erp-devbranch`): Runde 13
+  hatte sie in die Karte gelegt – sie gehört aber zum Schritt, ist aber nicht Teil des Moduls
+  (sie ist das, was es unterbrochen hat). Jetzt sitzt sie auf der **Höhe** der Karte, an einem
+  kurzen Ast rechts daneben; unter 1180 px rutscht sie darunter.
+  (6) **Versand ohne eigenen Kasten** (#179): die Transport-Wahl ist derselbe `IconSwitch` wie
+  überall (die abgeleitete Empfehlung markiert sich mit einem Punkt – neues, generisches
+  `mark`-Flag); der umgebende Rahmen ist entfallen (Panel im Modul im Fluss = drei Rahmen um
+  dieselbe Sache).
+  (7) **Positionen: Ausrichtung statt Schriftgrösse** (#176): EIN Raster über Positions- und
+  Instanz-Zeilen (Nummer · Bezeichnung · Zahl/Zustand), Positionen durch Haarlinien getrennt,
+  keine 18-px-Werte mehr (die Kachel erbt `TILE.v` bewusst nicht).
+  (8) **Deaktivieren-Dialog: Folgen als Liste, Entscheidung an ihrer Zeile** (#180): die
+  betroffenen Objektnummern sind **klickbar** (es sind Datensätze), «keine/keiner» steht leise
+  da (dass nichts passiert, ist auch eine Antwort), und die einzige Zusatz-Entscheidung
+  (Auslaufen lassen ↔ Abbrechen) sitzt als Schieberegler **direkt an der Zeile «Laufende
+  Aufträge»** statt in einer zweiten Gruppe mit demselben Titel.
+  (9) **Responsive** (#181): die Artikel-Spezifikation polstert mit `clamp` statt fixer 30 px
+  (auf einem 360-px-Telefon frassen sie ein Sechstel der Breite), lange Werte brechen um.
+  (10) **Multi-Site (#190) – Analyse, noch nicht gebaut.** Die Bewegungs-Logik ist bereits
+  standort-agnostisch: ein Standort ist ein **Halter** (`user|instance|company`), und
+  `logistics.classify_movement` entscheidet **adress-basiert** – «zwei interne Orte mit
+  unterschiedlicher Adresse → Versand» ist heute schon der Mehr-Standort-Fall. Was fehlt, ist
+  nur, dass `company` ein **Singleton** ist: `locations.company_location` liefert die eine
+  Firma, `provisioning.target_for` löst `PROV_RECEIVING` darauf auf. Der Weg ist deshalb
+  **kein Umbau, sondern eine Auflösung**: (a) `company_settings` von 1 auf n Zeilen (je
+  Standort eine Objektnummer + Adresse, eine davon «Hauptsitz» für Rechnungen/Impressum);
+  (b) der **Bedarf** bekommt einen Standort – am ehesten am Prozessschritt (`site_id`, leer =
+  Standort des Auftrags), analog zur Bezugsquelle; (c) `target_for` löst `PROV_RECEIVING` auf
+  **den Standort des Schritts** statt auf «die Firma» auf – ab da funktioniert die
+  Bereitstellung unverändert weiter und erzeugt zwischen zwei Werken automatisch einen
+  **Versand** statt einer innerbetrieblichen Bewegung, weil die Adressen sich unterscheiden.
+  Genau das ist der Beweis, dass die Ableitung richtig gebaut ist: Multi-Site fällt aus der
+  bestehenden Regel heraus, statt eine zweite zu brauchen.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

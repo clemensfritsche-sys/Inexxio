@@ -610,9 +610,11 @@ const SERIAL_PICK = [
 ];
 const SPEC = {
   // Design `.card`: warme Fläche, Haarlinie, sanfter Schatten, 20-px-Radius.
-  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-sm)', padding: '26px 30px 28px' } as React.CSSProperties,
+  // Polsterung wächst mit dem Schirm: auf einem 360-px-Telefon fressen feste 30 px an
+  // jeder Seite ein Sechstel der Breite (Notiz #181).
+  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-sm)', padding: 'clamp(16px, 4vw, 30px)' } as React.CSSProperties,
   // Design `.rgrid`: auto-fit-Werteraster; `min(100%, …)` kollabiert auf Mobile sauber.
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '26px 40px' } as React.CSSProperties,
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '22px clamp(18px, 4vw, 40px)' } as React.CSSProperties,
 };
 
 // Design `.grid2`: Zwei-Spalten-Raster für gepaarte Eingaben (Einheit/Serialisierung,
@@ -800,7 +802,7 @@ function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, sprea
             {linkHost(link)} <ExternalLink size={13} />
           </a>
         ) : (
-          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
+          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, overflowWrap: 'anywhere', ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
             {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
           </div>
         )}

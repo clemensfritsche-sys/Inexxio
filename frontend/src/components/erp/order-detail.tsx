@@ -18,6 +18,7 @@ import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-di
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
 import { OrderPositions } from '@/components/erp/order-positions';
+import { orderName } from '@/lib/record-name';
 import { InspectionPanel } from '@/components/erp/inspection-panel';
 import { MovementPanel } from '@/components/erp/movement-panel';
 import { ResourcePanel } from '@/components/erp/resource-panel';
@@ -513,7 +514,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={H.eyebrow}>{!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}</div>
             <h1 style={{ ...H.title, ...(isCreate ? H.titleEmpty : null) }}>
-              {isCreate ? 'Neuer Auftrag' : orderTitle(record)}
+              {isCreate ? 'Neuer Auftrag' : (orderName(record) ?? 'Auftrag')}
             </h1>
             <div style={H.sub}>
               <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id ?? null)}</span>
@@ -904,16 +905,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
-// Titel eines Auftrags. Ein Mehrpositionen-Auftrag hat keinen EINEN Artikel – dann nennt
-// der Titel den ersten und wie viele noch dazugehören («Schraubendreher +2»). Ohne jeden
-// Artikel bleibt es beim schlichten «Auftrag».
-function orderTitle(record: Order): string {
-  if (record.article_name) return record.article_name;
-  const lines = record.order_lines ?? [];
-  if (lines.length === 0) return 'Auftrag';
-  const first = lines[0].article_name ?? 'Auftrag';
-  return lines.length > 1 ? `${first} +${lines.length - 1}` : first;
-}
+// (`orderTitle` ist entfallen – der Name eines Auftrags wird EINMAL im Backend abgeleitet
+//  (`orders.order_display_name`) und über `lib/record-name.orderName` gelesen, damit Feed
+//  und Detail nicht auseinanderlaufen können, Notiz #177.)
 
 // Kachel-Raster der Auftragsspezifikation – identisch zu Artikel-Spezifikation und
 // Instanz-Merkmalen: jede Kachel trägt ihre eigene Haarlinie und steht in Weissraum,
