@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { DH, DetailHeader, HeaderSep, InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, TILE, TileShell, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { DH, DetailHeader, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -512,11 +512,11 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             )}
           </div>
         }
-        right={<div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        status={isCreate
+          ? orderStatusConfig('draft')
+          : orderStatusConfig(record.status, record.abort_into_id != null)}
+        right={<>
           {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
-          <StatusBadge cfg={isCreate
-            ? orderStatusConfig('draft')
-            : orderStatusConfig(record.status, record.abort_into_id != null)} />
           {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
           {isCreate && (
             <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
@@ -524,7 +524,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               Abbrechen
             </button>
           )}
-        </div>}
+        </>}
         actions={!isCreate && record.object_id != null ? (
           <>
             <HeaderSep />
@@ -681,24 +681,23 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               )}
           </div>
         ) : (
-          // Lese-Ansicht im **Kachel-Raster** – dieselbe Sprache wie die Artikel-Spezifikation
-          // und die Instanz-Merkmale (``TileShell``): Symbol-Kasten + Versalien-Label + Wert,
-          // je Kachel eine eigene Haarlinie, responsiv bis Mobile (auto-fit, min 260px).
-          <div style={specGrid}>
+          // Lese-Ansicht als **EINE Spezifikations-Karte** – dieselbe Anatomie wie die
+          // Artikel-Spezifikation (Notiz #267): ein Blatt, darin ein Werteraster aus
+          // Lesefeldern. Vorher standen dieselben Angaben als lose Kacheln nebeneinander,
+          // also drei Kästen für eine Aussage; die Karte fasst sie zusammen, ohne dass die
+          // Auftragsspezifikation eine eigene Formensprache bräuchte.
+          <div style={{ ...SPEC.card, marginBottom: 12 }}>
+            <div style={SPEC.grid}>
               {/* Artikel → Menge → die dazugehörigen Instanzen: EINE Aufstellung statt
                   «Positionen oben, alle Instanzen unten». Bei mehreren Positionen war
                   sonst nicht erkennbar, welche Instanz zu welchem Artikel gehört. */}
               {record && <OrderPositions order={record} />}
-              <SpecTile icon={CalendarClock} label="Wunsch-Liefertermin">
-                {record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'}
-              </SpecTile>
+              <ReadField icon={CalendarClock} label="Wunsch-Liefertermin"
+                value={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
               {/* Erstellt/Geändert: früher ein Fussleisten-Streifen am Fensterrand – jetzt
                   eine Angabe unter den übrigen, wo sie hingehört (kein Footer mehr). */}
-              {record && (
-                <SpecTile icon={HistoryIcon} label="Angelegt">
-                  {localDate(record.created_at)}
-                </SpecTile>
-              )}
+              {record && <ReadField icon={HistoryIcon} label="Angelegt" value={localDate(record.created_at)} />}
+            </div>
           </div>
         )}
 
@@ -791,9 +790,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {isStaff && record?.status === 'draft' && !isSubOrder && !isMultiPosition
           && goal === 'produce' && record.article_object_id != null && (
           <>
-            <SectionTitle icon={Workflow} info="Der am Artikel hinterlegte Prozess – hier nur zur Ansicht. Geändert wird er am Artikel selbst (Reiter «Prozess»).">
-              Prozess des Artikels
-            </SectionTitle>
+            {/* Keine Überschrift (Notiz #270): der Fluss mit Start-/Endknoten sagt selbst,
+                was er ist – und dass er nur zur Ansicht steht, zeigt der fehlende Editor. */}
             <div style={{ marginBottom: 12 }}>
               <ProcessSteps owner="articles" ownerObjectId={record.article_object_id} suppliers={suppliers}
                 selfArticleObjectId={record.article_object_id} readOnly />
@@ -876,24 +874,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 // (`orderTitle` ist entfallen – der Name eines Auftrags wird EINMAL im Backend abgeleitet
 //  (`orders.order_display_name`) und über `lib/record-name.orderName` gelesen, damit Feed
 //  und Detail nicht auseinanderlaufen können, Notiz #177.)
-
-// Kachel-Raster der Auftragsspezifikation – identisch zu Artikel-Spezifikation und
-// Instanz-Merkmalen: jede Kachel trägt ihre eigene Haarlinie und steht in Weissraum,
-// responsiv bis Mobile (eine Spalte, sobald 260px unterschritten werden).
-const specGrid: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
-  gap: 12, marginBottom: 12,
-};
-
-function SpecTile({ icon, label, children }: {
-  icon: React.ElementType; label: string; children: React.ReactNode;
-}) {
-  return (
-    <TileShell icon={icon} label={label}>
-      <div style={{ ...TILE.v, flexWrap: 'wrap', whiteSpace: 'normal' }}>{children}</div>
-    </TileShell>
-  );
-}
 
 // (Der Kopf kommt aus `fields.DetailHeader` – die lokalen Kopf-Stile sind entfallen, #242.)
 

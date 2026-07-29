@@ -72,11 +72,11 @@ class EventType:
 
 # Reihenfolge = natürliche Lese-/Anzeigereihenfolge.
 REGISTRY: dict[str, EventType] = {
-    "purchase":   EventType("purchase",   "Beschaffung",    INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING),
+    "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING),
     "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
-    "scrap":      EventType("scrap",      "Verschrotten",   DECREASE, INSTANCE, "Disposal",      PROV_NOWHERE),
+    "scrap":      EventType("scrap",      "Ausschleusen",   DECREASE, INSTANCE, "Disposal",      PROV_NOWHERE),
     # **Sperren** ist das reversible Gegenstück zum Verschrotten: die Instanz bleibt
     # physisch da (Standort unverändert), darf aber vorübergehend nicht verwendet werden –
     # z. B. eine defekte Maschine, die auf Wartung wartet. Umgesetzt auf der **Qualitäts-
@@ -84,7 +84,7 @@ REGISTRY: dict[str, EventType] = {
     # sich nicht, «darf man es verwenden» schon. Darum NEUTRAL wie die Datenerfassung, die
     # eine Instanz ebenfalls über ``quality`` aus dem Bestand nehmen kann – es wird nichts
     # verbraucht oder vernichtet, nur die Verwendbarkeit ausgesetzt.
-    "block":      EventType("block",      "Sperren",        NEUTRAL,  INSTANCE, "Disposal",      PROV_NONE),
+    "block":      EventType("block",      "Ausschleusen",   NEUTRAL,  INSTANCE, "Disposal",      PROV_NONE),
     # **Verkauf UND Gutschrift** laufen über EINEN Schritttyp `sale` (Fachtabelle `Sale`): ein
     # normaler Auftrag verkauft (kind='sale', Bestands-Abgang), eine Retoure (Subjekt = verkaufte
     # Instanzen, `reason='return'`) schreibt gut (kind='credit', Stripe-Refund) – der Modus wird

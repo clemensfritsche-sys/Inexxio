@@ -112,15 +112,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
   return (
     <div style={cardStyle}>
 
-      {done && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f0fdf4', color: '#16a34a' }}>
-          <CheckCircle2 size={16} />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>Ressourcen erfasst</span>
-          {res?.used_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{res.used_by_name}</span>}
-        </div>
-      )}
-
-      {/* Betriebsmittel: was gebraucht wird (Auswahl erfolgt per Scan) */}
+      {/* Keine Erfolgsmeldung (Notiz #266) – der Haken im Modul-Kopf sagt es, Wer/Wann im Hover. */}
       {!done && toolLines.map((l, i) => <ToolNeed key={`t${i}`} line={l} />)}
 
       {/* Verbrauch je Produkt-Instanz: welche Komponenten-Instanz wird wohin verbaut */}

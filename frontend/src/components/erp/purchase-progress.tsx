@@ -58,7 +58,8 @@ export function PurchaseProgress({ nodes, delivery, renderActive }: {
                 <span style={{ font: `${n.state === 'active' ? 800 : 600} 13.5px var(--font-display)`, color: 'var(--fg-1)' }}>
                   {n.label}
                 </span>
-                {n.hint && <div style={{ marginTop: 2, font: '500 11.5px var(--font-body)', color: 'var(--fg-3)' }}>{n.hint}</div>}
+                {/* Wer/Wann steht im **Hover** der Stufe (`title`), nicht in der Fläche
+                    (Notiz #276) – wie beim Modul im Auftrags-Fluss. */}
 
                 {/* Lieferfrist: Eigenschaft der Stufe «Bestellt», kein eigener Knoten. */}
                 {delivery && i === delivery.oi && (
@@ -97,8 +98,11 @@ export function PurchaseProgress({ nodes, delivery, renderActive }: {
             {/* Die aktive Stufe trägt ihre Eingaben und ihre Aktion – wie eine Modul-Karte
                 im Auftrags-Fluss ihr Panel trägt (#248). */}
             {n.state === 'active' && renderActive && (
+              // Weisse Fläche im Modulrahmen (Notiz #273): sie hebt den Arbeitsbereich ab,
+              // ohne einen neuen Farbton einzuführen – dieselbe Geste wie die weissen
+              // Symbol-Kästen der Modul-Karten.
               <div style={{ width: '100%', border: `1px solid ${kc.border}`, borderTop: 'none',
-                borderRadius: '0 0 var(--r-md) var(--r-md)', background: kc.bg, padding: '12px 13px 14px',
+                borderRadius: '0 0 var(--r-md) var(--r-md)', background: '#fff', padding: '13px 13px 15px',
                 marginTop: -1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {renderActive()}
               </div>

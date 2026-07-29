@@ -54,3 +54,13 @@ export function userDisplayName(user: {
   const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
   return user.company_name?.trim() || full || user.email.split('@')[0];
 }
+
+/**
+ * **Die EINE Schreibweise einer Objektnummer**: neunstellig, führende Nullen, **ohne**
+ * Tausender-Trennung (Notiz #263). Eine Objektnummer ist ein Bezeichner, keine Menge –
+ * Trennzeichen laden zum Rechnen ein und machen sie schwerer vorlesbar/suchbar.
+ */
+export function formatObjectId(id: number | null | undefined): string {
+  if (!id) return '—';
+  return String(id).padStart(9, '0');
+}

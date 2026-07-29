@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
+import { formatObjectId } from '@/lib/utils';
 
 // ─── Kachel: die Grundform der Detail-Ansichten ──────────────────────────────
 
@@ -67,6 +68,69 @@ export const TILE: Record<string, React.CSSProperties> = {
   /** Volle Breite im Kachel-Raster (Standort-Karten, Spezifikation). */
   wide: { gridColumn: '1 / -1' },
 };
+
+// ─── Spezifikations-Karte: die Lese-Ansicht eines Datensatzes ────────────────
+//
+// EINE Karte, in der die Angaben eines Datensatzes stehen – warme Fläche, Haarlinie,
+// sanfter Schatten, mit dem Schirm wachsende Polsterung. Sie stand bisher nur im
+// Artikel; die Auftragsspezifikation trug stattdessen lose Kacheln nebeneinander
+// (Notiz #267). Jetzt teilen sich beide dieselbe Anatomie – Karte + Werteraster +
+// Lesefeld – damit die Spezifikation eines Auftrags aussieht wie die eines Artikels.
+
+export const SPEC = {
+  card: {
+    background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)',
+    boxShadow: 'var(--shadow-sm)', padding: 'clamp(16px, 4vw, 30px)',
+  } as React.CSSProperties,
+  /** auto-fit-Werteraster; `min(100%, …)` kollabiert auf Mobile sauber. */
+  grid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))',
+    gap: '22px clamp(18px, 4vw, 40px)',
+  } as React.CSSProperties,
+};
+
+function linkHost(href: string): string {
+  try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
+}
+
+/** Read-only-Feld: kleines Symbol + Versalien-Overline + kräftiger Wert. Optional
+ *  Einheit/mono, Link (Host + Pfeil) oder ⓘ-Hinweis bei abgeleiteten Werten. */
+export function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
+  icon?: ElementType; label: string; value?: ReactNode; unit?: string;
+  mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
+      {Icon && (
+        <span style={{ width: 22, height: 22, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', marginTop: 2 }}>
+          <Icon size={18} />
+        </span>
+      )}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          {label}
+          {autoHint && <span style={{ display: 'inline-flex', color: 'var(--fg-4)', cursor: 'help' }} data-tip={autoHint}><Sparkles size={12} /></span>}
+        </div>
+        {link ? (
+          <a href={link} target="_blank" rel="noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
+            {linkHost(link)} <ExternalLink size={13} />
+          </a>
+        ) : (
+          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, overflowWrap: 'anywhere', ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
+            {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
+          </div>
+        )}
+        {/* Spanne: bewusst leiser als der Median – sie ordnet ein, sie ist nicht die Aussage. */}
+        {spread && (
+          <div style={{ marginTop: 4, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
+            {spread}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Hover-Hilfen: Erklärungen/Infotexte gehören in den Hover, nicht in die Fläche ──
 
@@ -239,7 +303,7 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
  */
 export function DetailHeader({
   icon: Icon, iconBg, iconFg, avatar, eyebrow, title, placeholder = 'Ohne Bezeichnung',
-  objectId, objectIdText, actions, right, onBack, children,
+  objectId, objectIdText, actions, status, right, onBack, children,
 }: {
   icon?: ElementType;
   iconBg?: string;
@@ -255,7 +319,10 @@ export function DetailHeader({
   objectIdText?: string;
   /** Symbol-/Status-Aktionen – stehen bei der Objektnummer. */
   actions?: ReactNode;
-  /** Rechte Spalte: Speicher-Anzeige + Status. */
+  /** Der Zustand – **immer** als `StatusBadge` gerendert, damit er überall gleich gross
+   *  und gleich gesetzt ist (Notizen #264/#268); die Aufrufer können nicht abweichen. */
+  status?: StatusCfg;
+  /** Rechte Spalte NEBEN dem Status (Speicher-Anzeige, «Abbrechen» beim Anlegen). */
   right?: ReactNode;
   onBack?: () => void;
   /** Banner und Reiter unter der Kopfzeile. */
@@ -278,11 +345,18 @@ export function DetailHeader({
           <div style={DH.eyebrow}>{eyebrow}</div>
           <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
           <div style={DH.sub}>
-            <span style={DH.subN}>{objectIdText ?? fmtObjectId(objectId)}</span>
+            <span style={DH.subN}>{objectIdText ?? formatObjectId(objectId)}</span>
             {actions}
           </div>
         </div>
-        {right && <div style={DH.right}>{right}</div>}
+        {(right || status) && (
+          <div style={DH.right}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {right}
+              {status && <StatusBadge cfg={status} />}
+            </div>
+          </div>
+        )}
       </div>
       {children}
     </div>
@@ -292,11 +366,6 @@ export function DetailHeader({
 /** Trennstrich zwischen Aktionsgruppen im Kopf (Objektnummer | Symbole | Status-Aktion). */
 export function HeaderSep() {
   return <span style={DH.idsep} />;
-}
-
-// Objektnummer 9-stellig mit Tausender-Hochkomma – dieselbe Form wie überall.
-function fmtObjectId(v?: number | null): string {
-  return v == null ? '—' : String(v).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
 }
 
 export const DH: Record<string, React.CSSProperties> = {

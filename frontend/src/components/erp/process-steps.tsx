@@ -47,7 +47,9 @@ function emptyDocCfg(): DocCfg {
 // **Jedes Prozessschrittmodul ist universell einsetzbar** – am Artikel wie am Auftrag
 // (Notiz #246, Spiegel von `domain/event_types.STEP_TYPES_BY_OWNER`). «Sperren» war zuvor
 // in KEINER Liste und damit gar nicht wählbar.
-const STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'block', 'sale', 'document'];
+const STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
+// «Sperren» ist kein eigener Palette-Eintrag mehr: es ist die zweite Wirkung desselben
+// Moduls «Ausschleusen» und wird IM Editor gewählt (Notiz #277).
 
 export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
@@ -303,8 +305,10 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {loading && <div style={{ fontSize: 13, color: 'var(--fg-4)' }}>Laden…</div>}
 
-      {/* Start-Knoten (BPMN) */}
-      {steps.length > 0 && <FlowTerm kind="start" />}
+      {/* Start-Knoten (BPMN) – **immer**, auch bei leerem Prozess (Notiz #269): ohne ihn
+          stand die Modul-Palette ohne Kontext da und man erkannte nicht, dass man hier
+          einen Ablauf definiert. */}
+      {(steps.length > 0 || !readOnly) && <FlowTerm kind="start" />}
 
       {steps.map((s, i) => {
         const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
@@ -374,7 +378,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
-                    {s.step_type === 'scrap' && 'Verschrotten – gewählte Instanzen im Auftrag'}
+                    {/* Ausschleusen sagt seine Wirkung weiter unten (Wirkung + Grund) –
+                        hier stünde sie ein zweites Mal. */}
                     {s.step_type === 'document' && (
                       <span>{(() => {
                         const n = s.doc_signers?.length ?? 0;
@@ -437,11 +442,13 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 </div>
               )}
 
-              {/* Verschrotten/Sperren deklarieren, was der Ausführende liefern muss –
-                  wie die Datenerfassung ihre Felder (Notiz #255). */}
+              {/* Ausschleusen: WELCHE Wirkung (#277) + die Pflichtangabe (#255). */}
               {(s.step_type === 'scrap' || s.step_type === 'block') && (
-                <div style={{ ...cardBody, fontSize: 12.5, color: 'var(--fg-2)' }}>
-                  • Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht)</span>
+                <div style={{ ...cardBody, fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span>• {s.step_type === 'scrap' ? 'Verschrotten' : 'Sperren'}
+                    <span style={{ color: 'var(--fg-4)' }}> {s.step_type === 'scrap' ? '(endgültig)' : '(aufhebbar)'}</span>
+                  </span>
+                  <span>• Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht)</span></span>
                 </div>
               )}
 
@@ -487,6 +494,8 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
 
       {steps.length > 0 && !adding && <Connector />}
       {steps.length > 0 && !adding && <FlowTerm kind="end" />}
+      {/* Leerer Prozess: der Konnektor führt vom Start-Knoten zur Palette. */}
+      {steps.length === 0 && !readOnly && !adding && <Connector />}
 
       {/* **Die Palette steht offen** (Notiz #223): «jeder Klick ist ein Klick zu viel» –
           die verfügbaren Module liegen sichtbar am Ende des Flusses, ein Klick legt an.
@@ -556,6 +565,23 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 </>
               )}
 
+              {/* Ausschleusen: EINE Entscheidung – endgültig oder vorübergehend (#277). */}
+              {(adding === 'scrap' || adding === 'block') && (
+                <>
+                  <div>
+                    <Label>Wirkung</Label>
+                    <IconSwitch<'scrap' | 'block'> value={adding} onChange={(v) => setAdding(v)}
+                      options={[
+                        { value: 'scrap', icon: Trash2, label: 'Verschrotten', hint: 'Endgültig aus dem Bestand – die Instanz ist danach Ausschuss und standortlos.' },
+                        { value: 'block', icon: Lock, label: 'Sperren', hint: 'Vorübergehend nicht verwendbar – bleibt am Standort, wird an der Instanz wieder freigegeben.' },
+                      ]} />
+                  </div>
+                  <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)' }}>
+                    • Grund <span style={{ color: 'var(--fg-4)' }}>(Pflicht bei der Ausführung)</span>
+                  </div>
+                </>
+              )}
+
               {adding === 'inspection' && (
                 <>
                   <SampleScope value={samplePercent} onChange={setSamplePercent} />
@@ -615,7 +641,7 @@ const STEP_HINT: Record<StepType, string> = {
   inspection: 'Stichprobe prüfen & Werte erfassen',
   movement: 'Instanzen an ihren Standort bringen',
   resource: 'Material verbrauchen oder Betriebsmittel nutzen',
-  scrap: 'Defekte/nicht benötigte Instanzen ausschleusen',
+  scrap: 'Instanzen aus dem Bestand nehmen – endgültig (verschrotten) oder vorübergehend (sperren)',
   block: 'Instanzen vorübergehend sperren (aufhebbar) – z. B. Maschine bis zur Wartung',
   sale: 'Verkauf bzw. Gutschrift/Erstattung (bei verkaufter Ware) – Bestätigung → Rechnung → Zahlung',
   document: 'Dokument (Vertrag, AGB, Zertifikat) – Inhalt im Auftrag verfasst',
@@ -1066,9 +1092,10 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   // Fensters – die Karte verschwand darin (Notiz #236).
   document:   { bg: '#F2F5F7', border: '#DBE3E8', fg: '#4A6572' },
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
+  // Ausschleusen ist EIN Modul (#277) – beide Wirkungen tragen dieselbe rote Familie;
+  // unterschieden wird im Modul, nicht über die Farbe.
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
-  // Sperren: warnend, nicht endgültig – bewusst amber statt dem Rot des Verschrottens.
-  block:      { bg: '#FDF8EE', border: '#EFE0C4', fg: 'var(--warning)' },
+  block:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
 };
 // Begleit-Bewegungen sind normale Schritte und werden darum auch normal eingefärbt –
 // die frühere Graufärbung signalisierte «gesperrt» und ist mit der Sperre entfallen.

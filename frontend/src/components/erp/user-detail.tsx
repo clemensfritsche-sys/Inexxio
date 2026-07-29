@@ -18,10 +18,9 @@ import { localDate } from '@/lib/utils';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-export function fmtObjId(id: number | null | undefined): string {
-  if (!id) return '—';
-  return String(id).padStart(9, '0');
-}
+// Re-Export der EINEN Regel (``lib/utils.formatObjectId``) – die vielen Aufrufstellen
+// heissen historisch ``fmtObjId``.
+export { formatObjectId as fmtObjId } from '@/lib/utils';
 
 // Eine Rolle ist kein Lebenszyklus-Status, aber ein aktiver Benutzer ist ein **gültiger,
 // aktiver** Datensatz – darum GRÜN (nicht Grau, das nach «aus» aussähe; deaktivierte Nutzer
@@ -345,7 +344,7 @@ export function UserDetail({ record, onSave, isAdmin, onBack }: {
       <DetailHeader
         eyebrow="Benutzer" title={hasName ? name : null} placeholder="Kein Name"
         objectId={record.object_id} onBack={onBack}
-        right={<StatusBadge cfg={{ label: rc.label, color: rc.color, bg: rc.bg }} />}
+        status={{ label: rc.label, color: rc.color, bg: rc.bg }}
         avatar={
           <div style={{
             width: 56, height: 56, borderRadius: '50%', flex: 'none',

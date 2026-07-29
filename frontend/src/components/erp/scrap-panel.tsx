@@ -135,14 +135,14 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     const scrapped = instances.filter((i) => i.disposition === 'scrapped');
     return (
       <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f1f5f9', color: '#475569' }}>
-          <CheckCircle2 size={16} />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>
-            {T.doneText}{disp?.scrapped_count ? ` · ${disp.scrapped_count} Stück` : ''}
-          </span>
-          {disp?.scrapped_by_name && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{disp.scrapped_by_name}</span>}
-        </div>
-        {disp?.note && <div style={{ fontSize: 12, color: '#64748b' }}>Grund: {disp.note}</div>}
+        {/* Keine Erfolgsmeldung (Notiz #266): dass der Schritt erledigt ist, sagt der Haken
+            im Modul-Kopf; WER und WANN steht dort im Hover. Hier zählt das Ergebnis –
+            und der Grund, der die eigentliche Information dieses Schritts ist. */}
+        {disp?.note && (
+          <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)' }}>
+            <span style={{ color: 'var(--fg-4)' }}>Grund: </span>{disp.note}
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
           {(scrapped.length ? scrapped : instances).map((i) => <InstanceRow key={i.id} instance={i} />)}
         </div>
