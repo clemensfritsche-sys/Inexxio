@@ -377,9 +377,6 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
               );
             })}
           </div>
-          <div style={{ fontSize: 10.5, color: 'var(--fg-3)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Info size={10} /> Empfohlen: {MODE_META[recommended].label} · frei wählbar.
-          </div>
         </div>
       )}
 
@@ -392,12 +389,6 @@ function ShipmentBox({ order, stepId, shipment: sp, readOnly = false, onOrderUpd
           ) : parcel && (
             <div><strong style={{ color: 'var(--fg-2)' }}>Paket</strong> ~{parcel.weight_kg} kg · {parcel.length_cm}×{parcel.width_cm}×{parcel.height_cm} cm <span style={{ color: 'var(--fg-4)' }}>(aus Artikel-Daten geschätzt)</span></div>
           )}
-        </div>
-      )}
-
-      {isInternal && !readOnly && (
-        <div style={{ fontSize: 12, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.4 }}>
-          <Warehouse size={13} style={{ flexShrink: 0 }} /> Innerbetriebliche Bewegung – kein Versand. Die Übergabe wird wie gewohnt per Scan quittiert.
         </div>
       )}
 

@@ -321,15 +321,11 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
     }
   }
 
-  function manualOpen() {
-    const oid = Number(manualId.trim());
-    if (Number.isFinite(oid) && oid >= 100000000 && onCode) { onCode(oid); onClose(); }
-    else setError('Bitte eine gültige 9-stellige Objektnummer eingeben.');
-  }
+
 
   // **Kamera-Phase = Scanner-Design** (Notiz #119): die ganze Fläche ist die Kamera, alle
   // Bedienelemente liegen als milchige Chips darin – dieselbe Bildsprache wie der
-  // Objekt-Scanner, nur mit den Zusatzfunktionen Auslöser/Upload/Nummer. Erst ab «Analyse»
+  // Objekt-Scanner, nur mit den Zusatzfunktionen Auslöser/Upload. Erst ab «Analyse»
   // wird es ein normales Formular-Fenster (dort geht es um Text, nicht um Bild).
   if (phase === 'camera') {
     return (
@@ -337,15 +333,6 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
         <div onClick={(e) => e.stopPropagation()} style={darkSheet}>
           <DocumentCamera
             onCapture={onFile} onCode={onCode} captureEnabled={captureEnabled}
-            extra={onCode ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input value={manualId} onChange={(e) => setManualId(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); manualOpen(); } }}
-                  placeholder="Objektnummer öffnen, z. B. 100000123" inputMode="numeric"
-                  style={glassInput} />
-                <button type="button" onClick={manualOpen} style={glassBtn}>Öffnen</button>
-              </div>
-            ) : undefined}
           />
           {error && <div style={{ position: 'absolute', top: 14, left: 14, right: 14, ...errBox }}>{error}</div>}
         </div>
@@ -462,16 +449,6 @@ const darkBackdrop: React.CSSProperties = {
 const darkSheet: React.CSSProperties = {
   position: 'relative', width: '100%', maxWidth: 420, aspectRatio: '3 / 4', maxHeight: '86vh',
   background: '#0B1220', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 60px rgba(15,23,42,.4)',
-};
-const glassInput: React.CSSProperties = {
-  flex: 1, minWidth: 0, padding: '11px 12px', fontSize: 13.5, borderRadius: 12, outline: 'none',
-  border: '1px solid rgba(255,255,255,.22)', background: 'rgba(15,23,42,.5)',
-  backdropFilter: 'blur(10px)', color: '#fff', boxSizing: 'border-box',
-};
-const glassBtn: React.CSSProperties = {
-  padding: '0 16px', borderRadius: 12, border: '1px solid rgba(255,255,255,.22)',
-  background: 'rgba(15,23,42,.5)', backdropFilter: 'blur(10px)', color: '#fff',
-  fontSize: 13, fontWeight: 700, cursor: 'pointer', flex: 'none',
 };
 const neutralBtn: React.CSSProperties = { flex: 'none', padding: '0 14px', minHeight: 42, borderRadius: 'var(--r-md)', border: '1px solid var(--border-2)', background: '#fff', color: 'var(--fg-2)', font: '600 13px var(--font-body)', cursor: 'pointer' };
 

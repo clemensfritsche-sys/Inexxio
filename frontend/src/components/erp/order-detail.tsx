@@ -957,49 +957,41 @@ function DeviationDialog({ busy, onChoose, onClose }: {
   onClose: () => void;
 }) {
   return (
+    // Klick daneben schliesst – ein × wäre ein zweiter Weg für dasselbe (Notiz #129).
     <div onClick={onClose}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: 'min(520px, 100%)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
           <AlertTriangle size={18} style={{ color: 'var(--warning)' }} />
-          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)', flex: 1 }}>Abweichungsauftrag anlegen</span>
-          <button onClick={onClose} aria-label="Schliessen"
-            style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--fg-4)', display: 'flex' }}>
-            <X size={18} />
-          </button>
+          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>Abweichungsauftrag anlegen</span>
         </div>
+        {/* Zwei gleichwertige Wege – nichts ist vorausgewählt oder hervorgehoben (#130);
+            die Entscheidung trifft der Mensch, nicht die Gestaltung. Der Erklärtext ist
+            entfallen (#128): was ein Abweichungsauftrag ist, steht im Auftrag selbst. */}
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--fg-3)' }}>
-            Es entsteht ein Abweichungsauftrag auf die Instanzen dieses Auftrags. Dort legst du
-            fest, was mit ihnen geschieht (nacharbeiten, ersetzen, verschrotten, sperren).
-          </p>
-          <ChoiceButton
-            disabled={busy} onClick={() => onChoose(false)}
+          <ChoiceButton disabled={busy} onClick={() => onChoose(false)}
             title="Auftrag läuft weiter"
-            text="Der Auftrag pausiert, bis die Abweichung geklärt ist – danach läuft er normal weiter."
-          />
-          <ChoiceButton
-            disabled={busy} onClick={() => onChoose(true)} danger
+            text="Pausiert, bis die Abweichung geklärt ist – danach läuft er normal weiter." />
+          <ChoiceButton disabled={busy} onClick={() => onChoose(true)}
             title="Auftrag abbrechen"
-            text="Der Auftrag ist sofort abgebrochen – endgültig, keine Reaktivierung. Nur der Abweichungsauftrag läuft weiter."
-          />
+            text="Sofort abgebrochen – endgültig, keine Reaktivierung. Nur der Abweichungsauftrag läuft weiter." />
         </div>
       </div>
     </div>
   );
 }
 
-function ChoiceButton({ title, text, danger, disabled, onClick }: {
-  title: string; text: string; danger?: boolean; disabled?: boolean; onClick: () => void;
+function ChoiceButton({ title, text, disabled, onClick }: {
+  title: string; text: string; disabled?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick}
       style={{
         textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
-        border: `1px solid ${danger ? 'var(--danger)' : 'var(--border-1)'}`, background: '#fff', opacity: disabled ? .6 : 1,
+        border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
       }}>
-      <div style={{ font: '700 13.5px var(--font-body)', color: danger ? 'var(--danger)' : 'var(--fg-1)' }}>{title}</div>
+      <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</div>
       <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>
     </button>
   );

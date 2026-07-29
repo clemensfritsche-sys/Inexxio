@@ -213,14 +213,25 @@ def materialize_subject(db: Session, order: Order, actor_id: int) -> None:
 
 
 def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
-    """Abweichung: die gewählten Instanzen nur **dauerhaft als verarbeitet** vermerken –
-    KEINE Lager-Allokation/-Reservierung. Die Instanzen können jeden Verbleib haben
-    (in Arbeit, am Lager, …); die Abweichung wirkt direkt auf sie."""
+    """Unter-Auftrag mit festem Subjekt (Abweichung/Retoure/Bereitstellung): die gewählten
+    Instanzen dauerhaft als verarbeitet vermerken – **keine Lager-ALLOKATION** (es wird nichts
+    gesucht, das Subjekt steht ja fest).
+
+    **Reserviert wird trotzdem**, sobald eine Instanz am Lager liegt: ein freigegebener
+    Unter-Auftrag hat sie in der Hand, also darf sie kein anderer Auftrag per FIFO wegnehmen.
+    Ohne das war eine Instanz unter offener Abweichung für jeden anderen Auftrag frei
+    verfügbar – und die Badge zeigte «Freigegeben», obwohl sie längst gebunden war. Nicht am
+    Lager (in Arbeit, verkauft, gesperrt) → nichts zu reservieren, dort greift ohnehin kein
+    FIFO. Beim Abschluss/Verwerfen löst ``release`` die Reservierung wieder."""
+    from .inventory import is_in_stock
+    from .reservation import reserve, reserved_for
     bound = chosen_subjects(db, order)
     if not bound:
         raise HTTPException(409, detail="Für diesen Unter-Auftrag sind keine Instanzen gewählt")
     for inst in bound:
         record_link(db, inst.object_id, order.id)
+        if is_in_stock(inst) and reserved_for(inst, order.id) <= 0:
+            reserve(inst, order.id, to_qty(inst.quantity))
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
