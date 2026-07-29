@@ -40,7 +40,10 @@ export function OrderPositions({ order }: { order: Order }) {
       label={onlyInstances ? 'Instanzen' : groups.length === 1 ? 'Position' : 'Positionen'}
       full
       value={
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        // Das Lesefeld setzt seinen Wert kräftig (15.5px/600) – richtig für EINE Angabe,
+        // zu laut für eine Aufstellung (Notiz #282). Die Liste beginnt darum wieder bei
+        // der normalen Lesegrösse; Struktur macht hier die Ausrichtung, nicht das Gewicht.
+        <div style={{ display: 'flex', flexDirection: 'column', font: '500 13px var(--font-body)' }}>
           {groups.map((g, gi) => (
             <div key={g.key} style={gi > 0 ? groupSep : undefined}>
               {g.name && (

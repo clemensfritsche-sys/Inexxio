@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { DH, DetailHeader, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { ChoiceButton, DH, DetailHeader, HeaderAction, HeaderSep, Label, PrimaryButton, ReadField, Row, SPEC, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -546,12 +546,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <>
                 <HeaderSep />
                 {statusActions.map((a) => (
-                  <button key={a.target} type="button" className="erp-actbtn erp-actbtn-primary"
-                    style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
-                    title={a.hint} disabled={statusBusy || a.disabled}
-                    onClick={() => onStatusAction(a.target)}>
-                    {a.label}
-                  </button>
+                  <HeaderAction key={a.target} label={a.label} tone={a.tone} hint={a.hint}
+                    disabled={statusBusy || a.disabled} onClick={() => onStatusAction(a.target)} />
                 ))}
               </>
             )}
@@ -901,30 +897,13 @@ function DeviationDialog({ busy, onChoose, onClose }: {
             die Entscheidung trifft der Mensch, nicht die Gestaltung. Der Erklärtext ist
             entfallen (#128): was ein Abweichungsauftrag ist, steht im Auftrag selbst. */}
         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ChoiceButton disabled={busy} onClick={() => onChoose(false)}
-            title="Auftrag läuft weiter"
-            text="Pausiert, bis die Abweichung geklärt ist – danach läuft er normal weiter." />
-          <ChoiceButton disabled={busy} onClick={() => onChoose(true)}
-            title="Auftrag abbrechen"
-            text="Sofort abgebrochen – endgültig, keine Reaktivierung. Nur der Abweichungsauftrag läuft weiter." />
+          <ChoiceButton disabled={busy} onClick={() => onChoose(false)} icon={Play}
+            title="Läuft weiter" text="Nur das betroffene Stück wird herausgenommen." />
+          <ChoiceButton disabled={busy} onClick={() => onChoose(true)} icon={Ban} tone="var(--danger)"
+            title="Abbrechen" text="Endgültig – nur die Abweichung läuft weiter." />
         </div>
       </div>
     </div>
-  );
-}
-
-function ChoiceButton({ title, text, disabled, onClick }: {
-  title: string; text: string; disabled?: boolean; onClick: () => void;
-}) {
-  return (
-    <button type="button" disabled={disabled} onClick={onClick}
-      style={{
-        textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
-        border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
-      }}>
-      <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</div>
-      <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>
-    </button>
   );
 }
 
@@ -1023,8 +1002,11 @@ function ProcessHoldNotice({ step, isStaff, canAct, busy, recoverBusy, error, on
             {isSubjectStep && availableInstances.length > 0 && (
               <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
             )}
+            {/* «Menge bestätigen» sagte, was das System tut, nicht was der Mensch
+                entscheidet (Notiz #280). Der Gegensatz zu «Ersetzen» ist: gar nicht
+                ersetzen – der Auftrag wird mit dem fertig, was da ist. */}
             {isSubjectStep && (
-              <SecondaryAction icon={CheckCircle2} label={busy ? 'Wird bestätigt…' : 'Menge bestätigen'}
+              <SecondaryAction icon={CheckCircle2} label={busy ? 'Wird übernommen…' : 'Ohne Ersatz weiter'}
                 onClick={onConfirmQuantity} disabled={busyAny} />
             )}
           </div>

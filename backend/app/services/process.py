@@ -507,6 +507,22 @@ def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict
     return out
 
 
+def blocked_step_for_article(db: Session, order: Order, article_id: int) -> int | None:
+    """Der Schritt, dessen Fehlmenge genau diesen Artikel vermisst – oder ``None``.
+
+    Zwei Nutzer, dieselbe Frage: der **Nachschub** merkt sich damit, aus welchem Schritt sein
+    Bedarf stammt (``orders.origin_step_id``), und die **Deckung** schreibt ihre Spur an den
+    Schritt, an dem entschieden wurde (``OrderStepInfo.resolutions``). Findet sich kein
+    blockierter Schritt (Aktion von Hand angestossen), bleibt die Angabe leer."""
+    for info in build_order_steps(db, order):
+        if info["state"] != "blocked":
+            continue
+        step = info["step"]
+        if any(a == article_id for a in step_shortfalls(db, order, step)):
+            return step.id
+    return None
+
+
 def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
     """Blockiert, weil ein Bedarf (noch) nicht gedeckt ist?
 

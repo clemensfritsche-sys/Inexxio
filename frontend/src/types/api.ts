@@ -4361,6 +4361,11 @@ export interface components {
              */
             waiting_for: number[];
             /**
+             * Resolutions
+             * @default []
+             */
+            resolutions: components["schemas"]["StepResolution"][];
+            /**
              * Provisioning Order Object Ids
              * @default []
              */
@@ -5409,6 +5414,32 @@ export interface components {
         StepReorder: {
             /** Ordered Ids */
             ordered_ids: number[];
+        };
+        /**
+         * StepResolution
+         * @description **Was an diesem Schritt entschieden wurde**, als er unterdeckt war (Notiz #281).
+         *
+         *     Ohne diese Spur sieht man später nur das Ergebnis (der Auftrag lief weiter), nicht den
+         *     Weg dorthin – dabei ist gerade die Entscheidung die Geschichte des Auftrags. Quelle ist
+         *     der **Event-Strom**, kein neues Feld; die Formulierung macht das Frontend.
+         */
+        StepResolution: {
+            /** Kind */
+            kind: string;
+            /** Article Object Id */
+            article_object_id?: number | null;
+            /** Article Name */
+            article_name?: string | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Quantity From */
+            quantity_from?: number | null;
+            /** Quantity To */
+            quantity_to?: number | null;
+            /** At */
+            at?: string | null;
+            /** By */
+            by?: string | null;
         };
         /**
          * StepShortfall

@@ -363,6 +363,28 @@ export function DetailHeader({
   );
 }
 
+/**
+ * Status-Aktion in der Kopf-Aktionszeile («Freigeben», «Reaktivieren»).
+ *
+ * Sie steht neben den 28-px-Symbolknöpfen und ist darum **exakt so hoch wie sie** (Notiz
+ * #286): war sie höher, wuchs die ganze Zeile in dem Moment, in dem die Aktion erschien –
+ * und schrumpfte wieder, sobald sie wegfiel. Beide Detail-Ansichten (Artikel, Auftrag)
+ * hatten dieselbe Zeile zweimal ausgeschrieben; jetzt gibt es eine Stelle.
+ */
+export function HeaderAction({ label, tone = 'primary', hint, disabled, onClick }: {
+  label: string; tone?: StatusTone; hint?: string; disabled?: boolean; onClick: () => void;
+}) {
+  return (
+    <button type="button"
+      className={`erp-actbtn ${tone === 'primary' ? 'erp-actbtn-primary' : 'erp-actbtn-neutral'}`}
+      style={{ height: 28, padding: '0 12px', fontSize: 12 }}
+      data-tip={hint} data-tip-pos="bottom"
+      disabled={disabled} onClick={onClick}>
+      {label}
+    </button>
+  );
+}
+
 /** Trennstrich zwischen Aktionsgruppen im Kopf (Objektnummer | Symbole | Status-Aktion). */
 export function HeaderSep() {
   return <span style={DH.idsep} />;
@@ -427,17 +449,33 @@ export function Dialog({ icon: Icon, title, tone = 'var(--warning)', width = 520
  * darunter (Notiz #155). Nichts ist vorausgewählt oder hervorgehoben: die Wege sind
  * gleichwertig, die Entscheidung trifft der Mensch und nicht die Gestaltung (#152).
  */
-export function ChoiceButton({ title, text, disabled, onClick }: {
+export function ChoiceButton({ icon: Icon, tone, title, text, disabled, onClick }: {
+  /** Symbol des Weges – auf einen Blick erkennbar, noch vor dem Lesen (Notiz #284). */
+  icon?: ElementType;
+  /** Farbe des Symbols (z. B. `var(--danger)` für den endgültigen Weg). */
+  tone?: string;
   title: string; text?: string; disabled?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick}
       style={{
+        display: 'flex', alignItems: 'center', gap: 12, width: '100%',
         textAlign: 'left', padding: '12px 14px', borderRadius: 'var(--r-md)', cursor: disabled ? 'default' : 'pointer',
         border: '1px solid var(--border-1)', background: '#fff', opacity: disabled ? .6 : 1,
       }}>
-      <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</div>
-      {text && <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</div>}
+      {Icon && (
+        <span style={{
+          width: 34, height: 34, borderRadius: 'var(--r-sm)', flex: 'none',
+          background: 'var(--bg-2)', color: tone ?? 'var(--fg-2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={17} />
+        </span>
+      )}
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{title}</span>
+        {text && <span style={{ display: 'block', fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>{text}</span>}
+      </span>
     </button>
   );
 }

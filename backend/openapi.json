@@ -12833,6 +12833,14 @@
             "title": "Waiting For",
             "default": []
           },
+          "resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/StepResolution"
+            },
+            "type": "array",
+            "title": "Resolutions",
+            "default": []
+          },
           "provisioning_order_object_ids": {
             "items": {
               "type": "integer"
@@ -15679,6 +15687,98 @@
         ],
         "title": "StepReorder",
         "description": "Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen\nwerden serverseitig automatisch neu eingefügt/positioniert."
+      },
+      "StepResolution": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "article_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Object Id"
+          },
+          "article_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Name"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "quantity_from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity From"
+          },
+          "quantity_to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity To"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "StepResolution",
+        "description": "**Was an diesem Schritt entschieden wurde**, als er unterdeckt war (Notiz #281).\n\nOhne diese Spur sieht man später nur das Ergebnis (der Auftrag lief weiter), nicht den\nWeg dorthin – dabei ist gerade die Entscheidung die Geschichte des Auftrags. Quelle ist\nder **Event-Strom**, kein neues Feld; die Formulierung macht das Frontend."
       },
       "StepShortfall": {
         "properties": {

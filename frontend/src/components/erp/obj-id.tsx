@@ -18,9 +18,13 @@ export function useErpNav(): ((objectId: number) => void) | null {
 export function ObjId({ value, mono = true }: { value: number | null | undefined; mono?: boolean }) {
   const nav = useErpNav();
   const text = fmtObjId(value);
+  // **Eine Objektnummer sieht überall gleich aus** (Notiz #282): sie erbte bisher die
+  // Schriftgrösse ihrer Umgebung und wurde in einem grossen Lesefeld zur dominantesten
+  // Angabe der Zeile – obwohl sie eine Kennung ist, keine Aussage. Eigene, feste Grösse
+  // (wie schon die eine Formatierung aus #263), Ziffern tabellarisch.
   const baseStyle: React.CSSProperties = {
-    fontFamily: mono ? 'monospace' : undefined,
-    fontWeight: 700,
+    fontFamily: mono ? 'var(--font-mono), monospace' : undefined,
+    fontSize: 12.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums', lineHeight: 1.4,
   };
   if (!nav || value == null) {
     return <span style={baseStyle}>{text}</span>;
