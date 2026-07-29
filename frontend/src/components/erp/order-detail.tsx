@@ -13,7 +13,7 @@ import { fmtObjId } from '@/components/erp/user-detail';
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
-import { InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, TILE, TileShell, numericOnly, numericInputProps } from '@/components/erp/fields';
+import { DH, DetailHeader, HeaderSep, InfoHint, Label, PrimaryButton, Row, SaveIndicator, SearchSelect, SectionTitle, StatusBadge, StatusFlow, TILE, TileShell, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { DeactivateDialog, ReplacedBanner } from '@/components/erp/deactivate-dialog';
 import { OrderFlow } from '@/components/erp/order-flow';
 import { PurchaseStepPanel } from '@/components/erp/purchase-step-panel';
@@ -494,16 +494,16 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header – dieselbe Anatomie wie bei Artikel und Instanz: Symbol · Eyebrow · Titel ·
-          Objektnummer + Symbol-Aktionen in EINER Zeile darunter; rechts Speicher-Anzeige und
-          Status. Vorher stand die Objektnummer als eigener Kasten ganz rechts – ein drittes
-          Layout für dieselbe Sache. */}
-      <div style={H.dhead}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
-          <ArrowLeft size={15} /> Zurück
-        </button>
-        <div style={H.top}>
-          <div style={{ ...H.ico, position: 'relative' }}>
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
+      <DetailHeader
+        icon={ClipboardList} iconBg="#EAF0F4" iconFg="#4A6572"
+        eyebrow={!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}
+        title={isCreate ? null : orderName(record)} placeholder={isCreate ? 'Neuer Auftrag' : 'Auftrag'}
+        objectId={isCreate ? null : record.object_id}
+        objectIdText={isCreate ? 'wird vergeben' : undefined}
+        onBack={onBack}
+        avatar={
+          <div style={{ ...DH.ico, background: '#EAF0F4', color: '#4A6572', position: 'relative' }}>
             <ClipboardList size={26} />
             {!isCreate && record.reason === 'deviation' && (
               <span title="Abweichungsauftrag" style={{ position: 'absolute', bottom: -3, right: -3, width: 18, height: 18, borderRadius: 999, background: 'var(--warning-bg)', border: '1px solid var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -511,73 +511,61 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               </span>
             )}
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={H.eyebrow}>{!isCreate && record.reason === 'deviation' ? 'Abweichungsauftrag' : 'Auftrag'}</div>
-            <h1 style={{ ...H.title, ...(isCreate ? H.titleEmpty : null) }}>
-              {isCreate ? 'Neuer Auftrag' : (orderName(record) ?? 'Auftrag')}
-            </h1>
-            <div style={H.sub}>
-              <span style={H.subN}>{isCreate ? 'wird vergeben' : fmtObjId(record.object_id ?? null)}</span>
-              {!isCreate && record.object_id != null && (
-                <>
-                  <span style={H.idsep} />
-                  <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-                    onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
-                    <QrCode size={15} />
+        }
+        right={<div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
+          <StatusBadge cfg={isCreate
+            ? orderStatusConfig('draft')
+            : orderStatusConfig(record.status, record.abort_into_id != null)} />
+          {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
+          {isCreate && (
+            <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
+              style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}>
+              Abbrechen
+            </button>
+          )}
+        </div>}
+        actions={!isCreate && record.object_id != null ? (
+          <>
+            <HeaderSep />
+            <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+              onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
+              <QrCode size={15} />
+            </button>
+            {canReportDeviation && (
+              <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
+                aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
+                {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
+              </button>
+            )}
+            {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen statt rechts
+                am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an. */}
+            {isStaff && !isCompleted && statusActions.length > 0 && (
+              <>
+                <HeaderSep />
+                {statusActions.map((a) => (
+                  <button key={a.target} type="button" className="erp-actbtn erp-actbtn-primary"
+                    style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
+                    title={a.hint} disabled={statusBusy || a.disabled}
+                    onClick={() => onStatusAction(a.target)}>
+                    {a.label}
                   </button>
-                  {canReportDeviation && (
-                    <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
-                      aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
-                      {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
-                    </button>
-                  )}
-                  {/* Bereitstellung übergehen: die EINZIGE Unter-Auftragsart, die das System
-                      selbst anlegt, braucht einen Ausstieg – sonst ist ein Auftrag, dessen
-                      Bereitstellung nicht durchläuft, ohne Ausweg. Bewusste Entscheidung mit
-                      klarem Namen statt eines generischen «Verwerfen». */}
-                  {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen statt rechts
-                      am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an. */}
-                  {isStaff && !isCompleted && statusActions.length > 0 && (
-                    <>
-                      <span style={H.idsep} />
-                      {statusActions.map((a) => (
-                        <button key={a.target} type="button" className="erp-actbtn erp-actbtn-primary"
-                          style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}
-                          title={a.hint} disabled={statusBusy || a.disabled}
-                          onClick={() => onStatusAction(a.target)}>
-                          {a.label}
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {canSkipProvisioning && (
-                    <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
-                      data-tip="Bereitstellung übergehen – ich bringe das Material von Hand an seinen Ort"
-                      aria-label="Bereitstellung übergehen" disabled={statusBusy}
-                      onClick={() => setDialog('skip-provisioning')}>
-                      <Ban size={15} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          <div style={H.right}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
-              <StatusBadge cfg={isCreate
-                ? orderStatusConfig('draft')
-                : orderStatusConfig(record.status, record.abort_into_id != null)} />
-              {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
-              {isCreate && (
-                <button type="button" onClick={onCancel} className="erp-actbtn erp-actbtn-neutral"
-                  style={{ height: 32, padding: '0 13px', fontSize: 12.5 }}>
-                  Abbrechen
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+                ))}
+              </>
+            )}
+            {/* Bereitstellung übergehen: die EINZIGE Unter-Auftragsart, die das System
+                selbst anlegt, braucht einen Ausstieg. */}
+            {canSkipProvisioning && (
+              <button className="erp-idbtn erp-idbtn-danger" data-tip-pos="bottom"
+                data-tip="Bereitstellung übergehen – ich bringe das Material von Hand an seinen Ort"
+                aria-label="Bereitstellung übergehen" disabled={statusBusy}
+                onClick={() => setDialog('skip-provisioning')}>
+                <Ban size={15} />
+              </button>
+            )}
+          </>
+        ) : undefined}
+      >
         {!isCreate && (record.replaced_by_id != null || record.replaces_id != null) && (
           <ReplacedBanner replacedBy={record.replaced_by_id ?? null} replaces={record.replaces_id ?? null} />
         )}
@@ -588,7 +576,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             { key: 'docs', label: 'Dokumente', icon: FolderOpen },
           ]} />
         )}
-      </div>
+      </DetailHeader>
 
       {/* Content */}
       {/* FIX: Enter im Container löst den Autosave-Flush aus – in TEXTAREAs (mehrzeilige
@@ -927,19 +915,8 @@ function SpecTile({ icon, label, children }: {
   );
 }
 
-// Kopf-Anatomie – identisch zu Artikel/Instanz (Symbol · Eyebrow · Titel · Objektnummer+Aktionen).
-const H: Record<string, React.CSSProperties> = {
-  dhead: { padding: '18px 28px', borderBottom: '1px solid var(--border-1)', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0 },
-  top: { display: 'flex', alignItems: 'flex-start', gap: 16 },
-  ico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#EAF0F4', color: '#4A6572', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
-  eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
-  title: { font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },
-  sub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 9 },
-  subN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
-  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
-  right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
-};
+// (Der Kopf kommt aus `fields.DetailHeader` – die lokalen Kopf-Stile sind entfallen, #242.)
+
 
 // ─── Abweichungsauftrag: EIN Vorgang, EINE Entscheidung ──────────────────────────
 //

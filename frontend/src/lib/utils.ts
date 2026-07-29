@@ -42,7 +42,15 @@ export function timeAgo(iso: string | null | undefined): string {
   return y === 1 ? 'vor 1 Jahr' : `vor ${y} Jahren`;
 }
 
-export function userDisplayName(user: { first_name?: string | null; last_name?: string | null; email: string }): string {
+/**
+ * Anzeigename einer Person – **dieselbe Regel wie im Backend** (`UserProfile.display_name`):
+ * Firma → «Vorname Nachname» → E-Mail. Bei einem Lieferanten ist die Firma der Name, unter
+ * dem man bestellt; der Ansprechpartner steht am Datensatz (Notiz #227). Vorher wich das
+ * Frontend hier ab und zeigte die Person, wo das Backend die Firma zeigte.
+ */
+export function userDisplayName(user: {
+  company_name?: string | null; first_name?: string | null; last_name?: string | null; email: string;
+}): string {
   const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
-  return full || user.email.split('@')[0];
+  return user.company_name?.trim() || full || user.email.split('@')[0];
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
 import {
-  Boxes, ArrowLeft, FileText, Package, CalendarDays,
+  Boxes, FileText, Package, CalendarDays,
   ClipboardList, ChevronRight, QrCode, TriangleAlert, ClipboardPlus,
   ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Hash, FolderOpen, LockOpen,
 } from 'lucide-react';
@@ -16,7 +16,7 @@ import { ObjectReferences } from '@/components/erp/object-references';
 import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { TileShell, TILE } from '@/components/erp/fields';
+import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { instanceName } from '@/lib/record-name';
 
@@ -159,60 +159,47 @@ export function InstanceDetail({ record, onBack, onChanged }: {
 
   return (
     <div className="flex flex-col h-full bg-bg-1" style={{ color: 'var(--fg-1)' }}>
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div style={S.dhead}>
-        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
-          <ArrowLeft size={15} /> Zurück
-        </button>
-        <div style={S.dheadTop}>
-          <div style={S.dico}><Boxes size={26} /></div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={S.eyebrow}>Instanz</div>
-            <h1 style={S.dtitle}>{instanceName(inst) ?? 'Ohne Bezeichnung'}</h1>
-            <div style={S.dsub}>
-              <span style={S.dsubN}>{fmtObjId(inst.object_id ?? null)}</span>
-              <span style={S.idsep} />
-              <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
-                onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
-                <QrCode size={15} />
-              </button>
-              {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
-              <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-                data-tip={canOrderInstance ? 'Auftrag auf diese Instanz anlegen' : 'Auftrag möglich, sobald die Instanz am Lager (freigegeben) oder verkauft ist'}
-                aria-label="Auftrag auf diese Instanz anlegen"
-                disabled={!canOrderInstance || orderBusy}
-                onClick={createOrderShortcut}>
-                {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
-              </button>
-              {/* Sperre aufheben – nur wenn gesperrt. Bewusst eine Aktion an der Instanz
-                  (kein Prozessschritt): eine Maschine kommt aus der Wartung zurück, ohne
-                  dass jemand dafür einen Auftrag anlegen will. */}
-              {inst.quality === 'blocked' && (
-                <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-                  data-tip="Sperre aufheben – die Instanz ist danach wieder verwendbar"
-                  aria-label="Sperre aufheben" disabled={unblockBusy}
-                  onClick={unblockInstance}>
-                  {unblockBusy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
-                </button>
-              )}
-              <button
-                className="erp-idbtn erp-idbtn-flag"
-                data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
-                data-tip-pos="bottom"
-                aria-label="Abweichung melden"
-                disabled={!deviationParent || devBusy}
-                onClick={reportDeviation}
-              >
-                {devBusy ? <Loader2 size={15} className="animate-spin" /> : <TriangleAlert size={15} />}
-              </button>
-            </div>
-          </div>
-          <div style={{ flex: 'none' }}>
-            <span style={{ ...S.statusbig, background: status.bg, color: status.color }}>
-              {StatusIcon && <StatusIcon size={15} strokeWidth={2.5} />}{status.label}
-            </span>
-          </div>
-        </div>
+      {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
+      <DetailHeader
+        icon={Boxes} iconBg="#E9EDEC" iconFg="#5E6B66"
+        eyebrow="Instanz" title={instanceName(inst)} objectId={inst.object_id ?? null}
+        onBack={onBack}
+        right={<span style={{ ...S.statusbig, background: status.bg, color: status.color }}>
+          {StatusIcon && <StatusIcon size={15} strokeWidth={2.5} />}{status.label}
+        </span>}
+        actions={<>
+          <HeaderSep />
+          <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
+            onClick={() => inst.object_id != null && printObjectLabel(inst.object_id, inst.article_name, 'Instanz')}>
+            <QrCode size={15} />
+          </button>
+          {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
+          <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+            data-tip={canOrderInstance ? 'Auftrag auf diese Instanz anlegen' : 'Auftrag möglich, sobald die Instanz am Lager (freigegeben) oder verkauft ist'}
+            aria-label="Auftrag auf diese Instanz anlegen"
+            disabled={!canOrderInstance || orderBusy}
+            onClick={createOrderShortcut}>
+            {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
+          </button>
+          {/* Sperre aufheben – nur wenn gesperrt. Bewusst eine Aktion an der Instanz
+              (kein Prozessschritt): eine Maschine kommt aus der Wartung zurück, ohne
+              dass jemand dafür einen Auftrag anlegen will. */}
+          {inst.quality === 'blocked' && (
+            <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
+              data-tip="Sperre aufheben – die Instanz ist danach wieder verwendbar"
+              aria-label="Sperre aufheben" disabled={unblockBusy}
+              onClick={unblockInstance}>
+              {unblockBusy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
+            </button>
+          )}
+          <button className="erp-idbtn erp-idbtn-flag"
+            data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
+            data-tip-pos="bottom" aria-label="Abweichung melden"
+            disabled={!deviationParent || devBusy} onClick={reportDeviation}>
+            {devBusy ? <Loader2 size={15} className="animate-spin" /> : <TriangleAlert size={15} />}
+          </button>
+        </>}
+      >
         {devErr && <div style={S.devErr}>{devErr}</div>}
         <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },
@@ -220,7 +207,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           { key: 'verwendung', label: 'Verwendung', icon: Boxes },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
-      </div>
+      </DetailHeader>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto pb-20" style={{ background: 'var(--bg-1)' }}>
@@ -299,9 +286,18 @@ export function InstanceDetail({ record, onBack, onChanged }: {
                   const isLast = i === sortedOrders.length - 1;
                   return (
                     <button key={o.object_id} className="erp-orow" style={{ ...S.orow, ...(isLast ? { borderBottom: 'none' } : null) }} onClick={() => nav?.(o.object_id)}>
-                      <div style={S.oico}><ClipboardList size={17} /></div>
+                      {/* Name · Objektnummer · Status – wie im Feed; ein Abweichungs-
+                          auftrag trägt dasselbe gelbe Warnzeichen am Symbol (Notiz #243). */}
+                      <div style={{ ...S.oico, position: 'relative' }}>
+                        <ClipboardList size={17} />
+                        {o.reason === 'deviation' && (
+                          <span title="Abweichungsauftrag" style={S.devTag}>
+                            <TriangleAlert size={9} style={{ color: 'var(--warning)' }} />
+                          </span>
+                        )}
+                      </div>
                       <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                        <div style={S.oT}>Auftrag</div>
+                        <div style={S.oT}>{o.name && o.name !== 'Auftrag' ? o.name : 'Auftrag'}</div>
                         <div style={S.oN}>{fmtObjId(o.object_id)}</div>
                       </div>
                       <span style={{ ...S.badge, background: cfg.bg, color: cfg.color }}>
@@ -337,17 +333,6 @@ function Tile({ icon, label, hint, value, sub, subMono, wide, onClick }: {
 
 // ── Styles (Inexxio Design System Tokens via CSS-Vars) ─────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  dhead: { position: 'sticky', top: 0, zIndex: 5, background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border-1)', padding: '20px clamp(14px, 4vw, 28px)', flexShrink: 0 },
-  dheadTop: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },
-  dico: { width: 56, height: 56, borderRadius: 'var(--r-md)', background: '#E9EDEC', color: '#5E6B66', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
-  eyebrow: { font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)', textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6 },
-  dtitle: { font: '800 28px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05, color: 'var(--fg-1)' },
-  dsub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 10 },
-  dsubN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
-  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
-  idbtn: { width: 28, height: 28, borderRadius: 'var(--r-sm)', border: 'none', background: 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-4)', cursor: 'pointer', padding: 0 },
-  idbtnFlag: {},
-  idbtnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
   statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
   // Zentriert (nicht linksbündig): auf einem breiten Schirm klebte der Inhalt sonst am
@@ -369,6 +354,7 @@ const S: Record<string, React.CSSProperties> = {
   osecSub: { font: '500 13px var(--font-body)', color: 'var(--fg-4)', margin: '6px 0 16px 47px' },
   olist: { border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden' },
   orow: { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: '1px solid var(--border-1)', cursor: 'pointer', background: '#fff', width: '100%', border: 'none', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--border-1)', font: 'inherit' },
+  devTag: { position: 'absolute', bottom: -3, right: -3, width: 14, height: 14, borderRadius: 999, background: 'var(--warning-bg)', border: '1px solid var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   oico: { width: 36, height: 36, borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', color: 'var(--accent-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' },
   oT: { font: '700 14px var(--font-body)', color: 'var(--fg-1)' },
   oN: { font: 'var(--mono-sm)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', marginTop: 2 },

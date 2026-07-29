@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ElementType, ReactNode } from 'react';
-import { AlertCircle, ArrowUpRight, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader2, CheckCircle2 } from 'lucide-react';
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
 
 // ─── Kachel: die Grundform der Detail-Ansichten ──────────────────────────────
@@ -181,8 +181,11 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
   }, [index, options.length, labelActiveOnly, symbolOnly]);
 
   return (
+    // ``labelActiveOnly`` hat naturgemäss ungleich breite Optionen – dann soll sich der
+    // Regler an seinen Inhalt schmiegen statt die ganze Spalte zu füllen (Notizen #224/#225).
     <div ref={wrapRef} style={{
-      position: 'relative', display: symbolOnly ? 'inline-flex' : 'flex',
+      position: 'relative', display: symbolOnly || labelActiveOnly ? 'inline-flex' : 'flex',
+      alignSelf: 'flex-start', maxWidth: '100%', flexWrap: 'wrap',
       padding: 3, borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--border-1)',
     }}>
       <span aria-hidden style={{
@@ -217,6 +220,109 @@ export function IconSwitch<T extends string>({ value, onChange, options, symbolO
     </div>
   );
 }
+
+/**
+ * **Der EINE Kopf jedes Datensatz-Fensters** (Notiz #242).
+ *
+ * Alle Detail-Ansichten sahen sich ähnlich, aber keine zwei gleich: mal 26 px Titel, mal
+ * 28 px, mal klebend, mal nicht, beim Benutzer sogar ein ganz anderes Layout (runder
+ * Avatar, «Obj.-Nr.»-Block rechts). Diese Anatomie ist jetzt verbindlich – und sie ist
+ * dieselbe Aussage wie im Feed:
+ *
+ *     [Symbol]  TYP (Eyebrow)
+ *               **Name**
+ *               Objektnummer · Symbol-Aktionen · Status-Aktionen        [Status rechts]
+ *
+ * Der Typ steht als Eyebrow, der **Name** als Titel, die Objektnummer als monospaced
+ * Zeile darunter – und die Aktionen dort, wo sie hingehören: bei der Objektnummer. Rechts
+ * bleibt allein der Zustand (plus optional die Speicher-Anzeige).
+ */
+export function DetailHeader({
+  icon: Icon, iconBg, iconFg, avatar, eyebrow, title, placeholder = 'Ohne Bezeichnung',
+  objectId, objectIdText, actions, right, onBack, children,
+}: {
+  icon?: ElementType;
+  iconBg?: string;
+  iconFg?: string;
+  /** Ersetzt den Symbol-Kasten (Benutzer: rundes Foto/Initialen). */
+  avatar?: ReactNode;
+  eyebrow: string;
+  /** `null` = dieser Datensatz hat (noch) keinen Namen → Platzhalter, kursiv. */
+  title: string | null;
+  placeholder?: string;
+  objectId?: number | null;
+  /** Ersetzt die formatierte Objektnummer (z. B. «wird vergeben» beim Anlegen). */
+  objectIdText?: string;
+  /** Symbol-/Status-Aktionen – stehen bei der Objektnummer. */
+  actions?: ReactNode;
+  /** Rechte Spalte: Speicher-Anzeige + Status. */
+  right?: ReactNode;
+  onBack?: () => void;
+  /** Banner und Reiter unter der Kopfzeile. */
+  children?: ReactNode;
+}) {
+  return (
+    <div style={DH.head}>
+      {onBack && (
+        <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3 md:hidden" style={{ color: 'var(--accent)' }}>
+          <ArrowLeft size={15} /> Zurück
+        </button>
+      )}
+      <div style={DH.top}>
+        {avatar ?? (
+          <div style={{ ...DH.ico, background: iconBg ?? 'var(--bg-2)', color: iconFg ?? 'var(--fg-2)' }}>
+            {Icon && <Icon size={26} />}
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={DH.eyebrow}>{eyebrow}</div>
+          <h1 style={{ ...DH.title, ...(title ? null : DH.titleEmpty) }}>{title ?? placeholder}</h1>
+          <div style={DH.sub}>
+            <span style={DH.subN}>{objectIdText ?? fmtObjectId(objectId)}</span>
+            {actions}
+          </div>
+        </div>
+        {right && <div style={DH.right}>{right}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Trennstrich zwischen Aktionsgruppen im Kopf (Objektnummer | Symbole | Status-Aktion). */
+export function HeaderSep() {
+  return <span style={DH.idsep} />;
+}
+
+// Objektnummer 9-stellig mit Tausender-Hochkomma – dieselbe Form wie überall.
+function fmtObjectId(v?: number | null): string {
+  return v == null ? '—' : String(v).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+}
+
+export const DH: Record<string, React.CSSProperties> = {
+  head: {
+    padding: '20px clamp(14px, 4vw, 28px)', borderBottom: '1px solid var(--border-1)',
+    background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
+  },
+  top: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },
+  ico: {
+    width: 56, height: 56, borderRadius: 'var(--r-md)', flex: 'none',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  eyebrow: {
+    font: 'var(--overline)', letterSpacing: 'var(--tracking-overline)',
+    textTransform: 'uppercase', color: 'var(--inexxio-red)', marginBottom: 6,
+  },
+  title: {
+    font: '800 26px var(--font-display)', letterSpacing: '-.03em', margin: 0, lineHeight: 1.05,
+    color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  titleEmpty: { color: 'var(--fg-4)', fontStyle: 'italic', fontWeight: 700 },
+  sub: { display: 'flex', alignItems: 'center', gap: 9, marginTop: 9, flexWrap: 'wrap' },
+  subN: { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg-3)', fontSize: 13 },
+  idsep: { width: 1, height: 16, background: 'var(--border-2)', margin: '0 2px' },
+  right: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12, flex: 'none' },
+};
 
 /**
  * **Dialog** – die EINE Fensterform für eine Entscheidung. Klick daneben und `Esc`

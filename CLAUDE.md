@@ -1936,6 +1936,44 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   die gleich im Fluss stehen wird – also sieht sie schon so aus (getöntes Symbol + Name als
   Kopf). (10) Feed etwas leichter (#206: 32-px-Symbol, halbfetter statt fetter Titel).
 
+- **Testnotizen-Runde 16 (weniger Klicks, ein Kopf für alle, Notizen #223–#243)**:
+  (1) **Die Paletten stehen offen** (#223, #229, #231 – «jeder Klick ist ein Klick zu viel»):
+  die Prozessschritt-Module liegen sichtbar am Ende des Flusses (der Zwischenschritt
+  «Prozessschritt hinzufügen» ist weg), die Erfassungsfeld-Palette ebenso, und die
+  Ressourcen-Liste hält **immer eine leere Schlusszeile** bereit, die nachwächst, sobald sie
+  einen Artikel bekommt. Leere Zeilen werden beim Speichern ohnehin verworfen.
+  (2) **EIN Kopf für alle Datensatz-Fenster** (#242, `fields.DetailHeader`): Alle fünf
+  Detail-Ansichten sahen sich ähnlich, aber keine zwei gleich – mal 26-px-Titel, mal 28,
+  mal klebend, mal nicht; der **Benutzer** hatte sogar ein ganz eigenes Layout (44-px-Avatar,
+  «Obj.-Nr.»-Block rechts). Die Anatomie ist jetzt verbindlich und spiegelt den Feed:
+  Symbol · TYP (Eyebrow) · **Name** · Objektnummer mit den Aktionen · rechts der Zustand.
+  Artikel/Auftrag/Instanz/Benutzer/Unternehmen teilen sie sich; die lokalen `H`/`S`-Kopfstile
+  sind entfallen. Ein rundes Foto bleibt möglich (`avatar`-Slot).
+  (3) **Der Anzeigename einer Person folgt EINER Regel** (#227): Firma → «Vorname Nachname»
+  → E-Mail – genau wie `UserProfile.display_name` im Backend. Das Frontend wich hier ab und
+  zeigte die Person, wo das Backend die Firma zeigte; beim Lieferanten ist die Firma der Name,
+  unter dem man bestellt.
+  (4) **Der Abweichungsauftrag ist überall als solcher gekennzeichnet** (#243): die
+  Auftragsliste der Instanz zeigt jetzt Name · Objektnummer · Status **und** das gelbe
+  Warnzeichen am Symbol – `InstanceOrderRef` trägt dafür `name`/`reason` (dieselbe
+  Namens-Ableitung wie im Feed).
+  (5) **Dokument-Modul lesbar** (#236, #241): eigene, kühl-graublaue Farbfamilie (die alte
+  war exakt die Flächenfarbe des Fensters – die Karte verschwand darin), und die fertige
+  Deklaration ist EINE Liste (Nr · Name · Aktion · Objektnummer) plus zwei
+  Schlüssel-Wert-Zeilen statt fünf gestapelter Blöcke mit je eigener Überschrift.
+  (6) **Die Sache beim Namen** (#228, #237, #238): «Erfassungsfelder», «Dokumentenfreigabe»,
+  «Leseberechtigung», «Anerkennung» statt Fragen; die zugehörigen ⓘ entfallen (#235, #239).
+  (7) **Ressource** trägt `Blocks` statt `Wrench` (#234): der Schritt setzt BEIDES ein –
+  Material, das verbraucht wird, und Werkzeug, das genutzt wird; der Schraubenschlüssel ist
+  innerhalb der Zeilen genau für den Werkzeug-Modus reserviert. Das Wort «Werkzeug» in der
+  Zeile entfällt (#233 – das Symbol sagt es).
+  (8) **Knöpfe in der Design-Sprache** (#230, #240): `erp-actbtn`/`erp-actbtn-primary` statt
+  lokaler Stile; der Zurück-Kopf im Schritt-Editor ist entfallen (#226, #232 – «Abbrechen»
+  ist der Weg heraus).
+  (9) **Schieberegler hugged seinen Inhalt** (#224/#225): `labelActiveOnly` hat naturgemäss
+  ungleich breite Optionen – der Regler ist darum `inline-flex` und füllt nicht mehr die
+  ganze Spalte.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

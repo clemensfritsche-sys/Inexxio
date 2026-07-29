@@ -90,6 +90,8 @@ class InstanceOrderRef(BaseModel):
 
     object_id: int       # Auftragsnummer (klickbar)
     status: str          # draft | released | completed | inactive
+    name: str = "Auftrag"          # Name des Auftrags (dieselbe Ableitung wie im Feed)
+    reason: Optional[str] = None   # Art des Unter-Auftrags (deviation | supply | …)
     roles: list[str]     # was der Auftrag mit der Instanz tat (z. B. Erzeugt, Datenerfassung)
     at: datetime         # Zeitpunkt (Sortierung/Anzeige)
 
