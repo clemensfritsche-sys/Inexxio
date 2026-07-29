@@ -2177,6 +2177,43 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **Absender je Standort** auf Versandbeleg und Briefkopf (die *Klassifikation* liest den
   echten Standort, der *Beleg* nennt die Firma); **Standort löschen** (bearbeiten genügt
   vorerst – ein Standort mit Bestand bräuchte sonst eine eigene Wirkungsanalyse).
+  - **⚠ Vorfall beim ersten Deploy (und die Lehre daraus).** Der Mehrstandort-Deploy hat
+    das ERP und die öffentliche Website lahmgelegt: der Unternehmens-Datensatz war weg,
+    **kein einziger Instanz-Datensatz** liess sich laden, dazu Impressum, Shop-Konfiguration
+    und Shop-Produkte. Ursache war **nicht** die Fachlogik, sondern eine Deploy-Mechanik,
+    die dieses Projekt längst kennt und für die es eine benannte Vorrichtung gibt:
+    **`start.sh` startet uvicorn ausdrücklich auch dann, wenn Alembic scheitert**
+    («schema fix will run in lifespan»). Das Lifespan-Sicherheitsnetz
+    (`main._COLUMN_SAFETY_NET`) ist dafür der vorgesehene zweite Weg – und dort fehlte
+    `company_settings.is_primary`. Migration 090 lief nicht, das Modell kannte die Spalte
+    trotzdem, und damit endete **jede** Abfrage auf `company_settings` in einem 500.
+    Dass das so weit trägt, liegt an der Rolle der Tabelle: sie wird nicht nur im Admin
+    gelesen, sondern über `locations.location_label` von **jedem Standort-Label** (also
+    dem ganzen Instanz-Feed) und von **unauthentifizierten** Endpunkten (Impressum,
+    Shop). Eine fehlende Spalte hier ist kein ERP-Schluckauf, sondern ein Komplettausfall.
+    **Drei Korrekturen, alle strukturell:** (1) `is_primary` **und** das ebenso fehlende
+    `legal_documents` (Migration 057 – dieselbe Bombe, nur noch nicht gezündet) stehen im
+    Sicherheitsnetz; ein Daten-Fix (`_COMPANY_DATA_FIXES`) setzt danach genau **einen**
+    Hauptsitz und legt den partiellen Unique-Index an – ohne ihn trüge nach dem
+    `ADD COLUMN DEFAULT false` **keine** Zeile die Markierung und die Firma erschiene als
+    blosser «Standort» ohne Rechtsidentität (genau das zweite gemeldete Symptom).
+    (2) **Migration 090 ist idempotent** – repariert das Netz das Schema, versucht Alembic
+    090 beim nächsten Deploy erneut; ohne Wiederholbarkeit liefe sie auf «column already
+    exists» auf, bliebe für immer auf 089 stehen und würde **jede künftige Migration**
+    blockieren. (3) Der Wächter `test_every_company_settings_column_is_in_the_lifespan_
+    safety_net` leitet die Erwartung aus dem **Modell** ab statt aus einer gepflegten
+    Liste: was nicht im Initial-Schema steht, muss im Netz stehen. Er hat `legal_documents`
+    sofort mitgefunden.
+    **Verifiziert, nicht vermutet:** der Vorfall ist gegen echtes PostgreSQL reproduziert
+    (Spalte gezogen → dieselben 500er) und die Heilung bewiesen (echter Lifespan über die
+    kaputte Datenbank → alle zehn Endpunkte wieder 200, Hauptsitz markiert,
+    Rechtsidentität sichtbar, zweiter Hauptsitz von der DB abgewiesen); dazu
+    `alembic stamp 089 && upgrade head` auf dem bereits reparierten Schema plus ein
+    downgrade/upgrade-Zyklus.
+    **Regel für künftige Spalten:** eine neue Spalte auf einer **bestehenden** Tabelle ist
+    erst fertig, wenn sie in der Migration UND im Lifespan-Sicherheitsnetz steht. Die
+    Migration ist die Wahrheit, das Netz der zweite Weg – und beim Ausfall zählt nur der
+    zweite Weg.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

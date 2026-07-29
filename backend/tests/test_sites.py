@@ -176,6 +176,76 @@ def test_company_holder_label_reads_the_addressed_site():
         assert "object_id" in inspect.getsource(fn)
 
 
+# ─── Deploy-Sicherheit: eine neue Spalte darf die Website nicht abschalten ───────
+
+def test_every_company_settings_column_is_in_the_lifespan_safety_net():
+    """Jede nachträglich ergänzte Spalte von ``company_settings`` MUSS im Lifespan-
+    Sicherheitsnetz stehen (``main._COLUMN_SAFETY_NET``).
+
+    **Warum ausgerechnet diese Tabelle.** ``start.sh`` startet uvicorn ausdrücklich auch
+    dann, wenn Alembic scheitert («schema fix will run in lifespan») – das Netz ist also
+    kein Luxus, sondern der vorgesehene zweite Weg. Kennt das Modell eine Spalte, die die
+    Datenbank nicht hat, scheitert **jede** Abfrage auf der Tabelle. Und
+    ``company_settings`` wird nicht nur im ERP gelesen (Standort-Label ⇒ Instanz-Feed,
+    Standort-Kette), sondern auch von **unauthentifizierten** Endpunkten: Impressum,
+    Shop-Konfiguration, Shop-Produkte. Eine fehlende Spalte hier nimmt ERP **und**
+    öffentliche Website mit.
+
+    Genau das ist beim ersten Mehrstandort-Deploy passiert: ``is_primary`` stand im
+    Modell und in Migration 090, aber nicht im Netz – die Migration lief nicht, und der
+    Unternehmens-Datensatz sowie alle Instanzen waren nicht mehr ladbar.
+
+    Der Test leitet die Erwartung aus dem **Modell** ab (nicht aus einer gepflegten
+    Liste): was im Initial-Schema steht, ist immer da; alles Spätere braucht das Netz."""
+    import re
+    from app.main import _COLUMN_SAFETY_NET, _DROP_COLUMN_SAFETY_NET
+    from app.models import CompanySettings
+
+    initial = (APP.parent / "alembic/versions/001_initial_schema.py").read_text(encoding="utf-8")
+    block = initial.split("'company_settings'", 1)[1].split("op.create_table", 1)[0]
+    from_initial = set(re.findall(r"sa\.Column\(\s*'(\w+)'", block))
+    assert "company_name" in from_initial, "Initial-Schema-Block nicht erkannt"
+
+    net = {c for t, c, _ in _COLUMN_SAFETY_NET if t == "company_settings"}
+    dropped = {c for t, c in _DROP_COLUMN_SAFETY_NET if t == "company_settings"}
+    model = set(CompanySettings.__table__.columns.keys())
+
+    missing = sorted(model - from_initial - net - dropped)
+    assert not missing, (
+        "Diese Spalten kennt das Modell, aber das Lifespan-Sicherheitsnetz nicht – "
+        f"scheitert Alembic, sind ERP UND Website tot: {missing}\n"
+        "→ in main._COLUMN_SAFETY_NET eintragen."
+    )
+
+
+def test_migration_090_is_repeatable():
+    """Die Migration muss ein zweites Mal laufen können.
+
+    Repariert das Lifespan-Netz das Schema (weil Alembic scheiterte), steht Alembic
+    weiterhin auf 089 und versucht 090 beim nächsten Deploy erneut. Wäre sie nicht
+    wiederholbar, liefe sie auf «column already exists» auf – und bliebe für immer
+    stehen, womit **jede künftige Migration** blockiert wäre."""
+    migration = (APP.parent / "alembic/versions/090_multi_site.py").read_text(encoding="utf-8")
+    tree = ast.parse(migration)
+    code = ast.unparse(next(n for n in tree.body if getattr(n, "name", None) == "upgrade"))
+    assert "get_columns('company_settings')" in code, "ADD COLUMN muss auf Vorhandensein prüfen"
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS" in code
+    assert "NOT EXISTS (SELECT 1 FROM company_settings WHERE is_primary)" in code
+
+
+def test_lifespan_marks_exactly_one_primary_after_adding_the_column():
+    """Spalte ergänzen genügt nicht: mit Default ``false`` trägt danach KEINE Zeile die
+    Markierung. Ohne den Daten-Fix zeigte die Oberfläche die Firma als blossen
+    «Standort» ohne Rechtsidentität."""
+    from app.main import _COMPANY_DATA_FIXES
+
+    joined = " ".join(_COMPANY_DATA_FIXES)
+    assert "UPDATE company_settings SET is_primary = true" in joined
+    assert "min(id)" in joined                       # die älteste Zeile ist die Firma
+    assert "NOT EXISTS" in joined                    # wiederholbar, überschreibt nichts
+    assert "CREATE UNIQUE INDEX IF NOT EXISTS" in joined
+
+
 def test_no_syntax_errors_in_touched_modules():
     """Billiger Rundum-Schutz: alle angefassten Module parsen."""
     for rel in ("services/sites.py", "services/locations.py", "services/logistics.py",
