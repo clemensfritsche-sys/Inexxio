@@ -20,7 +20,7 @@ import type { StatusAction } from '@/lib/status-flow';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import { fmtObjId } from '@/components/erp/user-detail';
-import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderSep } from '@/components/erp/fields';
+import { ErrorText, SaveIndicator, IconSwitch, StatusBadge, DetailHeader, HeaderSep, SPEC, ReadField } from '@/components/erp/fields';
 import { ProcessSteps } from '@/components/erp/process-steps';
 import { InstanceList } from '@/components/erp/instance-list';
 import { SalesPanel } from '@/components/erp/sales-panel';
@@ -320,10 +320,8 @@ export function ArticleDetail({ record, suppliers = [], onSaved, onCancel, onBac
         objectId={isCreate ? null : record.object_id}
         objectIdText={isCreate ? 'wird vergeben' : undefined}
         onBack={onBack}
-        right={<div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <SaveIndicator saving={saving} flash={flash} />
-          <StatusBadge cfg={statusCfg} />
-        </div>}
+        status={statusCfg}
+        right={<SaveIndicator saving={saving} flash={flash} />}
         actions={!isCreate && record.object_id != null ? (
           <>
             <HeaderSep />
@@ -577,15 +575,6 @@ const SERIAL_PICK = [
   { value: 'unit', label: 'Einzelteil', icon: Fingerprint },
   { value: 'batch', label: 'Charge', icon: Layers },
 ];
-const SPEC = {
-  // Design `.card`: warme Fläche, Haarlinie, sanfter Schatten, 20-px-Radius.
-  // Polsterung wächst mit dem Schirm: auf einem 360-px-Telefon fressen feste 30 px an
-  // jeder Seite ein Sechstel der Breite (Notiz #181).
-  card: { background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-sm)', padding: 'clamp(16px, 4vw, 30px)' } as React.CSSProperties,
-  // Design `.rgrid`: auto-fit-Werteraster; `min(100%, …)` kollabiert auf Mobile sauber.
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '22px clamp(18px, 4vw, 40px)' } as React.CSSProperties,
-};
-
 // Design `.grid2`: Zwei-Spalten-Raster für gepaarte Eingaben (Einheit/Serialisierung,
 // Abmessungen/Gewicht) – kollabiert auf Mobile auf eine Spalte.
 const GRID2: React.CSSProperties = {
@@ -711,10 +700,6 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   );
 }
 
-function linkHost(href: string): string {
-  try { return new URL(href).hostname.replace(/^www\./, ''); } catch { return href; }
-}
-
 // ── Abgeleitete Kennzahlen: der MEDIAN trägt die Aussage ────────────────────────
 // Ein einzelner Eil-Auftrag oder eine Kleinstmenge zu Apothekerpreisen zieht einen
 // Mittelwert weg – der Median bleibt bei dem, was üblich ist (Backend:
@@ -741,45 +726,6 @@ function costSpread(r: Article): string | undefined {
   const lo = r.unit_cost_low; const hi = r.unit_cost_high;
   if (lo == null || hi == null || Number(lo) === Number(hi)) return undefined;
   return `tiefster ${fmtChf(lo)} · höchster ${fmtChf(hi)} CHF`;
-}
-
-// Read-only-Feld (Design-`.frow`): kleines Symbol + Versalien-Overline + kräftiger Wert.
-// Optional Einheit/mono, Link («Öffnen») oder ⓘ-Auto-Hinweis (abgeleiteter Wert).
-function ReadField({ icon: Icon, label, value, unit, mono, full, autoHint, spread, link }: {
-  icon?: React.ElementType; label: string; value?: React.ReactNode; unit?: string;
-  mono?: boolean; full?: boolean; autoHint?: string; spread?: string; link?: string;
-}) {
-  return (
-    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', gridColumn: full ? '1 / -1' : undefined }}>
-      {Icon && (
-        <span style={{ width: 22, height: 22, color: 'var(--fg-4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', marginTop: 2 }}>
-          <Icon size={18} />
-        </span>
-      )}
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: '700 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.07em', color: 'var(--fg-4)', display: 'flex', alignItems: 'center', gap: 5 }}>
-          {label}
-          {autoHint && <span style={{ display: 'inline-flex', color: 'var(--fg-4)', cursor: 'help' }} data-tip={autoHint}><Sparkles size={12} /></span>}
-        </div>
-        {link ? (
-          <a href={link} target="_blank" rel="noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, font: '600 14.5px var(--font-body)', color: 'var(--accent-ink)' }}>
-            {linkHost(link)} <ExternalLink size={13} />
-          </a>
-        ) : (
-          <div style={{ font: '600 15.5px var(--font-body)', color: 'var(--fg-1)', marginTop: 6, lineHeight: 1.35, overflowWrap: 'anywhere', ...(mono ? { fontFamily: 'var(--font-mono)', fontVariantNumeric: 'tabular-nums', fontSize: 14.5 } : null) }}>
-            {value}{unit && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-3)', marginLeft: 3 }}>{unit}</span>}
-          </div>
-        )}
-        {/* Spanne: bewusst leiser als der Median – sie ordnet ein, sie ist nicht die Aussage. */}
-        {spread && (
-          <div style={{ marginTop: 4, font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', fontVariantNumeric: 'tabular-nums' }}>
-            {spread}
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // Eingabe-Feld (Entwurf): Overline-Label + `.fin`-Input + Fehler/Hinweis.

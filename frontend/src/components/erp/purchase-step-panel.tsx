@@ -108,15 +108,15 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
     // Mitarbeiter (Besteller) & Webshop → direkt bestellen (Summe selbst erfassen);
     // nur der externe Lieferant offeriert (→ quoted), woraufhin der Besteller bestellt.
     actions.push(isStaff || isWebshop
-      ? { label: 'Bestellen', target: 'ordered', variant: 'primary', needsTotal: true }
-      : { label: 'Offerte senden', target: 'quoted', variant: 'primary', needsTotal: true });
+      ? { label: 'Bestellt', target: 'ordered', variant: 'primary', needsTotal: true }
+      : { label: 'Offeriert', target: 'quoted', variant: 'primary', needsTotal: true });
   }
   if (s === 'quoted' && isBuyer) {
-    actions.push({ label: 'Bestellen', target: 'ordered', variant: 'primary' });
+    actions.push({ label: 'Bestellt', target: 'ordered', variant: 'primary' });
     actions.push({ label: 'Ablehnen', target: 'rejected', variant: 'danger' });
   }
   if (s === 'ordered' && isBuyer) {
-    actions.push({ label: 'Lieferung bestätigen', target: 'received', variant: 'primary' });
+    actions.push({ label: 'Geliefert', target: 'received', variant: 'primary' });
   }
 
   // Mehrpositionen: jede Aktion muss die betroffene Position (Artikel) benennen –
@@ -336,11 +336,17 @@ function PurchaseLine({ order, po, stepId, viewerRole, company, onOrderUpdated, 
   );
 }
 
+/**
+ * **Die Stufe, auf der man steht, sagt was zu TUN ist; die dahinter, was GESCHEHEN ist**
+ * (Notizen #271/#272/#275). Vorher hiess auch die aktive Stufe wie ein Status («Bestellt»),
+ * obwohl dort noch nichts bestellt war. Die Knöpfe tragen den erreichten Zustand – man
+ * hakt die Stufe ab.
+ */
 const FLOW = [
-  { key: 'requested', label: 'Angefragt' },
-  { key: 'quoted', label: 'Offeriert' },
-  { key: 'ordered', label: 'Bestellt' },
-  { key: 'received', label: 'Geliefert' },
+  { key: 'requested', verb: 'Anfragen', label: 'Angefragt' },
+  { key: 'quoted', verb: 'Offerieren', label: 'Offeriert' },
+  { key: 'ordered', verb: 'Bestellen', label: 'Bestellt' },
+  { key: 'received', verb: 'Wareneingang', label: 'Geliefert' },
 ] as const;
 
 function hint(h: Hist | undefined): string | undefined {
@@ -361,12 +367,11 @@ function buildNodes(status: string, isWebshop: boolean, hist: Record<string, His
   const ci = flow.findIndex((f) => f.key === status);
   // Im Webshop ist „requested" der Zustand vor „Bestellt" → erster Knoten aktiv
   const current = isWebshop && status === 'requested' ? 0 : ci;
-  return flow.map((f, i) => ({
-    key: f.key,
-    label: f.label,
-    state: i < current ? 'done' : i === current ? (status === 'received' ? 'done' : 'active') : 'pending',
-    hint: hint(hist[f.key]),
-  }));
+  return flow.map((f, i) => {
+    const state: PNode['state'] = i < current ? 'done'
+      : i === current ? (status === 'received' ? 'done' : 'active') : 'pending';
+    return { key: f.key, label: state === 'active' ? f.verb : f.label, state, hint: hint(hist[f.key]) };
+  });
 }
 
 function Card({ children }: { children: React.ReactNode }) {

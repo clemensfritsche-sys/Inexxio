@@ -155,7 +155,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     }
   }
 
-  const StatusIcon = status.icon;
 
   return (
     <div className="flex flex-col h-full bg-bg-1" style={{ color: 'var(--fg-1)' }}>
@@ -164,9 +163,7 @@ export function InstanceDetail({ record, onBack, onChanged }: {
         icon={Boxes} iconBg="#E9EDEC" iconFg="#5E6B66"
         eyebrow="Instanz" title={instanceName(inst)} objectId={inst.object_id ?? null}
         onBack={onBack}
-        right={<span style={{ ...S.statusbig, background: status.bg, color: status.color }}>
-          {StatusIcon && <StatusIcon size={15} strokeWidth={2.5} />}{status.label}
-        </span>}
+        status={status}
         actions={<>
           <HeaderSep />
           <button className="erp-idbtn" data-tip="Etikett drucken (QR)" data-tip-pos="bottom" aria-label="Etikett drucken"
@@ -333,7 +330,6 @@ function Tile({ icon, label, hint, value, sub, subMono, wide, onClick }: {
 
 // ── Styles (Inexxio Design System Tokens via CSS-Vars) ─────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  statusbig: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 13px', borderRadius: 'var(--r-pill)', font: '600 13.5px var(--font-body)', whiteSpace: 'nowrap' },
   devErr: { marginTop: 12, padding: '8px 12px', borderRadius: 'var(--r-sm)', background: 'var(--danger-bg)', color: 'var(--danger)', font: '500 12.5px var(--font-body)' },
   // Zentriert (nicht linksbündig): auf einem breiten Schirm klebte der Inhalt sonst am
   // linken Rand. Gilt für ALLE Reiter – der Rumpf ist EIN Container.

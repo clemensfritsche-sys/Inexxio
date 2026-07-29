@@ -5,7 +5,7 @@ import type { LocationType, Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, LOCATION_META } from '@/lib/process';
 import { unitLabel } from '@/lib/article';
 import { ObjId } from '@/components/erp/obj-id';
-import { StatusBadge, TileShell } from '@/components/erp/fields';
+import { ReadField, StatusBadge } from '@/components/erp/fields';
 
 /**
  * **Was dieser Auftrag betrifft – in EINER Aufstellung.**
@@ -29,36 +29,40 @@ export function OrderPositions({ order }: { order: Order }) {
 
   // **Ruhig und ausgerichtet** (Notiz #176): keine grossen Schriftgrade, sondern EIN Raster
   // über alle Zeilen – Objektnummer links, Bezeichnung in der Mitte, Zahl bzw. Zustand
-  // rechts. Was Struktur schafft, ist die Ausrichtung, nicht die Schriftgrösse. Die Kachel
-  // erbt darum bewusst NICHT `TILE.v` (18 px/700), sondern beginnt bei der Lesegrösse.
+  // rechts. Was Struktur schafft, ist die Ausrichtung, nicht die Schriftgrösse.
+  //
+  // Die Aufstellung steht als **Lesefeld in der Spezifikations-Karte** (Notiz #267) – Symbol
+  // + Versalien-Label + Inhalt, exakt wie «Wunsch-Liefertermin» daneben. Ihre frühere eigene
+  // Kachel wäre dort eine Karte in der Karte gewesen.
   return (
-    <TileShell
+    <ReadField
       icon={Boxes}
       label={onlyInstances ? 'Instanzen' : groups.length === 1 ? 'Position' : 'Positionen'}
-      style={{ gridColumn: '1 / -1' }}
-    >
-      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column' }}>
-        {groups.map((g, gi) => (
-          <div key={g.key} style={gi > 0 ? groupSep : undefined}>
-            {g.name && (
-              <div style={rowGrid}>
-                {g.articleObjectId != null ? <ObjId value={g.articleObjectId} /> : <span />}
-                <span style={nameStyle}>{g.name}</span>
-                <span style={qtyStyle}>
-                  {g.quantity != null ? <>{g.quantity}{g.unit && <span style={unitStyle}>{g.unit}</span>}</> : null}
-                </span>
-              </div>
-            )}
+      full
+      value={
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {groups.map((g, gi) => (
+            <div key={g.key} style={gi > 0 ? groupSep : undefined}>
+              {g.name && (
+                <div style={rowGrid}>
+                  {g.articleObjectId != null ? <ObjId value={g.articleObjectId} /> : <span />}
+                  <span style={nameStyle}>{g.name}</span>
+                  <span style={qtyStyle}>
+                    {g.quantity != null ? <>{g.quantity}{g.unit && <span style={unitStyle}>{g.unit}</span>}</> : null}
+                  </span>
+                </div>
+              )}
 
-            {g.instances.length > 0 && (
-              <div style={g.name ? nestStyle : undefined}>
-                {g.instances.map((i) => <InstanceLine key={i.id} instance={i} unit={g.unit} />)}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </TileShell>
+              {g.instances.length > 0 && (
+                <div style={g.name ? nestStyle : undefined}>
+                  {g.instances.map((i) => <InstanceLine key={i.id} instance={i} unit={g.unit} />)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      }
+    />
   );
 }
 
@@ -71,7 +75,10 @@ export function OrderPositions({ order }: { order: Order }) {
  */
 function InstanceLine({ instance: i, unit }: { instance: OrderInstance; unit: string }) {
   const Icon = LOCATION_META[(i.location_type as LocationType)]?.icon ?? MapPin;
-  const qty = i.kind === 'batch' && i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
+  // Die Menge steht bei JEDER Instanz (Notiz #265): bei einer Charge trägt sie die
+  // eigentliche Information, beim Einzelstück schafft sie Einheitlichkeit – man sucht
+  // die Angabe nicht mal hier, mal dort.
+  const qty = i.quantity != null ? `${i.quantity} ${unit}`.trim() : null;
   return (
     <div style={rowGrid}>
       <ObjId value={i.object_id} />

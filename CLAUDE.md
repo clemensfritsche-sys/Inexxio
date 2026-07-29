@@ -2015,6 +2015,40 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (10) Kleineres: Tracking-Platzhalter «Tracking-Nummer» (#252). *#244/#245 (Unternehmens-Kopf
   und Status-Farbe) waren mit dem gemeinsamen `DetailHeader` aus Runde 16 bereits erledigt.*
 
+- **Testnotizen-Runde 18 (Ausschleusen, eine Spezifikations-Karte, Notizen #263–#277)**:
+  (1) **«Verschrotten» und «Sperren» sind EIN Modul «Ausschleusen»** (#277): Beide beantworten
+  dieselbe Frage – *dieses Teil darf so nicht weiter* – und unterscheiden sich nur in der
+  **Endgültigkeit**. Zwei Paletten-Einträge zwangen zu dieser Entscheidung, bevor man den
+  Fall überhaupt beschrieben hatte. Jetzt gibt es einen roten Eintrag (`PackageX`); die
+  Wirkung wählt ein `IconSwitch` **im Editor** (Verschrotten = endgültig, standortlos ↔
+  Sperren = aufhebbar, bleibt liegen), und der **Grund ist bei beiden Pflicht** (#255) –
+  warum etwas ausgeschleust wurde, ist die eigentliche Information des Schritts. Datenmodell
+  unverändert: es bleiben zwei Schritttypen mit zwei Polaritäten (`DECREASE` ↔ `NEUTRAL`),
+  nur die Oberfläche fasst sie zusammen. **Die Labels stehen dabei weiter in der Registry**
+  (`domain/event_types.py`) – der Mirror-Test hat den Alleingang im Frontend prompt gemeldet,
+  also sind auch «Beschaffen» (#274) und «Ausschleusen» dort umbenannt.
+  (2) **Die Auftragsspezifikation ist EINE Karte** (#267, `fields.SPEC` + `fields.ReadField`):
+  Sie stand als drei lose Kacheln nebeneinander, während der Artikel seine Angaben auf EINEM
+  Blatt zeigt – zwei Formensprachen für dieselbe Sache. Karte, Werteraster und Lesefeld sind
+  aus `article-detail.tsx` ins gemeinsame Vokabular gewandert; `OrderPositions` rendert
+  seitdem als Lesefeld (volle Breite) statt als eigene Kachel, sonst wäre es eine Karte in
+  der Karte. `specGrid`/`SpecTile` sind entfallen.
+  (3) **Objektnummern ohne Tausender-Trennung** (#263, `lib/utils.formatObjectId`): eine
+  Objektnummer ist eine **Kennung**, keine Menge – `100'000'451` liest sich als Betrag. EINE
+  Formatierung (9-stellig, führende Nullen), die alle Ansichten teilen.
+  (4) **Der Kopf ist überall derselbe – auch im Detail** (#264/#268): `DetailHeader` rendert
+  die Status-Badge jetzt **selbst** (`status`-Prop), statt sie den Aufrufern zu überlassen;
+  damit kann keine Ansicht mehr eine eigene Grösse wählen (die Instanz hatte eine grössere
+  Pille). Der `right`-Slot trägt nur noch Zusätze (Speicher-Anzeige, «Abbrechen»).
+  (5) **Der Beschaffungs-Ablauf benennt Tun und Zustand getrennt** (#271/#272/#275): der
+  **aktive** Knoten trägt das Verb («Bestellen»), die erreichten Stufen den Zustand
+  («Bestellt») – vorher hiess dieselbe Stufe beides. Wer/Wann steht im Hover (#276), der
+  Arbeitsbereich der aktiven Stufe ist eine weisse Fläche im Modulrahmen (#273).
+  (6) **Erfolgsmeldungen entfallen** (#266): dass ein Schritt erledigt ist, sagt seine Karte
+  im Fluss (Symbol + Wer/Wann im Hover) – ein grünes Banner im Panel sagte es ein zweites Mal.
+  (7) Kleineres: Menge bei **jeder** Instanz (#265 – Einheitlichkeit statt «mal hier, mal
+  dort»), Startknoten auch beim leeren Prozess (#269), «Prozess des Artikels» entfällt (#270).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

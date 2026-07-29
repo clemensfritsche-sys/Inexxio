@@ -108,7 +108,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
         eyebrow="Unternehmen" title={(v('company_name') as string) || null}
         objectId={record.object_id} onBack={onBack}
-        right={<StatusBadge cfg={{ label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }} />}
+        status={{ label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }}
       >
         <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
