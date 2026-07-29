@@ -2049,6 +2049,59 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (7) Kleineres: Menge bei **jeder** Instanz (#265 – Einheitlichkeit statt «mal hier, mal
   dort»), Startknoten auch beim leeren Prozess (#269), «Prozess des Artikels» entfällt (#270).
 
+- **Mehrstandort – Schritt 1: «das Unternehmen» wird zu «die Standorte»** (Juli 2026,
+  Migration `090`, Variante A): Ein Betrieb kann Aussenstellen haben. Umgesetzt ist bewusst
+  nur das **Fundament**; Bestand, Rechte und Bedarf bleiben unverändert (siehe unten).
+  **Eine Spalte, keine neue Tabelle.** `company_settings` war ein Singleton (`id == 1`) und
+  trägt jetzt n Zeilen – eine je Standort. Das ist deshalb so billig, weil ein Standort im
+  Modell längst existierte: `instances.location_type='company'` zeigt auf eine **Objektnummer**,
+  und `locations.location_label`/`location_chain` lösen sie darüber auf. Es gab bloss immer
+  nur eine davon.
+  **Was einmal gilt und was je Standort gilt, ist eine Frage der Schreibstelle, nicht der
+  Tabelle:** der **Hauptsitz** (`is_primary`, partieller Unique-Index = genau EINER) trägt die
+  **Rechtsidentität** (UID/MWST/HR/Aktienkapital/IBAN/Rechtsform) und die **Systemkonfiguration**
+  (Stripe, Shop-Währungen, Rechtstexte, Plausible, Maps); **jeder** Standort trägt Name,
+  Anschrift, Kontakt (`sites.SITE_FIELDS`, gespiegelt von `schemas/admin.SiteBase` – der
+  Abgleich ist getestet). Ein Nebenstandort kann eine UID gar nicht erst annehmen; sonst
+  stünde dieselbe Angabe an n Stellen.
+  **Die eine Auflösung ist `services/sites.py`** – in zwei Formen derselben Regel (wie
+  `inventory.is_in_stock` neben `in_stock_clauses`): `primary()` schreibend (legt an, vergibt
+  die Objektnummer), `find_primary()` **rein lesend** – Pflicht in fremden Transaktionen
+  (Preis-Pipeline, Shop-Konfig, Provider-Wahl, PDF-Briefkopf), wo ein `commit` die halbfertige
+  Arbeit des Aufrufers festschreiben würde. `admin.get_or_create_settings` delegiert nur noch
+  dorthin, **keine Aufrufstelle ändert sich**.
+  **Der eigentliche Bug, den das behebt:** zehn Stellen holten sich «die Firma» selbst – mal
+  `id == 1`, mal ein blosses `.first()`. Bei einer Zeile war beides dasselbe; ab der zweiten
+  ist `.first()` eine **willkürliche Wahl**. Am schwersten wog `logistics.target_address`: sie
+  hätte JEDEM Standort-Ziel die Adresse des Hauptsitzes gegeben – Quelle und Ziel sähen für
+  `classify_movement` gleich aus, und ein Transport Werk A → Werk B ginge still als
+  «innerbetrieblich» durch statt als Versand mit Tarif und Label. Sie löst jetzt über die
+  **Objektnummer** auf; ein Wächter hält das fest (`tests/test_sites.py`).
+  **Damit fällt Mehrstandort aus der bestehenden Regel heraus, statt eine zweite zu brauchen:**
+  der Zweig «zwei interne Orte mit **unterschiedlicher** Adresse → Versand» (ADR 005) war
+  gebaut und toter Code – er ist jetzt lebendig. Gegen echtes Postgres verifiziert: Hauptsitz →
+  Werk Nord = `outside` (Empfehlung Paket), Hauptsitz → Hauptsitz = `inside`. Ein Standort
+  **ohne** Anschrift ist gültig, aber logistisch stumm (bleibt innerbetrieblich) – das Detail
+  sagt es (`SiteResponse.has_address`), statt es raten zu lassen.
+  **Nummernkreis unverändert global** – die Objektnummer ist eine *Identität*, kein
+  Belegnummernkreis; je-Standort-Kreise würden `resolve_object_type`, den QR-Scan und
+  `references.object_references` (globale Eindeutigkeit) zerlegen. Ein neuer Standort bekommt
+  eine ganz normale Nummer aus `object_id_seq` und ist damit sofort **Halter**.
+  **Migration ohne Datenumzug:** die vorhandene Zeile *wird* der Hauptsitz, ihre Objektnummer
+  bleibt gültig – keine Zeile in `instances`/`orders`/`shipments` wird angefasst.
+  **Oberfläche:** je Standort eine Feed-Zeile (Typ `organization`, admin-only wie bisher),
+  «+ Standort» im FAB (nur Admin), und EIN Detailfenster in zwei Ausprägungen – Hauptsitz mit
+  Rechtsidentität/Bank/MWST/Integrationen, Nebenstandort mit Name/Anschrift/Kontakt.
+  Endpunkte `GET/POST /admin/sites`, `PATCH /admin/sites/{object_id}` (alle **Admin**).
+  *Bewusst NICHT gebaut (kommt in späteren Schritten):* **standort-getrennter Bestand** – FIFO
+  bleibt EIN Topf über alle Standorte (liegt das Teil falsch, ist das ein Transport, kein
+  Fehlbestand); **Standort-Rechte** – Personal sieht weiterhin alles, der Standort ist
+  Anzeige, keine Berechtigungsgrenze; **`site_id` am Prozessschritt/Auftrag** (der Bedarf
+  kennt seinen Standort noch nicht, Wareneingang und Lieferadresse sind fest der Hauptsitz);
+  **Absender je Standort** auf Versandbeleg und Briefkopf (die *Klassifikation* liest den
+  echten Standort, der *Beleg* nennt die Firma); **Standort löschen** (bearbeiten genügt
+  vorerst – ein Standort mit Bestand bräuchte sonst eine eigene Wirkungsanalyse).
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

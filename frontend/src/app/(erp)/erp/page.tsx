@@ -7,7 +7,7 @@ import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { userName, articleName, orderName, instanceName, organizationName } from '@/lib/record-name';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile, ErpRecordType } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderSummary, Site, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
 import { statusConfig } from '@/lib/article';
 import { orderStatusConfig } from '@/lib/order';
@@ -36,7 +36,7 @@ type Row =
   | { type: 'article'; key: string; objectId: number | null; data: Article }
   | { type: 'order'; key: string; objectId: number | null; data: OrderSummary }
   | { type: 'instance'; key: string; objectId: number | null; data: Instance }
-  | { type: 'organization'; key: string; objectId: number | null; data: CompanySettings };
+  | { type: 'organization'; key: string; objectId: number | null; data: Site };
 
 // Der Name eines Datensatzes kommt aus der EINEN Ableitung (`lib/record-name`) – nie steht
 // hier der Typ (den sagt das Symbol). `null` = noch ohne Namen (Notiz #177).
@@ -152,6 +152,9 @@ export default function ErpPage() {
   // (funktioniert auch für Instanzen, die (noch) nicht im Feed geladen sind).
   const [instanceDetail, setInstanceDetail] = useState<Instance | null>(null);
   const [settings, setSettings] = useState<Partial<CompanySettings> | null>(null);
+  // Standorte (Mehrstandort): der Hauptsitz + jede Aussenstelle, je als eigener
+  // ERP-Datensatz vom Typ `organization`. Admin-only, wie bisher der Unternehmens-Eintrag.
+  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<ErpRecordType | null>(null);
@@ -186,6 +189,8 @@ export default function ErpPage() {
       if (me.status === 'fulfilled') {
         setIsAdmin(me.value.role === 'admin');
         setViewerRole(me.value.role === 'admin' || me.value.role === 'employee' ? 'staff' : 'supplier');
+        // Standorte erst laden, wenn die Rolle feststeht – der Endpunkt ist admin-only.
+        if (me.value.role === 'admin') api.getSites().then(setSites).catch(() => {});
       }
       setLoading(false);
     });
@@ -296,11 +301,12 @@ export default function ErpPage() {
   useEffect(() => { setVisibleCount(50); }, [typeFilter, search]);
 
   const rows: Row[] = [
-    // Das Unternehmen ist ein nummerierter ERP-Datensatz – nur für Admins sichtbar
-    // (Firmen-/Bank-/API-Konfiguration ist sensibel).
-    ...(isAdmin && settings?.object_id
-      ? [{ type: 'organization', key: 'org', objectId: settings.object_id, data: settings } as Row]
-      : []),
+    // Jeder **Standort** ist ein nummerierter ERP-Datensatz – nur für Admins sichtbar
+    // (der Hauptsitz trägt Firmen-/Bank-/API-Konfiguration, und wer Standorte anlegen
+    // darf, ist ohnehin auf Admin beschränkt).
+    ...sites.map((s): Row => ({
+      type: 'organization', key: `org${s.object_id}`, objectId: s.object_id, data: s,
+    })),
     ...users.map((u): Row => ({ type: 'user', key: `u${u.id}`, objectId: u.object_id, data: u })),
     ...articles.map((a): Row => ({ type: 'article', key: `a${a.id}`, objectId: a.object_id, data: a })),
     ...orders.map((o): Row => ({ type: 'order', key: `o${o.id}`, objectId: o.object_id, data: o })),
@@ -398,6 +404,27 @@ export default function ErpPage() {
     setSel(null);
     setCreating(type);
     setMobileView('detail');
+  }
+
+  function handleSiteSaved(s: Site) {
+    setSites((prev) => prev.map((x) => (x.object_id === s.object_id ? s : x)));
+    // Der Hauptsitz ist zugleich «die Firma» – Absender und Briefkopf hängen an ihm,
+    // also die im Fenster mitgeführte Firmenangabe nachziehen.
+    if (s.is_primary) api.getPublicSettings().then(setSettings).catch(() => {});
+  }
+
+  /** Neuer Standort (nur Admin). Er entsteht sofort als Datensatz mit Objektnummer –
+   *  ein leeres Anlage-Formular gäbe es sonst nur hier, überall sonst legt das ERP
+   *  direkt an und man füllt danach aus. */
+  async function createSite() {
+    setPlusOpen(false);
+    try {
+      const s = await api.createSite({ company_name: 'Neuer Standort' });
+      setSites((prev) => [...prev, s]);
+      setCreating(null);
+      if (s.object_id != null) setSel({ type: 'organization', objectId: s.object_id });
+      setMobileView('detail');
+    } catch { /* Fehler zeigt das Detailfenster beim Speichern – hier kein Blocker */ }
   }
 
   function handleArticleSaved(a: Article) {
@@ -548,6 +575,12 @@ export default function ErpPage() {
                   <button onClick={() => startCreate('order')} style={menuItemStyle}>
                     <ClipboardList size={15} style={{ color: 'var(--fg-3)' }} /> Auftrag
                   </button>
+                  {/* Standorte anlegen ist bewusst Admin-Sache (fix vorgegeben). */}
+                  {isAdmin && (
+                    <button onClick={createSite} style={menuItemStyle}>
+                      <Building2 size={15} style={{ color: 'var(--fg-3)' }} /> Standort
+                    </button>
+                  )}
                 </div>
               )}
               <button
@@ -602,7 +635,7 @@ export default function ErpPage() {
           )}
           {!creating && activeRow?.type === 'organization' && (
             <OrganizationDetail key={activeRow.key} record={activeRow.data}
-              onSaved={(s) => setSettings(s)} onBack={() => setMobileView('list')} />
+              onSaved={handleSiteSaved} onBack={() => setMobileView('list')} />
           )}
           {!hasDetail && (
             <div className="flex-1 flex flex-col items-center justify-center bg-bg-2">

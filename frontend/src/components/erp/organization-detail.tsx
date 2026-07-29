@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, FileText, Phone, Landmark, ReceiptText, Globe2, Key, Server, Sparkles, CreditCard, Coins, FolderOpen  } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { CompanySettings, OperatingCosts } from '@/types';
+import type { CompanySettings, OperatingCosts, Site, SiteInput } from '@/types';
 import { Field, Sec } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
@@ -31,17 +31,53 @@ function splitStreet(line: string): [string, string] {
 
 type OrgTab = 'stamm' | 'docs';
 
+/** Aus einem (Teil-)Formular die reinen **Standortfelder** ziehen – der Gegenweg zu
+ *  `siteAsBase`. Nur gesetzte Schlüssel wandern mit, damit ein PATCH nie Felder nullt,
+ *  die gar nicht angefasst wurden. */
+function siteFieldsOf(s: Partial<CompanySettings>): SiteInput {
+  const out: SiteInput = {};
+  if ('company_name' in s) out.company_name = s.company_name ?? '';
+  if ('street' in s) out.street = s.street ?? null;
+  if ('street_number' in s) out.street_number = s.street_number ?? null;
+  if ('zip' in s) out.zip = s.zip ?? null;
+  if ('city' in s) out.city = s.city ?? null;
+  if ('country' in s) out.country = s.country ?? null;
+  if ('email' in s) out.email = s.email ?? null;
+  if ('phone' in s) out.phone = s.phone ?? null;
+  return out;
+}
+
+/** Die Felder, die ein Standort mit dem Unternehmens-Datensatz **teilt** – mehr trägt ein
+ *  Nebenstandort nicht. So kann dieselbe Maske beide rendern, ohne zwei Formulare. */
+function siteAsBase(s: Site): Partial<CompanySettings> {
+  return {
+    object_id: s.object_id, company_name: s.company_name,
+    street: s.street ?? '', street_number: s.street_number,
+    zip: s.zip ?? '', city: s.city ?? '', country: s.country ?? '',
+    email: s.email ?? '', phone: s.phone,
+  };
+}
+
 /**
- * Detailansicht des **Unternehmens** als vollwertiger ERP-Datensatz – im **gleichen
+ * Detailansicht eines **Standorts** als vollwertiger ERP-Datensatz – im **gleichen
  * Layout wie die Benutzer-Detailseite** (Kopf mit Objektnummer, Sektions-Karten mit
- * Feld-Raster, Speicherleiste). Die Firmen-/ERP-Konfiguration wird hier – statt in den
- * Profileinstellungen – gepflegt (admin-geschützt).
+ * Feld-Raster, Speicherleiste).
+ *
+ * **Ein Fenster, zwei Ausprägungen** – der Unterschied ist keine zweite Ansicht, sondern
+ * schlicht, wie viel es zu zeigen gibt:
+ *
+ *   * **Hauptsitz** (`is_primary`): zusätzlich Rechtsidentität, Bank, MWST, Integrationen
+ *     und Rechtstexte – die Firmen-/ERP-Konfiguration wird hier gepflegt (admin-geschützt).
+ *   * **Nebenstandort**: Name, Anschrift, Kontakt. Nicht weil «weniger wichtig», sondern
+ *     weil es eine UID nur EINMAL gibt; sie an n Standorten editierbar zu machen, wäre
+ *     dieselbe Angabe an n Stellen.
  */
 export function OrganizationDetail({ record, onSaved, onBack }: {
-  record: CompanySettings;
-  onSaved: (s: CompanySettings) => void;
+  record: Site;
+  onSaved: (s: Site) => void;
   onBack: () => void;
 }) {
+  const isPrimary = record.is_primary;
   const [settings, setSettings] = useState<CompanySettings | null>(null);
   const [form, setForm] = useState<Partial<CompanySettings>>({});
   const [dirty, setDirty] = useState(false);
@@ -59,11 +95,14 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   }
 
   useEffect(() => {
-    setForm({}); setDirty(false); setError(null);
-    api.getSettings().then(setSettings).catch(() => setSettings(record));
-  }, [record]);
+    setForm({}); setDirty(false); setError(null); setSettings(null);
+    // Nur der Hauptsitz hat mehr zu zeigen, als der Datensatz selbst schon trägt –
+    // für einen Nebenstandort gibt es nichts nachzuladen.
+    if (!isPrimary) return;
+    api.getSettings().then(setSettings).catch(() => setSettings(null));
+  }, [record, isPrimary]);
 
-  const base = settings ?? record;
+  const base: Partial<CompanySettings> = settings ?? siteAsBase(record);
   function v(key: keyof CompanySettings): string | boolean | null | undefined {
     if (key in form) return form[key] as string | boolean | null | undefined;
     return base[key] as string | boolean | null | undefined;
@@ -77,9 +116,15 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   async function save() {
     setSaving(true); setError(null);
     try {
-      const updated = await api.updateSettings(form);
-      setSettings(updated);
-      onSaved(updated);
+      if (isPrimary) {
+        // Der Hauptsitz läuft über die Firmeneinstellungen – dort sitzt u. a. die
+        // IBAN-Sonderbehandlung. Die Standortfelder gehen denselben Weg mit.
+        const updated = await api.updateSettings(form);
+        setSettings(updated);
+        onSaved({ ...record, ...siteFieldsOf(updated) });
+      } else if (record.object_id) {
+        onSaved(await api.updateSite(record.object_id, siteFieldsOf(form)));
+      }
       setForm({}); setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
@@ -106,9 +151,10 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Kopf – die EINE Anatomie aller Datensatz-Fenster (`DetailHeader`, Notiz #242). */}
       <DetailHeader
         icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
-        eyebrow="Unternehmen" title={(v('company_name') as string) || null}
+        eyebrow={isPrimary ? 'Unternehmen' : 'Standort'} title={(v('company_name') as string) || null}
         objectId={record.object_id} onBack={onBack}
-        status={{ label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }}
+        status={{ label: isPrimary ? 'Hauptsitz' : 'Standort', color: 'var(--success)',
+                  bg: 'var(--success-bg)', icon: Building2 }}
       >
         <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
@@ -118,11 +164,12 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
-        {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
+        {tab === 'docs' && <ObjectDocuments objectId={record.object_id}
+          contextLabel={isPrimary ? 'dem Unternehmen' : 'dem Standort'} />}
         {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>
-          <Field label="Firmenname" val={v('company_name')} onChange={set('company_name')} span2 />
-          <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />
+          <Field label={isPrimary ? 'Firmenname' : 'Standortname'} val={v('company_name')} onChange={set('company_name')} span2 />
+          {isPrimary && <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />}
           <div style={{ gridColumn: '1 / -1' }}>
             <AddressField
               value={{
@@ -131,10 +178,20 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
                 country: (v('country') as string) ?? 'Schweiz',
               }}
               onChange={applyCompanyAddress} apiKey={mapsKey}
-              countryOptions={COUNTRIES} label="Firmensitz" />
+              countryOptions={COUNTRIES} label={isPrimary ? 'Firmensitz' : 'Anschrift'} />
           </div>
+          {/* Eine Tatsache über DIESEN Datensatz, kein Erklärtext: ohne eigene Anschrift
+              lässt sich ein Standort nicht von den übrigen unterscheiden – eine Bewegung
+              dorthin bleibt innerbetrieblich statt Versand zu werden (ADR 005). */}
+          {!isPrimary && !record.has_address && !dirty && (
+            <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)',
+                          color: 'var(--warning)', lineHeight: 1.5 }}>
+              Ohne Anschrift zählt eine Bewegung hierher als innerbetrieblich – kein Versand.
+            </div>
+          )}
         </Sec>
 
+        {isPrimary && (<>
         <Sec title="Rechtliche Identifikation" editable icon={FileText}>
           <Field label="UID-Nummer" val={v('uid')} onChange={set('uid')} />
           <Field label="MWST-Nummer" val={v('vat_number')} onChange={set('vat_number')} />
@@ -143,12 +200,15 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="Aktienkapital" val={v('share_capital')} onChange={set('share_capital')} span2 />
         </Sec>
 
+        </>)}
+
         <Sec title="Kontakt & Web" editable icon={Phone}>
           <Field label="E-Mail" val={v('email')} onChange={set('email')} type="email" span2 />
           <Field label="Telefon" val={v('phone')} onChange={set('phone')} />
-          <Field label="Website" val={v('website')} onChange={set('website')} />
+          {isPrimary && <Field label="Website" val={v('website')} onChange={set('website')} />}
         </Sec>
 
+        {isPrimary && (<>
         <Sec title="Bankdaten" editable icon={Landmark}>
           <Field label="IBAN" val={v('iban') ?? (base.iban_masked ?? '')} onChange={set('iban')} span2 />
           <Field label="QR-IBAN" val={v('qr_iban') ?? (base.qr_iban_masked ?? '')} onChange={set('qr_iban')} span2 />
@@ -189,6 +249,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         </Sec>
 
         <CostOverview />
+        </>)}
         </>)}
       </div>
 

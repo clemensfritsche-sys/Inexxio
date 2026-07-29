@@ -541,6 +541,36 @@ export interface CompanySettings {
   legal_documents: Record<string, number> | null;
 }
 
+/**
+ * Ein **Standort** des Unternehmens (Mehrstandort, Variante A).
+ *
+ * Derselbe Datensatztyp wie «das Unternehmen» (`organization`, eigene Objektnummer) –
+ * nur trägt ein Nebenstandort **keine Rechtsidentität**: UID, MWST, Handelsregister,
+ * Bank und die Systemkonfiguration hängen am **Hauptsitz** (`is_primary`), weil es sie
+ * genau einmal gibt. Ein Standort ist Name + Anschrift + Kontakt, mehr nicht.
+ *
+ * Er ist damit ein vollwertiger **Halter**: Instanzen können dort liegen, und eine
+ * Bewegung dorthin wird – sobald er eine eigene Anschrift trägt – als **Versand**
+ * klassifiziert statt als innerbetriebliche Bewegung (ADR 005). Genau dafür gibt es
+ * `has_address`: ohne PLZ/Ort bleibt der Standort logistisch stumm.
+ */
+export interface Site {
+  object_id: number | null;
+  is_primary: boolean;
+  company_name: string;
+  street: string | null;
+  street_number: string | null;
+  zip: string | null;
+  city: string | null;
+  country: string | null;
+  email: string | null;
+  phone: string | null;
+  has_address: boolean;
+}
+
+/** Was sich an einem Standort ändern lässt (Anlegen wie Bearbeiten). */
+export type SiteInput = Partial<Omit<Site, 'object_id' | 'is_primary' | 'has_address'>>;
+
 
 // ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────
 // Eine angeheftete Notiz aus der laufenden Oberfläche. Bewusst OHNE Objektnummer –

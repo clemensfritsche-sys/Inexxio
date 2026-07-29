@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import get_current_user, get_optional_user
 from ..core.database import get_db
-from ..models import Article, CheckoutIntent, CompanySettings, Order, Sale, UserProfile
+from ..models import Article, CheckoutIntent, Order, Sale, UserProfile
 from ..schemas.shop import (
     CustomerOrder, PaymentSimulate, ShopCheckout, ShopCheckoutResult, ShopProduct, ShopReturnRequest,
 )
@@ -34,7 +34,8 @@ def _lang(request: Request, lang: str | None) -> str:
 async def shop_config(db: Session = Depends(get_db)):
     """Öffentliche Shop-Konfiguration: Währungen, Zahlungs-Provider und – für die
     eingebettete Stripe-Kasse – der **Publishable Key** (öffentlich, kein Secret)."""
-    s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    from ..services.sites import find_primary
+    s = find_primary(db)          # Shop-Konfiguration hängt am Hauptsitz
     return {
         "currencies": selling_svc.shop_currencies(db),
         "default_currency": (s.shop_default_currency if s else None) or "CHF",

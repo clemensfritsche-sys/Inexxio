@@ -701,7 +701,7 @@
           "admin"
         ],
         "summary": "Get Public Settings",
-        "description": "No auth — used by Impressum, AGB, Datenschutz pages.",
+        "description": "No auth — used by Impressum, AGB, Datenschutz pages.\n\nImmer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle.",
         "operationId": "get_public_settings_api_v1_admin_settings_public_get",
         "responses": {
           "200": {
@@ -709,6 +709,140 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sites": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Sites",
+        "description": "Alle Standorte, Hauptsitz zuerst.",
+        "operationId": "list_sites_api_v1_admin_sites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SiteResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Sites Api V1 Admin Sites Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create Site",
+        "description": "Neuen Standort anlegen (nur Admin).\n\nEr bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen\nkönnen dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –\nsobald er eine eigene Anschrift trägt – automatisch als Versand statt als\ninnerbetriebliche Bewegung klassifiziert (ADR 005).",
+        "operationId": "create_site_api_v1_admin_sites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/sites/{object_id}": {
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Site",
+        "description": "Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.\n\nRechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über\n``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie\nbewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann.",
+        "operationId": "update_site_api_v1_admin_sites__object_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -8461,6 +8595,11 @@
             ],
             "title": "Object Id"
           },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": false
+          },
           "company_name": {
             "type": "string",
             "title": "Company Name"
@@ -15667,6 +15806,304 @@
         ],
         "title": "SignoffView",
         "description": "Eine Freigabe-Partei eines Dokuments (Anzeige im Auftrag / «Meine Dokumente»)."
+      },
+      "SiteCreate": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
+          },
+          "street_nr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Nr"
+          },
+          "zip_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip Code"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name"
+        ],
+        "title": "SiteCreate",
+        "description": "Neuer Standort. Der Name ist Pflicht – er ist zugleich das Label, das überall dort\nerscheint, wo eine Instanz an diesem Standort liegt."
+      },
+      "SiteResponse": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
+          },
+          "street_nr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Nr"
+          },
+          "zip_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip Code"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Object Id"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": false
+          },
+          "has_address": {
+            "type": "boolean",
+            "title": "Has Address",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name"
+        ],
+        "title": "SiteResponse",
+        "description": "Ein Standort als ERP-Datensatz.\n\nOhne Anschrift ist ein Standort gültig, aber logistisch stumm: die Klassifikation\nVersand ↔ innerbetrieblich vergleicht **Adressen** (ADR 005), und ein Standort ohne\nPLZ/Ort zählt darum wie «keine Adresse» – eine Bewegung dorthin bleibt\ninnerbetrieblich. ``has_address`` macht das in der Oberfläche sichtbar, statt es den\nNutzer raten zu lassen."
+      },
+      "SiteUpdate": {
+        "properties": {
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "street": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street"
+          },
+          "street_nr": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Nr"
+          },
+          "zip_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zip Code"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "type": "object",
+        "title": "SiteUpdate",
+        "description": "Standortfelder ändern (Hauptsitz wie Nebenstandort, gleiche Felder)."
       },
       "StepReorder": {
         "properties": {

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..core.auth import require_employee
 from ..core.database import get_db
-from ..models import CompanySettings, Order, UserProfile
+from ..models import Order, UserProfile
 from ..services import attachments as attachments_svc
 from ..services import document as document_svc
 from ..services import people
@@ -51,8 +51,13 @@ def _signoff_render_data(db: Session, doc) -> list[dict]:
 
 
 def _company(db: Session) -> dict:
-    """Firmen-Briefkopf für das PDF (saubere Anschrift + Logo). Nur Nicht-Geheimes."""
-    s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    """Firmen-Briefkopf für das PDF (saubere Anschrift + Logo). Nur Nicht-Geheimes.
+
+    Der Briefkopf ist der des **Hauptsitzes**: er trägt die Rechtsidentität (UID, MWST,
+    Handelsregister), die ein Dokument ausweisen muss. *Einen Beleg auf den Briefkopf des
+    ausstellenden Nebenstandorts zu setzen, ist ein späterer Schritt.*"""
+    from ..services.sites import find_primary
+    s = find_primary(db)
     if not s:
         return {"company_name": "Inexxio"}
     return {

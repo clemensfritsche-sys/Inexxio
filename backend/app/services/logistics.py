@@ -73,7 +73,14 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def _settings(db: Session) -> CompanySettings | None:
-    return db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    """Der **Hauptsitz** – der Absender auf dem Versandbeleg.
+
+    Bewusst der Hauptsitz und nicht der Ist-Standort der Ware: der Absender ist bis auf
+    Weiteres die Firma. Dass eine Sendung aus einem Nebenstandort auch von dort abgeht,
+    ist eine Verfeinerung des Belegs (die Klassifikation Versand/innerbetrieblich ist
+    davon unberührt – die liest über ``target_address`` den echten Standort)."""
+    from .sites import find_primary
+    return find_primary(db)
 
 
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
@@ -275,9 +282,18 @@ def target_address(db: Session, ltype: str | None, lid: int | None) -> dict | No
         u = db.query(UserProfile).filter(UserProfile.object_id == lid).first()
         return address.of_user(u, "ship") if u else None
     if ltype == "company":
-        # «Im Betrieb» – die Firmenadresse. Ohne diesen Zweig hätte eine Bewegung mit
-        # Ziel Unternehmen keinen Empfänger und liefe in «Adresse unvollständig».
-        return _addr_company(db.query(CompanySettings).first())
+        # «Im Betrieb» – die Anschrift **genau dieses Standorts**. Ohne diesen Zweig hätte
+        # eine Bewegung mit Ziel Unternehmen keinen Empfänger und liefe in «Adresse
+        # unvollständig».
+        #
+        # Die Auflösung über die **Objektnummer** ist der Kern des Mehrstandort-Betriebs:
+        # früher stand hier ein blosses ``.first()``. Bei einer Zeile war das dasselbe, ab
+        # der zweiten hätte JEDES Standort-Ziel die Adresse des Hauptsitzes bekommen –
+        # Quelle und Ziel sähen für ``classify_movement`` identisch aus, und ein Transport
+        # Werk A → Werk B wäre still als «innerbetrieblich» durchgegangen statt als
+        # Versand mit Tarif und Label.
+        from .sites import by_object_id
+        return _addr_company(by_object_id(db, lid))
     return None
 
 

@@ -8,9 +8,13 @@ from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,
     OperatingCostsResponse,
+    SiteCreate,
+    SiteResponse,
+    SiteUpdate,
     UserProfileResponse,
     UserRoleUpdate,
 )
+from ..services import sites
 from ..services.admin import get_or_create_settings, log_audit
 from ..services.operating_costs import operating_costs
 
@@ -64,9 +68,11 @@ async def update_settings(
 
 @router.get("/settings/public")
 async def get_public_settings(db: Session = Depends(get_db)):
-    """No auth — used by Impressum, AGB, Datenschutz pages."""
-    from ..models.admin import CompanySettings
-    s = db.query(CompanySettings).filter(CompanySettings.id == 1).first()
+    """No auth — used by Impressum, AGB, Datenschutz pages.
+
+    Immer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle."""
+    from ..services.sites import find_primary
+    s = find_primary(db)
     if not s:
         return {"company_name": "Inexxio AG", "legal_form": "AG", "email": "info@inexxio.com",
                 "website": "https://inexxio.com", "country": "Schweiz"}
@@ -80,6 +86,64 @@ async def get_public_settings(db: Session = Depends(get_db)):
         "email": s.email, "phone": s.phone, "website": s.website,
         "google_maps_api_key": s.google_maps_api_key,
     }
+
+
+# ─── Standorte (Mehrstandort, Variante A) ─────────────────────────────────────
+#
+# Ein Standort ist ein ERP-Datensatz vom Typ ``organization`` mit eigener Objektnummer –
+# derselbe Typ wie «das Unternehmen», nur ohne Rechtsidentität. Anlegen und Ändern sind
+# **admin-only**, wie der Unternehmens-Datensatz selbst; an der Sichtbarkeit im ERP ändert
+# sich damit nichts.
+
+def _site_response(site) -> SiteResponse:
+    """``has_address`` ist abgeleitet, kein Feld – die eine Definition von «trägt echte
+    Ortsangaben» steht in ``address.has_content`` und wird hier nur angewandt."""
+    from ..services import address
+    resp = SiteResponse.model_validate(site)
+    resp.has_address = address.has_content(address.of_company(site))
+    return resp
+
+
+@router.get("/sites", response_model=list[SiteResponse])
+async def list_sites(
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_admin),
+):
+    """Alle Standorte, Hauptsitz zuerst."""
+    return [_site_response(s) for s in sites.all_sites(db)]
+
+
+@router.post("/sites", response_model=SiteResponse, status_code=201)
+async def create_site(
+    data: SiteCreate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Neuen Standort anlegen (nur Admin).
+
+    Er bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen
+    können dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –
+    sobald er eine eigene Anschrift trägt – automatisch als Versand statt als
+    innerbetriebliche Bewegung klassifiziert (ADR 005)."""
+    site = sites.create(db, data.model_dump(exclude_unset=True), current_user.id)
+    return _site_response(site)
+
+
+@router.patch("/sites/{object_id}", response_model=SiteResponse)
+async def update_site(
+    object_id: int,
+    data: SiteUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.
+
+    Rechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über
+    ``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie
+    bewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann."""
+    site = sites.require(db, object_id)
+    sites.apply_update(db, site, data.model_dump(exclude_unset=True), current_user.id)
+    return _site_response(site)
 
 
 @router.get("/operating-costs", response_model=OperatingCostsResponse)
