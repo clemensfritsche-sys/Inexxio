@@ -2049,6 +2049,48 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (7) Kleineres: Menge bei **jeder** Instanz (#265 – Einheitlichkeit statt «mal hier, mal
   dort»), Startknoten auch beim leeren Prozess (#269), «Prozess des Artikels» entfällt (#270).
 
+- **Unterdeckung: EINE Frage, DREI Antworten – und die Abweichung hält nichts mehr an**
+  (Juli 2026, `services/recovery.py`, `process.deviated_instance_ids`): Praxistest an einem
+  Erzeugungsauftrag (Beschaffung → interne Bewegung → Abweichung an EINER Instanz) zeigte,
+  dass beide bisherigen Wege am Fall vorbeigingen: *Aus Lager decken* schickt ein fertiges
+  Teil noch einmal durch den Prozess, und *Nachschub* lässt vier Instanzen warten, bis ein
+  kompletter Unter-Auftrag durchgelaufen ist. Es fehlte die ehrlichste Antwort: **der
+  Auftrag wird mit weniger fertig.**
+  **(1) Eine Abweichung nimmt ihr Stück HERAUS, statt den Auftrag anzuhalten.** Früher
+  pausierte JEDE offene Abweichung den GANZEN Eltern (`_is_paused_by_deviation`, dazu ein
+  `_assert_not_paused`-Wächter an allen zwölf Ausführungs-Endpunkten) – unabhängig davon,
+  wie viele Instanzen betroffen waren: ein schlechtes von fünf Stück legte die anderen vier
+  still. Das war ein **zweiter** Mechanismus für etwas, wofür es längst eine präzise Sprache
+  gibt – die **Unterdeckung**. Ein Stück in Klärung ist weder verloren noch gesichert, es ist
+  **fehlend**: `deviated_instance_ids` nimmt es aus «Gesichert» heraus, der Schritt meldet
+  «Es fehlt 1 Stk», der Rest läuft weiter. Der Schutz, für den die Pause gedacht war – *eine
+  Sendung darf nicht teil-versendet werden* –, bleibt **abgeleitet statt deklariert**:
+  Verkauf und Versand sind Subjekt-Schritte und blockieren bei einer Fehlmenge ohnehin. Damit
+  ist es **eine Regel weniger**, nicht eine mehr: `_is_paused_by_deviation`, `_assert_not_paused`
+  und `OrderResponse.paused` sind ersatzlos entfallen. Gegenstück: `release_instances` gibt
+  nicht frei, was in einer offenen Abweichung steckt (der Eltern darf jetzt abschliessen,
+  während die Klärung läuft – freigegeben wird vom Auftrag, der zuletzt daran arbeitet).
+  **(2) Die Unterdeckung stellt genau EINE Frage** – *was soll mit der Fehlmenge geschehen?* –
+  mit drei Antworten: **Wartet** = kein Knopf, sondern ein **Zustand** (`OrderStepInfo.
+  waiting_for` – ist die Menge in einer offenen Abweichung oder einem laufenden Nachschub
+  gebunden, ist die Entscheidung getroffen; die frühere Trennung «Nachschub läuft» ↔
+  «Abweichung offen» ist EIN Feld geworden); **Ersetzen** = EIN Weg statt zweier Knöpfe
+  (`POST /orders/{id}/cover` → erst freier Lagerbestand FIFO bzw. gezielt gewählte Instanzen,
+  Rest per Nachschub – woher der Ersatz kommt, ist eine Verfügbarkeitsfrage, keine zweite
+  Entscheidung; `/supply` + `/cover-stock` sind darin aufgegangen); **Menge bestätigen** =
+  neu (`POST /orders/{id}/confirm-quantity`, `recovery.confirm_quantity`): das Soll sinkt auf
+  das Gesicherte (5 bestellt, 1 in Klärung → 4 bestellt), der Schritt ist frei, der Auftrag
+  läuft normal zu Ende. **Geld bleibt ehrlich:** eine bereits **bezahlte** Verkaufsposition
+  lässt sich so NICHT kürzen (409) – dafür ist die Retoure/Gutschrift da (`sale`-Kredit-Modus
+  + Stripe-Refund). Damit ist auch das alte «Menge reduzieren»-TODO sauber geschlossen.
+  Wächter: `test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order`,
+  `test_shortfall_is_one_question_with_three_answers`, `test_waiting_is_a_state_not_a_button`,
+  `test_a_shortfall_blocks_only_the_step_that_needs_it`.
+  *Bewusst NICHT gebaut: die **Lieferanten-Reklamation** (`purchase` im Kredit-Modus, analog
+  zum `sale`-Modul) – die Gegenrichtung des Einkaufs bleibt offen; und «ab Lager gedeckte
+  Teile überspringen erledigte Schritte» (ausdrücklich verworfen: ein Schritt wirkt auf die
+  Instanzen seines Auftrags, eine Ausnahme je Herkunft wäre eine zweite Regel).*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

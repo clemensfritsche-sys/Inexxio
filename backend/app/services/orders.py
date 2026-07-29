@@ -4,7 +4,7 @@ rollenabhängige Sichtbarkeit (Lieferant sieht nur seine Aufträge)."""
 from datetime import date, timedelta
 from typing import Optional
 
-from sqlalchemy import false
+from sqlalchemy import and_, false, or_
 from sqlalchemy.orm import Query, Session
 
 from ..domain import event_types
@@ -297,12 +297,15 @@ def _purchase_received(po_embed: PurchaseEmbed) -> tuple[str | None, object]:
 
 def _order_sub_orders(db: Session, order: Order) -> tuple[
         list[OrderDeviationInfo], list[OrderDeviationInfo], list[OrderDeviationInfo],
-        list[OrderDeviationInfo], bool]:
-    """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichungen** (pausieren den
-    Eltern), **Nachschub** (deckt Bedarf, blockiert nur Schritte), **Retouren** (Rücknahme +
-    Gutschrift eines abgeschlossenen Verkaufs, pausieren NICHT) + Pause-Zustand."""
+        list[OrderDeviationInfo]]:
+    """Unter-Aufträge eines Auftrags, getrennt nach Grund: **Abweichung** (nimmt ihr Stück
+    aus dem Auftrag heraus → Unterdeckung), **Nachschub** (deckt Bedarf), **Retoure**
+    (Rücknahme + Gutschrift eines abgeschlossenen Verkaufs), **Bereitstellung**.
+
+    Keiner davon hält den Eltern-Auftrag an: was fehlt, blockiert den Schritt, der es
+    braucht – EIN Mechanismus (Unterdeckung) statt Pause + Unterdeckung."""
     if not order.object_id:
-        return [], [], [], False
+        return [], [], [], []
     children = (
         db.query(Order)
         .filter(Order.parent_order_id == order.object_id, Order.is_active == True)
@@ -328,7 +331,7 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
         bucket = {"supply": supplies, "return": returns,
                   "provisioning": provisionings}.get(c.reason or "", deviations)
         bucket.append(info)
-    return deviations, supplies, returns, provisionings, process._is_paused_by_deviation(db, order)
+    return deviations, supplies, returns, provisionings
 
 
 def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
@@ -398,13 +401,18 @@ def _fill_step_shortfall(db: Session, order: Order, step: ArticleProcessStep, si
                 for c in free if c.object_id is not None
             ],
         ))
-    si.supply_order_object_ids = [
+    # **«Wartet» ist ein Zustand, kein Knopf.** Ist die Fehlmenge bereits in einer offenen
+    # **Abweichung** (das Stück ist in Klärung) oder einem laufenden **Nachschub** gebunden,
+    # ist die Entscheidung längst getroffen – dann sagt die Oberfläche nur noch, worauf
+    # gewartet wird, statt dieselbe Frage ein zweites Mal zu stellen.
+    si.waiting_for = [
         r[0] for r in
         db.query(Order.object_id).filter(
-            Order.parent_order_id == order.object_id, Order.reason == "supply",
-            Order.is_active == True, Order.status.in_(("draft", "released")),
-            Order.article_id.in_(shortfalls.keys()))
-        .all()
+            Order.parent_order_id == order.object_id, Order.is_active == True,
+            Order.status.in_(("draft", "released")),
+            or_(Order.reason == "deviation",
+                and_(Order.reason == "supply", Order.article_id.in_(shortfalls.keys()))))
+        .order_by(Order.object_id).all()
     ]
 
 
@@ -539,7 +547,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     ``None`` = interner/Personal-Aufruf (ungefiltert)."""
     resp = OrderResponse.model_validate(order)
     (resp.deviations, resp.supply_orders, resp.returns,
-     resp.provisionings, resp.paused) = _order_sub_orders(db, order)
+     resp.provisionings) = _order_sub_orders(db, order)
     # Vorgänger (Ersetzen-Kette): wessen Nachfolger ist dieser Auftrag?
     if order.object_id:
         pred = db.query(Order.object_id).filter(Order.replaced_by_id == order.object_id).first()

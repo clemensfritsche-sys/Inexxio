@@ -485,17 +485,18 @@ class ApiClient {
     });
   }
 
-  // «Nachschub anlegen»: eröffnet einen Nachschub-Unterauftrag (reason='supply'), der die
-  // Fehlmenge eines blockierten Schritts beschafft/produziert; liefert den Auftrag zurück.
-  createSupply(objectId: number): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/supply`, {});
+  // «Ersetzen»: deckt die Fehlmenge eines blockierten Schritts – erst aus freiem
+  // Lagerbestand (FIFO bzw. gezielt gewählte Instanzen), den Rest per Nachschub-Unterauftrag.
+  // EIN Weg statt zweier Knöpfe: woher der Ersatz kommt, ist eine Verfügbarkeitsfrage.
+  coverShortfall(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/cover`,
+      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
   }
 
-  // «Aus Lager decken» / «Andere Instanz wählen»: deckt die Subjekt-Fehlmenge aus
-  // vorhandenem Lagerbestand – FIFO (ohne ids) oder gezielt gewählte Instanzen.
-  coverStock(objectId: number, instanceObjectIds?: number[]): Promise<Order> {
-    return this.post(`/api/v1/erp/orders/${objectId}/cover-stock`,
-      instanceObjectIds && instanceObjectIds.length ? { instance_object_ids: instanceObjectIds } : {});
+  // «Menge bestätigen»: das Soll sinkt auf das Gesicherte – der Auftrag wird mit weniger
+  // fertig. Bezahlte Verkaufspositionen lehnt das Backend ab (dafür: Retoure/Gutschrift).
+  confirmQuantity(objectId: number): Promise<Order> {
+    return this.post(`/api/v1/erp/orders/${objectId}/confirm-quantity`, {});
   }
 
   // «Abbruch zurücknehmen»: verwirft einen noch im Entwurf befindlichen Folgeauftrag

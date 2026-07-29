@@ -1,12 +1,18 @@
 """Abweichungen – vereinheitlicht Abbruch-Folgeauftrag, Fehler/Reklamation, Nacharbeit.
 
 Eine **Abweichung** ist ein **Unter-Auftrag** (``orders.parent_order_id``), der aus einem
-laufenden Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt. Der Eltern-Auftrag
-**pausiert**, solange die Abweichung offen ist (``process._is_paused_by_deviation``).
+laufenden Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt.
+
+**Sie hält den Eltern-Auftrag nicht an – sie nimmt ihr Stück heraus.** Was in Klärung ist,
+zählt für den Eltern nicht mehr als gesichert (``process.deviated_instance_ids``): der Rest
+läuft weiter, und der Schritt, der das Subjekt braucht, meldet die Fehlmenge. Damit gibt es
+EINEN Mechanismus (Unterdeckung) statt Pause UND Unterdeckung; der Schutz vor Teil-Versand
+bleibt, weil Verkauf und Versand Subjekt-Schritte sind und bei einer Fehlmenge ohnehin
+blockieren.
 
 **Abbrechen ist kein zweites Konzept**, sondern eine Eigenschaft desselben Vorgangs: Es gibt
 EINEN Knopf «Abweichungsauftrag»; beim Anlegen entscheidest du, ob der Ursprungsauftrag
-weiterläuft (er pausiert bis zur Klärung) oder **abgebrochen** ist. Im zweiten Fall ist er
+weiterläuft oder **abgebrochen** ist. Im zweiten Fall ist er
 im selben Moment inaktiv (``abort_parent``) – endgültig, ohne Reaktivierung; nur der
 Abweichungsauftrag lebt weiter und hält die Instanzen.
 """
@@ -193,9 +199,9 @@ def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | N
 
     Ein Unter-Auftrag hält drei Fäden zum Eltern: die **Subjekt-Bindung** der Instanzen, die
     **Verarbeitungs-Links** und – beim Abbruch-Folgeauftrag – den Zeiger ``abort_into_id``.
-    Wer nur den Status auf «inaktiv» setzt, lässt alle drei stehen; der Eltern bliebe dann für
-    immer pausiert (``abort_into_id`` ist nie NULL) und seine Instanzen zeigten auf einen toten
-    Auftrag. Genau deshalb gibt es hier **eine** Stelle, die beide Türen bedient: das
+    Wer nur den Status auf «inaktiv» setzt, lässt alle drei stehen: seine Instanzen zeigten
+    dann auf einen toten Auftrag – sie blieben aus dem Eltern herausgenommen, ohne dass
+    jemals etwas zurückkäme –, und ``abort_into_id`` behielte einen Zeiger ins Leere. Genau deshalb gibt es hier **eine** Stelle, die beide Türen bedient: das
     «Zurücknehmen» (Entwurf) und der Abbruch (freigegeben).
 
     Setzt den Status NICHT (der Aufrufer tut es) und committet nicht. Liefert den Eltern."""
@@ -227,9 +233,9 @@ def revoke(db: Session, followup: Order, actor_id: int) -> Order | None:
     (noch nicht vollzogen). Die vorgemerkten Instanzen gehen ans Original zurück, ein
     ausstehender Abbruch (``abort_into_id``) wird gelöscht, der Folgeauftrag wird inaktiv.
 
-    Das Original ist danach **automatisch nicht mehr pausiert** und läuft **unverändert**
-    weiter: Ein Entwurf-Folgeauftrag hat die Reservierungen des Originals NIE gelöst (das
-    passiert erst bei der Freigabe), darum bleibt alles 1:1 erhalten. Committet NICHT.
+    Das Original läuft danach **unverändert** weiter und hat seine Instanzen zurück: Ein
+    Entwurf-Folgeauftrag hat die Reservierungen des Originals NIE gelöst (das passiert erst
+    bei der Freigabe), darum bleibt alles 1:1 erhalten. Committet NICHT.
     Liefert den (wieder laufenden) Eltern-Auftrag."""
     if followup.parent_order_id is None:
         raise HTTPException(400, detail="Das ist kein Unter-Auftrag (Folgeauftrag).")

@@ -214,8 +214,8 @@ def test_replenishment_reuses_supply_can_supply():
 def test_cover_from_stock_locks_chosen_instances():
     # Bug: der «bestimmte Instanz wählen»-Pfad reservierte ohne Row-Lock (Überverkauf
     # bei zwei gleichzeitigen Deckungen derselben Instanz).
-    from app.services.recovery import cover_from_stock
-    assert "with_for_update" in inspect.getsource(cover_from_stock)
+    from app.services.recovery import _cover_from_stock
+    assert "with_for_update" in inspect.getsource(_cover_from_stock)
 
 
 def test_release_order_locks_against_double_release():
