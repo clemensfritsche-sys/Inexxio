@@ -9,25 +9,33 @@ import { Field, Sec } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailHeader } from '@/components/erp/fields';
-import { AddressField, type Address } from '@/components/erp/address-field';
+import { AddressField, type Address, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { SystemConfigSection } from '@/components/account/sections/system-config-section';
 
-// Das Unternehmen führt das Land als Klarnamen (nicht ISO-2) – die Auswahl bestimmt
-// daher zugleich das Format, das die Adress-Suche übernehmen darf.
+// Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
+// ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
+// kann überall sitzen – daher eine breitere Auswahl als bei einer CH/EU-Personenadresse.
 const COUNTRIES: [string, string][] = [
   ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
   ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
-  ['USA', 'USA'],
+  ['USA', 'USA'], ['Grossbritannien', 'Grossbritannien'], ['Spanien', 'Spanien'],
+  ['Niederlande', 'Niederlande'], ['Belgien', 'Belgien'], ['Luxemburg', 'Luxemburg'],
+  ['Portugal', 'Portugal'], ['Irland', 'Irland'],
 ];
-// Auswählbare Funktionswährungen + Land→Währung-Vorschlag (Spiegel von
+// Auswählbare Funktionswährungen + Land→Währung-Vorschlag über **ISO-2** (Spiegel von
 // services/sites._COUNTRY_CURRENCY; nur eine UI-Bequemlichkeit – die Wahrheit setzt das
-// Backend beim Anlegen, hier wird beim Länderwechsel nur vorgeschlagen).
+// Backend beim Anlegen, hier wird beim Länderwechsel nur vorgeschlagen). ISO-2, damit es
+// egal ist, ob das Land als Klarname («USA») oder Code («US») ankommt.
 const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP'];
-const CURRENCY_FOR_COUNTRY: Record<string, string> = {
-  Schweiz: 'CHF', Liechtenstein: 'CHF', USA: 'USD',
-  Deutschland: 'EUR', Österreich: 'EUR', Frankreich: 'EUR', Italien: 'EUR',
+const CURRENCY_BY_ISO2: Record<string, string> = {
+  CH: 'CHF', LI: 'CHF', US: 'USD', GB: 'GBP',
+  DE: 'EUR', AT: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', BE: 'EUR', LU: 'EUR',
+  PT: 'EUR', IE: 'EUR', FI: 'EUR',
 };
+function suggestCurrency(country: string | undefined): string | undefined {
+  return CURRENCY_BY_ISO2[toIso2(country)];
+}
 
 // EIN QueryClient für den System-Reiter (die Plattform-Konfiguration nutzt React Query,
 // wie zuvor die – jetzt entfallene – Seite Admin → Einstellungen).
@@ -83,7 +91,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   // Länderwechsel wird die Währung **vorgeschlagen** (US → USD), aber nicht erzwungen.
   function applyCompanyAddress(a: Address) {
     const [street, nr] = splitStreet(a.street);
-    const suggested = CURRENCY_FOR_COUNTRY[a.country];
+    const suggested = suggestCurrency(a.country);
     setForm((prev) => ({
       ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country,
       ...(suggested ? { currency: suggested } : {}),
