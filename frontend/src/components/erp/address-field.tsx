@@ -42,6 +42,33 @@ export type Address = {
   lng?: number;
 };
 
+// Google liefert das Land als **ISO-2** (``short('country')``, z. B. «US»). Die Aufrufer
+// führen es teils als ISO-2 (Person: Wert «CH»), teils als Klarname (Firma: Wert «USA»).
+// Diese Normalisierung bringt beide auf ISO-2, damit ein Google-Treffer die richtige Option
+// trifft – ohne sie wurde «US» gegen «USA» verglichen, verworfen und das alte Land (Schweiz)
+// blieb stehen (der gemeldete Bug). Deckt die in den Dropdowns verwendeten Klarnamen +
+// gängige englische Google-Namen ab; ein reiner 2-Buchstaben-Code fällt unverändert durch.
+const _TO_ISO2: Record<string, string> = {
+  schweiz: 'CH', switzerland: 'CH', suisse: 'CH', svizzera: 'CH',
+  deutschland: 'DE', germany: 'DE',
+  österreich: 'AT', osterreich: 'AT', austria: 'AT',
+  frankreich: 'FR', france: 'FR',
+  italien: 'IT', italy: 'IT', italia: 'IT',
+  liechtenstein: 'LI',
+  usa: 'US', 'united states': 'US', 'united states of america': 'US', 'vereinigte staaten': 'US',
+  grossbritannien: 'GB', 'united kingdom': 'GB', 'vereinigtes königreich': 'GB', 'great britain': 'GB',
+  spanien: 'ES', spain: 'ES', niederlande: 'NL', netherlands: 'NL',
+  belgien: 'BE', belgium: 'BE', luxemburg: 'LU', luxembourg: 'LU',
+  portugal: 'PT', irland: 'IE', ireland: 'IE', finnland: 'FI', finland: 'FI',
+  schweden: 'SE', sweden: 'SE', dänemark: 'DK', denmark: 'DK', polen: 'PL', poland: 'PL',
+};
+
+export function toIso2(country: string | null | undefined): string {
+  const c = (country ?? '').trim();
+  if (!c) return '';
+  return _TO_ISO2[c.toLowerCase()] ?? (c.length === 2 ? c.toUpperCase() : c);
+}
+
 type PlacePick = { street: string; zip: string; city: string; country: string; lat?: number; lng?: number };
 
 function parsePlace(place: google.maps.places.PlaceResult): PlacePick {
@@ -102,13 +129,15 @@ export function AddressField({
       const place = ac.getPlace();
       if (!place.address_components) return;
       const p = parsePlace(place);
-      const opts = countryOptions.map(([v]) => v);
+      // Den Google-Code (ISO-2) über die Normalisierung gegen die Optionen matchen und –
+      // bei Treffer – den **Options-Wert** übernehmen (Klarname «USA» bzw. ISO «US», je nach
+      // Aufrufer). Kein Treffer: den Google-Code trotzdem übernehmen (NIE still das alte Land
+      // behalten – genau das war der Bug); nur wenn Google gar nichts liefert, bleibt der Wert.
+      const matched = countryOptions.find(([v]) => toIso2(v) === toIso2(p.country));
       onChangeRef.current({
         ...valueRef.current,
         street: p.street, zip: p.zip, city: p.city,
-        // Das Länderformat richtet sich nach dem Aufrufer (ISO-2 vs. Klarname):
-        // passt der Google-Code nicht in dessen Auswahl, bleibt der bisherige Wert.
-        country: opts.includes(p.country) ? p.country : valueRef.current.country,
+        country: matched ? matched[0] : (p.country || valueRef.current.country),
         lat: p.lat, lng: p.lng,
       });
       setSearching(false);
@@ -183,7 +212,12 @@ export function AddressField({
   }
 
   // ── Gefüllt: kompakte Zusammenfassung, nicht editierbar ────────────────────────
-  const countryLabel = countryOptions.find(([v]) => v === value.country)?.[1] ?? value.country;
+  // Label über exakten Wert ODER ISO-2-Gleichheit (so zeigt ein gespeichertes «US» das
+  // Klarname-Label «USA», wenn die Optionen Klarnamen sind).
+  const countryLabel =
+    countryOptions.find(([v]) => v === value.country)?.[1]
+    ?? countryOptions.find(([v]) => toIso2(v) === toIso2(value.country))?.[1]
+    ?? value.country;
   return (
     <div style={ST.wrap}>
       <div style={ST.head}>
