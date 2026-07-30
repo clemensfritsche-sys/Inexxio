@@ -2571,15 +2571,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   bewusst so, weil ihm nichts fehlt, was er selbst bräuchte.*
 
 - **Szenario-Durchlauf: alle implementierten Abläufe end-to-end nachgespielt (Juli 2026)**:
-  24 Szenarien über die **echten** Service-Pfade gegen echtes PostgreSQL 16 – Erzeugung
-  (Einzelteil/Charge/Bruchmenge), Datenerfassung (100 %, Teil-Stichprobe, Durchfaller →
-  Abweichung → Klärung), Abweichung/Abbruch, Bestand/FIFO, Unterdeckung/Nachschub/«ohne
-  Ersatz weiter», Aussondern (ganz · Teilmenge · Sperren/Entsperren), Verkauf + Retoure
-  (Slice und ganze Instanz), Ressource (Verbrauch · Betriebsmittel · Fehlmenge),
-  Bewegung/Standort-Verteilung, Sicherheitsbestand, Beschaffung, Wiederkehr,
-  Mehrpositionen-Verkauf, gezielte Deckung. **Vier echte Fehler**, alle aus derselben
-  Wurzel: *seit den Bruchmengen (Migration `055`) ist jede Menge ein `Decimal`* – und an
-  vier Stellen war das noch nicht angekommen.
+  **34 Szenarien / 100 Prüfungen** über die **echten** Service-Pfade gegen echtes
+  PostgreSQL 16 – Erzeugung (Einzelteil/Charge/Bruchmenge), Datenerfassung (100 %,
+  Teil-Stichprobe, Hochstufung, Durchfaller → Abweichung → Klärung), Abweichung/Abbruch/
+  Zurücknehmen/Kette, Bestand/FIFO, Unterdeckung/Nachschub/«ohne Ersatz weiter»/gezielte
+  Deckung, Aussondern (ganz · Teilmenge · Sperren/Entsperren), Verkauf + Retoure (Slice,
+  ganze Instanz, Kulanz), Made-to-Order über den Nachschub, Ressource (Verbrauch ·
+  Betriebsmittel · Fehlmenge), Bewegung/Standort-Verteilung, Sicherheitsbestand,
+  Beschaffung (einzeln und mehrpositionig), Dokument-Schritt, Artikel-Deaktivierung,
+  Wiederkehr, Mehrpositionen-Verkauf. **Vier echte Fehler**, alle aus derselben Wurzel:
+  *seit den Bruchmengen (Migration `055`) ist jede Menge ein `Decimal`* – und an vier
+  Stellen war das noch nicht angekommen.
   (1) **Der Prozessschritt «Ressource» war komplett unbenutzbar.** `resource_usages.details`
   bekam die entnommene Menge als `Decimal`; `json.dumps` kann das nicht, also brach **jede**
   Verbuchung eines Verbrauchs mit einem 500 ab – nicht beim Setzen des Feldes, sondern erst
@@ -2619,12 +2621,24 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wahrheit und würde behaupten, die GANZE Charge sei am Band). Die Ablehnung bleibt, sie
   nennt jetzt aber den Weg: erst den gesamten Bestand einlagern, danach Teilmengen verlagern.
   **Bestätigt richtig** (Szenarien ohne Befund): Auto-Abschluss und Freigabe erst, wenn kein
-  Auftrag mehr an der Instanz arbeitet; bestandene Teil-Stichprobe sperrt nichts; Abweichung
-  nimmt ihr Stück heraus statt den Auftrag anzuhalten; Ausschuss ist terminal **und**
-  standortlos, Sperren reversibel unter Erhalt von Standort/Menge/Reservierungen; ein
-  Komponenten-Bedarf blockiert den Schritt statt still unterzuliefern; Betriebsmittel werden
-  genutzt, nicht verbraucht; ein Mehrpositionen-Verkauf hat **einen** `sale`-Schritt mit
-  einem Beleg je Position. Wächter: `tests/test_quantity_rules.py`
+  Auftrag mehr an der Instanz arbeitet; bestandene Teil-Stichprobe sperrt nichts, eine
+  **durchgefallene** stuft erst auf 100 % hoch und schliesst erst dann endgültig ab;
+  Abweichung nimmt ihr Stück heraus statt den Auftrag anzuhalten, darf ihre **eigene**
+  Abweichung haben, und «Zurücknehmen» gibt die Bindung über die EINE Aufräum-Stelle
+  zurück; Verschrotten löst **alle** Reservierungen, sodass die Fehlmenge eines fremden
+  Auftrags ehrlich sichtbar wird; Ausschuss ist terminal **und** standortlos, Sperren
+  reversibel unter Erhalt von Standort/Menge/Reservierungen; ein Komponenten-Bedarf
+  blockiert den Schritt statt still unterzuliefern; Betriebsmittel werden genutzt, nicht
+  verbraucht; ein Mehrpositionen-Verkauf hat **einen** `sale`-Schritt mit einem Beleg je
+  Position, eine Mehrpositionen-**Beschaffung** dagegen je Position eine eigenständig
+  fortschreitende Bestellung; Kulanz (keine Rückgabe-Bewegung) lässt die Ware beim Kunden;
+  eine bezahlte Position lässt sich nicht still kürzen; ein Dokument ohne Parteien ist mit
+  dem Ausstellen freigegeben; das Deaktivieren eines Artikels übergibt laufende Instanzen
+  an einen Abweichungsauftrag statt sie herrenlos zu lassen. **Kein Überverkauf, bewiesen
+  statt begründet:** ein Verkauf ohne Bestand bindet nichts, sein Schritt ist `blocked`,
+  und JEDER Ausführungs-Endpunkt löst über `process.resolve_exec_step` auf, das «aktiv»
+  verlangt – gedeckt wird über den Nachschub, dessen Stück beim Abschluss an den Eltern
+  gepinnt werden. Wächter: `tests/test_quantity_rules.py`
   (`test_every_json_column_survives_a_decimal`, `test_a_returned_quantity_has_no_floor_of_one`)
   und `tests/test_fractional_quantities.py: test_take_releases_the_own_claim_and_trims_the_others`.
 
