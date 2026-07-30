@@ -319,6 +319,20 @@ def set_territory(db: Session, area: str, company_object_id: int | None,
 
 # ─── Anlegen / Ändern – EIN Feldsatz für JEDE Gesellschaft ────────────────────────
 
+# Spalten, die die Datenbank als NOT NULL führt (Initial-Schema, mit Server-Default).
+# Ein leeres Formularfeld schickt ``null`` – das wäre ein **Constraint-Bruch** statt einer
+# leeren Angabe: genau so entstand die rohe ``NotNullViolation`` im Formular (Testnotiz
+# #338), als jemand die Rechtsform leerte. Leer heisst hier «noch nicht ausgefüllt», nicht
+# «kein Wert erlaubt» – also wird ``None`` zu ``""``. Die Pflicht markiert das Formular
+# (gelbes Sternchen), erzwungen wird nur der Name (er ist das Halter-Label).
+_NOT_NULL_TEXT = ("company_name", "legal_form", "country", "email")
+# Die Währung ist die eine Ausnahme: ein leerer ISO-3-Code wäre kein «noch nicht
+# ausgefüllt», sondern eine kaputte Angabe (die Preis-Pipeline rechnet damit). Kommt sie
+# als ``None``, bleibt der bisherige Wert stehen – das Formular bietet sie ohnehin nur als
+# Auswahl an, leeren kann man sie dort gar nicht.
+_KEEP_IF_NONE = ("currency",)
+
+
 def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
                          actor_id: int | None) -> None:
     """Entitäts-Felder (inkl. Bank-Chiffren) auf die Gesellschaft schreiben + auditieren.
@@ -329,6 +343,10 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
             company.iban_encrypted = value
             log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
         elif key in ENTITY_FIELDS:
+            if value is None and key in _KEEP_IF_NONE:
+                continue
+            if value is None and key in _NOT_NULL_TEXT:
+                value = ""
             setattr(company, key, value)
             log_audit(db, "company_settings", key, str(value), actor_id, object_id=company.object_id)
 

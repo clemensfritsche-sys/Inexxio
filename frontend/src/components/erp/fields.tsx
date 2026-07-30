@@ -692,25 +692,13 @@ export function Segmented({ label, value, onChange, options, required }: {
 }
 
 /**
- * Der Zustand als Pille (Symbol + Farbe + Wort) – die Form für Detail-Köpfe.
- *
- * `plain` schaltet auf **Punkt + Wort** um: dieselbe Aussage, ohne Fläche. Das Design-System
- * nennt genau das als Regelform («Status: Punkt + Wort, gefüllte Badges sparsam») – im Feed
- * standen 40 gefüllte Pillen untereinander und machten die Liste schwer (Notiz #300).
+ * Der Zustand als Pille: Symbol + Farbe + Wort – **eine** Form, überall dieselbe (Feed wie
+ * Detail-Kopf). Eine zwischenzeitliche «Punkt + Wort»-Variante für den Feed ist wieder
+ * entfallen (Notiz #334): derselbe Zustand darf nicht je nach Ort anders aussehen; die Luft
+ * im Feed kommt aus Polsterung und Zeilenabstand, nicht aus einer zweiten Status-Form.
  */
-export function StatusBadge({ cfg, size = 10, plain }: { cfg: StatusCfg; size?: number; plain?: boolean }) {
+export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number }) {
   const Icon = cfg.icon;
-  if (plain) {
-    return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontSize: size + 0.5, fontWeight: 500, color: 'var(--fg-3)', whiteSpace: 'nowrap',
-      }}>
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color, flex: 'none' }} />
-        {cfg.label}
-      </span>
-    );
-  }
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,

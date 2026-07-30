@@ -33,14 +33,18 @@ import { WorldMap } from '@/components/erp/world-map';
 // Kategoriale Identitäts-Farben (KEINE Ampel – hier steht Farbe für «welche Gesellschaft»,
 // nicht für Status). Der Betreiber trägt den warmen Grundton der Unternehmens-Kachel; die
 // übrigen Gesellschaften bekommen je einen ruhigen, unterscheidbaren Ton nach Reihenfolge.
-const OPERATOR_TONE = { dot: '#A65A3C', bg: '#F7EEE9', ring: '#A65A3C' };
+//
+// **Drei Stärken je Ton, weil die Karte mehr Kontrast braucht als eine Zeile** (Notiz #340):
+// `dot` (voll, für Punkt/Kontur), `land` (mittel, die Landfläche – die blasse `bg` liess die
+// Kontinente im Hintergrund verschwinden) und `bg` (blass, für Chips und Zeilen).
+const OPERATOR_TONE = { dot: '#A65A3C', land: '#D9B09C', bg: '#F7EEE9', ring: '#A65A3C' };
 const TONES = [
-  { dot: '#0F766E', bg: '#EAF7F4', ring: '#0F766E' },  // Teal
-  { dot: '#6D28D9', bg: '#F1ECFB', ring: '#6D28D9' },  // Violett
-  { dot: '#B45309', bg: '#FBF1E3', ring: '#B45309' },  // Amber
-  { dot: '#BE123C', bg: '#FBEAEE', ring: '#BE123C' },  // Rosé
-  { dot: '#0369A1', bg: '#E8F1F9', ring: '#0369A1' },  // Blau
-  { dot: '#4D7C0F', bg: '#F0F6E4', ring: '#4D7C0F' },  // Limette
+  { dot: '#0F766E', land: '#8FC9C1', bg: '#EAF7F4', ring: '#0F766E' },  // Teal
+  { dot: '#6D28D9', land: '#B9A2E8', bg: '#F1ECFB', ring: '#6D28D9' },  // Violett
+  { dot: '#B45309', land: '#E0B37A', bg: '#FBF1E3', ring: '#B45309' },  // Amber
+  { dot: '#BE123C', land: '#E79FAF', bg: '#FBEAEE', ring: '#BE123C' },  // Rosé
+  { dot: '#0369A1', land: '#8FBBDC', bg: '#E8F1F9', ring: '#0369A1' },  // Blau
+  { dot: '#4D7C0F', land: '#AFCD86', bg: '#F0F6E4', ring: '#4D7C0F' },  // Limette
 ];
 
 /** Ländername in Deutsch – aus der eingebauten `Intl.DisplayNames`; Rückfall auf den Code. */
@@ -131,7 +135,7 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
         <WorldMap
           selected={selRegion?.code ?? null}
           onSelect={(code) => setSelected(selected === code ? null : code)}
-          fill={(code) => toneOf(regionOwner(code)).bg}
+          fill={(code) => toneOf(regionOwner(code)).land}
           stroke={(code) => toneOf(regionOwner(code)).ring}
           title={(code) => `${data.regions.find((r) => r.code === code)?.label ?? code} · ${nameOf(regionOwner(code))}`}
         />
@@ -272,12 +276,10 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
         })}
       </div>
 
-      <p style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 6, fontSize: 11.5, color: 'var(--fg-4)', lineHeight: 1.5 }}>
-        <Building2 size={13} style={{ color: 'var(--fg-4)', flex: 'none', marginTop: 1 }} />
-        Nicht zugewiesene Regionen gehören dem Betreiber, ein Land folgt seiner Region – solange es
-        keine Ausnahme trägt. Ausschlaggebend ist die Rechnungsadresse des Kunden (Sitz); die Steuer
-        richtet sich getrennt nach der Lieferadresse.
-      </p>
+      {/* Der frühere Erklärabsatz ist entfallen (Notiz #335): Karte und Liste sagen selbst,
+          wem was gehört – jede Fläche trägt eine Farbe, jede Zeile einen Namen. Was er
+          zusätzlich erklärte (Rechnungsadresse ≻ Lieferadresse), ist eine Regel des Systems,
+          keine Bedienhilfe; sie steht in ADR 006. */}
     </div>
   );
 }

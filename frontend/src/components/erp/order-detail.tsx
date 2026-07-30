@@ -584,7 +584,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)', boxShadow: flash ? 'inset 0 0 0 2px var(--success)' : 'none', transition: 'box-shadow 0.2s' }}>
         {tab === 'docs' && !isCreate ? (
           <ObjectDocuments objectId={record?.object_id ?? null} contextLabel="diesem Auftrag" />
-        ) : (<>
+        ) : (
+        // Begrenzte, zentrierte Satzbreite wie in den übrigen Detailfenstern (Notiz #327):
+        // auf einem 3440er-Schirm lief die Auftragsspezifikation sonst über die ganze
+        // Breite, während der Prozess-Fluss darunter zentriert bei 600 px blieb – zwei
+        // Massstäbe in einem Fenster.
+        <div style={{ maxWidth: 880, marginInline: 'auto', width: '100%' }}>
         {/* Fehler stehen zuoberst im Inhalt – direkt unter der Aktion, die sie ausgelöst
             hat (Freigeben/Speichern sitzen im Kopf). Kein Fussleisten-Streifen mehr. */}
         {error && (
@@ -844,7 +849,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           </>
         ) : null}
 
-        </>)}
+        </div>)}
       </div>
 
       {/* Kein Footer mehr (Notiz #140). Die drei Dinge, die er trug, stehen jetzt dort,

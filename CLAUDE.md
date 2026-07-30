@@ -2464,6 +2464,71 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   > Ein Drop im selben Deploy trifft die während des Cloud-Run-Rollouts noch laufende
   > Vorgänger-Revision, die sie noch mappt: das ist die Ausfallklasse von Migration 090.
 
+- **Testnotizen-Runde 22 (wer arbeitet noch daran?, Notizen #324–#340)**: Zwei echte Fehler
+  und eine Reihe Farb-/Wortkorrekturen.
+  (1) **Freigegeben wird erst, wenn KEIN Auftrag mehr an der Instanz arbeitet** (#332,
+  `process._worked_on_by_a_running_order`). Gemeldeter Fall: eine **Abweichung** auf eine
+  Instanz eines noch **laufenden** Erzeugungsauftrags wurde abgeschlossen – und gab die
+  Instanz frei. Sie stand damit «Freigegeben» am Lager (FIFO-verfügbar), während sie
+  tatsächlich noch in Produktion war. Die Regel aus Notiz #262 («freigegeben wird von dem
+  Auftrag, der zuletzt daran gearbeitet hat») war richtig gemeint, aber nur in EINE Richtung
+  gebaut: sie prüfte, was in einer offenen Abweichung steckt, nicht, ob der **Erzeuger** noch
+  läuft. Jetzt zählt der Status der höchstens zwei beteiligten Aufträge (Erzeuger
+  `order_id`, festes Subjekt `subject_of_order_id`): ist einer noch `released`, wird nicht
+  freigegeben. Der #262-Fix bleibt gültig, weil ein **abgebrochener** Auftrag nicht
+  `released` ist – er hält nichts fest. Wächter
+  `test_an_instance_is_not_released_while_another_order_still_works_on_it`.
+  (2) **Ein leeres Pflichtfeld ist keine Datenbank-Verletzung** (#338): eine geleerte
+  Rechtsform schickte `null` in eine NOT-NULL-Spalte, und der rohe psycopg2-Dump
+  («NotNullViolation … Failing row contains (2, Inexxio LLC, null, Dah…») landete im
+  Formular. Zwei Korrekturen: `sites._NOT_NULL_TEXT` schreibt für diese Spalten `""` statt
+  `NULL` (leer heisst «noch nicht ausgefüllt», nicht «kein Wert erlaubt»), und ein eigener
+  `IntegrityError`-Handler macht aus einem verletzten Constraint einen **400 mit einem
+  Satz**, der die Spalte nennt – die Ursache gehört ins Log, nicht in die Oberfläche.
+  (3) **Die Weltkarte, einen Tick kräftiger und mit runden Ecken** (#340/#336): jeder
+  Gesellschafts-Ton hat jetzt **drei** Stärken – `dot` (Punkt/Kontur), `land` (die Fläche)
+  und `bg` (Chips/Zeilen); die Karte nutzte bisher `bg` und verschwand darin. Die Ecken
+  rundet ein SVG-Filter (weichzeichnen → Alpha hart zurückschneiden) je Region: er
+  verschmilzt die Zellen einer Region zu EINER Fläche mit runder Aussenkante und lässt
+  zwischen zwei Regionen genau die Naht stehen, die vorher fehlte.
+  (4) **Der Beschaffungs-Ablauf trägt EINE Tönung** (#329): vorher lagen drei Flächen
+  ineinander, von denen zwei identisch waren (Modul-Karte getönt → Stufen im *gleichen* Ton →
+  weisser Eingabe-Block). Jetzt tönt nur die Modul-Karte; die Stufen sind **weisse Karten**
+  darauf, und die aktive hebt sich über ihren **Rand** in Modulfarbe ab, mit nahtlos
+  anhängendem Arbeitsbereich. Struktur vor Fläche.
+  (5) **«Ausschleusen» heisst «Aussondern»** (#328) – der Begriff aus der Qualitätssicherung
+  («Aussonderung fehlerhafter Teile»); «Ausschleusen» klang nach Logistik und sagte nicht,
+  was mit dem Teil geschieht. Umbenannt in der Registry (`domain/event_types.py`), das
+  Frontend spiegelt sie (Mirror-Test).
+  (6) **Der Bestand zählt Stück, nicht Instanzen** (#333): eine Charge ist EINE Instanz über
+  500 Schrauben – «2» als Bestand war schlicht falsch. Die Filter-Chips summieren jetzt die
+  Menge und nennen die Einheit.
+  (7) **Status ist EINE Form** (#334): die zwischenzeitliche «Punkt + Wort»-Variante im Feed
+  ist wieder entfallen – derselbe Zustand darf nicht je nach Ort anders aussehen. Die Luft
+  im Feed (#300) kommt aus Polsterung und Zeilenabstand, nicht aus einer zweiten Form.
+  (8) **Betreiber-Stern in der Kopfzeile** (#339): «Als Betreiber der Website festlegen» war
+  ein Knopf mitten in den Stammdaten – dabei ist das eine Rolle **über** dem Datensatz. Jetzt
+  ein Stern bei den übrigen Kopf-Aktionen (gesetzt: leuchtend als Tatsache; nicht gesetzt:
+  leiser Knopf, Erklärung im Hover).
+  (9) **Weiche Format-Prüfung für Telefon/E-Mail** (#326, `account/field.fieldFormatIssue`):
+  melden statt blockieren. Eine strenge Telefon-Regex sperrt irgendwann eine echte Nummer
+  aus, und libphonenumber wären ~150 kB für ein Feld, das niemand automatisiert wählt –
+  also ein Hinweis bei offensichtlichem Unsinn (zu wenige Ziffern, fremde Zeichen),
+  gespeichert wird trotzdem.
+  (10) Kleineres: Auftrags-Inhalt auf **880 px zentriert** wie die übrigen Detailfenster
+  (#327 – vorher lief die Spezifikation über die volle Breite, während der Fluss darunter
+  bei 600 px zentriert blieb); Scan-Knopf der Datenerfassung in der ruhigen schwarzen
+  Hauptaktion statt blau-auf-gestrichelt (#330, letzte Stelle der Alt-Palette in der Datei);
+  Website-Hinweis (#337) und Gebiets-Erklärabsatz (#335) entfallen; der AGB-Nachweis im
+  Konto entfällt (#325 – Version und Datum gehören ins Dokumentenmanagement, sonst zwei
+  Anzeigen derselben Tatsache).
+  *#324 (GPS für die Lieferadresse im Konto) war bereits erfüllt: die GPS-Übernahme sitzt in
+  `AddressField` und gilt damit für **jede** Adress-Eingabe – im Konto über «Ändern».*
+  *#331 (fehlende Unterdeckungs-Info) ist keine Lücke: die Fehlmenge wird an dem **Schritt**
+  gemeldet, der das Subjekt braucht – das ist die «Es fehlt»-Zeile, die angeheftet wurde. Ein
+  Auftrag ohne Subjekt-Schritt (nur Beschaffung/Ressource) meldet weiterhin nichts; das ist
+  bewusst so, weil ihm nichts fehlt, was er selbst bräuchte.*
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

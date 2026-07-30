@@ -129,13 +129,13 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
         <div className={cn('text-sm font-semibold truncate', sel ? 'text-accent-ink' : title ? 'text-fg-1' : 'text-fg-4 italic')}>
           {title ?? (row.type === 'user' ? 'Kein Name' : 'Ohne Bezeichnung')}
         </div>
-        {/* Zweite Zeile: Kennung + Zustand, beide **leise**. Der Zustand ist ein Punkt mit
-            Wort statt einer gefüllten Pille – vierzig Pillen untereinander sind das, was den
-            Feed schwer machte (Notiz #300); das Design-System nennt Punkt+Wort ohnehin als
-            Regelform und die gefüllte Badge als Ausnahme (Detail-Köpfe). */}
+        {/* Zweite Zeile: Kennung + Zustand. Der Zustand ist die **gefüllte Pille mit Symbol**
+            – dieselbe Form wie im Detail-Kopf (Notiz #334): derselbe Zustand soll überall
+            gleich aussehen. Die Luft, die den Feed leichter macht (Notiz #300), kommt aus
+            Polsterung und Zeilenabstand, nicht aus einer zweiten Status-Form. */}
         <div className="flex items-center gap-2.5 mt-1">
           <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{fmtObjId(row.objectId)}</span>
-          <StatusBadge cfg={badge} size={11} plain />
+          <StatusBadge cfg={badge} size={11} />
         </div>
       </div>
     </button>

@@ -49,14 +49,18 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
   // die es keine Suche braucht; gesucht wird im Feed.
   const sorted = [...items].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0));
 
-  // Vorhandene Status (in stabiler Reihenfolge) + Anzahl je Status – für die Filter-Chips.
+  // Vorhandene Status (in stabiler Reihenfolge) + **Stückzahl** je Status – für die
+  // Filter-Chips. Gezählt wird die MENGE, nicht die Zahl der Instanzen (Notiz #333): eine
+  // Charge ist EINE Instanz über 500 Schrauben – «2» als Bestand wäre schlicht falsch.
   const groups: { label: string; cfg: ReturnType<typeof statusOf>; count: number }[] = [];
   for (const i of sorted) {
     const cfg = statusOf(i);
+    const qty = Number(i.quantity ?? 1);
     const g = groups.find((x) => x.label === cfg.label);
-    if (g) g.count += 1;
-    else groups.push({ label: cfg.label, cfg, count: 1 });
+    if (g) g.count += qty;
+    else groups.push({ label: cfg.label, cfg, count: qty });
   }
+  const totalQty = sorted.reduce((sum, i) => sum + Number(i.quantity ?? 1), 0);
   const shown = statusFilter === null ? sorted : sorted.filter((i) => statusOf(i).label === statusFilter);
 
   return (
@@ -66,10 +70,10 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
       {/* Status-Filter (nur, wenn es mehr als einen Status gibt) – dezent, Punkt + Wort + Anzahl. */}
       {groups.length > 1 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <FilterChip label="Alle" count={items.length} active={statusFilter === null}
+          <FilterChip label="Alle" count={totalQty} unit={unit} active={statusFilter === null}
             onClick={() => setStatusFilter(null)} />
           {groups.map((g) => (
-            <FilterChip key={g.label} label={g.label} count={g.count} dot={g.cfg.color}
+            <FilterChip key={g.label} label={g.label} count={g.count} unit={unit} dot={g.cfg.color}
               active={statusFilter === g.label} onClick={() => setStatusFilter(g.label)} />
           ))}
         </div>
@@ -106,9 +110,14 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
   );
 }
 
-/** Dezenter Filter-Chip (Notiz #288): Punkt (Status-Farbe) + Wort + Anzahl, aktiv = accent-soft. */
-function FilterChip({ label, count, dot, active, onClick }: {
-  label: string; count: number; dot?: string; active: boolean; onClick: () => void;
+/** Menge lesbar: ganze Zahlen ohne Nachkommastellen, Bruchmengen (kg, m²) mit bis zu drei. */
+function qty(v: number): string {
+  return v.toLocaleString('de-CH', { maximumFractionDigits: 3 });
+}
+
+/** Dezenter Filter-Chip (Notiz #288): Punkt (Status-Farbe) + Wort + **Stückzahl** (#333). */
+function FilterChip({ label, count, unit, dot, active, onClick }: {
+  label: string; count: number; unit?: string; dot?: string; active: boolean; onClick: () => void;
 }) {
   return (
     <button onClick={onClick}
@@ -121,7 +130,9 @@ function FilterChip({ label, count, dot, active, onClick }: {
       }}>
       {dot && <span style={{ width: 7, height: 7, borderRadius: 999, background: dot, flex: 'none' }} />}
       {label}
-      <span className="ix-tnum" style={{ color: 'var(--fg-4)', fontWeight: 500 }}>{count}</span>
+      <span className="ix-tnum" style={{ color: 'var(--fg-4)', fontWeight: 500 }}>
+        {qty(count)}{unit ? ` ${unit}` : ''}
+      </span>
     </button>
   );
 }

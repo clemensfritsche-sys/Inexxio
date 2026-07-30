@@ -18,6 +18,14 @@ export interface Delivery { pct: number; label: string; overdue: boolean; oi: nu
  * treten zurück (gedämpft), nur die aktive trägt ihre Farbe; das Symbol rechts sagt Haken
  * (erledigt) bzw. Kreuz (abgelehnt), der Hover nennt Wer/Wann.
  *
+ * **Eine Tönung, nicht drei** (Notiz #329). Vorher lagen drei Flächen ineinander, von denen
+ * zwei identisch waren: die Modul-Karte in Beschaffungs-Ton, darin die Stufen im *gleichen*
+ * Ton (also unsichtbar abgegrenzt), darin ein weisser Block für die Eingaben. Jetzt trägt
+ * die Tönung nur die Modul-Karte; die Stufen stehen als **weisse Karten** darauf, getrennt
+ * durch Haarlinien, und die aktive hebt sich über ihren **Rand** ab (Modulfarbe) statt über
+ * eine weitere Fläche. Ihr Arbeitsbereich hängt nahtlos an ihr – dieselbe weisse Fläche,
+ * kein Farbwechsel mitten in der Eingabe. Struktur vor Fläche.
+ *
  * Die Lieferfrist ist **keine Stufe**, sondern eine Eigenschaft der Stufe «Bestellt» – ein
  * schmaler Balken in deren Karte, dort wo er gilt.
  *
@@ -43,12 +51,16 @@ export function PurchaseProgress({ nodes, delivery, renderActive }: {
               width: '100%', display: 'flex', alignItems: 'center', gap: 11,
               padding: '10px 13px',
               borderRadius: n.state === 'active' && renderActive ? 'var(--r-md) var(--r-md) 0 0' : 'var(--r-md)',
-              border: `1px solid ${kc.border}`, background: kc.bg,
-              opacity: muted ? 0.5 : 1, cursor: n.hint ? 'help' : 'default',
+              // Weisse Karte auf der getönten Modul-Fläche; die aktive Stufe bekommt den
+              // Modul-Rand (und trägt damit die Farbe an der Kante, nicht in der Fläche).
+              border: `1px solid ${n.state === 'active' ? kc.fg : 'var(--border-1)'}`,
+              background: '#fff',
+              opacity: muted ? 0.55 : 1, cursor: n.hint ? 'help' : 'default',
             }}>
               <span style={{
-                width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
-                color: n.state === 'rejected' ? 'var(--danger)' : kc.fg, border: `1px solid ${kc.border}`,
+                width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0,
+                background: n.state === 'active' ? kc.bg : 'var(--bg-2)',
+                color: n.state === 'rejected' ? 'var(--danger)' : kc.fg,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {Icon ? <Icon size={15} /> : <span style={{ font: '700 12px var(--font-body)' }}>{i + 1}</span>}
@@ -98,10 +110,10 @@ export function PurchaseProgress({ nodes, delivery, renderActive }: {
             {/* Die aktive Stufe trägt ihre Eingaben und ihre Aktion – wie eine Modul-Karte
                 im Auftrags-Fluss ihr Panel trägt (#248). */}
             {n.state === 'active' && renderActive && (
-              // Weisse Fläche im Modulrahmen (Notiz #273): sie hebt den Arbeitsbereich ab,
-              // ohne einen neuen Farbton einzuführen – dieselbe Geste wie die weissen
-              // Symbol-Kästen der Modul-Karten.
-              <div style={{ width: '100%', border: `1px solid ${kc.border}`, borderTop: 'none',
+              // Der Arbeitsbereich hängt **nahtlos** an seiner Stufe: dieselbe weisse Fläche,
+              // derselbe Rand, nur durch eine Haarlinie getrennt (Notiz #329). Vorher war er
+              // eine weitere Fläche in einer anderen Farbe als die Karte darüber.
+              <div style={{ width: '100%', border: `1px solid ${kc.fg}`, borderTop: `1px solid var(--border-1)`,
                 borderRadius: '0 0 var(--r-md) var(--r-md)', background: '#fff', padding: '13px 13px 15px',
                 marginTop: -1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {renderActive()}

@@ -10,14 +10,17 @@ export const STEP_META: Record<StepType, { label: string; icon: React.ElementTyp
   // verbraucht wird, und Werkzeug, das genutzt wird. Der Schraubenschlüssel behauptete nur
   // das Werkzeug (und ist innerhalb der Zeilen genau dafür reserviert).
   resource:   { label: 'Ressource',      icon: Blocks },   // Verbrauch + Betriebsmittel (Modus pro Zeile)
-  // **Ausschleusen** ist EIN Modul mit zwei Wirkungen (Notiz #277): etwas aus dem
+  // **Aussondern** ist EIN Modul mit zwei Wirkungen (Notiz #277): etwas aus dem
+  // verwendbaren Bestand nehmen. Der Name kommt aus der Qualitätssicherung, wo genau
+  // das «Aussonderung fehlerhafter Teile» heisst – «Ausschleusen» klang nach Logistik
+  // und sagte nicht, was mit dem Teil geschieht (Notiz #328).
   // verwendbaren Bestand nehmen – **Verschrotten** endgültig (Bestandsabgang, standortlos)
   // oder **Sperren** vorübergehend (quality='blocked', an der Instanz aufhebbar). Der
   // Unterschied ist die Wirkung, nicht die Sache; beide sind rot, beide verlangen einen
   // Grund. Die zwei Schritttypen bleiben im Datenmodell getrennt – ihre Fachwirkung ist
   // grundverschieden –, an der Oberfläche sind sie EIN Modul.
-  scrap:      { label: 'Ausschleusen',   icon: PackageX },
-  block:      { label: 'Ausschleusen',   icon: PackageX },
+  scrap:      { label: 'Aussondern',     icon: PackageX },
+  block:      { label: 'Aussondern',     icon: PackageX },
   sale:       { label: 'Verkauf',        icon: Receipt },   // bedient auch die Gutschrift/Erstattung (Kredit-Modus)
   document:   { label: 'Dokument',       icon: FileText },  // erzeugt ein nummeriertes Dokument (Vertrag/AGB/Zertifikat)
 };

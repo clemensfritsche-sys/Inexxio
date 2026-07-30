@@ -214,17 +214,19 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
             );
           })}
 
-          {/* Nächste Instanz scannen (Instanz-für-Instanz-Erfassung) */}
+          {/* Nächste Instanz scannen (Instanz-für-Instanz-Erfassung) – dieselbe ruhige
+              Hauptaktion wie in Bewegung und Aussondern (Notizen #125/#330): schwarz, volle
+              Breite, ≥44 px. Vorher blaue Schrift auf gestricheltem Slate-Rahmen, also die
+              einzige Stelle im Fenster in der alten Palette. */}
           {!done && nextInstance != null && (
-            <button onClick={scanNext}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', borderRadius: 10, border: '1px dashed #cbd5e1', background: '#fff', color: '#2563eb', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              <ScanLine size={16} /> {unlocked.length === 0 ? 'Erste Instanz scannen' : 'Nächste Instanz scannen'} ({unlocked.length}/{distinctInstances.length})
-            </button>
+            <PrimaryButton icon={ScanLine} onClick={scanNext}>
+              {unlocked.length === 0 ? 'Erste Instanz scannen' : 'Nächste Instanz scannen'} ({unlocked.length}/{distinctInstances.length})
+            </PrimaryButton>
           )}
         </div>
       )}
 
-      {error && <div style={{ fontSize: 12, color: '#dc2626' }}>{error}</div>}
+      {error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</div>}
 
       {/* Abschluss erst, wenn alle Instanzen gescannt & erfasst sind (inkl. Bild-/Unterschrift-Felder) */}
       {!done && allUnlocked && (
@@ -312,7 +314,7 @@ function CaptureRow({ field, value, onChange, ok, readOnly }: {
           style={{ borderColor: filled && field.target != null ? (ok ? '#86efac' : '#fca5a5') : '#e2e8f0', width: 120 }} />
         <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{soll}</span>
         {filled && field.target != null && (
-          ok ? <CheckCircle2 size={15} style={{ color: '#16a34a' }} /> : <XCircle size={15} style={{ color: '#dc2626' }} />
+          ok ? <CheckCircle2 size={15} style={{ color: 'var(--success)' }} /> : <XCircle size={15} style={{ color: 'var(--danger)' }} />
         )}
       </div>
     </div>

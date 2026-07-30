@@ -49,7 +49,7 @@ function emptyDocCfg(): DocCfg {
 // in KEINER Liste und damit gar nicht wählbar.
 const STEP_ORDER: StepType[] = ['purchase', 'resource', 'inspection', 'movement', 'scrap', 'sale', 'document'];
 // «Sperren» ist kein eigener Palette-Eintrag mehr: es ist die zweite Wirkung desselben
-// Moduls «Ausschleusen» und wird IM Editor gewählt (Notiz #277).
+// Moduls «Aussondern» und wird IM Editor gewählt (Notiz #277).
 
 export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = false, onStepsCount, selfArticleObjectId = null }: {
   owner: 'articles' | 'orders';          // Prozess am Artikel (Entstehung) oder am Auftrag (CUSTOM)
@@ -378,7 +378,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
-                    {/* Ausschleusen sagt seine Wirkung weiter unten (Wirkung + Grund) –
+                    {/* Aussondern sagt seine Wirkung weiter unten (Wirkung + Grund) –
                         hier stünde sie ein zweites Mal. */}
                     {s.step_type === 'document' && (
                       <span>{(() => {
@@ -442,7 +442,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 </div>
               )}
 
-              {/* Ausschleusen: WELCHE Wirkung (#277) + die Pflichtangabe (#255). */}
+              {/* Aussondern: WELCHE Wirkung (#277) + die Pflichtangabe (#255). */}
               {(s.step_type === 'scrap' || s.step_type === 'block') && (
                 <div style={{ ...cardBody, fontSize: 12.5, color: 'var(--fg-2)', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span>• {s.step_type === 'scrap' ? 'Verschrotten' : 'Sperren'}
@@ -565,7 +565,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                 </>
               )}
 
-              {/* Ausschleusen: EINE Entscheidung – endgültig oder vorübergehend (#277). */}
+              {/* Aussondern: EINE Entscheidung – endgültig oder vorübergehend (#277). */}
               {(adding === 'scrap' || adding === 'block') && (
                 <>
                   {/* Kein Label «Wirkung» (#283): die beiden Optionen sagen selbst, was
@@ -1093,7 +1093,7 @@ const KIND_COLORS: Record<StepType, { bg: string; border: string; fg: string }> 
   // Fensters – die Karte verschwand darin (Notiz #236).
   document:   { bg: '#F2F5F7', border: '#DBE3E8', fg: '#4A6572' },
   sale:       { bg: '#F0FBF4', border: '#CDEBD6', fg: '#15803D' },
-  // Ausschleusen ist EIN Modul (#277) – beide Wirkungen tragen dieselbe rote Familie;
+  // Aussondern ist EIN Modul (#277) – beide Wirkungen tragen dieselbe rote Familie;
   // unterschieden wird im Modul, nicht über die Farbe.
   scrap:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
   block:      { bg: '#FDF3F2', border: '#F1D6D2', fg: 'var(--danger)' },
