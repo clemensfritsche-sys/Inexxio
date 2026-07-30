@@ -29,6 +29,7 @@ const EMPTY_SETTINGS: CompanySettings = {
   default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,
   shop_default_currency: 'CHF', payments_provider: null, pricing_zone_factors: null,
+  infra_monthly_chf: null,
   legal_documents: null,
 };
 
@@ -88,7 +89,7 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
 
       <SettingsCard icon={<Key className="h-5 w-5" />} title="Integrationen & API-Keys"
         saved={saved === 'integrations'} saving={saving === 'integrations'}
-        onSave={(d) => saveSection('integrations', { stripe_publishable_key: d.stripe_publishable_key || null, plausible_domain: d.plausible_domain || null, hcaptcha_site_key: d.hcaptcha_site_key || null, google_maps_api_key: d.google_maps_api_key || null })}>
+        onSave={(d) => saveSection('integrations', { stripe_publishable_key: d.stripe_publishable_key || null, plausible_domain: d.plausible_domain || null, hcaptcha_site_key: d.hcaptcha_site_key || null, google_maps_api_key: d.google_maps_api_key || null, infra_monthly_chf: d.infra_monthly_chf ? Number(d.infra_monthly_chf) : null })}>
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
           <Lock className="mt-0.5 h-4 w-4 text-blue-600 shrink-0" />
           <p className="text-xs text-blue-800">Secret Keys werden im Google Secret Manager verwaltet und sind hier nicht sichtbar.</p>
@@ -98,6 +99,7 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
           <Field label="Plausible Domain" name="plausible_domain" defaultValue={s.plausible_domain ?? ''} placeholder="inexxio.com" />
           <Field label="hCaptcha Site Key" name="hcaptcha_site_key" defaultValue={s.hcaptcha_site_key ?? ''} placeholder="10000000-ffff-ffff-ffff-000000000001" hint="Für Kontaktformular" className="sm:col-span-2" />
           <Field label="Google Maps API Key" name="google_maps_api_key" defaultValue={s.google_maps_api_key ?? ''} placeholder="AIza…" hint="Für Lagerplatz-Karte; Maps JavaScript API + Geocoding API aktivieren, auf Domain einschränken" className="sm:col-span-2" />
+          <Field label="Infrastruktur-Kosten / Monat (CHF)" name="infra_monthly_chf" type="number" defaultValue={s.infra_monthly_chf ?? ''} placeholder="z. B. 32" hint="Realer Google-Cloud-Monatsbetrag aus der Abrechnung – erscheint dann als «fix» in den Betriebskosten (leer = geschätzt)" className="sm:col-span-2" />
         </div>
       </SettingsCard>
 

@@ -118,7 +118,14 @@ def operating_costs(db: Session) -> dict:
 
     ai = _ai_costs(db, start)
     pay = _stripe_fees(db, start)
-    infra_mtd = round(_INFRA_MONTHLY * day / days_in_month, 2)
+    # Infrastruktur: der reale, fixe Monatsbetrag aus der Abrechnung, sofern hinterlegt
+    # (``company_settings.infra_monthly_chf``, Notiz #293) – sonst der Code-Schätzwert
+    # (Spannen-Mittelwert). Gesetzt = «fix», sonst = «geschätzt».
+    from .sites import find_operator
+    op = find_operator(db)
+    infra_fixed = bool(op and op.infra_monthly_chf)
+    infra_monthly = float(op.infra_monthly_chf) if infra_fixed else _INFRA_MONTHLY
+    infra_mtd = round(infra_monthly * day / days_in_month, 2)
 
     groups = [
         {
@@ -141,20 +148,25 @@ def operating_costs(db: Session) -> dict:
             ],
         },
         {
-            "key": "infrastructure", "label": "Infrastruktur · Google Cloud", "basis": "estimate",
+            "key": "infrastructure", "label": "Infrastruktur · Google Cloud",
+            # Hinterlegter Realbetrag → «fixed» (Anzeige «fix»), sonst «estimate» («geschätzt»).
+            "basis": "fixed" if infra_fixed else "estimate",
             "total_chf": infra_mtd,
-            "items": [
-                {"label": name, "value_chf": round(val * day / days_in_month, 2),
-                 "hint": f"≈ {val:.0f} CHF/Mt"}
-                for name, val in _INFRA_ITEMS if val > 0
-            ],
+            "items": (
+                [{"label": "Monatsbetrag (aus Abrechnung)", "value_chf": infra_mtd,
+                  "hint": f"fix {infra_monthly:.0f} CHF/Mt"}]
+                if infra_fixed else
+                [{"label": name, "value_chf": round(val * day / days_in_month, 2),
+                  "hint": f"≈ {val:.0f} CHF/Mt"}
+                 for name, val in _INFRA_ITEMS if val > 0]
+            ),
         },
     ]
 
     total_mtd = round(ai["total"] + pay["total"] + infra_mtd, 2)
     # Hochrechnung aufs Monatsende: gemessene Kosten linear extrapoliert + volle Infra-Fixkosten.
     measured = ai["total"] + pay["total"]
-    projected = round(measured * days_in_month / max(day, 1) + _INFRA_MONTHLY, 2)
+    projected = round(measured * days_in_month / max(day, 1) + infra_monthly, 2)
 
     return {
         "period_label": f"{_MONTHS_DE[now.month]} {now.year}",
