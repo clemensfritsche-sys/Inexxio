@@ -53,7 +53,7 @@ export function ResourcePanel({ order, stepState, stepId, onOrderUpdated }: {
       if (p) {
         const steps: ScanStep[] = [
           { label: `Produkt-Instanz ${fmtObjId(p.instance_id)}`, kind: 'instance',
-            expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceLabel(p.kind) }] },
+            expected: p.instance_id, candidates: [{ objectId: p.instance_id, label: instanceLabel() }] },
           ...(p.components ?? []).map((c) => ({
             label: `Komponente ${fmtObjId(c.instance_id)}`,
             kind: 'instance' as const,
@@ -157,7 +157,7 @@ function ProductCard({ product, validated }: { product: OrderResourceProduct; va
     <div style={{ ...lineBox, borderColor: validated ? '#bbf7d0' : '#f1f5f9' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Boxes size={14} style={{ color: '#0f766e' }} />
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{instanceLabel(product.kind)}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#0F172A' }}>{instanceLabel()}</span>
         <ObjId value={product.instance_id} />
         {validated
           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#16a34a', marginLeft: 'auto' }}><CheckCircle2 size={12} /> validiert</span>

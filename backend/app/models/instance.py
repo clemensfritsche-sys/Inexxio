@@ -13,9 +13,29 @@ from .base import TimestampMixin
 class Instance(Base, TimestampMixin):
     """Bestandsobjekt – entsteht bei der **Auftragsfreigabe**.
 
-    Aus der Artikel-Einstellung ``serialization`` abgeleitet:
+    **Eine Instanz ist eine MENGE, kein Ding.** Sie trägt eine Objektnummer und eine
+    ``quantity``; wie viel das ist, sagt allein diese Zahl. Aus der Artikel-Einstellung
+    ``serialization`` folgt nur, wie die Menge bei der Entstehung aufgeteilt wird
+    (``services/serialization.py`` – die EINZIGE Stelle, die den Unterschied kennt):
+
         unit  → je Stück eine eigene Instanz (quantity = 1, eigene Nummer)
         batch → eine Charge-Instanz mit quantity = Bestellmenge
+
+    ``kind`` ist danach nur noch ein **Etikett** für die Anzeige, keine Regel: kein
+    Fachmodul verzweigt darauf. Wer wissen will «wie viel», liest ``quantity`` – auch die
+    Stichprobe (``inspection.sample_capacity``), der Bestand und die Reservierung.
+
+    **Warum nicht N Zeilen à 1 Stück?** Die Frage kommt wieder, darum hier die Antwort:
+      * Eine Charge darf **gebrochen** sein (2.5 kg, 0.75 m²) – «2.5 Zeilen» gibt es nicht.
+        Genau dafür existiert ``batch``; ``unit`` erzwingt ganze Stück.
+      * Die **Objektnummer ist systemweit eindeutig** (Unique-Index) und der Schlüssel für
+        QR-Scan, ``references.object_references`` und ``locations.location_chain``. N Zeilen
+        mit derselben Nummer bräuchten überall eine neue Antwort auf «welche davon?».
+      * Eine 1000er-Charge wären 1000 Zeilen je Reservierung, FIFO-Zugriff und Umlagerung.
+    Der Preis dafür ist die Teilmengen-Logik – und die steht an genau zwei Stellen
+    (``services/reservation.py`` für «wer beansprucht wie viel», ``services/location_split.py``
+    für «wo liegt wie viel»). Die daraus entstandene Fehlerklasse («Zeilen zählen statt
+    Mengen summieren») bewacht ``tests/test_quantity_rules.py``.
 
     Trägt eine eigene 9-stellige Objektnummer (etikettier-/QR-fähig) und ist die
     Grundlage des Bestands. Entsteht unter einem Auftrag (``order_id``).

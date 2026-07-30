@@ -50,7 +50,11 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   // Bei einem Mehrpositionen-Auftrag ist ``order.quantity`` NULL – die Gesamtmenge ergibt
   // sich dann aus der Summe der Positionsmengen (Spiegel von ``order_lines.effective_quantity``).
   const qty = order.quantity ?? (order.order_lines ?? []).reduce((s, l) => s + l.quantity, 0);
-  const isBatch = order.article_serialization === 'batch';
+  // **Mehrere Proben aus EINER Instanz** – der Chargen-Fall. Abgeleitet aus den Proben
+  // selbst (trägt eine Instanz mehr als einen Slot?), nicht aus der Serialisierung des
+  // Artikels: die Proben sind die Tatsache, der Artikeltyp nur ihre übliche Ursache. So
+  // stimmt die Beschriftung auch dann, wenn ein Auftrag mehrere Chargen prüft.
+  const multiSample = samples.some((s) => s.slot > 1);
   const escalated = insp?.escalated ?? false;
 
   // Werte je Stichprobe: { "instanceId:slot": { fieldKey: value } }
@@ -103,7 +107,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   });
 
   function sampleLabel(instanceId: number, slot: number): string {
-    return isBatch ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Instanz ${fmtObjId(instanceId)}`;
+    return multiSample ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Instanz ${fmtObjId(instanceId)}`;
   }
 
   async function submit() {
@@ -144,7 +148,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
       {/* Eine Zeile, kein Kasten: die Angabe ist Beiwerk, nicht ein eigener Bereich. */}
       <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>
         Prüfumfang: <b>{required}</b> von {qty} Stück <span style={{ color: 'var(--fg-4)' }}>({escalated ? '100 % – hochgestuft' : `${pct}% Stichprobe`})</span>
-        {isBatch && required > 1 && <span style={{ color: 'var(--fg-4)' }}> · {required} Proben aus der Charge</span>}
+        {multiSample && <span style={{ color: 'var(--fg-4)' }}> · {required} Proben aus der Charge</span>}
       </div>
 
       {escalated && !done && (

@@ -1,10 +1,14 @@
 """Geschäftslogik für den Prozessschritt «Datenerfassung» (Eingangskontrolle).
 
-Es wird IMMER konkret eine Instanz genannt, an der die Daten zu erfassen sind:
-- Einzelteil: aus den N Instanzen werden gemäss Prüfumfang ``required`` Stück
-  (stabil pseudo-zufällig) ausgewählt – je Stichprobe ein Wertesatz.
-- Charge (batch): die eine Charge-Instanz wird genannt, die Erfassung muss aber
-  ``required``-mal erfolgen (mehrere Proben aus der Charge).
+Es wird IMMER konkret eine Instanz genannt, an der die Daten zu erfassen sind. Die
+Auswahl folgt **einer** Regel: *jede Instanz liefert so viele Proben, wie ihre Menge
+hergibt* (``sample_capacity``), verteilt reihum über die Instanzen des Auftrags. Daraus
+fällt beides heraus, ohne dass hier jemand Charge und Einzelteil unterscheiden müsste:
+
+- Einzelteil (Menge 1 je Instanz): ``required`` Instanzen à eine Probe.
+- Charge (eine Instanz, Menge N): dieselbe Instanz mit ``required`` Proben (slot 1..N).
+- Mehrere Chargen: die Proben verteilen sich über sie – der Fall, den die frühere
+  Fallunterscheidung gar nicht kannte.
 
 Erfassungsmaske je Probe:
 - measure: Soll-Ist-Vergleich mit Toleranz (ok, wenn |Ist−Soll| ≤ Toleranz)
@@ -26,6 +30,7 @@ wird es durch einen eigenen, nachvollziehbaren Vorgang.
 """
 
 import hashlib
+import math
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -91,38 +96,60 @@ def eval_fields(step: ArticleProcessStep | None) -> list[dict]:
     return fields if fields else [dict(DEFAULT_OK_FIELD)]
 
 
+def sample_verdicts(fields: list[dict], stored: list[dict]) -> dict[int, bool]:
+    """Erfasste Stichproben → Urteil **je beprobter Instanz** ({objektnr: bestanden}).
+
+    Eine Instanz kann mehrere Proben tragen (Charge: slot 1..N) – sie gilt als bestanden,
+    wenn **alle** ihre Proben bestehen. Damit braucht diese Auswertung die Unterscheidung
+    Charge/Einzelteil nicht: ein Einzelteil hat genau eine Probe, eine Charge mehrere, die
+    Regel ist dieselbe. (Vorher stand der Chargen-Fall als eigener Zweig daneben und tat
+    exakt dasselbe.)
+
+    **Nur beprobte Instanzen erscheinen im Ergebnis** – wer nicht in der Stichprobe war,
+    bekommt kein Urteil. Rein und DB-frei, damit die Regel prüfbar bleibt."""
+    out: dict[int, bool] = {}
+    for s in stored:
+        iid = s.get("instance_id")
+        if iid is None:
+            continue
+        ok = evaluate(fields, s.get("values") or {})
+        out[iid] = out.get(iid, True) and ok
+    return out
+
+
 def _apply_per_instance_qc(db: Session, order: Order, fields: list[dict], stored: list[dict]) -> None:
-    """Bei 100 %-Prüfung je Instanz bewerten (Einzelteil); Charge als Ganzes.
+    """Das Urteil der Stichprobe auf die **beprobten** Instanzen anwenden.
 
     Es werden nur **Durchfaller gesperrt** (``inventory.BLOCKED``) – derselbe Zustand, den
     auch der Schritt «Sperren» setzt: vorhanden, aber nicht verwendbar. Bestandene bleiben
     ``pending`` («In Arbeit») und werden erst beim Auftrags-Abschluss freigegeben
     (`process.release_instances`) – «Freigegeben» heisst immer: Auftrag fertig.
 
+    **Was nicht beprobt wurde, wird nicht beurteilt.** Vorher bekam JEDE Instanz des
+    Auftrags ein Urteil, und wer nicht in der Stichprobe war, fiel über den Default
+    ``False`` durch: eine **bestandene 20 %-Stichprobe sperrte die übrigen 80 %**. Sie
+    verschwanden damit aus FIFO, Bestand und Verfügbarkeit, obwohl die Prüfung bestanden
+    war. Eine Stichprobe sagt etwas über die gezogenen Stück; reicht das nicht, stuft
+    ``escalate_decision`` auf 100 % hoch – DANN ist jede Instanz beprobt und bekommt ihr
+    Urteil.
+
     **Eine Sperre ist rücknehmbar** (Nacharbeit): besteht eine zuvor gesperrte Instanz die
     Erfassung eines **Folgeauftrags**, geht sie zurück auf ``pending``. Ohne das wäre ein
     Durchfaller endgültig verloren – auch wenn die Abweichung ihn nachweislich in Ordnung
     gebracht hat. Terminale Instanzen (verschrottet/verkauft/verbaut) bleiben unangetastet:
     dort ist nichts mehr zu bewerten."""
-    insts = order_active_instances(db, order)
+    verdicts = sample_verdicts(fields, stored)
+    if not verdicts:
+        return
     reworkable = "in_process"
-
-    def verdict(inst, ok: bool) -> None:
+    for inst in order_active_instances(db, order):
+        ok = verdicts.get(inst.object_id)
+        if ok is None:
+            continue                      # nicht in der Stichprobe → kein Urteil
         if not ok:
             inst.quality = inventory.BLOCKED
         elif inventory.is_blocked(inst) and inst.disposition == reworkable:
             inst.quality = "pending"      # Nacharbeit bestanden → Sperre gelöst
-
-    if len(insts) == 1 and insts[0].kind == "batch":
-        verdict(insts[0], all(evaluate(fields, s.get("values") or {}) for s in stored))
-        return
-    ok_by_inst: dict[int, bool] = {}
-    for s in stored:
-        ok = evaluate(fields, s.get("values") or {})
-        iid = s.get("instance_id")
-        ok_by_inst[iid] = ok_by_inst.get(iid, True) and ok
-    for inst in insts:
-        verdict(inst, ok_by_inst.get(inst.object_id, False))
 
 
 def resolve_failed_by(db: Session, parent: Order, resolver: Order) -> int:
@@ -160,21 +187,56 @@ def _shuffle_key(object_id: int, seed: int) -> int:
     return int(hashlib.md5(f"{seed}:{object_id}".encode()).hexdigest(), 16)
 
 
+def sample_capacity(quantity) -> int:
+    """Wie viele Proben eine Instanz hergeben kann: ihre **Menge**, aufgerundet, min. 1.
+
+    Ein Einzelteil (Menge 1) liefert genau eine Probe, eine Charge à 500 bis zu 500, eine
+    Charge à 2.5 kg deren drei (aufgerundet – man kann keine halbe Probe ziehen, und der
+    Prüfumfang rundet aus demselben Grund auf)."""
+    from .quantity import to_qty
+    return max(1, math.ceil(to_qty(quantity)))
+
+
 def sample_targets(db: Session, order: Order, step: ArticleProcessStep | None) -> list[dict]:
     """Konkrete Stichproben [{instance_id, slot}] gemäss Prüfumfang.
 
-    Charge → eine Instanz mit mehreren Proben (slot 1..N); Einzelteil → N zufällig
-    ausgewählte Instanzen (je slot 1)."""
-    insts = order_active_instances(db, order)
+    **EINE Regel statt zweier:** jede Instanz liefert so viele Proben, wie ihre **Menge**
+    hergibt (``sample_capacity``), und die Proben werden reihum verteilt. Daraus fällt beides
+    heraus, was vorher zwei Zweige waren – Einzelteil: N Instanzen à eine Probe; Charge: eine
+    Instanz mit N Proben –, ohne dass hier noch jemand nach ``kind`` fragen muss.
+
+    Nebenbei wird ein Fall zum ersten Mal richtig bedient: **mehrere Chargen** in einem
+    Auftrag (Bestands-Auftrag über zwei Chargen à 100). Der frühere Chargen-Zweig griff nur
+    bei *genau einer* Instanz; zwei Chargen fielen in den Einzelteil-Zweig und ergaben
+    höchstens **eine Probe je Charge**, egal wie gross sie waren.
+
+    Die Auswahl bleibt stabil pseudo-zufällig (gleiche Stichprobe über alle Requests, je
+    Auftrag anders); ausgegeben wird nach Objektnummer sortiert, damit die Liste lesbar ist."""
+    insts = [i for i in order_active_instances(db, order) if i.object_id is not None]
     need = required_count(db, order, step)
     if not insts or need <= 0:
         return []
-    if len(insts) == 1 and insts[0].kind == "batch":
-        charge = insts[0]
-        return [{"instance_id": charge.object_id, "slot": k + 1} for k in range(need)]
-    chosen = sorted(insts, key=lambda i: _shuffle_key(i.object_id or 0, order.id or 0))[:need]
-    chosen.sort(key=lambda i: i.object_id or 0)
-    return [{"instance_id": i.object_id, "slot": 1} for i in chosen]
+    by_chance = sorted(insts, key=lambda i: _shuffle_key(i.object_id or 0, order.id or 0))
+    taken: dict[int, int] = {}
+    remaining = need
+    while remaining > 0:
+        drew = False
+        for inst in by_chance:
+            if remaining <= 0:
+                break
+            oid = inst.object_id
+            if taken.get(oid, 0) >= sample_capacity(inst.quantity):
+                continue
+            taken[oid] = taken.get(oid, 0) + 1
+            remaining -= 1
+            drew = True
+        if not drew:
+            break        # alle Instanzen ausgeschöpft – mehr Proben gibt der Bestand nicht her
+    return [
+        {"instance_id": oid, "slot": slot + 1}
+        for oid in sorted(taken)
+        for slot in range(taken[oid])
+    ]
 
 
 def field_ok(field: dict, value) -> bool:

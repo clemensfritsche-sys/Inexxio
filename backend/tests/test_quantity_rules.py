@@ -1,0 +1,157 @@
+"""**Mengen sind Mengen, keine Zeilenzahlen.**
+
+Eine Instanz ist keine Sache, sondern eine **Menge**: `unit` trägt genau ein Stück,
+`batch` beliebig viele – auch gebrochene (2.5 kg, 0.75 m²). Genau daraus entsteht die
+wiederkehrende Fehlerklasse dieses Systems: *jemand zählt Zeilen, wo er Mengen summieren
+müsste*. Eine Charge à 500 Schrauben ist EINE Zeile und FÜNFHUNDERT Stück; `len(insts)`
+liefert dann 1, und die Zahl wandert als Menge weiter.
+
+Belegte Fälle:
+  * Testnotiz #72  – der Prüfumfang rechnete mit der *Zahl* der Subjekte: eine Abweichung
+    auf EINE Charge à 5 Stk ergab 1 Probe statt 5.
+  * Testnotiz #333 – die Bestands-Filter zählten Instanzen: «2» statt 500 Schrauben.
+  * `provisioning._sub_order` schrieb `quantity=len(insts)` – ein Bereitstellungs-Auftrag
+    für eine 500er-Charge stand als «1 Stk» da.
+
+Die Fehler haben denselben Bau, also braucht es EINEN Wächter statt drei Einzelfixes.
+Er sucht per AST (nicht per Textsuche) nach Mengen-Feldern, die aus einer **Anzahl**
+befüllt werden.
+
+Warum das Datenmodell trotzdem so bleibt: «eine Instanz = eine Zeile mit einer Menge»
+statt «N Zeilen à 1 Stück» ist keine Bequemlichkeit, sondern Voraussetzung. Eine Charge
+darf 2.5 kg sein – «2.5 Zeilen» gibt es nicht –, die Objektnummer ist systemweit eindeutig
+(QR-Scan, Referenzen, Standort-Kette), und eine 1000er-Charge wären 1000 Zeilen für jede
+Reservierung. Die Teilmengen-Logik (`reservation.py`, `location_split.py`) ist der Preis
+dafür, und sie steht an genau zwei Stellen.
+"""
+
+import ast
+import pathlib
+
+APP = pathlib.Path(__file__).resolve().parents[1] / "app"
+
+# Felder, die eine **Menge** tragen (Decimal), keine Anzahl.
+QUANTITY_FIELDS = {"quantity", "reserved_quantity", "move_quantity", "qty"}
+# Ausdrücke, die eine **Anzahl** liefern.
+COUNTING_CALLS = {"len", "count"}
+
+
+def _counts_rows(node: ast.AST) -> bool:
+    """Liefert dieser Ausdruck eine Anzahl (``len(x)`` / ``x.count()``)?"""
+    if not isinstance(node, ast.Call):
+        return False
+    fn = node.func
+    if isinstance(fn, ast.Name) and fn.id in COUNTING_CALLS:
+        return True
+    return isinstance(fn, ast.Attribute) and fn.attr in COUNTING_CALLS
+
+
+def test_no_quantity_is_filled_from_a_row_count():
+    """Ein Mengen-Feld darf nie aus einer Zeilen-Anzahl befüllt werden.
+
+    Gemeint sind Schlüsselwort-Argumente (``Order(quantity=len(insts))``) und Zuweisungen
+    (``inst.quantity = len(rows)``). Wer wirklich Zeilen zählen will, benennt die Variable
+    anders – das Mengen-Feld ist für Mengen da. Richtig ist ``qty_sum(i.quantity for i in …)``
+    (so macht es ``deviation.create_deviation`` seit Testnotiz #72)."""
+    offenders: list[str] = []
+    for path in APP.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        rel = path.relative_to(APP).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                for kw in node.keywords:
+                    if kw.arg in QUANTITY_FIELDS and _counts_rows(kw.value):
+                        offenders.append(f"{rel}:{kw.value.lineno}  {kw.arg}=<Anzahl>")
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    name = target.attr if isinstance(target, ast.Attribute) else (
+                        target.id if isinstance(target, ast.Name) else None)
+                    if name in QUANTITY_FIELDS and _counts_rows(node.value):
+                        offenders.append(f"{rel}:{node.lineno}  {name} = <Anzahl>")
+    assert not offenders, (
+        "Hier wird eine ANZAHL in ein MENGEN-Feld geschrieben. Eine Charge à 500 ist EINE "
+        "Zeile und 500 Stück – richtig ist qty_sum(i.quantity for i in …):\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+# ─── Die Stichprobe kennt keine Charge-Sonderregel mehr ──────────────────────────
+
+def test_a_sample_is_drawn_by_quantity_not_by_kind():
+    """Wie viele Proben eine Instanz hergibt, sagt ihre **Menge** – nicht ihr ``kind``.
+
+    Vorher gab es zwei Zweige (Charge → N Proben aus einer Instanz, Einzelteil → N
+    Instanzen), und sie hingen an ``len(insts) == 1 and kind == 'batch'``. Zwei Chargen in
+    einem Auftrag fielen damit in den Einzelteil-Zweig und ergaben **eine** Probe je Charge,
+    egal wie gross sie war. Eine Regel deckt beides – und den dritten Fall gleich mit."""
+    from app.services.inspection import sample_capacity, sample_targets
+
+    assert sample_capacity(1) == 1              # Einzelteil: genau eine Probe
+    assert sample_capacity(500) == 500          # Charge: so viele wie Stück
+    assert sample_capacity("2.5") == 3          # Bruchmenge: aufgerundet (halbe Probe gibt es nicht)
+    assert sample_capacity(0) == 1              # nie null Proben
+
+    src = ast.unparse(ast.parse(pathlib.Path(
+        APP / "services" / "inspection.py").read_text(encoding="utf-8")))
+    fn = [n for n in ast.walk(ast.parse(src))
+          if isinstance(n, ast.FunctionDef) and n.name == "sample_targets"]
+    body = ast.unparse(fn[0])
+    assert "batch" not in body, "Die Stichproben-Auswahl darf ``kind`` nicht mehr kennen"
+    assert "sample_capacity" in body
+
+
+def test_the_batch_unit_difference_lives_in_exactly_one_module():
+    """``Instance.kind`` ist ein **Etikett**, keine Regel.
+
+    Der Unterschied Charge/Einzelteil darf nur dort stehen, wo er *entsteht*
+    (``services/serialization.py``: unit → N Instanzen à 1, batch → eine à N). Überall
+    sonst zählt die **Menge**. Vorher verzweigte auch die Datenerfassung darauf – und weil
+    ihre Bedingung ``len(insts) == 1 and kind == 'batch'`` lautete, war der Fall «zwei
+    Chargen» schlicht nicht vorgesehen (eine Probe je Charge statt nach Menge).
+
+    Der Test hält den erreichten Zustand fest: verzweigt wieder ein Fachmodul auf ``kind``,
+    ist das eine bewusste Entscheidung – und keine, die unbemerkt einschleicht."""
+    allowed = {"services/serialization.py"}
+    offenders: list[str] = []
+    for path in APP.rglob("*.py"):
+        rel = path.relative_to(APP).as_posix()
+        if rel in allowed:
+            continue
+        for num, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("#")[0]
+            if '.kind == "batch"' in code or ".kind == 'batch'" in code:
+                offenders.append(f"{rel}:{num}")
+    assert not offenders, (
+        "Charge/Einzelteil darf nur services/serialization.py unterscheiden – sonst zählt "
+        "die Menge (Instance.quantity):\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_only_sampled_instances_get_a_verdict():
+    """**Was nicht beprobt wurde, wird nicht beurteilt.**
+
+    Vorher bekam jede Instanz des Auftrags ein Urteil, und wer nicht in der Stichprobe war,
+    fiel über den Default ``False`` durch: eine BESTANDENE 20 %-Stichprobe sperrte die
+    übrigen 80 % – sie verschwanden aus FIFO, Bestand und Verfügbarkeit. Reicht eine
+    Stichprobe nicht, stuft ``escalate_decision`` auf 100 % hoch; DANN ist jede Instanz
+    beprobt und bekommt ihr Urteil."""
+    from app.services.inspection import DEFAULT_OK_FIELD, sample_verdicts
+
+    fields = [dict(DEFAULT_OK_FIELD)]
+    key = DEFAULT_OK_FIELD["key"]
+
+    # Einzelteile: nur die gezogene Instanz (100000001) steht im Urteil.
+    verdicts = sample_verdicts(fields, [{"instance_id": 100000001, "slot": 1, "values": {key: True}}])
+    assert verdicts == {100000001: True}
+    assert 100000002 not in verdicts, "Eine nicht beprobte Instanz darf kein Urteil bekommen"
+
+    # Charge: mehrere Proben derselben Instanz – bestanden nur, wenn ALLE bestehen.
+    charge = [
+        {"instance_id": 100000009, "slot": 1, "values": {key: True}},
+        {"instance_id": 100000009, "slot": 2, "values": {key: False}},
+        {"instance_id": 100000009, "slot": 3, "values": {key: True}},
+    ]
+    assert sample_verdicts(fields, charge) == {100000009: False}
+
+    # Ohne Proben gibt es kein Urteil (und damit keine Sperre).
+    assert sample_verdicts(fields, []) == {}
