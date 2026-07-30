@@ -23,6 +23,7 @@ import type {
   PriceKind, PriceInterval, PriceSubType, UserProfile,
 } from '@/types';
 import { Label, TextField, SectionTitle, Placeholder, IconSwitch } from '@/components/erp/fields';
+import { formatMoney } from '@/lib/utils';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { AiImageAssist } from '@/components/ai/image-assist';
 import { useAutosave } from '@/lib/use-autosave';
@@ -66,7 +67,8 @@ export function SalesPanel({ articleObjectId }: { articleObjectId: number | null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 980, marginInline: 'auto' }}>
       <ProfileCard profile={profile} onSaved={setProfile} onVisibilityChange={setLiveVis} articleObjectId={articleObjectId} />
-      <PricesCard articleObjectId={articleObjectId} prices={profile.prices} onChanged={reload} />
+      <PricesCard articleObjectId={articleObjectId} prices={profile.prices}
+        previews={profile.previews} onChanged={reload} />
       {liveVis === 'private' && (
         <AudienceCard articleObjectId={articleObjectId} audience={profile.audience}
           customers={customers} onChanged={reload} />
@@ -220,8 +222,9 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
 
 // ─── Preise ──────────────────────────────────────────────────────────────────────
 
-function PricesCard({ articleObjectId, prices, onChanged }: {
-  articleObjectId: number; prices: ArticlePrice[]; onChanged: () => void;
+function PricesCard({ articleObjectId, prices, previews, onChanged }: {
+  articleObjectId: number; prices: ArticlePrice[];
+  previews: ArticleSalesProfile['previews']; onChanged: () => void;
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -243,6 +246,38 @@ function PricesCard({ articleObjectId, prices, onChanged }: {
           <Plus size={14} /> Preis hinzufügen
         </button>
       )}
+
+      <CustomerPriceStrip previews={previews} />
+    </div>
+  );
+}
+
+/**
+ * **Kundenpreis in jeder Shop-Währung** (read-only) – der Hauptpreis, berechnet mit unserem
+ * Tageskurs (gepinnt, „schön" gerundet). Genau dieser Betrag wird dem Kunden angezeigt UND
+ * belastet: EINE Kursquelle (unser ``fx``-Anker), keine Abweichung zwischen Anzeige und Zahlung.
+ * Aktualisiert sich live, sobald der CHF-Basispreis geändert (und gespeichert) wird.
+ */
+function CustomerPriceStrip({ previews }: { previews: ArticleSalesProfile['previews'] }) {
+  if (!previews || previews.length === 0) return null;
+  return (
+    <div style={{ borderTop: '1px solid var(--border-1)', paddingTop: 14 }}>
+      <SectionTitle icon={Globe} info="Der Hauptpreis in jeder Shop-Währung – berechnet mit unserem Tageskurs (gepinnt, „schön“ gerundet, stabil bis zur nächsten Basis-Änderung). Genau dieser Betrag wird dem Kunden angezeigt UND an der Kasse belastet – eine Kursquelle, keine Divergenz zwischen Anzeige und Zahlung.">
+        Kundenpreis
+      </SectionTitle>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {previews.map((v) => (
+          <div key={v.currency} style={{ display: 'flex', flexDirection: 'column', gap: 1,
+            border: '1px solid var(--border-1)', borderRadius: 'var(--r-md)', padding: '8px 12px', minWidth: 96 }}>
+            <span className="ix-tnum" style={{ font: '700 14px var(--font-body)', color: 'var(--fg-1)' }}>
+              {formatMoney(v.gross, v.currency)}
+            </span>
+            {Number(v.tax_rate) > 0 && (
+              <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>inkl. {Number(v.tax_rate)}% MWST</span>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

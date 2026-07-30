@@ -691,8 +691,14 @@ class ApiClient {
   }
 
   // Warenkorb-Checkout: mehrere Positionen ⇒ eine Zahlungs-Session (Defer-Modell).
-  shopCheckout(items: { article_object_id: number; price_id: number; quantity: number }[]): Promise<ShopCheckoutResult> {
-    return this.post('/api/v1/shop/checkout', { items });
+  shopCheckout(
+    items: { article_object_id: number; price_id: number; quantity: number }[],
+    currency?: string,
+    country?: string,
+  ): Promise<ShopCheckoutResult> {
+    // Die angezeigte Präsentationswährung mitgeben – der Server belastet exakt den
+    // angezeigten Betrag in dieser Währung (eine Kursquelle, keine Divergenz Anzeige↔Zahlung).
+    return this.post('/api/v1/shop/checkout', { items, currency, country });
   }
 
 

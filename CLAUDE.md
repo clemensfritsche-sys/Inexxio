@@ -2292,13 +2292,40 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`test_operator_is_chosen_with_an_age_fallback`, `test_operator_is_editable_and_exactly_one`,
   `test_currency_is_a_per_company_field_derived_from_country`,
   `test_is_primary_is_dropped_everywhere_not_re_added`).
-  **Nächste Schritte (definiert):** (4) **Preis-Eingabe/-Anzeige in Landeswährung** (Sales-Panel
-  + Konvertierung CHF↔Währung server-seitig, Geldpfad isoliert). (5) **Fakturierende
+  **Nächste Schritte (definiert):** (4) **Anzeige in Landeswährung + EINE Kursquelle → UMGESETZT**
+  (siehe eigener Bullet «Währung: EINE Kursquelle» unten). (5) **Fakturierende
   Gesellschaft aus dem Warenort ableiten** (wie ADR-005-Versand) → Beleg zeigt ihre Identität;
   **Belegnummer bleibt global** (rechtlich zulässig); Zahlungskonto je Gesellschaft mit Rückfall
   auf EIN geteiltes Stripe-Konto (US-Konto erst bei echter US-Gründung – dann nur ein Key am
   Datensatz). (6+) Steuerregime je Gesellschaft (CH live, US-Stub), Intercompany-Verkauf
   (= `sale` mit interner Partei), Konsolidierung.
+- **Währung: EINE Kursquelle (unser `fx`-Anker), Adaptive Pricing AUS** (Juli 2026, Geldpfad,
+  kein Schema-Migrations-Bedarf – JSONB-Zeile): Der Kunde sah im Shop z. B. € 11.80 (unser
+  Tageskurs), Stripe belastete aber € 11.82 – denn der Checkout schickte **CHF** und liess
+  **Stripe Adaptive Pricing** mit STRIPES Kurs in die Lokalwährung umrechnen. Das waren **zwei
+  Kursquellen**. Jetzt berechnet `selling._resolve_line` je Position den Betrag in der
+  **Präsentationswährung** über dieselbe Pipeline `pricing.price_view_for` (unser `fx`-Anker,
+  gepinnt + „schön" gerundet) und legt ihn als `presentment_currency`/`presentment_amount` auf
+  die `CheckoutIntent`-Zeile; `stripe_provider._line_item` übergibt **genau diese Währung + diesen
+  Betrag** an Stripe (Adaptive Pricing bewusst **AUS**, `docs/stripe-setup.md`). Damit ist
+  **Anzeige == Belastung** per Konstruktion. `base_amount_chf` bleibt die **kanonische** CHF-Grösse
+  (Reservierung/Report/anteilige Erstattung – währungsunabhängige Verhältnisse); die Kasse belastet
+  die Präsentationswährung, das reale Settlement kommt über `_apply_stripe_snapshot` (liest
+  `settlement.currency` schon immer dynamisch) auf `sales.currency` zurück → «Meine Bestellungen»/
+  Refund folgen **automatisch** (Refund proportional über den Snapshot, währungsunabhängig).
+  Der Client kann **keinen Betrag vorgeben**: `checkout(currency, country)` validiert die Währung
+  gegen `shop_currencies` (`resolve_currency`), der Betrag wird immer neu gerechnet. **CHF-Shops
+  unverändert** (Präsentation = CHF = Basis). Welche Währung der Shop zeigt, steuert die Shop-Konfig
+  (Standard/Land); der Kurs kommt aus `fx_rates`. **ERP sichtbar:** der tote Feld-Rückgabewert
+  `previews` ist wiederbelebt – Reiter «Verkauf» → «Kundenpreis» zeigt den Hauptpreis in JEDER
+  Shop-Währung (dieselbe Pipeline, die belastet), live beim Ändern des CHF-Basispreises. Wächter
+  `tests/test_sales.py` (`test_stripe_line_item_charges_presentment_currency`,
+  `…_falls_back_to_chf_for_old_intents`, `…_subscription_keeps_presentment_currency`,
+  `test_checkout_threads_presentment_currency_and_recomputes_amount`,
+  `test_stripe_provider_does_not_rely_on_adaptive_pricing`). *Bewusst NOCH offen: Preis-**Eingabe**
+  in Landeswährung (heute EINE CHF-Zahl gepflegt, Fremdwährung nur Anzeige – ein lossy Rück-
+  Umrechnen wäre die Alternative), per-Gesellschaft-Produktwährung (Intercompany), Shop-Währungs-
+  umschalter für den Kunden (Backend `resolve_currency`/Produkt-Endpunkte tragen `currency` bereits).*
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

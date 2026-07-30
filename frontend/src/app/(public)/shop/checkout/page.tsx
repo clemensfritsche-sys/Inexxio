@@ -13,7 +13,7 @@ import { useCart } from '@/lib/cart-context';
 function CheckoutView() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { items, hydrated, clear } = useCart();
+  const { items, hydrated, clear, currency } = useCart();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [pubKey, setPubKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ function CheckoutView() {
         const payload = items.map((i) => ({
           article_object_id: i.article_object_id, price_id: i.price_id, quantity: i.quantity,
         }));
-        const res = await api.shopCheckout(payload);
+        const res = await api.shopCheckout(payload, currency);
         if (res.payment_url) { window.location.href = res.payment_url; return; }  // manual
         if (res.client_secret) { setClientSecret(res.client_secret); }
         else setError('Die Kasse konnte nicht gestartet werden.');
@@ -51,7 +51,7 @@ function CheckoutView() {
         setBusy(false);
       }
     })();
-  }, [authLoading, hydrated, user, items, router, done]);
+  }, [authLoading, hydrated, user, items, router, done, currency]);
 
   const stripePromise = useMemo<Promise<Stripe | null> | null>(
     () => (pubKey ? loadStripe(pubKey) : null), [pubKey]);
