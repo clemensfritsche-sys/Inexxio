@@ -57,8 +57,12 @@ def upgrade() -> None:
             sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
             sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         )
-        op.create_index("ix_shipments_order_id", "shipments", ["order_id"])
-        op.create_index("ix_shipments_step_id", "shipments", ["step_id"])
+        # Die beiden Indizes entstehen bereits aus ``index=True`` an den Spalten oben –
+        # ein zusätzliches ``create_index`` mit demselben Namen liess ein
+        # ``alembic upgrade head`` auf einer **frischen** Datenbank hier abbrechen
+        # («relation ix_shipments_order_id already exists»). In bestehenden Deployments
+        # fiel das nie auf, weil das Lifespan-``create_all`` die Tabelle vorher anlegt und
+        # dieser ganze Zweig übersprungen wird. Das Ergebnis-Schema ist identisch.
 
     def add_col(table: str, col: sa.Column) -> None:
         if table in tables:

@@ -22,8 +22,10 @@ class CompanySettings(Base):
     ein Rang (``services/sites.py`` ist die eine Auflösung):
 
       * **je Gesellschaft** (``sites.ENTITY_FIELDS``, editierbar an JEDEM Datensatz):
-        Name, Anschrift, Rechtsidentität, Bank, MWST/Zahlung. Die US-Gesellschaft hat
-        ihre EIGENE EIN/Steuer/Bank – deshalb ist Rechtsidentität hier bewusst dabei.
+        Name, Rechtsform, Anschrift, Währung, Rechtsidentität (UID/MWST), Kontakt, IBAN.
+        Die US-Gesellschaft hat ihre EIGENE EIN/Steuer/Bank – deshalb ist Rechtsidentität
+        hier bewusst dabei. Der Satz ist bewusst **klein**: jedes Feld hier ist ein Feld,
+        das jemand für JEDE Gesellschaft pflegen muss.
       * **die eine Website/Integration** (``sites.PLATFORM_FIELDS``): Stripe-Key,
         Shop-Währungen, ``pricing_zone_factors``, ``legal_documents``, Plausible, Maps.
         Diese gibt es genau EINMAL; sie liegen (vorerst) als Spalten auf dem **Betreiber**
@@ -67,26 +69,19 @@ class CompanySettings(Base):
     zip_code: Mapped[Optional[str]] = mapped_column(String(20))
     city: Mapped[Optional[str]] = mapped_column(String(100))
     country: Mapped[str] = mapped_column(String(100), default="Schweiz")
+    # **Rechtsidentität – auf das Minimum reduziert** (Testnotizen #307/#313/#314/#319/#321):
+    # Was die Gesellschaft ausweist, sind UID/Steuernummer und MWST-Nummer – sie stehen auf
+    # dem Beleg-Briefkopf (``document_render``) und im Impressum. Die Handelsregister-Nummer
+    # ist in der Schweiz seit 2016 die UID selbst, der HR-Kanton steht im Register und das
+    # Aktienkapital ist nirgends vorgeschrieben – drei Felder, die nur abschrieben, was die
+    # UID ohnehin sagt.
     uid_number: Mapped[Optional[str]] = mapped_column(String(30))
     vat_number: Mapped[Optional[str]] = mapped_column(String(30))
-    trade_register_nr: Mapped[Optional[str]] = mapped_column(String(50))
-    trade_register_canton: Mapped[Optional[str]] = mapped_column(String(50))
-    share_capital: Mapped[Optional[str]] = mapped_column(String(100))
+    # Bank = **eine** Zahl: die IBAN trägt Land, Bank und Konto. QR-IBAN (die QR-Rechnung
+    # ist nicht gebaut), Bankname und BIC waren Abschriften daraus.
     iban_encrypted: Mapped[Optional[str]] = mapped_column(Text)
-    qr_iban_encrypted: Mapped[Optional[str]] = mapped_column(Text)
-    bank: Mapped[Optional[str]] = mapped_column(String(255))
-    bic_swift: Mapped[Optional[str]] = mapped_column(String(20))
     email: Mapped[str] = mapped_column(String(255), default="info@inexxio.com")
     phone: Mapped[Optional[str]] = mapped_column(String(50))
-    website: Mapped[str] = mapped_column(String(255), default="https://inexxio.com")
-    vat_method: Mapped[str] = mapped_column(String(50), default="effektiv")
-    vat_period: Mapped[str] = mapped_column(String(20), default="quartal")
-    default_payment_days: Mapped[int] = mapped_column(Integer, default=30)
-    default_skonto_pct: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    default_skonto_days: Mapped[Optional[int]] = mapped_column(Integer)
-    oss_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    oss_reg_number: Mapped[Optional[str]] = mapped_column(String(50))
-    vies_active: Mapped[bool] = mapped_column(Boolean, default=False)
     logo_path: Mapped[Optional[str]] = mapped_column(String(500))
 
     # API Keys / Integrations

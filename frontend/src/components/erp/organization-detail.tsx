@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Building2, FileText, Phone, Landmark, ReceiptText, Globe2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star  } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
-import { Field, Sec } from '@/components/erp/user-detail';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DetailHeader } from '@/components/erp/fields';
-import { AddressField, type Address, toIso2 } from '@/components/erp/address-field';
+import { Card, DetailHeader } from '@/components/erp/fields';
+import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { Field as AField } from '@/components/account/field';
+import { useAutosave } from '@/components/account/use-autosave';
+import { SaveStatusIndicator } from '@/components/account/save-status';
 import { SystemConfigSection } from '@/components/account/sections/system-config-section';
 import { TerritoryMap } from '@/components/erp/territory-map';
 
@@ -24,6 +26,7 @@ const COUNTRIES: [string, string][] = [
   ['Niederlande', 'Niederlande'], ['Belgien', 'Belgien'], ['Luxemburg', 'Luxemburg'],
   ['Portugal', 'Portugal'], ['Irland', 'Irland'],
 ];
+
 // Auswählbare Funktionswährungen + Land→Währung-Vorschlag über **ISO-2** (Spiegel von
 // services/sites._COUNTRY_CURRENCY; nur eine UI-Bequemlichkeit – die Wahrheit setzt das
 // Backend beim Anlegen, hier wird beim Länderwechsel nur vorgeschlagen). ISO-2, damit es
@@ -36,6 +39,39 @@ const CURRENCY_BY_ISO2: Record<string, string> = {
 };
 function suggestCurrency(country: string | undefined): string | undefined {
   return CURRENCY_BY_ISO2[toIso2(country)];
+}
+
+/**
+ * **Rechtsformen je Land** (Testnotiz #303) – Vorschläge, keine Auswahlliste.
+ *
+ * Eine brauchbare API dafür gibt es nicht: die einzige verbindliche Quelle ist die
+ * ISO-20275-Liste der GLEIF («Entity Legal Forms»), ein Download mit ~2600 Einträgen ohne
+ * Abfrage-Endpunkt – für eine Vorbelegung von acht Zeilen der falsche Preis. Die Liste ist
+ * ausserdem träge (Rechtsformen ändern sich in Jahrzehnten, nicht in Wochen), also ist sie
+ * hier richtig aufgehoben – genau wie die Land→Währung-Zuordnung darüber.
+ *
+ * Es bleibt ein **Freitextfeld** mit `datalist`: die Vorschläge decken den Normalfall,
+ * jede Exotik (Anstalt, SCE, Zweigniederlassung) bleibt tippbar.
+ */
+const LEGAL_FORMS_BY_ISO2: Record<string, string[]> = {
+  CH: ['AG', 'GmbH', 'Einzelunternehmen', 'Kollektivgesellschaft', 'Kommanditgesellschaft',
+       'Genossenschaft', 'Verein', 'Stiftung', 'Zweigniederlassung'],
+  LI: ['AG', 'GmbH', 'Anstalt', 'Stiftung', 'Treuunternehmen'],
+  DE: ['GmbH', 'UG (haftungsbeschränkt)', 'AG', 'GmbH & Co. KG', 'KG', 'OHG', 'e.K.', 'GbR', 'eG', 'e.V.'],
+  AT: ['GmbH', 'AG', 'OG', 'KG', 'e.U.', 'Genossenschaft'],
+  US: ['Inc.', 'LLC', 'Corp.', 'LP', 'LLP', 'Sole Proprietorship'],
+  GB: ['Ltd', 'PLC', 'LLP', 'Sole Trader'],
+  FR: ['SARL', 'SAS', 'SASU', 'SA', 'EURL', 'SCI'],
+  IT: ['S.r.l.', 'S.p.A.', 'S.n.c.', 'S.a.s.', 'Ditta individuale'],
+  ES: ['S.L.', 'S.A.', 'Autónomo'],
+  NL: ['B.V.', 'N.V.', 'Eenmanszaak', 'V.O.F.'],
+  BE: ['BV', 'NV', 'VOF', 'CommV'],
+  LU: ['S.à r.l.', 'S.A.', 'SCS'],
+  PT: ['Lda.', 'S.A.', 'Unipessoal Lda.'],
+  IE: ['Ltd', 'PLC', 'DAC', 'Sole Trader'],
+};
+function legalForms(country: string | undefined): string[] {
+  return LEGAL_FORMS_BY_ISO2[toIso2(country)] ?? [];
 }
 
 // EIN QueryClient für den System-Reiter (die Plattform-Konfiguration nutzt React Query,
@@ -53,20 +89,60 @@ function splitStreet(line: string): [string, string] {
 
 type OrgTab = 'stamm' | 'system' | 'docs';
 
+/** Das Formular – nur die Felder, die es noch gibt (alles String, wie im Konto). */
+interface OrgForm {
+  company_name: string;
+  legal_form: string;
+  street: string;
+  street_number: string;
+  zip: string;
+  city: string;
+  country: string;
+  currency: string;
+  uid: string;
+  vat_number: string;
+  email: string;
+  phone: string;
+  iban: string;
+}
+
+function buildForm(s: CompanySettings): OrgForm {
+  return {
+    company_name: s.company_name ?? '',
+    legal_form: s.legal_form ?? '',
+    street: s.street ?? '',
+    street_number: s.street_number ?? '',
+    zip: s.zip ?? '',
+    city: s.city ?? '',
+    country: s.country || 'Schweiz',
+    currency: s.currency || 'CHF',
+    uid: s.uid ?? '',
+    vat_number: s.vat_number ?? '',
+    email: s.email ?? '',
+    phone: s.phone ?? '',
+    iban: '',                                  // die echte IBAN kommt nie zurück (maskiert)
+  };
+}
+
+const nn = (s: string): string | null => (s.trim() === '' ? null : s);
+
 /**
  * Detailansicht eines **Unternehmens** (einer Gesellschaft) – ein gleichrangiger
- * ERP-Datensatz im gleichen Layout wie die Benutzer-Detailseite (Kopf mit Objektnummer,
- * Sektions-Karten, Speicherleiste).
+ * ERP-Datensatz in derselben Anatomie wie Benutzer und Profil: EIN Formular, EIN
+ * Auto-Save (Testnotiz #312), Karten statt Sektionsraster, Pflichtfelder markiert.
  *
  * **Ein Fenster, ein Feldsatz – für JEDE Gesellschaft gleich.** Jede trägt ihre eigene,
  * vollständige Rechtsidentität (die US-Gesellschaft hat ihre eigene EIN/Steuer/Bank). Es
  * gibt keinen «Hauptsitz» mit mehr Feldern und keinen kastrierten «Standort».
  *
+ * **Wenige Felder, dafür Pflicht** (Testnotizen #301/#305/#307/#310/#313/#314/#317–#321,
+ * #323). Der Massstab war nicht «könnte man mal brauchen», sondern: *nennt es jemand auf
+ * einem Beleg, im Impressum oder in einer Regel?* Neun Angaben bleiben – und weil es neun
+ * sind, dürfen sie Pflicht sein. Zwei davon füllt das System selbst: die **Währung** folgt
+ * dem Land (#304) und die **Website-Adresse** dem Deployment (#309).
+ *
  * Die **Plattform-/Systemkonfiguration** (Stripe, Shop, Rechtstexte) gilt der EINEN
- * Website, nicht je Gesellschaft – sie lebt in der **Systemkonfiguration**
- * (Admin → Einstellungen), nicht hier. Der **Betreiber** (`is_operator`, das älteste
- * Unternehmen) vertritt die Website nach aussen; das ist eine abgeleitete Rolle, kein Rang
- * – der einzige sichtbare Unterschied ist ein dezenter Hinweis und die Konzern-Kosten.
+ * Website, nicht je Gesellschaft – sie steht im Reiter «System» am **Betreiber**.
  */
 export function OrganizationDetail({ record, onSaved, onBack }: {
   record: CompanySettings;
@@ -75,17 +151,68 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
 }) {
   // Frisch nachgeladener Datensatz (der Feed liefert schon den vollen Satz, aber beim
   // Öffnen holen wir ihn erneut – Bank maskiert, abgeleitete Felder aktuell).
-  const [loaded, setLoaded] = useState<CompanySettings | null>(null);
-  const [form, setForm] = useState<Partial<CompanySettings>>({});
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [base, setBase] = useState<CompanySettings>(record);
+  const [form, setForm] = useState<OrgForm>(() => buildForm(record));
+  const [resetKey, setResetKey] = useState(0);
   const [tab, setTab] = useState<OrgTab>('stamm');
   const [opBusy, setOpBusy] = useState(false);
+  const [opError, setOpError] = useState<string | null>(null);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const mapsKey = useMapsApiKey();
+  const prevId = useRef<number | null | undefined>(undefined);
 
-  const base: CompanySettings = loaded ?? record;
   const isOperator = !!base.is_operator;
+
+  // Nur bei Datensatz-WECHSEL neu aufbauen – sonst klobbert ein Auto-Save → onSaved →
+  // neuer Prop die gerade getippte Eingabe (dieselbe Regel wie im Benutzer-Datensatz).
+  useEffect(() => {
+    if (record.object_id === prevId.current) return;
+    prevId.current = record.object_id;
+    setBase(record);
+    setForm(buildForm(record));
+    setResetKey((k) => k + 1);
+    setTab('stamm');
+    setCurrencyOpen(false);
+    setOpError(null);
+    if (record.object_id != null) {
+      api.getCompany(record.object_id).then((fresh) => {
+        if (record.object_id !== prevId.current) return;
+        setBase(fresh);
+        setForm(buildForm(fresh));
+        setResetKey((k) => k + 1);
+      }).catch(() => undefined);
+    }
+  }, [record]);
+
+  const { status, errorMsg, saveNow } = useAutosave(
+    form,
+    async (v) => {
+      if (record.object_id == null) return;
+      // Ein leerer Name ist kein speicherbarer Zustand (er ist zugleich das Halter-Label) –
+      // das Feld markiert ihn als fehlend, gesendet wird er nicht. Das Backend weist ihn
+      // ebenfalls ab; hier ersparen wir dem Tippenden die Fehlermeldung nach jedem Zeichen.
+      if (!v.company_name.trim()) return;
+      const data: Partial<CompanySettings> = {
+        company_name: v.company_name.trim(),
+        legal_form: nn(v.legal_form),
+        street: v.street, street_number: nn(v.street_number),
+        zip: v.zip, city: v.city, country: v.country,
+        currency: v.currency,
+        uid: nn(v.uid), vat_number: nn(v.vat_number),
+        email: v.email, phone: nn(v.phone),
+      };
+      // Die IBAN wird nur gesendet, wenn sie neu eingegeben wurde (sonst überschriebe der
+      // maskierte Platzhalter die echte Nummer).
+      if (v.iban.trim()) data.iban = v.iban.trim();
+      const updated = await api.updateCompany(record.object_id, data);
+      setBase(updated);
+      onSaved(updated);
+    },
+    2500,
+    resetKey,
+  );
+
+  const str = (k: keyof OrgForm) => (val: string) => setForm((p) => ({ ...p, [k]: val }));
 
   // Die Firmenadresse ist EIN Feld (Suche zuerst); Strasse und Hausnummer werden
   // beim Übernehmen getrennt, weil das Unternehmen sie in zwei Spalten führt. Beim
@@ -97,51 +224,28 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country,
       ...(suggested ? { currency: suggested } : {}),
     }));
-    setDirty(true);
   }
 
   /** Diese Gesellschaft zum Betreiber der Website machen (genau eine trägt den Titel). */
   async function makeOperator() {
     if (record.object_id == null) return;
-    setOpBusy(true); setError(null);
+    setOpBusy(true); setOpError(null);
     try {
       const updated = await api.setCompanyOperator(record.object_id);
-      setLoaded(updated);
+      setBase(updated);
       onSaved(updated);   // Eltern-Feed lädt die Liste neu → alter Betreiber verliert den Titel
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Betreiber konnte nicht gesetzt werden');
+      setOpError(e instanceof Error ? e.message : 'Betreiber konnte nicht gesetzt werden');
     } finally { setOpBusy(false); }
   }
 
-  useEffect(() => {
-    setForm({}); setDirty(false); setError(null); setLoaded(null); setTab('stamm');
-    if (record.object_id != null) api.getCompany(record.object_id).then(setLoaded).catch(() => setLoaded(null));
-  }, [record]);
-
-  function v(key: keyof CompanySettings): string | boolean | null | undefined {
-    if (key in form) return form[key] as string | boolean | null | undefined;
-    return base[key] as string | boolean | null | undefined;
-  }
-  function set(key: keyof CompanySettings) {
-    return (val: string | boolean) => {
-      setForm((prev) => ({ ...prev, [key]: val === '' ? null : val } as Partial<CompanySettings>));
-      setDirty(true);
-    };
-  }
-  async function save() {
-    if (record.object_id == null) return;
-    setSaving(true); setError(null);
-    try {
-      // EIN Pfad für JEDE Gesellschaft (auch den Betreiber): die Entitäts-Felder gehen an
-      // den Datensatz selbst. Die Plattform-Konfiguration wird hier gar nicht angeboten.
-      const updated = await api.updateCompany(record.object_id, form);
-      setLoaded(updated);
-      onSaved(updated);
-      setForm({}); setDirty(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Fehler beim Speichern');
-    } finally { setSaving(false); }
-  }
+  const address: Address = {
+    street: [form.street, form.street_number].filter(Boolean).join(' '),
+    zip: form.zip, city: form.city, country: form.country,
+  };
+  const forms = legalForms(form.country);
+  const derivedCurrency = suggestCurrency(form.country);
+  const saveIndicator = <SaveStatusIndicator status={status} errorMsg={errorMsg} />;
 
   return (
     <div className="flex flex-col h-full">
@@ -149,7 +253,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           Für jede Gesellschaft gleich; kein «Hauptsitz»-Rang. */}
       <DetailHeader
         icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
-        eyebrow="Unternehmen" title={(v('company_name') as string) || null}
+        eyebrow="Unternehmen" title={form.company_name || null}
         objectId={record.object_id} onBack={onBack}
         status={{ label: 'Unternehmen', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }}
       >
@@ -163,124 +267,150 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       </DetailHeader>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
         {tab === 'system' && isOperator && (
           <QueryClientProvider client={systemQueryClient}>
             <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
           </QueryClientProvider>
         )}
-        {tab === 'stamm' && (<>
-        <Sec title="Allgemeine Angaben" editable icon={Building2}>
-          <Field label="Name" val={v('company_name')} onChange={set('company_name')} span2 />
-          <Field label="Rechtsform" val={v('legal_form')} onChange={set('legal_form')} />
-          <div style={{ gridColumn: '1 / -1' }}>
-            <AddressField
-              value={{
-                street: [v('street'), v('street_number')].filter(Boolean).join(' '),
-                zip: (v('zip') as string) ?? '', city: (v('city') as string) ?? '',
-                country: (v('country') as string) ?? 'Schweiz',
-              }}
-              onChange={applyCompanyAddress} apiKey={mapsKey}
-              countryOptions={COUNTRIES} label="Anschrift" />
-          </div>
-          {/* Funktionswährung – aus dem Land vorbelegt (US → USD), frei änderbar. Grundlage
-              für «ein Preis, überall in Landeswährung». */}
-          <Field label="Währung" val={v('currency')} onChange={set('currency')}
-            type="select" opts={CURRENCIES} />
-          {/* Betreiber der Website – WÄHLBAR, genau eine Gesellschaft trägt den Titel. */}
-          <div style={{ gridColumn: '1 / -1' }}>
+        {tab === 'stamm' && (
+        <div style={{ maxWidth: 760, marginInline: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* ── 1. Allgemeine Angaben ────────────────────────────────────────── */}
+          <Card title="Allgemeine Angaben" right={saveIndicator}>
+            <AField label="Unternehmensname" value={form.company_name} onChange={str('company_name')}
+              placeholder="Inexxio AG" required onEnter={saveNow} />
+
+            {/* Rechtsform: Freitext mit Vorschlägen aus dem Land (#303). */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <AField label="Rechtsform" value={form.legal_form} onChange={str('legal_form')}
+                placeholder={forms[0] ?? 'AG'} required onEnter={saveNow} list="legal-forms" />
+              <datalist id="legal-forms">
+                {forms.map((f) => <option key={f} value={f} />)}
+              </datalist>
+            </div>
+
+            <div>
+              <AddressField value={address} onChange={applyCompanyAddress} apiKey={mapsKey}
+                countryOptions={COUNTRIES} label="Anschrift" required />
+              {/* Eine Tatsache über DIESEN Datensatz: ohne eigene Anschrift bleibt eine
+                  Bewegung hierher innerbetrieblich statt Versand zu werden (ADR 005). */}
+              {!hasAddress(address) && (
+                <p style={{ font: '500 12px var(--font-body)', color: 'var(--warning)', margin: '6px 0 0' }}>
+                  Ohne Anschrift zählt eine Bewegung hierher als innerbetrieblich – kein Versand.
+                </p>
+              )}
+            </div>
+
+            {/* Währung – **abgeleitet** aus dem Land (#304). Änderbar, aber nicht beiläufig:
+                erst der Klick auf «Ändern» macht daraus ein Feld. Wer bewusst abweicht
+                (Holding fakturiert in EUR), kommt hin; niemand verstellt sie im Vorbeitippen. */}
+            {currencyOpen ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Währung</label>
+                <select value={form.currency} onChange={(e) => str('currency')(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E2E8F0',
+                           fontSize: 14, color: '#0F172A', background: '#fff', outline: 'none',
+                           width: '100%', boxSizing: 'border-box', cursor: 'pointer' }}>
+                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>Währung</div>
+                  <div style={{ font: '600 14px var(--font-body)', color: 'var(--fg-1)', marginTop: 2 }}>
+                    {form.currency}
+                    {derivedCurrency === form.currency && (
+                      <span style={{ font: '500 12px var(--font-body)', color: 'var(--fg-4)', marginLeft: 8 }}>
+                        aus dem Land
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button type="button" onClick={() => setCurrencyOpen(true)}
+                  style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4,
+                           font: '600 12px var(--font-body)', color: 'var(--accent)',
+                           background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                  <Pencil size={12} /> Ändern
+                </button>
+              </div>
+            )}
+
+            {/* Betreiber der Website – WÄHLBAR, genau eine Gesellschaft trägt den Titel. */}
             {isOperator ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8,
                             font: '600 12px var(--font-body)', color: 'var(--fg-3)' }}>
-                <Star size={14} style={{ color: 'var(--warning)' }} fill="currentColor" />
+                <Star size={14} style={{ color: 'var(--warning)', flex: 'none' }} fill="currentColor" />
                 Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration
                 (Reiter «System»).
               </div>
             ) : (
-              <button type="button" onClick={makeOperator} disabled={opBusy}
-                className="erp-actbtn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                <Star size={14} /> {opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
-              </button>
+              <div>
+                <button type="button" onClick={makeOperator} disabled={opBusy}
+                  className="erp-actbtn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                  <Star size={14} /> {opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
+                </button>
+                {opError && (
+                  <p style={{ font: '500 12px var(--font-body)', color: 'var(--danger)', margin: '6px 0 0' }}>{opError}</p>
+                )}
+              </div>
             )}
-          </div>
-          {/* Eine Tatsache über DIESEN Datensatz: ohne eigene Anschrift bleibt eine Bewegung
-              hierher innerbetrieblich statt Versand zu werden (ADR 005). */}
-          {!base.has_address && !dirty && (
-            <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)',
-                          color: 'var(--warning)', lineHeight: 1.5 }}>
-              Ohne Anschrift zählt eine Bewegung hierher als innerbetrieblich – kein Versand.
+          </Card>
+
+          {/* ── 2. Rechtliche Identifikation ─────────────────────────────────── */}
+          {/* Was die Gesellschaft ausweist: UID und MWST-Nummer stehen auf dem Beleg-
+              Briefkopf und im Impressum. Handelsregister-Nr./-Kanton und Aktienkapital
+              sind entfallen (#307) – in der Schweiz IST die HR-Nummer seit 2016 die UID,
+              der Kanton steht im Register, und Kapital ist nirgends vorgeschrieben. */}
+          <Card title="Rechtliche Identifikation">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="UID / Steuernummer" value={form.uid} onChange={str('uid')}
+                placeholder="CHE-123.456.789" required onEnter={saveNow} />
+              <AField label="MWST-Nummer" value={form.vat_number} onChange={str('vat_number')}
+                placeholder="CHE-123.456.789 MWST" required onEnter={saveNow} />
             </div>
-          )}
-        </Sec>
+          </Card>
 
-        {/* Rechtsidentität – für JEDE Gesellschaft (die US-Gesellschaft hat ihre eigene EIN). */}
-        <Sec title="Rechtliche Identifikation" editable icon={FileText}>
-          <Field label="UID / Steuernummer" val={v('uid')} onChange={set('uid')} />
-          <Field label="MWST-Nummer" val={v('vat_number')} onChange={set('vat_number')} />
-          <Field label="Handelsregister-Nr." val={v('trade_register_number')} onChange={set('trade_register_number')} />
-          <Field label="HR-Kanton / Region" val={v('trade_register_canton')} onChange={set('trade_register_canton')} />
-          <Field label="Kapital" val={v('share_capital')} onChange={set('share_capital')} span2 />
-        </Sec>
+          {/* ── 3. Kontakt ───────────────────────────────────────────────────── */}
+          <Card title="Kontakt">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AField label="E-Mail" value={form.email} onChange={str('email')} type="email"
+                placeholder="info@inexxio.com" required onEnter={saveNow} />
+              <AField label="Telefon" value={form.phone} onChange={str('phone')} type="tel"
+                placeholder="+41 44 000 00 00" required onEnter={saveNow} />
+            </div>
+            {/* Website: **abgeleitet** aus dem Deployment (#309) – die Adresse, unter der
+                diese Installation läuft. Angezeigt, weil sie im Impressum und auf dem
+                Briefkopf steht; nicht editierbar, weil ein Eingabefeld daneben beim ersten
+                Domain-Wechsel still falsch würde. */}
+            <AField label="Website" value={base.website ?? ''} readOnly
+              hint="Adresse dieser Installation – wird nicht eingegeben." />
+          </Card>
 
-        <Sec title="Kontakt & Web" editable icon={Phone}>
-          <Field label="E-Mail" val={v('email')} onChange={set('email')} type="email" span2 />
-          <Field label="Telefon" val={v('phone')} onChange={set('phone')} />
-          <Field label="Website" val={v('website')} onChange={set('website')} />
-        </Sec>
+          {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}
+          {/* EINE Zahl: die IBAN trägt Land, Bank und Konto. QR-IBAN (die QR-Rechnung ist
+              nicht gebaut), Bankname und BIC waren Abschriften daraus (#313). */}
+          <Card title="Bankverbindung">
+            <AField label="IBAN" value={form.iban} onChange={str('iban')}
+              placeholder={base.iban_masked ?? 'CH00 0000 0000 0000 0000 0'}
+              required={!base.iban_masked} onEnter={saveNow}
+              hint={base.iban_masked ? `Hinterlegt: ${base.iban_masked} – zum Ersetzen neu eingeben.` : undefined} />
+          </Card>
 
-        <Sec title="Bankdaten" editable icon={Landmark}>
-          <Field label="IBAN / Konto" val={v('iban') ?? (base.iban_masked ?? '')} onChange={set('iban')} span2 />
-          <Field label="QR-IBAN" val={v('qr_iban') ?? (base.qr_iban_masked ?? '')} onChange={set('qr_iban')} span2 />
-          <Field label="Bank" val={v('bank_name')} onChange={set('bank_name')} />
-          <Field label="BIC/SWIFT" val={v('bic')} onChange={set('bic')} />
-        </Sec>
-
-        <Sec title="MWST & Zahlung" editable icon={ReceiptText}>
-          <Field label="MWST-Methode" val={v('vat_method')} onChange={set('vat_method')} type="select" opts={['effektiv', 'saldosteuersatz']} />
-          <Field label="MWST-Periode" val={v('vat_period')} onChange={set('vat_period')} type="select" opts={['quartal', 'semester', 'jahr']} />
-          <Field label="Zahlungsfrist (Tage)" val={v('default_payment_days')} onChange={set('default_payment_days')} />
-          <Field label="Skonto (%)" val={v('default_discount_percent')} onChange={set('default_discount_percent')} />
-          <Field label="Skonto-Frist (Tage)" val={v('default_discount_days')} onChange={set('default_discount_days')} />
-        </Sec>
-
-        <Sec title="EU-Erweiterungen" editable icon={Globe2}>
-          <Field label="OSS aktiv" val={v('oss_active')} onChange={set('oss_active')} type="check" />
-          <Field label="VIES-Validierung" val={v('vies_validation')} onChange={set('vies_validation')} type="check" />
-          <Field label="OSS-Nummer" val={v('oss_number')} onChange={set('oss_number')} span2 />
-        </Sec>
-
-        {/* Gebiete (Weltkarte) – seit Notiz #299 hier im Stammdaten-Reiter statt als eigener
-            Reiter: welche Märkte diese Gesellschaft fakturiert, ist Stammdaten. Die Karte ist
-            global (alle Regionen/Gesellschaften) und hebt die aktuelle hervor. */}
-        <Sec title="Gebiete" editable icon={Globe2}>
-          <div style={{ gridColumn: '1 / -1' }}>
+          {/* ── 5. Gebiete (Weltkarte) ───────────────────────────────────────── */}
+          {/* Welche Märkte diese Gesellschaft fakturiert, ist Stammdaten (#299). Die Karte
+              ist global (alle Regionen/Gesellschaften) und hebt die aktuelle hervor. */}
+          <Card title="Gebiete">
             <TerritoryMap highlight={record.object_id} embedded />
-          </div>
-        </Sec>
+          </Card>
 
-        {/* Konzern-Kosten – eine GRUPPEN-Kennzahl (nicht je Gesellschaft), darum am
-            Betreiber, der die Gruppe nach aussen vertritt. */}
-        {isOperator && <CostOverview />}
-        </>)}
-      </div>
-
-      {/* Speicherleiste – analog zur Benutzer-Detailseite */}
-      {(dirty || error) && (
-        <div style={{ padding: '10px 20px', background: '#fff', borderTop: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ flex: 1, fontSize: 13, color: error ? '#dc2626' : '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error ?? 'Ungespeicherte Änderungen'}
-          </span>
-          <button onClick={() => { setForm({}); setDirty(false); setError(null); }}
-            style={{ padding: '6px 14px', borderRadius: 7, border: '1px solid #E2E8F0', background: '#fff', fontSize: 13, color: '#374151', cursor: 'pointer', flexShrink: 0 }}>
-            Verwerfen
-          </button>
-          <button onClick={save} disabled={saving}
-            style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: saving ? '#93c5fd' : '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'wait' : 'pointer', flexShrink: 0 }}>
-            {saving ? 'Speichern…' : 'Speichern'}
-          </button>
+          {/* Konzern-Kosten – eine GRUPPEN-Kennzahl (nicht je Gesellschaft), darum am
+              Betreiber, der die Gruppe nach aussen vertritt. */}
+          {isOperator && <CostOverview />}
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -309,7 +439,7 @@ function CostOverview() {
 
   const unit = <span style={{ font: '600 11px var(--font-body)', color: 'var(--fg-4)', marginLeft: 3 }}>CHF</span>;
   return (
-    <div style={{ marginBottom: 18 }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: 'var(--bg-3)', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
           <Coins size={15} />
@@ -378,4 +508,3 @@ function CostOverview() {
     </div>
   );
 }
-

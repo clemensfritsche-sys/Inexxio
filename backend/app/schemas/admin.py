@@ -6,6 +6,17 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CompanySettingsUpdate(BaseModel):
+    """Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
+
+    **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,
+    Aktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto
+    sind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was
+    UID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist
+    die Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen
+    mit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.
+
+    ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
+    (``sites.website_url`` = die Deployment-Adresse), keine Eingabe."""
     company_name: Optional[str] = None
     legal_form: Optional[str] = None
     street: Optional[str] = None
@@ -16,24 +27,9 @@ class CompanySettingsUpdate(BaseModel):
     currency: Optional[str] = None
     uid_number: Optional[str] = None
     vat_number: Optional[str] = None
-    trade_register_nr: Optional[str] = None
-    trade_register_canton: Optional[str] = None
-    share_capital: Optional[str] = None
     iban: Optional[str] = None
-    qr_iban: Optional[str] = None
-    bank: Optional[str] = None
-    bic_swift: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    website: Optional[str] = None
-    vat_method: Optional[str] = None
-    vat_period: Optional[str] = None
-    default_payment_days: Optional[int] = None
-    default_skonto_pct: Optional[Decimal] = None
-    default_skonto_days: Optional[int] = None
-    oss_active: Optional[bool] = None
-    oss_reg_number: Optional[str] = None
-    vies_active: Optional[bool] = None
     stripe_publishable_key: Optional[str] = None
     plausible_domain: Optional[str] = None
     hcaptcha_site_key: Optional[str] = None
@@ -76,24 +72,13 @@ class CompanySettingsResponse(BaseModel):
     currency: str = "CHF"
     uid_number: Optional[str]
     vat_number: Optional[str]
-    trade_register_nr: Optional[str]
-    trade_register_canton: Optional[str]
-    share_capital: Optional[str]
     iban_masked: Optional[str] = None
-    qr_iban_masked: Optional[str] = None
-    bank: Optional[str]
-    bic_swift: Optional[str]
     email: str
     phone: Optional[str]
-    website: str
-    vat_method: str
-    vat_period: str
-    default_payment_days: int
-    default_skonto_pct: Optional[Decimal]
-    default_skonto_days: Optional[int]
-    oss_active: bool
-    oss_reg_number: Optional[str]
-    vies_active: bool
+    # **Abgeleitet, nicht gepflegt** (Testnotiz #309): die Adresse, unter der diese
+    # Installation läuft (``FRONTEND_BASE_URL``). Sie steht im Impressum und auf dem
+    # Beleg-Briefkopf – und wäre als Eingabefeld eine zweite Wahrheit neben dem Deployment.
+    website: str = ""
     logo_path: Optional[str]
     stripe_publishable_key: Optional[str]
     plausible_domain: Optional[str]

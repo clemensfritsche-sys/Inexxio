@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { MapPin, Pencil, Search, CheckCircle2 } from 'lucide-react';
+import { MapPin, Pencil, Search, CheckCircle2, LocateFixed, Loader2 } from 'lucide-react';
 import { useGoogleMaps } from './use-google-maps';
 
 export type Address = {
@@ -91,7 +91,8 @@ export function hasAddress(a: Address | null | undefined): boolean {
 }
 
 export function AddressField({
-  value, onChange, apiKey, countryOptions, showStreet2 = false, showRegion = false, label = 'Adresse',
+  value, onChange, apiKey, countryOptions, showStreet2 = false, showRegion = false,
+  label = 'Adresse', required = false,
 }: {
   value: Address;
   onChange: (a: Address) => void;
@@ -101,6 +102,8 @@ export function AddressField({
   showStreet2?: boolean;
   showRegion?: boolean;
   label?: string;
+  /** Pflichtangabe – markiert die Beschriftung, solange nichts erfasst ist (wie `Field`). */
+  required?: boolean;
 }) {
   const { loaded, error } = useGoogleMaps(apiKey);
   const usable = loaded && !error;
@@ -108,11 +111,78 @@ export function AddressField({
   const [searching, setSearching] = useState(!hasAddress(value));
   const [street2Open, setStreet2Open] = useState(false);
   const [query, setQuery] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const valueRef = useRef(value);
   valueRef.current = value;
+
+  const missing = required && !hasAddress(value);
+  const labelNode = (
+    <span style={ST.label}>
+      {label}
+      {missing && <span style={{ color: '#f59e0b', marginLeft: 3, fontWeight: 700 }}>*</span>}
+    </span>
+  );
+
+  /**
+   * **Standort verwenden** (Testnotiz #306): GPS → Adresse, in einem Griff.
+   *
+   * Der Browser liefert Koordinaten, Googles Geocoder macht daraus dieselbe Trefferform
+   * wie die Suche (`parsePlace`) – also läuft die Übernahme durch **denselben** Zweig wie
+   * ein gewählter Vorschlag, statt einen zweiten Weg ins Formular aufzumachen. Nützlich
+   * genau dort, wo man steht: eine Aussenstelle vor Ort erfassen.
+   */
+  function useMyLocation() {
+    if (!usable || !navigator.geolocation) return;
+    setLocating(true); setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        new google.maps.Geocoder().geocode(
+          { location: { lat: coords.latitude, lng: coords.longitude } },
+          (results, status) => {
+            setLocating(false);
+            const hit = status === 'OK' ? results?.[0] : null;
+            if (!hit?.address_components) {
+              setLocateError('Zu diesem Standort wurde keine Adresse gefunden.');
+              return;
+            }
+            applyPlace(hit);
+          },
+        );
+      },
+      () => {
+        setLocating(false);
+        setLocateError('Standort nicht verfügbar – bitte im Browser freigeben.');
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
+
+  /** Ein Google-Treffer (Vorschlag ODER GPS-Rückwärtssuche) → Adressfelder. EINE Stelle. */
+  function applyPlace(place: google.maps.places.PlaceResult | google.maps.GeocoderResult) {
+    const p = parsePlace(place as google.maps.places.PlaceResult);
+    // Den Google-Code (ISO-2) über die Normalisierung gegen die Optionen matchen und –
+    // bei Treffer – den **Options-Wert** übernehmen (Klarname «USA» bzw. ISO «US», je nach
+    // Aufrufer). Kein Treffer: den Google-Code trotzdem übernehmen (NIE still das alte Land
+    // behalten – genau das war der Bug); nur wenn Google gar nichts liefert, bleibt der Wert.
+    const matched = countryOptions.find(([v]) => toIso2(v) === toIso2(p.country));
+    onChangeRef.current({
+      ...valueRef.current,
+      street: p.street, zip: p.zip, city: p.city,
+      country: matched ? matched[0] : (p.country || valueRef.current.country),
+      lat: p.lat, lng: p.lng,
+    });
+    setSearching(false);
+    setQuery('');
+  }
+
+  // `applyPlace` schliesst über Props/State – als Ref gehalten, damit der Autocomplete-
+  // Effekt nicht bei jedem Render neu aufgesetzt werden muss.
+  const applyPlaceRef = useRef(applyPlace);
+  applyPlaceRef.current = applyPlace;
 
   // Ohne nutzbare Google-Suche gibt es keinen Standardweg – dann direkt manuell.
   useEffect(() => {
@@ -128,20 +198,7 @@ export function AddressField({
     const listener = ac.addListener('place_changed', () => {
       const place = ac.getPlace();
       if (!place.address_components) return;
-      const p = parsePlace(place);
-      // Den Google-Code (ISO-2) über die Normalisierung gegen die Optionen matchen und –
-      // bei Treffer – den **Options-Wert** übernehmen (Klarname «USA» bzw. ISO «US», je nach
-      // Aufrufer). Kein Treffer: den Google-Code trotzdem übernehmen (NIE still das alte Land
-      // behalten – genau das war der Bug); nur wenn Google gar nichts liefert, bleibt der Wert.
-      const matched = countryOptions.find(([v]) => toIso2(v) === toIso2(p.country));
-      onChangeRef.current({
-        ...valueRef.current,
-        street: p.street, zip: p.zip, city: p.city,
-        country: matched ? matched[0] : (p.country || valueRef.current.country),
-        lat: p.lat, lng: p.lng,
-      });
-      setSearching(false);
-      setQuery('');
+      applyPlaceRef.current(place);
     });
     return () => listener.remove();
   }, [usable, manual, searching, countryOptions]);
@@ -154,7 +211,7 @@ export function AddressField({
       <div style={ST.wrap}>
         <div style={ST.head}>
           <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
-          <span style={ST.label}>{label}</span>
+          {labelNode}
           {usable && (
             <button type="button" onClick={() => { setManual(false); setSearching(true); }} style={ST.link}>
               <Search size={12} /> Stattdessen suchen
@@ -182,7 +239,7 @@ export function AddressField({
       <div style={ST.wrap}>
         <div style={ST.head}>
           <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
-          <span style={ST.label}>{label}</span>
+          {labelNode}
           {hasAddress(value) && (
             <button type="button" onClick={() => setSearching(false)} style={ST.link}>Abbrechen</button>
           )}
@@ -204,9 +261,20 @@ export function AddressField({
             }}
           />
         </div>
-        <button type="button" onClick={() => setManual(true)} style={ST.escape}>
-          Adresse nicht gefunden? Manuell erfassen
-        </button>
+        {/* Zwei Auswege aus dem Tippen: der Standort, an dem man gerade steht (#306),
+            und – für die echten Ausnahmen – die manuelle Erfassung. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          {usable && typeof navigator !== 'undefined' && 'geolocation' in navigator && (
+            <button type="button" onClick={useMyLocation} disabled={locating} style={ST.locate}>
+              {locating ? <Loader2 size={13} style={{ animation: 'spin 0.7s linear infinite' }} /> : <LocateFixed size={13} />}
+              {locating ? 'Standort wird ermittelt…' : 'Aktuellen Standort verwenden'}
+            </button>
+          )}
+          <button type="button" onClick={() => setManual(true)} style={ST.escape}>
+            Adresse nicht gefunden? Manuell erfassen
+          </button>
+        </div>
+        {locateError && <p style={{ ...ST.note, color: 'var(--warning)' }}>{locateError}</p>}
       </div>
     );
   }
@@ -222,7 +290,7 @@ export function AddressField({
     <div style={ST.wrap}>
       <div style={ST.head}>
         <MapPin size={14} style={{ color: 'var(--fg-3)' }} />
-        <span style={ST.label}>{label}</span>
+        {labelNode}
         <button type="button" onClick={() => setSearching(true)} style={ST.link}>
           <Pencil size={12} /> Ändern
         </button>
@@ -298,6 +366,11 @@ const ST: Record<string, React.CSSProperties> = {
     alignSelf: 'flex-start', font: '400 12px var(--font-body)', color: 'var(--fg-4)',
     background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline',
     textUnderlineOffset: 2,
+  },
+  locate: {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    font: '600 12px var(--font-body)', color: 'var(--accent)',
+    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
   },
   summary: {
     display: 'flex', gap: 9, padding: '11px 13px', borderRadius: 'var(--r-md)',

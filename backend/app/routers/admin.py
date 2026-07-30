@@ -35,15 +35,16 @@ def _mask_iban(value: str | None) -> str | None:
 def _company_response(db: Session, company) -> CompanySettingsResponse:
     """Vollständige Unternehmens-Antwort mit maskierter Bank + **abgeleiteten** Feldern.
 
-    ``is_operator`` (ältestes Unternehmen) und ``has_address`` sind Projektionen, keine
-    gespeicherten Flags – die eine Definition von «trägt echte Ortsangaben» steht in
-    ``address.has_content`` und wird hier nur angewandt."""
+    ``is_operator`` (ältestes Unternehmen), ``has_address`` und ``website`` sind
+    Projektionen, keine gespeicherten Flags – die eine Definition von «trägt echte
+    Ortsangaben» steht in ``address.has_content``, die der Website-Adresse in
+    ``sites.website_url``; hier werden sie nur angewandt."""
     from ..services import address
     resp = CompanySettingsResponse.model_validate(company)
     resp.iban_masked = _mask_iban(company.iban_encrypted)
-    resp.qr_iban_masked = _mask_iban(company.qr_iban_encrypted)
     resp.is_operator = sites.is_operator(db, company)
     resp.has_address = address.has_content(address.of_company(company))
+    resp.website = sites.website_url()
     return resp
 
 
@@ -68,9 +69,6 @@ async def update_settings(
         if key == "iban":
             s.iban_encrypted = value
             log_audit(db, "company_settings", key, "[UPDATED]", current_user.id)
-        elif key == "qr_iban":
-            s.qr_iban_encrypted = value
-            log_audit(db, "company_settings", key, "[UPDATED]", current_user.id)
         else:
             setattr(s, key, value)
             log_audit(db, "company_settings", key, str(value), current_user.id)
@@ -87,19 +85,18 @@ async def get_public_settings(db: Session = Depends(get_db)):
     Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
     übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
     umgeschaltet."""
-    from ..services.sites import find_operator
+    from ..services.sites import find_operator, website_url
     s = find_operator(db)
     if not s:
         return {"company_name": "Inexxio AG", "legal_form": "AG", "email": "info@inexxio.com",
-                "website": "https://inexxio.com", "country": "Schweiz"}
+                "website": website_url(), "country": "Schweiz"}
     return {
         "object_id": s.object_id,
         "company_name": s.company_name, "legal_form": s.legal_form,
         "street": s.street, "street_nr": s.street_nr, "zip_code": s.zip_code,
         "city": s.city, "country": s.country, "uid_number": s.uid_number,
-        "vat_number": s.vat_number, "trade_register_nr": s.trade_register_nr,
-        "trade_register_canton": s.trade_register_canton, "share_capital": s.share_capital,
-        "email": s.email, "phone": s.phone, "website": s.website,
+        "vat_number": s.vat_number,
+        "email": s.email, "phone": s.phone, "website": website_url(),
         "google_maps_api_key": s.google_maps_api_key,
     }
 

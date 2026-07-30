@@ -18,11 +18,9 @@ interface PublicSettings {
   country: string;
   uid_number?: string;
   vat_number?: string;
-  trade_register_nr?: string;
-  trade_register_canton?: string;
-  share_capital?: string;
   email: string;
   phone?: string;
+  /** Abgeleitet aus dem Deployment (Testnotiz #309) – keine gepflegte Angabe. */
   website: string;
 }
 
@@ -107,17 +105,10 @@ export default async function ImpressumPage() {
                       <span className="font-mono">{settings.vat_number}</span>
                     </Row>
                   )}
-                  {settings?.trade_register_nr && (
-                    <Row label="Handelsregister-Nr.">
-                      <span className="font-mono">{settings.trade_register_nr}</span>
-                    </Row>
-                  )}
-                  {settings?.trade_register_canton && (
-                    <Row label="Handelsregister Kanton">{settings.trade_register_canton}</Row>
-                  )}
-                  {settings?.share_capital && (
-                    <Row label="Aktienkapital">{settings.share_capital}</Row>
-                  )}
+                  {/* Handelsregister-Nr., HR-Kanton und Aktienkapital sind entfallen
+                      (Testnotiz #307): in der Schweiz IST die HR-Nummer seit 2016 die UID,
+                      der Kanton steht im Register, und Kapital muss ein Impressum nicht
+                      nennen. Drei Zeilen, die abschrieben, was die UID schon sagt. */}
                 </tbody>
               </table>
             </div>

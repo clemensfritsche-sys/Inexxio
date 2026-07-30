@@ -8882,39 +8882,6 @@
             ],
             "title": "Vat Number"
           },
-          "trade_register_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Nr"
-          },
-          "trade_register_canton": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Canton"
-          },
-          "share_capital": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Share Capital"
-          },
           "iban_masked": {
             "anyOf": [
               {
@@ -8925,39 +8892,6 @@
               }
             ],
             "title": "Iban Masked"
-          },
-          "qr_iban_masked": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qr Iban Masked"
-          },
-          "bank": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank"
-          },
-          "bic_swift": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bic Swift"
           },
           "email": {
             "type": "string",
@@ -8976,60 +8910,8 @@
           },
           "website": {
             "type": "string",
-            "title": "Website"
-          },
-          "vat_method": {
-            "type": "string",
-            "title": "Vat Method"
-          },
-          "vat_period": {
-            "type": "string",
-            "title": "Vat Period"
-          },
-          "default_payment_days": {
-            "type": "integer",
-            "title": "Default Payment Days"
-          },
-          "default_skonto_pct": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Skonto Pct"
-          },
-          "default_skonto_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Skonto Days"
-          },
-          "oss_active": {
-            "type": "boolean",
-            "title": "Oss Active"
-          },
-          "oss_reg_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Oss Reg Number"
-          },
-          "vies_active": {
-            "type": "boolean",
-            "title": "Vies Active"
+            "title": "Website",
+            "default": ""
           },
           "logo_path": {
             "anyOf": [
@@ -9173,22 +9055,8 @@
           "country",
           "uid_number",
           "vat_number",
-          "trade_register_nr",
-          "trade_register_canton",
-          "share_capital",
-          "bank",
-          "bic_swift",
           "email",
           "phone",
-          "website",
-          "vat_method",
-          "vat_period",
-          "default_payment_days",
-          "default_skonto_pct",
-          "default_skonto_days",
-          "oss_active",
-          "oss_reg_number",
-          "vies_active",
           "logo_path",
           "stripe_publishable_key",
           "plausible_domain",
@@ -9309,39 +9177,6 @@
             ],
             "title": "Vat Number"
           },
-          "trade_register_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Nr"
-          },
-          "trade_register_canton": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trade Register Canton"
-          },
-          "share_capital": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Share Capital"
-          },
           "iban": {
             "anyOf": [
               {
@@ -9352,39 +9187,6 @@
               }
             ],
             "title": "Iban"
-          },
-          "qr_iban": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Qr Iban"
-          },
-          "bank": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bank"
-          },
-          "bic_swift": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bic Swift"
           },
           "email": {
             "anyOf": [
@@ -9407,108 +9209,6 @@
               }
             ],
             "title": "Phone"
-          },
-          "website": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Website"
-          },
-          "vat_method": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Method"
-          },
-          "vat_period": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Period"
-          },
-          "default_payment_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Payment Days"
-          },
-          "default_skonto_pct": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Skonto Pct"
-          },
-          "default_skonto_days": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Skonto Days"
-          },
-          "oss_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Oss Active"
-          },
-          "oss_reg_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Oss Reg Number"
-          },
-          "vies_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vies Active"
           },
           "stripe_publishable_key": {
             "anyOf": [
@@ -9639,7 +9339,8 @@
           }
         },
         "type": "object",
-        "title": "CompanySettingsUpdate"
+        "title": "CompanySettingsUpdate",
+        "description": "Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).\n\n**Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,\nAktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto\nsind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was\nUID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist\ndie Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen\nmit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.\n\n``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**\n(``sites.website_url`` = die Deployment-Adresse), keine Eingabe."
       },
       "ContactRequest": {
         "properties": {

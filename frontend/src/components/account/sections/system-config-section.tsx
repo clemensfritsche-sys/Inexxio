@@ -19,12 +19,8 @@ type SectionKey = 'integrations' | 'shop' | 'legal_docs' | 'logistics';
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
   zip: '', city: '', country: 'Schweiz', currency: 'CHF', uid: null, vat_number: null,
-  trade_register_number: null, trade_register_canton: null, share_capital: null,
   email: '', phone: null, website: '', logo_url: null, iban: null, iban_masked: null,
-  qr_iban: null, qr_iban_masked: null, bank_name: null, bic: null,
-  vat_method: 'effektiv', vat_period: 'quartal', default_payment_days: 30,
-  default_discount_percent: null, default_discount_days: null, oss_active: false,
-  oss_number: null, vies_validation: false, stripe_publishable_key: null,
+  stripe_publishable_key: null,
   plausible_domain: null, hcaptcha_site_key: null, google_maps_api_key: null,
   default_receiving_location_id: null,
   shop_currencies: ['CHF', 'EUR', 'USD'], shop_country_currency: null,

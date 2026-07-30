@@ -6,6 +6,35 @@ import { AlertCircle, ArrowUpRight, ArrowLeft, ChevronDown, Search, Info, Loader
 import type { StatusAction, StatusTone, StatusCfg } from '@/lib/status-flow';
 import { formatObjectId } from '@/lib/utils';
 
+// ─── Karte: der Container eines Formular-Abschnitts ──────────────────────────
+
+/**
+ * Symbol + Titel + optionaler rechter Slot (Speicher-Anzeige), darunter der Inhalt –
+ * die Anatomie der Profileinstellungen, die der ERP-Benutzer seit Notiz #294 spiegelt
+ * und der Unternehmens-Datensatz seit Runde 21.
+ *
+ * Sie stand vorher lokal in `user-detail.tsx`; hier ist sie EINE Stelle, damit die
+ * beiden Ansichten nicht wieder auseinanderlaufen. `icon` ist optional: eine Überschrift
+ * braucht kein Symbol, wenn sie die Sache schon benennt (Notizen #308/#311).
+ */
+export function Card({ icon: Icon, title, right, children }: {
+  icon?: ElementType; title: string; right?: ReactNode; children: ReactNode;
+}) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: 12, padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {Icon && <Icon style={{ width: 16, height: 16, color: 'var(--fg-3)', flex: 'none' }} />}
+          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
+        </div>
+        {right}
+      </div>
+      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
+    </div>
+  );
+}
+
 // ─── Kachel: die Grundform der Detail-Ansichten ──────────────────────────────
 
 /**
@@ -662,8 +691,26 @@ export function Segmented({ label, value, onChange, options, required }: {
   );
 }
 
-export function StatusBadge({ cfg, size = 10 }: { cfg: StatusCfg; size?: number }) {
+/**
+ * Der Zustand als Pille (Symbol + Farbe + Wort) – die Form für Detail-Köpfe.
+ *
+ * `plain` schaltet auf **Punkt + Wort** um: dieselbe Aussage, ohne Fläche. Das Design-System
+ * nennt genau das als Regelform («Status: Punkt + Wort, gefüllte Badges sparsam») – im Feed
+ * standen 40 gefüllte Pillen untereinander und machten die Liste schwer (Notiz #300).
+ */
+export function StatusBadge({ cfg, size = 10, plain }: { cfg: StatusCfg; size?: number; plain?: boolean }) {
   const Icon = cfg.icon;
+  if (plain) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontSize: size + 0.5, fontWeight: 500, color: 'var(--fg-3)', whiteSpace: 'nowrap',
+      }}>
+        <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.color, flex: 'none' }} />
+        {cfg.label}
+      </span>
+    );
+  }
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
