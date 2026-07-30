@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User, Pencil, MapPin, Building2, Shield, Briefcase, Truck, UserCircle,
+  User, MapPin, Building2, Shield, Briefcase, Truck, UserCircle,
   ShoppingBag, FolderOpen, Link2, Bell, Check, CreditCard, Cog,
 } from 'lucide-react';
-import { cn, userDisplayName, localDate } from '@/lib/utils';
+import { userDisplayName, localDate } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { OrdersList } from '@/components/orders-list';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { UserDocumentsOverview } from '@/components/erp/user-documents';
 import { ObjectReferences } from '@/components/erp/object-references';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { DetailHeader } from '@/components/erp/fields';
+import { Card, DetailHeader } from '@/components/erp/fields';
 // **ERP ist Master, das Profil ist der Spiegel** – und weil dem Nutzer Struktur, Logik
 // und Namensgebung der Profileinstellungen besser gefallen (Notiz #294), übernimmt der
 // Profil-Reiter hier **dieselben Bausteine** wie das Konto: EIN Formular, EIN Auto-Save,
@@ -73,94 +73,12 @@ export function userInitials(name: string, email: string): string {
   return email[0]?.toUpperCase() ?? '?';
 }
 
-// ─── Field (ALT) ───────────────────────────────────────────────────────────────
-// Wird noch vom Unternehmens-Datensatz (`organization-detail.tsx`) genutzt – bleibt
-// unverändert erhalten. Der Benutzer-Profil-Reiter darunter nutzt die Konto-Bausteine.
-
-interface FieldProps {
-  label: string;
-  val: string | boolean | number | null | undefined;
-  onChange?: (v: string | boolean) => void;
-  type?: 'text' | 'date' | 'select' | 'check' | 'email';
-  opts?: string[];
-  ro?: boolean;
-  span2?: boolean;
-}
-
-export function Field({ label, val, onChange, type = 'text', opts, ro, span2 }: FieldProps) {
-  const editable = 'w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors';
-  const readonlyCls = 'w-full px-2.5 py-1.5 text-sm rounded-md border border-slate-100 bg-slate-50 text-slate-400 outline-none cursor-default';
-
-  if (type === 'check') {
-    return (
-      <label className={cn('flex items-center gap-2 text-sm text-slate-600 cursor-pointer', span2 && 'col-span-2')}>
-        <input type="checkbox" checked={!!val} onChange={e => onChange?.(e.target.checked)} disabled={ro} className="w-3.5 h-3.5 rounded text-blue-600" />
-        {label}
-      </label>
-    );
-  }
-
-  return (
-    <div className={span2 ? 'col-span-2' : ''}>
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', color: '#94a3b8', marginBottom: 4 }}>{label}</div>
-      {type === 'select' && !ro ? (
-        <select value={String(val ?? '')} onChange={e => onChange?.(e.target.value)} className={editable}>
-          {opts?.map(o => <option key={o} value={o}>{o || '—'}</option>)}
-        </select>
-      ) : (
-        <input
-          type={type === 'date' ? 'date' : type === 'email' ? 'email' : 'text'}
-          value={String(val ?? '')}
-          readOnly={ro}
-          onChange={ro ? undefined : e => onChange?.(e.target.value)}
-          className={ro ? readonlyCls : editable}
-        />
-      )}
-    </div>
-  );
-}
-
-// ─── Section card (ALT) ────────────────────────────────────────────────────────
-// Ebenfalls von `organization-detail.tsx` genutzt – unverändert.
-
-export function Sec({ title, children, editable, icon: Icon }: {
-  title: string;
-  children: React.ReactNode;
-  editable?: boolean;
-  icon?: React.ElementType;
-}) {
-  return (
-    <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', marginBottom: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid #F1F5F9' }}>
-        {Icon && <Icon size={13} style={{ color: '#94a3b8' }} />}
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.07em', color: '#64748b' }}>{title}</span>
-        {editable && <Pencil size={10} style={{ color: '#2563eb', marginLeft: 2 }} />}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '10px 14px' }}>{children}</div>
-    </div>
-  );
-}
-
 // ─── Karten-Bausteine (Spiegel der Profileinstellungen) ────────────────────────
 // Gleiche Anatomie wie `account/sections/profile-section.tsx`, damit «fast eine
-// Spiegelung» entsteht (Notiz #294) – Symbol + Titel + optionaler rechter Slot.
-
-function Card({ icon: Icon, title, right, children }: {
-  icon: React.ElementType; title: string; right?: React.ReactNode; children: React.ReactNode;
-}) {
-  return (
-    <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border-1)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon style={{ width: 16, height: 16, color: 'var(--fg-3)' }} />
-          <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h2>
-        </div>
-        {right}
-      </div>
-      <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>{children}</div>
-    </div>
-  );
-}
+// Spiegelung» entsteht (Notiz #294) – Symbol + Titel + optionaler rechter Slot. Die
+// `Card` selbst wohnt im gemeinsamen Vokabular (`fields.tsx`), seit der Unternehmens-
+// Datensatz dieselbe Anatomie nutzt; die alten `Field`/`Sec` (slate/blue-Altpalette,
+// nur noch von dort genutzt) sind damit entfallen.
 
 function SubBlock({ icon: Icon, title, children }: {
   icon: React.ElementType; title: string; children: React.ReactNode;

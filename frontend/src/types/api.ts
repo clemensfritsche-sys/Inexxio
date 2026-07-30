@@ -3008,42 +3008,17 @@ export interface components {
             uid_number: string | null;
             /** Vat Number */
             vat_number: string | null;
-            /** Trade Register Nr */
-            trade_register_nr: string | null;
-            /** Trade Register Canton */
-            trade_register_canton: string | null;
-            /** Share Capital */
-            share_capital: string | null;
             /** Iban Masked */
             iban_masked?: string | null;
-            /** Qr Iban Masked */
-            qr_iban_masked?: string | null;
-            /** Bank */
-            bank: string | null;
-            /** Bic Swift */
-            bic_swift: string | null;
             /** Email */
             email: string;
             /** Phone */
             phone: string | null;
-            /** Website */
+            /**
+             * Website
+             * @default
+             */
             website: string;
-            /** Vat Method */
-            vat_method: string;
-            /** Vat Period */
-            vat_period: string;
-            /** Default Payment Days */
-            default_payment_days: number;
-            /** Default Skonto Pct */
-            default_skonto_pct: string | null;
-            /** Default Skonto Days */
-            default_skonto_days: number | null;
-            /** Oss Active */
-            oss_active: boolean;
-            /** Oss Reg Number */
-            oss_reg_number: string | null;
-            /** Vies Active */
-            vies_active: boolean;
             /** Logo Path */
             logo_path: string | null;
             /** Stripe Publishable Key */
@@ -3072,7 +3047,20 @@ export interface components {
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
         };
-        /** CompanySettingsUpdate */
+        /**
+         * CompanySettingsUpdate
+         * @description Änderbare Felder einer Gesellschaft (+ die Plattform-Konfiguration am Betreiber).
+         *
+         *     **Bewusst kurz** (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton,
+         *     Aktienkapital, QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto
+         *     sind ersatzlos entfallen – sie trugen nirgends Logik und schrieben teils nur ab, was
+         *     UID bzw. IBAN ohnehin sagen. Zahlungsziel und Skonto gehören zur **Offerte** (dort ist
+         *     die Angabe verhandelbar), nicht in die Firmen-Stammdaten; MWST-Methode/-Periode kommen
+         *     mit der Buchhaltung (Phase 3), die sie tatsächlich auswertet.
+         *
+         *     ``website`` fehlt hier absichtlich: die Adresse der Website ist **abgeleitet**
+         *     (``sites.website_url`` = die Deployment-Adresse), keine Eingabe.
+         */
         CompanySettingsUpdate: {
             /** Company Name */
             company_name?: string | null;
@@ -3094,42 +3082,12 @@ export interface components {
             uid_number?: string | null;
             /** Vat Number */
             vat_number?: string | null;
-            /** Trade Register Nr */
-            trade_register_nr?: string | null;
-            /** Trade Register Canton */
-            trade_register_canton?: string | null;
-            /** Share Capital */
-            share_capital?: string | null;
             /** Iban */
             iban?: string | null;
-            /** Qr Iban */
-            qr_iban?: string | null;
-            /** Bank */
-            bank?: string | null;
-            /** Bic Swift */
-            bic_swift?: string | null;
             /** Email */
             email?: string | null;
             /** Phone */
             phone?: string | null;
-            /** Website */
-            website?: string | null;
-            /** Vat Method */
-            vat_method?: string | null;
-            /** Vat Period */
-            vat_period?: string | null;
-            /** Default Payment Days */
-            default_payment_days?: number | null;
-            /** Default Skonto Pct */
-            default_skonto_pct?: number | string | null;
-            /** Default Skonto Days */
-            default_skonto_days?: number | null;
-            /** Oss Active */
-            oss_active?: boolean | null;
-            /** Oss Reg Number */
-            oss_reg_number?: string | null;
-            /** Vies Active */
-            vies_active?: boolean | null;
             /** Stripe Publishable Key */
             stripe_publishable_key?: string | null;
             /** Plausible Domain */

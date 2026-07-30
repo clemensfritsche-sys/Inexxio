@@ -44,15 +44,24 @@ from .objects import next_object_id
 # an JEDEM Unternehmens-Datensatz gleich – Rechtsidentität ist hier bewusst dabei, denn die
 # US-Gesellschaft hat ihre EIGENE EIN/Steuer/Bank. Feldnamen = DB-Spalten (das Frontend
 # bildet ``street_number``→``street_nr`` etc. vor dem Senden ab).
+#
+# **Auf das Minimum reduziert** (Testnotizen #307/#313/#314/#317–#321). Der Massstab war
+# nicht «könnte man mal brauchen», sondern: *nennt es jemand auf einem Beleg, im Impressum
+# oder in einer Regel?* Übrig bleiben neun Angaben – und weil es neun sind, dürfen sie
+# **Pflicht** sein. Entfallen sind Handelsregister-Nr./-Kanton und Aktienkapital (die UID
+# identifiziert die Firma im Register; Kapital ist nirgends vorgeschrieben), QR-IBAN/Bank/
+# BIC (die IBAN trägt Land, Bank und Konto), MWST-Methode/-Periode (Buchhaltung, Phase 3)
+# sowie Zahlungsfrist und Skonto – die gehören in die **Offerte**, wo sie je Geschäft
+# verhandelt werden, nicht als stiller Firmen-Default.
+#
+# ``website`` steht bewusst NICHT hier: die Adresse der Website ist abgeleitet
+# (``website_url``), nicht gepflegt.
 ENTITY_FIELDS = (
     "company_name", "legal_form",
     "street", "street_nr", "zip_code", "city", "country",
     "currency",
-    "uid_number", "vat_number", "trade_register_nr", "trade_register_canton", "share_capital",
-    "email", "phone", "website",
-    "bank", "bic_swift",
-    "vat_method", "vat_period", "default_payment_days", "default_skonto_pct", "default_skonto_days",
-    "oss_active", "oss_reg_number", "vies_active",
+    "uid_number", "vat_number",
+    "email", "phone",
 )
 
 # Land → Funktionswährung (Vorbelegung, editierbar). Bewusst klein & offensichtlich; der
@@ -72,11 +81,22 @@ def currency_for_country(country: str | None) -> str:
     from . import address
     return _COUNTRY_CURRENCY.get((address.iso2(country) or "").upper(), "CHF")
 
+
+def website_url() -> str:
+    """Die Adresse der Website – **abgeleitet, nicht gepflegt** (Testnotiz #309).
+
+    Unter welcher Adresse diese Installation läuft, weiss das Deployment
+    (``FRONTEND_BASE_URL``); ein Eingabefeld daneben wäre eine zweite Wahrheit, die beim
+    ersten Domain-Wechsel falsch wird. Genutzt von Impressum, Beleg-Briefkopf und der
+    (read-only) Anzeige am Unternehmens-Datensatz – alle lesen diese eine Stelle."""
+    from ..core.config import get_settings
+    return get_settings().frontend_base_url.rstrip("/")
+
 # Die **Plattform-Konfiguration** – sie gilt für die EINE Website/Integration, nicht je
 # Gesellschaft. Sie lebt (vorerst als Spalten auf dem Betreiber-Datensatz) und wird
 # ausschliesslich über ``PATCH /admin/settings`` (Systemkonfiguration) gepflegt. ``apply_update``
-# schreibt sie NIE, damit ein Nebenstandort keinen Stripe-Key o. ä. setzen kann. Bank-Chiffren
-# (``iban``/``qr_iban``) sind Entität, werden aber gesondert behandelt (verschlüsselte Spalte).
+# schreibt sie NIE, damit ein Nebenstandort keinen Stripe-Key o. ä. setzen kann. Die ``iban``
+# ist Entität, wird aber gesondert behandelt (verschlüsselte Spalte).
 PLATFORM_FIELDS = (
     "stripe_publishable_key", "plausible_domain", "hcaptcha_site_key", "google_maps_api_key",
     "shop_currencies", "shop_country_currency", "shop_default_currency", "payments_provider",
@@ -308,9 +328,6 @@ def _apply_entity_fields(company: CompanySettings, data: dict, db: Session,
         if key == "iban":
             company.iban_encrypted = value
             log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
-        elif key == "qr_iban":
-            company.qr_iban_encrypted = value
-            log_audit(db, "company_settings", key, "[UPDATED]", actor_id, object_id=company.object_id)
         elif key in ENTITY_FIELDS:
             setattr(company, key, value)
             log_audit(db, "company_settings", key, str(value), actor_id, object_id=company.object_id)
@@ -359,7 +376,14 @@ def apply_update(db: Session, company: CompanySettings, data: dict, actor_id: in
     """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
     Betreiber). Plattform-Felder (Stripe/Shop/Rechtstexte) werden ignoriert; die laufen
     über ``PATCH /admin/settings`` (Systemkonfiguration), damit dieselbe Angabe nicht an
-    zwei Stellen editierbar ist."""
+    zwei Stellen editierbar ist.
+
+    **Der Name ist hart erforderlich** (Testnotiz #301) – nicht als Formular-Kosmetik,
+    sondern weil er zugleich das **Halter-Label** ist: ``locations.location_label`` gibt
+    für einen ``company``-Halter genau dieses Feld zurück. Eine namenlose Gesellschaft
+    liesse jede Standort-Anzeige leer, die auf sie zeigt."""
+    if "company_name" in data and not (data.get("company_name") or "").strip():
+        raise HTTPException(400, detail="Name des Unternehmens fehlt")
     _apply_entity_fields(company, data, db, actor_id)
     db.commit()
     db.refresh(company)

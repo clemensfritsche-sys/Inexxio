@@ -126,17 +126,66 @@ def test_read_only_callers_never_commit_a_foreign_transaction():
 def test_every_company_carries_its_own_legal_identity():
     """Kern der Kehrtwende: die US-Gesellschaft hat ihre EIGENE Rechtsidentität.
 
-    Rechtsidentität/Bank/MWST müssen an JEDEM Datensatz editierbar sein
-    (``sites.ENTITY_FIELDS``) – das frühere «nur der Hauptsitz trägt Identität» ist genau
-    verkehrt und entfernt."""
+    Rechtsidentität, Anschrift, Währung und Bankverbindung müssen an JEDEM Datensatz
+    editierbar sein (``sites.ENTITY_FIELDS``) – das frühere «nur der Hauptsitz trägt
+    Identität» ist genau verkehrt und entfernt.
+
+    Der Feldsatz ist seit Runde 21 **klein** (Testnotizen #307/#313/#314/#317–#321) – geprüft
+    wird darum beides: dass die tragenden Angaben da sind UND dass die gestrichenen nicht
+    zurückkommen. Ein Feld, das niemand auf einem Beleg, im Impressum oder in einer Regel
+    nennt, ist kein Stammdatum, sondern Arbeit für jede weitere Gesellschaft."""
     from app.services.sites import ENTITY_FIELDS
 
-    must_be_per_company = (
-        "uid_number", "vat_number", "trade_register_nr", "share_capital", "legal_form",
-        "bank", "bic_swift", "vat_method", "vat_period",
-    )
+    must_be_per_company = ("uid_number", "vat_number", "legal_form", "currency", "country")
     missing = [f for f in must_be_per_company if f not in ENTITY_FIELDS]
     assert not missing, f"Diese Entitäts-Felder fehlen im per-Gesellschaft-Feldsatz: {missing}"
+
+    # Die IBAN ist Entität, läuft aber über die verschlüsselte Spalte (Sonderzweig in
+    # ``_apply_entity_fields``) – sie steht deshalb bewusst NICHT in ENTITY_FIELDS.
+    from app.services import sites
+    assert "'iban'" in _code(sites._apply_entity_fields)
+
+    dropped = (
+        "trade_register_nr", "trade_register_canton", "share_capital",   # sagt die UID
+        "qr_iban", "bank", "bic_swift",                                  # sagt die IBAN
+        "vat_method", "vat_period",                                      # Buchhaltung (Phase 3)
+        "default_payment_days", "default_skonto_pct", "default_skonto_days",  # Offerte
+        "oss_active", "oss_reg_number", "vies_active",                   # nie ausgewertet
+        "website",                                                       # abgeleitet (#309)
+    )
+    back = [f for f in dropped if f in ENTITY_FIELDS]
+    assert not back, f"Gestrichene Felder sind zurück im Feldsatz: {back}"
+
+
+def test_the_website_address_is_derived_not_typed():
+    """Testnotiz #309: unter welcher Adresse die Website läuft, weiss das **Deployment** –
+    kein Eingabefeld daneben, das beim ersten Domain-Wechsel still falsch wird.
+
+    EINE Quelle (``sites.website_url`` ← ``FRONTEND_BASE_URL``); Impressum, Beleg-Briefkopf
+    und die read-only Anzeige am Datensatz lesen alle sie."""
+    from app.schemas.admin import CompanySettingsUpdate
+    from app.services.sites import ENTITY_FIELDS, website_url
+
+    assert "website" not in ENTITY_FIELDS
+    assert "website" not in CompanySettingsUpdate.model_fields, \
+        "Die Website-Adresse darf nicht wieder einsendbar werden"
+    assert website_url() and not website_url().endswith("/")
+    for rel in ("routers/admin.py", "routers/documents.py"):
+        assert "website_url" in _source(rel), f"{rel} muss die eine Ableitung lesen"
+
+
+def test_a_company_never_loses_its_name():
+    """Testnotiz #301: der Name ist Pflicht – und zwar hart, nicht als Formular-Kosmetik.
+
+    Er ist zugleich das **Halter-Label** (``locations.location_label`` gibt für einen
+    ``company``-Halter genau dieses Feld zurück): eine namenlose Gesellschaft liesse jede
+    Standort-Anzeige leer, die auf sie zeigt. Anlegen prüfte das schon immer; Ändern nicht."""
+    from app.services import sites
+
+    for fn in (sites.create, sites.apply_update):
+        code = _code(fn)
+        assert "company_name" in code and "400" in code, \
+            f"{fn.__name__} muss einen leeren Namen ablehnen"
 
 
 def test_platform_config_is_never_editable_per_company():
@@ -152,7 +201,7 @@ def test_platform_config_is_never_editable_per_company():
     leaked = [f for f in PLATFORM_FIELDS if f in ENTITY_FIELDS]
     assert not leaked, f"Plattform-Felder dürfen nicht je Gesellschaft editierbar sein: {leaked}"
 
-    # apply_update wählt strikt über ENTITY_FIELDS (+ iban/qr_iban) – kein setattr über
+    # apply_update wählt strikt über ENTITY_FIELDS (+ iban) – kein setattr über
     # beliebige Keys, das Plattform-Felder durchliesse.
     apply_code = _code(sites._apply_entity_fields)
     assert "ENTITY_FIELDS" in apply_code

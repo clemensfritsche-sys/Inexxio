@@ -8,9 +8,11 @@ interface FieldProps {
   hint?: string;
   onEnter?: () => void;
   required?: boolean;
+  /** `id` einer `<datalist>` – Vorschläge beim Tippen, Freitext bleibt möglich. */
+  list?: string;
 }
 
-export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint, onEnter, required }: FieldProps) {
+export function Field({ label, value, onChange, type = 'text', readOnly = false, placeholder, hint, onEnter, required, list }: FieldProps) {
   const isEmpty = required && !value.trim();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -24,6 +26,7 @@ export function Field({ label, value, onChange, type = 'text', readOnly = false,
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         readOnly={readOnly}
         placeholder={placeholder}
+        list={list}
         onKeyDown={(e) => { if (e.key === 'Enter' && !readOnly && onEnter) { e.preventDefault(); onEnter(); } }}
         style={{
           padding: '8px 12px',

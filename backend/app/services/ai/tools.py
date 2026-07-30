@@ -537,14 +537,13 @@ def _t_open_page(db: Session, p: AiPrincipal, args: dict) -> Any:
 def _t_company_info(db: Session, p: AiPrincipal, args: dict) -> Any:
     """Firmen-/Systemkonfiguration lesen (Personal) – ohne Geheimnisse (keine IBAN/Keys)."""
     from ..admin import get_or_create_settings
+    from ..sites import website_url
     s = get_or_create_settings(db)
     return {
         "object_id": _num(s.object_id), "company_name": s.company_name, "legal_form": s.legal_form,
         "address": address.one_line(address.of_company(s)),
-        "uid_number": s.uid_number, "vat_number": s.vat_number,
-        "email": s.email, "phone": s.phone, "website": s.website,
-        "vat_method": s.vat_method, "vat_period": s.vat_period,
-        "default_payment_days": s.default_payment_days,
+        "uid_number": s.uid_number, "vat_number": s.vat_number, "currency": s.currency,
+        "email": s.email, "phone": s.phone, "website": website_url(),
     }
 
 

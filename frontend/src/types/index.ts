@@ -497,7 +497,7 @@ export type AiImageEditResponse = components['schemas']['AiImageEditResponse'];
 // ─── Company Settings ─────────────────────────────────────────────────────────
 //
 // Bewusst NICHT aus dem Schema abgeleitet: die API liefert snake_case-Felder mit
-// abweichenden Namen (zip_code, uid_number, bic_swift …); api.ts mappt sie auf
+// abweichenden Namen (zip_code, uid_number, street_nr …); api.ts mappt sie auf
 // diese camelCase-nahe Frontend-Sicht (mapSettingsFromBackend/ToBackend).
 
 export interface CompanySettings {
@@ -516,29 +516,18 @@ export interface CompanySettings {
   country: string;
   // Funktionswährung der Gesellschaft (ISO-3, auto aus dem Land vorbelegt).
   currency: string;
+  // Rechtsidentität – das Minimum, das ein Beleg und das Impressum ausweisen müssen
+  // (Testnotizen #307/#313/#314/#317–#321): Handelsregister-Nr./-Kanton, Aktienkapital,
+  // QR-IBAN, Bankname, BIC, MWST-Methode/-Periode, Zahlungsfrist und Skonto sind entfallen.
   uid: string | null;
   vat_number: string | null;
-  trade_register_number: string | null;
-  trade_register_canton: string | null;
-  share_capital: string | null;
   email: string;
   phone: string | null;
+  /** **Abgeleitet** (read-only): die Adresse, unter der diese Installation läuft (#309). */
   website: string;
   logo_url: string | null;
   iban: string | null;
   iban_masked: string | null;
-  qr_iban: string | null;
-  qr_iban_masked: string | null;
-  bank_name: string | null;
-  bic: string | null;
-  vat_method: 'effektiv' | 'saldosteuersatz' | null;
-  vat_period: 'quartal' | 'semester' | 'jahr' | null;
-  default_payment_days: number;
-  default_discount_percent: string | null;
-  default_discount_days: number | null;
-  oss_active: boolean;
-  oss_number: string | null;
-  vies_validation: boolean;
   stripe_publishable_key: string | null;
   plausible_domain: string | null;
   hcaptcha_site_key: string | null;

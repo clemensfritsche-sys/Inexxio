@@ -1,10 +1,14 @@
 'use client';
 
 /**
- * **Weltkarte der Gebietsaufteilung** (ADR 006). Eine abstrakte Karte aus Regions-Kacheln,
- * grob geografisch angeordnet. Jede Region gehört **genau EINER** Gesellschaft – nicht
- * zugewiesene Regionen dem **Betreiber** (er besitzt die Welt per Default, andere «beissen
- * sich» Regionen ab). So gehört jeder Fleck der Erde jemandem (Totalität).
+ * **Weltkarte der Gebietsaufteilung** (ADR 006). Seit Testnotiz #322 eine wirkliche, mit
+ * Code gemalte Karte (`world-map.tsx`: 5°-Raster, nur Linien und Ecken) statt einer Reihe
+ * von Kacheln – die Zuordnung will man **sehen**, nicht lesen. Darunter steht dieselbe
+ * Aussage als Liste: die Karte zeigt die Geografie, die Liste die Zuweisung.
+ *
+ * Jede Region gehört **genau EINER** Gesellschaft – nicht zugewiesene Regionen dem
+ * **Betreiber** (er besitzt die Welt per Default, andere «beissen sich» Regionen ab). So
+ * gehört jeder Fleck der Erde jemandem (Totalität).
  *
  * **Ausnahmen je Land.** Ein einzelnes Land kann von seiner Region abweichen («Europa
  * gehört der GmbH, Liechtenstein aber der Schweizer AG»). Backend-seitig ist das derselbe
@@ -12,9 +16,9 @@
  * der Karte. Ein Land IST eine Ausnahme, wenn sein Besitzer vom Besitzer seiner Region
  * abweicht – **abgeleitet**, kein zweites Flag, das auseinanderlaufen könnte.
  *
- * Bedienung: Region-Kachel anklicken → Gesellschafts-Chips erscheinen → zuweisen. Der
- * Chip der ohnehin zuständigen Gesellschaft setzt auf den Standard zurück. `highlight`
- * hebt die Gebiete der gerade geöffneten Gesellschaft hervor.
+ * Bedienung: Region auf der Karte ODER in der Liste anklicken → Gesellschafts-Chips
+ * erscheinen → zuweisen. Der Chip der ohnehin zuständigen Gesellschaft setzt auf den
+ * Standard zurück. `highlight` hebt die Gebiete der gerade geöffneten Gesellschaft hervor.
  *
  * Ländernamen kommen aus `Intl.DisplayNames` (im Browser eingebaut) – keine zweite
  * Länderliste im Repository, die von der des Backends abweichen könnte.
@@ -24,6 +28,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Globe2, Building2, Check, Plus, X, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { TerritoryMap as TerritoryMapData } from '@/types';
+import { WorldMap } from '@/components/erp/world-map';
 
 // Kategoriale Identitäts-Farben (KEINE Ampel – hier steht Farbe für «welche Gesellschaft»,
 // nicht für Status). Der Betreiber trägt den warmen Grundton der Unternehmens-Kachel; die
@@ -85,8 +90,6 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
     data.companies.find((c) => c.object_id === objId)?.company_name
     ?? data.companies.find((c) => c.object_id === operatorId)?.company_name ?? 'Betreiber';
 
-  const cols = Math.max(...data.regions.map((r) => r.pos[0])) + 1;
-
   // Ein Land ist eine **Ausnahme**, wenn sein Besitzer vom Besitzer seiner Region abweicht –
   // abgeleitet aus den Daten, nicht als zweites Flag geführt.
   const regionOwner = (code: string) => data.regions.find((r) => r.code === code)?.company_object_id ?? null;
@@ -120,33 +123,45 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
         </div>
       )}
 
-      {/* Abstrakte Weltkarte: Regions-Kacheln nach grober geografischer Position. */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>
+      {/* ── Die Karte ────────────────────────────────────────────────────────────
+          Eine mit Code gemalte Welt (#322): 5°-Raster, harte Kanten, keine Rundungen.
+          Die Farbe einer Fläche IST ihre Gesellschaft – die Zuordnung wird sichtbar,
+          statt gelesen zu werden. Klick auf eine Fläche = Klick auf ihre Zeile. */}
+      <div style={{ border: '1px solid var(--border-1)', overflow: 'hidden' }}>
+        <WorldMap
+          selected={selRegion?.code ?? null}
+          onSelect={(code) => setSelected(selected === code ? null : code)}
+          fill={(code) => toneOf(regionOwner(code)).bg}
+          stroke={(code) => toneOf(regionOwner(code)).ring}
+          title={(code) => `${data.regions.find((r) => r.code === code)?.label ?? code} · ${nameOf(regionOwner(code))}`}
+        />
+      </div>
+
+      {/* ── Die Zuweisung als Liste ──────────────────────────────────────────────
+          Dieselbe Aussage in Worten: eine Zeile je Region. Die Karte kann nicht sagen,
+          wie eine Gesellschaft heisst – die Liste kann nicht zeigen, wo Ozeanien liegt. */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {data.regions.map((r) => {
           const tone = toneOf(r.company_object_id);
           const isSel = selected === r.code;
           const isHi = highlight != null && r.company_object_id === highlight;
+          const exc = exceptions.filter((c) => c.region === r.code).length;
           return (
             <button key={r.code} onClick={() => setSelected(isSel ? null : r.code)}
               style={{
-                gridColumn: r.pos[0] + 1, gridRow: r.pos[1] + 1,
-                textAlign: 'left', cursor: 'pointer', padding: '10px 12px',
-                borderRadius: 'var(--r-md)', background: tone.bg,
-                border: `1px solid ${isSel || isHi ? tone.ring : 'var(--border-1)'}`,
-                boxShadow: isSel ? `inset 0 0 0 1px ${tone.ring}` : 'none',
-                display: 'flex', flexDirection: 'column', gap: 6, minHeight: 68,
+                display: 'flex', alignItems: 'center', gap: 9, textAlign: 'left', cursor: 'pointer',
+                padding: '8px 10px', border: 'none', borderTop: '1px solid var(--border-1)',
+                background: isSel ? tone.bg : 'transparent',
+                font: `${isHi ? 600 : 400} 12.5px var(--font-body)`, color: 'var(--fg-1)',
               }}>
-              <span style={{ font: '700 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{r.label}</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--fg-2)' }}>
-                <span style={{ width: 8, height: 8, borderRadius: 999, background: tone.dot, flex: 'none' }} />
-                {nameOf(r.company_object_id)}
-              </span>
-              {/* Wie viele Länder dieser Region weichen ab? Ohne den Hinweis wäre die Kachel
+              <span style={{ width: 9, height: 9, background: tone.dot, flex: 'none' }} />
+              <span style={{ minWidth: 92 }}>{r.label}</span>
+              <span style={{ color: 'var(--fg-2)', minWidth: 0, flex: 1 }}>{nameOf(r.company_object_id)}</span>
+              {/* Wie viele Länder dieser Region weichen ab? Ohne den Hinweis wäre die Zeile
                   eine halbe Wahrheit («Europa gehört X» – ausser Liechtenstein). */}
-              {exceptions.some((c) => c.region === r.code) && (
-                <span style={{ fontSize: 10.5, color: 'var(--fg-4)' }}>
-                  {exceptions.filter((c) => c.region === r.code).length} Ausnahme
-                  {exceptions.filter((c) => c.region === r.code).length === 1 ? '' : 'n'}
+              {exc > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--fg-4)', flex: 'none' }}>
+                  {exc} Ausnahme{exc === 1 ? '' : 'n'}
                 </span>
               )}
             </button>

@@ -17,6 +17,7 @@ from ..models import Order, UserProfile
 from ..services import attachments as attachments_svc
 from ..services import document as document_svc
 from ..services import people
+from ..services import sites
 from ..services.objects import obj_nr as format_obj_nr
 from ..services.document_render import render_pdf
 
@@ -54,8 +55,7 @@ def _company(db: Session, order=None) -> dict:
     """Firmen-Briefkopf für das PDF (saubere Anschrift + Logo). Nur Nicht-Geheimes.
 
     Der Briefkopf ist der der **fakturierenden Gesellschaft** (Seller of Record, ADR 006):
-    sie trägt die Rechtsidentität (UID, MWST, Handelsregister), die ein Dokument ausweisen
-    muss. Sie wird aus dem Auftrag abgeleitet (``sale.seller_company_for_order``: eingefrorener
+    sie trägt die Rechtsidentität (UID, MWST), die ein Dokument ausweisen muss. Sie wird aus dem Auftrag abgeleitet (``sale.seller_company_for_order``: eingefrorener
     Snapshot ≻ Kundenland ≻ Betreiber). Ohne Auftrag (globaler/entwurfsloser Fall) fällt es auf
     den Betreiber."""
     if order is not None:
@@ -76,7 +76,9 @@ def _company(db: Session, order=None) -> dict:
         "country": s.country,
         "email": s.email,
         "phone": s.phone,
-        "website": s.website,
+        # Abgeleitet aus dem Deployment, nicht gepflegt (Testnotiz #309) – dieselbe
+        # Adresse, die auch das Impressum nennt.
+        "website": sites.website_url(),
         "uid_number": s.uid_number,
         "vat_number": s.vat_number,
     }

@@ -2403,6 +2403,67 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Zusammenfassung statt als Sucheingabe). Der Speichern/Verwerfen-Streifen am Fensterrand ist
   entfallen – Auto-Save wie überall, Rückmeldung im Karten-Kopf.
 
+- **Testnotizen-Runde 21 (weniger Felder, dafür Pflicht; die Welt wird gemalt; Notizen
+  #300–#323)**: Der Unternehmens-Datensatz hatte **24 Eingabefelder** – und die Frage des
+  Nutzers war für fast jede Gruppe dieselbe: *brauche ich das überhaupt, jetzt oder in
+  Zukunft?* Der Massstab war darum nicht «könnte man mal brauchen», sondern: **nennt es
+  jemand auf einem Beleg, im Impressum oder in einer Regel?** Übrig bleiben **neun** – und
+  genau deshalb dürfen sie **Pflicht** sein (#323: ein Formular, in dem alles optional ist,
+  sagt nichts; eines mit neun Pflichtfeldern ist in zwei Minuten vollständig).
+  (1) **Gestrichen, mit Begründung** (Modell, Schema, `ENTITY_FIELDS`, Frontend-Typ, API-
+  Mapping): **Handelsregister-Nr., HR-Kanton, Aktienkapital** (#307) – in der Schweiz IST die
+  HR-Nummer seit 2016 die UID, der Kanton steht im Register, Kapital muss ein Impressum nicht
+  nennen; drei Zeilen, die abschrieben, was die UID schon sagt. **QR-IBAN, Bankname, BIC**
+  (#313) – die IBAN trägt Land, Bank und Konto; die QR-Rechnung ist nicht gebaut, und für
+  SEPA braucht es keinen BIC. **MWST-Methode/-Periode** (#314/#319/#321) – reine
+  Buchhaltungs-Parameter (Phase 3), die nichts im System auswertete. **Zahlungsfrist und
+  Skonto** (#316/#317/#318) – die gehören in die **Offerte**, wo sie je Geschäft verhandelt
+  werden, nicht als stiller Firmen-Default. **OSS/VIES** (#320) – nie ausgewertet; die
+  destinationsbasierte EU-Steuer rechnet Stripe Tax. Nachweis für alle: ausserhalb von
+  Modell/Schema/Formular tauchte keines davon in einer Regel auf.
+  (2) **Zwei Angaben füllt jetzt das System selbst.** Die **Währung** folgt dem Land (#304,
+  `sites.currency_for_country`) und steht als Wert da, nicht als Auswahl – ändern geht über
+  «Ändern», also bewusst, nicht im Vorbeitippen («auch wenn nicht gerade super einfach»). Die
+  **Website-Adresse** ist die des Deployments (#309, `sites.website_url` ← `FRONTEND_BASE_URL`):
+  read-only angezeigt, weil sie im Impressum und auf dem Briefkopf steht – ein Eingabefeld
+  daneben wäre eine zweite Wahrheit, die beim ersten Domain-Wechsel still falsch wird.
+  (3) **Der Name ist hart Pflicht** (#301/#302, jetzt «Unternehmensname»): er ist zugleich das
+  **Halter-Label** (`locations.location_label`), eine namenlose Gesellschaft liesse jede
+  Standort-Anzeige leer, die auf sie zeigt. `sites.apply_update` weist ihn leer ab (Anlegen tat
+  das immer schon). Anschrift, UID, MWST-Nr., E-Mail, Telefon, Rechtsform und IBAN sind
+  markierte Pflichtfelder (#305/#307/#310/#313) – gelbes Sternchen wie im Konto, kein Blocker.
+  (4) **Dieselbe Anatomie wie Benutzer und Profil** (#308/#311/#312): EIN Formular, EIN
+  **Auto-Save** (Speicher-Streifen weg), Karten statt Sektionsraster, **keine Symbole** in den
+  Überschriften. Die Alt-Bausteine `Field`/`Sec` (slate/blue-Altpalette) wurden nur noch hier
+  genutzt und sind entfallen; die `Card` wohnt jetzt im gemeinsamen Vokabular (`fields.tsx`).
+  (5) **Rechtsform schlägt sich selbst vor** (#303): Freitext mit `datalist` je Land (CH → AG ·
+  GmbH · Einzelunternehmen …, US → Inc. · LLC …). Eine API dafür gibt es nicht – die einzige
+  verbindliche Quelle ist die ISO-20275-Liste der GLEIF, ein Download mit ~2600 Einträgen ohne
+  Abfrage-Endpunkt; für acht Vorschläge der falsche Preis, und Rechtsformen ändern sich in
+  Jahrzehnten. Also dieselbe Bauart wie die Land→Währung-Zuordnung: eine kleine, dokumentierte
+  Tabelle im Frontend.
+  (6) **GPS → Adresse** (#306, `AddressField`): «Aktuellen Standort verwenden» holt die
+  Koordinaten vom Browser und lässt Googles Geocoder daraus einen Treffer machen – der durch
+  **denselben** Zweig ins Formular läuft wie ein gewählter Vorschlag (`applyPlace`), statt
+  einen zweiten Weg aufzumachen. Gilt für jede Adress-Eingabe, nicht nur die Firma.
+  (7) **Die Weltkarte ist jetzt eine Karte** (#322, `components/erp/world-map.tsx`): 5°-Raster,
+  72×25 Zellen, **nur Linien und Ecken** – jede Zelle ist ein echtes geografisches Feld, die
+  Form entsteht aus der Menge. Umriss-Polygone wären bei zehn Stützpunkten Flecken geblieben;
+  erkennbar wird eine Weltkarte über die *Verhältnisse*, und die liefert ein Raster geschenkt.
+  Grönland und die Antarktis fehlen **bewusst**: sie liegen in keiner Region, und eine Fläche
+  einzufärben, die keiner Region gehört, wäre eine gemalte Behauptung. Russland ist bis in den
+  Osten europäisch eingefärbt – so steht es in `geography.py`, und die Karte darf nicht anders
+  behaupten als die Auflösung entscheidet. Darunter dieselbe Aussage als Liste (die Karte kann
+  nicht sagen, wie eine Gesellschaft heisst; die Liste nicht zeigen, wo Ozeanien liegt).
+  (8) **Der Feed atmet** (#300): mehr Polsterung, kleineres Symbol – und der Zustand ist ein
+  **Punkt mit Wort** statt einer gefüllten Pille (`StatusBadge plain`). Vierzig Pillen
+  untereinander waren das, was die Liste schwer machte; das Design-System nennt Punkt+Wort
+  ohnehin als Regelform und die gefüllte Badge als Ausnahme für Detail-Köpfe.
+  > **Folge-Deploy:** die 14 DB-Spalten bleiben vorerst stehen (SQLAlchemy ignoriert sie) und
+  > werden erst im **nächsten** Deploy per Migration gedroppt – exakt wie `is_primary` in 090→091.
+  > Ein Drop im selben Deploy trifft die während des Cloud-Run-Rollouts noch laufende
+  > Vorgänger-Revision, die sie noch mappt: das ist die Ausfallklasse von Migration 090.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
