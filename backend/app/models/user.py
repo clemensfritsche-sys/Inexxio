@@ -99,7 +99,10 @@ class UserProfile(Base, TimestampMixin):
 
     @property
     def display_name(self) -> str:
-        """Anzeigename – EINE Regel für alle Anzeigen (Lieferant/Kunde/Prüfer/Standort):
-        Firma → «Vorname Nachname» → E-Mail."""
+        """Anzeigename – EINE Regel für alle Anzeigen und ALLE Rollen (Lieferant/Kunde/Prüfer):
+        **«Vorname Nachname» → Firma → E-Mail** (Notiz #291). Es wird immer der **Name der
+        Person** im Datensatz gezeigt, nicht der Firmenname – der ist nur Rückfall, wenn keine
+        Person hinterlegt ist. (Der Versand-Empfängername bleibt firmen-first – eigene Regel in
+        ``stripe_provider._full_name`` – denn das Paket geht an die Firma.)"""
         name = " ".join(p for p in [self.first_name, self.last_name] if p).strip()
-        return self.company_name or name or self.email
+        return name or self.company_name or self.email

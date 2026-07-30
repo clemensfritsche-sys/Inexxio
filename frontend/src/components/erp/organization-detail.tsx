@@ -51,7 +51,7 @@ function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'system' | 'gebiete' | 'docs';
+type OrgTab = 'stamm' | 'system' | 'docs';
 
 /**
  * Detailansicht eines **Unternehmens** (einer Gesellschaft) – ein gleichrangiger
@@ -158,9 +158,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
-          // Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) – global, an
-          // JEDER Gesellschaft erreichbar; die Karte hebt die Regionen der aktuellen hervor.
-          { key: 'gebiete', label: 'Gebiete', icon: Globe2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </DetailHeader>
@@ -168,7 +165,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
-        {tab === 'gebiete' && <TerritoryMap highlight={record.object_id} />}
         {tab === 'system' && isOperator && (
           <QueryClientProvider client={systemQueryClient}>
             <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
@@ -252,6 +248,15 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="OSS aktiv" val={v('oss_active')} onChange={set('oss_active')} type="check" />
           <Field label="VIES-Validierung" val={v('vies_validation')} onChange={set('vies_validation')} type="check" />
           <Field label="OSS-Nummer" val={v('oss_number')} onChange={set('oss_number')} span2 />
+        </Sec>
+
+        {/* Gebiete (Weltkarte) – seit Notiz #299 hier im Stammdaten-Reiter statt als eigener
+            Reiter: welche Märkte diese Gesellschaft fakturiert, ist Stammdaten. Die Karte ist
+            global (alle Regionen/Gesellschaften) und hebt die aktuelle hervor. */}
+        <Sec title="Gebiete" editable icon={Globe2}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <TerritoryMap highlight={record.object_id} embedded />
+          </div>
         </Sec>
 
         {/* Konzern-Kosten – eine GRUPPEN-Kennzahl (nicht je Gesellschaft), darum am

@@ -51,8 +51,11 @@ export function timeAgo(iso: string | null | undefined): string {
 export function userDisplayName(user: {
   company_name?: string | null; first_name?: string | null; last_name?: string | null; email: string;
 }): string {
+  // EINE Regel für ALLE Rollen (Notiz #291): «Vorname Nachname» → Firma → E-Mail. Immer der
+  // Name der Person im Datensatz, nicht der Firmenname (Firma nur als Rückfall). Spiegelt
+  // ``UserProfile.display_name`` im Backend.
   const full = [user.first_name, user.last_name].filter(Boolean).join(' ');
-  return user.company_name?.trim() || full || user.email.split('@')[0];
+  return full || user.company_name?.trim() || user.email.split('@')[0];
 }
 
 /**

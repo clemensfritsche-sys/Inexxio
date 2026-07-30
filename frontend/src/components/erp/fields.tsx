@@ -392,7 +392,10 @@ export function HeaderSep() {
 
 export const DH: Record<string, React.CSSProperties> = {
   head: {
-    padding: '20px clamp(14px, 4vw, 28px)', borderBottom: '1px solid var(--border-1)',
+    // paddingBottom 0: die Reiter sitzen bündig an der Unterkante des Kopf-Containers, sodass
+    // der rote Aktiv-Balken (2px border-bottom je Reiter) genau auf der Kopf-Haarlinie liegt –
+    // nicht mehr 20px darüber schwebend (Notiz #290, gilt für ALLE Detailköpfe via DH.head).
+    padding: '20px clamp(14px, 4vw, 28px) 0', borderBottom: '1px solid var(--border-1)',
     background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', flexShrink: 0,
   },
   top: { display: 'flex', alignItems: 'flex-start', gap: 'clamp(10px, 3vw, 16px)', flexWrap: 'wrap' },

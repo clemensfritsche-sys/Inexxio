@@ -29,7 +29,7 @@ const TONES = [
   { dot: '#4D7C0F', bg: '#F0F6E4', ring: '#4D7C0F' },  // Limette
 ];
 
-export function TerritoryMap({ highlight }: { highlight?: number | null }) {
+export function TerritoryMap({ highlight, embedded }: { highlight?: number | null; embedded?: boolean }) {
   const [data, setData] = useState<TerritoryMapData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -69,12 +69,16 @@ export function TerritoryMap({ highlight }: { highlight?: number | null }) {
 
   return (
     <div style={{ maxWidth: 760, marginInline: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Globe2 size={16} style={{ color: 'var(--fg-3)' }} />
-        <span style={{ font: '700 11px var(--font-body)', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
-          Gebiete – wer fakturiert welche Region
-        </span>
-      </div>
+      {/* Eigener Titel nur ausserhalb einer Sektion – eingebettet (Stammdaten-Reiter, #299)
+          liefert die umgebende Sektion die Überschrift «Gebiete». */}
+      {!embedded && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Globe2 size={16} style={{ color: 'var(--fg-3)' }} />
+          <span style={{ font: '700 11px var(--font-body)', letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
+            Gebiete – wer fakturiert welche Region
+          </span>
+        </div>
+      )}
 
       {/* Abstrakte Weltkarte: Regions-Kacheln nach grober geografischer Position. */}
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>

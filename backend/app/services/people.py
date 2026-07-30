@@ -1,7 +1,7 @@
 """Personen-Anzeige – **EINE** Stelle für «wie heisst diese Person?».
 
-Die Regel selbst steht am Modell (``UserProfile.display_name``: Firma → «Vorname
-Nachname» → E-Mail). Was fehlte, war die eine Stelle, die sie *anwendet*: derselbe
+Die Regel selbst steht am Modell (``UserProfile.display_name``: «Vorname Nachname»
+→ Firma → E-Mail, Notiz #291). Was fehlte, war die eine Stelle, die sie *anwendet*: derselbe
 Zweizeiler lag sechsmal im Code (``sales._user_name``, ``resource._user_name``,
 ``document._user_name``, ``orders._supplier_name``, ``article_process._supplier_name``,
 ``document_files._user_name``, dazu ``locations._user_label``).

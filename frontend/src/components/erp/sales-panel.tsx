@@ -181,8 +181,7 @@ function ProfileCard({ profile, onSaved, onVisibilityChange, articleObjectId }: 
   return (
     <div style={{ ...card, ...flashStyle(flash) }}
       onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') { e.preventDefault(); flush(); } }}>
-      <SectionTitle icon={Tag} info="Der Verkauf bleibt auch nach der Freigabe editierbar – nur Spezifikation und Prozess sind eingefroren. Erklärungen zu den Optionen stehen im Hover.">Verkauf</SectionTitle>
-
+      {/* «Verkauf»-Überschrift entfällt (Notiz #289) – der Reiter sagt es bereits. */}
       {/* Drei binäre Achsen nebeneinander – auf einen Blick erfassbar. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: 14 }}>
         <IconChoice label="Status" value={published ? 'true' : 'false'} options={PUBLISHED}
