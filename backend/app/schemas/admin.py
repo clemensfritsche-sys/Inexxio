@@ -44,6 +44,7 @@ class CompanySettingsUpdate(BaseModel):
     shop_default_currency: Optional[str] = None
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
+    infra_monthly_chf: Optional[Decimal] = None
     legal_documents: Optional[dict] = None
 
 
@@ -104,6 +105,7 @@ class CompanySettingsResponse(BaseModel):
     shop_default_currency: str = "CHF"
     payments_provider: Optional[str] = None
     pricing_zone_factors: Optional[dict] = None
+    infra_monthly_chf: Optional[Decimal] = None
     # Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
     legal_documents: Optional[dict] = None
     # Bestätigungspflicht je Dokument-Art: {"agb": ["all"], …} (Consent-Gate)

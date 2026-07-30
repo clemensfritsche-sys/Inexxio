@@ -9138,6 +9138,17 @@
             ],
             "title": "Pricing Zone Factors"
           },
+          "infra_monthly_chf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infra Monthly Chf"
+          },
           "legal_documents": {
             "anyOf": [
               {
@@ -9600,6 +9611,20 @@
               }
             ],
             "title": "Pricing Zone Factors"
+          },
+          "infra_monthly_chf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infra Monthly Chf"
           },
           "legal_documents": {
             "anyOf": [

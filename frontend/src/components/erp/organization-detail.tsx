@@ -51,7 +51,7 @@ function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'system' | 'gebiete' | 'docs';
+type OrgTab = 'stamm' | 'system' | 'docs';
 
 /**
  * Detailansicht eines **Unternehmens** (einer Gesellschaft) – ein gleichrangiger
@@ -158,9 +158,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
-          // Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) – global, an
-          // JEDER Gesellschaft erreichbar; die Karte hebt die Regionen der aktuellen hervor.
-          { key: 'gebiete', label: 'Gebiete', icon: Globe2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </DetailHeader>
@@ -168,7 +165,6 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
-        {tab === 'gebiete' && <TerritoryMap highlight={record.object_id} />}
         {tab === 'system' && isOperator && (
           <QueryClientProvider client={systemQueryClient}>
             <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
@@ -254,6 +250,15 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           <Field label="OSS-Nummer" val={v('oss_number')} onChange={set('oss_number')} span2 />
         </Sec>
 
+        {/* Gebiete (Weltkarte) – seit Notiz #299 hier im Stammdaten-Reiter statt als eigener
+            Reiter: welche Märkte diese Gesellschaft fakturiert, ist Stammdaten. Die Karte ist
+            global (alle Regionen/Gesellschaften) und hebt die aktuelle hervor. */}
+        <Sec title="Gebiete" editable icon={Globe2}>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <TerritoryMap highlight={record.object_id} embedded />
+          </div>
+        </Sec>
+
         {/* Konzern-Kosten – eine GRUPPEN-Kennzahl (nicht je Gesellschaft), darum am
             Betreiber, der die Gruppe nach aussen vertritt. */}
         {isOperator && <CostOverview />}
@@ -306,7 +311,7 @@ function CostOverview() {
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: '#F4EBDD', color: '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+        <span style={{ width: 26, height: 26, borderRadius: 'var(--r-sm)', background: 'var(--bg-3)', color: 'var(--fg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
           <Coins size={15} />
         </span>
         <span style={{ font: '800 13px var(--font-display)', letterSpacing: '.02em', color: 'var(--fg-1)' }}>
@@ -314,8 +319,8 @@ function CostOverview() {
         </span>
       </div>
       <div style={{ background: '#fff', border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
-        {/* Kopf: grosse Ist-Summe + Monats-Hochrechnung */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, padding: '16px 18px 14px', background: 'linear-gradient(180deg,#FBF7F0,#fff)' }}>
+        {/* Kopf: grosse Ist-Summe + Monats-Hochrechnung (Notiz #292: Design-Tokens statt Hex). */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, padding: '16px 18px 14px', background: 'var(--bg-2)', borderBottom: '1px solid var(--border-1)' }}>
           <div>
             <div style={{ font: '600 11px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--fg-4)' }}>
               Bisher diesen Monat{data ? ` · Tag ${data.day_of_month}/${data.days_in_month}` : ''}
@@ -336,7 +341,10 @@ function CostOverview() {
         {/* Gruppen – je eine kompakte Zeile mit Basis-Badge + Betrag + Detail-Hinweis */}
         {(data?.groups ?? []).map((g) => {
           const Icon = GROUP_ICON[g.key] ?? Coins;
-          const measured = g.basis === 'actual';
+          // Harter Wert = gemessen (aus dem Event-Strom) ODER fix (hinterlegter Realbetrag, #293)
+          // → grün; nur der reine Schätzwert ist neutral.
+          const known = g.basis === 'actual' || g.basis === 'fixed';
+          const basisLabel = g.basis === 'actual' ? 'gemessen' : g.basis === 'fixed' ? 'fix' : 'geschätzt';
           const hints = g.items.map((i) => i.hint).filter(Boolean).join(' · ');
           return (
             <div key={g.key} style={{ borderTop: '1px solid var(--border-1)', padding: '10px 18px' }}>
@@ -344,8 +352,8 @@ function CostOverview() {
                 <Icon size={15} style={{ color: 'var(--fg-3)', flex: 'none' }} />
                 <span style={{ flex: 1, font: '650 13.5px var(--font-body)', color: 'var(--fg-1)', minWidth: 0 }}>{g.label}</span>
                 <span style={{ flex: 'none', font: '600 10px var(--font-body)', textTransform: 'uppercase', letterSpacing: '.04em', padding: '2px 7px', borderRadius: 999,
-                  color: measured ? '#166534' : '#9A7238', background: measured ? '#DCFCE7' : '#F4EBDD' }}>
-                  {measured ? 'gemessen' : 'geschätzt'}
+                  color: known ? 'var(--success)' : 'var(--fg-3)', background: known ? 'var(--success-bg)' : 'var(--bg-3)' }}>
+                  {basisLabel}
                 </span>
                 <span style={{ flex: 'none', font: '700 14px var(--font-body)', color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', minWidth: 78, textAlign: 'right' }}>
                   {chf(g.total_chf)}{unit}

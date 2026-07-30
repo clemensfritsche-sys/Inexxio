@@ -169,6 +169,9 @@ _COLUMN_SAFETY_NET = (
     # der bestehenden ``sales``-Tabelle → MUSS im Lifespan-Netz stehen (die 090-Lehre: fehlte
     # sie, während das Modell sie kennt, endete jede sales-Abfrage in einem 500).
     ("sales", "seller_company_object_id", "BIGINT"),
+    # Konfigurierbare Infrastruktur-Kosten/Monat (Notiz #293, Migration 094). Neue Spalte auf
+    # company_settings → Lifespan-Netz (090-Lehre; der Wächter erzwingt es ohnehin).
+    ("company_settings", "infra_monthly_chf", "NUMERIC(10,2)"),
     # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
     ("article_prices", "sub_type", "VARCHAR(10)"),
     ("orders", "recurrence_kind", "VARCHAR(10)"),

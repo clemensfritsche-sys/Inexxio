@@ -865,6 +865,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     shop_default_currency: (s.shop_default_currency as string | null) ?? 'CHF',
     payments_provider: (s.payments_provider as string | null) ?? null,
     pricing_zone_factors: (s.pricing_zone_factors as Record<string, number> | null) ?? null,
+    infra_monthly_chf: (s.infra_monthly_chf as number | null) ?? null,
     legal_documents: (s.legal_documents as Record<string, number> | null) ?? null,
   };
 }

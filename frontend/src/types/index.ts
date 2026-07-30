@@ -549,6 +549,8 @@ export interface CompanySettings {
   shop_default_currency: string;
   payments_provider: string | null;
   pricing_zone_factors: Record<string, number> | null;
+  // Realer Infrastruktur-Monatsbetrag (CHF) – gesetzt = «fix» in den Betriebskosten (#293).
+  infra_monthly_chf: number | null;
   // Öffentliche Rechtsdokumente (D): {"agb": <Artikel-Objektnr>, "datenschutz": …}
   legal_documents: Record<string, number> | null;
 }

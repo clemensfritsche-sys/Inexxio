@@ -81,6 +81,7 @@ PLATFORM_FIELDS = (
     "stripe_publishable_key", "plausible_domain", "hcaptcha_site_key", "google_maps_api_key",
     "shop_currencies", "shop_country_currency", "shop_default_currency", "payments_provider",
     "pricing_zone_factors", "legal_documents", "default_receiving_location_id",
+    "infra_monthly_chf",
 )
 
 

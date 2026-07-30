@@ -108,6 +108,12 @@ class CompanySettings(Base):
     # {"Deutschland": 1.1, "USA": 0.9}. Leer/NULL = Stufe abgeschaltet (Default).
     pricing_zone_factors: Mapped[Optional[dict]] = mapped_column(JSONB)
 
+    # **Infrastruktur-Kosten / Monat (CHF)** – der reale, fixe Google-Cloud-Monatsbetrag aus
+    # der Abrechnung (Notiz #293). Ist er gesetzt, zeigt die Betriebskosten-Übersicht ihn als
+    # **fix** statt als geschätzt (der Code-Default ist nur der Spannen-Mittelwert). Plattform-
+    # Feld (die eine Website/Infrastruktur), nur über die Systemkonfiguration.
+    infra_monthly_chf: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+
     # ── Öffentliche Rechtsdokumente (D): Zeiger auf einen **Artikel** ───────────────
     # Je Rechtsdokument-Art (AGB/Datenschutz/…) die **Objektnummer eines Artikels**. Die
     # Website zieht dessen erste freigegebene Instanz (den ausgestellten Dokument-Beleg).

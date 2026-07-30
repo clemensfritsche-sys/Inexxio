@@ -79,9 +79,10 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
       : orderStatusConfig(row.data.status, row.data.abort_into_id != null);
   }
   else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
-  // Unternehmen ist ein aktiver Stammdaten-Singleton → GRÜN (wie ein aktiver Benutzer),
-  // kein Grau (das läse sich als «aus»).
-  else badge = { label: 'Stammdaten', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 };
+  // Unternehmen (Gesellschaft): aktiver Datensatz → GRÜN (wie ein aktiver Benutzer), kein Grau
+  // (das läse sich als «aus»). Label = **«Unternehmen»**, damit der Feed denselben Zustand nennt
+  // wie der Detail-Kopf (Notiz #297: vorher «Stammdaten» ≠ Detail «Unternehmen»).
+  else badge = { label: 'Unternehmen', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 };
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;

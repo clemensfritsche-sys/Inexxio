@@ -3065,6 +3065,8 @@ export interface components {
             payments_provider?: string | null;
             /** Pricing Zone Factors */
             pricing_zone_factors?: Record<string, never> | null;
+            /** Infra Monthly Chf */
+            infra_monthly_chf?: string | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
         };
@@ -3144,6 +3146,8 @@ export interface components {
             payments_provider?: string | null;
             /** Pricing Zone Factors */
             pricing_zone_factors?: Record<string, never> | null;
+            /** Infra Monthly Chf */
+            infra_monthly_chf?: number | string | null;
             /** Legal Documents */
             legal_documents?: Record<string, never> | null;
         };

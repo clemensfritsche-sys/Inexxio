@@ -16,16 +16,22 @@ const INST = TYPE_META.instance;
 export function InstanceList({ articleObjectId, unit }: { articleObjectId: number | null; unit?: string }) {
   const [items, setItems] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(false);
+  // Dezenter Status-Filter (Notiz #288, analog zum Typ-Filter im ERP-Feed) – null = «Alle».
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const nav = useErpNav();
 
   useEffect(() => {
     if (articleObjectId == null) return;
     setLoading(true);
+    setStatusFilter(null);   // beim Artikelwechsel den Filter zurücksetzen
     api.getArticleInstances(articleObjectId)
       .then(setItems)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [articleObjectId]);
+
+  const statusOf = (i: Instance) =>
+    instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0);
 
   if (articleObjectId == null) {
     return <Placeholder icon={Boxes} title="Bestand" text="Artikel zuerst speichern – danach erscheinen hier die Instanzen." />;
@@ -41,12 +47,33 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
   // fast immer die zuletzt entstandene Instanz). Ein Suchfeld gab es hier zwischenzeitlich –
   // es ist wieder entfallen (Notiz #157): der Bestand EINES Artikels ist die kurze Liste, für
   // die es keine Suche braucht; gesucht wird im Feed.
-  const shown = [...items].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0));
+  const sorted = [...items].sort((a, b) => (b.object_id ?? 0) - (a.object_id ?? 0));
+
+  // Vorhandene Status (in stabiler Reihenfolge) + Anzahl je Status – für die Filter-Chips.
+  const groups: { label: string; cfg: ReturnType<typeof statusOf>; count: number }[] = [];
+  for (const i of sorted) {
+    const cfg = statusOf(i);
+    const g = groups.find((x) => x.label === cfg.label);
+    if (g) g.count += 1;
+    else groups.push({ label: cfg.label, cfg, count: 1 });
+  }
+  const shown = statusFilter === null ? sorted : sorted.filter((i) => statusOf(i).label === statusFilter);
 
   return (
     // Zentriert und breiter: auf einem 3440er-Schirm klebte die Liste sonst links
     // in einer 720-px-Spalte. Die Überschrift «Bestand» steht bereits im Reiter darüber.
-    <div style={{ maxWidth: 980, marginInline: 'auto' }}>
+    <div style={{ maxWidth: 980, marginInline: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Status-Filter (nur, wenn es mehr als einen Status gibt) – dezent, Punkt + Wort + Anzahl. */}
+      {groups.length > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <FilterChip label="Alle" count={items.length} active={statusFilter === null}
+            onClick={() => setStatusFilter(null)} />
+          {groups.map((g) => (
+            <FilterChip key={g.label} label={g.label} count={g.count} dot={g.cfg.color}
+              active={statusFilter === g.label} onClick={() => setStatusFilter(g.label)} />
+          ))}
+        </div>
+      )}
       <div style={{ border: '1px solid var(--border-1)', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: '#fff' }}>
         {shown.map((i, idx) => (
           <button
@@ -55,7 +82,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
             onClick={() => i.object_id != null && nav?.(i.object_id)}
             style={{
               display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '13px 16px',
-              background: '#fff', border: 'none', borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--border-1)',
+              background: '#fff', border: 'none', borderBottom: idx === shown.length - 1 ? 'none' : '1px solid var(--border-1)',
               cursor: 'pointer', font: 'inherit', textAlign: 'left',
             }}
           >
@@ -70,11 +97,31 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
                 {fmtObjId(i.object_id)}
               </div>
             </div>
-            <StatusBadge cfg={instanceStatusConfig(i.quality, i.disposition, (i.reserved_quantity ?? 0) > 0)} size={11} />
+            <StatusBadge cfg={statusOf(i)} size={11} />
             <span style={{ color: 'var(--fg-4)', display: 'flex', flex: 'none' }}><ChevronRight size={18} /></span>
           </button>
         ))}
       </div>
     </div>
+  );
+}
+
+/** Dezenter Filter-Chip (Notiz #288): Punkt (Status-Farbe) + Wort + Anzahl, aktiv = accent-soft. */
+function FilterChip({ label, count, dot, active, onClick }: {
+  label: string; count: number; dot?: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', cursor: 'pointer',
+        borderRadius: 999, font: '600 12px var(--font-body)',
+        border: `1px solid ${active ? 'var(--accent)' : 'var(--border-1)'}`,
+        background: active ? 'var(--accent-soft)' : '#fff',
+        color: active ? 'var(--accent-ink)' : 'var(--fg-2)',
+      }}>
+      {dot && <span style={{ width: 7, height: 7, borderRadius: 999, background: dot, flex: 'none' }} />}
+      {label}
+      <span className="ix-tnum" style={{ color: 'var(--fg-4)', fontWeight: 500 }}>{count}</span>
+    </button>
   );
 }
