@@ -53,6 +53,51 @@ def customer_for_order(db: Session, order: Order) -> Optional[UserProfile]:
     return db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first()
 
 
+# ─── Fakturierende Gesellschaft (Seller of Record, ADR 006) ──────────────────────
+
+def _seller_object_id_for_customer(db: Session, customer: Optional[UserProfile]) -> Optional[int]:
+    """Objektnummer der fakturierenden Gesellschaft aus der **Rechnungsadresse** des Kunden
+    (``sites.company_for_country``: Land → Region → Territorium-Besitzer → Betreiber). Ohne
+    Kunde/Land → Betreiber."""
+    from . import address, sites
+    country = (address.of_user(customer, "invoice") or {}).get("country") if customer else None
+    company = sites.company_for_country(db, country)
+    return company.object_id if company else None
+
+
+def _freeze_seller(db: Session, sale: Sale) -> None:
+    """Den Seller of Record **einfrieren**, sobald der Verkauf einen Kunden trägt (spätestens
+    bei Bestätigung/Zahlung) – analog zum Preis-/Währungs-Snapshot, damit der Beleg
+    unveränderlich die richtige Rechtsperson trägt. Idempotent (setzt nie neu)."""
+    if sale.seller_company_object_id is not None or sale.customer_id is None:
+        return
+    customer = db.query(UserProfile).filter(UserProfile.id == sale.customer_id).first()
+    sale.seller_company_object_id = _seller_object_id_for_customer(db, customer)
+
+
+def seller_company_for_order(db: Session, order: Order):
+    """Die **fakturierende Gesellschaft** eines Auftrags – für Beleg-Briefkopf + Versand-
+    Absender. Eingefrorener Snapshot auf einem Verkaufsbeleg ≻ live aus dem Kunden abgeleitet
+    ≻ Betreiber (ein Nicht-Verkaufs-Auftrag hat keinen Kunden → Betreiber). Rein lesend."""
+    from . import sites
+    snap = (
+        db.query(Sale)
+        .filter(Sale.order_id == order.id, Sale.seller_company_object_id.isnot(None))
+        .order_by(Sale.id)
+        .first()
+    )
+    if snap is not None:
+        company = sites.by_object_id(db, snap.seller_company_object_id)
+        if company is not None:
+            return company
+    customer = customer_for_order(db, order)
+    if customer is not None:
+        from . import address
+        country = (address.of_user(customer, "invoice") or {}).get("country")
+        return sites.company_for_country(db, country)
+    return sites.find_operator(db)
+
+
 def price_from_article(db: Session, article_id: int, quantity: int) -> Optional[dict]:
     """Preis-Vorschau EINES Artikels aus der **Shop-Preis-Pipeline** – Single Source of
     Truth: der ERP-Direktverkauf tippt keinen Betrag frei ein, sondern übernimmt densel-
@@ -251,6 +296,8 @@ def _apply_transition(db: Session, sale: Sale, order: Order, target: str, user: 
             # Personal-erfasste Zahlung ohne gewählte Zahlungsart: Rechnung ist der übliche
             # B2B-Weg (kein Kartenterminal nötig) – sinnvoller Default statt eines leeren Felds.
             sale.payment_method = "invoice"
+    # Seller of Record einfrieren, sobald der Verkauf einen Kunden hat (ADR 006).
+    _freeze_seller(db, sale)
     old = sale.status
     sale.status = target
     log_audit(db, "sales", "status", target, user.id, object_id=order.object_id, old_value=old)
@@ -345,6 +392,7 @@ def finalize_paid(db: Session, sale: Sale, stripe: dict | None = None,
         return sale
     order = db.query(Order).filter(Order.id == sale.order_id).first()
     actor_id = sale.customer_id
+    _freeze_seller(db, sale)     # Seller of Record einfrieren (ADR 006)
     if order:
         if release_order:
             _release_on_payment(db, order, actor_id)

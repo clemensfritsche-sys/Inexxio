@@ -50,14 +50,20 @@ def _signoff_render_data(db: Session, doc) -> list[dict]:
     return out
 
 
-def _company(db: Session) -> dict:
+def _company(db: Session, order=None) -> dict:
     """Firmen-Briefkopf für das PDF (saubere Anschrift + Logo). Nur Nicht-Geheimes.
 
-    Der Briefkopf ist der des **Hauptsitzes**: er trägt die Rechtsidentität (UID, MWST,
-    Handelsregister), die ein Dokument ausweisen muss. *Einen Beleg auf den Briefkopf des
-    ausstellenden Nebenstandorts zu setzen, ist ein späterer Schritt.*"""
-    from ..services.sites import find_primary
-    s = find_primary(db)
+    Der Briefkopf ist der der **fakturierenden Gesellschaft** (Seller of Record, ADR 006):
+    sie trägt die Rechtsidentität (UID, MWST, Handelsregister), die ein Dokument ausweisen
+    muss. Sie wird aus dem Auftrag abgeleitet (``sale.seller_company_for_order``: eingefrorener
+    Snapshot ≻ Kundenland ≻ Betreiber). Ohne Auftrag (globaler/entwurfsloser Fall) fällt es auf
+    den Betreiber."""
+    if order is not None:
+        from ..services.sale import seller_company_for_order
+        s = seller_company_for_order(db, order)
+    else:
+        from ..services.sites import find_operator
+        s = find_operator(db)
     if not s:
         return {"company_name": "Inexxio"}
     return {
@@ -95,7 +101,7 @@ async def get_document_pdf(
     obj_nr, doc_date = document_svc.render_meta(db, order) if order else (None, None)
     pdf = render_pdf(
         document_svc.normalize_content(doc.content),
-        company=_company(db), object_id=obj_nr, issued_at=doc_date,
+        company=_company(db, order), object_id=obj_nr, issued_at=doc_date,
         signoffs=_signoff_render_data(db, doc),
         image_resolver=lambda url: _signature_data_uri(db, url),
     )

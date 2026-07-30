@@ -111,8 +111,12 @@ def test_read_only_callers_never_commit_a_foreign_transaction():
     for rel in ("services/pricing.py", "services/selling.py", "services/logistics.py",
                 "services/payments/__init__.py", "routers/shop.py", "routers/documents.py"):
         src = _source(rel)
-        assert "import find_primary" in src or "import find_operator" in src, \
-            f"{rel} muss die Lese-Form nutzen"
+        # Lese-Form: entweder direkt der Betreiber (find_operator/-primary) ODER die abgeleitete
+        # fakturierende Gesellschaft (``sale.seller_company_for_order`` – ebenfalls rein lesend,
+        # fällt intern auf find_operator zurück; ADR 006, Absender/Beleg des Sellers).
+        assert ("import find_primary" in src or "import find_operator" in src
+                or "seller_company_for_order" in src), \
+            f"{rel} muss eine Lese-Form nutzen"
         assert "import primary" not in src and "import operator" not in src, \
             f"{rel} darf den Betreiber nicht anlegen"
 

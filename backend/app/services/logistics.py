@@ -72,15 +72,14 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def _settings(db: Session) -> CompanySettings | None:
-    """Der **Hauptsitz** – der Absender auf dem Versandbeleg.
-
-    Bewusst der Hauptsitz und nicht der Ist-Standort der Ware: der Absender ist bis auf
-    Weiteres die Firma. Dass eine Sendung aus einem Nebenstandort auch von dort abgeht,
-    ist eine Verfeinerung des Belegs (die Klassifikation Versand/innerbetrieblich ist
-    davon unberührt – die liest über ``target_address`` den echten Standort)."""
-    from .sites import find_primary
-    return find_primary(db)
+def _sender_company(db: Session, order: Order) -> CompanySettings | None:
+    """Der Absender auf dem Versandbeleg = die **fakturierende Gesellschaft** des Auftrags
+    (Seller of Record, ADR 006, ``sale.seller_company_for_order``): eingefrorener Snapshot ≻
+    Kundenland ≻ Betreiber. Ein Nicht-Verkaufs-Auftrag (kein Kunde) fällt auf den Betreiber –
+    wie bisher. Die Klassifikation Versand/innerbetrieblich ist davon unberührt (die liest
+    über ``target_address`` den echten Warenort)."""
+    from .sale import seller_company_for_order
+    return seller_company_for_order(db, order)
 
 
 def location_kind(db: Session, ltype: str | None, lid: int | None) -> str:
@@ -327,7 +326,7 @@ def ensure_shipment(db: Session, order: Order, step: ArticleProcessStep,
                         kind=derive_kind(load["gross_weight_kg"], load["volume_m3"]))
         db.add(ship)
     if ship.status in ("draft", "quoted"):
-        settings = _settings(db)
+        settings = _sender_company(db, order)
         t_type, t_id = cls["target"]
         ship.direction = cls["direction"]
         outbound = cls["direction"] == "outbound"
@@ -547,7 +546,7 @@ def build_embed(db: Session, order: Order, step: ArticleProcessStep,
         emb.to_label = address.one_line(ship.address_to)
     else:
         # Vorschau ohne Beleg: Adressen/Pakete/Last live ableiten (kein Schreiben im GET).
-        settings = _settings(db)
+        settings = _sender_company(db, order)
         t_type, t_id = cls["target"]
         company = _addr_company(settings)
         other = target_address(db, t_type, t_id)
