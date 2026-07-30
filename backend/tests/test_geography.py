@@ -62,13 +62,65 @@ def test_company_for_country_is_read_only_with_operator_fallback():
 
 
 def test_operator_owns_everything_not_claimed():
-    """Quelltext-Garantie: ``set_territory`` speichert NUR Abweichungen vom Betreiber – eine
-    Zuweisung an den Betreiber LÖSCHT die Zeile (die Tabelle hält keine Default-Zeilen)."""
+    """Quelltext-Garantie: ``set_territory`` speichert NUR **Abweichungen** – eine Zuweisung
+    an die ohnehin zuständige Gesellschaft LÖSCHT die Zeile (keine wirkungslosen Ansprüche)."""
     from app.services import sites
 
     src = inspect.getsource(sites.set_territory)
-    assert "db.delete(" in src                    # Betreiber = Zeile entfernen
-    assert "company.id == op.id" in src
+    assert "db.delete(" in src                            # Standard = Zeile entfernen
+    assert "_default_owner_id(db, code)" in src
+
+
+# ─── Ausnahmen je Land: Land ≻ Region ≻ Betreiber ────────────────────────────────
+
+def test_an_area_is_a_region_or_a_country_and_never_both():
+    """Der Gebiets-Code ist EINE Spalte für Region ODER Land – der Unterschied ist aus der
+    **Form** abgeleitet (ISO-2 = 2 Zeichen, Regions-Code ≥ 3). Kollisionsfrei per
+    Konstruktion: kein Regions-Code darf zweistellig sein."""
+    from app.services import geography
+
+    for code in geography.REGION_CODES:
+        assert len(code) >= 3, f"Regions-Code {code} kollidiert mit ISO-2"
+        assert not geography.is_country_code(code)
+    for cc in ("CH", "li", "US"):
+        assert geography.is_country_code(cc)
+
+    # normalize_area akzeptiert beides – und NUR Bekanntes (kein Anspruch auf ein Gebiet,
+    # das es gar nicht gibt).
+    assert geography.normalize_area("eur") == "EUR"
+    assert geography.normalize_area("li") == "LI"
+    assert geography.normalize_area("XX") is None
+    assert geography.normalize_area("") is None
+    assert geography.normalize_area(None) is None
+
+
+def test_country_beats_region_in_the_resolution():
+    """Quelltext-Garantie der Vorrangordnung **Land ≻ Region ≻ Betreiber**: die Land-Abfrage
+    steht VOR der Regions-Abfrage – sonst wäre eine Ausnahme wirkungslos."""
+    from app.services import sites
+
+    src = inspect.getsource(sites.company_for_country)
+    at_country = src.index("_claim_owner(db, code)")
+    at_region = src.index("region_of_country")
+    assert at_country < at_region, "Die Land-Ausnahme muss VOR der Region greifen"
+    assert ".commit(" not in src                          # weiterhin rein lesend
+
+
+def test_a_country_exception_falls_back_to_its_region_not_to_the_operator():
+    """Ein Land ohne eigenen Anspruch gehört dem Besitzer **seiner Region** (nicht dem
+    Betreiber) – deshalb ist genau das die Aufräum-Regel beim Zurücksetzen."""
+    from app.services import sites
+
+    src = inspect.getsource(sites._default_owner_id)
+    assert "is_country_code" in src
+    assert "region_of_country" in src
+    assert "_claim_owner" in src
+
+    # ``country_map`` liefert den EFFEKTIVEN Besitzer je Land – dieselbe Vorrangordnung als
+    # Batch (die Oberfläche leitet «ist Ausnahme» daraus ab, statt ein zweites Flag zu führen).
+    src = inspect.getsource(sites.country_map)
+    assert "territory_map" in src
+    assert "COUNTRY_REGION" in src
 
 
 def test_territory_table_is_a_new_table_not_a_new_column():

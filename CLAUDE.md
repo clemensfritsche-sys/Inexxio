@@ -2353,10 +2353,55 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   (`logistics._sender_company` ersetzt `_settings`). Ein Nicht-Verkaufs-Auftrag (kein Kunde) →
   Betreiber wie bisher. Neue Spalte auf bestehender `sales`-Tabelle → **im Lifespan-Safety-Net**
   (090-Lehre); gegen echtes PG16 verifiziert (Freeze idempotent trotz geänderter Karte = Beleg-
-  Unveränderlichkeit, Migration idempotent/downgrade, `_ensure_columns`-Netz). *Bewusst später: Steuer-Origin je
+  Unveränderlichkeit, Migration idempotent/downgrade, `_ensure_columns`-Netz).
+  **Slice 3 (UMGESETZT, ohne Migration):** zwei Verfeinerungen, beide ohne Schema-Änderung.
+  (a) **«Fakturiert durch» am Auftrag** (`OrderResponse.seller_company_object_id/_name`, gefüllt in
+  `orders.to_order_response`): wer fakturiert, war bis dahin erst im fertigen PDF sichtbar – jetzt
+  steht es in der Auftragsspezifikation, **bevor** der Beleg entsteht (Objektnummer klickbar).
+  Gesetzt **nur bei einem Verkauf/einer Retoure** (ein Produktions-/Beschaffungsauftrag hat keinen
+  Kunden, also keinen Fakturierenden) und nur fürs **Personal** sichtbar – eine interne
+  Buchungs-Angabe.
+  (b) **Ausnahmen je Land** (`geography.is_country_code`/`normalize_area`, `sites.country_map`/
+  `_default_owner_id`/`_claim_owner`): ein einzelnes Land kann von seiner Region abweichen («Europa
+  gehört der GmbH, Liechtenstein aber der Schweizer AG»). Das ist **kein zweiter Mechanismus**,
+  sondern derselbe Anspruch feiner geschnitten: Region **und** Land stehen als Gebiets-Code in
+  derselben Spalte (`company_territories.region`), der Unterschied ist aus der **Form abgeleitet,
+  nicht gespeichert** – ISO-2 hat 2 Zeichen, jeder Regions-Code ≥ 3, eine Kollision ist per
+  Konstruktion unmöglich (Wächter). Vorrang: **Land ≻ Region ≻ Betreiber**. Gespeichert wird nur,
+  was **abweicht**: eine Zuweisung an die ohnehin zuständige Gesellschaft LÖSCHT die Zeile (ein
+  Land fällt dann auf den Besitzer seiner Region zurück, nicht auf den Betreiber). Die Oberfläche
+  leitet «ist Ausnahme» daraus ab, dass der Besitzer eines Landes von dem seiner Region abweicht –
+  **kein zweites Flag**; Ländernamen kommen aus `Intl.DisplayNames` (keine zweite Länderliste im
+  Repository). EIN Panel für Region wie Land, Ausnahmen als Liste unter der Karte, die Region-Kachel
+  nennt die Zahl ihrer Ausnahmen. Gegen echtes PG16 verifiziert (27 Prüfungen: Totalität ohne jeden
+  Anspruch, Land schlägt Region, Zurücksetzen entfernt die Zeile, `country_map` == Einzelauflösung
+  über alle 225 Länder, unbekanntes Gebiet → 400, ein Gebiet = ein Besitzer, Seller folgt der
+  Ausnahme; dazu 8 Prüfungen am Auftrags-Embed inkl. Snapshot schlägt Live-Ableitung).
+  *Bewusst später: Steuer-Origin je
   Gesellschaft (heute hart CH; Stripe Tax rechnet destinationsbasiert real), Intercompany
-  (CH→US Transferpreis), eigenes Stripe-Konto je Gesellschaft, land-genaue Gebiete. **Impressum
-  bleibt global** (Betreiber); **Belegnummer bleibt global** (ein Nummernkreis).*
+  (CH→US Transferpreis), eigenes Stripe-Konto je Gesellschaft, Sub-Land-Gebiete (US-Bundesstaat).
+  **Impressum bleibt global** (Betreiber); **Belegnummer bleibt global** (ein Nummernkreis).*
+
+- **Testnotizen-Runde 20 (der ERP-Benutzer ist der Master, das Profil der Spiegel, Notizen
+  #294 #295)**: Der Benutzer-Datensatz im ERP und die Profileinstellungen zeigen **dieselben
+  Daten** – aber sie sahen und funktionierten völlig verschieden: hier ein Raster aus neun
+  Abschnitten mit eigener `Field`-Optik (Alt-Palette `#2563eb`/slate), Speichern über einen
+  Knopf und eine Rechnungsadresse mit einem wirkungslosen Häkchen «Gleich wie Adresse»; dort
+  drei Container, EIN Auto-Save, Google-Adress-Suche und ein Schalter, der die Rechnungsfelder
+  tatsächlich **spiegelt**. Der Nutzer hat die bessere Seite benannt (#294: «in diesem
+  speziellen fall möchte ich, dass dies von den Profileinstellungen übernommen wird») – also
+  **übernimmt der Master die Struktur des Spiegels**, nicht umgekehrt: Der Profil-Reiter ist
+  jetzt dieselbe Anatomie (Persönliche Angaben · Adressen · Kommunikation) aus **denselben
+  Bausteinen** (`account/field.tsx`, `erp/address-field.tsx`, `account/use-autosave.ts`) – kein
+  Nachbau, sondern Wiederverwendung, damit die beiden nicht wieder auseinanderlaufen können.
+  **Die Spiegelung ist damit auch fachlich echt:** «Rechnungsadresse = Lieferadresse» kopiert
+  im ERP jetzt dieselben Felder wie im Konto (vorher ein Häkchen, das nichts kopierte – zwei
+  Wahrheiten, je nachdem wo man es setzte). **Was das ERP MEHR zeigt, bleibt** (#295, «das ERP
+  muss ALLES können»): Rolle, Bankverbindung, die **admin-pflegbare** Anstellung (im Konto
+  read-only) und der Block **System** (E-Mail · Anmeldung · Passkeys · Login/Erstellt/Geändert ·
+  Firebase-UID). Nicht-Admins sehen dieselbe Struktur read-only (die Adresse als kompakte
+  Zusammenfassung statt als Sucheingabe). Der Speichern/Verwerfen-Streifen am Fensterrand ist
+  entfallen – Auto-Save wie überall, Rückmeldung im Karten-Kopf.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

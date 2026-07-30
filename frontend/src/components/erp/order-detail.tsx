@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Play, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
@@ -692,6 +692,15 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               {record && <OrderPositions order={record} />}
               <ReadField icon={CalendarClock} label="Wunsch-Liefertermin"
                 value={record?.desired_delivery_date ? localDate(record.desired_delivery_date) : 'Schnellstmöglich'} />
+              {/* Fakturiert durch: die Gesellschaft, die diesen Verkauf ausstellt (Seller of
+                  Record, ADR 006). Nur bei einem Verkauf/einer Retoure gesetzt und – als
+                  interne Buchungs-Angabe – nur fürs Personal. Objektnummer klickbar. */}
+              {isStaff && record?.seller_company_object_id != null && (
+                <ReadField icon={Building2} label="Fakturiert durch"
+                  value={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {record.seller_company_name}<ObjId value={record.seller_company_object_id} />
+                  </span>} />
+              )}
               {/* Erstellt/Geändert: früher ein Fussleisten-Streifen am Fensterrand – jetzt
                   eine Angabe unter den übrigen, wo sie hingehört (kein Footer mehr). */}
               {record && <ReadField icon={HistoryIcon} label="Angelegt" value={localDate(record.created_at)} />}

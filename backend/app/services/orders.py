@@ -651,6 +651,15 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
     resp.resource = first.get("resource")
     resp.disposal = first.get("disposal")
     resp.document = first.get("document")
+    # Seller of Record NUR bei einem Verkauf/einer Retoure (dann existiert ein Kunde und
+    # eine fakturierende Gesellschaft) – ein Produktions-/Beschaffungsauftrag zeigt keinen
+    # «Fakturiert durch». Lokaler Import: `sale` importiert `orders` (Zyklus vermeiden).
+    if first.get("sale") is not None:
+        from . import sale as sale_svc
+        seller = sale_svc.seller_company_for_order(db, order)
+        if seller is not None:
+            resp.seller_company_object_id = seller.object_id
+            resp.seller_company_name = seller.company_name
     return resp
 
 

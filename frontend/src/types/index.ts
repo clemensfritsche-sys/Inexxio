@@ -79,6 +79,7 @@ export type OperatingCosts = components['schemas']['OperatingCostsResponse'];
 export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
 export type TerritoryRegion = components['schemas']['TerritoryRegion'];
 export type TerritoryCompany = components['schemas']['TerritoryCompany'];
+export type TerritoryCountry = components['schemas']['TerritoryCountry'];
 // Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
 export const ARTICLE_NAME_MAX_LENGTH = 32;
 

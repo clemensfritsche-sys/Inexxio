@@ -454,8 +454,9 @@ export interface paths {
         };
         /**
          * Get Territories
-         * @description Die **Gebietskarte**: jede Weltregion + die Gesellschaft, die sie fakturiert. Nicht
-         *     zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per Default).
+         * @description Die **Gebietskarte**: jede Weltregion und jedes Land + die Gesellschaft, die es
+         *     fakturiert. Nicht zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per
+         *     Default); ein Land kann als **Ausnahme** von seiner Region abweichen.
          */
         get: operations["get_territories_api_v1_admin_territories_get"];
         put?: never;
@@ -466,7 +467,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/territories/{region}": {
+    "/api/v1/admin/territories/{area}": {
         parameters: {
             query?: never;
             header?: never;
@@ -476,10 +477,11 @@ export interface paths {
         get?: never;
         /**
          * Assign Territory
-         * @description Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``null``) =
-         *     Default → die Zuweisung wird zurückgesetzt. Genau EINE Gesellschaft je Region.
+         * @description Ein **Gebiet** einer Gesellschaft zuweisen (Weltkarte): eine Region («EUR») oder – als
+         *     Ausnahme – ein einzelnes Land («LI»). ``null`` bzw. die ohnehin zuständige Gesellschaft =
+         *     Standard wiederherstellen. Genau EINE Gesellschaft je Gebiet.
          */
-        put: operations["assign_territory_api_v1_admin_territories__region__put"];
+        put: operations["assign_territory_api_v1_admin_territories__area__put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4486,6 +4488,10 @@ export interface components {
              * @default []
              */
             provisionings: components["schemas"]["OrderDeviationInfo"][];
+            /** Seller Company Object Id */
+            seller_company_object_id?: number | null;
+            /** Seller Company Name */
+            seller_company_name?: string | null;
         };
         /**
          * OrderStepInfo
@@ -5667,7 +5673,8 @@ export interface components {
         };
         /**
          * TerritoryAssign
-         * @description Eine Region einer Gesellschaft zuweisen. ``None`` (oder der Betreiber) = Default.
+         * @description Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
+         *     Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen.
          */
         TerritoryAssign: {
             /** Company Object Id */
@@ -5689,12 +5696,34 @@ export interface components {
             is_operator: boolean;
         };
         /**
+         * TerritoryCountry
+         * @description Ein Land mit seinem **effektiven** Besitzer (Land-Ausnahme ≻ Region ≻ Betreiber).
+         *
+         *     Ob ein Land eine **Ausnahme** ist, wird in der Oberfläche abgeleitet (sein Besitzer weicht
+         *     vom Besitzer seiner Region ab) – kein eigenes Flag, das auseinanderlaufen könnte. Der Name
+         *     kommt im Browser aus ``Intl.DisplayNames`` (keine zweite Länderliste im Frontend).
+         */
+        TerritoryCountry: {
+            /** Code */
+            code: string;
+            /** Region */
+            region: string;
+            /** Company Object Id */
+            company_object_id?: number | null;
+        };
+        /**
          * TerritoryMapResponse
-         * @description Die vollständige Gebietskarte: jede Region hat genau einen Besitzer (Betreiber-Default).
+         * @description Die vollständige Gebietskarte: jede Region **und jedes Land** hat genau einen Besitzer
+         *     (Betreiber-Default) – jeder Fleck der Erde gehört jemandem.
          */
         TerritoryMapResponse: {
             /** Regions */
             regions: components["schemas"]["TerritoryRegion"][];
+            /**
+             * Countries
+             * @default []
+             */
+            countries: components["schemas"]["TerritoryCountry"][];
             /** Companies */
             companies: components["schemas"]["TerritoryCompany"][];
             /** Operator Object Id */
@@ -6657,12 +6686,12 @@ export interface operations {
             };
         };
     };
-    assign_territory_api_v1_admin_territories__region__put: {
+    assign_territory_api_v1_admin_territories__area__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                region: string;
+                area: string;
             };
             cookie?: never;
         };

@@ -186,12 +186,23 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
 
 # ─── Gebiete: welche Gesellschaft fakturiert welches Kundenland (ADR 006) ─────────
 
+def _claim_owner(db: Session, area: str) -> CompanySettings | None:
+    """Besitzer eines **Gebiets-Codes** (Region oder Land) – ``None``, wenn niemand ihn
+    beansprucht hat oder die beanspruchende Gesellschaft nicht mehr existiert."""
+    row = db.query(CompanyTerritory).filter(CompanyTerritory.region == area).first()
+    if row is None:
+        return None
+    return db.query(CompanySettings).filter(CompanySettings.id == row.company_id).first()
+
+
 def company_for_country(db: Session, country: str | None) -> CompanySettings | None:
     """Die **fakturierende Gesellschaft** (Seller of Record) für ein Kundenland.
 
-    Land → **Region** (``geography.region_of_country``) → **Territorium-Besitzer**
-    (``company_territories``) → **Betreiber-Fallback**. Rein lesend (kein commit) – Pflicht
-    in fremden Transaktionen (Verkauf/Beleg/Versand).
+    Vorrang: **Land ≻ Region ≻ Betreiber**. Ein einzelnes Land kann also von seiner Region
+    abweichen (Ausnahme: «Europa gehört der GmbH, Liechtenstein aber der Schweizer AG») –
+    beides sind Ansprüche in derselben Tabelle (``company_territories``), der Unterschied
+    ist aus der Form des Codes abgeleitet (ISO-2 = Land). Rein lesend (kein commit) –
+    Pflicht in fremden Transaktionen (Verkauf/Beleg/Versand).
 
     Ausschlaggebend ist die **Rechnungsadresse** des Kunden (sein rechtlicher Sitz), NICHT die
     Lieferadresse – die richtet nur die Steuer (Stripe Tax). Ein unbekanntes/unzugeordnetes
@@ -200,15 +211,16 @@ def company_for_country(db: Session, country: str | None) -> CompanySettings | N
     if not (country or "").strip():
         return find_operator(db)          # kein Land → Betreiber (nicht raten)
     # Klarname → ISO-2 (``address.iso2`` toleriert «Schweiz»/«USA» wie «CH»/«US»).
-    region = geography.region_of_country(address.iso2(country))
+    code = (address.iso2(country) or "").upper()
+    if code:
+        company = _claim_owner(db, code)          # Ausnahme auf genau dieses Land
+        if company is not None:
+            return company
+    region = geography.region_of_country(code)
     if region:
-        row = (db.query(CompanyTerritory)
-               .filter(CompanyTerritory.region == region).first())
-        if row is not None:
-            company = (db.query(CompanySettings)
-                       .filter(CompanySettings.id == row.company_id).first())
-            if company is not None:
-                return company
+        company = _claim_owner(db, region)
+        if company is not None:
+            return company
     return find_operator(db)
 
 
@@ -226,28 +238,61 @@ def territory_map(db: Session) -> dict[str, int | None]:
     return out
 
 
-def set_territory(db: Session, region: str, company_object_id: int | None,
-                  actor_id: int | None) -> None:
-    """Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``None``) =
-    Default → die Zeile wird ENTFERNT (die Tabelle hält nur Abweichungen vom Betreiber).
-    Sonst upsert. Genau EINE Gesellschaft je Region (``region`` ist unique)."""
-    if region not in geography.REGION_CODES:
-        raise HTTPException(400, detail="Unbekannte Region")
+def country_map(db: Session) -> dict[str, int | None]:
+    """``{iso2: company_object_id}`` für **jedes bekannte Land** – der *effektive* Besitzer
+    (Land-Ausnahme ≻ Region ≻ Betreiber). Dieselbe Vorrangordnung wie
+    ``company_for_country``, nur als Batch für die Weltkarte (eine Abfrage statt 240).
+
+    Die Oberfläche leitet daraus ab, welches Land eine **Ausnahme** ist: sein Besitzer weicht
+    vom Besitzer seiner Region ab. Kein eigenes Flag – zwei Wahrheiten könnten auseinanderlaufen."""
+    regions = territory_map(db)
+    claims = {r.region: r.company_id for r in db.query(CompanyTerritory).all()}
+    by_id = {c.id: c for c in db.query(CompanySettings).all()}
+    out: dict[str, int | None] = {}
+    for code, region in geography.COUNTRY_REGION.items():
+        cid = claims.get(code)
+        company = by_id.get(cid) if cid is not None else None
+        out[code] = company.object_id if company is not None else regions.get(region)
+    return out
+
+
+def _default_owner_id(db: Session, area: str) -> int | None:
+    """Wem gehört dieses Gebiet **ohne** eigenen Anspruch? Für eine Region der Betreiber, für
+    ein Land der Besitzer seiner Region. Grundlage der Aufräum-Regel in ``set_territory``:
+    Ein Anspruch, der nichts ändert, ist keine Ausnahme und wird nicht gespeichert."""
     op = operator(db)
+    if geography.is_country_code(area):
+        region = geography.region_of_country(area)
+        owner = _claim_owner(db, region) if region else None
+        return (owner or op).id
+    return op.id
+
+
+def set_territory(db: Session, area: str, company_object_id: int | None,
+                  actor_id: int | None) -> None:
+    """Ein **Gebiet** einer Gesellschaft zuweisen (Weltkarte): eine Region («EUR») oder – als
+    Ausnahme – ein einzelnes Land («LI»).
+
+    Die Tabelle hält **nur Abweichungen**: Wird das Gebiet der Gesellschaft zugewiesen, der es
+    ohnehin zufiele (Region → Betreiber, Land → Besitzer seiner Region), wird die Zeile
+    ENTFERNT statt eine wirkungslose Ausnahme zu speichern. Sonst upsert. Genau EINE
+    Gesellschaft je Gebiet (``region`` ist unique)."""
+    code = geography.normalize_area(area)
+    if code is None:
+        raise HTTPException(400, detail="Unbekanntes Gebiet")
     company = by_object_id(db, company_object_id) if company_object_id else None
-    row = db.query(CompanyTerritory).filter(CompanyTerritory.region == region).first()
-    # Zuweisung an den Betreiber = Default wiederherstellen (Zeile löschen).
-    if company is None or company.id == op.id:
+    row = db.query(CompanyTerritory).filter(CompanyTerritory.region == code).first()
+    if company is None or company.id == _default_owner_id(db, code):
         if row is not None:
             db.delete(row)
-            log_audit(db, "company_territories", region, "Betreiber", actor_id)
+            log_audit(db, "company_territories", code, "Standard", actor_id)
         db.commit()
         return
     if row is None:
-        db.add(CompanyTerritory(region=region, company_id=company.id))
+        db.add(CompanyTerritory(region=code, company_id=company.id))
     else:
         row.company_id = company.id
-    log_audit(db, "company_territories", region, str(company.object_id),
+    log_audit(db, "company_territories", code, str(company.object_id),
               actor_id, object_id=company.object_id)
     db.commit()
 

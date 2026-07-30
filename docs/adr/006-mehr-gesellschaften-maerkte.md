@@ -1,6 +1,7 @@
 # ADR 006 – Mehr-Gesellschaften & Weltmärkte: «wer fakturiert wird abgeleitet, nicht gewählt»
 
-Status: umgesetzt (Slice 1: Gebietskarte + Auflösung) · geplant (Slice 2: Beleg-/Versand-Identität) · Datum: 2026-07-30
+Status: umgesetzt (Slice 1: Gebietskarte + Auflösung · Slice 2: Beleg-/Versand-Identität ·
+Slice 3: Land-Ausnahmen + «Fakturiert durch» am Auftrag) · Datum: 2026-07-30
 
 ## Kontext
 
@@ -40,9 +41,15 @@ Gesellschaften «beissen sich» einzelne Regionen ab (`company_territories` häl
 Abweichungen). Ein Land, das keiner Region zugeordnet ist, fällt ebenfalls auf den Betreiber.
 So gehört **jeder Fleck der Erde jemandem** – es kann nie «kein Besitzer» geben.
 
-Granularität = **Region**, nicht Land (die ~250 Länder muss niemand pflegen; das Beispiel
-«CH bedient Europa+Asien, US bedient Amerika» ist ohnehin Region-Ebene). Land-Ausnahmen sind
-eine spätere Verfeinerung.
+Granularität ist die **Region** – die ~250 Länder muss niemand pflegen; das Beispiel
+«CH bedient Europa+Asien, US bedient Amerika» ist ohnehin Region-Ebene. **Ein einzelnes Land
+kann davon abweichen** (Slice 3): «Europa gehört der GmbH, Liechtenstein aber der Schweizer AG».
+Das ist kein zweiter Mechanismus, sondern **derselbe Anspruch feiner geschnitten** – Region wie
+Land stehen als Gebiets-Code in derselben Tabelle, der Unterschied ist aus der **Form**
+abgeleitet (ISO-2 hat 2 Zeichen, jeder Regions-Code ≥ 3 → kollisionsfrei per Konstruktion,
+`geography.is_country_code`). Vorrang: **Land ≻ Region ≻ Betreiber**. Gepflegt wird nur, was
+tatsächlich abweicht: wird ein Gebiet der Gesellschaft zugewiesen, der es ohnehin zufiele, wird
+die Zeile **gelöscht** statt eine wirkungslose Ausnahme zu speichern.
 
 ### 2. Seller of Record wird ABGELEITET (nicht per Auftrag gewählt)
 
@@ -93,11 +100,24 @@ Schweiz sauber behandelt werden (Seller nach DE-Sitz, Steuer nach CH-Lieferung).
 - Admin `GET/PUT /admin/territories`; Frontend **abstrakte Weltkarte** (Region-Kacheln,
   Klick-Zuweisung, Betreiber-Default) im Unternehmens-Reiter «Gebiete».
 
-**Slice 2 (nächster Deploy) – Beleg-/Versand-Identität (berührt Rechnung/Versand):**
+**Slice 2 – Beleg-/Versand-Identität (berührt Rechnung/Versand):**
 - `sales.seller_company_object_id` (Snapshot bei Freigabe/Zahlung) + Ableitung aus der
   Kunden-Rechnungsadresse.
 - Beleg-Briefkopf (`routers/documents.py:_company`) und **Versand-Absender**
   (`services/logistics.py`) nehmen den **Seller** statt immer den Betreiber.
+
+**Slice 3 – sichtbar + feiner:**
+- **«Fakturiert durch» am Auftrag** (`OrderResponse.seller_company_object_id/_name`): die
+  abgeleitete Gesellschaft steht in der Auftragsspezifikation, Objektnummer klickbar. **Nur bei
+  einem Verkauf/einer Retoure** gesetzt (ein Produktions-/Beschaffungsauftrag hat keinen Kunden,
+  also keinen Fakturierenden) und nur fürs Personal sichtbar – es ist eine interne Buchungs-
+  Angabe. Wer fakturiert, war bis dahin nur im PDF sichtbar; ab jetzt sieht man es, **bevor**
+  der Beleg entsteht.
+- **Land-Ausnahmen** (`geography.is_country_code`/`normalize_area`, `sites.country_map`/
+  `_default_owner_id`): Region-Kachel oder Land, EIN Panel, EINE Zuweisung. Die Oberfläche
+  leitet «ist Ausnahme» daraus ab, dass der Besitzer eines Landes vom Besitzer seiner Region
+  abweicht – **kein zweites Flag**, das auseinanderlaufen könnte. Ländernamen liefert
+  `Intl.DisplayNames` im Browser (keine zweite Länderliste im Repository).
 
 ## Bewusst (noch) NICHT gebaut
 
@@ -109,7 +129,9 @@ Schweiz sauber behandelt werden (Seller nach DE-Sitz, Steuer nach CH-Lieferung).
 - **Intercompany** (CH produziert → US verkauft, Transferpreis) – der schwere Teil, erst mit
   realer US-Substanz.
 - **Eigenes Stripe-Konto je Gesellschaft** – heute ein geteiltes Konto (ein Merchant-of-Record).
-- **Land-genaue Gebiete** (heute Region-Ebene) und ein **Kunden-Währungsumschalter** im Shop.
+- Ein **Kunden-Währungsumschalter** im Shop (Backend trägt `currency` bereits).
+- **Sub-Land-Gebiete** (US-Bundesstaat, CH-Kanton) – die Steuer je Staat rechnet ohnehin
+  Stripe Tax; ein eigener Seller je Bundesstaat wäre eine Gesellschaft, kein Gebiet.
 
 ## Konsequenzen
 

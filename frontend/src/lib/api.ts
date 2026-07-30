@@ -304,9 +304,10 @@ class ApiClient {
     return this.get('/api/v1/admin/territories');
   }
 
-  assignTerritory(region: string, companyObjectId: number | null): Promise<TerritoryMap> {
-    // Betreiber/null = Default (Region wird nicht abweichend zugewiesen).
-    return this.put(`/api/v1/admin/territories/${region}`, { company_object_id: companyObjectId });
+  assignTerritory(area: string, companyObjectId: number | null): Promise<TerritoryMap> {
+    // `area` = Regions-Code («EUR») ODER ISO-2-Land als Ausnahme («LI»).
+    // null bzw. die ohnehin zuständige Gesellschaft = Standard wiederherstellen.
+    return this.put(`/api/v1/admin/territories/${area}`, { company_object_id: companyObjectId });
   }
 
   // ─── ERP Records ──────────────────────────────────────────────────────────
