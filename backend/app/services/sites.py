@@ -46,12 +46,30 @@ from .objects import next_object_id
 ENTITY_FIELDS = (
     "company_name", "legal_form",
     "street", "street_nr", "zip_code", "city", "country",
+    "currency",
     "uid_number", "vat_number", "trade_register_nr", "trade_register_canton", "share_capital",
     "email", "phone", "website",
     "bank", "bic_swift",
     "vat_method", "vat_period", "default_payment_days", "default_skonto_pct", "default_skonto_days",
     "oss_active", "oss_reg_number", "vies_active",
 )
+
+# Land → Funktionswährung (Vorbelegung, editierbar). Bewusst klein & offensichtlich; der
+# Rest der Welt fällt auf CHF (die Heimatwährung) zurück, bis er gebraucht wird. Verglichen
+# wird über ISO-2 (``address.iso2`` toleriert Klarnamen «Schweiz»/«USA» wie ISO «CH»/«US»).
+_COUNTRY_CURRENCY = {
+    "CH": "CHF", "LI": "CHF",
+    "US": "USD",
+    "GB": "GBP",
+    "DE": "EUR", "AT": "EUR", "FR": "EUR", "IT": "EUR", "ES": "EUR", "NL": "EUR",
+    "BE": "EUR", "IE": "EUR", "PT": "EUR", "FI": "EUR", "LU": "EUR",
+}
+
+
+def currency_for_country(country: str | None) -> str:
+    """Funktionswährung aus dem Land ableiten (Vorbelegung). Unbekannt → CHF."""
+    from . import address
+    return _COUNTRY_CURRENCY.get((address.iso2(country) or "").upper(), "CHF")
 
 # Die **Plattform-Konfiguration** – sie gilt für die EINE Website/Integration, nicht je
 # Gesellschaft. Sie lebt (vorerst als Spalten auf dem Betreiber-Datensatz) und wird
@@ -77,9 +95,14 @@ def _assign_object_id(db: Session, company: CompanySettings) -> None:
 def find_operator(db: Session) -> CompanySettings | None:
     """Der **Betreiber** als reines Lesen – ``None``, wenn es (noch) keine Gesellschaft gibt.
 
-    = das **älteste** Unternehmen (kleinste ``id``). Abgeleitet, nicht markiert: der Ursprung
-    existierte vor jeder Aussenstelle, die Reihenfolge ist nie zweifelhaft. Committet nie –
-    Pflicht überall, wo der Aufruf innerhalb einer fremden Transaktion läuft."""
+    Die **gewählte** Gesellschaft (``is_operator=true``, ``sites.set_operator``); tolerant
+    fällt sie auf das **älteste** Unternehmen zurück, falls (noch) keine markiert ist (frische
+    DB, Migration 091 nicht gelaufen) – so führt eine ausstehende Migration nie zu «kein
+    Betreiber», und Belege bekommen immer einen Absender. Committet nie – Pflicht überall,
+    wo der Aufruf innerhalb einer fremden Transaktion läuft."""
+    chosen = db.query(CompanySettings).filter(CompanySettings.is_operator == True).first()
+    if chosen is not None:
+        return chosen
     return db.query(CompanySettings).order_by(CompanySettings.id).first()
 
 
@@ -91,7 +114,10 @@ def operator(db: Session) -> CompanySettings:
     Wer keinesfalls committen darf, nimmt ``find_operator``."""
     company = find_operator(db)
     if company is None:
-        company = CompanySettings(id=1)
+        # Die erste Gesellschaft ist sofort der Betreiber – sonst fände ``find_operator``
+        # zwar über den Alters-Fallback dieselbe Zeile, aber der explizite Marker macht
+        # die Wahl sichtbar und stabil (der Fallback ist nur das Sicherheitsnetz).
+        company = CompanySettings(id=1, is_operator=True)
         db.add(company)
         db.commit()
         db.refresh(company)
@@ -133,9 +159,27 @@ def require(db: Session, object_id: int) -> CompanySettings:
 
 
 def is_operator(db: Session, company: CompanySettings) -> bool:
-    """Ist diese Gesellschaft der Betreiber? (Abgeleitet – reine Projektion, kein Feld.)"""
+    """Ist diese Gesellschaft der Betreiber? Liest die **effektive** Rolle (inkl. Alters-
+    Fallback, falls noch keine markiert ist) – so stimmt die Anzeige mit ``find_operator``
+    überein, auch bevor Migration 091 die Markierung gesetzt hat."""
     op = find_operator(db)
     return bool(op and op.id == company.id)
+
+
+def set_operator(db: Session, company: CompanySettings, actor_id: int | None) -> CompanySettings:
+    """Diese Gesellschaft zum **Betreiber** machen – genau EINE trägt den Titel.
+
+    Setzt das Flag hier true und bei ALLEN anderen false (der partielle Unique-Index liesse
+    zwei ``true`` gar nicht erst zu; das explizite Löschen macht den Wechsel atomar statt auf
+    einen Constraint-Fehler zu laufen). Nur der Betreiber trägt die Plattform-Konfiguration
+    – die Angaben ziehen also mit; das ist gewollt (die eine Website hat einen Absender)."""
+    db.query(CompanySettings).filter(CompanySettings.id != company.id).update(
+        {CompanySettings.is_operator: False})
+    company.is_operator = True
+    log_audit(db, "company_settings", "is_operator", "true", actor_id, object_id=company.object_id)
+    db.commit()
+    db.refresh(company)
+    return company
 
 
 # ─── Anlegen / Ändern – EIN Feldsatz für JEDE Gesellschaft ────────────────────────
@@ -182,6 +226,9 @@ def create(db: Session, data: dict, actor_id: int | None) -> CompanySettings:
     # Gesellschaft setzt ihr Land ohnehin selbst – geerbt wird nur, wenn das Feld leer bleibt.)
     if not company.country:
         company.country = op.country
+    # Währung aus dem Land vorbelegen, sofern nicht ausdrücklich gesetzt (US → USD, DE → EUR).
+    if "currency" not in data or not (data.get("currency") or "").strip():
+        company.currency = currency_for_country(company.country)
     db.add(company)
     db.commit()
     db.refresh(company)

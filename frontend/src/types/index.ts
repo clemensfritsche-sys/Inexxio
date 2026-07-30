@@ -510,6 +510,8 @@ export interface CompanySettings {
   zip: string;
   city: string;
   country: string;
+  // Funktionswährung der Gesellschaft (ISO-3, auto aus dem Land vorbelegt).
+  currency: string;
   uid: string | null;
   vat_number: string | null;
   trade_register_number: string | null;

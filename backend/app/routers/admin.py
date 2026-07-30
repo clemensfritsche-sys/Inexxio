@@ -150,13 +150,28 @@ async def update_company(
     current_user: UserProfile = Depends(require_admin),
 ):
     """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
-    Betreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.
+    Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
 
     Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
     gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
     ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist."""
     company = sites.require(db, object_id)
     sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id)
+    return _company_response(db, company)
+
+
+@router.post("/companies/{object_id}/operator", response_model=CompanySettingsResponse)
+async def set_company_operator(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Diese Gesellschaft zum **Betreiber der Website** machen (Impressum + Systemkonfig).
+
+    Genau EINE Gesellschaft trägt den Titel; das Setzen nimmt ihn allen anderen ab. Damit
+    ist die Rolle **wählbar** (nicht mehr starr «das älteste»)."""
+    company = sites.require(db, object_id)
+    sites.set_operator(db, company, current_user.id)
     return _company_response(db, company)
 
 

@@ -104,7 +104,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen des **Hauptsitzes** (Rechtsidentität + Systemkonfiguration, inkl. Shop-Währungen/Provider) |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos (immer der Hauptsitz – das Impressum nennt die Rechtsperson) |
 | GET/POST | /api/v1/admin/companies | admin | **Unternehmen** (Gesellschaften): alle lesen (Betreiber/ältestes zuerst) / neues anlegen |
-| GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
+| GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität + Währung – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
+| POST | /api/v1/admin/companies/{object_id}/operator | admin | Diese Gesellschaft zum **Betreiber der Website** machen (genau EINE trägt den Titel) |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
 | PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
 | DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |

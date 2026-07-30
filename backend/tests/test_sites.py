@@ -57,21 +57,50 @@ def test_nobody_resolves_the_company_by_hand_anymore():
     )
 
 
-def test_operator_is_derived_from_age_not_from_a_flag():
-    """Der Betreiber ist das **älteste** Unternehmen – abgeleitet, nicht markiert.
+def test_operator_is_chosen_with_an_age_fallback():
+    """Der Betreiber ist **wählbar** (``is_operator``), fällt aber tolerant auf das
+    **älteste** Unternehmen zurück, falls (noch) keine Zeile markiert ist.
 
-    Das frühere ``is_primary`` stellte eine Zeile über die anderen und war die Ursache
-    eines Deploy-Ausfalls. ``find_operator`` löst über ``order_by(id)`` auf und darf
-    ``is_primary`` nirgends mehr LESEN (die DB-Spalte bleibt bis Migration 091, aber der
-    Code fasst sie nicht an)."""
+    Das frühere ``is_primary`` stellte eine Zeile über die anderen (Kaste) und war die
+    Ursache eines Deploy-Ausfalls; es ist aus dem Modell entfernt. ``is_operator`` bedeutet
+    NUR «vertritt die Website» – editierbar, genau eine. Der Alters-Fallback stellt sicher,
+    dass eine ausstehende Migration nie zu «kein Betreiber» führt."""
     from app.services import sites
+    from app.models import CompanySettings
 
     op_code = _code(sites.find_operator)
-    assert "order_by" in op_code and ".first()" in op_code
-    assert "is_primary" not in op_code, "find_operator darf is_primary nicht mehr lesen"
-    # Das Modell mappt is_primary nicht mehr (nur die DB-Spalte bleibt für den Rollout).
-    from app.models import CompanySettings
-    assert "is_primary" not in CompanySettings.__table__.columns.keys()
+    assert "is_operator" in op_code, "find_operator liest die gewählte Gesellschaft"
+    assert "order_by" in op_code and ".first()" in op_code, "…mit Alters-Fallback"
+    # is_primary ist raus (Modell UND – nach Migration 091 – DB); is_operator ist gemappt.
+    cols = CompanySettings.__table__.columns.keys()
+    assert "is_operator" in cols and "is_primary" not in cols
+
+
+def test_operator_is_editable_and_exactly_one():
+    """Den Betreiber setzen nimmt ihn allen anderen ab – genau EINE trägt den Titel.
+
+    Doppelt abgesichert: ``set_operator`` löscht die übrigen explizit UND der partielle
+    Unique-Index (Migration 091 + Lifespan-Netz) liesse zwei ``true`` gar nicht zu."""
+    from app.services import sites
+
+    code = _code(sites.set_operator)
+    assert "id != company.id" in code, "die übrigen Gesellschaften werden angefasst"
+    assert "is_operator" in code and "False" in code, "…und entmarkiert"
+    from app.main import _COMPANY_DATA_FIXES
+    joined = " ".join(_COMPANY_DATA_FIXES)
+    assert "uq_company_settings_operator" in joined and "WHERE is_operator" in joined
+
+
+def test_currency_is_a_per_company_field_derived_from_country():
+    """Die Funktionswährung hängt an JEDER Gesellschaft (auto aus dem Land, editierbar) –
+    Grundlage für «ein Preis, überall in Landeswährung»."""
+    from app.services.sites import ENTITY_FIELDS, currency_for_country
+
+    assert "currency" in ENTITY_FIELDS
+    assert currency_for_country("USA") == "USD"
+    assert currency_for_country("Schweiz") == "CHF"
+    assert currency_for_country("Deutschland") == "EUR"
+    assert currency_for_country(None) == "CHF"      # unbekannt → Heimatwährung
 
 
 def test_read_only_callers_never_commit_a_foreign_transaction():
@@ -199,14 +228,29 @@ def test_every_company_settings_column_is_in_the_lifespan_safety_net():
     )
 
 
-def test_migration_090_is_repeatable():
-    """Repariert das Lifespan-Netz das Schema, versucht Alembic 090 beim nächsten Deploy
-    erneut – sie muss also wiederholbar sein, sonst bliebe Alembic für immer auf 089."""
-    migration = (APP.parent / "alembic/versions/090_multi_site.py").read_text(encoding="utf-8")
-    tree = ast.parse(migration)
-    code = ast.unparse(next(n for n in tree.body if getattr(n, "name", None) == "upgrade"))
-    assert "get_columns('company_settings')" in code
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS" in code
+def test_migrations_090_and_091_are_repeatable():
+    """Repariert das Lifespan-Netz das Schema, versucht Alembic die Migration beim nächsten
+    Deploy erneut – sie muss also wiederholbar sein, sonst bliebe Alembic hängen und
+    blockierte jede künftige Migration."""
+    for name in ("090_multi_site.py", "091_companies_operator_currency.py"):
+        migration = (APP.parent / "alembic/versions" / name).read_text(encoding="utf-8")
+        tree = ast.parse(migration)
+        code = ast.unparse(next(n for n in tree.body if getattr(n, "name", None) == "upgrade"))
+        assert "CREATE UNIQUE INDEX IF NOT EXISTS" in code, name
+        # additive Spalten nur, wenn nicht vorhanden; Drops nur IF EXISTS
+        assert "get_columns('company_settings')" in code or "IF EXISTS" in code, name
+
+
+def test_is_primary_is_dropped_everywhere_not_re_added():
+    """``is_primary`` ist endgültig weg: NICHT mehr im ADD-Netz (das es sonst wieder
+    anlegen würde und Migration 091 rückgängig machte), sondern im DROP-Netz."""
+    from app.main import _COLUMN_SAFETY_NET, _DROP_COLUMN_SAFETY_NET
+
+    add = {(t, c) for t, c, _ in _COLUMN_SAFETY_NET}
+    drop = set(_DROP_COLUMN_SAFETY_NET)
+    assert ("company_settings", "is_primary") not in add, "is_primary darf nicht wieder ergänzt werden"
+    assert ("company_settings", "is_primary") in drop, "is_primary gehört ins Drop-Netz"
+    assert ("company_settings", "is_operator", "BOOLEAN NOT NULL DEFAULT false") in _COLUMN_SAFETY_NET
 
 
 def test_no_syntax_errors_in_touched_modules():

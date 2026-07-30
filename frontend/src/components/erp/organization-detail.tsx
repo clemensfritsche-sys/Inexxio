@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, FileText, Phone, Landmark, ReceiptText, Globe2, Server, Sparkles, CreditCard, Coins, FolderOpen  } from 'lucide-react';
+import { Building2, FileText, Phone, Landmark, ReceiptText, Globe2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star  } from 'lucide-react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { Field, Sec } from '@/components/erp/user-detail';
@@ -10,17 +11,29 @@ import { DetailTabs } from '@/components/erp/detail-tabs';
 import { DetailHeader } from '@/components/erp/fields';
 import { AddressField, type Address } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
+import { SystemConfigSection } from '@/components/account/sections/system-config-section';
 
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2) – die Auswahl bestimmt
 // daher zugleich das Format, das die Adress-Suche übernehmen darf.
 const COUNTRIES: [string, string][] = [
   ['Schweiz', 'Schweiz'], ['Deutschland', 'Deutschland'], ['Österreich', 'Österreich'],
   ['Frankreich', 'Frankreich'], ['Italien', 'Italien'], ['Liechtenstein', 'Liechtenstein'],
+  ['USA', 'USA'],
 ];
-const ISO_TO_NAME: Record<string, string> = {
-  CH: 'Schweiz', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich',
-  IT: 'Italien', LI: 'Liechtenstein',
+// Auswählbare Funktionswährungen + Land→Währung-Vorschlag (Spiegel von
+// services/sites._COUNTRY_CURRENCY; nur eine UI-Bequemlichkeit – die Wahrheit setzt das
+// Backend beim Anlegen, hier wird beim Länderwechsel nur vorgeschlagen).
+const CURRENCIES = ['CHF', 'EUR', 'USD', 'GBP'];
+const CURRENCY_FOR_COUNTRY: Record<string, string> = {
+  Schweiz: 'CHF', Liechtenstein: 'CHF', USA: 'USD',
+  Deutschland: 'EUR', Österreich: 'EUR', Frankreich: 'EUR', Italien: 'EUR',
 };
+
+// EIN QueryClient für den System-Reiter (die Plattform-Konfiguration nutzt React Query,
+// wie zuvor die – jetzt entfallene – Seite Admin → Einstellungen).
+const systemQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
+});
 
 /** «Musterstrasse 12» → ('Musterstrasse', '12'). Das Unternehmen führt Strasse und
  *  Hausnummer getrennt; Google (und jede andere Quelle) liefert sie als eine Zeile. */
@@ -29,7 +42,7 @@ function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'docs';
+type OrgTab = 'stamm' | 'system' | 'docs';
 
 /**
  * Detailansicht eines **Unternehmens** (einer Gesellschaft) – ein gleichrangiger
@@ -59,21 +72,40 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<OrgTab>('stamm');
+  const [opBusy, setOpBusy] = useState(false);
   const mapsKey = useMapsApiKey();
 
   const base: CompanySettings = loaded ?? record;
   const isOperator = !!base.is_operator;
 
   // Die Firmenadresse ist EIN Feld (Suche zuerst); Strasse und Hausnummer werden
-  // beim Übernehmen getrennt, weil das Unternehmen sie in zwei Spalten führt.
+  // beim Übernehmen getrennt, weil das Unternehmen sie in zwei Spalten führt. Beim
+  // Länderwechsel wird die Währung **vorgeschlagen** (US → USD), aber nicht erzwungen.
   function applyCompanyAddress(a: Address) {
     const [street, nr] = splitStreet(a.street);
-    setForm((prev) => ({ ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country }));
+    const suggested = CURRENCY_FOR_COUNTRY[a.country];
+    setForm((prev) => ({
+      ...prev, street, street_number: nr, zip: a.zip, city: a.city, country: a.country,
+      ...(suggested ? { currency: suggested } : {}),
+    }));
     setDirty(true);
   }
 
+  /** Diese Gesellschaft zum Betreiber der Website machen (genau eine trägt den Titel). */
+  async function makeOperator() {
+    if (record.object_id == null) return;
+    setOpBusy(true); setError(null);
+    try {
+      const updated = await api.setCompanyOperator(record.object_id);
+      setLoaded(updated);
+      onSaved(updated);   // Eltern-Feed lädt die Liste neu → alter Betreiber verliert den Titel
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Betreiber konnte nicht gesetzt werden');
+    } finally { setOpBusy(false); }
+  }
+
   useEffect(() => {
-    setForm({}); setDirty(false); setError(null); setLoaded(null);
+    setForm({}); setDirty(false); setError(null); setLoaded(null); setTab('stamm');
     if (record.object_id != null) api.getCompany(record.object_id).then(setLoaded).catch(() => setLoaded(null));
   }, [record]);
 
@@ -114,6 +146,9 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       >
         <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
+          // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
+          // Betreiber – es gibt ihn genau einmal.
+          ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </DetailHeader>
@@ -121,6 +156,11 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
+        {tab === 'system' && isOperator && (
+          <QueryClientProvider client={systemQueryClient}>
+            <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />
+          </QueryClientProvider>
+        )}
         {tab === 'stamm' && (<>
         <Sec title="Allgemeine Angaben" editable icon={Building2}>
           <Field label="Name" val={v('company_name')} onChange={set('company_name')} span2 />
@@ -135,15 +175,26 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
               onChange={applyCompanyAddress} apiKey={mapsKey}
               countryOptions={COUNTRIES} label="Anschrift" />
           </div>
-          {/* Abgeleitete Rolle, kein Rang: das älteste Unternehmen vertritt die eine Website
-              (Impressum) und trägt die Systemkonfiguration (Admin → Einstellungen). */}
-          {isOperator && (
-            <div style={{ gridColumn: '1 / -1', font: '500 11.5px var(--font-body)',
-                          color: 'var(--fg-4)', lineHeight: 1.5 }}>
-              Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration
-              (Admin → Einstellungen).
-            </div>
-          )}
+          {/* Funktionswährung – aus dem Land vorbelegt (US → USD), frei änderbar. Grundlage
+              für «ein Preis, überall in Landeswährung». */}
+          <Field label="Währung" val={v('currency')} onChange={set('currency')}
+            type="select" opts={CURRENCIES} />
+          {/* Betreiber der Website – WÄHLBAR, genau eine Gesellschaft trägt den Titel. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            {isOperator ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8,
+                            font: '600 12px var(--font-body)', color: 'var(--fg-3)' }}>
+                <Star size={14} style={{ color: 'var(--warning)' }} fill="currentColor" />
+                Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration
+                (Reiter «System»).
+              </div>
+            ) : (
+              <button type="button" onClick={makeOperator} disabled={opBusy}
+                className="erp-actbtn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <Star size={14} /> {opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
+              </button>
+            )}
+          </div>
           {/* Eine Tatsache über DIESEN Datensatz: ohne eigene Anschrift bleibt eine Bewegung
               hierher innerbetrieblich statt Versand zu werden (ADR 005). */}
           {!base.has_address && !dirty && (

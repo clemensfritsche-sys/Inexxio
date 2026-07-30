@@ -408,9 +408,13 @@ export default function ErpPage() {
 
   function handleCompanySaved(s: CompanySettings) {
     setCompanies((prev) => prev.map((x) => (x.object_id === s.object_id ? s : x)));
-    // Der Betreiber (ältestes Unternehmen) ist zugleich «die Firma» fürs Impressum –
-    // ändert sich dort etwas, die im Fenster mitgeführte Firmenangabe nachziehen.
-    if (s.is_operator) api.getPublicSettings().then(setSettings).catch(() => {});
+    if (s.is_operator) {
+      // Betreiber gewechselt: die ganze Liste neu laden, damit der frühere Betreiber
+      // seinen Titel verliert (genau EINE Gesellschaft trägt is_operator). Und die im
+      // Fenster mitgeführte Firmenangabe (Impressum) nachziehen.
+      api.getCompanies().then(setCompanies).catch(() => {});
+      api.getPublicSettings().then(setSettings).catch(() => {});
+    }
   }
 
   /** Neue Gesellschaft (nur Admin). Entsteht sofort als Datensatz mit Objektnummer –

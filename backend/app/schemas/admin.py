@@ -13,6 +13,7 @@ class CompanySettingsUpdate(BaseModel):
     zip_code: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
+    currency: Optional[str] = None
     uid_number: Optional[str] = None
     vat_number: Optional[str] = None
     trade_register_nr: Optional[str] = None
@@ -71,6 +72,7 @@ class CompanySettingsResponse(BaseModel):
     zip_code: Optional[str]
     city: Optional[str]
     country: str
+    currency: str = "CHF"
     uid_number: Optional[str]
     vat_number: Optional[str]
     trade_register_nr: Optional[str]
