@@ -5,12 +5,10 @@ from ..core.auth import require_admin, require_employee
 from ..core.database import get_db
 from ..models import AuditLog, UserProfile
 from ..schemas.admin import (
+    CompanyCreate,
     CompanySettingsResponse,
     CompanySettingsUpdate,
     OperatingCostsResponse,
-    SiteCreate,
-    SiteResponse,
-    SiteUpdate,
     UserProfileResponse,
     UserRoleUpdate,
 )
@@ -29,16 +27,29 @@ def _mask_iban(value: str | None) -> str | None:
 
 # ─── Settings ─────────────────────────────────────────────────────────────────
 
+def _company_response(db: Session, company) -> CompanySettingsResponse:
+    """Vollständige Unternehmens-Antwort mit maskierter Bank + **abgeleiteten** Feldern.
+
+    ``is_operator`` (ältestes Unternehmen) und ``has_address`` sind Projektionen, keine
+    gespeicherten Flags – die eine Definition von «trägt echte Ortsangaben» steht in
+    ``address.has_content`` und wird hier nur angewandt."""
+    from ..services import address
+    resp = CompanySettingsResponse.model_validate(company)
+    resp.iban_masked = _mask_iban(company.iban_encrypted)
+    resp.qr_iban_masked = _mask_iban(company.qr_iban_encrypted)
+    resp.is_operator = sites.is_operator(db, company)
+    resp.has_address = address.has_content(address.of_company(company))
+    return resp
+
+
 @router.get("/settings", response_model=CompanySettingsResponse)
 async def get_settings(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
-    s = get_or_create_settings(db)
-    resp = CompanySettingsResponse.model_validate(s)
-    resp.iban_masked = _mask_iban(s.iban_encrypted)
-    resp.qr_iban_masked = _mask_iban(s.qr_iban_encrypted)
-    return resp
+    """Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,
+    Rechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz."""
+    return _company_response(db, get_or_create_settings(db))
 
 
 @router.patch("/settings", response_model=CompanySettingsResponse)
@@ -60,19 +71,19 @@ async def update_settings(
             log_audit(db, "company_settings", key, str(value), current_user.id)
     db.commit()
     db.refresh(s)
-    resp = CompanySettingsResponse.model_validate(s)
-    resp.iban_masked = _mask_iban(s.iban_encrypted)
-    resp.qr_iban_masked = _mask_iban(s.qr_iban_encrypted)
-    return resp
+    return _company_response(db, s)
 
 
 @router.get("/settings/public")
 async def get_public_settings(db: Session = Depends(get_db)):
     """No auth — used by Impressum, AGB, Datenschutz pages.
 
-    Immer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle."""
-    from ..services.sites import find_primary
-    s = find_primary(db)
+    Immer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der
+    Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
+    übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
+    umgeschaltet."""
+    from ..services.sites import find_operator
+    s = find_operator(db)
     if not s:
         return {"company_name": "Inexxio AG", "legal_form": "AG", "email": "info@inexxio.com",
                 "website": "https://inexxio.com", "country": "Schweiz"}
@@ -88,62 +99,65 @@ async def get_public_settings(db: Session = Depends(get_db)):
     }
 
 
-# ─── Standorte (Mehrstandort, Variante A) ─────────────────────────────────────
+# ─── Unternehmen (Gesellschaften) ─────────────────────────────────────────────
 #
-# Ein Standort ist ein ERP-Datensatz vom Typ ``organization`` mit eigener Objektnummer –
-# derselbe Typ wie «das Unternehmen», nur ohne Rechtsidentität. Anlegen und Ändern sind
-# **admin-only**, wie der Unternehmens-Datensatz selbst; an der Sichtbarkeit im ERP ändert
-# sich damit nichts.
+# EIN gleichrangiger Datensatztyp (``organization``). Jede Gesellschaft ist vollständig:
+# eigene Rechtsidentität, Bank, MWST. Anlegen/Ändern sind **admin-only** (fix vorgegeben);
+# an der Sichtbarkeit im ERP ändert das nichts. Die Rechtsidentität wird hier – anders als
+# beim früheren «Standort» – auf JEDEM Datensatz gepflegt (die US-Gesellschaft hat ihre
+# eigene). Plattform-/Systemkonfiguration bleibt getrennt (``PATCH /admin/settings``).
 
-def _site_response(site) -> SiteResponse:
-    """``has_address`` ist abgeleitet, kein Feld – die eine Definition von «trägt echte
-    Ortsangaben» steht in ``address.has_content`` und wird hier nur angewandt."""
-    from ..services import address
-    resp = SiteResponse.model_validate(site)
-    resp.has_address = address.has_content(address.of_company(site))
-    return resp
-
-
-@router.get("/sites", response_model=list[SiteResponse])
-async def list_sites(
+@router.get("/companies", response_model=list[CompanySettingsResponse])
+async def list_companies(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
-    """Alle Standorte, Hauptsitz zuerst."""
-    return [_site_response(s) for s in sites.all_sites(db)]
+    """Alle Unternehmen, Betreiber (ältestes) zuerst."""
+    return [_company_response(db, c) for c in sites.all_companies(db)]
 
 
-@router.post("/sites", response_model=SiteResponse, status_code=201)
-async def create_site(
-    data: SiteCreate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_admin),
-):
-    """Neuen Standort anlegen (nur Admin).
-
-    Er bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen
-    können dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –
-    sobald er eine eigene Anschrift trägt – automatisch als Versand statt als
-    innerbetriebliche Bewegung klassifiziert (ADR 005)."""
-    site = sites.create(db, data.model_dump(exclude_unset=True), current_user.id)
-    return _site_response(site)
-
-
-@router.patch("/sites/{object_id}", response_model=SiteResponse)
-async def update_site(
+@router.get("/companies/{object_id}", response_model=CompanySettingsResponse)
+async def get_company(
     object_id: int,
-    data: SiteUpdate,
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_admin),
+):
+    """Ein Unternehmen mit vollem Feldsatz (frisch, für die Detail-Ansicht)."""
+    return _company_response(db, sites.require(db, object_id))
+
+
+@router.post("/companies", response_model=CompanySettingsResponse, status_code=201)
+async def create_company(
+    data: CompanyCreate,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
 ):
-    """Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.
+    """Neue Gesellschaft anlegen (nur Admin).
 
-    Rechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über
-    ``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie
-    bewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann."""
-    site = sites.require(db, object_id)
-    sites.apply_update(db, site, data.model_dump(exclude_unset=True), current_user.id)
-    return _site_response(site)
+    Sie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen
+    können dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –
+    sobald sie eine eigene Anschrift trägt – automatisch als Versand statt als
+    innerbetriebliche Bewegung klassifiziert (ADR 005)."""
+    company = sites.create(db, data.model_dump(exclude_unset=True), current_user.id)
+    return _company_response(db, company)
+
+
+@router.patch("/companies/{object_id}", response_model=CompanySettingsResponse)
+async def update_company(
+    object_id: int,
+    data: CompanySettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
+    Betreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.
+
+    Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
+    gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
+    ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist."""
+    company = sites.require(db, object_id)
+    sites.apply_update(db, company, data.model_dump(exclude_unset=True), current_user.id)
+    return _company_response(db, company)
 
 
 @router.get("/operating-costs", response_model=OperatingCostsResponse)

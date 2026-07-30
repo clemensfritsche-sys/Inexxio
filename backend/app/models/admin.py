@@ -9,46 +9,46 @@ from ..core.database import Base
 
 
 class CompanySettings(Base):
-    """Ein **Standort** des Unternehmens (Migration 090, Variante A).
+    """Ein **Unternehmen** (eine Gesellschaft) – ein gleichrangiger ERP-Datensatz.
 
-    Bis Juli 2026 war das ein Singleton (``id == 1``). Jetzt trägt die Tabelle n Zeilen:
-    eine je Standort. Ein Standort ist ein vollwertiger ERP-Datensatz vom Typ
-    ``organization`` – mit Objektnummer, im Feed, und als **Halter** verwendbar
-    (``instances.location_type='company'`` zeigt auf seine Objektnummer).
+    Bis Juli 2026 war das ein Singleton (``id == 1``); danach kurz ein «Hauptsitz +
+    kastrierte Standorte»-Modell. Jetzt trägt die Tabelle n **gleichrangige** Zeilen –
+    jede eine vollständige juristische Einheit vom Feed-Typ ``organization``: eigene
+    Objektnummer, eigener Name, Anschrift, **eigene Rechtsidentität** (UID/EIN/VAT), Bank,
+    MWST. Als **Halter** verwendbar (``instances.location_type='company'`` zeigt auf die
+    Objektnummer). Keine Zeile ist einer anderen untergeordnet.
 
-    **Nicht jede Spalte gilt je Standort.** Die Zeile trägt drei Gruppen mit
-    unterschiedlicher Reichweite – und wo eine Angabe gilt, entscheidet die
-    **Schreibstelle**, nicht die Tabelle (``services/sites.py`` ist die eine Auflösung):
+    **Zwei Reichweiten, und wo eine Angabe gilt, entscheidet die Schreibstelle** – nicht
+    ein Rang (``services/sites.py`` ist die eine Auflösung):
 
-      * **je Standort** – ``company_name`` (der Standortname, z. B. «Werk Nord»),
-        Anschrift (``street``…``country``), ``email``, ``phone``.
-      * **nur am Hauptsitz** (``is_primary``) – die **Rechtsidentität**: ``legal_form``,
-        ``uid_number``, ``vat_number``, Handelsregister, ``share_capital``, IBAN/Bank,
-        ``website``, MWST-Verfahren, Zahlungsfristen.
-      * **nur am Hauptsitz** – die **Systemkonfiguration**: Stripe-Key, Shop-Währungen,
-        ``pricing_zone_factors``, ``legal_documents``, Plausible, hCaptcha, Maps.
+      * **je Gesellschaft** (``sites.ENTITY_FIELDS``, editierbar an JEDEM Datensatz):
+        Name, Anschrift, Rechtsidentität, Bank, MWST/Zahlung. Die US-Gesellschaft hat
+        ihre EIGENE EIN/Steuer/Bank – deshalb ist Rechtsidentität hier bewusst dabei.
+      * **die eine Website/Integration** (``sites.PLATFORM_FIELDS``): Stripe-Key,
+        Shop-Währungen, ``pricing_zone_factors``, ``legal_documents``, Plausible, Maps.
+        Diese gibt es genau EINMAL; sie liegen (vorerst) als Spalten auf dem **Betreiber**
+        (dem ältesten Unternehmen) und werden nur über die Systemkonfiguration gepflegt.
 
-    Die beiden hinteren Gruppen werden ausschliesslich über ``sites.primary(db)``
-    gelesen und sind an einem Nebenstandort weder editierbar noch wirksam – sonst gäbe
-    es dieselbe Angabe an n Stellen (verboten, siehe Leitbild «Eine Sache, eine Stelle»).
+    **Der «Betreiber» ist abgeleitet, kein Flag** (``sites.operator`` = ältestes
+    Unternehmen). Das frühere ``is_primary`` ist entfallen: es stellte eine Zeile über die
+    anderen und war die Ursache eines Deploy-Ausfalls. Die Rolle «wer vertritt die eine
+    Website» braucht keine Markierung – die kleinste ``id`` (der Ursprung) ist die Antwort.
     """
 
     __tablename__ = "company_settings"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
-    # Universelle Objektnummer: Jeder Standort ist ein vollwertiger ERP-Datensatz
+    # Universelle Objektnummer: Jede Gesellschaft ist ein vollwertiger ERP-Datensatz
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
-    # Abfrage lazy vergeben (services/sites.primary) bzw. beim Anlegen (sites.create).
+    # Abfrage lazy vergeben (services/sites.operator) bzw. beim Anlegen (sites.create).
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
-    # **Der Hauptsitz** – die EINE Zeile, die Rechtsidentität und Systemkonfiguration
-    # trägt. Genau eine Zeile darf ``true`` sein (partieller Unique-Index, Migration 090):
-    # «die Firma» darf nicht zwei Antworten haben. Er ist zugleich der Absender auf
-    # Belegen und die Lieferadresse gegenüber Lieferanten.
-    is_primary: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False)
-    # Am Hauptsitz die Firma, an einem Nebenstandort dessen Name («Werk Nord»). Das ist
-    # zugleich das Standort-Label: ``locations.location_label`` gibt für einen
-    # ``company``-Halter genau dieses Feld zurück.
+    # Der Name der Gesellschaft. Das ist zugleich das Halter-Label:
+    # ``locations.location_label`` gibt für einen ``company``-Halter genau dieses Feld zurück.
+    #
+    # ``is_primary`` ist aus dem MODELL entfernt (Rolle «Betreiber» wird abgeleitet). Die
+    # Spalte bleibt vorübergehend in der DB (Migration 091 dropt sie im Folge-Deploy);
+    # SQLAlchemy ignoriert die nicht gemappte Spalte, das Lifespan-Netz hält sie für die
+    # noch laufende Vorgänger-Revision während des Rollouts intakt.
     company_name: Mapped[str] = mapped_column(String(255), default="Inexxio AG")
     legal_form: Mapped[str] = mapped_column(String(50), default="AG")
     street: Mapped[Optional[str]] = mapped_column(String(255))

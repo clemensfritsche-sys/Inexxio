@@ -631,6 +631,7 @@
           "admin"
         ],
         "summary": "Get Settings",
+        "description": "Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,\nRechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz.",
         "operationId": "get_settings_api_v1_admin_settings_get",
         "responses": {
           "200": {
@@ -701,7 +702,7 @@
           "admin"
         ],
         "summary": "Get Public Settings",
-        "description": "No auth — used by Impressum, AGB, Datenschutz pages.\n\nImmer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle.",
+        "description": "No auth — used by Impressum, AGB, Datenschutz pages.\n\nImmer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der\nWebsite – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die\nübrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht\numgeschaltet.",
         "operationId": "get_public_settings_api_v1_admin_settings_public_get",
         "responses": {
           "200": {
@@ -715,14 +716,14 @@
         }
       }
     },
-    "/api/v1/admin/sites": {
+    "/api/v1/admin/companies": {
       "get": {
         "tags": [
           "admin"
         ],
-        "summary": "List Sites",
-        "description": "Alle Standorte, Hauptsitz zuerst.",
-        "operationId": "list_sites_api_v1_admin_sites_get",
+        "summary": "List Companies",
+        "description": "Alle Unternehmen, Betreiber (ältestes) zuerst.",
+        "operationId": "list_companies_api_v1_admin_companies_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -730,10 +731,10 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/SiteResponse"
+                    "$ref": "#/components/schemas/CompanySettingsResponse"
                   },
                   "type": "array",
-                  "title": "Response List Sites Api V1 Admin Sites Get"
+                  "title": "Response List Companies Api V1 Admin Companies Get"
                 }
               }
             }
@@ -749,14 +750,14 @@
         "tags": [
           "admin"
         ],
-        "summary": "Create Site",
-        "description": "Neuen Standort anlegen (nur Admin).\n\nEr bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen\nkönnen dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –\nsobald er eine eigene Anschrift trägt – automatisch als Versand statt als\ninnerbetriebliche Bewegung klassifiziert (ADR 005).",
-        "operationId": "create_site_api_v1_admin_sites_post",
+        "summary": "Create Company",
+        "description": "Neue Gesellschaft anlegen (nur Admin).\n\nSie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen\nkönnen dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –\nsobald sie eine eigene Anschrift trägt – automatisch als Versand statt als\ninnerbetriebliche Bewegung klassifiziert (ADR 005).",
+        "operationId": "create_company_api_v1_admin_companies_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SiteCreate"
+                "$ref": "#/components/schemas/CompanyCreate"
               }
             }
           },
@@ -768,7 +769,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteResponse"
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
                 }
               }
             }
@@ -791,14 +792,60 @@
         ]
       }
     },
-    "/api/v1/admin/sites/{object_id}": {
+    "/api/v1/admin/companies/{object_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Company",
+        "description": "Ein Unternehmen mit vollem Feldsatz (frisch, für die Detail-Ansicht).",
+        "operationId": "get_company_api_v1_admin_companies__object_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "admin"
         ],
-        "summary": "Update Site",
-        "description": "Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.\n\nRechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über\n``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie\nbewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann.",
-        "operationId": "update_site_api_v1_admin_sites__object_id__patch",
+        "summary": "Update Company",
+        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.\n\nPlattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier\ngesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über\n``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.",
+        "operationId": "update_company_api_v1_admin_companies__object_id__patch",
         "security": [
           {
             "HTTPBearer": []
@@ -820,7 +867,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SiteUpdate"
+                "$ref": "#/components/schemas/CompanySettingsUpdate"
               }
             }
           }
@@ -831,7 +878,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteResponse"
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
                 }
               }
             }
@@ -8578,6 +8625,20 @@
         "title": "CaptureField",
         "description": "Ein Erfassungsfeld der Datenerfassung (Prozessschritt «inspection»)."
       },
+      "CompanyCreate": {
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_name"
+        ],
+        "title": "CompanyCreate",
+        "description": "Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);\nalle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –\nwie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen)."
+      },
       "CompanySettingsResponse": {
         "properties": {
           "id": {
@@ -8595,9 +8656,14 @@
             ],
             "title": "Object Id"
           },
-          "is_primary": {
+          "is_operator": {
             "type": "boolean",
-            "title": "Is Primary",
+            "title": "Is Operator",
+            "default": false
+          },
+          "has_address": {
+            "type": "boolean",
+            "title": "Has Address",
             "default": false
           },
           "company_name": {
@@ -15809,304 +15875,6 @@
         ],
         "title": "SignoffView",
         "description": "Eine Freigabe-Partei eines Dokuments (Anzeige im Auftrag / «Meine Dokumente»)."
-      },
-      "SiteCreate": {
-        "properties": {
-          "company_name": {
-            "type": "string",
-            "title": "Company Name"
-          },
-          "street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street"
-          },
-          "street_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street Nr"
-          },
-          "zip_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Code"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          }
-        },
-        "type": "object",
-        "required": [
-          "company_name"
-        ],
-        "title": "SiteCreate",
-        "description": "Neuer Standort. Der Name ist Pflicht – er ist zugleich das Label, das überall dort\nerscheint, wo eine Instanz an diesem Standort liegt."
-      },
-      "SiteResponse": {
-        "properties": {
-          "company_name": {
-            "type": "string",
-            "title": "Company Name"
-          },
-          "street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street"
-          },
-          "street_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street Nr"
-          },
-          "zip_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Code"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          },
-          "object_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Object Id"
-          },
-          "is_primary": {
-            "type": "boolean",
-            "title": "Is Primary",
-            "default": false
-          },
-          "has_address": {
-            "type": "boolean",
-            "title": "Has Address",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "company_name"
-        ],
-        "title": "SiteResponse",
-        "description": "Ein Standort als ERP-Datensatz.\n\nOhne Anschrift ist ein Standort gültig, aber logistisch stumm: die Klassifikation\nVersand ↔ innerbetrieblich vergleicht **Adressen** (ADR 005), und ein Standort ohne\nPLZ/Ort zählt darum wie «keine Adresse» – eine Bewegung dorthin bleibt\ninnerbetrieblich. ``has_address`` macht das in der Oberfläche sichtbar, statt es den\nNutzer raten zu lassen."
-      },
-      "SiteUpdate": {
-        "properties": {
-          "company_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Company Name"
-          },
-          "street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street"
-          },
-          "street_nr": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street Nr"
-          },
-          "zip_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Zip Code"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          }
-        },
-        "type": "object",
-        "title": "SiteUpdate",
-        "description": "Standortfelder ändern (Hauptsitz wie Nebenstandort, gleiche Felder)."
       },
       "StepReorder": {
         "properties": {

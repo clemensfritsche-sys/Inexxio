@@ -1,9 +1,10 @@
-"""Mehrstandort (Variante A) – die Regeln, die nicht auseinanderlaufen dürfen.
+"""Mehrstandort/Mehr-Gesellschaften – die Regeln, die nicht auseinanderlaufen dürfen.
 
-Die Umstellung von «ein Unternehmen» auf «n Standorte» ist nur an EINER Stelle riskant:
-überall dort, wo Code sich bisher «die Firma» selbst geholt hat. Solange es eine Zeile
-gab, war jede Schreibweise richtig – ab der zweiten entscheidet die Zeilenreihenfolge der
-Datenbank, welcher Standort gemeint ist. Genau davor schützen diese Tests.
+EIN gleichrangiger Datensatztyp «Unternehmen» (``company_settings``, Feed ``organization``).
+Jede Zeile ist eine vollständige juristische Einheit; die Rolle «Betreiber der Website» wird
+**abgeleitet** (ältestes Unternehmen), nicht markiert. Diese Tests sind DB-frei (Quellcode-/
+Schema-Inspektion) – die CI hat kein Postgres; das Laufzeitverhalten prüfe ich separat gegen
+echtes Postgres.
 """
 
 import ast
@@ -18,11 +19,8 @@ def _source(rel: str) -> str:
 
 
 def _code(fn) -> str:
-    """Der **ausgeführte** Rumpf einer Funktion – ohne Docstring.
-
-    Nötig, weil die Docstrings hier gerade erklären, was der Code NICHT tut («kein
-    ``commit``»). Ein Textvergleich über die ganze Quelle würde daran scheitern und den
-    Wächter unbrauchbar machen."""
+    """Der **ausgeführte** Rumpf einer Funktion – ohne Docstring (der erklärt gerade, was
+    der Code NICHT tut)."""
     tree = ast.parse(inspect.getsource(fn))
     node = tree.body[0]
     if ast.get_docstring(node):
@@ -35,13 +33,10 @@ def _code(fn) -> str:
 def test_nobody_resolves_the_company_by_hand_anymore():
     """Kein Modul darf «die Firma» noch selbst zusammensuchen.
 
-    Die beiden Formen, die es früher gab, sind beide unbrauchbar geworden:
-      * ``CompanySettings.id == 1``  – der Hauptsitz ist über ``is_primary`` definiert,
-        nicht über einen Schlüsselwert;
-      * ``query(CompanySettings)…first()`` – eine **willkürliche** Zeile.
-
-    Erlaubt sind nur ``services/sites.py`` selbst (dort steht die Regel) und
-    ``locations.py`` (Batch-Labels holen gezielt Standorte über ihre Objektnummer)."""
+    ``CompanySettings.id == 1`` (der Betreiber ist über das Alter definiert, nicht über
+    einen Schlüsselwert) und ``query(CompanySettings).first()`` (willkürliche Zeile) sind
+    beide unbrauchbar geworden. Erlaubt sind nur ``services/sites.py`` (dort steht die
+    Regel) und ``services/locations.py`` (Batch-Labels über die Objektnummer)."""
     allowed = {"services/sites.py", "services/locations.py"}
     offenders = []
     for path in APP.rglob("*.py"):
@@ -49,8 +44,6 @@ def test_nobody_resolves_the_company_by_hand_anymore():
         if rel in allowed:
             continue
         src = path.read_text(encoding="utf-8")
-        # Kommentare/Docstrings dürfen die Alt-Form nennen (sie erklären ja den Wechsel) –
-        # geprüft wird der ausgeführte Code.
         code = "\n".join(
             line.split("#")[0] for line in src.splitlines() if not line.strip().startswith("#")
         )
@@ -59,144 +52,132 @@ def test_nobody_resolves_the_company_by_hand_anymore():
         if "query(CompanySettings).first()" in code.replace(" ", ""):
             offenders.append(f"{rel}: query(CompanySettings).first()")
     assert not offenders, (
-        "Diese Stellen wählen einen Standort willkürlich statt über services/sites.py:\n  "
+        "Diese Stellen wählen ein Unternehmen willkürlich statt über services/sites.py:\n  "
         + "\n  ".join(offenders)
     )
 
 
-def test_sites_module_offers_both_forms_of_the_same_rule():
-    """``primary`` (schreibend, legt an) und ``find_primary`` (rein lesend).
+def test_operator_is_derived_from_age_not_from_a_flag():
+    """Der Betreiber ist das **älteste** Unternehmen – abgeleitet, nicht markiert.
 
-    Zwei Formen EINER Regel sind in Ordnung – zwei Regeln wären es nicht. Die Lese-Form
-    ist Pflicht in fremden Transaktionen (Preis-Pipeline, Shop-Konfig, PDF): ein ``commit``
-    dort würde die halbfertige Arbeit des Aufrufers mit festschreiben."""
+    Das frühere ``is_primary`` stellte eine Zeile über die anderen und war die Ursache
+    eines Deploy-Ausfalls. ``find_operator`` löst über ``order_by(id)`` auf und darf
+    ``is_primary`` nirgends mehr LESEN (die DB-Spalte bleibt bis Migration 091, aber der
+    Code fasst sie nicht an)."""
     from app.services import sites
 
-    assert callable(sites.primary) and callable(sites.find_primary)
-    assert "commit" not in _code(sites.find_primary), "find_primary muss ein reines Lesen bleiben"
-    # …und die Schreib-Form baut auf der Lese-Form auf, statt die Regel zu wiederholen.
-    assert "find_primary(db)" in inspect.getsource(sites.primary)
+    op_code = _code(sites.find_operator)
+    assert "order_by" in op_code and ".first()" in op_code
+    assert "is_primary" not in op_code, "find_operator darf is_primary nicht mehr lesen"
+    # Das Modell mappt is_primary nicht mehr (nur die DB-Spalte bleibt für den Rollout).
+    from app.models import CompanySettings
+    assert "is_primary" not in CompanySettings.__table__.columns.keys()
 
 
 def test_read_only_callers_never_commit_a_foreign_transaction():
-    """Preis-Pipeline, Shop-Konfig, Provider-Wahl und PDF-Briefkopf lesen den Hauptsitz –
-    sie dürfen ihn nicht anlegen, weil sie mitten in einer fremden Transaktion laufen."""
+    """Preis-Pipeline, Shop-Konfig, Provider-Wahl und PDF-Briefkopf lesen den Betreiber –
+    sie dürfen ihn nicht anlegen, weil sie mitten in einer fremden Transaktion laufen.
+
+    (``find_primary`` ist der rückwärts-kompatible Alias von ``find_operator``.)"""
     for rel in ("services/pricing.py", "services/selling.py", "services/logistics.py",
                 "services/payments/__init__.py", "routers/shop.py", "routers/documents.py"):
         src = _source(rel)
-        assert "import find_primary" in src, f"{rel} muss die Lese-Form nutzen"
-        assert "import primary" not in src, f"{rel} darf den Hauptsitz nicht anlegen"
+        assert "import find_primary" in src or "import find_operator" in src, \
+            f"{rel} muss die Lese-Form nutzen"
+        assert "import primary" not in src and "import operator" not in src, \
+            f"{rel} darf den Betreiber nicht anlegen"
 
 
-# ─── Standort ≠ Firma ────────────────────────────────────────────────────────────
+# ─── EIN gleichrangiger Typ: jede Gesellschaft ist vollständig ───────────────────
 
-def test_site_fields_and_update_schema_cannot_drift():
-    """Der Spiegel zwischen «was gilt je Standort» (Service) und dem Update-Schema (API).
+def test_every_company_carries_its_own_legal_identity():
+    """Kern der Kehrtwende: die US-Gesellschaft hat ihre EIGENE Rechtsidentität.
 
-    Läuft er auseinander, entsteht genau der verbotene Zustand: ein Feld, das die API
-    annimmt, das der Service aber verwirft (stille Datenverluste) – oder umgekehrt eine
-    Angabe der Rechtsidentität, die an einem Nebenstandort landet."""
-    from app.schemas.admin import SiteBase
-    from app.services.sites import SITE_FIELDS
+    Rechtsidentität/Bank/MWST müssen an JEDEM Datensatz editierbar sein
+    (``sites.ENTITY_FIELDS``) – das frühere «nur der Hauptsitz trägt Identität» ist genau
+    verkehrt und entfernt."""
+    from app.services.sites import ENTITY_FIELDS
 
-    assert set(SiteBase.model_fields) == set(SITE_FIELDS)
-
-
-def test_a_branch_office_cannot_carry_legal_identity_or_system_config():
-    """Rechtsidentität und Systemkonfiguration gehören dem Hauptsitz – an EINER Stelle.
-
-    Stünde die UID an jedem Standort, gäbe es dieselbe Angabe n-mal; genau das verbietet
-    «eine Sache, eine Stelle»."""
-    from app.services.sites import SITE_FIELDS
-
-    forbidden = (
+    must_be_per_company = (
         "uid_number", "vat_number", "trade_register_nr", "share_capital", "legal_form",
-        "iban", "qr_iban", "bank", "website", "stripe_publishable_key", "legal_documents",
-        "shop_currencies", "payments_provider", "pricing_zone_factors", "vat_method",
+        "bank", "bic_swift", "vat_method", "vat_period",
     )
-    leaked = [f for f in forbidden if f in SITE_FIELDS]
-    assert not leaked, f"Diese Angaben dürfen nicht je Standort existieren: {leaked}"
+    missing = [f for f in must_be_per_company if f not in ENTITY_FIELDS]
+    assert not missing, f"Diese Entitäts-Felder fehlen im per-Gesellschaft-Feldsatz: {missing}"
 
 
-def test_creating_a_site_never_makes_a_second_primary():
-    """Es gibt genau EINEN Hauptsitz – sonst hätte «die Firma» zwei Antworten.
+def test_platform_config_is_never_editable_per_company():
+    """Die Plattform-Konfiguration (Stripe, Shop, Rechtstexte) gilt der EINEN Website, nicht
+    je Gesellschaft. Sie darf über den per-Gesellschaft-Pfad NICHT setzbar sein – sonst
+    trüge jede Aussenstelle einen eigenen Stripe-Key (dieselbe Angabe an n Stellen).
 
-    Erzwungen wird das doppelt: im Code (``is_primary=False`` beim Anlegen) und in der
-    Datenbank (partieller Unique-Index, Migration 090)."""
+    ``apply_update`` schreibt nur ``ENTITY_FIELDS`` (+ Bank-Chiffren); Plattform-Felder
+    werden ignoriert."""
+    from app.services.sites import ENTITY_FIELDS, PLATFORM_FIELDS
     from app.services import sites
 
-    src = inspect.getsource(sites.create)
-    assert "is_primary=False" in src
+    leaked = [f for f in PLATFORM_FIELDS if f in ENTITY_FIELDS]
+    assert not leaked, f"Plattform-Felder dürfen nicht je Gesellschaft editierbar sein: {leaked}"
 
-    migration = (APP.parent / "alembic/versions/090_multi_site.py").read_text(encoding="utf-8")
-    assert "UNIQUE INDEX" in migration and "WHERE is_primary" in migration
+    # apply_update wählt strikt über ENTITY_FIELDS (+ iban/qr_iban) – kein setattr über
+    # beliebige Keys, das Plattform-Felder durchliesse.
+    apply_code = _code(sites._apply_entity_fields)
+    assert "ENTITY_FIELDS" in apply_code
+    assert "stripe" not in apply_code and "legal_documents" not in apply_code
 
 
-def test_migration_puts_existing_data_on_the_primary_site_without_rewriting_rows():
-    """Der Migrationsplan in einem Satz: die vorhandene Zeile WIRD der Hauptsitz.
+def test_creating_a_company_is_full_and_equal():
+    """Anlegen setzt keinen Rang (kein ``is_primary=...``) und trägt volle Entitäts-Felder."""
+    from app.services import sites
 
-    Ihre Objektnummer bleibt gültig, deshalb muss keine einzige Instanz und kein einziger
-    Auftrag umgeschrieben werden – der Bestand hängt an der Objektnummer, nicht an ``id``."""
-    migration = (APP.parent / "alembic/versions/090_multi_site.py").read_text(encoding="utf-8")
-    assert "UPDATE company_settings SET is_primary = true" in migration
-    # Nur der ausgeführte Teil zählt – der Modul-Docstring erklärt die Bestandsdaten und
-    # darf die Tabellen selbstverständlich beim Namen nennen.
-    tree = ast.parse(migration)
-    upgrade = next(n for n in tree.body if getattr(n, "name", None) == "upgrade")
-    code = ast.unparse(upgrade)
-    for table in ("instances", "orders", "purchase_orders", "shipments"):
-        assert table not in code, f"Migration 090 darf {table} nicht anfassen"
+    create_code = _code(sites.create)
+    assert "is_primary" not in create_code, "Anlegen darf keine Rang-Markierung setzen"
+    assert "_apply_entity_fields" in create_code, "Anlegen trägt den vollen Entitäts-Feldsatz"
+
+
+def test_response_exposes_derived_role_not_a_stored_flag():
+    """Die Antwort trägt ``is_operator`` (abgeleitet) + ``has_address`` – aber kein
+    gespeichertes Rang-Flag."""
+    from app.schemas.admin import CompanySettingsResponse
+
+    fields = CompanySettingsResponse.model_fields
+    assert "is_operator" in fields and "has_address" in fields
+    assert "is_primary" not in fields, "kein gespeichertes Rang-Flag in der Antwort"
 
 
 # ─── Der Kern: das Ziel einer Bewegung ist SEIN Standort ─────────────────────────
 
-def test_movement_target_resolves_the_addressed_site_not_the_head_office():
-    """Die eine Stelle, an der Mehrstandort steht und fällt.
-
-    ``logistics.target_address`` beantwortet «welche Anschrift hat dieses Ziel?». Nahm sie
-    – wie früher – irgendeine Zeile, bekäme JEDES Standort-Ziel die Adresse des Hauptsitzes.
-    Quelle und Ziel sähen für ``classify_movement`` identisch aus, und ein Transport
-    Werk A → Werk B ginge still als «innerbetrieblich» durch statt als Versand mit Tarif
-    und Label."""
+def test_movement_target_resolves_the_addressed_company_not_the_operator():
+    """``logistics.target_address`` löst das adressierte Unternehmen über seine Objektnummer
+    auf – nähme es den Betreiber, bekäme JEDES Ziel dessen Adresse und ein Transport
+    Werk A → Werk B ginge still als «innerbetrieblich» durch statt als Versand."""
     from app.services import logistics
 
     src = inspect.getsource(logistics.target_address)
-    assert "by_object_id(db, lid)" in src, (
-        "target_address muss den adressierten Standort über seine Objektnummer auflösen"
-    )
+    assert "by_object_id(db, lid)" in src
 
 
-def test_company_holder_label_reads_the_addressed_site():
-    """Dasselbe für die Anzeige: das Label eines ``company``-Halters ist der Name GENAU
-    dieses Standorts. (War schon immer objektnummern-basiert – hier festgehalten, damit es
-    so bleibt.)"""
+def test_company_holder_label_reads_the_addressed_company():
+    """Das Label eines ``company``-Halters ist der Name GENAU dieses Unternehmens (über die
+    Objektnummer)."""
     from app.services import locations
 
     for fn in (locations.location_label, locations.location_labels):
         assert "object_id" in inspect.getsource(fn)
 
 
-# ─── Deploy-Sicherheit: eine neue Spalte darf die Website nicht abschalten ───────
+# ─── Deploy-Sicherheit: eine neue Spalte darf die Website nicht abschalten ────────
 
 def test_every_company_settings_column_is_in_the_lifespan_safety_net():
     """Jede nachträglich ergänzte Spalte von ``company_settings`` MUSS im Lifespan-
     Sicherheitsnetz stehen (``main._COLUMN_SAFETY_NET``).
 
-    **Warum ausgerechnet diese Tabelle.** ``start.sh`` startet uvicorn ausdrücklich auch
-    dann, wenn Alembic scheitert («schema fix will run in lifespan») – das Netz ist also
-    kein Luxus, sondern der vorgesehene zweite Weg. Kennt das Modell eine Spalte, die die
-    Datenbank nicht hat, scheitert **jede** Abfrage auf der Tabelle. Und
-    ``company_settings`` wird nicht nur im ERP gelesen (Standort-Label ⇒ Instanz-Feed,
-    Standort-Kette), sondern auch von **unauthentifizierten** Endpunkten: Impressum,
-    Shop-Konfiguration, Shop-Produkte. Eine fehlende Spalte hier nimmt ERP **und**
-    öffentliche Website mit.
-
-    Genau das ist beim ersten Mehrstandort-Deploy passiert: ``is_primary`` stand im
-    Modell und in Migration 090, aber nicht im Netz – die Migration lief nicht, und der
-    Unternehmens-Datensatz sowie alle Instanzen waren nicht mehr ladbar.
-
-    Der Test leitet die Erwartung aus dem **Modell** ab (nicht aus einer gepflegten
-    Liste): was im Initial-Schema steht, ist immer da; alles Spätere braucht das Netz."""
+    ``start.sh`` startet uvicorn auch dann, wenn Alembic scheitert – das Netz ist der
+    vorgesehene zweite Weg. Kennt das Modell eine Spalte, die die DB nicht hat, scheitert
+    JEDE Abfrage auf der Tabelle; und ``company_settings`` liest der ganze Instanz-Feed
+    (Standort-Label) sowie die öffentlichen Endpunkte (Impressum, Shop). Eine fehlende
+    Spalte hier nimmt ERP UND Website mit – genau das ist beim ersten Mehrstandort-Deploy
+    passiert. Die Erwartung wird aus dem MODELL abgeleitet, nicht aus einer Liste."""
     import re
     from app.main import _COLUMN_SAFETY_NET, _DROP_COLUMN_SAFETY_NET
     from app.models import CompanySettings
@@ -219,31 +200,13 @@ def test_every_company_settings_column_is_in_the_lifespan_safety_net():
 
 
 def test_migration_090_is_repeatable():
-    """Die Migration muss ein zweites Mal laufen können.
-
-    Repariert das Lifespan-Netz das Schema (weil Alembic scheiterte), steht Alembic
-    weiterhin auf 089 und versucht 090 beim nächsten Deploy erneut. Wäre sie nicht
-    wiederholbar, liefe sie auf «column already exists» auf – und bliebe für immer
-    stehen, womit **jede künftige Migration** blockiert wäre."""
+    """Repariert das Lifespan-Netz das Schema, versucht Alembic 090 beim nächsten Deploy
+    erneut – sie muss also wiederholbar sein, sonst bliebe Alembic für immer auf 089."""
     migration = (APP.parent / "alembic/versions/090_multi_site.py").read_text(encoding="utf-8")
     tree = ast.parse(migration)
     code = ast.unparse(next(n for n in tree.body if getattr(n, "name", None) == "upgrade"))
-    assert "get_columns('company_settings')" in code, "ADD COLUMN muss auf Vorhandensein prüfen"
+    assert "get_columns('company_settings')" in code
     assert "CREATE UNIQUE INDEX IF NOT EXISTS" in code
-    assert "NOT EXISTS (SELECT 1 FROM company_settings WHERE is_primary)" in code
-
-
-def test_lifespan_marks_exactly_one_primary_after_adding_the_column():
-    """Spalte ergänzen genügt nicht: mit Default ``false`` trägt danach KEINE Zeile die
-    Markierung. Ohne den Daten-Fix zeigte die Oberfläche die Firma als blossen
-    «Standort» ohne Rechtsidentität."""
-    from app.main import _COMPANY_DATA_FIXES
-
-    joined = " ".join(_COMPANY_DATA_FIXES)
-    assert "UPDATE company_settings SET is_primary = true" in joined
-    assert "min(id)" in joined                       # die älteste Zeile ist die Firma
-    assert "NOT EXISTS" in joined                    # wiederholbar, überschreibt nichts
-    assert "CREATE UNIQUE INDEX IF NOT EXISTS" in joined
 
 
 def test_no_syntax_errors_in_touched_modules():
