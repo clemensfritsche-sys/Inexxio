@@ -19,8 +19,11 @@ Währung – State of the Art (keine Live-Umrechnung pro Request): der Fremdwäh
 ändert oder (b) der Tageskurs um mehr als ``DRIFT_THRESHOLD`` (3 %) wegdriftet – dann re-pinnt
 die Pipeline automatisch (lazy, kein Cron). So flackern Preise nicht und bleiben „schön".
 
-TODO(Production): Stripe „Adaptive Pricing" kann die lokale Umrechnung am Checkout übernehmen,
-sobald Stripe live ist – das Pinning hier ist der providerunabhängige Pfad.
+Diese gepinnte Pipeline ist die **EINE Kursquelle**: der hier berechnete Betrag wird der
+Stripe-Kasse in der Präsentationswährung übergeben (``selling._resolve_line`` →
+``stripe_provider._line_item``). Stripe „Adaptive Pricing" ist bewusst **AUS**
+(``docs/stripe-setup.md``) – sonst rechnete Stripe mit EIGENEM Kurs um und die Anzeige
+(unser Kurs) wiche von der Belastung ab (Anzeige 11.80 ↔ Belastung 11.82).
 """
 
 from decimal import ROUND_HALF_UP, Decimal

@@ -189,3 +189,73 @@ def test_pricing_pipeline_has_optional_stages():
     assert hasattr(pricing, "_pinned_net")
     assert hasattr(pricing, "_net_chf")
     assert pricing.DRIFT_THRESHOLD == __import__("decimal").Decimal("0.03")
+
+
+# ─── Währung: EINE Kursquelle (unser fx-Anker), keine Divergenz Anzeige↔Belastung ──
+
+def test_stripe_line_item_charges_presentment_currency():
+    """Single Source: die Stripe-Position trägt GENAU die Präsentationswährung + den Betrag
+    aus unserer Preis-Pipeline – kein CHF+Adaptive-Pricing mehr (Anzeige == Belastung)."""
+    from app.services.payments.stripe_provider import StripeProvider
+
+    li = StripeProvider()._line_item({
+        "quantity": 2, "presentment_currency": "EUR", "presentment_amount": "379.80",
+        "base_amount_chf": "398.00", "article_name": "Widget", "article_object_id": 100000001,
+    }, "inclusive")
+    pd = li["price_data"]
+    assert li["quantity"] == 2
+    assert pd["currency"] == "eur"          # unsere Präsentationswährung, NICHT "chf"
+    assert pd["unit_amount"] == 18990       # 379.80 / 2 = 189.90 € → 18990 Cent (kein Stripe-Kurs)
+    assert pd["tax_behavior"] == "inclusive"
+
+
+def test_stripe_line_item_falls_back_to_chf_for_old_intents():
+    """Deploy-Übergang: eine Alt-Zeile ohne Präsentationsfelder wird weiter in CHF belastet
+    (kein Absturz, kein 0-Betrag)."""
+    from app.services.payments.stripe_provider import StripeProvider
+
+    li = StripeProvider()._line_item(
+        {"quantity": 1, "base_amount_chf": "100.00", "article_name": "X"}, "inclusive")
+    assert li["price_data"]["currency"] == "chf"
+    assert li["price_data"]["unit_amount"] == 10000
+
+
+def test_stripe_line_item_subscription_keeps_presentment_currency():
+    """Ein Abo wird in DERSELBEN Präsentationswährung wiederkehrend belastet."""
+    from app.services.payments.stripe_provider import StripeProvider
+
+    li = StripeProvider()._line_item({
+        "quantity": 1, "presentment_currency": "USD", "presentment_amount": "49.00",
+        "kind": "subscription", "interval": "month", "article_name": "Abo",
+    }, "exclusive")
+    assert li["price_data"]["currency"] == "usd"
+    assert li["price_data"]["recurring"] == {"interval": "month"}
+
+
+def test_checkout_threads_presentment_currency_and_recomputes_amount():
+    """``checkout`` nimmt die angezeigte Währung entgegen; die Position trägt
+    presentment_currency/-amount; der Betrag wird IMMER neu aus der Pipeline berechnet
+    (kein Client-Betrag). ``previews`` zeigt alle Shop-Währungen (nicht nur CHF)."""
+    import inspect
+    from app.services import selling
+
+    assert "currency" in inspect.signature(selling.checkout).parameters
+    assert "country" in inspect.signature(selling.checkout).parameters
+    resolve_src = inspect.getsource(selling._resolve_line)
+    assert "presentment_currency" in resolve_src and "presentment_amount" in resolve_src
+    assert "price_view_for" in resolve_src            # Betrag aus unserer Pipeline
+    # Präsentationswährung wird gegen die erlaubten Shop-Währungen validiert:
+    assert "resolve_currency" in inspect.getsource(selling.checkout)
+    # ERP-Vorschau in JEDER Shop-Währung (single source sichtbar), nicht mehr CHF-only:
+    assert "shop_currencies" in inspect.getsource(selling.previews)
+
+
+def test_stripe_provider_does_not_rely_on_adaptive_pricing():
+    """Wächter: der Provider setzt Währung + Betrag selbst – Adaptive Pricing ist bewusst aus.
+    Kein 'currency: chf'-Hardcode mehr im Line-Item."""
+    import inspect
+    from app.services.payments import stripe_provider
+
+    src = inspect.getsource(stripe_provider.StripeProvider._line_item)
+    assert "presentment_currency" in src
+    assert '"currency": "chf"' not in src   # nicht mehr fix CHF an Stripe geben

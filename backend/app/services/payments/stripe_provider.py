@@ -1,8 +1,10 @@
-"""Stripe-Provider – **Vollintegration** (eingebettete Kasse + Adaptive Pricing + Stripe Tax).
+"""Stripe-Provider – **Vollintegration** (eingebettete Kasse + Stripe Tax).
 
 - ``create_checkout``: erstellt eine Stripe **Checkout Session** im Modus ``ui_mode='embedded'``
-  (kein Redirect – die Kasse wird auf unserer Seite eingebettet, ``client_secret``). KEINE
-  Währung gesetzt → **Adaptive Pricing** zeigt die Lokalwährung; ``automatic_tax`` →
+  (kein Redirect – die Kasse wird auf unserer Seite eingebettet, ``client_secret``). Währung
+  **und** Betrag je ``line_item`` kommen aus unserer Preis-Pipeline (``fx``-Anker) – Stripe
+  rechnet NICHT um (**Adaptive Pricing bewusst AUS**, ``docs/stripe-setup.md``), damit die
+  Anzeige im Shop/ERP exakt der Belastung entspricht (EINE Kursquelle). ``automatic_tax`` →
   **Stripe Tax**. Modus ``payment`` (Einmalkauf) oder ``subscription`` (Abo). Mehrere
   Warenkorb-Positionen ⇒ mehrere ``line_items`` in EINER Session. Die Lieferadresse wird
   aus dem **Profil** auf den Stripe-Customer gespiegelt (Vorbefüllung, keine Doppeleingabe).
@@ -134,7 +136,10 @@ class StripeProvider(PaymentProvider):
             # Eingebettete Kasse: KEIN Redirect – der Abschluss wird inline (onComplete) in
             # unserer Kasse angezeigt (kein separates Erfolgs-Fenster, kein Abbruch-Hänger).
             "redirect_on_completion": "never",
-            # KEINE currency → Adaptive Pricing wählt die Lokalwährung des Kunden.
+            # Die Währung + der Betrag stehen je ``line_item`` (Präsentationswährung aus
+            # unserer Preis-Pipeline, ``_line_item``). Adaptive Pricing bleibt bewusst AUS
+            # (siehe ``docs/stripe-setup.md``): unser ``fx``-Anker ist die EINE Kursquelle,
+            # damit die Anzeige im Shop/ERP exakt der Belastung entspricht.
         }
         if is_sub:
             params["subscription_data"] = {"metadata": meta}
@@ -149,10 +154,15 @@ class StripeProvider(PaymentProvider):
 
     def _line_item(self, line: dict, tax_behavior: str) -> dict:
         qty = int(line.get("quantity") or 1)
-        base = Decimal(str(line.get("base_amount_chf") or 0))
-        unit = (base / qty) if qty else base
+        # Präsentationswährung + -betrag aus der EINEN Preis-Pipeline (unser ``fx``-Anker,
+        # gepinnt + „schön" gerundet) – GENAU das, was der Kunde im Shop sah. Stripe rechnet
+        # NICHT noch einmal um (Adaptive Pricing aus), sonst wären es zwei Kursquellen. Fallback
+        # auf CHF/Basis nur für evtl. während des Deploys noch offene Alt-Intents.
+        cur = (line.get("presentment_currency") or "CHF").lower()
+        total = Decimal(str(line.get("presentment_amount") or line.get("base_amount_chf") or 0))
+        unit = (total / qty) if qty else total
         price_data = {
-            "currency": "chf",                  # Basis – Adaptive Pricing rechnet lokal um
+            "currency": cur,
             "unit_amount": int((unit * 100).quantize(Decimal("1"))),
             "tax_behavior": tax_behavior,
             "product_data": {

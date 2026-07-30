@@ -93,7 +93,8 @@ def checkout(
     # Serverseitiges Consent-Gate (Backstop zum blockierenden Frontend-Modal): ein Kauf
     # setzt die akzeptierten Pflichtdokumente (AGB …) voraus – auch per direktem API-Call.
     consent_svc.assert_acknowledged(db, user)
-    intent, result = selling_svc.checkout(db, data.items, user)
+    intent, result = selling_svc.checkout(
+        db, data.items, user, currency=data.currency, country=data.country)
     return ShopCheckoutResult(
         token=str(intent.id),
         provider=result.get("provider") or provider_name(db),

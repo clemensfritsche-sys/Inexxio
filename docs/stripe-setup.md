@@ -1,8 +1,17 @@
 # Stripe-Integration – Setup (Sandbox/Dev)
 
-Diese Anleitung aktiviert die Stripe-Vollintegration (hosted Checkout + **Adaptive Pricing**
-+ **Stripe Tax**) auf der Dev-Umgebung. Der Code aktiviert Stripe **automatisch**, sobald
-`STRIPE_SECRET_KEY` im Backend gesetzt ist; ohne Key läuft der überbrückbare `manual`-Provider.
+Diese Anleitung aktiviert die Stripe-Vollintegration (eingebettete Kasse + **Stripe Tax**) auf
+der Dev-Umgebung. Der Code aktiviert Stripe **automatisch**, sobald `STRIPE_SECRET_KEY` im
+Backend gesetzt ist; ohne Key läuft der überbrückbare `manual`-Provider.
+
+> **Währung = EINE Kursquelle (unser `fx`-Anker), Adaptive Pricing AUS.** Der Betrag **und**
+> die Währung jeder Position kommen aus unserer Preis-Pipeline (`services/pricing.py`,
+> Tageskurs `fx_rates`, gepinnt + „schön" gerundet) und werden der Kasse fertig übergeben
+> (`stripe_provider._line_item`). Stripe rechnet **nicht** noch einmal um. Grund: mit Adaptive
+> Pricing würde Stripe die CHF-Basis mit **seinem eigenen** Kurs in die Lokalwährung umrechnen –
+> dann zeigte der Shop/das ERP z. B. € 11.80 (unser Kurs), Stripe belastete aber € 11.82
+> (Stripes Kurs). Genau diese Divergenz vermeiden wir, indem **wir** die Präsentationswährung
+> setzen. Deshalb Adaptive Pricing im Dashboard **deaktiviert lassen** (Schritt 2).
 
 > Reihenfolge wichtig: **Erst** die Secrets im Google Secret Manager anlegen (Schritt 3),
 > **dann** den PR nach `develop` mergen – sonst schlägt das Cloud-Run-Deploy fehl
@@ -28,10 +37,14 @@ folgenden Schritte im **Sandbox-Modus** ausführen. Du brauchst zwei Keys unter
 > Schritt 2 ausführen **und** im Deploy `STRIPE_TAX_ENABLED=true` setzen (env-var in
 > `deploy-dev.yml`). Vorher NICHT aktivieren – sonst schlägt die Checkout-Erstellung fehl.
 
-## 2. Adaptive Pricing + Stripe Tax (Dashboard)
-1. **Adaptive Pricing** aktivieren: **Settings → Payments → Checkout and Payment Links →
-   Adaptive Pricing → Enable** (Sandbox). Dadurch sieht der Kunde an der Kasse automatisch
-   seine Lokalwährung – wir setzen KEINE Währung und brauchen keinen Umschalter.
+## 2. Adaptive Pricing AUS + Stripe Tax (Dashboard)
+1. **Adaptive Pricing DEAKTIVIERT lassen**: **Settings → Payments → Checkout and Payment
+   Links → Adaptive Pricing → Disabled** (Standard). **Nicht** aktivieren – wir setzen die
+   Präsentationswährung samt Betrag selbst (unser `fx`-Anker, siehe Kopf dieses Dokuments),
+   damit Anzeige und Belastung auf denselben Kurs verweisen. Wäre Adaptive Pricing an, rechnete
+   Stripe unsere Zahl mit seinem Kurs erneut um → Divergenz (€ 11.80 angezeigt ↔ € 11.82
+   belastet). Welche Währung der Shop zeigt, steuert **Admin → Systemkonfiguration → Shop**
+   (Standard-Währung + Länder-Zuordnung); der Kurs kommt immer aus `fx_rates`.
 2. **Stripe Tax** einrichten: **Settings → Tax**:
    - **Head office / Origin address**: Schweizer Firmenadresse.
    - **Default tax behavior**: **Inclusive** (unsere Basispreise sind brutto, inkl. MWST).
@@ -94,9 +107,11 @@ schaltet automatisch auf `stripe`.
    Preis-Optionen möglich – Einmalkauf / Nutzungsabo / Produktabo).
 3. Als Kunde einloggen → `/shop` → Produkt → Option wählen → **In den Warenkorb** →
    `/shop/cart` → **Zur Kasse** → die **eingebettete** Stripe-Kasse erscheint auf `/shop/checkout`.
-4. **Adaptive Pricing testen**: an der Kasse die Lokalwährung prüfen. (Optional simulieren:
-   eine Kunden-E-Mail mit Suffix `+location_DE@…` zeigt EUR-Preise.) Die **Lieferadresse** ist
-   aus dem Profil vorausgefüllt (sofern hinterlegt).
+4. **Landeswährung / Single Source testen**: In **Admin → Systemkonfiguration → Shop** die
+   Standard-Währung z. B. auf **EUR** stellen. Im Shop erscheint der Preis in EUR (unser
+   Tageskurs, gepinnt); **derselbe** Betrag muss in der eingebetteten Kasse stehen – NICHT
+   ein von Stripe umgerechneter. Gegenprobe im ERP: Reiter **Verkauf** zeigt unter «Kundenpreis»
+   exakt diese EUR-Zahl. Die **Lieferadresse** ist aus dem Profil vorausgefüllt (sofern hinterlegt).
 5. **Testkarte**: `4242 4242 4242 4242`, beliebiges künftiges Datum, beliebige CVC/PLZ.
 6. Nach Zahlung: Rückkehr auf `/shop/success` → der Webhook **erzeugt** je Warenkorb-Position
    den Auftrag (make) bzw. finalisiert den reservierten (stock), setzt den Verkauf auf **paid**
@@ -108,14 +123,21 @@ schaltet automatisch auf `stripe`.
 ## Architektur (Kurz)
 - **Provider-Auswahl** (`services/payments/__init__.py`): `company_settings.payments_provider`
   → sonst automatisch `stripe`, wenn `STRIPE_SECRET_KEY` gesetzt → sonst `manual`.
-- **Checkout** (`services/payments/stripe_provider.py`): Checkout Session ohne Währung
-  (Adaptive Pricing), `automatic_tax=enabled` (Stripe Tax), `tax_behavior=inclusive`,
+- **Währung = EINE Quelle**: `selling._resolve_line` berechnet je Position den Betrag in der
+  Präsentationswährung über `pricing.price_view_for` (unser `fx`-Anker) und legt ihn auf die
+  `CheckoutIntent`-Zeile (`presentment_currency`/`presentment_amount`); `stripe_provider._line_item`
+  gibt genau diese Währung + diesen Betrag an Stripe (kein Adaptive Pricing). Der Client kann
+  keinen Betrag vorgeben – die gewünschte Währung wird gegen die Shop-Währungen validiert.
+- **Checkout** (`services/payments/stripe_provider.py`): Checkout Session mit Währung+Betrag je
+  `line_item`, `automatic_tax=enabled` (Stripe Tax), `tax_behavior=inclusive`,
   `mode=payment|subscription`, Customer-Mapping, Shipping-Adresse für physische Güter.
 - **Defer-Modell**: der Auftrag wird **erst bei bestätigter Zahlung** freigegeben (Webhook
   `checkout.session.completed`). Ausnahme: `stock` reserviert schon bei der Bestellung.
-- **Snapshot**: Stripe ist Quelle der Wahrheit – `sales.stripe_snapshot` hält Settlement
-  (CHF) + Adaptive-Pricing-Lokalwährung + Steuer; `sales.stripe_payment_intent_id`,
-  `orders.stripe_subscription_id`.
+- **Snapshot**: Stripe ist Quelle der Wahrheit für den **realen** Zahlungseingang –
+  `sales.stripe_snapshot` hält Settlement (Präsentationswährung + Betrag + Steuer);
+  `_apply_stripe_snapshot` übernimmt Währung/Betrag auf den Beleg (`sales.currency`),
+  `sales.stripe_payment_intent_id`, `orders.stripe_subscription_id`. Weil wir in unserer Währung
+  belasten, ist das Settlement dieselbe Zahl, die der Shop angezeigt hat.
 
 ## Bewusst (noch) NICHT gebaut
 - Folge-Fulfillment-Auftrag je Abo-Zyklus (Stripe verrechnet wiederkehrend; wir spiegeln den

@@ -51,8 +51,16 @@ class ShopCheckoutItem(BaseModel):
 
 
 class ShopCheckout(BaseModel):
-    """Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session."""
+    """Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session.
+
+    ``currency``/``country`` = die **Präsentationswährung** (und das Land), in der der Kunde
+    die Preise gesehen hat. Sie werden serverseitig gegen die erlaubten Shop-Währungen
+    validiert (``selling.resolve_currency``) und der **Betrag wird immer neu aus der
+    Preis-Pipeline berechnet** – der Client kann keinen Betrag vorgeben. So ist die
+    berechnete Währung = die belastete Währung (eine Kursquelle: unser ``fx``-Anker)."""
     items: list[ShopCheckoutItem]
+    currency: Optional[str] = None
+    country: Optional[str] = None
 
     @field_validator("items")
     @classmethod

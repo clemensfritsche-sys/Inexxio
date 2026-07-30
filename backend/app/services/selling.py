@@ -89,11 +89,24 @@ def audience_for(db: Session, article_id: int) -> list[dict]:
 
 
 def previews(db: Session, article: Article) -> list[dict]:
-    """Live-Vorschau des Preises in CHF (Basis, inkl. Schweizer MWST). Fremdwährungen +
-    finale länderabhängige Steuer übernimmt Stripe (Adaptive Pricing + Stripe Tax) an der
-    Kasse – daher zeigt die ERP-Vorschau bewusst nur den CHF-Endpreis."""
-    view = pricing.price_view(db, article, "CHF", country=None, customer=None)
-    return [view] if view else []
+    """Live-Vorschau des **Hauptpreises** in JEDER konfigurierten Shop-Währung – berechnet
+    über dieselbe Preis-Pipeline (``price_view_for``, unser ``fx``-Anker), die auch die
+    Stripe-Kasse belastet. So sieht das Personal im ERP exakt den Betrag, der dem Kunden
+    angezeigt UND belastet wird (eine Kursquelle, keine Divergenz Anzeige↔Zahlung).
+
+    CHF steht immer zuerst (Basiswährung/Pflege); die Fremdwährungen sind gepinnt und
+    „schön" gerundet (stabil bis Basis-Änderung/Drift)."""
+    price = pricing.resolve_primary_price(db, article)
+    if not price:
+        return []
+    currencies = shop_currencies(db)
+    ordered = ["CHF"] + [c for c in currencies if c != "CHF"] if "CHF" in currencies else currencies
+    out: list[dict] = []
+    for cur in ordered:
+        v = pricing.price_view_for(db, price, cur, country=None, customer=None)
+        if v:
+            out.append(v)
+    return out
 
 
 def update_profile(db: Session, article: Article, data, actor_id: int) -> Article:
@@ -430,9 +443,16 @@ def earliest_cancellation_date(order: "Order") -> date | None:
     return earliest if earliest > date.today() else None
 
 
-def _resolve_line(db: Session, item, customer: UserProfile) -> dict:
+def _resolve_line(db: Session, item, customer: UserProfile,
+                  presentment: str = "CHF", country: str | None = None) -> dict:
     """Eine Warenkorb-Position validieren und zu einer aufgelösten ``line`` verdichten
-    (Artikel kanonisch, sichtbar, freigegeben; Preis-Option gehört zum Artikel)."""
+    (Artikel kanonisch, sichtbar, freigegeben; Preis-Option gehört zum Artikel).
+
+    Zwei Beträge, EINE Kursquelle (unser ``fx``-Anker über ``price_view_for``):
+    ``base_amount_chf`` = **kanonisch CHF** (Reservierung/Report/anteilige Erstattung –
+    währungsunabhängige Verhältnisse), ``presentment_amount`` in ``presentment_currency`` =
+    **genau das, was die Stripe-Kasse belastet** (dieselbe Zahl, die der Kunde im Shop sah).
+    Da beide aus derselben Pipeline stammen, kann Anzeige ≠ Belastung nicht auftreten."""
     article = db.query(Article).filter(
         Article.object_id == item.article_object_id, Article.is_active == True).first()
     if not article:
@@ -453,42 +473,58 @@ def _resolve_line(db: Session, item, customer: UserProfile) -> dict:
     if not price:
         raise HTTPException(400, detail="Für dieses Produkt ist kein Preis hinterlegt")
 
-    view = pricing.price_view_for(db, price, "CHF", country=None, customer=customer)
-    qty = item.quantity
     # FIX: Verrechnet wurde bisher der ROHE Basispreis, angezeigt aber das Pipeline-Ergebnis
     # (charm_round auf 0.05 CHF): Anzeige «100.00», Belastung 99.99. Der Kunde zahlt jetzt
-    # exakt den angezeigten CHF-Preis (brutto bei inklusiver Auszeichnung, sonst netto –
+    # exakt den angezeigten Preis (brutto bei inklusiver Auszeichnung, sonst netto –
     # ``tax_behavior`` an der Stripe-Kasse ist derselbe Schalter). Nebeneffekt: der
-    # Stückbetrag ist glatt (0.05er-Schritte) → keine Rappen-Drift mehr bei base÷qty
-    # in ``stripe_provider._line_item``.
+    # Stückbetrag ist glatt → keine Rappen-Drift mehr bei base÷qty in ``_line_item``.
     from ..core.config import get_settings
-    unit_chf = Decimal(price.amount_chf)
-    if view:
-        unit_chf = Decimal(view["gross"] if get_settings().prices_tax_inclusive else view["net"])
+    field = "gross" if get_settings().prices_tax_inclusive else "net"
+
+    chf = pricing.price_view_for(db, price, "CHF", country=None, customer=customer)
+    unit_chf = Decimal(chf[field]) if chf else Decimal(price.amount_chf)
+
+    # Präsentationswährung: derselbe Preis durch dieselbe Pipeline (unser ``fx``-Anker,
+    # gepinnt + „schön" gerundet). GENAU dieser Betrag geht an die Stripe-Kasse – Stripe
+    # rechnet NICHT noch einmal um (Adaptive Pricing aus), sonst wären es zwei Quellen.
+    pres_cur = (presentment or "CHF").upper()
+    pview = chf if pres_cur == "CHF" else pricing.price_view_for(
+        db, price, pres_cur, country=country, customer=customer)
+    unit_pres = Decimal(pview[field]) if pview else unit_chf
+
+    qty = item.quantity
     return {
         "article_id": article.id, "article_object_id": article.object_id,
         "article_name": article.name, "price_id": price.id,
         "quantity": qty, "fulfillment": article.sales_fulfillment or "make",
         "kind": price.kind, "interval": price.interval, "sub_type": price.sub_type,
         "base_amount_chf": str((unit_chf * qty).quantize(CENT)),
-        "net_chf": str((view["net"] * qty).quantize(CENT)) if view else None,
-        "vat_rate": str(view["tax_rate"]) if view else None,
+        "net_chf": str((chf["net"] * qty).quantize(CENT)) if chf else None,
+        "vat_rate": str(chf["tax_rate"]) if chf else None,
+        "presentment_currency": pres_cur,
+        "presentment_amount": str((unit_pres * qty).quantize(CENT)),
         "order_id": None,
     }
 
 
-def checkout(db: Session, items: list, customer: UserProfile) -> tuple["object", dict]:
+def checkout(db: Session, items: list, customer: UserProfile,
+             *, currency: str | None = None, country: str | None = None) -> tuple["object", dict]:
     """Warenkorb-Checkout (**Defer-Modell: erst zahlen, dann erfüllen**). Mehrere Positionen
     ⇒ EIN ``CheckoutIntent`` ⇒ EINE Zahlungs-Session. Der Auftrag je Position wird **erst
     bei bestätigter Zahlung** erzeugt (Made-to-Order). Ausnahme **stock** (limitierte
     Auflage): der Auftrag wird schon hier angelegt + reserviert (kein Überverkauf).
+
+    ``currency``/``country``: die vom Shop angezeigte Präsentationswährung – serverseitig
+    gegen die erlaubten Shop-Währungen validiert (``resolve_currency``); der Betrag wird
+    IMMER neu berechnet (kein Client-Betrag). So ist die belastete Währung = die angezeigte.
 
     Liefert (Intent, Provider-Ergebnis) – das Ergebnis trägt ``client_secret``/``session_id``
     (Stripe, eingebettete Kasse) bzw. ``payment_url`` (manueller Fallback)."""
     from .payments import get_provider
     from ..models import CheckoutIntent
 
-    lines = [_resolve_line(db, it, customer) for it in items]
+    presentment = resolve_currency(db, currency, country)
+    lines = [_resolve_line(db, it, customer, presentment, country) for it in items]
     # Abos werden separat abgeschlossen (Stripe: ein Subscription-Checkout je Vertrag).
     if any(l["kind"] == "subscription" for l in lines) and len(lines) > 1:
         raise HTTPException(

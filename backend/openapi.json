@@ -15531,6 +15531,28 @@
             },
             "type": "array",
             "title": "Items"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
           }
         },
         "type": "object",
@@ -15538,7 +15560,7 @@
           "items"
         ],
         "title": "ShopCheckout",
-        "description": "Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session."
+        "description": "Warenkorb-Checkout: eine oder mehrere Positionen ⇒ eine Zahlungs-Session.\n\n``currency``/``country`` = die **Präsentationswährung** (und das Land), in der der Kunde\ndie Preise gesehen hat. Sie werden serverseitig gegen die erlaubten Shop-Währungen\nvalidiert (``selling.resolve_currency``) und der **Betrag wird immer neu aus der\nPreis-Pipeline berechnet** – der Client kann keinen Betrag vorgeben. So ist die\nberechnete Währung = die belastete Währung (eine Kursquelle: unser ``fx``-Anker)."
       },
       "ShopCheckoutItem": {
         "properties": {
