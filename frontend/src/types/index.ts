@@ -76,6 +76,9 @@ export type ArticleUpdateInput = Partial<ArticleInput> & {
 export type ArticleNameSuggestion = components['schemas']['ArticleNameSuggestion'];
 // Betriebskosten (Monat-bis-heute) – Admin-Übersicht am Unternehmen.
 export type OperatingCosts = components['schemas']['OperatingCostsResponse'];
+export type TerritoryMap = components['schemas']['TerritoryMapResponse'];
+export type TerritoryRegion = components['schemas']['TerritoryRegion'];
+export type TerritoryCompany = components['schemas']['TerritoryCompany'];
 // Maximale Länge eines Artikelnamens – muss zum Backend (`NAME_MAX_LENGTH`) passen.
 export const ARTICLE_NAME_MAX_LENGTH = 32;
 

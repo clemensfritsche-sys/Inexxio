@@ -35,7 +35,8 @@ hier:
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from ..models import CompanySettings
+from ..models import CompanySettings, CompanyTerritory
+from . import geography
 from .admin import log_audit
 from .objects import next_object_id
 
@@ -180,6 +181,74 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
     db.commit()
     db.refresh(company)
     return company
+
+
+# ─── Gebiete: welche Gesellschaft fakturiert welches Kundenland (ADR 006) ─────────
+
+def company_for_country(db: Session, country: str | None) -> CompanySettings | None:
+    """Die **fakturierende Gesellschaft** (Seller of Record) für ein Kundenland.
+
+    Land → **Region** (``geography.region_of_country``) → **Territorium-Besitzer**
+    (``company_territories``) → **Betreiber-Fallback**. Rein lesend (kein commit) – Pflicht
+    in fremden Transaktionen (Verkauf/Beleg/Versand).
+
+    Ausschlaggebend ist die **Rechnungsadresse** des Kunden (sein rechtlicher Sitz), NICHT die
+    Lieferadresse – die richtet nur die Steuer (Stripe Tax). Ein unbekanntes/unzugeordnetes
+    Land fällt auf den Betreiber (Totalität: jeder Fleck gehört jemandem)."""
+    from . import address
+    if not (country or "").strip():
+        return find_operator(db)          # kein Land → Betreiber (nicht raten)
+    # Klarname → ISO-2 (``address.iso2`` toleriert «Schweiz»/«USA» wie «CH»/«US»).
+    region = geography.region_of_country(address.iso2(country))
+    if region:
+        row = (db.query(CompanyTerritory)
+               .filter(CompanyTerritory.region == region).first())
+        if row is not None:
+            company = (db.query(CompanySettings)
+                       .filter(CompanySettings.id == row.company_id).first())
+            if company is not None:
+                return company
+    return find_operator(db)
+
+
+def territory_map(db: Session) -> dict[str, int | None]:
+    """``{region_code: company_object_id}`` für ALLE Regionen – nicht zugewiesene füllt der
+    **Betreiber** (er besitzt die Welt per Default). Für die Weltkarte im Admin."""
+    op = operator(db)
+    claims = {r.region: r.company_id for r in db.query(CompanyTerritory).all()}
+    by_id = {c.id: c for c in db.query(CompanySettings).all()}
+    out: dict[str, int | None] = {}
+    for code in geography.REGION_CODES:
+        cid = claims.get(code)
+        company = by_id.get(cid) if cid is not None else op
+        out[code] = (company or op).object_id
+    return out
+
+
+def set_territory(db: Session, region: str, company_object_id: int | None,
+                  actor_id: int | None) -> None:
+    """Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``None``) =
+    Default → die Zeile wird ENTFERNT (die Tabelle hält nur Abweichungen vom Betreiber).
+    Sonst upsert. Genau EINE Gesellschaft je Region (``region`` ist unique)."""
+    if region not in geography.REGION_CODES:
+        raise HTTPException(400, detail="Unbekannte Region")
+    op = operator(db)
+    company = by_object_id(db, company_object_id) if company_object_id else None
+    row = db.query(CompanyTerritory).filter(CompanyTerritory.region == region).first()
+    # Zuweisung an den Betreiber = Default wiederherstellen (Zeile löschen).
+    if company is None or company.id == op.id:
+        if row is not None:
+            db.delete(row)
+            log_audit(db, "company_territories", region, "Betreiber", actor_id)
+        db.commit()
+        return
+    if row is None:
+        db.add(CompanyTerritory(region=region, company_id=company.id))
+    else:
+        row.company_id = company.id
+    log_audit(db, "company_territories", region, str(company.object_id),
+              actor_id, object_id=company.object_id)
+    db.commit()
 
 
 # ─── Anlegen / Ändern – EIN Feldsatz für JEDE Gesellschaft ────────────────────────

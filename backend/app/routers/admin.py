@@ -9,6 +9,10 @@ from ..schemas.admin import (
     CompanySettingsResponse,
     CompanySettingsUpdate,
     OperatingCostsResponse,
+    TerritoryAssign,
+    TerritoryCompany,
+    TerritoryMapResponse,
+    TerritoryRegion,
     UserProfileResponse,
     UserRoleUpdate,
 )
@@ -173,6 +177,49 @@ async def set_company_operator(
     company = sites.require(db, object_id)
     sites.set_operator(db, company, current_user.id)
     return _company_response(db, company)
+
+
+# ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ────────────
+
+def _territory_map_response(db: Session) -> TerritoryMapResponse:
+    from ..services import geography
+    op = sites.operator(db)
+    mapping = sites.territory_map(db)                 # {region: company_object_id}
+    companies = [
+        TerritoryCompany(object_id=c.object_id, company_name=c.company_name,
+                         is_operator=sites.is_operator(db, c))
+        for c in sites.all_companies(db) if c.object_id is not None
+    ]
+    regions = [
+        TerritoryRegion(code=r["code"], label=r["label"], pos=r["pos"],
+                        company_object_id=mapping.get(r["code"]))
+        for r in geography.REGIONS
+    ]
+    return TerritoryMapResponse(regions=regions, companies=companies,
+                                operator_object_id=op.object_id)
+
+
+@router.get("/territories", response_model=TerritoryMapResponse)
+async def get_territories(
+    db: Session = Depends(get_db),
+    _: UserProfile = Depends(require_admin),
+):
+    """Die **Gebietskarte**: jede Weltregion + die Gesellschaft, die sie fakturiert. Nicht
+    zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per Default)."""
+    return _territory_map_response(db)
+
+
+@router.put("/territories/{region}", response_model=TerritoryMapResponse)
+async def assign_territory(
+    region: str,
+    data: TerritoryAssign,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``null``) =
+    Default → die Zuweisung wird zurückgesetzt. Genau EINE Gesellschaft je Region."""
+    sites.set_territory(db, region, data.company_object_id, current_user.id)
+    return _territory_map_response(db)
 
 
 @router.get("/operating-costs", response_model=OperatingCostsResponse)

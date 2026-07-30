@@ -120,3 +120,27 @@ class CompanySettings(Base):
     # (``legal_ack_config`` – die frühere konfigurierbare Bestätigungspflicht – ist
     # entfernt: die Pflicht ist HART verdrahtet (``consent.MUST_ACKNOWLEDGE_KINDS``),
     # Rollen-Publikum läuft über die Dokument-Schritte (``doc_audience``). Migration 075.)
+
+
+class CompanyTerritory(Base):
+    """Eine **Region → Gesellschaft**-Zuweisung (Gebiets-/Multi-Gesellschaften-Aufteilung, ADR 006).
+
+    Die Welt ist in feste Regionen partitioniert (``services/geography.REGIONS``). Jede Region
+    gehört **genau EINER** Gesellschaft; diese Tabelle hält NUR die **Abweichungen vom Default**:
+    eine Region, die eine Gesellschaft dem Betreiber «abgenommen» hat. Steht eine Region NICHT
+    in der Tabelle, gehört sie dem **Betreiber** (dem ältesten/gewählten Unternehmen). So gehört
+    jeder Fleck der Erde jemandem (Totalität), ohne dass alle ~250 Länder gepflegt werden müssen.
+
+    ``region`` ist **unique** (eine Region hat genau einen Besitzer). ``company_id`` zeigt auf
+    ``company_settings.id`` (interner Schlüssel des Besitzers). Die Auflösung «welche Gesellschaft
+    gehört zu diesem Land» ist ``services/sites.company_for_country`` (Land → Region → Besitzer →
+    Betreiber-Fallback).
+
+    **Neue Tabelle** → ``create_all()`` im Lifespan legt sie an, falls Migration 092 nicht lief
+    (das Lifespan-Netz braucht nur für neue SPALTEN auf bestehenden Tabellen Einträge)."""
+
+    __tablename__ = "company_territories"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    region: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
+    company_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)

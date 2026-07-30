@@ -1,5 +1,5 @@
 from .base import TimestampMixin
-from .admin import CompanySettings
+from .admin import CompanySettings, CompanyTerritory
 from .user import UserProfile
 from .article import Article
 from .article_price import ArticlePrice
@@ -33,7 +33,7 @@ from .event import Event
 from .object_ref import ObjectRef
 
 __all__ = [
-    "TimestampMixin", "CompanySettings", "UserProfile", "Article",
+    "TimestampMixin", "CompanySettings", "CompanyTerritory", "UserProfile", "Article",
     "ArticlePrice", "ArticleSalesAudience", "CheckoutIntent", "FxRate",
     "ArticleProcessStep", "Order", "OrderLine", "PurchaseOrder", "Sale",
     "Instance", "InstanceOrderLink", "Inspection", "Movement", "Shipment", "Disposal", "ResourceUsage",
