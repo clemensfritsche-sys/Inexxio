@@ -42,13 +42,24 @@ class CompanySettings(Base):
     # (im Feed als «Unternehmen» geführt, vom Admin pflegbar). Wird bei der ersten
     # Abfrage lazy vergeben (services/sites.operator) bzw. beim Anlegen (sites.create).
     object_id: Mapped[Optional[int]] = mapped_column(BigInteger, unique=True, index=True)
+    # **Betreiber der Website** – genau EINE Gesellschaft trägt den Titel (partieller
+    # Unique-Index, Migration 091). Er vertritt die eine Website nach aussen (Impressum,
+    # Fallback) und trägt die Plattform-/Systemkonfiguration. Anders als das frühere
+    # ``is_primary`` bedeutet das Flag NUR «vertritt die Website» – keine Kaste; jede
+    # Gesellschaft bleibt vollständig. **Wählbar** (``sites.set_operator``), Default =
+    # das älteste Unternehmen. Gelesen wird tolerant: fehlt die Markierung, gilt das
+    # älteste (``sites.find_operator``), damit eine ausstehende Migration nie zu «kein
+    # Betreiber» führt.
+    is_operator: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False)
+    # **Funktionswährung** der Gesellschaft (ISO-3, Default CHF). Wird aus dem Land
+    # vorbelegt (``sites.currency_for_country``). Grundlage für «ein Preis, überall in
+    # Landeswährung»: der Katalogpreis bleibt EIN kanonischer CHF-Betrag, Eingabe/Anzeige
+    # laufen über den bestehenden FX-Anker in dieser Währung.
+    currency: Mapped[str] = mapped_column(
+        String(3), default="CHF", server_default="CHF", nullable=False)
     # Der Name der Gesellschaft. Das ist zugleich das Halter-Label:
     # ``locations.location_label`` gibt für einen ``company``-Halter genau dieses Feld zurück.
-    #
-    # ``is_primary`` ist aus dem MODELL entfernt (Rolle «Betreiber» wird abgeleitet). Die
-    # Spalte bleibt vorübergehend in der DB (Migration 091 dropt sie im Folge-Deploy);
-    # SQLAlchemy ignoriert die nicht gemappte Spalte, das Lifespan-Netz hält sie für die
-    # noch laufende Vorgänger-Revision während des Rollouts intakt.
     company_name: Mapped[str] = mapped_column(String(255), default="Inexxio AG")
     legal_form: Mapped[str] = mapped_column(String(50), default="AG")
     street: Mapped[Optional[str]] = mapped_column(String(255))

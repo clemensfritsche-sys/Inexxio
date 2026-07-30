@@ -2258,17 +2258,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter `tests/test_sites.py` (u. a. `test_every_company_carries_its_own_legal_identity`,
   `test_platform_config_is_never_editable_per_company`,
   `test_operator_is_derived_from_age_not_from_a_flag`).
-  **Nächste Schritte (definiert, noch nicht gebaut):** (2) Migration 091 dropt `is_primary`
-  + Index (sauber im Folge-Deploy). (3) Währung je Gesellschaft (auto aus Land) + lokale
-  Eingabe/Anzeige über den bestehenden FX-Anker – EIN kanonischer Katalogpreis, jeder tippt/
-  sieht in seiner Währung. (4) **Fakturierende Gesellschaft aus dem Warenort ableiten**
-  (wie ADR-005-Versand) → Beleg zeigt ihre Identität; **Belegnummer bleibt global**
-  (rechtlich zulässig: Eindeutigkeit + Aussteller-Ausweis genügt, keine je-Gesellschaft-
-  Kontinuität nötig); Zahlungskonto je Gesellschaft mit **Rückfall auf EIN geteiltes
-  Stripe-Konto** (ein Konto kassiert weltweit + zahlt zentral aus; ein US-Konto erst, wenn
-  die US-Gründung es rechtlich verlangt – dann nur ein Key am US-Datensatz, kein Umbau).
-  (5+) Steuerregime je Gesellschaft (CH live, US-Stub), Intercompany-Verkauf (= `sale` mit
-  interner Partei), Konsolidierung.
+- **Gesellschaften – vollständig im ERP, Betreiber wählbar, Währung je Gesellschaft**
+  (Juli 2026, Migration `091`): Drei Ausbauten am gleichrangigen Unternehmens-Datensatz.
+  **(1) Der «Betreiber» ist WÄHLBAR** (`is_operator`, partieller Unique-Index = genau EINE
+  Gesellschaft trägt den Titel; `sites.set_operator` nimmt ihn allen anderen ab). Vorher
+  abgeleitet (ältestes) – der Nutzer wollte ihn setzen können. `find_operator` liest die
+  gewählte Zeile, **tolerant mit Alters-Fallback** (keine Markierung → ältestes; so nie «kein
+  Betreiber»). `is_primary` ist damit endgültig weg – Migration 091 seedet `is_operator` aus
+  ihm (der bisherige Betreiber bleibt), dann Drop von Spalte+Index; das Lifespan-Netz führt
+  `is_primary` im **Drop**-Netz und `is_operator`/`currency` im **Add**-Netz (belt-and-
+  suspenders, falls Alembic scheitert). **Endpoint** `POST /admin/companies/{object_id}/operator`.
+  Der Betreiber trägt Impressum + Systemkonfiguration; ein Wechsel zieht sie mit (die eine
+  Website hat einen Absender).
+  **(2) Systemkonfiguration ins ERP geholt, `/admin/einstellungen` GELÖSCHT.** Die Seite war
+  nicht verlinkt (nur per URL erreichbar) – das Unternehmen wird ausschliesslich im ERP
+  gepflegt. Die Plattform-Konfiguration (Stripe/Shop/Rechtstexte/Plausible/Maps) sitzt jetzt
+  als Reiter **«System»** am **Betreiber**-Datensatz (nur dort – es gibt sie genau einmal;
+  `SystemConfigSection` wiederverwendet, in einen `QueryClientProvider` gehängt). Route +
+  Impressum-Fallback-Link entfernt.
+  **(3) Währung je Gesellschaft** (`company_settings.currency`, ISO-3, Entitäts-Feld): **auto
+  aus dem Land** vorbelegt (`sites.currency_for_country`: US→USD, DE→EUR, CH→CHF; unbekannt→
+  CHF). Beim Anlegen gesetzt; im Formular beim Länderwechsel **vorgeschlagen** (nicht erzwungen,
+  kein Überschreiben). Das ist die **Grundlage** für «ein Preis, überall in Landeswährung» –
+  die Preis-Eingabe/-Anzeige-Mechanik (Katalogpreis bleibt EIN kanonischer CHF-Betrag, Ein-/
+  Ausgabe über den FX-Anker `services/fx.get_rate`) ist der **nächste** Deploy (Geldpfad
+  bewusst isoliert).
+  **Verifiziert gegen echtes Postgres:** Migration 091 vom echten 090-Zustand (is_operator vom
+  bisherigen Betreiber übernommen, currency default, is_primary weg, zweiter Betreiber vom
+  Unique-Index abgewiesen) + idempotent; Betreiber-Wechsel (US wird Betreiber, Impressum folgt,
+  CH verliert Titel, DB weist zwei Betreiber ab); Währung auto (US→USD); **Rollout über das
+  Lifespan-Netz** (DB im 090-Zustand → Netz ergänzt is_operator/currency, dropt is_primary,
+  seedet Betreiber → alle Endpunkte 200). Wächter `tests/test_sites.py`
+  (`test_operator_is_chosen_with_an_age_fallback`, `test_operator_is_editable_and_exactly_one`,
+  `test_currency_is_a_per_company_field_derived_from_country`,
+  `test_is_primary_is_dropped_everywhere_not_re_added`).
+  **Nächste Schritte (definiert):** (4) **Preis-Eingabe/-Anzeige in Landeswährung** (Sales-Panel
+  + Konvertierung CHF↔Währung server-seitig, Geldpfad isoliert). (5) **Fakturierende
+  Gesellschaft aus dem Warenort ableiten** (wie ADR-005-Versand) → Beleg zeigt ihre Identität;
+  **Belegnummer bleibt global** (rechtlich zulässig); Zahlungskonto je Gesellschaft mit Rückfall
+  auf EIN geteiltes Stripe-Konto (US-Konto erst bei echter US-Gründung – dann nur ein Key am
+  Datensatz). (6+) Steuerregime je Gesellschaft (CH live, US-Stub), Intercompany-Verkauf
+  (= `sale` mit interner Partei), Konsolidierung.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

@@ -413,13 +413,36 @@ export interface paths {
         /**
          * Update Company
          * @description Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
-         *     Betreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.
+         *     Betreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.
          *
          *     Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
          *     gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
          *     ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.
          */
         patch: operations["update_company_api_v1_admin_companies__object_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/companies/{object_id}/operator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Company Operator
+         * @description Diese Gesellschaft zum **Betreiber der Website** machen (Impressum + Systemkonfig).
+         *
+         *     Genau EINE Gesellschaft trägt den Titel; das Setzen nimmt ihn allen anderen ab. Damit
+         *     ist die Rolle **wählbar** (nicht mehr starr «das älteste»).
+         */
+        post: operations["set_company_operator_api_v1_admin_companies__object_id__operator_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/operating-costs": {
@@ -2932,6 +2955,11 @@ export interface components {
             city: string | null;
             /** Country */
             country: string;
+            /**
+             * Currency
+             * @default CHF
+             */
+            currency: string;
             /** Uid Number */
             uid_number: string | null;
             /** Vat Number */
@@ -3014,6 +3042,8 @@ export interface components {
             city?: string | null;
             /** Country */
             country?: string | null;
+            /** Currency */
+            currency?: string | null;
             /** Uid Number */
             uid_number?: string | null;
             /** Vat Number */
@@ -6450,6 +6480,37 @@ export interface operations {
                 "application/json": components["schemas"]["CompanySettingsUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_company_operator_api_v1_admin_companies__object_id__operator_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

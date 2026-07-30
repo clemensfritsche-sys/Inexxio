@@ -290,6 +290,11 @@ class ApiClient {
     return this.patch<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`, mapSettingsToBackend(data)).then(mapSettingsFromBackend);
   }
 
+  /** Diese Gesellschaft zum **Betreiber der Website** machen – genau EINE trägt den Titel. */
+  setCompanyOperator(objectId: number): Promise<CompanySettings> {
+    return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/operator`, {}).then(mapSettingsFromBackend);
+  }
+
   // ─── ERP Records ──────────────────────────────────────────────────────────
 
   getErpRecords(): Promise<UserProfile[]> {
@@ -806,6 +811,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     zip: (s.zip_code as string) ?? '',
     city: (s.city as string) ?? '',
     country: (s.country as string) ?? '',
+    currency: (s.currency as string) ?? 'CHF',
     uid: (s.uid_number as string | null) ?? null,
     vat_number: (s.vat_number as string | null) ?? null,
     trade_register_number: (s.trade_register_nr as string | null) ?? null,

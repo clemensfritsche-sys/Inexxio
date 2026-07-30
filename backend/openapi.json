@@ -844,7 +844,7 @@
           "admin"
         ],
         "summary": "Update Company",
-        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.\n\nPlattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier\ngesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über\n``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.",
+        "description": "Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den\nBetreiber): Name, Anschrift, Währung, Rechtsidentität, Bank, MWST.\n\nPlattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier\ngesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über\n``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.",
         "operationId": "update_company_api_v1_admin_companies__object_id__patch",
         "security": [
           {
@@ -872,6 +872,54 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/companies/{object_id}/operator": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Set Company Operator",
+        "description": "Diese Gesellschaft zum **Betreiber der Website** machen (Impressum + Systemkonfig).\n\nGenau EINE Gesellschaft trägt den Titel; das Setzen nimmt ihn allen anderen ab. Damit\nist die Rolle **wählbar** (nicht mehr starr «das älteste»).",
+        "operationId": "set_company_operator_api_v1_admin_companies__object_id__operator_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8722,6 +8770,11 @@
             "type": "string",
             "title": "Country"
           },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "default": "CHF"
+          },
           "uid_number": {
             "anyOf": [
               {
@@ -9126,6 +9179,17 @@
               }
             ],
             "title": "Country"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "uid_number": {
             "anyOf": [

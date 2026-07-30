@@ -76,10 +76,10 @@ export default async function ImpressumPage() {
                 <p className="font-medium text-amber-800">Firmeneinstellungen nicht konfiguriert</p>
                 <p className="mt-1 text-sm text-amber-700">
                   Bitte melden Sie sich im{' '}
-                  <Link href="/admin/einstellungen" className="underline">
-                    Admin-Bereich
+                  <Link href="/erp" className="underline">
+                    ERP
                   </Link>{' '}
-                  an und hinterlegen Sie die Unternehmensdaten.
+                  an und hinterlegen Sie die Unternehmensdaten am Datensatz «Unternehmen».
                 </p>
               </div>
             </div>

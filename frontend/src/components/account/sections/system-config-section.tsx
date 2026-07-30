@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import {
-  Building2, FileText,
+  FileText,
   Key, CheckCircle2, AlertCircle, Loader2, Lock, ShoppingBag, PackageSearch,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,7 +18,7 @@ type SectionKey = 'integrations' | 'shop' | 'legal_docs' | 'logistics';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
-  zip: '', city: '', country: 'Schweiz', uid: null, vat_number: null,
+  zip: '', city: '', country: 'Schweiz', currency: 'CHF', uid: null, vat_number: null,
   trade_register_number: null, trade_register_canton: null, share_capital: null,
   email: '', phone: null, website: '', logo_url: null, iban: null, iban_masked: null,
   qr_iban: null, qr_iban_masked: null, bank_name: null, bic: null,
@@ -73,14 +73,11 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Systemkonfiguration</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Konfiguration der EINEN Website: Integrationen, Shop und Rechtstexte. Die Stamm- und
-          Rechtsdaten einer Gesellschaft (UID, Bank, MWST) werden am ERP-Datensatz
-          «Unternehmen» gepflegt – für jede Gesellschaft gleich.
-        </p>
-      </div>
+      <p className="text-sm text-slate-500">
+        Konfiguration der EINEN Website (Integrationen, Shop, Rechtstexte) – sie gilt genau
+        einmal und hängt am Betreiber. Stamm- und Rechtsdaten einer Gesellschaft (UID, Bank,
+        MWST) werden im Reiter «Stammdaten» gepflegt, für jede Gesellschaft gleich.
+      </p>
 
       {error && (
         <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
@@ -88,29 +85,6 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
-
-      {/* **ERP ist Master.** Firmenname und Firmensitz werden am ERP-Unternehmens-Datensatz
-          gepflegt (dort mit Adress-Suche); diese Seite zeigt sie nur noch an. Vorher waren
-          sie an ZWEI Stellen editierbar – zwei Formulare auf dieselbe Zeile, mit zwei
-          verschiedenen Eingabe-Erlebnissen. */}
-      <div className="rounded-ds-lg border border-border-1 bg-bg-1 p-5">
-        <div className="mb-3 flex items-center gap-2">
-          <Building2 className="h-5 w-5 text-fg-3" />
-          <h3 className="font-display text-[15px] font-bold text-fg-1">Allgemeine Angaben</h3>
-        </div>
-        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-          <Readonly label="Firmenname" value={s.company_name} />
-          <Readonly label="Rechtsform" value={s.legal_form ?? '—'} />
-          <Readonly label="Firmensitz"
-            value={[[s.street, s.street_number].filter(Boolean).join(' '),
-                    [s.zip, s.city].filter(Boolean).join(' '), s.country].filter(Boolean).join(' · ')} />
-        </dl>
-        <p className="mt-3 text-[12px] text-fg-4">
-          Stamm- und Rechtsdaten (UID, Bank, MWST, Anschrift) werden am ERP-Datensatz
-          «Unternehmen» gepflegt – für jede Gesellschaft gleich. Diese Seite spiegelt den
-          Betreiber nur zur Orientierung.
-        </p>
-      </div>
 
       <SettingsCard icon={<Key className="h-5 w-5" />} title="Integrationen & API-Keys"
         saved={saved === 'integrations'} saving={saving === 'integrations'}
@@ -370,16 +344,6 @@ function Field({ label, name, type = 'text', defaultValue, required, placeholder
       </label>
       <input id={name} name={name} type={type} defaultValue={defaultValue ?? ''} required={required} placeholder={placeholder} className="form-input" />
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-    </div>
-  );
-}
-
-/** Gespiegelter Wert: sichtbar, aber nicht editierbar – der Master ist das ERP. */
-function Readonly({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[12px] font-medium text-fg-3">{label}</dt>
-      <dd className="truncate text-[13.5px] text-fg-1">{value || '—'}</dd>
     </div>
   );
 }
