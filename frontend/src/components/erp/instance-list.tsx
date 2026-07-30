@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Boxes, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
-import { instanceStatusConfig, instanceLabel } from '@/lib/process';
+import { instanceStatusConfig, instanceLabel, formatQty, sumQuantity } from '@/lib/process';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge, Placeholder } from '@/components/erp/fields';
@@ -55,12 +55,11 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
   const groups: { label: string; cfg: ReturnType<typeof statusOf>; count: number }[] = [];
   for (const i of sorted) {
     const cfg = statusOf(i);
-    const qty = Number(i.quantity ?? 1);
     const g = groups.find((x) => x.label === cfg.label);
-    if (g) g.count += qty;
-    else groups.push({ label: cfg.label, cfg, count: qty });
+    if (g) g.count += Number(i.quantity ?? 1);
+    else groups.push({ label: cfg.label, cfg, count: Number(i.quantity ?? 1) });
   }
-  const totalQty = sorted.reduce((sum, i) => sum + Number(i.quantity ?? 1), 0);
+  const totalQty = sumQuantity(sorted);
   const shown = statusFilter === null ? sorted : sorted.filter((i) => statusOf(i).label === statusFilter);
 
   return (
@@ -95,7 +94,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>
-                {instanceLabel(i.kind, i.quantity, unit)}
+                {instanceLabel(i.quantity, unit)}
               </div>
               <div style={{ font: 'var(--mono-sm)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
                 {fmtObjId(i.object_id)}
@@ -108,11 +107,6 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
       </div>
     </div>
   );
-}
-
-/** Menge lesbar: ganze Zahlen ohne Nachkommastellen, Bruchmengen (kg, m²) mit bis zu drei. */
-function qty(v: number): string {
-  return v.toLocaleString('de-CH', { maximumFractionDigits: 3 });
 }
 
 /** Dezenter Filter-Chip (Notiz #288): Punkt (Status-Farbe) + Wort + **Stückzahl** (#333). */
@@ -131,7 +125,7 @@ function FilterChip({ label, count, unit, dot, active, onClick }: {
       {dot && <span style={{ width: 7, height: 7, borderRadius: 999, background: dot, flex: 'none' }} />}
       {label}
       <span className="ix-tnum" style={{ color: 'var(--fg-4)', fontWeight: 500 }}>
-        {qty(count)}{unit ? ` ${unit}` : ''}
+        {formatQty(count)}{unit ? ` ${unit}` : ''}
       </span>
     </button>
   );

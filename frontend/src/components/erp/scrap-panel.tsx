@@ -77,7 +77,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
     scan({
       steps: [{
         label: 'Instanz', expected: oid, kind: 'instance',
-        candidates: [{ objectId: oid, label: instanceLabel(inst.kind) }],
+        candidates: [{ objectId: oid, label: instanceLabel() }],
       }],
       onComplete: () => {
         const next = new Set(acc); next.add(oid); setScanned(next);
@@ -166,7 +166,7 @@ export function ScrapPanel({ order, stepState, stepId, mode = 'scrap', onOrderUp
               background: sel ? '#fef2f2' : '#fff',
             }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
-              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.kind, i.quantity, order.article_unit ?? undefined)}</span>
+              <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(i.quantity, order.article_unit ?? undefined)}</span>
               {mode === 'scrap' && sel && (i.quantity ?? 1) > 1 && (
                 // Charge: Teilmenge zum Verschrotten wählen (Bruchmenge möglich, z. B. 0.75 … volle Menge).
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#64748b' }}>
@@ -236,7 +236,7 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
       <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(instance.kind)}</span>
+      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel()}</span>
       <StatusBadge cfg={instanceStatusConfig(instance.quality, instance.disposition, (instance.reserved_quantity ?? 0) > 0)} />
     </div>
   );

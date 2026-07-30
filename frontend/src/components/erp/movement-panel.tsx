@@ -101,7 +101,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     if (!fixedType || fixedType === 'instance') {
       allInstances.filter((i) => i.object_id != null && !ownObjIds.has(i.object_id)).forEach((i) => {
         targetType.set(i.object_id as number, 'instance');
-        out.push({ objectId: i.object_id as number, label: instanceLabel(i.kind) });
+        out.push({ objectId: i.object_id as number, label: instanceLabel() });
       });
     }
     return out;
@@ -133,7 +133,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
     }
     steps.push({
       label: 'Instanz', expected: iid, kind: 'instance',
-      candidates: [{ objectId: iid, label: instanceLabel(inst.kind) }],
+      candidates: [{ objectId: iid, label: instanceLabel() }],
     });
     if (fixedType && fixedId) {
       steps.push({
@@ -234,7 +234,7 @@ export function MovementPanel({ order, stepState, stepId, onOrderUpdated }: {
             <div key={i.id} style={{ border: `1px solid ${t ? '#bbf7d0' : '#f1f5f9'}`, borderRadius: 8, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12 }}><ObjId value={i.object_id} /></span>
               <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
-                {instanceLabel(i.kind)}
+                {instanceLabel()}
                 {i.move_quantity != null && (
                   <span style={{ marginLeft: 6, fontWeight: 700, color: '#0f172a' }}>· bewegt {i.move_quantity} Stk</span>
                 )}
@@ -553,7 +553,7 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', border: '1px solid #f1f5f9', borderRadius: 8 }}>
       <span style={{ fontSize: 12 }}><ObjId value={instance.object_id} /></span>
-      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel(instance.kind)}</span>
+      <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>{instanceLabel()}</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#0f172a' }}>
         <Icon size={13} style={{ color: '#2563eb' }} /> {instance.location_label ?? '—'}
       </span>

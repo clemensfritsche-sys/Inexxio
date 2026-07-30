@@ -600,7 +600,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       ...allUsers.filter((u) => u.object_id != null).map((u) => ({
                         value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({
-                        value: `instance:${i.object_id}`, label: `${instanceLabel(i.kind)} ${fmtObjId(i.object_id)}` })),
+                        value: `instance:${i.object_id}`, label: `${instanceLabel()} ${fmtObjId(i.object_id)}` })),
                     ]} />
                 </>
               )}

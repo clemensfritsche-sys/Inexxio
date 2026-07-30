@@ -45,13 +45,30 @@ export function locationTypeLabel(type: string | null | undefined): string {
  * Charge trägt sie die eigentliche Information, beim Einzelteil schafft sie Einheitlichkeit:
  * man sucht die Angabe nicht mal hier, mal dort. Fehlt die Menge, bleibt es beim Wort.
  */
-export function instanceLabel(
-  kind?: string | null,
-  quantity?: number | null,
-  unit?: string,
-): string {
-  if (quantity != null) return `Instanz · ${quantity} ${unit ?? ''}`.trim();
+export function instanceLabel(quantity?: number | null, unit?: string): string {
+  if (quantity != null) return `Instanz · ${formatQty(quantity)} ${unit ?? ''}`.trim();
   return 'Instanz';
+}
+
+/**
+ * **Menge lesbar machen** – ganze Zahlen ohne Nachkommastellen, Bruchmengen (kg, m², l)
+ * mit bis zu drei. EINE Stelle, damit «2» und «2.000» nicht nebeneinander stehen.
+ */
+export function formatQty(v: number): string {
+  return v.toLocaleString('de-CH', { maximumFractionDigits: 3 });
+}
+
+/**
+ * **Wie viel ist das?** – Summe der Mengen, NICHT die Zahl der Zeilen.
+ *
+ * Die wiederkehrende Fehlerklasse rund um Instanzen ist «Zeilen zählen statt Mengen
+ * summieren»: eine Charge à 500 Schrauben ist EINE Instanz und FÜNFHUNDERT Stück, also
+ * liefert `items.length` die Zahl 1, wo 500 gemeint sind (Testnotizen #72, #333). Wer eine
+ * Menge braucht, nimmt diese Funktion; `length` sagt nur, wie viele Datensätze es sind.
+ * Das Backend erzwingt dieselbe Regel über `tests/test_quantity_rules.py`.
+ */
+export function sumQuantity(items: { quantity?: number | null }[]): number {
+  return items.reduce((sum, i) => sum + Number(i.quantity ?? 1), 0);
 }
 
 // Deklarierte Subjekt-Rolle je Schritttyp – **Spiegel** der Backend-Registry

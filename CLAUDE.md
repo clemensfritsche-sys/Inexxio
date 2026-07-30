@@ -2464,6 +2464,47 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   > Ein Drop im selben Deploy trifft die während des Cloud-Run-Rollouts noch laufende
   > Vorgänger-Revision, die sie noch mappt: das ist die Ausfallklasse von Migration 090.
 
+- **Eine Instanz ist eine MENGE, kein Ding** (Juli 2026, `tests/test_quantity_rules.py`):
+  Auf die Frage, ob eine Charge à N intern nicht besser **N Zeilen à 1 Stück** wäre (damit
+  überall dieselbe Logik gilt wie beim Einzelteil), lautet die Antwort **nein** – und die
+  Begründung steht jetzt am Modell (`models/instance.py`), damit sie nicht erneut erarbeitet
+  werden muss: (a) eine Charge darf **gebrochen** sein (2.5 kg, 0.75 m²) – «2.5 Zeilen» gibt
+  es nicht, und genau dafür existiert `batch`; (b) die **Objektnummer ist systemweit
+  eindeutig** und der Schlüssel für QR-Scan, `references.object_references` und
+  `locations.location_chain` – N Zeilen mit derselben Nummer bräuchten überall eine neue
+  Antwort auf «welche davon?»; (c) eine 1000er-Charge wären 1000 Zeilen je Reservierung,
+  FIFO-Zugriff und Umlagerung. Der Preis ist die Teilmengen-Logik, und die steht an genau
+  zwei Stellen (`reservation.py` = wer beansprucht wie viel, `location_split.py` = wo liegt
+  wie viel).
+  **Die Beobachtung dahinter war trotzdem richtig** – es gibt eine wiederkehrende
+  Fehlerklasse, sie heisst nur anders: **«Zeilen zählen statt Mengen summieren»**. Eine
+  Charge à 500 ist EINE Zeile und FÜNFHUNDERT Stück, also liefert `len(insts)` die Zahl 1,
+  wo 500 gemeint sind (Testnotiz #72: Prüfumfang; #333: Bestands-Filter). Statt weiterer
+  Einzelfixes hält ein **AST-Wächter** die Regel: kein Mengen-Feld darf aus einer Anzahl
+  befüllt werden. Er fand auf Anhieb **drei** Stellen – `provisioning._sub_order`
+  (`quantity=len(insts)`), `customer_returns.request_return` und `routers/orders.py` (beide
+  Retoure: eine zurückgegebene Charge à 5 Stk wurde als «1 Stk» gutgeschrieben; im selben
+  `orders.py`-Zweig summierte die Nachbarzeile korrekt). Frontend-Pendant: `lib/process.ts`
+  liefert `sumQuantity`/`formatQty` als die EINE Mengen-Stelle.
+  **Und die Unterscheidung selbst ist geschrumpft:** `Instance.kind` ist jetzt ein
+  **Etikett**, keine Regel – kein Fachmodul verzweigt mehr darauf (Wächter
+  `test_the_batch_unit_difference_lives_in_exactly_one_module`). Möglich wurde das durch
+  zwei Umbauten in der Datenerfassung:
+  (1) **Die Stichprobe wird nach MENGE gezogen** (`inspection.sample_capacity`): jede Instanz
+  liefert so viele Proben, wie ihre Menge hergibt, verteilt reihum. Daraus fällt beides
+  heraus, was vorher zwei Zweige waren (Einzelteil: N Instanzen à eine Probe; Charge: eine
+  Instanz mit N Proben) – **und der Fall «mehrere Chargen» wird zum ersten Mal richtig
+  bedient**: die alte Bedingung `len(insts) == 1 and kind == 'batch'` griff nur bei *einer*
+  Instanz, zwei Chargen à 100 ergaben darum **2** Proben statt 10.
+  (2) **Was nicht beprobt wurde, wird nicht beurteilt** (`inspection.sample_verdicts`) – ein
+  **ernster Fehler**: `_apply_per_instance_qc` gab JEDER Instanz des Auftrags ein Urteil, und
+  wer nicht in der Stichprobe war, fiel über den Default `False` durch. Eine **bestandene**
+  20 %-Stichprobe sperrte damit die übrigen 80 % (`quality='blocked'`) – sie verschwanden aus
+  FIFO, Bestand und Verfügbarkeit, obwohl die Prüfung bestanden war. Eine Stichprobe sagt
+  etwas über die gezogenen Stück; reicht das nicht, stuft `escalate_decision` auf 100 % hoch,
+  und dann ist jede Instanz beprobt. Gegen echtes PostgreSQL nachgewiesen (vorher 4 von 5
+  gesperrt, jetzt 0; Durchfaller werden weiterhin gesperrt).
+
 - **Testnotizen-Runde 22 (wer arbeitet noch daran?, Notizen #324–#340)**: Zwei echte Fehler
   und eine Reihe Farb-/Wortkorrekturen.
   (1) **Freigegeben wird erst, wenn KEIN Auftrag mehr an der Instanz arbeitet** (#332,

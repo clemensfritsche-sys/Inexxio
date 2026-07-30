@@ -76,6 +76,7 @@ from . import location_split
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
+from .quantity import qty_sum
 
 REASON = "provisioning"
 
@@ -338,9 +339,12 @@ def _create(db: Session, parent: Order, step: ArticleProcessStep, insts: list[In
     EIN Bewegungs-Schritt mit dem Soll-Ort als Ziel."""
     from .subject import record_link
 
+    # Menge = **Summe der Mengen**, nicht die Zahl der Zeilen: eine Charge à 500 ist eine
+    # Instanz, aber 500 Stück. ``len(insts)`` hätte «1 Stk» in die Auftragsspezifikation
+    # geschrieben (dieselbe Verwechslung wie in Testnotiz #72 und #333).
     sub = Order(
         object_id=next_object_id(db, "order"), status="released",
-        article_id=parent.article_id, quantity=len(insts),
+        article_id=parent.article_id, quantity=qty_sum(i.quantity for i in insts),
         parent_order_id=parent.object_id, reason=REASON,
         origin_step_id=step.id,
         title=f"Bereitstellung für {event_types.label(step.step_type)} · Auftrag {parent.object_id}",

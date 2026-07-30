@@ -17,6 +17,7 @@ from ..models import ArticleProcessStep, Order, Sale
 from .admin import log_audit
 from .events import emit
 from .objects import next_object_id
+from .quantity import qty_sum
 from .subject import order_instances, record_link
 
 # Rückgabefenster (Tage ab Abschluss der Bestellung). Bewusst grosszügig (Online-Shop-üblich).
@@ -118,9 +119,16 @@ def request_return(db: Session, order_object_id: int, customer_id: int, reason: 
         raise HTTPException(400, detail="Diese Bestellung ist nicht (mehr) retournierbar")
 
     subjects = _return_subjects(db, order)   # ganz verkaufte + Chargen-Slices
+    # Menge = was dieser Verkauf tatsächlich abgebucht hat, nicht die Zahl der Zeilen: eine
+    # zurückgegebene Charge à 5 Stk ist EINE Instanz und FÜNF Stück. Für einen Chargen-Slice
+    # ist die verkaufte Teilmenge massgeblich (die Instanz trägt mehr), darum der Event-Strom
+    # vor der Instanz-Menge.
+    from . import process
+    sold_amounts = process.sold_amounts_for_order(db, order.object_id)
     ret = Order(
         object_id=next_object_id(db, "order"), status="draft",
-        article_id=order.article_id, quantity=len(subjects),
+        article_id=order.article_id,
+        quantity=qty_sum(sold_amounts.get(i.object_id) or i.quantity for i in subjects),
         parent_order_id=order.object_id, reason="return",
         title=(f"Retoure: {reason.strip()}" if (reason and reason.strip()) else f"Retoure zu {order.object_id}"),
     )

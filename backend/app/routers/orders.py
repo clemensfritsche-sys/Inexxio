@@ -118,6 +118,7 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> N
     (`reason='return'` + `parent_order_id`=Original-Verkauf, abgeleitet) – ganz normal über
     dieselbe «Instanz wählen»-Auswahl, ohne eigene Sonder-Karte. Lager- und verkaufte Instanzen
     lassen sich nicht mischen (Verkauf vs. Erstattung sind gegensätzliche Geldrichtungen)."""
+    from ..services.quantity import qty_sum
     for prev in (
         db.query(Instance)
         .filter(Instance.subject_of_order_id == order.id, Instance.is_active == True)
@@ -141,10 +142,13 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> N
         art_ids = {i.article_id for i in sold}
         if len(art_ids) == 1:
             order.article_id = next(iter(art_ids))
-            order.quantity = len(sold)
+            # Summe der Mengen, nicht die Zahl der Zeilen: eine retournierte Charge à 5 Stk
+            # ist EINE Instanz und FÜNF Stück. (Der else-Zweig zwei Zeilen weiter unten hat
+            # es immer richtig gemacht – dieselbe Funktion, zwei Rechenweisen.)
+            order.quantity = qty_sum(i.quantity for i in sold)
     else:
         _clear_return_marker(order)
-        pinned_qty = sum(i.quantity for i in insts)
+        pinned_qty = qty_sum(i.quantity for i in insts)
         if order.quantity and pinned_qty > order.quantity:
             raise HTTPException(
                 400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
