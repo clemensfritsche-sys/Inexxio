@@ -324,7 +324,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Settings */
+        /**
+         * Get Settings
+         * @description Der **Betreiber** – Trägerin der Plattform-/Systemkonfiguration (Stripe, Shop,
+         *     Rechtstexte). Die Systemkonfigurations-Seite liest/schreibt genau diesen Datensatz.
+         */
         get: operations["get_settings_api_v1_admin_settings_get"];
         put?: never;
         post?: never;
@@ -346,7 +350,10 @@ export interface paths {
          * Get Public Settings
          * @description No auth — used by Impressum, AGB, Datenschutz pages.
          *
-         *     Immer der **Hauptsitz**: das Impressum nennt die Rechtsperson, nicht eine Aussenstelle.
+         *     Immer der **Betreiber** (das älteste Unternehmen): das Impressum nennt den Betreiber der
+         *     Website – und der wechselt NICHT nach Besucherland (eine Website, ein Betreiber). Die
+         *     übrigen Konzern-Gesellschaften werden – wenn gewünscht – zusätzlich aufgelistet, nicht
+         *     umgeschaltet.
          */
         get: operations["get_public_settings_api_v1_admin_settings_public_get"];
         put?: never;
@@ -357,7 +364,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/sites": {
+    "/api/v1/admin/companies": {
         parameters: {
             query?: never;
             header?: never;
@@ -365,49 +372,54 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Sites
-         * @description Alle Standorte, Hauptsitz zuerst.
+         * List Companies
+         * @description Alle Unternehmen, Betreiber (ältestes) zuerst.
          */
-        get: operations["list_sites_api_v1_admin_sites_get"];
+        get: operations["list_companies_api_v1_admin_companies_get"];
         put?: never;
         /**
-         * Create Site
-         * @description Neuen Standort anlegen (nur Admin).
+         * Create Company
+         * @description Neue Gesellschaft anlegen (nur Admin).
          *
-         *     Er bekommt sofort eine Objektnummer und ist damit als **Halter** verwendbar: Instanzen
-         *     können dort liegen, die Standort-Kette löst ihn auf, und eine Bewegung dorthin wird –
-         *     sobald er eine eigene Anschrift trägt – automatisch als Versand statt als
+         *     Sie bekommt sofort eine Objektnummer und ist als **Halter** verwendbar: Instanzen
+         *     können dort liegen, die Standort-Kette löst sie auf, und eine Bewegung dorthin wird –
+         *     sobald sie eine eigene Anschrift trägt – automatisch als Versand statt als
          *     innerbetriebliche Bewegung klassifiziert (ADR 005).
          */
-        post: operations["create_site_api_v1_admin_sites_post"];
+        post: operations["create_company_api_v1_admin_companies_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/sites/{object_id}": {
+    "/api/v1/admin/companies/{object_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Company
+         * @description Ein Unternehmen mit vollem Feldsatz (frisch, für die Detail-Ansicht).
+         */
+        get: operations["get_company_api_v1_admin_companies__object_id__get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /**
-         * Update Site
-         * @description Standortfelder ändern – für Hauptsitz und Nebenstandort derselbe Pfad.
+         * Update Company
+         * @description Entitäts-Felder einer Gesellschaft ändern – **derselbe Pfad für jede** (auch den
+         *     Betreiber): Name, Anschrift, Rechtsidentität, Bank, MWST.
          *
-         *     Rechtsidentität und Systemkonfiguration des Hauptsitzes laufen weiterhin über
-         *     ``PATCH /admin/settings`` (dort sitzt die IBAN-Sonderbehandlung); hier gibt es sie
-         *     bewusst nicht, damit ein Nebenstandort sie gar nicht erst tragen kann.
+         *     Plattform-/Systemkonfiguration (Stripe, Shop, Rechtstexte) wird bewusst NICHT hier
+         *     gesetzt – ``sites.apply_update`` ignoriert diese Felder; sie laufen über
+         *     ``PATCH /admin/settings``, damit dieselbe Angabe nicht an zwei Stellen editierbar ist.
          */
-        patch: operations["update_site_api_v1_admin_sites__object_id__patch"];
+        patch: operations["update_company_api_v1_admin_companies__object_id__patch"];
         trace?: never;
     };
     "/api/v1/admin/operating-costs": {
@@ -2880,6 +2892,16 @@ export interface components {
             /** Unit */
             unit?: string | null;
         };
+        /**
+         * CompanyCreate
+         * @description Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);
+         *     alle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –
+         *     wie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen).
+         */
+        CompanyCreate: {
+            /** Company Name */
+            company_name: string;
+        };
         /** CompanySettingsResponse */
         CompanySettingsResponse: {
             /** Id */
@@ -2887,10 +2909,15 @@ export interface components {
             /** Object Id */
             object_id?: number | null;
             /**
-             * Is Primary
+             * Is Operator
              * @default false
              */
-            is_primary: boolean;
+            is_operator: boolean;
+            /**
+             * Has Address
+             * @default false
+             */
+            has_address: boolean;
             /** Company Name */
             company_name: string;
             /** Legal Form */
@@ -5467,91 +5494,6 @@ export interface components {
             acted_at?: string | null;
         };
         /**
-         * SiteCreate
-         * @description Neuer Standort. Der Name ist Pflicht – er ist zugleich das Label, das überall dort
-         *     erscheint, wo eine Instanz an diesem Standort liegt.
-         */
-        SiteCreate: {
-            /** Company Name */
-            company_name: string;
-            /** Street */
-            street?: string | null;
-            /** Street Nr */
-            street_nr?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
-            /** City */
-            city?: string | null;
-            /** Country */
-            country?: string | null;
-            /** Email */
-            email?: string | null;
-            /** Phone */
-            phone?: string | null;
-        };
-        /**
-         * SiteResponse
-         * @description Ein Standort als ERP-Datensatz.
-         *
-         *     Ohne Anschrift ist ein Standort gültig, aber logistisch stumm: die Klassifikation
-         *     Versand ↔ innerbetrieblich vergleicht **Adressen** (ADR 005), und ein Standort ohne
-         *     PLZ/Ort zählt darum wie «keine Adresse» – eine Bewegung dorthin bleibt
-         *     innerbetrieblich. ``has_address`` macht das in der Oberfläche sichtbar, statt es den
-         *     Nutzer raten zu lassen.
-         */
-        SiteResponse: {
-            /** Company Name */
-            company_name: string;
-            /** Street */
-            street?: string | null;
-            /** Street Nr */
-            street_nr?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
-            /** City */
-            city?: string | null;
-            /** Country */
-            country?: string | null;
-            /** Email */
-            email?: string | null;
-            /** Phone */
-            phone?: string | null;
-            /** Object Id */
-            object_id?: number | null;
-            /**
-             * Is Primary
-             * @default false
-             */
-            is_primary: boolean;
-            /**
-             * Has Address
-             * @default false
-             */
-            has_address: boolean;
-        };
-        /**
-         * SiteUpdate
-         * @description Standortfelder ändern (Hauptsitz wie Nebenstandort, gleiche Felder).
-         */
-        SiteUpdate: {
-            /** Company Name */
-            company_name?: string | null;
-            /** Street */
-            street?: string | null;
-            /** Street Nr */
-            street_nr?: string | null;
-            /** Zip Code */
-            zip_code?: string | null;
-            /** City */
-            city?: string | null;
-            /** Country */
-            country?: string | null;
-            /** Email */
-            email?: string | null;
-            /** Phone */
-            phone?: string | null;
-        };
-        /**
          * StepReorder
          * @description Neue Reihenfolge der (frei sortierbaren) Nutzer-Schritte – Pflicht-Bewegungen
          *     werden serverseitig automatisch neu eingefügt/positioniert.
@@ -6410,7 +6352,7 @@ export interface operations {
             };
         };
     };
-    list_sites_api_v1_admin_sites_get: {
+    list_companies_api_v1_admin_companies_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -6425,12 +6367,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteResponse"][];
+                    "application/json": components["schemas"]["CompanySettingsResponse"][];
                 };
             };
         };
     };
-    create_site_api_v1_admin_sites_post: {
+    create_company_api_v1_admin_companies_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6439,7 +6381,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SiteCreate"];
+                "application/json": components["schemas"]["CompanyCreate"];
             };
         };
         responses: {
@@ -6449,7 +6391,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteResponse"];
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6463,7 +6405,38 @@ export interface operations {
             };
         };
     };
-    update_site_api_v1_admin_sites__object_id__patch: {
+    get_company_api_v1_admin_companies__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_company_api_v1_admin_companies__object_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -6474,7 +6447,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SiteUpdate"];
+                "application/json": components["schemas"]["CompanySettingsUpdate"];
             };
         };
         responses: {
@@ -6484,7 +6457,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SiteResponse"];
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
                 };
             };
             /** @description Validation Error */

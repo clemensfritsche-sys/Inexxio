@@ -103,8 +103,8 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 | POST | /api/v1/shop/payments/simulate | user | Manueller Provider: Zahlung simulieren (nur ohne Stripe) |
 | GET/PATCH | /api/v1/admin/settings | admin | Firmeneinstellungen des **Hauptsitzes** (Rechtsidentität + Systemkonfiguration, inkl. Shop-Währungen/Provider) |
 | GET | /api/v1/admin/settings/public | – | Öffentliche Firma-Infos (immer der Hauptsitz – das Impressum nennt die Rechtsperson) |
-| GET/POST | /api/v1/admin/sites | admin | **Standorte** (Mehrstandort): alle lesen (Hauptsitz zuerst) / neuen anlegen |
-| PATCH | /api/v1/admin/sites/{object_id} | admin | Standortfelder ändern (Name/Anschrift/Kontakt – für Hauptsitz und Nebenstandort derselbe Pfad) |
+| GET/POST | /api/v1/admin/companies | admin | **Unternehmen** (Gesellschaften): alle lesen (Betreiber/ältestes zuerst) / neues anlegen |
+| GET/PATCH | /api/v1/admin/companies/{object_id} | admin | Ein Unternehmen lesen / Entitäts-Felder ändern (voller Feldsatz inkl. Rechtsidentität – **derselbe Pfad für jede** Gesellschaft; Plattform-Config bleibt bei `/admin/settings`) |
 | GET | /api/v1/admin/users | staff | Benutzerliste |
 | PATCH | /api/v1/admin/users/{id}/role | admin | Rolle ändern |
 | DELETE | /api/v1/admin/users/{id} | admin | Benutzer deaktivieren |
@@ -131,12 +131,16 @@ cd ../frontend && npm run generate:types          # → src/types/api.ts
 > Objektnummern (9-stellig) werden objekttyp-übergreifend in `app/services/objects.py`
 > vergeben (Maximum über alle Objekttabellen + 1).
 >
-> **Standorte:** `company_settings` trägt seit Migration `090` **mehrere** Zeilen (eine je
-> Standort, Typ `organization` mit eigener Objektnummer). «Die Firma» = der **Hauptsitz**
-> (`is_primary`). Die EINE Auflösung ist `services/sites.py`: `primary()` schreibend,
-> `find_primary()` rein lesend (in fremden Transaktionen Pflicht), `by_object_id()` für
-> «genau dieser Standort». **Nie** `CompanySettings.id == 1` oder ein blosses `.first()` –
-> das wählt ab dem zweiten Standort willkürlich; `tests/test_sites.py` erzwingt es.
+> **Unternehmen (Gesellschaften):** `company_settings` trägt **mehrere** gleichrangige
+> Zeilen (je eine vollständige juristische Einheit, Typ `organization`, eigene Objektnummer,
+> **eigene** Rechtsidentität). Der **Betreiber** (vertritt die eine Website, trägt die
+> Plattform-Config) = das **älteste** Unternehmen, **abgeleitet** (kein `is_primary` mehr).
+> Die EINE Auflösung ist `services/sites.py`: `operator()`/`primary()` schreibend,
+> `find_operator()`/`find_primary()` rein lesend (in fremden Transaktionen Pflicht),
+> `by_object_id()` für «genau diese Gesellschaft», `all_companies()` für den Feed. **Nie**
+> `CompanySettings.id == 1` oder ein blosses `.first()` – das wählt ab der zweiten Zeile
+> willkürlich; `tests/test_sites.py` erzwingt es. `ENTITY_FIELDS` (je Gesellschaft) vs.
+> `PLATFORM_FIELDS` (die eine Website, nur über `/admin/settings`).
 
 ## Konventionen
 - Soft-Delete überall: is_active=false, KEIN hard delete

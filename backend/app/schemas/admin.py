@@ -46,47 +46,11 @@ class CompanySettingsUpdate(BaseModel):
     legal_documents: Optional[dict] = None
 
 
-class SiteBase(BaseModel):
-    """Was an **jedem** Standort gilt – Name, Anschrift, Kontakt.
-
-    Bewusst kurz: Rechtsidentität (UID, MWST, Handelsregister, IBAN) und System-
-    konfiguration (Stripe, Shop, Rechtstexte) hängen am **Hauptsitz** und laufen über
-    ``CompanySettingsUpdate``. Diese Liste ist der Spiegel von ``services/sites.SITE_FIELDS``
-    – dass beide gleich bleiben, prüft ``tests/test_sites.py``."""
-    company_name: Optional[str] = None
-    street: Optional[str] = None
-    street_nr: Optional[str] = None
-    zip_code: Optional[str] = None
-    city: Optional[str] = None
-    country: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-
-
-class SiteCreate(SiteBase):
-    """Neuer Standort. Der Name ist Pflicht – er ist zugleich das Label, das überall dort
-    erscheint, wo eine Instanz an diesem Standort liegt."""
+class CompanyCreate(BaseModel):
+    """Neue **Gesellschaft** anlegen. Nur der Name ist Pflicht (zugleich das Halter-Label);
+    alle übrigen Entitäts-Felder sind optional und werden danach am Datensatz gepflegt –
+    wie jeder andere ERP-Datensatz auch (anlegen, dann ausfüllen)."""
     company_name: str
-
-
-class SiteUpdate(SiteBase):
-    """Standortfelder ändern (Hauptsitz wie Nebenstandort, gleiche Felder)."""
-
-
-class SiteResponse(SiteBase):
-    """Ein Standort als ERP-Datensatz.
-
-    Ohne Anschrift ist ein Standort gültig, aber logistisch stumm: die Klassifikation
-    Versand ↔ innerbetrieblich vergleicht **Adressen** (ADR 005), und ein Standort ohne
-    PLZ/Ort zählt darum wie «keine Adresse» – eine Bewegung dorthin bleibt
-    innerbetrieblich. ``has_address`` macht das in der Oberfläche sichtbar, statt es den
-    Nutzer raten zu lassen."""
-    model_config = ConfigDict(from_attributes=True)
-
-    object_id: Optional[int] = None
-    is_primary: bool = False
-    company_name: str
-    has_address: bool = False
 
 
 class CompanySettingsResponse(BaseModel):
@@ -94,8 +58,12 @@ class CompanySettingsResponse(BaseModel):
 
     id: int
     object_id: Optional[int] = None
-    # Hauptsitz? Trägt Rechtsidentität + Systemkonfiguration (siehe models/admin.py).
-    is_primary: bool = False
+    # **Abgeleitete** Rolle (kein gespeichertes Flag, kein Rang): ist dies das älteste
+    # Unternehmen = der Betreiber der Website (Impressum/Systemkonfiguration/Fallback)?
+    is_operator: bool = False
+    # Trägt echte Ortsangaben? Ohne Anschrift ist eine Gesellschaft gültig, aber logistisch
+    # stumm (eine Bewegung dorthin bleibt innerbetrieblich statt Versand – ADR 005).
+    has_address: bool = False
     company_name: str
     legal_form: str
     street: Optional[str]

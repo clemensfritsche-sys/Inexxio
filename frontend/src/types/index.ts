@@ -498,6 +498,11 @@ export type AiImageEditResponse = components['schemas']['AiImageEditResponse'];
 
 export interface CompanySettings {
   object_id?: number | null;   // universelle ERP-Objektnummer des Unternehmens
+  // Abgeleitete Rollen (KEIN gespeichertes Flag, KEIN Rang): ältestes Unternehmen =
+  // Betreiber der Website (Impressum/Systemkonfiguration/Fallback); has_address = trägt
+  // echte Ortsangaben (sonst logistisch stumm – eine Bewegung dorthin bleibt intern).
+  is_operator?: boolean;
+  has_address?: boolean;
   company_name: string;
   legal_form: string | null;
   street: string;
@@ -543,35 +548,9 @@ export interface CompanySettings {
   legal_documents: Record<string, number> | null;
 }
 
-/**
- * Ein **Standort** des Unternehmens (Mehrstandort, Variante A).
- *
- * Derselbe Datensatztyp wie «das Unternehmen» (`organization`, eigene Objektnummer) –
- * nur trägt ein Nebenstandort **keine Rechtsidentität**: UID, MWST, Handelsregister,
- * Bank und die Systemkonfiguration hängen am **Hauptsitz** (`is_primary`), weil es sie
- * genau einmal gibt. Ein Standort ist Name + Anschrift + Kontakt, mehr nicht.
- *
- * Er ist damit ein vollwertiger **Halter**: Instanzen können dort liegen, und eine
- * Bewegung dorthin wird – sobald er eine eigene Anschrift trägt – als **Versand**
- * klassifiziert statt als innerbetriebliche Bewegung (ADR 005). Genau dafür gibt es
- * `has_address`: ohne PLZ/Ort bleibt der Standort logistisch stumm.
- */
-export interface Site {
-  object_id: number | null;
-  is_primary: boolean;
-  company_name: string;
-  street: string | null;
-  street_number: string | null;
-  zip: string | null;
-  city: string | null;
-  country: string | null;
-  email: string | null;
-  phone: string | null;
-  has_address: boolean;
-}
-
-/** Was sich an einem Standort ändern lässt (Anlegen wie Bearbeiten). */
-export type SiteInput = Partial<Omit<Site, 'object_id' | 'is_primary' | 'has_address'>>;
+// Es gibt genau EINEN Datensatztyp für Unternehmen/Gesellschaften: `CompanySettings`
+// (oben). Der frühere separate `Site`-Typ (kastrierter «Standort») ist entfallen – jede
+// Gesellschaft ist vollständig und gleichrangig.
 
 
 // ─── Testnotizen (in-app Feedback, nur Testumgebung) ─────────────────────────

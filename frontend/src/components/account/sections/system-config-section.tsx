@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import {
-  Building2, FileText, Phone, Landmark, ReceiptText, Globe2,
+  Building2, FileText,
   Key, CheckCircle2, AlertCircle, Loader2, Lock, ShoppingBag, PackageSearch,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,11 @@ import { api } from '@/lib/api';
 import type { CompanySettings } from '@/types';
 
 
-type SectionKey = 'general' | 'legal' | 'contact' | 'banking' | 'vat' | 'eu' | 'integrations' | 'shop' | 'legal_docs' | 'logistics';
+// Diese Seite ist die **Plattform-/Systemkonfiguration** – sie gilt der EINEN Website
+// (Integrationen, Shop, Rechtstexte). Die **Entitäts-Daten** einer Gesellschaft
+// (Name, Anschrift, Rechtsidentität, Bank, MWST) werden am jeweiligen ERP-Datensatz
+// «Unternehmen» gepflegt – für jede Gesellschaft gleich, an EINER Stelle.
+type SectionKey = 'integrations' | 'shop' | 'legal_docs' | 'logistics';
 
 const EMPTY_SETTINGS: CompanySettings = {
   company_name: '', legal_form: null, street: '', street_number: null,
@@ -72,7 +76,9 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
       <div>
         <h2 className="text-xl font-bold text-slate-900">Systemkonfiguration</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Firmen- und Rechtsdaten werden auf Rechnungen, im Impressum und in den AGB verwendet.
+          Konfiguration der EINEN Website: Integrationen, Shop und Rechtstexte. Die Stamm- und
+          Rechtsdaten einer Gesellschaft (UID, Bank, MWST) werden am ERP-Datensatz
+          «Unternehmen» gepflegt – für jede Gesellschaft gleich.
         </p>
       </div>
 
@@ -100,83 +106,11 @@ export function SystemConfigSection({ onSaved }: { onSaved?: (s: CompanySettings
                     [s.zip, s.city].filter(Boolean).join(' '), s.country].filter(Boolean).join(' · ')} />
         </dl>
         <p className="mt-3 text-[12px] text-fg-4">
-          Wird am ERP-Datensatz «Unternehmen» gepflegt – dort mit Adress-Suche. Diese Seite spiegelt ihn nur.
+          Stamm- und Rechtsdaten (UID, Bank, MWST, Anschrift) werden am ERP-Datensatz
+          «Unternehmen» gepflegt – für jede Gesellschaft gleich. Diese Seite spiegelt den
+          Betreiber nur zur Orientierung.
         </p>
       </div>
-
-      <SettingsCard icon={<FileText className="h-5 w-5" />} title="Rechtliche Identifikation"
-        saved={saved === 'legal'} saving={saving === 'legal'}
-        onSave={(d) => saveSection('legal', { uid: d.uid || null, vat_number: d.vat_number || null, trade_register_number: d.trade_register_number || null, trade_register_canton: d.trade_register_canton || null, share_capital: d.share_capital || null })}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="UID-Nummer" name="uid" defaultValue={s.uid ?? ''} placeholder="CHE-XXX.XXX.XXX" hint="Format: CHE-123.456.789" />
-          <Field label="MWST-Nummer" name="vat_number" defaultValue={s.vat_number ?? ''} placeholder="CHE-XXX.XXX.XXX MWST" />
-          <Field label="Handelsregister-Nr." name="trade_register_number" defaultValue={s.trade_register_number ?? ''} placeholder="CH-020.3.022.XXX-X" />
-          <Field label="HR-Kanton" name="trade_register_canton" defaultValue={s.trade_register_canton ?? ''} placeholder="Zürich" />
-          <Field label="Aktienkapital" name="share_capital" defaultValue={s.share_capital ?? ''} hint="z.B. CHF 100'000 voll liberiert" className="sm:col-span-2" />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard icon={<Phone className="h-5 w-5" />} title="Kontakt & Web"
-        saved={saved === 'contact'} saving={saving === 'contact'}
-        onSave={(d) => saveSection('contact', { email: d.email, phone: d.phone || null, website: d.website })}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="E-Mail" name="email" type="email" defaultValue={s.email} required className="sm:col-span-2" />
-          <Field label="Telefon" name="phone" type="tel" defaultValue={s.phone ?? ''} placeholder="+41 44 123 45 67" />
-          <Field label="Website" name="website" type="url" defaultValue={s.website} placeholder="https://www.inexxio.com" required />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard icon={<Landmark className="h-5 w-5" />} title="Bankdaten"
-        saved={saved === 'banking'} saving={saving === 'banking'}
-        onSave={(d) => saveSection('banking', { iban: d.iban || null, qr_iban: d.qr_iban || null, bank_name: d.bank_name || null, bic: d.bic || null })}>
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-          <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-          <p className="text-xs text-amber-800">Bankdaten werden verschlüsselt gespeichert. Nur Administratoren sehen den vollständigen Wert.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="IBAN" name="iban" defaultValue={s.iban ?? s.iban_masked ?? ''} placeholder="CH93 0076 2011 6238 5295 7" className="sm:col-span-2" />
-          <Field label="QR-IBAN" name="qr_iban" defaultValue={s.qr_iban ?? s.qr_iban_masked ?? ''} placeholder="CH21 3080 8001 2345 6789 7" className="sm:col-span-2" />
-          <Field label="Bank" name="bank_name" defaultValue={s.bank_name ?? ''} placeholder="UBS Switzerland AG" />
-          <Field label="BIC/SWIFT" name="bic" defaultValue={s.bic ?? ''} placeholder="UBSWCHZH80A" />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard icon={<ReceiptText className="h-5 w-5" />} title="MWST & Zahlungskonditionen"
-        saved={saved === 'vat'} saving={saving === 'vat'}
-        onSave={(d) => saveSection('vat', { vat_method: (d.vat_method as 'effektiv' | 'saldosteuersatz') || undefined, vat_period: (d.vat_period as 'quartal' | 'semester' | 'jahr') || undefined, default_payment_days: d.default_payment_days ? Number(d.default_payment_days) : 30, default_discount_percent: d.default_discount_percent || null, default_discount_days: d.default_discount_days ? Number(d.default_discount_days) : null })}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">MWST-Methode</label>
-            <select name="vat_method" defaultValue={s.vat_method ?? 'effektiv'} className="form-input">
-              <option value="effektiv">Effektive Methode</option>
-              <option value="saldosteuersatz">Saldosteuersatz</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">MWST-Periode</label>
-            <select name="vat_period" defaultValue={s.vat_period ?? 'quartal'} className="form-input">
-              <option value="quartal">Quartal</option>
-              <option value="semester">Semester</option>
-              <option value="jahr">Jahr</option>
-            </select>
-          </div>
-          <Field label="Zahlungsfrist (Tage)" name="default_payment_days" type="number" defaultValue={String(s.default_payment_days)} required />
-          <Field label="Skonto (%)" name="default_discount_percent" type="number" defaultValue={s.default_discount_percent ?? ''} hint="z.B. 2 für 2%" />
-          <Field label="Skonto-Frist (Tage)" name="default_discount_days" type="number" defaultValue={String(s.default_discount_days ?? '')} />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard icon={<Globe2 className="h-5 w-5" />} title="EU-Erweiterungen"
-        saved={saved === 'eu'} saving={saving === 'eu'}
-        onSave={(d) => saveSection('eu', { oss_active: d.oss_active === 'true', oss_number: d.oss_number || null, vies_validation: d.vies_validation === 'true' })}>
-        <div className="space-y-5">
-          <ToggleField name="oss_active" label="OSS-Registrierung aktiv" defaultValue={s.oss_active}
-            description="Aktiviert EU B2C MWST-Berechnung. Pflicht ab CHF 100'000 EU B2C-Umsatz pro Jahr." />
-          {s.oss_active && <Field label="OSS-Registrierungsnummer" name="oss_number" defaultValue={s.oss_number ?? ''} placeholder="EU372012345" />}
-          <ToggleField name="vies_validation" label="VIES UID-Validierung" defaultValue={s.vies_validation}
-            description="Automatische Validierung von EU-Mehrwertsteuernummern bei neuen Firmenkunden." />
-        </div>
-      </SettingsCard>
 
       <SettingsCard icon={<Key className="h-5 w-5" />} title="Integrationen & API-Keys"
         saved={saved === 'integrations'} saving={saving === 'integrations'}
@@ -439,26 +373,6 @@ function Field({ label, name, type = 'text', defaultValue, required, placeholder
     </div>
   );
 }
-
-function ToggleField({ name, label, defaultValue, description }: {
-  name: string; label: string; defaultValue: boolean; description: string;
-}) {
-  const [enabled, setEnabled] = useState(defaultValue);
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
-      </div>
-      <input type="hidden" name={name} value={String(enabled)} />
-      <button type="button" onClick={() => setEnabled(!enabled)}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${enabled ? 'bg-blue-600' : 'bg-slate-200'}`}>
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-      </button>
-    </div>
-  );
-}
-
 
 /** Gespiegelter Wert: sichtbar, aber nicht editierbar – der Master ist das ERP. */
 function Readonly({ label, value }: { label: string; value: string }) {

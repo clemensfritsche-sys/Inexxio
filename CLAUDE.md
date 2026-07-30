@@ -2215,6 +2215,61 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
     Migration ist die Wahrheit, das Netz der zweite Weg – und beim Ausfall zählt nur der
     zweite Weg.
 
+- **Mehrstandort → Mehr-Gesellschaften: EIN gleichrangiger Datensatztyp «Unternehmen»**
+  (Juli 2026): Die kurzlebige «Hauptsitz + kastrierte Standorte»-Zwischenstufe ist
+  aufgelöst. Jetzt gibt es genau **einen** Datensatztyp (`company_settings`, Feed
+  `organization`); **jede Zeile ist eine vollständige juristische Einheit** – eigene
+  Objektnummer, eigene Rechtsidentität (die US-Gesellschaft hat ihre **eigene** EIN/
+  Steuer/Bank). Keine Zeile ist einer anderen untergeordnet.
+  **Warum die Kehrtwende:** Aussenstellen in anderen Ländern sind keine blossen Adressen –
+  andere Rechtsform, Steuer, Währung, eigener Rechnungs-Aussteller. «Nur der Hauptsitz
+  trägt Identität» war damit genau verkehrt; jede Gesellschaft trägt ihre eigene. Das ist
+  zugleich **flacher** (eine Klasse statt Kaste) – exakt die Komplexitätsreduktion, die
+  gefordert war. **Hartes No-Go bleibt gewahrt:** ein ERP, eine Website, ein Produktkatalog,
+  ein Login – mehrere Gesellschaften sind **Daten in diesem einen System**, nie ein zweites
+  von irgendwas.
+  **Der «Betreiber» ist abgeleitet, kein Flag** (`sites.operator`/`find_operator` = das
+  **älteste** Unternehmen, kleinste `id`). Er vertritt die eine Website nach aussen
+  (Impressum, Rechtstexte, Fallback) und trägt die **Plattform-/Systemkonfiguration**
+  (`sites.PLATFORM_FIELDS`: Stripe, Shop-Währungen, `legal_documents`, Plausible, Maps) –
+  die gibt es genau EINMAL. Das frühere `is_primary` ist **aus dem Modell entfernt** (es
+  stellte eine Zeile über die anderen und war die Ursache des Deploy-Ausfalls); die
+  DB-Spalte bleibt vorübergehend (Migration 091 dropt sie im Folge-Deploy), SQLAlchemy
+  ignoriert die nicht gemappte Spalte, das Lifespan-Netz hält sie für die während des
+  Cloud-Run-Rollouts noch laufende Vorgänger-Revision intakt – **gegen echtes Postgres
+  verifiziert** (neue Revision fehlerfrei auf DB MIT `is_primary`; neue Zeilen bekommen
+  den DB-Default `false`, die Alt-Revision bleibt konsistent).
+  **Reichweite je Feld, nicht je Rang** (`services/sites.py`): `ENTITY_FIELDS` (Name,
+  Anschrift, **Rechtsidentität**, Bank, MWST) sind an JEDEM Datensatz editierbar (`PATCH
+  /admin/companies/{object_id}`); `PLATFORM_FIELDS` ignoriert `apply_update` bewusst – sie
+  laufen nur über die Systemkonfiguration (`PATCH /admin/settings`, trifft den Betreiber),
+  damit dieselbe Angabe nicht an zwei Stellen editierbar ist. Endpunkte: `GET/POST
+  /admin/companies`, `GET/PATCH /admin/companies/{object_id}` (Admin). Der frühere
+  `/admin/sites` + die `Site`-Schemas/-Typen sind entfallen; `SiteResponse.is_primary` →
+  `CompanySettingsResponse.is_operator`/`has_address` (beide **abgeleitet**, kein Rang).
+  **Impressum: global, wechselt NICHT nach Land** – der Betreiber der EINEN Website ist die
+  ausweisende Rechtsperson (`/admin/settings/public` = ältestes Unternehmen); nur die
+  **Rechnung** hat je nach Warenherkunft einen anderen Aussteller (kommt als Folgeschritt).
+  **Oberfläche:** `organization-detail.tsx` rendert für JEDE Gesellschaft denselben vollen
+  Feldsatz (kein `isPrimary`-Zweig mehr); `/admin/einstellungen` ist auf **reine
+  Plattform-Konfiguration** eingedampft (Entitäts-Felder werden am Datensatz gepflegt,
+  nicht doppelt); FAB «+ Unternehmen» (Admin). Am Betreiber ein **dezenter Hinweis**
+  «Betreiber der Website» + die Konzern-Kosten (Gruppen-Kennzahl) – Fakt, kein Rang.
+  Wächter `tests/test_sites.py` (u. a. `test_every_company_carries_its_own_legal_identity`,
+  `test_platform_config_is_never_editable_per_company`,
+  `test_operator_is_derived_from_age_not_from_a_flag`).
+  **Nächste Schritte (definiert, noch nicht gebaut):** (2) Migration 091 dropt `is_primary`
+  + Index (sauber im Folge-Deploy). (3) Währung je Gesellschaft (auto aus Land) + lokale
+  Eingabe/Anzeige über den bestehenden FX-Anker – EIN kanonischer Katalogpreis, jeder tippt/
+  sieht in seiner Währung. (4) **Fakturierende Gesellschaft aus dem Warenort ableiten**
+  (wie ADR-005-Versand) → Beleg zeigt ihre Identität; **Belegnummer bleibt global**
+  (rechtlich zulässig: Eindeutigkeit + Aussteller-Ausweis genügt, keine je-Gesellschaft-
+  Kontinuität nötig); Zahlungskonto je Gesellschaft mit **Rückfall auf EIN geteiltes
+  Stripe-Konto** (ein Konto kassiert weltweit + zahlt zentral aus; ein US-Konto erst, wenn
+  die US-Gründung es rechtlich verlangt – dann nur ein Key am US-Datensatz, kein Umbau).
+  (5+) Steuerregime je Gesellschaft (CH live, US-Stub), Intercompany-Verkauf (= `sale` mit
+  interner Partei), Konsolidierung.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die
