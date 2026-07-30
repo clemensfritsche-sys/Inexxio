@@ -3069,3 +3069,31 @@ def test_the_order_that_finishes_an_instance_releases_it():
     # Terminale/bereits bewertete Teile bleiben ausgenommen – nur «im Prozess» wird frei.
     assert 'Instance.quality == "pending"' in src
     assert 'Instance.disposition == "in_process"' in src
+
+
+def test_an_instance_is_not_released_while_another_order_still_works_on_it():
+    """**«Zuletzt daran gearbeitet» heisst: es arbeitet kein anderer Auftrag mehr daran.**
+
+    Gemeldeter Fall (Testnotiz #332): eine Abweichung auf eine Instanz eines **laufenden**
+    Erzeugungsauftrags wird abgeschlossen – und gab die Instanz frei, obwohl ihr Auftrag noch
+    im Prozess war. Sie erschien damit am Lager (FIFO-verfügbar), während sie tatsächlich
+    noch in Produktion steckte.
+
+    Die Regel muss in BEIDE Richtungen gelten: weder gibt der Eltern frei, was in einer
+    offenen Abweichung steckt (Notiz #262-Folge), noch gibt die Abweichung frei, was der
+    Eltern noch bearbeitet. Massstab ist der **Status** des anderen Auftrags – ein
+    abgebrochener (``inactive``) hält nichts fest, sonst wäre der #262-Fix wieder kaputt."""
+    from app.services import process
+
+    guard = _inspect_source_fn(process._worked_on_by_a_running_order)
+    # Beide Bindungen zählen (Erzeuger UND festes Subjekt) …
+    assert "inst.order_id" in guard and "inst.subject_of_order_id" in guard
+    # … aber nur ein WIRKLICH laufender Auftrag hält fest (nicht abgebrochen/abgeschlossen).
+    assert 'Order.status == "released"' in guard
+    assert "Order.is_active == True" in guard
+    # … und der abschliessende Auftrag hält sich nicht selbst fest.
+    assert "oid != order.id" in guard
+
+    src = _inspect_source_fn(process.release_instances)
+    assert "_worked_on_by_a_running_order" in src, "Die Freigabe muss den Wächter benutzen"
+    assert "still_running" in src

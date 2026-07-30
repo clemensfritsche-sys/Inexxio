@@ -85,7 +85,7 @@ const ROWS = MASK.length;
 export function WorldMap({ fill, stroke, selected, onSelect, title }: {
   /** Füllfarbe je Regions-Code. */
   fill: (region: string) => string;
-  /** Randfarbe je Region – gezogen wird sie nur bei Auswahl/Hover. */
+  /** Randfarbe je Region – die Kontur der Landmasse. */
   stroke: (region: string) => string | null;
   selected?: string | null;
   onSelect?: (region: string) => void;
@@ -99,24 +99,36 @@ export function WorldMap({ fill, stroke, selected, onSelect, title }: {
 
   return (
     <svg viewBox={`0 0 ${COLS} ${ROWS}`} width="100%" role="img" aria-label="Weltkarte der Gebietsaufteilung"
-      shapeRendering="crispEdges" style={{ display: 'block', background: 'var(--bg-2)' }}
+      style={{ display: 'block', background: 'var(--bg-3)' }}
       onMouseLeave={() => setHover(null)}>
+      <defs>
+        {/* **Ecken leicht abrunden** (Testnotiz #336) – ohne die Zellen zu Punkten zu
+            machen: weichzeichnen, dann die Alpha-Kante hart zurückschneiden. Weil das je
+            Region auf die GANZE Gruppe wirkt, verschmelzen ihre Zellen zu EINER Fläche,
+            deren Aussenkante gerundet ist; die Innenkanten verschwinden. Nebeneffekt, der
+            genau zu #340 passt: zwei benachbarte Regionen runden jede für sich, wodurch
+            zwischen ihnen eine sichtbare Naht entsteht – die fehlende «Abgrenzung». */}
+        <filter id="ix-map-round" x="-4%" y="-4%" width="108%" height="108%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.26" result="b" />
+          <feColorMatrix in="b" type="matrix"
+            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" />
+        </filter>
+      </defs>
       {Object.entries(CELLS_BY_REGION).map(([region, cells]) => {
         const ring = stroke(region);
         const marked = selected === region || hover === region;
         return (
           <g key={region} onClick={onSelect ? () => onSelect(region) : undefined}
             onMouseEnter={() => setHover(region)}
+            filter="url(#ix-map-round)"
             style={{ cursor: onSelect ? 'pointer' : 'default' }}>
             {title && <title>{title(region)}</title>}
             {cells.map((c) => (
-              <rect key={`${c.x}-${c.y}`} x={c.x} y={c.y} width={1} height={1}
-                fill={fill(region)}
-                // Der Rand liegt auf den Zellen selbst (kein zweiter Pfad): markiert
-                // bekommt die ganze Region ihre Ringfarbe als Kontur, sonst nichts –
-                // so bleibt die Fläche geschlossen und die Kanten hart.
-                stroke={marked && ring ? ring : 'none'}
-                strokeWidth={marked ? (selected === region ? 0.16 : 0.1) : 0} />
+              // Zellen überlappen minimal, damit der Weichzeichner sie sauber zu einer
+              // Fläche zusammenzieht statt Perlen zu bilden.
+              <rect key={`${c.x}-${c.y}`} x={c.x - 0.02} y={c.y - 0.02} width={1.04} height={1.04}
+                fill={marked && ring ? ring : fill(region)}
+                stroke="none" strokeWidth={0} />
             ))}
           </g>
         );

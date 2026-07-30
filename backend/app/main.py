@@ -1,3 +1,4 @@
+import re
 import traceback
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 from .core.config import get_settings
 from .core.database import Base, SessionLocal, engine
@@ -688,6 +690,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    """Ein verletzter DB-Constraint ist ein **Eingabe**-Fehler, kein Serverabsturz.
+
+    Vorher fiel er in die letzte Auffanglinie unten und erschien im Formular als roher
+    psycopg2-Dump («NotNullViolation … Failing row contains (2, Inexxio LLC, null, Dah…»,
+    Testnotiz #338): unlesbar, und er verriet nebenbei den Zeileninhalt. Hier wird daraus
+    ein 400 mit einem Satz, der die betroffene **Spalte** nennt – die eigentliche Ursache
+    gehört ins Log, nicht in die Oberfläche."""
+    tb = traceback.format_exc()
+    print(f"ERROR: IntegrityError on {request.method} {request.url.path}\n{tb}", flush=True)
+    raw = str(getattr(exc, "orig", exc))
+    column = None
+    match = re.search(r'column "([^"]+)"', raw)
+    if match:
+        column = match.group(1)
+    if "not-null" in raw or "NotNullViolation" in raw:
+        detail = (f"Pflichtangabe «{column}» fehlt." if column
+                  else "Eine Pflichtangabe fehlt.")
+    elif "unique" in raw.lower():
+        detail = (f"«{column}» ist bereits vergeben." if column
+                  else "Dieser Wert ist bereits vergeben.")
+    else:
+        detail = "Die Angaben verletzen eine Datenbank-Regel und wurden nicht gespeichert."
+    return JSONResponse(status_code=400, content={"detail": detail, "code": "INTEGRITY_ERROR"})
 
 
 @app.exception_handler(Exception)

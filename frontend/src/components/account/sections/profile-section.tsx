@@ -15,8 +15,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { User, Briefcase, Building2, MapPin, Bell, Check } from 'lucide-react';
-import Link from 'next/link';
+import { User, Briefcase, Building2, MapPin, Bell } from 'lucide-react';
 import type { UserProfile } from '@/types';
 import { Field, ToggleField } from '../field';
 import { useAutosave } from '../use-autosave';
@@ -172,10 +171,6 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
     }));
   }
 
-  const termsDate = profile.terms_accepted_at
-    ? new Date(profile.terms_accepted_at).toLocaleDateString('de-CH')
-    : null;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* ── 1. Persönliche Angaben ─────────────────────────────────────────── */}
@@ -268,17 +263,11 @@ export function ProfileSection({ profile, isEmployee, isSupplier, onSave }: Prop
           checked={form.newsletter_opt_in}
           onChange={(v) => set('newsletter_opt_in', v)}
         />
-        {/* Kein Schalter, sondern eine Tatsache: die Rechtstexte sind akzeptiert. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--fg-3)' }}>
-          {termsDate && <Check size={15} style={{ color: 'var(--success)', flexShrink: 0 }} />}
-          <span>
-            {termsDate
-              ? `AGB und Datenschutzerklärung akzeptiert am ${termsDate}${profile.terms_version ? ` · v${profile.terms_version}` : ''}`
-              : 'AGB und Datenschutzerklärung noch nicht akzeptiert'}
-          </span>
-          <Link href="/agb" style={LINK}>AGB</Link>
-          <Link href="/datenschutz" style={LINK}>Datenschutz</Link>
-        </div>
+        {/* Der AGB-/Datenschutz-Nachweis ist hier entfallen (Testnotiz #325): **welche
+            Fassung wann bestätigt wurde, gehört ins Dokumentenmanagement** – dort steht die
+            Version als Objektnummer mit ihrer Historie, und dort werden auch die übrigen
+            Pflichtdokumente geführt. Zwei Anzeigen derselben Tatsache liefen sonst
+            auseinander, sobald die Dokument-Ansicht dazukommt (Reiter «Meine Dokumente»). */}
       </Card>
     </div>
   );
@@ -319,6 +308,3 @@ function SubBlock({ icon: Icon, title, children }: {
   );
 }
 
-const LINK: React.CSSProperties = {
-  fontSize: 12.5, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600,
-};

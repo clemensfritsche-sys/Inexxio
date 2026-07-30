@@ -256,6 +256,23 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         eyebrow="Unternehmen" title={form.company_name || null}
         objectId={record.object_id} onBack={onBack}
         status={{ label: 'Unternehmen', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }}
+        // **Betreiber der Website: ein Stern bei den Aktionen** (Testnotiz #339) statt eines
+        // Knopfes mitten im Formular. Er ist keine Stammdaten-Angabe, sondern eine Rolle über
+        // dem Datensatz – also gehört er zur Kopfzeile, wo die übrigen Datensatz-Aktionen
+        // stehen. Gesetzt: leuchtender Stern (Tatsache, kein Knopf). Nicht gesetzt: derselbe
+        // Stern als leiser Knopf, Erklärung im Hover.
+        actions={isOperator ? (
+          <span className="erp-idbtn erp-idbtn-flag" data-tip="Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration"
+            data-tip-pos="bottom" style={{ cursor: 'default' }}>
+            <Star size={14} fill="currentColor" />
+          </span>
+        ) : (
+          <button className="erp-idbtn" data-tip={opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
+            data-tip-pos="bottom" aria-label="Als Betreiber der Website festlegen"
+            onClick={makeOperator} disabled={opBusy}>
+            <Star size={14} />
+          </button>
+        )}
       >
         <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
@@ -337,24 +354,11 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
               </div>
             )}
 
-            {/* Betreiber der Website – WÄHLBAR, genau eine Gesellschaft trägt den Titel. */}
-            {isOperator ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8,
-                            font: '600 12px var(--font-body)', color: 'var(--fg-3)' }}>
-                <Star size={14} style={{ color: 'var(--warning)', flex: 'none' }} fill="currentColor" />
-                Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration
-                (Reiter «System»).
-              </div>
-            ) : (
-              <div>
-                <button type="button" onClick={makeOperator} disabled={opBusy}
-                  className="erp-actbtn" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                  <Star size={14} /> {opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
-                </button>
-                {opError && (
-                  <p style={{ font: '500 12px var(--font-body)', color: 'var(--danger)', margin: '6px 0 0' }}>{opError}</p>
-                )}
-              </div>
+            {/* Der Betreiber-Schalter steht seit Notiz #339 als Stern in der Kopfzeile –
+                er ist eine Rolle über dem Datensatz, keine Stammdaten-Angabe. Hier bleibt
+                nur der Fehlerfall stehen, wo die Handlung ausgelöst wurde. */}
+            {opError && (
+              <p style={{ font: '500 12px var(--font-body)', color: 'var(--danger)', margin: 0 }}>{opError}</p>
             )}
           </Card>
 
@@ -384,8 +388,9 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
                 diese Installation läuft. Angezeigt, weil sie im Impressum und auf dem
                 Briefkopf steht; nicht editierbar, weil ein Eingabefeld daneben beim ersten
                 Domain-Wechsel still falsch würde. */}
-            <AField label="Website" value={base.website ?? ''} readOnly
-              hint="Adresse dieser Installation – wird nicht eingegeben." />
+            {/* Ohne Hinweistext (#337): dass hier nichts einzugeben ist, sagt das Feld selbst
+                (grau, nicht fokussierbar). */}
+            <AField label="Website" value={base.website ?? ''} readOnly />
           </Card>
 
           {/* ── 4. Bankverbindung ────────────────────────────────────────────── */}

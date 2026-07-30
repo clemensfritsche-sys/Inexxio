@@ -554,6 +554,40 @@ def order_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     return agg
 
 
+def _worked_on_by_a_running_order(db: Session, order: Order, rows: list[Instance]) -> set[int]:
+    """Instanzen, an denen noch ein **anderer laufender** Auftrag arbeitet (Testnotiz #332).
+
+    An einer Instanz hängen höchstens zwei Aufträge: der **erzeugende** (``order_id``) und
+    der, der sie gerade als **festes Subjekt** führt (``subject_of_order_id`` – Abweichung,
+    Retoure). Ist einer davon noch ``released``, ist das Teil **nicht fertig**, ganz gleich
+    welcher der beiden gerade abschliesst:
+
+    * Abweichung fertig, Erzeugung läuft weiter → das Teil ist geklärt, nicht produziert.
+      (Vorher wurde es hier freigegeben und erschien am Lager, während sein Auftrag noch
+      lief – der gemeldete Fall.)
+    * Erzeugung abgebrochen (``inactive``), Abweichung führt sie fort → niemand läuft mehr,
+      die Abweichung gibt frei. Genau das war der Fix aus Notiz #262, und er bleibt gültig,
+      weil ein abgebrochener Auftrag nicht ``released`` ist.
+
+    Eine Abfrage für alle Zeilen (kein N+1)."""
+    others = {
+        oid for inst in rows for oid in (inst.order_id, inst.subject_of_order_id)
+        if oid is not None and oid != order.id
+    }
+    if not others:
+        return set()
+    running = {
+        r[0] for r in db.query(Order.id).filter(
+            Order.id.in_(others), Order.is_active == True, Order.status == "released").all()
+    }
+    if not running:
+        return set()
+    return {
+        inst.id for inst in rows
+        if inst.order_id in running or inst.subject_of_order_id in running
+    }
+
+
 def release_instances(db: Session, order: Order) -> None:
     """Bestands-Instanzen eines abgeschlossenen Auftrags freigeben (pending → passed).
 
@@ -575,7 +609,12 @@ def release_instances(db: Session, order: Order) -> None:
     Abweichung ihr Stück herausnimmt statt den Auftrag anzuhalten, kann der Eltern-Auftrag
     abschliessen, während die Klärung noch läuft – ein Teil in Klärung würde dabei sonst mit
     ans Lager freigegeben. Freigegeben wird es von dem Auftrag, der zuletzt daran arbeitet:
-    der Abweichung."""
+    der Abweichung.
+
+    **Und umgekehrt genauso** (Testnotiz #332): schliesst die **Abweichung** ab, während der
+    Erzeugungsauftrag noch läuft, ist das Teil nicht fertig – es ist bloss geklärt und geht
+    zurück in den laufenden Prozess. «Zuletzt daran gearbeitet» heisst darum präzise: *es
+    arbeitet kein anderer Auftrag mehr daran* (``_worked_on_by_a_running_order``)."""
     now = utcnow()
     in_clarification = deviated_instance_ids(db, order)
     rows = (
@@ -587,9 +626,10 @@ def release_instances(db: Session, order: Order) -> None:
         )
         .all()
     )
+    still_running = _worked_on_by_a_running_order(db, order, rows)
     total = ZERO
     for inst in rows:
-        if inst.id in in_clarification:
+        if inst.id in in_clarification or inst.id in still_running:
             continue
         inst.quality = "passed"          # QC-Verdikt: freigegeben
         inst.disposition = "in_stock"    # Verbleib: am Lager (ab jetzt verbrauchbar)
