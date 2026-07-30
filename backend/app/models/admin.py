@@ -129,18 +129,24 @@ class CompanySettings(Base):
 
 
 class CompanyTerritory(Base):
-    """Eine **Region → Gesellschaft**-Zuweisung (Gebiets-/Multi-Gesellschaften-Aufteilung, ADR 006).
+    """Ein **Gebietsanspruch**: dieses Gebiet fakturiert diese Gesellschaft (ADR 006).
 
-    Die Welt ist in feste Regionen partitioniert (``services/geography.REGIONS``). Jede Region
-    gehört **genau EINER** Gesellschaft; diese Tabelle hält NUR die **Abweichungen vom Default**:
-    eine Region, die eine Gesellschaft dem Betreiber «abgenommen» hat. Steht eine Region NICHT
-    in der Tabelle, gehört sie dem **Betreiber** (dem ältesten/gewählten Unternehmen). So gehört
-    jeder Fleck der Erde jemandem (Totalität), ohne dass alle ~250 Länder gepflegt werden müssen.
+    Die Welt ist in feste Regionen partitioniert (``services/geography.REGIONS``). Jedes Gebiet
+    gehört **genau EINER** Gesellschaft; diese Tabelle hält NUR die **Abweichungen vom Default**.
+    Steht ein Gebiet NICHT in der Tabelle, gilt der Standard – so gehört jeder Fleck der Erde
+    jemandem (Totalität), ohne dass alle ~250 Länder gepflegt werden müssen.
 
-    ``region`` ist **unique** (eine Region hat genau einen Besitzer). ``company_id`` zeigt auf
+    **Ein Gebiet ist eine Region ODER ein einzelnes Land** (Ausnahme: «Europa gehört der GmbH,
+    Liechtenstein aber der Schweizer AG»). Beides steht in derselben Spalte, weil es fachlich
+    EINE Sache ist – der Unterschied wird **abgeleitet, nicht gespeichert**: ISO-2 hat exakt
+    2 Zeichen, jeder Regions-Code mindestens 3 (NAM/EUR/ASIA/…), eine Kollision ist unmöglich
+    (``geography.is_country_code``). Der Spaltenname ``region`` ist historisch – gemeint ist
+    der **Gebiets-Code**.
+
+    ``region`` ist **unique** (ein Gebiet hat genau einen Besitzer). ``company_id`` zeigt auf
     ``company_settings.id`` (interner Schlüssel des Besitzers). Die Auflösung «welche Gesellschaft
-    gehört zu diesem Land» ist ``services/sites.company_for_country`` (Land → Region → Besitzer →
-    Betreiber-Fallback).
+    gehört zu diesem Land» ist ``services/sites.company_for_country`` (**Land ≻ Region ≻
+    Betreiber**).
 
     **Neue Tabelle** → ``create_all()`` im Lifespan legt sie an, falls Migration 092 nicht lief
     (das Lifespan-Netz braucht nur für neue SPALTEN auf bestehenden Tabellen Einträge)."""
@@ -148,5 +154,6 @@ class CompanyTerritory(Base):
     __tablename__ = "company_territories"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # Gebiets-Code: Regions-Code («EUR») ODER ISO-2-Land als Ausnahme («LI»).
     region: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
     company_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)

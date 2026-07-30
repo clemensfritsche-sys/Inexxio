@@ -11,6 +11,7 @@ from ..schemas.admin import (
     OperatingCostsResponse,
     TerritoryAssign,
     TerritoryCompany,
+    TerritoryCountry,
     TerritoryMapResponse,
     TerritoryRegion,
     UserProfileResponse,
@@ -195,7 +196,15 @@ def _territory_map_response(db: Session) -> TerritoryMapResponse:
                         company_object_id=mapping.get(r["code"]))
         for r in geography.REGIONS
     ]
-    return TerritoryMapResponse(regions=regions, companies=companies,
+    # Jedes bekannte Land mit seinem effektiven Besitzer (Land-Ausnahme ≻ Region ≻ Betreiber).
+    # Die Oberfläche braucht die volle Liste als Auswahl und leitet die Ausnahmen daraus ab.
+    countries_owner = sites.country_map(db)
+    countries = [
+        TerritoryCountry(code=code, region=region,
+                         company_object_id=countries_owner.get(code))
+        for code, region in sorted(geography.COUNTRY_REGION.items())
+    ]
+    return TerritoryMapResponse(regions=regions, countries=countries, companies=companies,
                                 operator_object_id=op.object_id)
 
 
@@ -204,21 +213,23 @@ async def get_territories(
     db: Session = Depends(get_db),
     _: UserProfile = Depends(require_admin),
 ):
-    """Die **Gebietskarte**: jede Weltregion + die Gesellschaft, die sie fakturiert. Nicht
-    zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per Default)."""
+    """Die **Gebietskarte**: jede Weltregion und jedes Land + die Gesellschaft, die es
+    fakturiert. Nicht zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per
+    Default); ein Land kann als **Ausnahme** von seiner Region abweichen."""
     return _territory_map_response(db)
 
 
-@router.put("/territories/{region}", response_model=TerritoryMapResponse)
+@router.put("/territories/{area}", response_model=TerritoryMapResponse)
 async def assign_territory(
-    region: str,
+    area: str,
     data: TerritoryAssign,
     db: Session = Depends(get_db),
     current_user: UserProfile = Depends(require_admin),
 ):
-    """Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``null``) =
-    Default → die Zuweisung wird zurückgesetzt. Genau EINE Gesellschaft je Region."""
-    sites.set_territory(db, region, data.company_object_id, current_user.id)
+    """Ein **Gebiet** einer Gesellschaft zuweisen (Weltkarte): eine Region («EUR») oder – als
+    Ausnahme – ein einzelnes Land («LI»). ``null`` bzw. die ohnehin zuständige Gesellschaft =
+    Standard wiederherstellen. Genau EINE Gesellschaft je Gebiet."""
+    sites.set_territory(db, area, data.company_object_id, current_user.id)
     return _territory_map_response(db)
 
 

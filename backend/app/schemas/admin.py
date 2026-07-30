@@ -126,15 +126,29 @@ class TerritoryCompany(BaseModel):
     is_operator: bool = False
 
 
+class TerritoryCountry(BaseModel):
+    """Ein Land mit seinem **effektiven** Besitzer (Land-Ausnahme ≻ Region ≻ Betreiber).
+
+    Ob ein Land eine **Ausnahme** ist, wird in der Oberfläche abgeleitet (sein Besitzer weicht
+    vom Besitzer seiner Region ab) – kein eigenes Flag, das auseinanderlaufen könnte. Der Name
+    kommt im Browser aus ``Intl.DisplayNames`` (keine zweite Länderliste im Frontend)."""
+    code: str                                 # ISO-2
+    region: str                               # Region, in der das Land liegt
+    company_object_id: Optional[int] = None
+
+
 class TerritoryMapResponse(BaseModel):
-    """Die vollständige Gebietskarte: jede Region hat genau einen Besitzer (Betreiber-Default)."""
+    """Die vollständige Gebietskarte: jede Region **und jedes Land** hat genau einen Besitzer
+    (Betreiber-Default) – jeder Fleck der Erde gehört jemandem."""
     regions: list[TerritoryRegion]
+    countries: list[TerritoryCountry] = []
     companies: list[TerritoryCompany]
     operator_object_id: Optional[int] = None
 
 
 class TerritoryAssign(BaseModel):
-    """Eine Region einer Gesellschaft zuweisen. ``None`` (oder der Betreiber) = Default."""
+    """Ein Gebiet (Region ODER einzelnes Land) einer Gesellschaft zuweisen. ``None`` (oder die
+    Gesellschaft, der es ohnehin zufiele) = Standard wiederherstellen."""
     company_object_id: Optional[int] = None
 
 

@@ -75,6 +75,8 @@ COUNTRY_REGION: dict[str, str] = {
     cc: region for region, countries in _BY_REGION.items() for cc in countries
 }
 
+COUNTRY_CODES: tuple[str, ...] = tuple(sorted(COUNTRY_REGION))
+
 
 def region_of_country(country: str | None) -> str | None:
     """Region eines ISO-2-Ländercodes (Grossschreibung egal). ``None`` für unbekannte/leere
@@ -82,3 +84,29 @@ def region_of_country(country: str | None) -> str | None:
     if not country:
         return None
     return COUNTRY_REGION.get(country.strip().upper())
+
+
+# ─── Gebiet = Region ODER einzelnes Land (Ausnahme) ──────────────────────────────
+# Ein **Gebietsanspruch** (``company_territories``) trägt entweder einen Regions-Code
+# («EUR») oder – als **Ausnahme** – einen ISO-2-Ländercode («LI»). Beides in EINER Spalte,
+# weil es fachlich EINE Sache ist: «dieses Gebiet fakturiert Gesellschaft X». Der
+# Unterschied wird **abgeleitet, nicht gespeichert** – ISO-2 hat exakt 2 Zeichen, jeder
+# Regions-Code mindestens 3 (NAM/EUR/ASIA/…), eine Kollision ist also unmöglich.
+# Vorrang bei der Auflösung: **Land ≻ Region ≻ Betreiber** (``sites.company_for_country``).
+
+def is_country_code(area: str | None) -> bool:
+    """Ist dieser Gebiets-Code ein **Land** (ISO-2) statt einer Region? Rein aus der Form
+    abgeleitet – siehe oben."""
+    return len((area or "").strip()) == 2
+
+
+def normalize_area(area: str | None) -> str | None:
+    """Gebiets-Code normalisieren (Grossschreibung) und prüfen: bekannte Region ODER
+    bekanntes Land. ``None``, wenn beides nicht zutrifft (der Aufrufer wirft dann 400) –
+    so kann kein Anspruch auf ein Gebiet entstehen, das es gar nicht gibt."""
+    code = (area or "").strip().upper()
+    if code in REGION_CODES:
+        return code
+    if is_country_code(code) and code in COUNTRY_REGION:
+        return code
+    return None

@@ -365,3 +365,9 @@ class OrderResponse(BaseModel):
     provisionings: list[OrderDeviationInfo] = []
     # (``paused`` ist entfallen: eine Abweichung hält den Auftrag nicht mehr an, sie nimmt ihr
     #  Stück heraus – was fehlt, blockiert den Schritt, der es braucht.)
+    # Fakturierende Gesellschaft (Seller of Record, ADR 006) – NUR bei einem Verkauf/einer
+    # Retoure gesetzt: ein Produktions-/Beschaffungsauftrag hat keinen Kunden, also keinen
+    # Fakturierenden. Eingefroren auf dem Verkaufsbeleg ≻ live aus dem Kundenland ≻ Betreiber
+    # (`sale.seller_company_for_order`); die Objektnummer ist im ERP klickbar.
+    seller_company_object_id: Optional[int] = None
+    seller_company_name: Optional[str] = None
