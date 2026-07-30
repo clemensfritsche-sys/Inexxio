@@ -2570,6 +2570,64 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Auftrag ohne Subjekt-Schritt (nur Beschaffung/Ressource) meldet weiterhin nichts; das ist
   bewusst so, weil ihm nichts fehlt, was er selbst bräuchte.*
 
+- **Szenario-Durchlauf: alle implementierten Abläufe end-to-end nachgespielt (Juli 2026)**:
+  24 Szenarien über die **echten** Service-Pfade gegen echtes PostgreSQL 16 – Erzeugung
+  (Einzelteil/Charge/Bruchmenge), Datenerfassung (100 %, Teil-Stichprobe, Durchfaller →
+  Abweichung → Klärung), Abweichung/Abbruch, Bestand/FIFO, Unterdeckung/Nachschub/«ohne
+  Ersatz weiter», Aussondern (ganz · Teilmenge · Sperren/Entsperren), Verkauf + Retoure
+  (Slice und ganze Instanz), Ressource (Verbrauch · Betriebsmittel · Fehlmenge),
+  Bewegung/Standort-Verteilung, Sicherheitsbestand, Beschaffung, Wiederkehr,
+  Mehrpositionen-Verkauf, gezielte Deckung. **Vier echte Fehler**, alle aus derselben
+  Wurzel: *seit den Bruchmengen (Migration `055`) ist jede Menge ein `Decimal`* – und an
+  vier Stellen war das noch nicht angekommen.
+  (1) **Der Prozessschritt «Ressource» war komplett unbenutzbar.** `resource_usages.details`
+  bekam die entnommene Menge als `Decimal`; `json.dumps` kann das nicht, also brach **jede**
+  Verbuchung eines Verbrauchs mit einem 500 ab – nicht beim Setzen des Feldes, sondern erst
+  beim `flush`, mitten in der Transaktion. Der Event-Strom hatte seine eigene Normalisierung
+  (`events._json_safe`), die elf **anderen** JSONB-Spalten nicht. Die Normalisierung sitzt
+  jetzt an der **Grenze zur Datenbank** (`core.database.json_safe` als `json_serializer` der
+  Engine): eine Stelle, und jede neue JSONB-Spalte erbt den Schutz. Sie ist ein **Netz, kein
+  Vertrag** – wo es auf den Rappen ankommt (Geld, Reservierungen, Standort-Teilmengen),
+  schreibt der Fachcode weiterhin bewusst **Strings**.
+  (2) **Eine Retoure blähte den Bestand auf.** Die Rückgabe einer ganz verkauften Instanz
+  buchte `max(Menge, verkauft, 1)` zurück – der feste Boden machte aus einer verkauften
+  0.5-kg-Charge **1 kg**. «Mindestens eins» ist eine Aussage über *Stück*, nicht über
+  *Mengen*. Jetzt gilt: zurück kommt, was hinausging (Event-Strom); Instanz-Menge und die 1
+  sind nur noch Rückfälle für Altdaten.
+  (3) **Nach einer Teil-Verschrottung war der Rest scheinbar belegt.** Es gab zwei fast
+  gleiche Entnahme-Funktionen, die je EINEN halben Job machten: `consume` löste den Anspruch
+  des Entnehmers, `reduce_quantity` deckelte fremde Ansprüche – und das Verschrotten griff
+  zur falschen. Eine Charge à 10 mit 5 reservierten Stück behielt nach dem Verschrotten
+  dieser 5 ihre Reservierung über 5 auf einer nur noch 5 Stück grossen Instanz: frei = 0.
+  FIFO übersah den Rest, andere Aufträge meldeten eine Fehlmenge, die es nicht gab, und die
+  **Auto-Nachbestellung bestellte den Sicherheitsbestand ein zweites Mal** (im Test: 8 statt
+  3). Jetzt gibt es **eine** Regel – `reservation.take(inst, qty, by_order_id=…)` – und sie
+  tut beides; die drei Aufrufer (Verbrauch, Verkauf, Verschrottung) teilen sie sich.
+  (4) **Das Schema liess sich nicht aus den Migrationen aufbauen.** Eine Datenreparatur
+  (`074`) griff auf `article_process_steps.locked` zu – eine Spalte, die **nie eine
+  Migration angelegt** hatte (sie stammte aus dem Lifespan-`create_all` und wurde von `081`
+  wieder entfernt). Auf einer frischen Datenbank brach `alembic upgrade head` genau dort ab;
+  die laufende Umgebung merkt davon nichts, ein neues Projekt oder eine Wiederherstellung
+  scheitert – dieselbe Ausfallklasse wie beim Deploy von Migration `090`: es zeigt sich erst,
+  wenn es zählt. Die Reparatur überspringt jetzt, was es nicht gibt (wie `079` es immer
+  schon tat), und die **CI baut das Schema bei jedem Push von null auf** (Postgres-16-Service
+  + `alembic upgrade head` in den Quality gates) – die Behauptung «Alembic ist die
+  Schema-Wahrheit» ist damit nachgewiesen statt geglaubt.
+  **Kein Fehler, aber eine Sackgasse mit Weg nach vorn:** eine Charge **ohne** Standort lässt
+  sich nicht teilverlagern – nach «10 von 1000 ans Band» lägen 990 weiterhin nirgends, und
+  genau das kann die Verteilungs-Map nicht sagen (bei einem einzigen Slice ist der Skalar die
+  Wahrheit und würde behaupten, die GANZE Charge sei am Band). Die Ablehnung bleibt, sie
+  nennt jetzt aber den Weg: erst den gesamten Bestand einlagern, danach Teilmengen verlagern.
+  **Bestätigt richtig** (Szenarien ohne Befund): Auto-Abschluss und Freigabe erst, wenn kein
+  Auftrag mehr an der Instanz arbeitet; bestandene Teil-Stichprobe sperrt nichts; Abweichung
+  nimmt ihr Stück heraus statt den Auftrag anzuhalten; Ausschuss ist terminal **und**
+  standortlos, Sperren reversibel unter Erhalt von Standort/Menge/Reservierungen; ein
+  Komponenten-Bedarf blockiert den Schritt statt still unterzuliefern; Betriebsmittel werden
+  genutzt, nicht verbraucht; ein Mehrpositionen-Verkauf hat **einen** `sale`-Schritt mit
+  einem Beleg je Position. Wächter: `tests/test_quantity_rules.py`
+  (`test_every_json_column_survives_a_decimal`, `test_a_returned_quantity_has_no_floor_of_one`)
+  und `tests/test_fractional_quantities.py: test_take_releases_the_own_claim_and_trims_the_others`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

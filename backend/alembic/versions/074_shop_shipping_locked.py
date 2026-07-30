@@ -29,6 +29,16 @@ def upgrade() -> None:
     tables = insp.get_table_names()
     if "article_process_steps" not in tables or "sales" not in tables:
         return
+    # ``locked`` ist eine **Altlast-Spalte**: sie wurde nie von einer Migration angelegt,
+    # sondern nur vom Lifespan-``create_all`` aus dem damaligen Modell – und Migration 081
+    # hat sie wieder entfernt. Auf einer **frischen** Datenbank existiert sie hier also gar
+    # nicht, und diese reine Datenreparatur brach den Aufbau von Grund auf ab («column
+    # s.locked does not exist»). Eine Datenreparatur muss überspringbar sein, wenn es nichts
+    # zu reparieren gibt: ohne Spalte gibt es keine Altdaten. (Dieselbe Vorsichtsmassnahme
+    # wie in 079, nur dort war sie von Anfang an drin.)
+    cols = {c["name"] for c in insp.get_columns("article_process_steps")}
+    if not {"locked", "mode", "target_location_type"} <= cols:
+        return
     op.execute(
         """
         UPDATE article_process_steps s

@@ -28,7 +28,7 @@ from . import inventory, location_split, process
 from .admin import log_audit
 from .events import emit
 from .quantity import to_qty
-from .reservation import reduce_quantity, release_all
+from .reservation import release_all, take
 from .subject import order_instances
 
 
@@ -47,7 +47,7 @@ def _chosen_quantities(data) -> dict[int, Decimal | None]:
     return chosen
 
 
-def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int) -> Decimal:
+def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int, order_id: int) -> Decimal:
     """EINE Instanz verschrotten – ganz oder als Teilmenge. Gibt die abgehende Menge zurück.
 
     **Ganz:** Endzustand ``scrapped``; ALLE Reservierungen werden gelöst (nicht nur die des
@@ -59,15 +59,16 @@ def _scrap_one(db: Session, inst, qty: Decimal | None, actor_id: int) -> Decimal
     realer Halter, den Ausschuss nicht mehr hat – der Endzustand IST die «Wo»-Aussage, und
     «wer liegt hier» findet ein verschrottetes Teil korrekt nicht mehr.
 
-    **Teilmenge:** nur die Menge sinkt (keine Teilung, keine neue Objektnummer), überschüssige
-    Reservierungen werden getrimmt und eine verteilte Charge nachgezogen – analog zur
-    Ressourcen-Teilentnahme."""
+    **Teilmenge:** nur die Menge sinkt (keine Teilung, keine neue Objektnummer) – über
+    dieselbe Entnahme-Regel wie Verbrauch und Verkauf (``reservation.take``): der eigene
+    Anspruch des verschrottenden Auftrags ist damit erfüllt und wird gelöst, fremde
+    Ansprüche werden auf die Restmenge gedeckelt; eine verteilte Charge wird nachgezogen."""
     whole = qty is None or qty >= to_qty(inst.quantity)
     if not whole and qty <= 0:
         raise HTTPException(400, detail=f"Ungültige Menge für Instanz {inst.object_id}")
 
     if not whole:
-        cut = reduce_quantity(inst, qty)
+        cut = take(inst, qty, by_order_id=order_id)
         location_split.reconcile(inst)
         log_audit(db, "instances", "quantity", str(inst.quantity), actor_id,
                   object_id=inst.object_id,
@@ -107,7 +108,7 @@ def record_scrap(db: Session, order: Order, data, actor_id: int) -> Disposal:
             raise HTTPException(400, detail=f"Instanz {oid} gehört nicht zu diesem Auftrag")
         if inst.disposition == "scrapped":
             continue                                # idempotent: schon verschrottet
-        cut = _scrap_one(db, inst, qty, actor_id)
+        cut = _scrap_one(db, inst, qty, actor_id, order.id)
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
              payload={"quantity": cut, "delta": -cut,
                       "polarity": event_types.DECREASE, "reason": "scrapped",

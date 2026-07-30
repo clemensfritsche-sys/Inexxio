@@ -73,16 +73,43 @@ def release_all(inst: Instance) -> None:
     _write(inst, {})
 
 
-def reduce_quantity(inst: Instance, cut) -> Decimal:
-    """Die Gesamtmenge einer (Chargen-)Instanz um ``cut`` senken (Teil-Verschrottung) – die
-    Objektnummer bleibt, es entsteht KEINE neue Instanz. Übersteigen die Reservierungen danach
-    die Restmenge, werden sie (grösste zuerst) heruntergetrimmt – die betroffenen Aufträge
-    sehen dadurch **ehrlich** eine Fehlmenge (Recovery). Liefert die tatsächlich entfernte Menge."""
-    cut = min(to_qty(cut), to_qty(inst.quantity))
-    if cut <= 0:
+def take(inst: Instance, qty, *, by_order_id: int | None = None) -> Decimal:
+    """``qty`` aus der Instanz **herausnehmen** – die EINE Regel für jeden Mengen-Abgang
+    (verbaut, verkauft, teilverschrottet). Die Objektnummer bleibt, es entsteht KEINE neue
+    Instanz. Liefert die tatsächlich entnommene Menge.
+
+    Zwei Dinge passieren, und beide gehören zusammen:
+
+    1. **Der Anspruch des Entnehmers ist erfüllt** (``by_order_id``): wer die Menge für
+       seinen Auftrag reserviert hatte, gibt sie mit der Entnahme frei. Sonst hielte er
+       einen Anspruch auf Ware, die er gerade selbst weggenommen hat.
+    2. **Fremde Ansprüche werden auf die Restmenge gedeckelt**: was jetzt nicht mehr da ist,
+       kann niemanden mehr beliefern – die betroffenen Aufträge sehen dadurch **ehrlich**
+       eine Fehlmenge (Recovery), statt still von einer toten Reservierung «gedeckt» zu sein.
+
+    Vorher waren das zwei fast gleiche Funktionen, die je EINEN der beiden Schritte machten
+    (``consume`` nur (1), ``reduce_quantity`` nur (2)) – und die Teil-Verschrottung griff zur
+    falschen: eine Charge à 10 mit 5 reservierten Stück behielt nach dem Verschrotten dieser
+    5 ihre Reservierung über 5 auf einer nur noch 5 Stück grossen Instanz. Der Rest galt als
+    **vollständig belegt** (frei = 0): FIFO übersah ihn, andere Aufträge meldeten eine
+    Fehlmenge, die es nicht gab, und die Auto-Nachbestellung bestellte den Sicherheitsbestand
+    ein zweites Mal."""
+    want = to_qty(qty)
+    if want <= 0:
         return ZERO
+    # Entnommen wird höchstens, was da ist – der **Anspruch** des Entnehmers ist danach
+    # trotzdem erledigt (was fehlt, kann ihn nicht mehr beliefern; seine Fehlmenge wird
+    # über die Unterdeckung sichtbar, nicht über eine stehengebliebene Reservierung).
+    cut = min(want, to_qty(inst.quantity))
     inst.quantity = to_qty(inst.quantity) - cut
     m = _load(inst)
+    if by_order_id is not None:
+        key = str(by_order_id)
+        left = m.get(key, ZERO) - want
+        if left > 0:
+            m[key] = left
+        else:
+            m.pop(key, None)
     while m and qty_sum(m.values()) > to_qty(inst.quantity):
         k = max(m, key=lambda x: m[x])
         over = qty_sum(m.values()) - to_qty(inst.quantity)
@@ -91,18 +118,3 @@ def reduce_quantity(inst: Instance, cut) -> Decimal:
             del m[k]
     _write(inst, m)
     return cut
-
-
-def consume(inst: Instance, order_id: int, qty) -> None:
-    """``qty`` aus der Instanz **verbrauchen**: Gesamtmenge mindern und die Reservierung
-    des Auftrags entsprechend reduzieren (die entnommenen Stück sind über die Fachtabelle
-    – Pick/Verkauf – belegt; es entsteht KEINE neue Instanz)."""
-    q = to_qty(qty)
-    inst.quantity = max(ZERO, to_qty(inst.quantity) - q)
-    m = _load(inst)
-    left = m.get(str(order_id), ZERO) - q
-    if left > 0:
-        m[str(order_id)] = left
-    else:
-        m.pop(str(order_id), None)
-    _write(inst, m)

@@ -543,7 +543,7 @@ def test_reservation_no_split_keeps_object_number():
     """Mengengenaue Reservierung/Verbrauch OHNE Teilung: die Instanz behält IMMER ihre
     Objektnummer; nur Menge und Reservierung ändern sich – es entsteht KEIN neues Objekt.
     Eine Charge kann sich auf mehrere Aufträge aufteilen (Reservierungs-Map)."""
-    from app.services.reservation import reserve, consume, free_qty, reserved_for
+    from app.services.reservation import reserve, take, free_qty, reserved_for
     from app.services.resource import _Fifo
     from app.services.inventory import available_qty
 
@@ -559,7 +559,7 @@ def test_reservation_no_split_keeps_object_number():
     assert free_qty(batch) == 70                  # 70 bleiben frei verfügbar (keine Teilung)
     reserve(batch, 9, 20)                          # zweiter Auftrag teilt sich dieselbe Charge
     assert batch.reserved_quantity == 50 and free_qty(batch) == 50
-    consume(batch, 7, 30)                          # Auftrag 7 verbraucht seine 30
+    take(batch, 30, by_order_id=7)                 # Auftrag 7 verbraucht seine 30
     assert batch.quantity == 70                    # selbe Instanz, nur weniger Menge
     assert reserved_for(batch, 7) == 0 and reserved_for(batch, 9) == 20
 
@@ -2317,9 +2317,9 @@ def test_scrap_supports_partial_batch_quantity():
 
     assert "quantity" in ScrapItem.model_fields
     assert "items" in ScrapUpdate.model_fields
-    assert hasattr(reservation, "reduce_quantity")
+    assert hasattr(reservation, "take")
     src = _inspect.getsource(scrap)
-    assert "reduce_quantity" in src and "release_all" in src
+    assert "take(" in src and "release_all" in src
 
 
 def test_removing_a_line_folds_back_to_single_article_order():

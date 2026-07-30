@@ -31,7 +31,7 @@ from .events import emit
 from .inventory import allocate, available, available_qty, avail_amount, fifo_candidates, in_stock_clauses
 from .locations import _obj_nr, resolve_physical_location
 from .quantity import ZERO, qty_sum, to_qty
-from .reservation import consume as consume_qty, free_qty, release, reserve
+from .reservation import free_qty, release, reserve, take as take_qty
 from .subject import order_active_instances
 
 
@@ -168,7 +168,7 @@ def _consume_line(db: Session, order: Order, products: list[Instance],
                 _relocate(db, cand, product, actor_id)
             else:
                 # Teilentnahme aus einer Charge: Menge mindern, KEINE neue Instanz/Nummer.
-                consume_qty(cand, order.id, take)
+                take_qty(cand, take, by_order_id=order.id)
                 # War die Charge auf mehrere Standorte verteilt, die Verteilung nachziehen
                 # (Summe wieder = quantity).
                 location_split.reconcile(cand)

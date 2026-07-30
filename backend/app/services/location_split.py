@@ -138,7 +138,16 @@ def move(inst: Instance, to_type: str, to_id: int, qty, from_id: int | None = No
     to_id = int(to_id)
     dist = _seed_from_scalar(inst)
     if not dist:
-        raise HTTPException(409, detail="Die Instanz hat keinen Ausgangs-Standort.")
+        # Ohne Ausgangs-Standort ist eine Teilmengen-Verlagerung nicht **wahrheitsfähig**:
+        # nach «10 von 1000 ans Band» lägen 990 weiterhin nirgends – und genau das kann die
+        # Map nicht sagen (bei einem einzigen Slice ist der Skalar die Wahrheit und würde
+        # behaupten, die GANZE Charge sei am Band). Der Weg ist deshalb: erst den gesamten
+        # Bestand einlagern (ganze Instanz), danach Teilmengen verlagern.
+        raise HTTPException(
+            409,
+            detail="Diese Instanz hat noch keinen Standort – bitte zuerst den gesamten "
+                   "Bestand einlagern; danach lassen sich Teilmengen verlagern.",
+        )
 
     if from_id is not None:
         src = int(from_id)

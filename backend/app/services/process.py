@@ -38,7 +38,7 @@ from ..models.base import utcnow
 from .events import emit
 from .inventory import available, in_stock_clauses, is_blocked, unblocked_clauses
 from .quantity import ONE, ZERO, to_qty
-from .reservation import consume as consume_qty, free_qty, release, reserve, reserved_for
+from .reservation import free_qty, release, reserve, reserved_for, take as take_qty
 
 # Label & Fachtabelle je Schritt-Typ kommen aus der **deklarativen Registry**
 # (``domain.event_types``) – EINE Quelle der Wahrheit statt verstreuter Dicts.
@@ -672,7 +672,7 @@ def sell_order_subjects(db: Session, order: Order) -> None:
         if is_blocked(inst):
             continue
         sold = reserved_for(inst, order.id)
-        consume_qty(inst, order.id, sold)        # Menge mindern + Reservierung lösen
+        take_qty(inst, sold, by_order_id=order.id)   # Menge mindern + eigenen Anspruch lösen
         if to_qty(inst.quantity) <= 0:
             inst.disposition = "sold"            # vollständig verkauft
         emit(db, "inventory.decreased", object_type="instance", object_id=inst.object_id,
@@ -757,7 +757,15 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
             )
             if still_at_customer or not movement_done:
                 continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-            back = max(to_qty(inst.quantity), sold_amounts.get(inst.object_id, ZERO), ONE)
+            # **Zurück kommt, was hinausging.** Massgeblich ist die beim Verkauf abgebuchte
+            # Menge (Event-Strom); erst wenn es die nicht gibt (Altdaten), zählt die Menge
+            # auf der Instanz, und ganz zuletzt «ein Stück» für ein Einzelteil ohne beides.
+            # Vorher stand hier ein ``max(…, ONE)`` – dieser feste Boden machte aus einer
+            # ganz verkauften 0.5-kg-Charge bei der Rückgabe **1 kg**: der Bestand wuchs bei
+            # jeder Retoure einer Bruchmenge. Eine Menge hat keinen Mindestwert von 1;
+            # genau diese Verwechslung von «Stück zählen» und «Menge messen» bewacht
+            # ``tests/test_quantity_rules.py``.
+            back = sold_amounts.get(inst.object_id) or to_qty(inst.quantity) or ONE
             inst.quantity = back
         else:
             # **Chargen-Slice**: der Original-Verkauf hat eine TEILMENGE dieser (weiterhin

@@ -42,7 +42,7 @@ def test_allocate_handles_fractional_need_and_candidates():
 
 def test_reservation_roundtrip_is_decimal_and_json_safe():
     from app.models import Instance
-    from app.services.reservation import free_qty, reserve, reserved_for, release, consume
+    from app.services.reservation import free_qty, reserve, reserved_for, release, take
 
     inst = Instance(quantity=Decimal("10"), reservations=None, reserved_quantity=Decimal("0"))
 
@@ -61,7 +61,7 @@ def test_reservation_roundtrip_is_decimal_and_json_safe():
     assert inst.reserved_for_order_id is None   # mehr als ein Auftrag → kein Einzel-Zeiger
 
     # Verbrauch mindert Menge UND Reservierung mengengenau
-    consume(inst, 42, Decimal("1.5"))
+    take(inst, Decimal("1.5"), by_order_id=42)
     assert inst.quantity == Decimal("8.500")
     assert reserved_for(inst, 42) == Decimal("1.000")
 
@@ -70,17 +70,34 @@ def test_reservation_roundtrip_is_decimal_and_json_safe():
     assert reserved_for(inst, 42) == Decimal("0")
 
 
-def test_reduce_quantity_trims_overhang_reservations():
-    from app.models import Instance
-    from app.services.reservation import reduce_quantity, reserved_for, reserve
+def test_take_releases_the_own_claim_and_trims_the_others():
+    """``take`` ist die EINE Entnahme-Regel – und sie tut beides.
 
+    (1) **Fremde** Ansprüche werden auf die Restmenge gedeckelt (der betroffene Auftrag
+    sieht dadurch ehrlich eine Fehlmenge). (2) Der Anspruch des **Entnehmers** ist mit der
+    Entnahme erfüllt und wird gelöst. Genau (2) fehlte der Teil-Verschrottung: sie nutzte
+    die Variante ohne diesen Schritt, und die verschrottende Bestellung behielt danach eine
+    Reservierung über die **überlebende** Restmenge – der Rest galt als vollständig belegt
+    (frei = 0), FIFO übersah ihn und die Auto-Nachbestellung bestellte doppelt."""
+    from app.models import Instance
+    from app.services.reservation import free_qty, reserved_for, reserve, take
+
+    # (1) fremder Anspruch: 5 Stück, 4 für Auftrag 1 reserviert, 2.5 verschwinden
     inst = Instance(quantity=Decimal("5"), reservations=None, reserved_quantity=Decimal("0"))
     reserve(inst, 1, Decimal("4"))
-    # Teil-Verschrottung von 2.5 → Menge 2.5, die 4er-Reservierung wird auf 2.5 getrimmt
-    cut = reduce_quantity(inst, Decimal("2.5"))
+    cut = take(inst, Decimal("2.5"))
     assert cut == Decimal("2.500")
     assert inst.quantity == Decimal("2.500")
     assert reserved_for(inst, 1) == Decimal("2.500")
+
+    # (2) eigener Anspruch: Auftrag 1 verschrottet die 5, die er selbst reserviert hat –
+    #     der Rest ist danach FREI, nicht von einer erledigten Reservierung blockiert.
+    inst = Instance(quantity=Decimal("10"), reservations=None, reserved_quantity=Decimal("0"))
+    reserve(inst, 1, Decimal("5"))
+    take(inst, Decimal("5"), by_order_id=1)
+    assert inst.quantity == Decimal("5.000")
+    assert reserved_for(inst, 1) == Decimal("0")
+    assert free_qty(inst) == Decimal("5.000")
 
 
 def test_required_sample_supports_fractional_batches():

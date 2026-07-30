@@ -22,6 +22,19 @@ jobs:
   quality:
     name: Quality gates
     runs-on: ubuntu-latest
+    # Postgres nur für den Schema-Aufbau: die Migrationen sind laut Leitbild die EINE
+    # Schema-Wahrheit – geprüft wird das erst, wenn sie auch wirklich von null durchlaufen.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -54,6 +67,19 @@ jobs:
       - name: pytest (smoke tests)
         working-directory: backend
         run: python -m pytest tests/ -v --tb=short
+
+      # Baut das Schema von NULL aus den Migrationen auf. Klingt selbstverständlich, war es
+      # aber nicht: eine Datenreparatur (074) griff auf eine Spalte zu, die nie eine
+      # Migration angelegt hatte (sie stammte aus dem Lifespan-``create_all`` und wurde von
+      # 081 wieder entfernt) – auf einer frischen Datenbank brach der Aufbau dort ab. Die
+      # laufende Umgebung merkt davon nichts, ein neues Projekt oder eine Wiederherstellung
+      # aus dem Nichts scheitert. Dieselbe Ausfallklasse wie beim Deploy von Migration 090:
+      # es zeigt sich erst, wenn es zählt.
+      - name: Schema aus den Migrationen aufbauen (Alembic ist die Wahrheit)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/postgres
+        run: alembic upgrade head
 
       - name: Check generated types are up to date
         run: |

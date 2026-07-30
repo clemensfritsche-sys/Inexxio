@@ -155,3 +155,61 @@ def test_only_sampled_instances_get_a_verdict():
 
     # Ohne Proben gibt es kein Urteil (und damit keine Sperre).
     assert sample_verdicts(fields, []) == {}
+
+
+# ─── Decimal an der Grenze zur Datenbank ─────────────────────────────────────────
+
+def test_every_json_column_survives_a_decimal():
+    """**Eine Menge muss in jede JSONB-Spalte passen.**
+
+    Seit den Bruchmengen (Migration ``055``) ist jede Menge ein ``Decimal`` – und
+    ``json.dumps`` kann das nicht. Das fällt nicht beim Schreiben des Feldes auf, sondern
+    erst beim ``flush``: als ``TypeError`` mitten in der Transaktion, also als **500 auf dem
+    ganzen Endpunkt**. Genau so war der Prozessschritt «Ressource» unbenutzbar –
+    ``resource_usages.details`` bekam die entnommene Menge als ``Decimal``, und JEDE
+    Verbuchung eines Verbrauchs brach ab. Der Event-Strom hatte seine eigene
+    Normalisierung, die elf anderen JSONB-Spalten nicht.
+
+    Deshalb hängt die Normalisierung an der **Engine** (``core.database``) und nicht in den
+    Schreibern: jede neue JSONB-Spalte erbt den Schutz, ohne dass jemand daran denken muss."""
+    import json
+    from decimal import Decimal
+
+    from app.core.database import engine, json_safe
+
+    assert engine.dialect._json_serializer is not None, (
+        "Die Engine braucht einen Decimal-festen json_serializer – sonst wirft die erste "
+        "Menge in einer JSONB-Spalte einen TypeError mitten in der Transaktion.")
+
+    payload = {"picks": [{"quantity": Decimal("2.500"), "into": 100000001}],
+               "nested": {"total": Decimal("0.5")}, "plain": "ok", "none": None}
+    dumped = json.loads(engine.dialect._json_serializer(payload))
+    assert dumped["picks"][0]["quantity"] == 2.5
+    assert dumped["nested"]["total"] == 0.5
+    assert dumped["plain"] == "ok" and dumped["none"] is None
+    # Exaktheit bleibt Sache des Schreibers: wo es auf den Rappen ankommt (Geld,
+    # Reservierungen, Standort-Teilmengen), stehen bewusst Strings in der Spalte.
+    assert json_safe(Decimal("1.005")) == 1.005
+
+
+def test_a_returned_quantity_has_no_floor_of_one():
+    """**Zurück kommt, was hinausging** – nicht «mindestens eins».
+
+    Die Rückgabe einer ganz verkauften Instanz buchte die Menge über
+    ``max(quantity, verkauft, 1)`` zurück. Der feste Boden machte aus einer verkauften
+    0.5-kg-Charge bei der Retoure **1 kg**: der Bestand wuchs mit jeder Rückgabe einer
+    Bruchmenge. «Mindestens 1» ist eine Aussage über *Stück*, nicht über *Mengen* – dieselbe
+    Verwechslung wie oben, nur in der Gegenrichtung."""
+    import ast
+
+    src = (APP / "services" / "process.py").read_text(encoding="utf-8")
+    fn = [n for n in ast.walk(ast.parse(src))
+          if isinstance(n, ast.FunctionDef) and n.name == "return_subjects_to_stock"]
+    assert fn, "return_subjects_to_stock nicht gefunden"
+    body = ast.unparse(fn[0])
+    assert "max(" not in body, (
+        "Die zurückgebuchte Menge darf nicht über ein max(…, ONE) laufen – eine Bruchmenge "
+        "käme sonst aufgerundet zurück.")
+    assert "sold_amounts.get(inst.object_id) or" in body, (
+        "Massgeblich ist die beim Verkauf abgebuchte Menge; die Instanz-Menge und die 1 sind "
+        "nur Rückfälle für Altdaten.")
