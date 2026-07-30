@@ -165,6 +165,10 @@ _COLUMN_SAFETY_NET = (
     ("orders", "stripe_subscription_id", "VARCHAR(80)"),
     ("sales", "stripe_payment_intent_id", "VARCHAR(80)"),
     ("sales", "stripe_snapshot", "JSONB"),
+    # Fakturierende Gesellschaft (Seller of Record, ADR 006, Migration 093). Neue Spalte auf
+    # der bestehenden ``sales``-Tabelle → MUSS im Lifespan-Netz stehen (die 090-Lehre: fehlte
+    # sie, während das Modell sie kennt, endete jede sales-Abfrage in einem 500).
+    ("sales", "seller_company_object_id", "BIGINT"),
     # Shop-Phase 8: zwei Abo-Typen (Nutzungs-/Produktabo) + Warenkorb-Defer (CheckoutIntent)
     ("article_prices", "sub_type", "VARCHAR(10)"),
     ("orders", "recurrence_kind", "VARCHAR(10)"),

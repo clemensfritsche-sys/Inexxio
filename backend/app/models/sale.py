@@ -51,6 +51,13 @@ class Sale(Base, TimestampMixin):
     # Kunde (UserProfile mit Rolle «customer»). Objektnummer als Standort beim Versand.
     customer_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
+    # **Fakturierende Gesellschaft** (Seller of Record, ADR 006) – die Objektnummer der
+    # Gesellschaft, die diesen Verkauf ausstellt. Abgeleitet aus der Rechnungsadresse des
+    # Kunden (``sites.company_for_country``) und – wie Preis/Währung/Steuer – bei der
+    # Zahlung **eingefroren** (Snapshot), damit der Beleg unveränderlich die richtige
+    # Rechtsperson trägt. NULL bei Alt-/Nicht-Verkaufsbelegen → Fallback Betreiber.
+    seller_company_object_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
     status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
 
     # Herkunft (rein informativ, wie ``PurchaseOrder.mode`` bei der Beschaffung): 'shop' –

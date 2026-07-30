@@ -80,3 +80,38 @@ def test_territory_table_is_a_new_table_not_a_new_column():
     assert CompanyTerritory.__tablename__ == "company_territories"
     cols = {c.name for c in CompanyTerritory.__table__.columns}
     assert cols == {"id", "region", "company_id"}
+
+
+# ─── Slice 2: Seller of Record je Verkauf (eingefroren) + Beleg-/Absender-Identität ──
+
+def test_seller_of_record_wiring_uses_the_derived_company():
+    """Quelltext-Garantie: Beleg-Briefkopf UND Versand-Absender nehmen die abgeleitete
+    fakturierende Gesellschaft (nicht mehr fix den Betreiber); die Auflösung ist rein lesend."""
+    from app.services import sale as sale_svc, logistics
+    from app.routers import documents
+
+    src = inspect.getsource(sale_svc.seller_company_for_order)
+    assert "seller_company_object_id" in src        # Snapshot zuerst
+    assert "find_operator" in src                    # Betreiber-Fallback
+    assert ".commit(" not in src                     # rein lesend
+    # Beleg-Briefkopf (PDF) nimmt den Seller des Auftrags:
+    assert "seller_company_for_order" in inspect.getsource(documents._company)
+    # Versand-Absender nimmt den Seller des Auftrags:
+    assert "seller_company_for_order" in inspect.getsource(logistics._sender_company)
+
+
+def test_freeze_seller_is_idempotent_and_needs_a_customer():
+    """Quelltext-Garantie: ``_freeze_seller`` setzt nie neu (Snapshot) und braucht einen Kunden."""
+    from app.services import sale as sale_svc
+
+    src = inspect.getsource(sale_svc._freeze_seller)
+    assert "seller_company_object_id is not None" in src   # nie überschreiben
+    assert "customer_id is None" in src                     # ohne Kunde: nichts
+
+
+def test_seller_column_is_in_the_lifespan_safety_net():
+    """Neue Spalte auf der bestehenden ``sales``-Tabelle MUSS im Lifespan-Netz stehen –
+    sonst endete jede sales-Abfrage in einem 500, wenn Migration 093 nicht liefe (090-Lehre)."""
+    from app.main import _COLUMN_SAFETY_NET
+
+    assert ("sales", "seller_company_object_id", "BIGINT") in _COLUMN_SAFETY_NET

@@ -2343,9 +2343,17 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   **«Gebiete»** (an jeder Gesellschaft, hebt deren Regionen hervor). **Neue Tabelle** → `create_all`
   deckt sie im Lifespan (kein Spalten-Safety-Net nötig – ausserhalb der 090-Ausfallklasse); gegen
   echtes PG16 verifiziert (create_all-Pfad, Auflösung, Totalität, Idempotenz, Downgrade,
-  Lifespan-Neuschöpfung). Wächter `tests/test_geography.py`. **Slice 2 (nächster Deploy):**
-  `sales.seller_company_object_id`-Snapshot + Beleg-Briefkopf (`documents.py`) & Versand-Absender
-  (`logistics.py`) nehmen den Seller statt immer den Betreiber. *Bewusst später: Steuer-Origin je
+  Lifespan-Neuschöpfung). Wächter `tests/test_geography.py`. **Slice 2 (UMGESETZT, Migration 093):**
+  `sales.seller_company_object_id` – die fakturierende Gesellschaft je Verkauf, aus der
+  **Rechnungsadresse** des Kunden abgeleitet (`sale._seller_object_id_for_customer` →
+  `company_for_country`) und – wie Preis/Währung – **bei Bestätigung/Zahlung eingefroren**
+  (`sale._freeze_seller`, idempotent; in `_apply_transition` UND `finalize_paid`). Die EINE
+  Auflösung `sale.seller_company_for_order` (Snapshot ≻ live aus Kundenland ≻ Betreiber, rein
+  lesend) speist **Beleg-Briefkopf** (`documents.py:_company(db, order)`) UND **Versand-Absender**
+  (`logistics._sender_company` ersetzt `_settings`). Ein Nicht-Verkaufs-Auftrag (kein Kunde) →
+  Betreiber wie bisher. Neue Spalte auf bestehender `sales`-Tabelle → **im Lifespan-Safety-Net**
+  (090-Lehre); gegen echtes PG16 verifiziert (Freeze idempotent trotz geänderter Karte = Beleg-
+  Unveränderlichkeit, Migration idempotent/downgrade, `_ensure_columns`-Netz). *Bewusst später: Steuer-Origin je
   Gesellschaft (heute hart CH; Stripe Tax rechnet destinationsbasiert real), Intercompany
   (CH→US Transferpreis), eigenes Stripe-Konto je Gesellschaft, land-genaue Gebiete. **Impressum
   bleibt global** (Betreiber); **Belegnummer bleibt global** (ein Nummernkreis).*
