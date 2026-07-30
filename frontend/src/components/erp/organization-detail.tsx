@@ -12,6 +12,7 @@ import { DetailHeader } from '@/components/erp/fields';
 import { AddressField, type Address, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { SystemConfigSection } from '@/components/account/sections/system-config-section';
+import { TerritoryMap } from '@/components/erp/territory-map';
 
 // Das Unternehmen führt das Land als Klarnamen (nicht ISO-2). Die Adress-Suche mappt Googles
 // ISO-2-Code über ``toIso2`` auf diese Klarnamen (siehe address-field.tsx). Eine Gesellschaft
@@ -50,7 +51,7 @@ function splitStreet(line: string): [string, string] {
   return m ? [m[1].trim(), m[2]] : [line.trim(), ''];
 }
 
-type OrgTab = 'stamm' | 'system' | 'docs';
+type OrgTab = 'stamm' | 'system' | 'gebiete' | 'docs';
 
 /**
  * Detailansicht eines **Unternehmens** (einer Gesellschaft) – ein gleichrangiger
@@ -157,6 +158,9 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           // Der System-Reiter (Plattform-Konfiguration der EINEN Website) erscheint nur am
           // Betreiber – es gibt ihn genau einmal.
           ...(isOperator ? [{ key: 'system' as const, label: 'System', icon: Server }] : []),
+          // Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) – global, an
+          // JEDER Gesellschaft erreichbar; die Karte hebt die Regionen der aktuellen hervor.
+          { key: 'gebiete', label: 'Gebiete', icon: Globe2 },
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </DetailHeader>
@@ -164,6 +168,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 88px', background: 'var(--bg-2)' }}>
         {tab === 'docs' && <ObjectDocuments objectId={record.object_id} contextLabel="dem Unternehmen" />}
+        {tab === 'gebiete' && <TerritoryMap highlight={record.object_id} />}
         {tab === 'system' && isOperator && (
           <QueryClientProvider client={systemQueryClient}>
             <SystemConfigSection onSaved={(s) => onSaved({ ...base, ...s })} />

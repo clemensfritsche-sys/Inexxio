@@ -445,6 +445,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/territories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Territories
+         * @description Die **Gebietskarte**: jede Weltregion + die Gesellschaft, die sie fakturiert. Nicht
+         *     zugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per Default).
+         */
+        get: operations["get_territories_api_v1_admin_territories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/territories/{region}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Territory
+         * @description Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``null``) =
+         *     Default → die Zuweisung wird zurückgesetzt. Genau EINE Gesellschaft je Region.
+         */
+        put: operations["assign_territory_api_v1_admin_territories__region__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/operating-costs": {
         parameters: {
             query?: never;
@@ -5619,6 +5661,55 @@ export interface components {
             /** Reaped Intents */
             reaped_intents: number;
         };
+        /**
+         * TerritoryAssign
+         * @description Eine Region einer Gesellschaft zuweisen. ``None`` (oder der Betreiber) = Default.
+         */
+        TerritoryAssign: {
+            /** Company Object Id */
+            company_object_id?: number | null;
+        };
+        /**
+         * TerritoryCompany
+         * @description Schlanke Gesellschaft für die Weltkarte (Picker + Färbung).
+         */
+        TerritoryCompany: {
+            /** Object Id */
+            object_id: number;
+            /** Company Name */
+            company_name: string;
+            /**
+             * Is Operator
+             * @default false
+             */
+            is_operator: boolean;
+        };
+        /**
+         * TerritoryMapResponse
+         * @description Die vollständige Gebietskarte: jede Region hat genau einen Besitzer (Betreiber-Default).
+         */
+        TerritoryMapResponse: {
+            /** Regions */
+            regions: components["schemas"]["TerritoryRegion"][];
+            /** Companies */
+            companies: components["schemas"]["TerritoryCompany"][];
+            /** Operator Object Id */
+            operator_object_id?: number | null;
+        };
+        /**
+         * TerritoryRegion
+         * @description Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte.
+         */
+        TerritoryRegion: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Pos */
+            pos: number[];
+            /** Company Object Id */
+            company_object_id?: number | null;
+        };
         /** UploadResult */
         UploadResult: {
             /** Url */
@@ -6529,6 +6620,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompanySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_territories_api_v1_admin_territories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerritoryMapResponse"];
+                };
+            };
+        };
+    };
+    assign_territory_api_v1_admin_territories__region__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TerritoryAssign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TerritoryMapResponse"];
                 };
             };
             /** @description Validation Error */

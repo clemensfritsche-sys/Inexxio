@@ -944,6 +944,91 @@
         }
       }
     },
+    "/api/v1/admin/territories": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Get Territories",
+        "description": "Die **Gebietskarte**: jede Weltregion + die Gesellschaft, die sie fakturiert. Nicht\nzugewiesene Regionen gehören dem **Betreiber** (er besitzt die Welt per Default).",
+        "operationId": "get_territories_api_v1_admin_territories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerritoryMapResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/territories/{region}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Assign Territory",
+        "description": "Eine **Region** einer Gesellschaft zuweisen (Weltkarte). Betreiber (oder ``null``) =\nDefault → die Zuweisung wird zurückgesetzt. Genau EINE Gesellschaft je Region.",
+        "operationId": "assign_territory_api_v1_admin_territories__region__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "region",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Region"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerritoryAssign"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerritoryMapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/operating-costs": {
       "get": {
         "tags": [
@@ -16176,6 +16261,122 @@
           "reaped_intents"
         ],
         "title": "SweepResult"
+      },
+      "TerritoryAssign": {
+        "properties": {
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          }
+        },
+        "type": "object",
+        "title": "TerritoryAssign",
+        "description": "Eine Region einer Gesellschaft zuweisen. ``None`` (oder der Betreiber) = Default."
+      },
+      "TerritoryCompany": {
+        "properties": {
+          "object_id": {
+            "type": "integer",
+            "title": "Object Id"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "is_operator": {
+            "type": "boolean",
+            "title": "Is Operator",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "object_id",
+          "company_name"
+        ],
+        "title": "TerritoryCompany",
+        "description": "Schlanke Gesellschaft für die Weltkarte (Picker + Färbung)."
+      },
+      "TerritoryMapResponse": {
+        "properties": {
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/TerritoryRegion"
+            },
+            "type": "array",
+            "title": "Regions"
+          },
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/TerritoryCompany"
+            },
+            "type": "array",
+            "title": "Companies"
+          },
+          "operator_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "regions",
+          "companies"
+        ],
+        "title": "TerritoryMapResponse",
+        "description": "Die vollständige Gebietskarte: jede Region hat genau einen Besitzer (Betreiber-Default)."
+      },
+      "TerritoryRegion": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "pos": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Pos"
+          },
+          "company_object_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Object Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "pos"
+        ],
+        "title": "TerritoryRegion",
+        "description": "Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."
       },
       "UploadResult": {
         "properties": {

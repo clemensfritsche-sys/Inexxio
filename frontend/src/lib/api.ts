@@ -6,7 +6,7 @@ import type {
   MovementUpdateInput, ShipmentUpdateInput, ResourceUpdateInput, ScrapUpdateInput, SaleUpdateInput, LegalDocument,
   PendingDocument, MySignoffDocument, MyHistoryDocument, UserDocumentOverview, SignoffAction,
   Instance, InstanceOrderRef, ObjectReference,
-  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts,
+  CompanySettings, UserProfile, DeactivationImpact, OrdersMode, OperatingCosts, TerritoryMap,
   ArticleSalesProfile, ArticleSalesUpdateInput, ArticlePrice, ArticlePriceInput, ArticlePriceUpdateInput,
   AudienceMember, ShopProduct, ShopConfig, ShopCheckoutResult, PaymentStatus, SaleStatus,
   CustomerOrder,
@@ -138,6 +138,10 @@ class ApiClient {
 
   patch<T>(path: string, body: unknown) {
     return this.request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
+  }
+
+  put<T>(path: string, body: unknown) {
+    return this.request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
   }
 
   delete<T>(path: string) {
@@ -293,6 +297,16 @@ class ApiClient {
   /** Diese Gesellschaft zum **Betreiber der Website** machen – genau EINE trägt den Titel. */
   setCompanyOperator(objectId: number): Promise<CompanySettings> {
     return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/operator`, {}).then(mapSettingsFromBackend);
+  }
+
+  // ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ─────────
+  getTerritories(): Promise<TerritoryMap> {
+    return this.get('/api/v1/admin/territories');
+  }
+
+  assignTerritory(region: string, companyObjectId: number | null): Promise<TerritoryMap> {
+    // Betreiber/null = Default (Region wird nicht abweichend zugewiesen).
+    return this.put(`/api/v1/admin/territories/${region}`, { company_object_id: companyObjectId });
   }
 
   // ─── ERP Records ──────────────────────────────────────────────────────────

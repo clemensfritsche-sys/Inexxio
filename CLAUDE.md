@@ -2326,6 +2326,29 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   in Landeswährung (heute EINE CHF-Zahl gepflegt, Fremdwährung nur Anzeige – ein lossy Rück-
   Umrechnen wäre die Alternative), per-Gesellschaft-Produktwährung (Intercompany), Shop-Währungs-
   umschalter für den Kunden (Backend `resolve_currency`/Produkt-Endpunkte tragen `currency` bereits).*
+- **Mehr-Gesellschaften & Weltmärkte – Gebietskarte (ADR 006, `docs/adr/006-mehr-gesellschaften-
+  maerkte.md`, Migration 092, Slice 1)**: Die Welt ist in feste **Regionen** partitioniert
+  (`services/geography.REGIONS`: NAM/EUR/ASIA/LATAM/AFR/MEA/OCE) + umfassende ISO-2-Land→Region-Map
+  (unbekannt → Betreiber). **Jede Region gehört genau EINER Gesellschaft**; der **Betreiber** besitzt
+  per Default die ganze Welt, andere Gesellschaften «beissen sich» Regionen ab
+  (`company_territories`, Region unique – hält NUR Abweichungen). So gehört **jeder Fleck der Erde
+  jemandem** (Totalität, «es kann nie kein Land ausgewählt werden»). Die EINE Auflösung ist
+  `sites.company_for_country(country)` = **Land → Region → Territorium-Besitzer → Betreiber-Fallback**
+  (rein lesend). Die **fakturierende Gesellschaft** (Seller of Record) wird daraus **abgeleitet**
+  (kein Dropdown): ausschlaggebend ist die **Rechnungsadresse** (Kundensitz), die **Steuer** folgt
+  getrennt der **Lieferadresse** (Stripe Tax), der **Warenort** ist der Versand-Absender (ADR 005).
+  Sie friert – wie Preis/Währung – bei Freigabe/Zahlung ein (Slice 2). Endpunkte `GET/PUT
+  /admin/territories`; Frontend **abstrakte Weltkarte** (`components/erp/territory-map.tsx`, Region-
+  Kacheln geografisch angeordnet, Klick-Zuweisung, Betreiber-Default) im Unternehmens-Reiter
+  **«Gebiete»** (an jeder Gesellschaft, hebt deren Regionen hervor). **Neue Tabelle** → `create_all`
+  deckt sie im Lifespan (kein Spalten-Safety-Net nötig – ausserhalb der 090-Ausfallklasse); gegen
+  echtes PG16 verifiziert (create_all-Pfad, Auflösung, Totalität, Idempotenz, Downgrade,
+  Lifespan-Neuschöpfung). Wächter `tests/test_geography.py`. **Slice 2 (nächster Deploy):**
+  `sales.seller_company_object_id`-Snapshot + Beleg-Briefkopf (`documents.py`) & Versand-Absender
+  (`logistics.py`) nehmen den Seller statt immer den Betreiber. *Bewusst später: Steuer-Origin je
+  Gesellschaft (heute hart CH; Stripe Tax rechnet destinationsbasiert real), Intercompany
+  (CH→US Transferpreis), eigenes Stripe-Konto je Gesellschaft, land-genaue Gebiete. **Impressum
+  bleibt global** (Betreiber); **Belegnummer bleibt global** (ein Nummernkreis).*
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

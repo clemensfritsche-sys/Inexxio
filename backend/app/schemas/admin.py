@@ -109,6 +109,33 @@ class CompanySettingsResponse(BaseModel):
     # Bestätigungspflicht je Dokument-Art: {"agb": ["all"], …} (Consent-Gate)
 
 
+class TerritoryRegion(BaseModel):
+    """Eine Weltregion + ihr aktueller Besitzer (fakturierende Gesellschaft) für die Weltkarte."""
+    code: str
+    label: str
+    pos: list[int]                            # grobe Kachel-Position [Spalte, Zeile]
+    company_object_id: Optional[int] = None   # Besitzer (Betreiber-Default eingefüllt)
+
+
+class TerritoryCompany(BaseModel):
+    """Schlanke Gesellschaft für die Weltkarte (Picker + Färbung)."""
+    object_id: int
+    company_name: str
+    is_operator: bool = False
+
+
+class TerritoryMapResponse(BaseModel):
+    """Die vollständige Gebietskarte: jede Region hat genau einen Besitzer (Betreiber-Default)."""
+    regions: list[TerritoryRegion]
+    companies: list[TerritoryCompany]
+    operator_object_id: Optional[int] = None
+
+
+class TerritoryAssign(BaseModel):
+    """Eine Region einer Gesellschaft zuweisen. ``None`` (oder der Betreiber) = Default."""
+    company_object_id: Optional[int] = None
+
+
 class UserProfileResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
