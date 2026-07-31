@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, Link2, User as UserIcon, Info, Eye, Check, GripVertical, X, ArrowLeft, Lock, Wrench, PackageMinus, Play, Flag, ShoppingCart, Globe, Building2, Ban, Users as UsersIcon, Shield, Ruler, ThumbsUp, Type, Camera, PenLine } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Article, ArticleProcessStep, CaptureField, DocAudienceRole, Instance, LocationType, ProcessStepMode, ResourceMode, StepType, UserProfile } from '@/types';
-import { userDisplayName } from '@/lib/utils';
+import { formatObjectId, userDisplayName } from '@/lib/utils';
 import { unitLabel } from '@/lib/article';
 import { STEP_META, locationTypeLabel, instanceLabel, isStockOperation } from '@/lib/process';
 import { SUPPLIER_FIELD_CATALOG, MANDATORY_FIELD_KEYS, normalizeSharedFields, fieldLabel } from '@/lib/article-fields';
 import { ErrorText, IconSwitch, InfoHint, Label, PaletteButton, Segmented, SearchSelect, TextField, numericOnly, numericInputProps } from '@/components/erp/fields';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { ObjId } from '@/components/erp/obj-id';
 
 // Gültiger Webshop-Link: http(s) mit einem Host inkl. Punkt (z. B. shop.example.com).
@@ -348,7 +348,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     {isCompanion && (companionRole(s) === 'versandkunde'
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><UserIcon size={12} /> Versand zum Kunden · Ziel beim Versand</span>
                       : (s.target_location_id
-                        ? `Wareneingang → ${fmtObjId(s.target_location_id)}`
+                        ? `Wareneingang → ${formatObjectId(s.target_location_id)}`
                         : 'Wareneingang · frei beim Einlagern'))}
                     {!isCompanion && s.step_type === 'purchase' && (() => {
                       // Bezugsquelle am Schritt (Lieferant/Webshop) – oder geerbt vom Artikel-Standard.
@@ -374,7 +374,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                     {!isCompanion && s.step_type === 'movement' && (s.target_location_id
                       // Objektnummer zuerst, danach die Bezeichnung – überall dieselbe
                       // Lesereihenfolge wie in den Auswahllisten («100000002 · Person»).
-                      ? `Ziel: ${fmtObjId(s.target_location_id)} · ${locationTypeLabel(s.target_location_type)}`
+                      ? `Ziel: ${formatObjectId(s.target_location_id)} · ${locationTypeLabel(s.target_location_type)}`
                       : 'Standort nicht definiert – Lagerist wählt beim Einlagern')}
                     {s.step_type === 'resource' && `${s.resource_lines?.length ?? 0} Position${(s.resource_lines?.length ?? 0) === 1 ? '' : 'en'}`}
                     {s.step_type === 'sale' && 'Verkauf / Gutschrift – Betrag & Kunde im Auftrag'}
@@ -475,7 +475,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                         <span style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff', border: `1px solid ${tool ? '#E4D6EA' : '#EADFCB'}`, color: tool ? '#7E5586' : '#9A7238', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {tool ? <Wrench size={16} /> : <PackageMinus size={16} />}
                         </span>
-                        {l.article_object_id != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)', fontWeight: 600, flexShrink: 0 }}>{fmtObjId(l.article_object_id)}</span>}
+                        {l.article_object_id != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)', fontWeight: 600, flexShrink: 0 }}>{formatObjectId(l.article_object_id)}</span>}
                         <span style={{ flex: 1, minWidth: 0, font: '600 14px var(--font-body)', color: 'var(--fg-1)', display: 'flex', alignItems: 'center', gap: 9 }}>
                           {/* Kein «Werkzeug»-Etikett (#233): das Symbol links sagt es bereits. */}
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.article_name ?? `#${l.article_id}`}</span>
@@ -552,7 +552,7 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                   {mode === 'supplier' ? (
                     <SearchSelect label="Lieferant" value={supplierId} onChange={setSupplierId} required
                       options={suppliers.filter((s) => s.object_id != null).map((s) => ({
-                        value: String(s.id), label: `${fmtObjId(s.object_id)} · ${userDisplayName(s)}` }))} />
+                        value: String(s.id), label: `${formatObjectId(s.object_id)} · ${userDisplayName(s)}` }))} />
                   ) : (
                     <TextField label="Webshop-Link" value={url} onChange={setUrl} required
                       placeholder="https://shop.example.com/artikel" />
@@ -594,9 +594,9 @@ export function ProcessSteps({ owner, ownerObjectId, suppliers = [], readOnly = 
                       { value: '', label: 'Nicht definiert – Lagerist wählt beim Einlagern' },
                       ...(company ? [{ value: `company:${company.objectId}`, label: `Im Betrieb · ${company.name}` }] : []),
                       ...allUsers.filter((u) => u.object_id != null).map((u) => ({
-                        value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${fmtObjId(u.object_id)}` })),
+                        value: `user:${u.object_id}`, label: `Person ${userDisplayName(u)} · ${formatObjectId(u.object_id)}` })),
                       ...allInstances.filter((i) => i.object_id != null).map((i) => ({
-                        value: `instance:${i.object_id}`, label: `${instanceLabel()} ${fmtObjId(i.object_id)}` })),
+                        value: `instance:${i.object_id}`, label: `${instanceLabel()} ${formatObjectId(i.object_id)}` })),
                     ]} />
                 </>
               )}
@@ -659,7 +659,7 @@ function ResourceLinesEditor({ lines, onChange, articles }: {
   }
   function del(i: number) { onChange(lines.filter((_, idx) => idx !== i)); }
   const options = [{ value: '', label: '— Artikel wählen —' },
-    ...articles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))];
+    ...articles.map((a) => ({ value: String(a.id), label: `${formatObjectId(a.object_id)} · ${a.name}` }))];
   return (
     <div>
       <Label>Ressourcen</Label>
@@ -856,7 +856,7 @@ const AUDIENCE_ROLE_LABELS: Record<string, string> = {
 function DocConfigView({ step, users }: { step: ArticleProcessStep; users: UserProfile[] }) {
   const nameOf = (oid: number) => {
     const u = users.find((x) => x.object_id === oid);
-    return u ? userDisplayName(u) : `Objekt ${fmtObjId(oid)}`;
+    return u ? userDisplayName(u) : `Objekt ${formatObjectId(oid)}`;
   };
   const signers = step.doc_signers ?? [];
   const vis = step.doc_visibility ?? 'internal';
@@ -878,7 +878,7 @@ function DocConfigView({ step, users }: { step: ArticleProcessStep; users: UserP
             <span style={dv.idx}>{i + 1}</span>
             <span style={dv.name}>{nameOf(sg.signer_object_id)}</span>
             <span style={dv.tag}>{sg.action === 'confirm' ? 'Bestätigen' : 'Unterschreiben'}</span>
-            <span style={dv.nr}>{fmtObjId(sg.signer_object_id)}</span>
+            <span style={dv.nr}>{formatObjectId(sg.signer_object_id)}</span>
           </div>
         ))
       )}
@@ -932,18 +932,18 @@ function DocConfigEditor({ cfg, onChange, users }: {
   const pickable = users.filter((u) => u.object_id != null);
   const nameOf = (oid: number) => {
     const u = users.find((x) => x.object_id === oid);
-    return u ? userDisplayName(u) : `Objekt ${fmtObjId(oid)}`;
+    return u ? userDisplayName(u) : `Objekt ${formatObjectId(oid)}`;
   };
   const chosen = new Set(cfg.signers.map((s) => s.signer_object_id));
   const signerOptions = [
     { value: '', label: '+ Freigabe-Partei hinzufügen…' },
     ...pickable.filter((u) => !chosen.has(u.object_id!)).map((u) => ({
-      value: String(u.object_id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id!)}` })),
+      value: String(u.object_id), label: `${userDisplayName(u)} · ${formatObjectId(u.object_id!)}` })),
   ];
   const personOptions = [
     { value: '', label: '+ Person hinzufügen…' },
     ...pickable.filter((u) => !cfg.persons.includes(u.object_id!)).map((u) => ({
-      value: String(u.object_id), label: `${userDisplayName(u)} · ${fmtObjId(u.object_id!)}` })),
+      value: String(u.object_id), label: `${userDisplayName(u)} · ${formatObjectId(u.object_id!)}` })),
   ];
 
   function addSigner(v: string) {

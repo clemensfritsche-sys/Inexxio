@@ -94,7 +94,7 @@ def test_duplicate_article_copies_spec_and_procurement_fields():
 
 def test_shortfalls_count_sold_as_delivered():
     from app.services import process
-    src = inspect.getsource(process._subject_shortfalls)
+    src = inspect.getsource(process._secured_amounts)
     assert "sold_amounts_for_order" in src
     # … aber eine NACH dem Verkauf verschrottete Instanz zählt NICHT als geliefert.
     assert "scrapped" in src

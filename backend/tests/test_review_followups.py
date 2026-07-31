@@ -6,7 +6,6 @@ import inspect
 from decimal import Decimal
 from types import SimpleNamespace
 
-import pytest
 
 
 # ─── CheckoutIntent-Reaper ────────────────────────────────────────────────────────
@@ -143,7 +142,7 @@ def test_return_subjects_include_batch_slices(monkeypatch):
 
 def test_slice_restock_is_movement_gated_and_idempotent():
     from app.services import process
-    src = inspect.getsource(process.return_subjects_to_stock)
+    src = inspect.getsource(process.return_subjects_to_stock) + inspect.getsource(process._restock_one)
     assert "movement_done" in src                  # erst nach quittierter Rückgabe-Bewegung
     assert "_already_restocked" in src             # Event-Marker (Abschluss ruft erneut)
     assert "to_qty(inst.quantity) + back" in src   # mengengenau in die Original-Charge

@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { FileText, FileDown, Hash, Send, PenLine, Check, X, RotateCcw, ShieldCheck, FileEdit, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { CompanySettings, Order, DocumentContent, SignoffView, UserProfile } from '@/types';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { DocumentEditor, DocumentView } from '@/components/erp/document-editor';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { PanelHeader, PrimaryButton, SaveIndicator } from '@/components/erp/fields';
 import { AiWriteAssist } from '@/components/ai/write-assist';
 import { useAutosave } from '@/lib/use-autosave';
+import { formatObjectId } from '@/lib/utils';
 
 // Panel des Dokument-Schritts im Auftrag. Der Inhalt wird HIER – während der Ausführung –
 // verfasst und mit «Ausstellen» festgeschrieben (issued). Danach signieren die Freigabe-
@@ -117,7 +118,7 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
         info="Inhalt verfassen und mit «Ausstellen» festschreiben. Danach geben die benannten Parteien frei; erst wenn alle unterschrieben/bestätigt haben, ist das Dokument freigegeben."
         right={nr ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700, color: '#6E6E73', fontVariantNumeric: 'tabular-nums' }}>
-            <Hash size={12} /> {fmtObjId(nr)}
+            <Hash size={12} /> {formatObjectId(nr)}
           </span>
         ) : (
           <StatusPill done={done} issued={issued} />
@@ -136,7 +137,7 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
             <FileDown size={16} /> {busy ? 'Wird geladen…' : 'Als PDF herunterladen'}
           </button>
           {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
-          <DocumentView content={doc?.content ?? null} objectNr={nr ? fmtObjId(nr) : null} issuedAt={doc?.document_date ?? null} company={company} signoffs={signoffs} />
+          <DocumentView content={doc?.content ?? null} objectNr={nr ? formatObjectId(nr) : null} issuedAt={doc?.document_date ?? null} company={company} signoffs={signoffs} />
         </>
       ) : issued ? (
         /* Ausgestellt – Inhalt eingefroren, Freigaben laufen. */
@@ -150,7 +151,7 @@ export function DocumentPanel({ order, stepState, stepId, company, onOrderUpdate
             <RotateCcw size={14} /> Ausstellung zurücknehmen
           </button>
           {err && <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>}
-          <DocumentView content={doc?.content ?? null} objectNr={nr ? fmtObjId(nr) : null} issuedAt={doc?.document_date ?? null} company={company} signoffs={signoffs} />
+          <DocumentView content={doc?.content ?? null} objectNr={nr ? formatObjectId(nr) : null} issuedAt={doc?.document_date ?? null} company={company} signoffs={signoffs} />
         </>
       ) : (
         <>
@@ -279,7 +280,7 @@ function SignoffRow({ order, signoff, index, isMine, myTurn, onOrderUpdated }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#6E6E73', minWidth: 16 }}>{index + 1}.</span>
         <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: '#0A0A0B', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {s.signer_name ?? `Objekt ${fmtObjId(s.signer_object_id)}`}
+          {s.signer_name ?? `Objekt ${formatObjectId(s.signer_object_id)}`}
           {isMine && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>Sie</span>}
         </span>
         {statusChip}

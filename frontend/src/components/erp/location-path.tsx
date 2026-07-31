@@ -25,9 +25,10 @@
 import { MapPin, CornerDownRight } from 'lucide-react';
 import type { LocationType } from '@/types';
 import { LOCATION_META, locationTypeLabel } from '@/lib/process';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { useErpNav } from '@/components/erp/obj-id';
 import { TileShell } from '@/components/erp/fields';
+import { formatObjectId } from '@/lib/utils';
 
 export type LocationHop = {
   location_type: string;
@@ -75,7 +76,7 @@ export function LocationPathCard({ path, slices, unit, style }: {
                   title={locationTypeLabel(s.location_type)}>
                   {s.location_label ?? locationTypeLabel(s.location_type)}
                 </button>
-                <span style={ST.nr}>{fmtObjId(s.location_id)}</span>
+                <span style={ST.nr}>{formatObjectId(s.location_id)}</span>
                 <span style={ST.qty}>{s.quantity}{unit ? <span style={ST.unit}>{unit}</span> : null}</span>
               </li>
             );
@@ -108,7 +109,7 @@ export function LocationPathCard({ path, slices, unit, style }: {
                   {hop.label ?? locationTypeLabel(hop.location_type)}
                 </button>
                 {/* Eine Anschrift trägt keine Objektnummer – dann bleibt die Spalte leer. */}
-                <span style={ST.nr}>{hop.location_id != null ? fmtObjId(hop.location_id) : ''}</span>
+                <span style={ST.nr}>{hop.location_id != null ? formatObjectId(hop.location_id) : ''}</span>
               </li>
             );
           })}

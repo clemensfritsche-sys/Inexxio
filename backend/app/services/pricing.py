@@ -196,16 +196,6 @@ def _to_currency_simple(amount_chf: Decimal, currency: str, rate: Decimal) -> De
 
 # ─── Gesamtansicht ────────────────────────────────────────────────────────────────
 
-def price_view(db: Session, article: Article, currency: str = "CHF",
-               country: str | None = None, customer=None) -> dict | None:
-    """Anzeige-Preis des **Hauptpreises** eines Artikels. ``None``, wenn kein Preis gepflegt
-    ist. Bequeme Hülle um ``price_view_for`` (siehe dort)."""
-    price = resolve_primary_price(db, article)
-    if not price:
-        return None
-    return price_view_for(db, price, currency, country, customer)
-
-
 def price_view_for(db: Session, price: ArticlePrice, currency: str = "CHF",
                    country: str | None = None, customer=None) -> dict:
     """Anzeige-Preis EINER konkreten Preis-Option: {currency, kind, interval, sub_type,

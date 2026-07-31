@@ -808,7 +808,7 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `restrict`+`candidates` (Lookup; Code ausserhalb des ERP → Fehlermeldung). **Prozess-Quittierung
   per Scan ist verbindlich:** Bewegung (aktueller Standort → Instanz → Zielstandort), Ressource
   (Produkt-Instanz → Komponente; Betriebsmittel), Datenerfassung (Instanz vor Erfassung).
-  Etikettendruck via `ObjectLabel` (`qrcode.react`) an der Instanz; Feed-Button «Scannen»
+  Etikettendruck via `printObjectLabel` (`qrcode.react`) im Detail-Kopf; Feed-Button «Scannen»
   öffnet den Datensatz. Kein Backend nötig (Objektnummer = Schlüssel, Feed kennt alle IDs).
 - **Verkauf / Shop (MVP, am Artikel – kein eigenes «Angebot»-Objekt)**: Der Verkauf ist eine dritte,
   bewusst **lebende** Ebene am Artikel (analog `landed_unit_cost`): `articles.sales_published/
@@ -2996,6 +2996,60 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   die sich Modul-Palette, Erfassungsfeld-Palette und Unterdeckungs-Frage teilen.
   Wächter: `test_a_sub_order_knows_which_step_it_interrupted`,
   `test_sub_orders_know_where_they_came_from`, `test_open_provisioning_holds_the_whole_order`.
+
+- **Testnotizen-Runde 28 + Tiefen-Cleanup (Notizen #379–#381)**:
+  (1) **Der Zustand eines Datensatzes wird an EINER Stelle abgeleitet** (#379,
+  `lib/record-status.ts`): Der ERP-Feed baute die Status-Badge in einer fünfarmigen
+  Fallunterscheidung selbst, jedes Detailfenster noch einmal – zwei Stellen für dieselbe
+  Aussage, und sie sind auseinandergelaufen: am Unternehmen zeigte der Feed hart verdrahtet
+  **«Unternehmen»** (die Datensatz*art*!), während das Detail längst «Freigegeben»/«Inaktiv»
+  sagte. Leiser, aber derselbe Fehler: das Benutzer-Detail liess das Symbol der Rollen-Badge
+  weg. Die Lösung ist die, die es für den **Namen** längst gibt (`record-name.ts`, #177):
+  eine Ableitung je Typ (`userStatus`/`articleStatus`/`orderStatus`/`instanceStatus`/
+  `organizationStatus`), gelesen von Feed **und** Detail. Der Feed verteilt nur noch, er
+  baut nichts mehr; `ROLE_CFG` ist aus `user-detail.tsx` (einer Komponente!) in die
+  `lib`-Ebene gewandert, und «fällig» (wiederkehrend & Termin erreicht) gilt jetzt auch im
+  Detail. **Fest verankert** durch `tests/test_frontend_mirrors.py:
+  test_record_status_is_derived_in_exactly_one_place`: ein Status-Literal (`label` +
+  `color`/`bg`) darf nur unter `lib/` stehen – der Wächter ist gegen die gemeldete Bug-Form
+  gegengeprüft.
+  (2) **Der Auftrag-Shortcut trägt den Ton des Zustands** (#380): ist die Instanz gebunden
+  (gelbe Badge), wird aus dem Auftrag eine Abweichung – also sieht der Knopf schon vorher so
+  aus (gelb statt slate, mit passendem Hover-Text). Das ist **keine zweite Regel**, sondern
+  ein Blick auf dieselbe Badge (`status-flow.isPending`); die Entscheidung trifft weiterhin
+  allein die Auswahl im Auftrag (`subject.classify_pick`).
+  (3) **«Es fehlt …» am Unter-Auftrag entfällt** (#381) – dass der Prozess seinetwegen ruht,
+  sagen die Pause am Knoten und der zurückgetretene Fluss; die Props `missing`/`waitingFor`
+  am `OrderFlow` sind mit entfallen.
+  **Tiefen-Cleanup im gleichen Zug** (netto −33 Zeilen bei 52 Dateien, ohne
+  Verhaltensänderung): `fmtObjId` war ein historischer **Alias** auf `formatObjectId` –
+  ausgerechnet re-exportiert aus `user-detail.tsx`, sodass 22 Dateien ihre Zahlen-
+  Formatierung aus einem Detailfenster importierten; jetzt ein Name, ein Zuhause
+  (`lib/utils`). Die Wer/Wann-Zeile («Name · 31.07.26, 21:52») entstand an vier Stellen
+  einzeln → `utils.actorHint`/`localDateTime`. Die **Palette** (Symbol + aufklappender
+  Name) stand dreimal → `fields.PaletteButton`. Tot und entfernt: `pricing.price_view`
+  (0 Aufrufer), `lib/consent.hasConsent`, `PROCESS_MODE_LABEL`, `status-flow.
+  lifecycleActions`, die **zweite** `SelectField`-Fassung in `fields.tsx`, die Komponente
+  `ObjectLabel` (der Etikettendruck läuft seit #117 über den Kopf-Knopf), die CSS-Klassen
+  `.erp-tool*`, `provisioning.sub_orders_for_step` sowie sechs ungenutzte Importe. Die
+  80-Zeilen-Regel gilt wieder im ganzen ERP-Kern: `update_order` 92→36 (`_pop_pick_inputs`/
+  `_assert_payload`/`_apply_fields`/`_do_release`), `_subject_shortfalls` 86→30
+  (`_subject_targets` = das Soll, `_secured_amounts` = was der Auftrag schon hat),
+  `return_subjects_to_stock` 88→38 (`_restock_one`), `references.instance_orders` 90→8
+  (`_instance_hits` sammelt, `_order_rows` baut). *Bewusst NICHT angefasst:* `render_pdf`/
+  `run_chat`/`fulfill_intent` (dokumentierte Ausnahmen ausserhalb des ERP-Kerns),
+  `main._ensure_columns` (das Lifespan-Netz für Kosmetik anzufassen wäre nach der
+  Migration-090-Geschichte das falsche Risiko), die `.ix-*`-Primitiven des
+  Design-System-Exports (eine Design-Sprache prunt man nicht nach heutiger Nutzung) und die
+  **Alt-Palette** in den Website-/Shop-Seiten (Big-Bang-Migration ist ausdrücklich nicht der
+  Weg – beim Anfassen mitziehen).
+  **Offen und bewusst gemeldet:** `/admin/benutzer` ist eine **zweite, nicht verlinkte**
+  Benutzerverwaltung in der Alt-Palette (mit einer dritten Rollen-Konfiguration). Sie trägt
+  aber als EINZIGE das **Deaktivieren/Reaktivieren** einer Person – der ERP-Feed zeigt nur
+  aktive Benutzer. Sie ersatzlos zu löschen nähme eine Fähigkeit weg; sie sauber aufzulösen
+  heisst: Feed-Filter «inaktiv» + Lebenszyklus-Aktionen am Benutzer-Datensatz, dann Seite
+  weg (genau der Weg, den `/admin/einstellungen` in Runde 21 gegangen ist). Das ist eine
+  Änderung am Benutzer-Lebenszyklus, kein Aufräumen – darum hier nur benannt.
 
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);

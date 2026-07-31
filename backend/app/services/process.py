@@ -405,8 +405,7 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
     auf eine ausgesteuerte Reservierung – dieselbe Unterdeckung, dieselben Deckungs-Wege, kein
     Sonderfall. Ausgenommen ist nur die **Abweichung**: ihr Subjekt sind fixierte Instanzen
     (``subject_of_order_id``), kein aus Lager/Produktion zu erfüllendes Soll."""
-    from .order_lines import lines_for
-    from .subject import TERMINAL_DISPOSITIONS, is_fixed_subject
+    from .subject import is_fixed_subject
     # **Nur ein LAUFENDER Auftrag kann etwas schulden.** Ein Entwurf hat noch nichts zugesagt
     # (und noch keine Instanzen), ein abgeschlossener/abgebrochener hat abgerechnet – dort
     # sind Reservierung und Subjekt-Bindung längst gelöst, «Soll − Gesichert» ergäbe die
@@ -416,16 +415,29 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
         return {}
     if is_fixed_subject(order):
         return {}   # Abweichung/Retoure: Subjekt steht fest (gewählte/verkaufte Instanzen)
-    # Soll je Artikel
-    targets: dict[int, Decimal] = {}
-    if order.article_id and order.quantity:
-        targets[order.article_id] = to_qty(order.quantity)
-    else:
-        for line in lines_for(db, order):
-            targets[line.article_id] = targets.get(line.article_id, ZERO) + to_qty(line.quantity)
+    targets = _subject_targets(db, order)
     if not targets:
         return {}
-    # Gesichert je Artikel
+    secured = _secured_amounts(db, order)
+    return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
+
+
+def _subject_targets(db: Session, order: Order) -> dict[int, Decimal]:
+    """**Soll** je Artikel: die Bestellmenge – Einzel-Artikel am Auftrag, sonst je Position."""
+    from .order_lines import lines_for
+    if order.article_id and order.quantity:
+        return {order.article_id: to_qty(order.quantity)}
+    targets: dict[int, Decimal] = {}
+    for line in lines_for(db, order):
+        targets[line.article_id] = targets.get(line.article_id, ZERO) + to_qty(line.quantity)
+    return targets
+
+
+def _secured_amounts(db: Session, order: Order) -> dict[int, Decimal]:
+    """**Gesichert** je Artikel – gute Einheiten, die der Auftrag bereits hat. Drei Quellen:
+    für ihn **reservierte** Bestands-Instanzen, **selbst erzeugte** gute Instanzen und was er
+    bereits **verkauft** hat (das ist geliefert, nicht verloren)."""
+    from .subject import TERMINAL_DISPOSITIONS
     secured: dict[int, Decimal] = {}
     # **Was in Klärung steckt, zählt mengengenau** – nicht als ganze Instanz: eine
     # Abweichung an EINER Schraube einer 500er-Charge nimmt dem Auftrag genau eine.
@@ -475,7 +487,7 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
             if inst is None or inst.disposition == "scrapped":
                 continue
             secured[inst.article_id] = secured.get(inst.article_id, ZERO) + qty
-    return {a: t - secured.get(a, ZERO) for a, t in targets.items() if t - secured.get(a, ZERO) > 0}
+    return secured
 
 
 def subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
@@ -780,7 +792,6 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     nicht daran, an welchen Halter-Typ sie gebracht wurde. (Früher stand hier
     ``location_type == 'lagerplatz'``; mit dem Wegfall des Lagerplatz-Typs hätte diese
     Bedingung nie mehr zugetroffen und keine Retoure wäre je wieder eingebucht worden.)"""
-    from ..models import Event
     from .sale import customer_for_order
     from .subject import is_return, order_instances
     if not is_return(order):
@@ -800,18 +811,6 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     # Fallback 1 deckt Einzelteile/Altdaten ohne Events (jede Einzelteil-Instanz = 1 Stück).
     sold_amounts = sold_amounts_for_order(db, order.parent_order_id)
 
-    def _already_restocked(inst) -> bool:
-        """Idempotenz-Marker: der Rückfluss DIESER Retoure in DIESE Instanz wurde bereits
-        gebucht (das ``inventory.increased``-Event mit reason='return' ist der Beleg)."""
-        for ev in db.query(Event).filter(
-            Event.event_type == "inventory.increased", Event.object_type == "instance",
-            Event.object_id == inst.object_id,
-            Event.payload["order"].astext == str(order.object_id),
-        ).all():
-            if (ev.payload or {}).get("reason") == "return":
-                return True
-        return False
-
     # Chargen-Slice (Teilmengen-Verkauf): erst buchen, wenn die Rückgabe-Bewegung
     # quittiert ist (die Ware ist physisch wieder da) – die Slice-Instanz selbst wird
     # dabei NICHT bewegt (sie war nie weg; die Teilmenge fliesst in sie zurück).
@@ -823,39 +822,64 @@ def return_subjects_to_stock(db: Session, order: Order) -> None:
     for inst in order_instances(db, order):
         if is_blocked(inst) or (inst.disposition or "") in ("scrapped", "consumed"):
             continue
-        if inst.disposition == "sold":
-            # Ganz verkaufte Instanz: Rückkehr = sie liegt nicht mehr beim Kunden.
-            still_at_customer = (
-                _cust_oid is not None
-                and inst.location_type == "user" and inst.location_id == _cust_oid
-            )
-            if still_at_customer or not movement_done:
-                continue   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
-            # **Zurück kommt, was hinausging.** Massgeblich ist die beim Verkauf abgebuchte
-            # Menge (Event-Strom); erst wenn es die nicht gibt (Altdaten), zählt die Menge
-            # auf der Instanz, und ganz zuletzt «ein Stück» für ein Einzelteil ohne beides.
-            # Vorher stand hier ein ``max(…, ONE)`` – dieser feste Boden machte aus einer
-            # ganz verkauften 0.5-kg-Charge bei der Rückgabe **1 kg**: der Bestand wuchs bei
-            # jeder Retoure einer Bruchmenge. Eine Menge hat keinen Mindestwert von 1;
-            # genau diese Verwechslung von «Stück zählen» und «Menge messen» bewacht
-            # ``tests/test_quantity_rules.py``.
-            back = sold_amounts.get(inst.object_id) or to_qty(inst.quantity) or ONE
-            inst.quantity = back
-        else:
-            # **Chargen-Slice**: der Original-Verkauf hat eine TEILMENGE dieser (weiterhin
-            # bestehenden) Instanz abgebucht – die Teilmenge hat keine eigene Instanz. Die
-            # Rückgabe bucht sie mengengenau in die Original-Charge zurück (Objektnummer
-            # bleibt die physische Wahrheit). Event-idempotent (Abschluss ruft erneut).
-            back = sold_amounts.get(inst.object_id, ZERO)
-            if back <= 0 or not movement_done or _already_restocked(inst):
-                continue
-            inst.quantity = to_qty(inst.quantity) + back
-        inst.disposition = "in_stock"
-        inst.quality = "passed"
-        inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
-        emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
-             payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
-                      "reason": "return", "order": order.object_id})
+        _restock_one(db, order, inst, _cust_oid, sold_amounts, movement_done)
+
+
+def _already_restocked(db: Session, order: Order, inst) -> bool:
+    """Idempotenz-Marker: der Rückfluss DIESER Retoure in DIESE Instanz wurde bereits
+    gebucht (das ``inventory.increased``-Event mit reason='return' ist der Beleg)."""
+    from ..models import Event
+    for ev in db.query(Event).filter(
+        Event.event_type == "inventory.increased", Event.object_type == "instance",
+        Event.object_id == inst.object_id,
+        Event.payload["order"].astext == str(order.object_id),
+    ).all():
+        if (ev.payload or {}).get("reason") == "return":
+            return True
+    return False
+
+
+def _restock_one(db: Session, order: Order, inst, cust_oid: int | None,
+                 sold_amounts: dict, movement_done: bool) -> None:
+    """Eine einzelne Subjekt-Instanz einer Retoure zurückbuchen – **ganz oder als Teilmenge**.
+
+    Ganz verkauft → Rückkehr heisst «liegt nicht mehr beim Kunden»; Chargen-Slice → die
+    verkaufte Teilmenge fliesst mengengenau in die (nie verschwundene) Original-Charge
+    zurück. Beides bucht nur bei quittierter Rückgabe-Bewegung; wurde nichts bewegt
+    (Kulanz), bleibt die Ware beim Kunden."""
+    if inst.disposition == "sold":
+        # Ganz verkaufte Instanz: Rückkehr = sie liegt nicht mehr beim Kunden.
+        still_at_customer = (
+            cust_oid is not None
+            and inst.location_type == "user" and inst.location_id == cust_oid
+        )
+        if still_at_customer or not movement_done:
+            return   # nicht zurückbewegt → Ware bleibt beim Kunden (sold)
+        # **Zurück kommt, was hinausging.** Massgeblich ist die beim Verkauf abgebuchte
+        # Menge (Event-Strom); erst wenn es die nicht gibt (Altdaten), zählt die Menge
+        # auf der Instanz, und ganz zuletzt «ein Stück» für ein Einzelteil ohne beides.
+        # Vorher stand hier ein ``max(…, ONE)`` – dieser feste Boden machte aus einer
+        # ganz verkauften 0.5-kg-Charge bei der Rückgabe **1 kg**: der Bestand wuchs bei
+        # jeder Retoure einer Bruchmenge. Eine Menge hat keinen Mindestwert von 1;
+        # genau diese Verwechslung von «Stück zählen» und «Menge messen» bewacht
+        # ``tests/test_quantity_rules.py``.
+        back = sold_amounts.get(inst.object_id) or to_qty(inst.quantity) or ONE
+        inst.quantity = back
+    else:
+        # **Chargen-Slice**: der Original-Verkauf hat eine TEILMENGE dieser (weiterhin
+        # bestehenden) Instanz abgebucht – die Teilmenge hat keine eigene Instanz. Die
+        # Rückgabe bucht sie mengengenau in die Original-Charge zurück (Objektnummer
+        # bleibt die physische Wahrheit). Event-idempotent (Abschluss ruft erneut).
+        back = sold_amounts.get(inst.object_id, ZERO)
+        if back <= 0 or not movement_done or _already_restocked(db, order, inst):
+            return
+        inst.quantity = to_qty(inst.quantity) + back
+    inst.disposition = "in_stock"
+    inst.quality = "passed"
+    inst.released_at = utcnow()          # FIFO-Basis: ab jetzt wieder am Lager
+    emit(db, "inventory.increased", object_type="instance", object_id=inst.object_id,
+         payload={"quantity": back, "delta": back, "polarity": event_types.INCREASE,
+                  "reason": "return", "order": order.object_id})
 
 
 def _finalize_subjects(db: Session, order: Order) -> None:

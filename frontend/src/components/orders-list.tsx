@@ -3,21 +3,22 @@
 import { useState } from 'react';
 import { Package, RefreshCw, Loader2, Undo2, CheckCircle2 } from 'lucide-react';
 import type { CustomerOrder } from '@/types';
-import { formatMoney as fmtMoney } from '@/lib/utils';
+import { formatMoney as fmtMoney, localDate } from '@/lib/utils';
+import { TONE } from '@/lib/status-flow';
 
 // Dieselbe Ampel + dieselben Worte wie im ERP: offen/laufend = GELB, erledigt = GRÜN,
-// storniert = ROT. Tokens statt Hex.
+// storniert = ROT – und aus derselben Ton-Tabelle, nicht aus einer zweiten Kopie.
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  requested:  { label: 'Offen',         color: 'var(--warning)', bg: 'var(--warning-bg)' },
-  processing: { label: 'Im Prozess',   color: 'var(--warning)', bg: 'var(--warning-bg)' },
-  completed:  { label: 'Abgeschlossen', color: 'var(--success)', bg: 'var(--success-bg)' },
-  cancelled:  { label: 'Storniert',     color: 'var(--danger)',  bg: 'var(--danger-bg)' },
+  requested:  { label: 'Offen',         ...TONE.pending },
+  processing: { label: 'Im Prozess',    ...TONE.pending },
+  completed:  { label: 'Abgeschlossen', ...TONE.done },
+  cancelled:  { label: 'Storniert',     ...TONE.danger },
 };
 
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('de-CH');
+  return localDate(iso);
 }
 
 function subLabel(o: CustomerOrder): string {

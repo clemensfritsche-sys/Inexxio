@@ -7,7 +7,7 @@ import {
   type ScanCandidate, type ScanStep, type ScanRequest,
 } from '@/lib/scan';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId } from '@/lib/utils';
 
 export type { ScanRequest };
 
@@ -36,15 +36,15 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
     if (!cur) return;
     if (!validateForStep(objectId, cur)) {
       const text = cur.expected != null
-        ? `${fmtObjId(objectId)} ist nicht das erwartete Objekt`
-        : `${fmtObjId(objectId)} ist nicht im ERP`;
+        ? `${formatObjectId(objectId)} ist nicht das erwartete Objekt`
+        : `${formatObjectId(objectId)} ist nicht im ERP`;
       setFeedback({ kind: 'bad', text });
       return;
     }
     // gültig → kurz grün zeigen, dann weiter / abschliessen
     lock.current = true;
     results.current = [...results.current, objectId];
-    setFeedback({ kind: 'ok', text: `Erkannt: ${fmtObjId(objectId)}` });
+    setFeedback({ kind: 'ok', text: `Erkannt: ${formatObjectId(objectId)}` });
     window.setTimeout(() => {
       const next = stepIndexRef.current + 1;
       if (next >= steps.length) {
@@ -87,7 +87,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
     const q = query.trim().toLowerCase();
     if (!q || !step?.candidates) return [];
     return step.candidates
-      .filter((c) => fmtObjId(c.objectId).includes(q) || c.label.toLowerCase().includes(q))
+      .filter((c) => formatObjectId(c.objectId).includes(q) || c.label.toLowerCase().includes(q))
       .slice(0, 6);
   }, [query, step]);
 
@@ -95,7 +95,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
   // scannen». Steht die Zielnummer fest, steht sie darin; das Eingabefeld bleibt daneben
   // ganz normal benutzbar, für den Bedarfsfall (Notiz #145).
   const actionText = step
-    ? `${step.label}${typeof step.expected === 'number' ? ` ${fmtObjId(step.expected)}` : ''} scannen`
+    ? `${step.label}${typeof step.expected === 'number' ? ` ${formatObjectId(step.expected)}` : ''} scannen`
     : 'Objektnummer scannen';
 
   // Direkte Übernahme einer eingetippten vollständigen Objektnummer (ohne Vorschlag).
@@ -171,7 +171,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
             <div className="ix-noscrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 152, overflowY: 'auto' }}>
               {suggestions.map((c) => (
                 <button key={c.objectId} onClick={() => handle(c.objectId)} style={suggestionBtn}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{fmtObjId(c.objectId)}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{formatObjectId(c.objectId)}</span>
                   <span style={{ opacity: .8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.label}</span>
                 </button>
               ))}
@@ -180,7 +180,7 @@ export function ScanDialog({ steps, onComplete, onClose }: ScanRequest & { onClo
 
           {suggestions.length === 0 && query.trim() !== '' && (
             <button onClick={submitQuery} disabled={!typedDirectOk} style={{ ...primaryBtn, opacity: typedDirectOk ? 1 : 0.45 }}>
-              {typedId != null ? `${fmtObjId(typedId)} übernehmen` : 'Übernehmen'}
+              {typedId != null ? `${formatObjectId(typedId)} übernehmen` : 'Übernehmen'}
             </button>
           )}
         </div>

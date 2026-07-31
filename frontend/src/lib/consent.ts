@@ -57,11 +57,6 @@ export function hasDecided(): boolean {
   return getConsent() !== null;
 }
 
-export function hasConsent(category: ConsentCategory): boolean {
-  if (category === 'necessary') return true;
-  return getConsent()?.analytics === true;
-}
-
 // ─── Schreiben ────────────────────────────────────────────────────────────────
 
 function persist(state: ConsentState): void {

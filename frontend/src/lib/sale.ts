@@ -1,5 +1,6 @@
 import { Clock, CheckCircle2, FileText, Banknote, Ban } from 'lucide-react';
 import { TONE, pickCfg, type StatusCfg } from '@/lib/status-flow';
+import { localDateTime } from '@/lib/utils';
 import type { PNode } from '@/components/erp/purchase-progress';
 
 // Verkauf (kaufmännisches Spiegelbild der Beschaffung):
@@ -25,9 +26,7 @@ const SALE_FLOW = [
   { key: 'paid', label: 'Bezahlt' },
 ] as const;
 
-function fmt(iso?: string | null): string | undefined {
-  return iso ? new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : undefined;
-}
+const fmt = localDateTime;
 
 /** Knoten des Verkaufs-Fortschritts (analog zur Beschaffung). Storniert wird – wie
  *  «Abgelehnt» bei der Beschaffung – als roter Endknoten nach «Angefragt» gezeigt. */

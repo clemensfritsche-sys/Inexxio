@@ -19,12 +19,12 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { ObjectDocument, DocumentAnalyzeResponse, DocumentFileType, SuggestedLink, CompanySettings, DocumentContent } from '@/types';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { DocumentCamera } from '@/components/erp/document-camera';
 import { DocumentView } from '@/components/erp/document-editor';
 import { StatusBadge } from '@/components/erp/fields';
 import { instanceStatusConfig } from '@/lib/process';
-import { localDate } from '@/lib/utils';
+import { formatObjectId, localDate } from '@/lib/utils';
 
 // ─── Dokumenttyp: Symbol + Label (Farbe = Bedeutung) ──────────────────────────────
 const DOC_TYPE: Record<string, { label: string; icon: React.ElementType; tone: string }> = {
@@ -140,7 +140,7 @@ export function ObjectDocuments({ objectId, contextLabel }: {
                   </div>
                   {d.summary && <div style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-3)', marginTop: 4, lineHeight: 1.45 }}>{d.summary}</div>}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, font: '500 11px var(--font-body)', color: 'var(--fg-4)', flexWrap: 'wrap' }}>
-                    {d.object_number != null && <span style={{ fontFamily: 'var(--font-mono)' }}>{fmtObjId(d.object_number)}</span>}
+                    {d.object_number != null && <span style={{ fontFamily: 'var(--font-mono)' }}>{formatObjectId(d.object_number)}</span>}
                     {d.created_at && <span>{localDate(d.created_at)}</span>}
                     {d.created_by_name && <span>· {d.created_by_name}</span>}
                     {d.page_count ? <span>· {d.page_count} S.</span> : null}
@@ -224,7 +224,7 @@ function DocumentPreview({ entry, onClose, onDownload }: {
           {isGenerated ? (
             <div style={{ padding: 24, width: '100%', maxWidth: 820 }}>
               <DocumentView content={entry.content as unknown as DocumentContent} company={company}
-                objectNr={entry.object_number ? fmtObjId(entry.object_number) : null}
+                objectNr={entry.object_number ? formatObjectId(entry.object_number) : null}
                 issuedAt={entry.created_at ?? null} signoffs={entry.signoffs} />
             </div>
           ) : error ? (
@@ -270,7 +270,7 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
     try {
       const res = await api.analyzeDocument(file, contextObjectId);
       if (res.duplicate) {
-        setError(`Dieses Dokument ist bereits abgelegt${res.duplicate_object_id ? ` (${fmtObjId(res.duplicate_object_id)})` : ''}.`);
+        setError(`Dieses Dokument ist bereits abgelegt${res.duplicate_object_id ? ` (${formatObjectId(res.duplicate_object_id)})` : ''}.`);
         setPhase('camera');
         return;
       }
@@ -297,7 +297,7 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
     const oid = Number(manualId.trim());
     if (!Number.isFinite(oid) || oid < 100000000) { setError('Bitte eine gültige 9-stellige Objektnummer eingeben.'); return; }
     if (links.some((l) => l.object_id === oid)) { setManualId(''); return; }
-    setLinks((ls) => [...ls, { object_id: oid, label: fmtObjId(oid), relation: 'about', primary: ls.length === 0 }]);
+    setLinks((ls) => [...ls, { object_id: oid, label: formatObjectId(oid), relation: 'about', primary: ls.length === 0 }]);
     setManualId(''); setError(null);
   }
 
@@ -320,8 +320,6 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
       setSaving(false);
     }
   }
-
-
 
   // **Kamera-Phase = Scanner-Design** (Notiz #119): die ganze Fläche ist die Kamera, alle
   // Bedienelemente liegen als milchige Chips darin – dieselbe Bildsprache wie der
@@ -390,7 +388,7 @@ export function DocumentIngestDialog({ contextObjectId, contextLabel, onCode, on
                 )}
                 {links.map((l) => (
                   <div key={l.object_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 11px', borderRadius: 'var(--r-sm)', border: '1px solid var(--border-1)', background: '#fff' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12.5, color: 'var(--fg-2)' }}>{fmtObjId(l.object_id)}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12.5, color: 'var(--fg-2)' }}>{formatObjectId(l.object_id)}</span>
                     <span style={{ flex: 1, minWidth: 0, font: '600 13px var(--font-body)', color: 'var(--fg-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.label}</span>
                     <button type="button" onClick={() => setLinks((ls) => ls.map((x) => ({ ...x, primary: x.object_id === l.object_id })))}
                       data-tip="Als Hauptobjekt" data-tip-pos="left" style={{ border: 'none', background: 'none', cursor: 'pointer', color: l.primary ? 'var(--accent)' : 'var(--fg-4)', display: 'flex' }}>

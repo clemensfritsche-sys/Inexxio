@@ -1,18 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Plus, Package, ClipboardList, ScanLine, X, Repeat, Loader2, Building2, AlertTriangle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Search, Plus, Package, ClipboardList, ScanLine, X, Loader2, Building2, AlertTriangle } from 'lucide-react';
+import { cn, formatObjectId } from '@/lib/utils';
 import { TYPE_META, FILTER_TYPES } from '@/lib/erp-record';
 import { userName, articleName, orderName, instanceName, organizationName } from '@/lib/record-name';
+import { articleStatus, instanceStatus, orderStatus, organizationStatus, userStatus } from '@/lib/record-status';
 import { StatusBadge } from '@/components/erp/fields';
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderSummary, UserProfile, ErpRecordType } from '@/types';
 import type { StatusCfg } from '@/lib/status-flow';
-import { statusConfig } from '@/lib/article';
-import { orderStatusConfig } from '@/lib/order';
-import { instanceStatusConfig } from '@/lib/process';
-import { ROLE_CFG, userInitials, fmtObjId, UserDetail } from '@/components/erp/user-detail';
+import { userInitials, UserDetail } from '@/components/erp/user-detail';
 import { ErpNavContext } from '@/components/erp/obj-id';
 import { ErrorBoundary } from '@/components/erp/error-boundary';
 import { DATA_CHANGED_EVENT } from '@/components/ai/assistant';
@@ -48,6 +46,16 @@ function rowTitle(row: Row): string | null {
   return articleName(row.data);
 }
 
+// Der Zustand kommt aus der EINEN Ableitung (`lib/record-status`) – genau wie der Name.
+// Hier wird nur verteilt, nie gebaut: sonst läuft der Feed vom Detail weg (Notiz #379).
+function rowStatus(row: Row): StatusCfg {
+  if (row.type === 'user') return userStatus(row.data);
+  if (row.type === 'order') return orderStatus(row.data);
+  if (row.type === 'instance') return instanceStatus(row.data);
+  if (row.type === 'organization') return organizationStatus(row.data);
+  return articleStatus(row.data);
+}
+
 // Gesucht wird über Name + Typ-Wort + Objektnummer: «auftrag» bleibt als Suchwort nützlich,
 // obwohl es nicht mehr als Bezeichnung angezeigt wird.
 function rowSearchText(row: Row): string {
@@ -62,27 +70,7 @@ function rowSearchText(row: Row): string {
 function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () => void }) {
   const title = rowTitle(row);
 
-  let badge: StatusCfg;
-  if (row.type === 'user') badge = ROLE_CFG[row.data.role] ?? ROLE_CFG.customer;
-  else if (row.type === 'article') badge = statusConfig(row.data.status);
-  else if (row.type === 'order') {
-    // EINHEITLICHER Status für ALLE Aufträge – auch Unter-Aufträge (kein Sonder-«Abweichung»-
-    // Badge mehr): wiederkehrend & fällig zuerst, sonst der Status des AUFTRAGS.
-    // Früher schlug bei einem freigegebenen Auftrag der **Beschaffungs**-Status durch – ein
-    // Auftrag, dessen Bestellung geliefert war, stand auf «Geliefert», obwohl Prüfung,
-    // Bewegung und Verkauf noch offen waren. Der Stand eines einzelnen Schritts ist nicht
-    // der Stand des Auftrags; er steht im Detail am Ablauf. Hier zählt: läuft er noch?
-    // Ein abgebrochener Auftrag heisst «Abgebrochen» (rot), nicht «Inaktiv»: der Unterschied
-    // ist, dass er in einem Abweichungsauftrag fortgeführt wird. Projektion, kein Status.
-    badge = row.data.recurrence_due
-      ? { label: 'fällig', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Repeat }
-      : orderStatusConfig(row.data.status, row.data.abort_into_id != null);
-  }
-  else if (row.type === 'instance') badge = instanceStatusConfig(row.data.quality, row.data.disposition, (row.data.reserved_quantity ?? 0) > 0);
-  // Unternehmen (Gesellschaft): aktiver Datensatz → GRÜN (wie ein aktiver Benutzer), kein Grau
-  // (das läse sich als «aus»). Label = **«Unternehmen»**, damit der Feed denselben Zustand nennt
-  // wie der Detail-Kopf (Notiz #297: vorher «Stammdaten» ≠ Detail «Unternehmen»).
-  else badge = { label: 'Unternehmen', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 };
+  const badge = rowStatus(row);
 
   const meta = TYPE_META[row.type];
   const TypeIcon = meta.icon;
@@ -134,7 +122,7 @@ function FeedItem({ row, sel, onClick }: { row: Row; sel: boolean; onClick: () =
             gleich aussehen. Die Luft, die den Feed leichter macht (Notiz #300), kommt aus
             Polsterung und Zeilenabstand, nicht aus einer zweiten Status-Form. */}
         <div className="flex items-center gap-2.5 mt-1">
-          <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{fmtObjId(row.objectId)}</span>
+          <span className="text-fg-4 tabular-nums" style={{ font: 'var(--mono-sm)' }}>{formatObjectId(row.objectId)}</span>
           <StatusBadge cfg={badge} size={11} />
         </div>
       </div>
@@ -466,7 +454,6 @@ export default function ErpPage() {
   function handleUserSaved(u: UserProfile) {
     setUsers((prev) => prev.map((x) => (x.id === u.id ? u : x)));
   }
-
 
   function cancelCreate() {
     setCreating(null);

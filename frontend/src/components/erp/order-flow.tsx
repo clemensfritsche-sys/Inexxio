@@ -8,6 +8,7 @@ import { StatusBadge } from '@/components/erp/fields';
 import { purchaseStatusConfig } from '@/lib/purchase-order';
 import { saleStatusConfig } from '@/lib/sale';
 import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/process-steps';
+import { actorHint } from '@/lib/utils';
 
 // ─── Der Ablauf eines laufenden Auftrags – dieselbe Darstellung wie die Definition ─
 //
@@ -46,18 +47,13 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
-  const who = s.completed_by ?? 'System';
-  return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
+  return actorHint(s.completed_by ?? 'System', s.completed_at);
 }
 
-export function OrderFlow({ steps, subOrders = [], waitingFor = [], missing, paused = false, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
+export function OrderFlow({ steps, subOrders = [], paused = false, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
   steps: OrderStep[];
   /** Alle Unter-Aufträge des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
   subOrders?: OrderDeviationInfo[];
-  /** Unter-Aufträge, die die Fehlmenge des Auftrags gerade binden (``OrderResponse.waiting_for``). */
-  waitingFor?: number[];
-  /** Was dem Auftrag fehlt, als eine Zeile – steht beim Unter-Auftrag, der es bindet (#354). */
-  missing?: string;
   /** Ruht der Auftrag? Dann tritt der ganze Fluss zurück und nichts lässt sich öffnen (#378). */
   paused?: boolean;
   selectedId?: string | null;
@@ -69,8 +65,7 @@ export function OrderFlow({ steps, subOrders = [], waitingFor = [], missing, pau
 
   const rows: React.ReactNode[] = [];
   const subCard = (info: OrderDeviationInfo) => (
-    <SubOrderCard key={`sub-${info.object_id}`} info={info} onOpen={onOpenOrder}
-      missing={waitingFor.includes(info.object_id) ? missing : undefined} />
+    <SubOrderCard key={`sub-${info.object_id}`} info={info} onOpen={onOpenOrder} />
   );
 
   // Was kein Schritt für sich beansprucht, gehört dem Auftrag – und steht am Anfang.
@@ -206,11 +201,10 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
  * hat. Sie steht dort, wo sie gefallen ist: am Schritt, der blockiert war. Wer/wann im Hover.
  */
 function ResolutionLine({ r }: { r: StepResolution }) {
-  const who = [r.by, r.at ? new Date(r.at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' }) : null]
-    .filter(Boolean).join(' · ');
+  const who = actorHint(r.by, r.at);
   const Icon = r.kind === 'quantity_confirmed' ? CheckCircle2 : PackagePlus;
   return (
-    <div title={who || undefined}
+    <div title={who}
       style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
         font: '500 12px var(--font-body)', color: 'var(--fg-3)', cursor: who ? 'help' : 'default' }}>
       <Icon size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
@@ -257,11 +251,11 @@ const SUB_META: Record<string, { label: string; icon: React.ElementType; open: s
  * entstanden ist (Notiz #353). Eingerückt, weil er kein Modul DIESES Prozesses ist, sondern
  * ein eigener Auftrag, der hier hineinragt; ein Klick öffnet ihn.
  *
- * Solange er offen ist, trägt er den Grund, warum der Prozess ruht – WAS fehlt, steht an
- * dieser einen Stelle (Notiz #354) und nicht zusätzlich als Kasten unter dem Fluss.
+ * Was er bindet, steht in IHM – nicht hier noch einmal (Notiz #381): dass der Prozess seinet-
+ * wegen ruht, sagt bereits die Pause am Knoten und der zurückgetretene Rest des Flusses.
  */
-function SubOrderCard({ info, missing, onOpen }: {
-  info: OrderDeviationInfo; missing?: string; onOpen?: (id: number) => void;
+function SubOrderCard({ info, onOpen }: {
+  info: OrderDeviationInfo; onOpen?: (id: number) => void;
 }) {
   const open = info.status === 'draft' || info.status === 'released';
   const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
@@ -283,16 +277,9 @@ function SubOrderCard({ info, missing, onOpen }: {
         }}>
           <Icon size={15} />
         </span>
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
-            <ObjId value={info.object_id} />
-          </span>
-          {missing && (
-            <span style={{ display: 'block', marginTop: 3, font: '500 12px var(--font-body)', color: 'var(--warning)' }}>
-              Es fehlt {missing}
-            </span>
-          )}
+        <span style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
+          <ObjId value={info.object_id} />
         </span>
         {open && <PauseCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />}
         {!open && <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />}

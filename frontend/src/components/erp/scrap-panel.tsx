@@ -7,9 +7,9 @@ import type { Order, OrderInstance } from '@/types';
 import { instanceStatusConfig, instanceLabel } from '@/lib/process';
 import { StatusBadge, PrimaryButton, Label } from '@/components/erp/fields';
 import { ObjId } from '@/components/erp/obj-id';
-import { fmtObjId } from '@/components/erp/user-detail';
-import { useScan } from '@/components/scan/scan-provider';
 
+import { useScan } from '@/components/scan/scan-provider';
+import { formatObjectId } from '@/lib/utils';
 
 /**
  * Prozessschritt «Verschrotten» **und** «Sperren» – dieselbe Auswahl, zwei Wirkungen:
@@ -241,7 +241,6 @@ function InstanceRow({ instance }: { instance: OrderInstance }) {
     </div>
   );
 }
-
 
 const cardStyle: React.CSSProperties = {
   // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener

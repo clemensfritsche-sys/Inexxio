@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { Camera, CameraOff, Upload, ScanLine, ArrowRight } from 'lucide-react';
 import { useBarcodeScanner } from '@/components/scan/use-barcode-scanner';
 import { parseScannedCode } from '@/lib/scan';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId } from '@/lib/utils';
 
 const THROTTLE_MS = 1200;
 
@@ -83,7 +83,7 @@ export function DocumentCamera({ onCapture, onCode, captureLabel = 'Als Dokument
       )}
       {onCode && detected != null && (
         <button type="button" onClick={() => onCode(detected)} style={openChip}>
-          <ScanLine size={14} /> Datensatz {fmtObjId(detected)} öffnen <ArrowRight size={14} />
+          <ScanLine size={14} /> Datensatz {formatObjectId(detected)} öffnen <ArrowRight size={14} />
         </button>
       )}
 

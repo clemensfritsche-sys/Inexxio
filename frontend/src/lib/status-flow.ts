@@ -52,24 +52,15 @@ export const TONE: Record<'pending' | 'done' | 'danger', { color: string; bg: st
   danger:   { color: 'var(--danger)',  bg: 'var(--danger-bg)' },
 };
 
-// Ersetzen (kein Versionieren): «replace» legt einen Nachfolger an und verknüpft.
-// `canReactivate`/`canReplace` erlauben typspezifische Abweichungen (z. B. Auftrag
-// ohne Reaktivieren).
-export function lifecycleActions(
-  status: string,
-  opts?: { canReactivate?: boolean; canReplace?: boolean },
-): StatusAction[] {
-  const canReactivate = opts?.canReactivate ?? true;
-  const canReplace = opts?.canReplace ?? true;
-  switch (status) {
-    case 'draft':    return [{ label: 'Freigeben', target: 'released', tone: 'primary' }];
-    case 'released': {
-      const a: StatusAction[] = [];
-      if (canReplace) a.push({ label: 'Ersetzen', target: 'replace', tone: 'neutral' });
-      a.push({ label: 'Deaktivieren', target: 'inactive', tone: 'danger' });
-      return a;
-    }
-    case 'inactive': return canReactivate ? [{ label: 'Reaktivieren', target: 'released', tone: 'neutral' }] : [];
-    default:         return [];   // completed o. Ä. → kein manueller Wechsel
-  }
+/**
+ * Trägt dieser Zustand den **gelben** Ton – «offen, gebunden, noch nicht fertig»?
+ *
+ * Die Frage stellt sich, wo eine Oberfläche sich nach dem Zustand richten soll, ohne ihn
+ * ein zweites Mal zu bestimmen (z. B. der Auftrag-Shortcut an der Instanz, der gelb wird,
+ * sobald daraus eine Abweichung würde – Testnotiz #380). Der Vergleich läuft über die EINE
+ * Ton-Tabelle: so kann die Oberfläche nicht anders urteilen als die Badge daneben.
+ */
+export function isPending(cfg: StatusCfg): boolean {
+  return cfg.color === TONE.pending.color;
 }
+

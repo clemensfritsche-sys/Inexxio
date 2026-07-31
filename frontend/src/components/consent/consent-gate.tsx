@@ -17,7 +17,7 @@ import { onAuthChange } from '@/lib/firebase';
 import { api } from '@/lib/api';
 import type { PendingDocument, CompanySettings } from '@/types';
 import { DocumentView } from '@/components/erp/document-editor';
-import { fmtObjId } from '@/components/erp/user-detail';
+import { formatObjectId } from '@/lib/utils';
 
 export function ConsentGate() {
   const [pending, setPending] = useState<PendingDocument[]>([]);
@@ -107,7 +107,7 @@ export function ConsentGate() {
           {doc.content ? (
             <DocumentView
               content={doc.content}
-              objectNr={doc.object_number ? fmtObjId(doc.object_number) : null}
+              objectNr={doc.object_number ? formatObjectId(doc.object_number) : null}
               issuedAt={doc.document_date}
               company={company}
             />

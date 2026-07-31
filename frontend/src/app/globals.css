@@ -685,13 +685,6 @@
 .erp-idbtn:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 .erp-idbtn-flag:disabled, .erp-idbtn-flag:disabled:hover { background: var(--bg-2); color: var(--fg-4); }
 
-.erp-tool {
-  width: 40px; height: 40px; border: 1px solid var(--border-1); background: #fff; border-radius: var(--r-sm);
-  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-2);
-  cursor: pointer; transition: all .15s;
-}
-.erp-tool:hover { background: var(--bg-2); color: var(--inexxio-red); border-color: var(--border-2); }
-.erp-tool-danger:hover { color: var(--danger); background: var(--danger-bg); border-color: #f3c9c6; }
 
 /* ── «Auf einen Blick»-Kachel ── */
 .erp-tile { transition: background .15s; }

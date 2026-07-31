@@ -5,11 +5,12 @@ import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, Map
 import { api } from '@/lib/api';
 import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
+import { orderStatus } from '@/lib/record-status';
 import { unitLabel } from '@/lib/article';
 import { useAutosave } from '@/lib/use-autosave';
 import { isVersionConflict } from '@/lib/optimistic';
 import type { StatusAction } from '@/lib/status-flow';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { printObjectLabel } from '@/components/scan/object-label';
 import { QrCode } from 'lucide-react';
 import { ObjId, useErpNav } from '@/components/erp/obj-id';
@@ -29,7 +30,7 @@ import { ProcessSteps } from '@/components/erp/process-steps';
 import { ShortfallDialog, type ShortfallAnswer } from '@/components/erp/shortfall-dialog';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { localDate } from '@/lib/utils';
+import { formatObjectId, localDate } from '@/lib/utils';
 
 type OrderTab = 'auftrag' | 'docs';
 
@@ -92,7 +93,6 @@ function seedFrom(record: Order | null): Form {
 function demandSig(articleId: string, quantity: string, date: string | null): string {
   return JSON.stringify({ article_id: articleId, quantity: quantity.trim(), date: date || null });
 }
-
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -413,7 +413,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     onSaved(saved);
   }
 
-
   async function removePosition(lineId: number) {
     if (!record) return;
     try {
@@ -515,8 +514,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     setDialog(null);
   }
 
-
-
   // **Unterdeckung am laufenden Auftrag: EINE Frage, drei Antworten** – dieselben, die auch
   // beim Auswählen gebundener Instanzen gestellt werden (``ShortfallDialog``).
   //
@@ -539,10 +536,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     }
   }
 
-
   const articleOptions = [
     { value: '', label: '— Artikel wählen —' },
-    ...releasedArticles.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` })),
+    ...releasedArticles.map((a) => ({ value: String(a.id), label: `${formatObjectId(a.object_id)} · ${a.name}` })),
   ];
   const statusActions = isCreate || !record ? [] : orderActions(record.status, canRelease, releaseHint);
   const companyAddr = company ? [company.street, company.street_number].filter(Boolean).join(' ') : '';
@@ -567,9 +563,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             )}
           </div>
         }
-        status={isCreate
-          ? orderStatusConfig('draft')
-          : orderStatusConfig(record.status, record.abort_into_id != null)}
+        status={orderStatus(isCreate ? { status: 'draft' } : record)}
         right={<>
           {demandEditable && <SaveIndicator saving={saving} flash={flash} />}
           {/* Anlage abbrechen – eine Aktion, also bei den Aktionen (früher im Footer). */}
@@ -755,7 +749,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           </div>
         )}
 
-
         {/* Unteraufträge (Abweichungen) sichtbar machen – DAU-sicher: Symbol + Farbe + Klartext,
             klickbare Objektnummern, grüne Badge bei erledigter Abweichung. Pausiert der Auftrag,
             steht das gross zuoberst. (Der Abbruch-Folgeauftrag hat oben schon seinen Banner.) */}
@@ -780,7 +773,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   <span style={{ fontSize: 12, color: '#64748b', flex: 1 }}>
                     {d.instance_count === 1 ? '1 Instanz' : `${d.instance_count} Instanzen`}
                     {d.instance_object_ids && d.instance_object_ids.length > 0 && (
-                      <> · {fmtObjId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
+                      <> · {formatObjectId(d.instance_object_ids[0])}{d.instance_object_ids.length > 1 ? ` +${d.instance_object_ids.length - 1}` : ''}</>
                     )}
                   </span>
                   <StatusBadge cfg={orderStatusConfig(d.status)} />
@@ -866,8 +859,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 // am Anfang des Flusses – EINE Liste, nicht drei nebeneinander.
                 subOrders={[...(record.deviations ?? []), ...(record.supply_orders ?? []),
                             ...(record.provisionings ?? [])]}
-                waitingFor={record.waiting_for ?? []}
-                missing={missingText}
                 // **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): kein Modul ist
                 // dann «aktiv», keines lässt sich öffnen – farbig bleibt nur der
                 // Unter-Auftrag, der zu klären ist. Dieselbe Regel wie im Backend
@@ -910,7 +901,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           Flash im Kopf (SaveIndicator, war schon immer dort); das **Abbrechen** der Anlage
           als Aktion neben dem Status. */}
 
-
       {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
           laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
       {pendingRelease && (
@@ -933,7 +923,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   );
 }
 
-
 // Subjekt-Schritte wirken auf die Fertigware des Auftrags (nicht auf Komponenten). Nur bei
 // ihnen ist «Aus Lager decken» (inkl. gezielter Instanz-Auswahl) sinnvoll – ein Komponenten-
 // (`orderTitle` ist entfallen – der Name eines Auftrags wird EINMAL im Backend abgeleitet
@@ -941,8 +930,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 //  und Detail nicht auseinanderlaufen können, Notiz #177.)
 
 // (Der Kopf kommt aus `fields.DetailHeader` – die lokalen Kopf-Stile sind entfallen, #242.)
-
-
 
 // **Unterdeckung: EINE Frage, drei Antworten – und ein Fenster dafür.**
 //
@@ -986,7 +973,6 @@ function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce
     </div>
   );
 }
-
 
 // Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed
 // des konkreten Schritts wird auf die Top-Level-Felder gelegt, damit die Panels
@@ -1181,8 +1167,6 @@ function PositionRow({
   );
 }
 
-
-
 /**
  * **Schieber** für die Quelle (Erzeugen · Ab Lager · Auswählen): EIN Gleis, ein Reiter,
  * der zur gewählten Option gleitet. Drei gleich aussehende Knöpfe liessen offen, dass sie
@@ -1340,13 +1324,13 @@ function PinPicker({ line, onToggle, bare }: {
                     cursor: off ? 'not-allowed' : 'pointer' }}>
                   {sel ? <CheckCircle2 size={12} />
                        : <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.tone }} />}
-                  {fmtObjId(oid)}
+                  {formatObjectId(oid)}
                 </button>
                 {/* Die Menge steht IM Chip – gewählt als Feld, sonst als blosse Angabe.
                     Bei einer Instanz mit Menge 1 gibt es nichts zu entscheiden. */}
                 {sel && have > 1 ? (
                   <QtyChip value={line.wanted[oid] ?? have} max={have} tone={cfg.tone}
-                    label={`Menge von ${fmtObjId(oid)}`}
+                    label={`Menge von ${formatObjectId(oid)}`}
                     onCommit={(v) => onToggle(line, oid, v, true)} />
                 ) : (
                   <span style={{ paddingRight: 6, opacity: 0.75 }}>·{have}</span>
@@ -1403,7 +1387,7 @@ function AddPositionRow({ articles, excludeArticleIds, onAdd }: {
     <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: 8 }}>
         <SearchSelect label="Artikel" value={articleId} onChange={setArticleId}
-          options={[{ value: '', label: '— Artikel wählen —' }, ...options.map((a) => ({ value: String(a.id), label: `${fmtObjId(a.object_id)} · ${a.name}` }))]} />
+          options={[{ value: '', label: '— Artikel wählen —' }, ...options.map((a) => ({ value: String(a.id), label: `${formatObjectId(a.object_id)} · ${a.name}` }))]} />
         <TextFieldUnit label="Menge" value={qty} onChange={setQty} unit={unit} placeholder="z. B. 5" />
       </div>
       {err && <span style={{ fontSize: 12, color: '#dc2626' }}>{err}</span>}

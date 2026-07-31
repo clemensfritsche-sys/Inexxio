@@ -16,7 +16,3 @@ export function purchaseStatusConfig(status: string): StatusCfg {
   return pickCfg(PURCHASE_STATUS, status, 'requested');
 }
 
-export const PROCESS_MODE_LABEL: Record<ProcessStepMode, string> = {
-  supplier: 'Lieferant',
-  webshop: 'Webshop-Link',
-};

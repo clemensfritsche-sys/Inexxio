@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { Lock, CheckCircle2, XCircle, Info, AlertTriangle, RotateCcw, ScanLine, ThumbsUp, ThumbsDown, Camera, PenLine } from 'lucide-react';
 import { api, attachmentUrl } from '@/lib/api';
 import type { CaptureField, InspectionSampleInput, Order } from '@/types';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { ObjId } from '@/components/erp/obj-id';
 import { Label, PrimaryButton, numericOnly, numericInputProps } from '@/components/erp/fields';
 import { PhotoCapture } from '@/components/erp/photo-capture';
 import { SignaturePad } from '@/components/erp/signature-pad';
 import { useScan } from '@/components/scan/scan-provider';
+import { formatObjectId } from '@/lib/utils';
 
 type Val = string | number | boolean | undefined;
 
@@ -85,7 +86,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
     if (nextInstance == null) return;
     scan({
       steps: [{
-        label: `Instanz ${fmtObjId(nextInstance)}`,
+        label: `Instanz ${formatObjectId(nextInstance)}`,
         expected: nextInstance, candidates: [{ objectId: nextInstance, label: 'Instanz' }],
       }],
       onComplete: () => setUnlocked((u) => [...u, nextInstance]),
@@ -107,7 +108,7 @@ export function InspectionPanel({ order, stepState, stepId, onOrderUpdated }: {
   });
 
   function sampleLabel(instanceId: number, slot: number): string {
-    return multiSample ? `Charge ${fmtObjId(instanceId)} · Probe ${slot}` : `Instanz ${fmtObjId(instanceId)}`;
+    return multiSample ? `Charge ${formatObjectId(instanceId)} · Probe ${slot}` : `Instanz ${formatObjectId(instanceId)}`;
   }
 
   async function submit() {
@@ -343,7 +344,6 @@ function Toggle({ icon: Icon, label, active, tone, onClick, disabled }: {
     </button>
   );
 }
-
 
 const cardStyle: React.CSSProperties = {
   // Das Panel sitzt IN der Modul-Karte des Ablaufs – kein eigener Rahmen, kein eigener

@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil, Ban, CheckCircle2 } from 'lucide-react';
+import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil, Ban } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
+import { organizationStatus } from '@/lib/record-status';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { Field as AField } from '@/components/account/field';
@@ -323,9 +324,7 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt
         // dieselben zwei Zustände wie alles andere im System, also dieselben zwei Wörter:
         // **Freigegeben** (gültig, verwendbar) und **Inaktiv** (geschlossen, endgültig).
-        status={record.is_active === false
-          ? { label: 'Inaktiv', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Ban }
-          : { label: 'Freigegeben', color: 'var(--success)', bg: 'var(--success-bg)', icon: CheckCircle2 }}
+        status={organizationStatus(record)}
         // **Betreiber der Website: ein Stern bei den Aktionen** (Testnotiz #339) statt eines
         // Knopfes mitten im Formular. Er ist keine Stammdaten-Angabe, sondern eine Rolle über
         // dem Datensatz – also gehört er zur Kopfzeile, wo die übrigen Datensatz-Aktionen

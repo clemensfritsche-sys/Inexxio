@@ -5,10 +5,11 @@ import { Boxes, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Instance } from '@/types';
 import { instanceStatusConfig, instanceLabel, formatQty, sumQuantity } from '@/lib/process';
-import { fmtObjId } from '@/components/erp/user-detail';
+
 import { useErpNav } from '@/components/erp/obj-id';
 import { StatusBadge, Placeholder } from '@/components/erp/fields';
 import { TYPE_META } from '@/lib/erp-record';
+import { formatObjectId } from '@/lib/utils';
 
 // Farbidentität des Datensatztyps aus der EINEN Quelle (statt hier hart kodiert).
 const INST = TYPE_META.instance;
@@ -97,7 +98,7 @@ export function InstanceList({ articleObjectId, unit }: { articleObjectId: numbe
                 {instanceLabel(i.quantity, unit)}
               </div>
               <div style={{ font: 'var(--mono-sm)', color: 'var(--fg-3)', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>
-                {fmtObjId(i.object_id)}
+                {formatObjectId(i.object_id)}
               </div>
             </div>
             <StatusBadge cfg={statusOf(i)} size={11} />
