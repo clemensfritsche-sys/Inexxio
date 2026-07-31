@@ -4248,6 +4248,8 @@ export interface components {
              * @default false
              */
             abort_parent: boolean;
+            /** Shortfall Response */
+            shortfall_response?: string | null;
         };
         /**
          * OrderDeviationInfo
@@ -4606,6 +4608,8 @@ export interface components {
             quantity?: number | null;
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
+            /** Shortfall Response */
+            shortfall_response?: string | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */

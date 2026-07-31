@@ -290,8 +290,13 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   status?: OrderStatus;
   article_id?: number | null;
   quantity?: number | null;
-  // Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl).
+  // Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl). **Die Auswahl
+  // bestimmt die Art des Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/
+  // gesperrt) → Abweichung · frei → gewöhnlicher Auftrag.
   instance_object_ids?: number[] | null;
+  // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
+  // warten · ersetzen · ohne Ersatz weiter. Ohne sie antwortet der Server mit 409.
+  shortfall_response?: 'wait' | 'replace' | 'accept';
   desired_delivery_date?: string | null;
   is_active?: boolean;
   expected_updated_at?: string | null;   // Optimistic Locking

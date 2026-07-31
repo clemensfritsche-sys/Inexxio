@@ -209,7 +209,16 @@ class OrderUpdate(BaseModel):
     article_id: Optional[int] = None
     quantity: Optional[float] = None   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
     # Vorgewählte Subjekt-Instanzen im Entwurf anpassen (Mehrfachauswahl, gleicher Artikel).
+    # **Die Auswahl bestimmt die Art des Auftrags** (``subject.classify_pick``): verkaufte
+    # Instanzen → Retoure · gebundene (in Arbeit/reserviert/gesperrt) → **Abweichung** ·
+    # freie → gewöhnlicher Auftrag. Ein Tag, kein zweiter Weg.
     instance_object_ids: Optional[list[int]] = None
+    # Nimmt die Auswahl einem LAUFENDEN Auftrag sein Stück weg, entsteht dort sofort eine
+    # Unterdeckung – und die will beantwortet sein, bevor die Abweichung steht:
+    # ``wait`` (offen lassen) · ``replace`` (ersetzen) · ``accept`` (ohne Ersatz weiter).
+    # Fehlt die Antwort in so einem Fall, antwortet der Server mit 409 und nennt die
+    # betroffenen Aufträge.
+    shortfall_response: Optional[str] = None
     desired_delivery_date: Optional[date] = None
     recurrence_active: Optional[bool] = None
     recurrence_interval_days: Optional[int] = None
@@ -252,6 +261,10 @@ class OrderDeviationCreate(BaseModel):
     eine Eigenschaft, kein zweiter Weg."""
     instance_object_ids: Optional[list[int]] = None
     abort_parent: bool = False
+    # Wie es beim laufenden Auftrag weitergeht, dem diese Instanzen entzogen werden:
+    # ``wait`` · ``replace`` · ``accept``. Dieselbe Frage wie bei der Instanz-Auswahl im
+    # Auftrag – der Instanz-Knopf ist nur eine Abkürzung auf denselben Weg.
+    shortfall_response: Optional[str] = None
 
 
 class OrderCoverStock(BaseModel):

@@ -2761,6 +2761,45 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   bräuchten überall eine neue Antwort auf «welche davon?». Ausführlich am Modell
   (`models/instance.py`) und in `tests/test_quantity_rules.py`.*
 
+- **Ein Auftrag und ein Abweichungsauftrag sind DASSELBE – der Unterschied ist ein Tag**
+  (Juli 2026): Es gibt EINEN Weg, einen Auftrag anzulegen, EINE Tabelle, EIN Schema, EINEN
+  Freigabe-Pfad. Der frühere Sonder-Endpunkt `POST /orders/{id}/deviation` bleibt als
+  **Abkürzung**, ist aber kein zweiter Weg mehr – er teilt sich jede Regel mit der normalen
+  Instanz-Auswahl.
+  **Das Tag wird ABGELEITET, nicht angeklickt** (`subject.classify_pick`) – exakt so, wie
+  die Retoure sich seit jeher ableitet: *die Auswahl bestimmt die Art des Auftrags.*
+      alle frei am Lager           → gewöhnlicher Auftrag (kein Tag)
+      alle verkauft                → Retoure      (Geld zurück, Original = Eltern)
+      mindestens eine **gebunden** → Abweichung   (in Arbeit · reserviert · gesperrt)
+  «Gebunden» heisst: die Instanz existiert, ist aber nicht frei verfügbar. Auf so etwas
+  zuzugreifen KANN nur eine Abweichung sein – darum ist das Tag die **Folge** der Auswahl,
+  nicht ihre Voraussetzung. `_validate_pins` kennt kein Vorab-Flag mehr und lässt **jede
+  aktive Instanz** zu (nur Verschrottetes ist raus); der Picker zeigt gebundene Stück mit
+  einem gelben Punkt und erklärt sie im Hover.
+  **Der Eltern-Auftrag wird ebenfalls abgeleitet** (`subject.holding_order`): es ist der
+  laufende Auftrag, der das Stück gerade in der Hand hat. Läuft keiner mehr (späte
+  Reklamation an fertiger Ware), steht die Abweichung allein – das ist erlaubt.
+  **Und die Unterdeckung wird SOFORT entschieden.** Nimmt die Auswahl einem laufenden
+  Auftrag sein Stück weg, entsteht dort im selben Moment eine Fehlmenge; sie stillschweigend
+  offen zu lassen hiesse, den Eltern ohne Entscheidung hängen zu lassen. Darum antwortet der
+  Server mit **409 und nennt die betroffenen Aufträge**, bis eine der drei bekannten
+  Antworten mitkommt (`OrderUpdate.shortfall_response` bzw. `OrderDeviationCreate`):
+  **warten** (Fehlmenge bleibt offen – der Eltern wird nicht fertig) · **ersetzen**
+  (`recovery.cover_shortfall`) · **ohne Ersatz weiter** (`recovery.confirm_quantity`).
+  Die «Pause» des Eltern dauert damit genau so lange wie die Eingabe – es braucht keinen
+  eigenen Pause-Mechanismus. Beide menschlichen Einstiege (Auswahl im Auftrag,
+  Abkürzungs-Knopf an der Instanz) teilen sich `_assert_answered`/`_apply_shortfall_answer`;
+  **systemseitig** angelegte Abweichungen (Auto-Abweichung nach Datenerfassung,
+  Artikel-Deaktivierung) gehen direkt über den Service und lassen die Fehlmenge offen –
+  dort entscheidet später ein Mensch am Auftrag.
+  **Der eine verbleibende Unterschied ist keiner der Abweichung, sondern des Subjekts:** ein
+  Auftrag auf **fixierte** Instanzen (Abweichung, Retoure, Bereitstellung) fährt NICHT den
+  Artikel-Prozess (`order_step_defs`) – der beschreibt, wie etwas ENTSTEHT, und die Teile
+  gibt es schon. Er braucht seinen eigenen Ablauf; alles andere (Modell, Felder, Status-Fluss,
+  Freigabe, Prozessschritt-Module, Unter-Aufträge) ist identisch.
+  Wächter: `test_an_order_and_a_deviation_order_are_the_same_thing`,
+  `test_taking_a_busy_instance_forces_the_shortfall_decision`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

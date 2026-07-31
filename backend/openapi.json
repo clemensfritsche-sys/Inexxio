@@ -12277,6 +12277,17 @@
             "type": "boolean",
             "title": "Abort Parent",
             "default": false
+          },
+          "shortfall_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall Response"
           }
         },
         "type": "object",
@@ -13305,6 +13316,17 @@
               }
             ],
             "title": "Instance Object Ids"
+          },
+          "shortfall_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall Response"
           },
           "desired_delivery_date": {
             "anyOf": [

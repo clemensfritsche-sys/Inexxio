@@ -2430,7 +2430,12 @@ def test_return_via_selecting_sold_instances():
     src = _inspect.getsource(orders._set_chosen_instances)
     assert 'order.reason = "return"' in src and "original_sale_order" in src
     val = _inspect.getsource(orders._validate_pins)
-    assert 'i.disposition == "sold"' in val   # verkaufte Instanz = fixiertes Retoure-Subjekt
+    # Welche Art die Auswahl ergibt, entscheidet jetzt EINE Klassifikation – die Prüfung
+    # lässt jede aktive Instanz zu, ``classify_pick`` leitet daraus Retoure/Abweichung ab.
+    from app.services.subject import classify_pick
+    import inspect as _i
+    assert '"sold"' in _i.getsource(classify_pick)
+    assert "classify_pick" in src
 
 
 def test_customer_shipping_movement_targets_the_customer():
@@ -3333,3 +3338,62 @@ def test_the_order_level_deviation_is_the_abort():
 
     src = _inspect.getsource(orders.open_deviation)
     assert "not data.abort_parent" in src and "an der Instanz" in src
+
+
+def test_an_order_and_a_deviation_order_are_the_same_thing():
+    """**Ein Auftrag und ein Abweichungsauftrag sind dasselbe – der Unterschied ist ein Tag.**
+
+    Es gibt EINEN Weg, einen Auftrag anzulegen, EINE Tabelle, EIN Schema, EINEN
+    Freigabe-Pfad. Was ihn zur Abweichung macht, wird **abgeleitet** (nicht angeklickt):
+    ``subject.classify_pick`` liest es aus der Instanz-Auswahl – verkauft → Retoure ·
+    gebunden (in Arbeit/reserviert/gesperrt) → Abweichung · frei → gewöhnlicher Auftrag.
+    Genau so leitet die Retoure sich seit jeher ab; die Abweichung folgt derselben Regel
+    statt einem eigenen Endpunkt mit eigenen Regeln."""
+    import inspect as _inspect
+    from app.models import Order
+    from app.routers import orders
+    from app.services import subject
+
+    # Ein Modell, ein Tag: die Art ist ein Feld, kein eigener Typ.
+    assert hasattr(Order, "reason")
+    for name in ("classify_pick", "holding_order", "PICK_DEVIATION", "PICK_RETURN"):
+        assert hasattr(subject, name), name
+
+    pick = _inspect.getsource(subject.classify_pick)
+    assert '"sold"' in pick and "is_in_stock" in pick and "free_qty" in pick
+
+    # Die Prüfung der Auswahl kennt kein Vorab-Flag mehr – sie lässt jede aktive Instanz zu.
+    # Über den AST geprüft, damit ein Kommentar über die FRÜHERE Regel nicht mitzählt.
+    import ast
+    val = ast.unparse(ast.parse(_inspect.getsource(orders._validate_pins)))
+    assert "is_deviation" not in val, (
+        "Die Art des Auftrags darf keine VORAUSSETZUNG der Auswahl sein, sondern ihre FOLGE")
+
+    # Der Eltern-Auftrag wird abgeleitet, nicht eingegeben.
+    make = _inspect.getsource(orders._make_deviation)
+    assert "holding_order" in make and "parent_order_id" in make
+
+
+def test_taking_a_busy_instance_forces_the_shortfall_decision():
+    """**Die Frage kommt sofort, nicht irgendwann** (eine Logik für alles).
+
+    Wer ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben Zug, wie es
+    dort weitergeht – mit denselben drei Antworten wie am laufenden Auftrag: warten ·
+    ersetzen · ohne Ersatz weiter. So gibt es keinen Zwischenzustand «Abweichung angelegt,
+    aber niemand weiss, was mit dem Eltern geschieht»; die Pause dauert genau so lange wie
+    die Eingabe. **Beide** menschlichen Einstiege (Instanz-Auswahl im Auftrag und der
+    Abkürzungs-Knopf an der Instanz) teilen sich dieselbe Prüfung."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.schemas.order import OrderDeviationCreate, OrderUpdate
+
+    assert orders.SHORTFALL_ANSWERS == ("wait", "replace", "accept")
+    assert "shortfall_response" in OrderUpdate.model_fields
+    assert "shortfall_response" in OrderDeviationCreate.model_fields
+
+    # EINE Prüfung, EINE Anwendung – von beiden Einstiegen benutzt.
+    for fn in (orders._make_deviation, orders.open_deviation):
+        src = _inspect.getsource(fn)
+        assert "_assert_answered" in src, fn.__name__
+    assert "recovery.cover_shortfall" in _inspect.getsource(orders._apply_shortfall_answer)
+    assert "recovery.confirm_quantity" in _inspect.getsource(orders._apply_shortfall_answer)

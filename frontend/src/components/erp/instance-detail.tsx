@@ -113,16 +113,24 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     } finally { setUnblockBusy(false); }
   }
 
-  async function reportDeviation() {
+  // Nimmt die Abweichung einem laufenden Auftrag sein Stück weg, will dessen Unterdeckung
+  // beantwortet sein, bevor sie steht – dieselben drei Wege wie im Auftrag (der Server
+  // fragt danach mit 409). Der Knopf hier ist nur eine Abkürzung auf denselben Weg.
+  const [devAsk, setDevAsk] = useState<string | null>(null);
+
+  async function reportDeviation(answer?: 'wait' | 'replace' | 'accept') {
     if (!deviationParent || inst.object_id == null) return;
     setDevBusy(true);
     setDevErr(null);
     try {
-      const devi = await api.createDeviation(deviationParent.object_id, { instanceObjectIds: [inst.object_id] });
+      const devi = await api.createDeviation(deviationParent.object_id, {
+        instanceObjectIds: [inst.object_id], shortfallResponse: answer });
       onChanged?.();
       if (devi.object_id != null) nav?.(devi.object_id);
     } catch (e) {
-      setDevErr(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
+      const msg = e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden';
+      if (msg.includes('in Arbeit') && msg.includes('warten')) setDevAsk(msg);
+      else setDevErr(msg);
     } finally {
       setDevBusy(false);
     }
@@ -192,12 +200,30 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           <button className="erp-idbtn erp-idbtn-flag"
             data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
             data-tip-pos="bottom" aria-label="Abweichung melden"
-            disabled={!deviationParent || devBusy} onClick={reportDeviation}>
+            disabled={!deviationParent || devBusy} onClick={() => reportDeviation()}>
             {devBusy ? <Loader2 size={15} className="animate-spin" /> : <TriangleAlert size={15} />}
           </button>
         </>}
       >
         {devErr && <div style={S.devErr}>{devErr}</div>}
+        {devAsk && (
+          <div style={{ border: '1px solid var(--warning)', background: 'var(--warning-bg)',
+            borderRadius: 'var(--r-md)', padding: 11, margin: '0 0 10px',
+            display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{devAsk}</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+              {([['wait', 'Warten'], ['replace', 'Ersetzen'], ['accept', 'Ohne Ersatz weiter']] as const).map(([k, l]) => (
+                <button key={k} type="button" disabled={devBusy}
+                  onClick={() => { setDevAsk(null); reportDeviation(k); }}
+                  style={{ padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                    border: '1px solid var(--border-1)', background: '#fff',
+                    font: '600 12.5px var(--font-body)', color: 'var(--fg-1)' }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },
           { key: 'orders', label: 'Aufträge', icon: ClipboardList },

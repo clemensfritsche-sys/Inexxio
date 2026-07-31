@@ -50,6 +50,8 @@ type Form = { article_id: string; quantity: string; desired_delivery_date: strin
 type PinLine = {
   key: string; lineId: number | null; articleId: number; unit: string; reqQty: number;
   pinnedIds: number[]; pinnedQty: number; pool: Instance[]; availableQty: number;
+  // Frei verfügbar? Eine **gebundene** Instanz ist wählbar – daraus wird ein Abweichungsauftrag.
+  free: (i: Instance) => boolean;
 };
 
 function seedFrom(record: Order | null): Form {
@@ -210,6 +212,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     api.getInstances(500).then(setPinPool).catch(() => {});
   }, [isDraftStaff, isSubOrder]);
 
+  // Frei verfügbar = freigegeben, am Lager und nicht für einen FREMDEN Auftrag reserviert.
+  // Alles andere ist «gebunden» – wählbar, aber nur als Abweichung (siehe ``buildPinLine``).
+  const isFree = (i: Instance) =>
+    i.quality === 'passed' && i.disposition === 'in_stock' &&
+    (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id);
+
   const pinnedByArticle = new Map<number, { ids: number[]; qty: number }>();
   for (const i of record?.instances ?? []) {
     if (i.object_id == null) continue;
@@ -219,15 +227,20 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     pinnedByArticle.set(i.article_id, cur);
   }
   function buildPinLine(lineId: number | null, articleId: number, unit: string, reqQty: number): PinLine {
+    // **Jede noch existierende Instanz ist wählbar** – frei ODER gebunden (in Arbeit,
+    // reserviert, gesperrt). Wer eine gebundene wählt, legt damit einen **Abweichungs-
+    // auftrag** an: das Tag ist die Folge der Auswahl, kein zweiter Schalter (das Backend
+    // leitet es über ``subject.classify_pick`` ab). Verkauft läuft über ``soldPool``
+    // (Retoure), verschrottet ist raus – daran ist nichts mehr zu tun.
     const pool = pinPool.filter((i) =>
       i.object_id != null && i.article_id === articleId &&
-      i.quality === 'passed' && i.disposition === 'in_stock' &&
-      (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id));
+      i.disposition !== 'sold' && i.disposition !== 'scrapped');
     const pinned = pinnedByArticle.get(articleId) ?? { ids: [], qty: 0 };
     return {
       key: lineId != null ? `line-${lineId}` : 'anchor', lineId, articleId, unit, reqQty,
       pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool,
-      availableQty: pool.reduce((s, i) => s + (i.quantity ?? 0), 0),
+      // «Genug Bestand?» meint das FREI Verfügbare – gebundene Stück zählen dafür nicht.
+      availableQty: pool.filter(isFree).reduce((s, i) => s + (i.quantity ?? 0), 0), free: isFree,
     };
   }
   const pinLines: PinLine[] = isMultiPosition
@@ -321,15 +334,27 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
       : 'Erst Artikel und Menge speichern');
 
-  async function setLinePins(line: PinLine, ids: number[]) {
+  // Greift die Auswahl auf Instanzen zu, die ein LAUFENDER Auftrag in der Hand hat, will
+  // dessen Unterdeckung beantwortet sein, bevor die Abweichung steht. Das Backend fragt
+  // danach (409); hier steht die Frage, bis sie beantwortet ist.
+  const [pendingPick, setPendingPick] = useState<{ line: PinLine; ids: number[]; text: string } | null>(null);
+
+  async function setLinePins(line: PinLine, ids: number[], answer?: 'wait' | 'replace' | 'accept') {
     if (!record) return;
     try {
       const saved = line.lineId != null
         ? await api.setOrderLinePins(record.object_id as number, line.lineId, { instance_object_ids: ids })
-        : await api.updateOrder(record.object_id as number, { instance_object_ids: ids, expected_updated_at: verRef.current });
+        : await api.updateOrder(record.object_id as number, {
+            instance_object_ids: ids, shortfall_response: answer, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
+      setPendingPick(null);
       onSaved(saved);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen'); }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen';
+      // Der Server nennt die betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
+      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingPick({ line, ids, text: msg });
+      else setError(msg);
+    }
   }
 
   async function addPosition(articleId: number, quantity: number) {
@@ -630,7 +655,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                       onRemove={orderLines.length > 1 ? () => removePosition(l.id) : undefined}
                       source={line ? lineSource(line) : 'stock'}
                       onSource={(s) => line && setLineSource(line, s)}
-                      onToggle={togglePin} />
+                      onToggle={togglePin} pending={pendingPick}
+                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)} />
                   );
                 })
               ) : (
@@ -640,7 +666,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   articleSelect={<SearchSelect label="Artikel" value={form.article_id} onChange={(v) => set('article_id', v)} options={articleOptions} required />}
                   qtyInput={<TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />}
                   qty={form.quantity}
-                  source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin} />
+                  source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin}
+                  pending={pendingPick}
+                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)} />
               )}
 
               {isCreate && releasedArticles.length === 0 && (
@@ -1221,7 +1249,7 @@ export const linkBtn: React.CSSProperties = {
  */
 function PositionRow({
   line, unit, title, articleObjectId, qty, source, onSource, onToggle, onRemove,
-  canProduce, produceHint, articleSelect, qtyInput,
+  canProduce, produceHint, articleSelect, qtyInput, pending, onAnswer,
 }: {
   line?: PinLine;
   unit: string;
@@ -1232,6 +1260,9 @@ function PositionRow({
   onSource: (s: OrderGoal) => void;
   onToggle: (line: PinLine, oid: number) => void;
   onRemove?: () => void;
+  /** Offene Unterdeckungs-Frage zu dieser Position (Auswahl greift auf gebundene Instanzen). */
+  pending?: { line: PinLine; ids: number[]; text: string } | null;
+  onAnswer?: (a: 'wait' | 'replace' | 'accept') => void;
   canProduce: boolean;
   produceHint?: string;
   /** Anker-Position (Einzel-Artikel): Artikel/Menge sind hier noch editierbar. */
@@ -1290,6 +1321,25 @@ function PositionRow({
           />
 
           {source === 'specific' && <PinPicker line={line} onToggle={onToggle} bare />}
+          {pending?.line.key === line.key && (
+            // **Die Frage kommt sofort** – nicht irgendwann später am Eltern-Auftrag: wer
+            // ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben
+            // Zug, wie es dort weitergeht. Dieselben drei Antworten wie am Auftrag.
+            <div style={{ border: '1px solid var(--warning)', background: 'var(--warning-bg)',
+              borderRadius: 'var(--r-md)', padding: 11, display: 'flex', flexDirection: 'column', gap: 9 }}>
+              <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{pending.text}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                {([['wait', 'Warten'], ['replace', 'Ersetzen'], ['accept', 'Ohne Ersatz weiter']] as const).map(([k, l]) => (
+                  <button key={k} type="button" onClick={() => onAnswer?.(k)}
+                    style={{ padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
+                      border: '1px solid var(--border-1)', background: '#fff',
+                      font: '600 12.5px var(--font-body)', color: 'var(--fg-1)' }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Ergebnis in einer Zeile – kein Banner, kein Absatz. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-3)' }}>
@@ -1438,17 +1488,23 @@ function PinPicker({ line, onToggle, bare }: {
           {pool.map((i) => {
             const sel = line.pinnedIds.includes(i.object_id!);
             const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
+            // **Gebunden** = in Arbeit, für einen anderen Auftrag reserviert oder gesperrt.
+            // Wählbar – aber die Wahl macht daraus einen Abweichungsauftrag. Der Punkt sagt
+            // es, der Hover erklärt es; ein zweiter Schalter wäre eine zweite Wahrheit.
+            const busy = !line.free(i);
             return (
               <button key={i.object_id} type="button" disabled={atLimit}
                 onClick={() => onToggle(line, i.object_id!)}
+                title={busy ? 'In Arbeit oder reserviert – daraus wird ein Abweichungsauftrag' : undefined}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
                   padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
-                  border: `1px solid ${sel ? 'var(--accent)' : 'var(--border-1)'}`,
+                  border: `1px solid ${sel ? 'var(--accent)' : busy ? 'var(--warning)' : 'var(--border-1)'}`,
                   background: sel ? 'var(--accent-soft)' : '#fff', color: sel ? 'var(--accent-ink)' : 'var(--fg-3)',
                   opacity: atLimit ? 0.4 : 1,
                 }}>
-                {sel && <CheckCircle2 size={12} />}
+                {sel ? <CheckCircle2 size={12} />
+                     : busy && <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warning)' }} />}
                 {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
               </button>
             );

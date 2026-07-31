@@ -515,14 +515,19 @@ class ApiClient {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
-  // **Abweichungsauftrag**: eröffnet einen Unterauftrag auf den Instanzen dieses Auftrags
-  // (optional eine Teilmenge). `abortParent` entscheidet, was mit dem Ursprungsauftrag
-  // geschieht – weiterlaufen (pausiert bis zur Klärung) oder sofort abgebrochen.
-  createDeviation(objectId: number, opts?: { instanceObjectIds?: number[]; abortParent?: boolean }): Promise<Order> {
+  // **Abweichungsauftrag** – die Abkürzung auf denselben Weg, den auch die Instanz-Auswahl
+  // im Auftrag nimmt (dort ergibt sich das Tag aus der Wahl gebundener Instanzen).
+  // `abortParent` entscheidet, was mit dem Ursprungsauftrag geschieht: weiterlaufen (sein
+  // Stück fehlt ihm dann) oder sofort abgebrochen. `shortfallResponse` beantwortet die
+  // Unterdeckung, die dabei beim laufenden Auftrag entsteht – ohne sie antwortet der
+  // Server mit 409 und nennt die betroffenen Aufträge.
+  createDeviation(objectId: number, opts?: { instanceObjectIds?: number[]; abortParent?: boolean;
+                                          shortfallResponse?: 'wait' | 'replace' | 'accept' }): Promise<Order> {
     const ids = opts?.instanceObjectIds;
     return this.post(`/api/v1/erp/orders/${objectId}/deviation`, {
       ...(ids && ids.length ? { instance_object_ids: ids } : {}),
       ...(opts?.abortParent ? { abort_parent: true } : {}),
+      ...(opts?.shortfallResponse ? { shortfall_response: opts.shortfallResponse } : {}),
     });
   }
 

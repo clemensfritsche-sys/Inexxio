@@ -75,6 +75,57 @@ def is_return(order: Order) -> bool:
     return getattr(order, "reason", None) == "return"
 
 
+# Die drei Arten, die sich aus der **Instanz-Auswahl** ergeben. Es gibt keinen vierten
+# Weg und keinen Schalter: WAS man wählt, sagt WAS es ist.
+PICK_NORMAL, PICK_RETURN, PICK_DEVIATION = None, "return", "deviation"
+
+
+def classify_pick(order: Order, insts: list) -> str | None:
+    """**Die Auswahl bestimmt die Art des Auftrags** – EINE Regel, drei Ausgänge.
+
+    Ein Auftrag und ein Abweichungsauftrag sind dasselbe; der Unterschied ist ein **Tag**,
+    und dieses Tag wird nicht angeklickt, sondern **abgeleitet** – genau wie die Retoure es
+    seit jeher tut:
+
+        alle frei am Lager           → normaler Auftrag   (kein Tag)
+        alle verkauft                → Retoure            (Geld zurück, Original = Eltern)
+        mindestens eine **gebunden** → Abweichung         (in Arbeit / reserviert / gesperrt)
+
+    «Gebunden» heisst: die Instanz existiert, ist aber gerade nicht frei verfügbar – sie
+    steckt in einem Prozess, ist für einen anderen Auftrag reserviert oder gesperrt. Auf so
+    etwas zuzugreifen KANN nur eine Abweichung sein; darum ist das Tag keine Frage, sondern
+    die Folge. Rein (schreibt nicht)."""
+    from .inventory import is_in_stock
+    from .quantity import to_qty
+    from .reservation import free_qty, reserved_for
+    if not insts:
+        return PICK_NORMAL
+    if any((i.disposition or "") == "sold" for i in insts):
+        return PICK_RETURN
+    for i in insts:
+        free = free_qty(i) + reserved_for(i, order.id)
+        if not is_in_stock(i) or free < to_qty(i.quantity):
+            return PICK_DEVIATION
+    return PICK_NORMAL
+
+
+def holding_order(db: Session, inst) -> Order | None:
+    """**Welcher laufende Auftrag hat dieses Stück gerade in der Hand?**
+
+    Die Klammer zwischen Auftrag und Abweichung ist die Instanz – also wird auch der
+    Eltern-Auftrag einer Abweichung daraus **abgeleitet** statt eingegeben: entweder der
+    Auftrag, der sie als Subjekt hält, oder der, der sie erzeugt hat. Läuft keiner mehr
+    (das Stück liegt fertig am Lager), gibt es keinen Eltern – eine Abweichung darf auch
+    allein stehen (späte Reklamation)."""
+    for oid in (inst.subject_of_order_id, inst.order_id):
+        if not oid:
+            continue
+        o = db.query(Order).filter(Order.id == oid, Order.is_active == True).first()
+        if o is not None and o.status == "released":
+            return o
+    return None
+
+
 def is_provisioning(order: Order) -> bool:
     """Bereitstellung = Unter-Auftrag mit ``reason='provisioning'`` (``services/provisioning.py``).
 

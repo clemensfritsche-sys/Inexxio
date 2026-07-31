@@ -79,11 +79,12 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
     Entwurf ist nur eine **Vormerkung** – sie sperrt die Instanz NICHT; **scharf
     reserviert** wird erst bei der Freigabe. Mehrere Entwürfe dürfen dieselbe Instanz
     vormerken; wer zuerst freigibt, reserviert, der zweite scheitert dann an der Prüfung."""
-    # Fixiertes Subjekt (keine Stock-Checks, jeder Verbleib): eine **Abweichung** (Unter-Auftrag)
-    # ODER eine **verkaufte** Instanz – letztere macht den Auftrag zur **Retoure/Erstattung**
-    # (siehe ``_set_chosen_instances``). Beide sind bereits «in der Hand»/verkauft und werden
-    # nicht reserviert.
-    devi = subject.is_deviation(order)
+    # **Jede aktive Instanz ist wählbar** – was daraus folgt, sagt ``subject.classify_pick``:
+    # frei am Lager → normaler Auftrag · verkauft → Retoure · gebunden (in Arbeit/reserviert/
+    # gesperrt) → **Abweichung**. Vorher entschied ein Vorab-Flag (``is_deviation``), ob die
+    # Bestands-Prüfungen greifen; damit war die Art des Auftrags eine *Voraussetzung* der
+    # Auswahl statt ihre *Folge*, und ein Abweichungsauftrag brauchte einen eigenen Endpunkt.
+    # Jetzt gibt es EINEN Weg: Instanzen wählen – das Tag ergibt sich.
     insts: list[Instance] = []
     for oid in object_ids:
         i = db.query(Instance).filter(Instance.object_id == oid, Instance.is_active == True).first()
@@ -91,13 +92,8 @@ def _validate_pins(db: Session, order: Order, object_ids: list[int]) -> list[Ins
             raise HTTPException(400, detail=f"Instanz {oid} nicht gefunden")
         if order.article_id and i.article_id != order.article_id:
             raise HTTPException(400, detail="Es sind nur Instanzen desselben Artikels wählbar")
-        if devi or i.disposition == "sold":
-            insts.append(i)           # fixiertes Subjekt (Abweichung/Retoure) – ohne Stock-Checks
-            continue
-        if not inventory.is_in_stock(i):
-            raise HTTPException(400, detail=f"Instanz {oid} ist nicht am Lager verfügbar")
-        if free_qty(i) + reserved_for(i, order.id) < i.quantity:
-            raise HTTPException(409, detail=f"Instanz {oid} ist bereits für einen anderen Auftrag reserviert")
+        if (i.disposition or "") == "scrapped":
+            raise HTTPException(400, detail=f"Instanz {oid} ist verschrottet – daran ist nichts mehr zu tun")
         insts.append(i)
     return insts
 
@@ -109,15 +105,102 @@ def _clear_return_marker(order: Order) -> None:
         order.parent_order_id = None
 
 
-def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> None:
+# Die drei Antworten auf eine Unterdeckung – dieselben wie am laufenden Auftrag
+# (``recovery``), nur hier schon **bei der Auswahl** gestellt statt später.
+SHORTFALL_ANSWERS = ("wait", "replace", "accept")
+
+
+def _make_deviation(db: Session, order: Order, insts: list[Instance],
+                    response: str | None, actor_id: int | None) -> None:
+    """Die Auswahl greift auf **gebundene** Instanzen zu – damit ist dieser Auftrag eine
+    **Abweichung**, und der Eltern-Auftrag wird sie los.
+
+    Zwei Dinge werden **abgeleitet**, nicht eingegeben:
+
+    * **Der Eltern-Auftrag** ist der, der das Stück gerade in der Hand hat
+      (``subject.holding_order``). Läuft keiner mehr (späte Reklamation an fertiger Ware),
+      steht die Abweichung allein – das ist erlaubt und braucht keinen Eltern.
+    * **Das Tag** ``reason='deviation'`` – siehe ``subject.classify_pick``.
+
+    **Und eine Frage MUSS jetzt beantwortet werden.** Nimmt die Abweichung einem LAUFENDEN
+    Auftrag sein Stück weg, entsteht dort im selben Moment eine Unterdeckung. Sie
+    stillschweigend offen zu lassen hiesse, den Eltern-Auftrag ohne Entscheidung hängen zu
+    lassen; darum wird hier gefragt – mit denselben drei Antworten wie am laufenden Auftrag:
+
+        wait     – warten: die Fehlmenge bleibt offen, der Eltern wird nicht fertig
+        replace  – ersetzen: freier Lagerbestand, für den Rest ein Nachschub
+        accept   – ohne Ersatz weiter: das Soll sinkt auf das Gesicherte
+
+    So gibt es keinen Zwischenzustand «Abweichung angelegt, aber niemand weiss, was mit dem
+    Eltern geschieht» – die Pause dauert genau so lange wie die Eingabe."""
+    order.reason = "deviation"
+    holders = _holders_of(db, insts, order)
+    # Eltern = wer das Stück hält. Mehrere Halter → der erste (die übrigen stehen über die
+    # Instanz-Klammer ohnehin im Bild, ``deviation.deviations_touching``).
+    order.parent_order_id = holders[0].object_id if holders else None
+    if not holders:
+        return
+    _assert_answered(response, holders)
+    # Die Bindung ZUERST setzen, damit die Unterdeckung des Eltern sichtbar ist, wenn die
+    # gewählte Antwort darauf reagiert.
+    for i in insts:
+        i.subject_of_order_id = order.id
+    db.flush()
+    _apply_shortfall_answer(db, holders, response, actor_id)
+
+
+def _holders_of(db: Session, insts: list[Instance], order: Order | None) -> list[Order]:
+    """Die LAUFENDEN Aufträge, die diese Instanzen gerade in der Hand haben."""
+    out: list[Order] = []
+    for i in insts:
+        h = subject.holding_order(db, i)
+        if h is not None and (order is None or h.id != order.id) and h.id not in {x.id for x in out}:
+            out.append(h)
+    return out
+
+
+def _assert_answered(response: str | None, holders: list[Order]) -> None:
+    """Ohne Entscheid geht es nicht weiter – die Frage stellt sich JETZT, nicht später."""
+    if response in SHORTFALL_ANSWERS:
+        return
+    raise HTTPException(
+        409,
+        detail="Diese Instanzen sind in Arbeit – der laufende Auftrag "
+               + ", ".join(str(h.object_id) for h in holders)
+               + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
+                 "warten · ersetzen · ohne Ersatz weiter.",
+    )
+
+
+def _apply_shortfall_answer(db: Session, holders: list[Order], response: str | None,
+                            actor_id: int | None) -> None:
+    """Die gewählte Antwort auf die Unterdeckung der Eltern anwenden – dieselben drei Wege
+    wie am laufenden Auftrag (``recovery``), nur früher gestellt.
+
+    ``wait`` tut nichts: die Fehlmenge bleibt offen und der Eltern wird nicht fertig, bis
+    sie gedeckt ist – das IST die Pause, nur ohne eigenen Mechanismus."""
+    from ..services import recovery
+    for h in holders:
+        if response == "replace":
+            recovery.cover_shortfall(db, h, actor_id)
+        elif response == "accept":
+            recovery.confirm_quantity(db, h, actor_id)
+
+
+def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
+                          response: str | None = None, actor_id: int | None = None) -> None:
     """Die **fixierten** (gepinnten) Subjekt-Instanzen eines Entwurfs neu setzen: bisherige
     lösen, neue prüfen und **vormerken** (``subject_of_order_id``). KEINE feste Reservierung –
     die wird erst bei der Freigabe scharf.
 
-    **Verkaufte Instanzen** in der Auswahl machen den Auftrag zur **Retoure/Erstattung**
-    (`reason='return'` + `parent_order_id`=Original-Verkauf, abgeleitet) – ganz normal über
-    dieselbe «Instanz wählen»-Auswahl, ohne eigene Sonder-Karte. Lager- und verkaufte Instanzen
-    lassen sich nicht mischen (Verkauf vs. Erstattung sind gegensätzliche Geldrichtungen)."""
+    **Die Auswahl bestimmt die ART des Auftrags** (``subject.classify_pick``) – ein Tag, kein
+    zweiter Weg: verkaufte Instanzen → **Retoure/Erstattung** · gebundene (in Arbeit,
+    reserviert, gesperrt) → **Abweichung** · freie → gewöhnlicher Auftrag. Lager- und
+    verkaufte Instanzen lassen sich nicht mischen (gegensätzliche Geldrichtungen).
+
+    ``response`` beantwortet – falls die Auswahl einem LAUFENDEN Auftrag sein Stück
+    wegnimmt – gleich mit, wie dessen Unterdeckung zu behandeln ist (siehe
+    ``_make_deviation``)."""
     from ..services.quantity import qty_sum
     for prev in (
         db.query(Instance)
@@ -129,29 +212,32 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int]) -> N
         _clear_return_marker(order)
         return
     insts = _validate_pins(db, order, object_ids)
-    sold = [i for i in insts if i.disposition == "sold"]
-    if sold and len(sold) != len(insts):
-        raise HTTPException(
-            400, detail="Bitte entweder verkaufte Instanzen (Retoure/Erstattung) ODER Lager-Instanzen "
-                        "wählen – nicht gemischt")
-    if sold:
+    kind = subject.classify_pick(order, insts)
+
+    if kind == subject.PICK_RETURN:
+        if any((i.disposition or "") != "sold" for i in insts):
+            raise HTTPException(
+                400, detail="Bitte entweder verkaufte Instanzen (Retoure/Erstattung) ODER Lager-Instanzen "
+                            "wählen – nicht gemischt")
         # Retoure: Original-Verkauf ableiten (Grundlage der Gutschrift) + Auftrag markieren.
-        parent = refund_svc.original_sale_order(db, sold)
+        parent = refund_svc.original_sale_order(db, insts)
         order.reason = "return"
         order.parent_order_id = parent.object_id
-        art_ids = {i.article_id for i in sold}
+        art_ids = {i.article_id for i in insts}
         if len(art_ids) == 1:
             order.article_id = next(iter(art_ids))
             # Summe der Mengen, nicht die Zahl der Zeilen: eine retournierte Charge à 5 Stk
-            # ist EINE Instanz und FÜNF Stück. (Der else-Zweig zwei Zeilen weiter unten hat
-            # es immer richtig gemacht – dieselbe Funktion, zwei Rechenweisen.)
-            order.quantity = qty_sum(i.quantity for i in sold)
+            # ist EINE Instanz und FÜNF Stück.
+            order.quantity = qty_sum(i.quantity for i in insts)
+    elif kind == subject.PICK_DEVIATION:
+        _make_deviation(db, order, insts, response, actor_id)
     else:
         _clear_return_marker(order)
         pinned_qty = qty_sum(i.quantity for i in insts)
         if order.quantity and pinned_qty > order.quantity:
             raise HTTPException(
                 400, detail=f"Es sind mehr Instanzen fixiert ({pinned_qty}) als die Auftragsmenge ({order.quantity})")
+
     for i in insts:
         i.subject_of_order_id = order.id              # nur vormerken (Reservierung bei Freigabe)
 
@@ -466,6 +552,9 @@ async def update_order(
     ensure_version(order, payload.pop("expected_updated_at", None))
     # Vorgewählte Subjekt-Instanzen (Mehrfachauswahl) gesondert – kein Modellfeld.
     new_instances = payload.pop("instance_object_ids", None)
+    # Reine Steuerangabe zur Auswahl – **kein Feld des Auftrags**: immer entfernen, sonst
+    # landete sie in der generischen ``setattr``-Schleife (siehe ``_make_deviation``).
+    answer = payload.pop("shortfall_response", None)
     # Inhalte – inklusive der Wiederkehr-Einstellung – sind NUR im Entwurf änderbar.
     # Nach der Freigabe ist der Auftrag „scharf"; ein einmal freigegebener Auftrag
     # lässt sich nicht mehr nachträglich auf wiederkehrend umstellen (ensure_mutable
@@ -474,7 +563,7 @@ async def update_order(
     if new_instances is not None:
         if order.status != "draft":
             raise HTTPException(409, detail="Instanzen lassen sich nur im Entwurf ändern")
-        _set_chosen_instances(db, order, new_instances)
+        _set_chosen_instances(db, order, new_instances, answer, current_user.id)
     if ("article_id" in payload or "quantity" in payload) and order.article_id is None \
             and order_lines_svc.lines_for(db, order):
         # Ein Mehrpositionen-Auftrag hat seinen Bedarf auf ``order_lines`` – Artikel/Menge
@@ -671,9 +760,26 @@ async def open_deviation(
         raise HTTPException(400, detail="Abweichungen lassen sich nur an einem laufenden/abgeschlossenen Auftrag eröffnen")
     if data.abort_parent and parent.status != "released":
         raise HTTPException(400, detail="Nur ein laufender Auftrag kann abgebrochen werden")
+    # **Derselbe Entscheid wie bei der Auswahl im Auftrag** (``_make_deviation``): nimmt die
+    # Abweichung einem laufenden Auftrag sein Stück weg, wird JETZT entschieden, wie es dort
+    # weitergeht – der Instanz-Knopf ist nur eine Abkürzung auf denselben Weg, keine
+    # zweite Regel. (Systemseitig angelegte Abweichungen – Auto-Abweichung nach
+    # Datenerfassung, Artikel-Deaktivierung – gehen direkt über den Service und lassen die
+    # Fehlmenge offen: dort entscheidet später ein Mensch am Auftrag.)
+    holders: list[Order] = []
+    if data.instance_object_ids and not data.abort_parent:
+        picked = db.query(Instance).filter(
+            Instance.object_id.in_(data.instance_object_ids),
+            Instance.is_active == True).all()
+        # VOR dem Binden erfassen – danach hält die Abweichung die Stücke selbst.
+        holders = _holders_of(db, picked, None)
+        if holders:
+            _assert_answered(data.shortfall_response, holders)
     devi = deviation.create_deviation(
         db, parent, data.instance_object_ids, current_user.id,
         title_prefix="Abbruch von" if data.abort_parent else "Abweichung zu")
+    db.flush()
+    _apply_shortfall_answer(db, holders, data.shortfall_response, current_user.id)
     if data.abort_parent:
         deviation.abort_parent(db, parent, devi, current_user.id)
     db.commit()
