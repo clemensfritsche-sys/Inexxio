@@ -360,37 +360,49 @@ def _order_sub_orders(db: Session, order: Order) -> tuple[
     return deviations, supplies, returns, provisionings
 
 
-def _fill_step_provisioning(db: Session, order: Order, step: ArticleProcessStep,
-                            si: OrderStepInfo) -> None:
-    """Die Bereitstellungen dieses Schritts als **Knoten im Ablauf** mitgeben.
+def _sub_order_stage(reason: str | None, step_type: str) -> str:
+    """**Wo steht ein Unter-Auftrag relativ zu seinem Schritt?** – EINE Deklaration.
 
-    Eine Bereitstellung ist kein Prozessschritt (sie wird abgeleitet, nicht modelliert) – aber
-    sie findet **zwischen** zwei Schritten statt, und genau dort gehört sie in die Darstellung.
-    Ihre Position folgt aus der bereits deklarierten Zeitpunkt-Regel (``provisioning._STAGE_
-    BEFORE``): Ressource stellt VOR der Ausführung bereit, Beschaffung/Verkauf DANACH. Das
-    Frontend platziert nur – die Regel bleibt hier."""
-    from .provisioning import _STAGE_BEFORE, sub_orders_for_step
-    si.provisioning_stage = "before" if step.step_type in _STAGE_BEFORE else "after"
-    si.provisionings = [
-        OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
-                           instance_count=0, instance_object_ids=[], title=o.title)
-        for o in sub_orders_for_step(db, order, step.id) if o.object_id
-    ]
-    # Abweichungen an ihrer Stelle im Ablauf: ``origin_step_id`` hält fest, wo sie gemeldet
-    # wurden. Auch abgeschlossene bleiben stehen – sie sind Teil der Geschichte des Schritts.
-    # Abweichungen UND Nachschub an ihrer Stelle im Ablauf: beide sind Unter-Aufträge, die
-    # aus genau diesem Schritt hervorgegangen sind (``origin_step_id``) – und beide gehören
-    # dorthin, wo sie entstanden sind, statt in eine Liste daneben (Notizen #259/#260).
+    «vorher» heisst: er hält den Schritt auf – erst das hier, dann dieser Schritt. Das gilt
+    für alles, was fehlt oder erst herbeigeschafft werden muss (Abweichung, Nachschub, und
+    eine Bereitstellung, deren Material vor der Ausführung da sein muss).
+    «nachher» heisst: er folgt aus dem Schritt – die Ware kommt an, nachdem bestellt wurde.
+
+    Für die Bereitstellung ist die Antwort längst deklariert (``provisioning._STAGE_BEFORE``,
+    nach Schritttyp); alles andere ist ein Hindernis und steht immer davor."""
+    from .provisioning import _STAGE_BEFORE, REASON as PROVISIONING
+    if reason == PROVISIONING:
+        return "before" if step_type in _STAGE_BEFORE else "after"
+    return "before"
+
+
+def _fill_step_sub_orders(db: Session, order: Order, step: ArticleProcessStep,
+                          si: OrderStepInfo) -> None:
+    """**Die Unter-Aufträge dieses Schritts als Knoten im Ablauf** – alle drei Arten in EINER
+    Liste, jede mit ihrer eigenen Position.
+
+    Ein Unter-Auftrag ist kein Prozessschritt, aber er findet **zwischen** zwei Schritten
+    statt – und genau dort gehört er in die Darstellung. Welcher Schritt das ist, hält
+    ``orders.origin_step_id`` fest (``deviation.interrupted_step_id``); wo genau, sagt
+    ``_sub_order_stage``. Auch abgeschlossene bleiben stehen – sie sind Teil der Geschichte
+    des Schritts.
+
+    Vorher standen Bereitstellung und Abweichung/Nachschub in zwei getrennten Listen plus
+    einem Stufen-Feld daneben, und das Frontend setzte sie mit einer Fallunterscheidung
+    wieder zusammen. Es ist dieselbe Sache – also eine Liste."""
     subs = (
         db.query(Order).filter(
             Order.parent_order_id == order.object_id,
-            Order.reason.in_(("deviation", "supply")),
             Order.origin_step_id == step.id, Order.is_active == True,
+            # Ein **zurückgenommener** Unter-Auftrag belastet den Ablauf nicht mehr: er ist
+            # die ausdrückliche Aussage «das erledige ich anders». Erledigte bleiben.
+            Order.status != "inactive",
         ).order_by(Order.object_id).all()
     )
-    si.deviations = [
+    si.sub_orders = [
         OrderDeviationInfo(object_id=o.object_id, status=o.status, reason=o.reason,
-                           instance_count=0, instance_object_ids=[], title=o.title)
+                           instance_count=0, instance_object_ids=[], title=o.title,
+                           stage=_sub_order_stage(o.reason, step.step_type))
         for o in subs if o.object_id
     ]
 
@@ -639,7 +651,7 @@ def to_order_response(db: Session, order: Order, viewer: UserProfile | None = No
         fact = s["fact"]
         si = OrderStepInfo(id=s["id"], step_type=s["step_type"], position=s["position"],
                            label=s["label"], state=s["state"])
-        _fill_step_provisioning(db, order, step, si)
+        _fill_step_sub_orders(db, order, step, si)
         _fill_step_resolutions(db, order, step, si)
         by_name, at = _attach_step_embed(db, order, s, si, first,
                                          instances=instances, viewer=viewer)

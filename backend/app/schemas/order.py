@@ -60,14 +60,21 @@ class StepResolution(BaseModel):
 
 
 class OrderDeviationInfo(BaseModel):
-    """Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
-    Eltern-Auftrag."""
+    """Kurzinfo eines Unter-Auftrags (Abweichung · Nachschub · Retoure · Bereitstellung) –
+    für die Sichtbarkeit im Eltern-Auftrag."""
     object_id: int
     status: str
-    reason: Optional[str] = None   # deviation | supply
+    reason: Optional[str] = None   # deviation | supply | return | provisioning
     instance_count: int = 0
     instance_object_ids: list[int] = []
     title: Optional[str] = None
+    # **Wo er relativ zu seinem Schritt steht** – die eine Deklaration für die Darstellung
+    # (Notiz #372/#377): «vorher» = er hält den Schritt auf (erst das hier, dann dieser
+    # Schritt – Abweichung, Nachschub, herbeigeschafftes Material); «nachher» = er folgt aus
+    # ihm (die Ware kommt an, nachdem bestellt wurde). Das Frontend platziert nur, es
+    # entscheidet nicht – darum trägt jeder Unter-Auftrag seine Position selbst, statt dass
+    # drei getrennte Listen im Fluss wieder zusammengesetzt werden müssten.
+    stage: str = "before"          # before | after
 
 
 class OrderStepInfo(BaseModel):
@@ -89,21 +96,16 @@ class OrderStepInfo(BaseModel):
     # Was an diesem Schritt bereits entschieden wurde (ersetzt / ohne Ersatz weiter) –
     # auch dann noch, wenn er längst wieder läuft.
     resolutions: list[StepResolution] = []
-    # Bei state='blocked' **ohne** Fehlmenge: das Material existiert, liegt aber noch am
-    # falschen Ort – diese Bereitstellungs-Unteraufträge bringen es her (Objektnummern).
-    # Zwei Gründe zu blockieren, zwei getrennte Felder: «zu wenig da» ≠ «noch nicht hier».
-    provisioning_order_object_ids: list[int] = []
-    # ALLE Bereitstellungen dieses Schritts (offen wie erledigt) – sie werden im Ablauf als
-    # eigener Knoten an ihrer Position gezeigt. ``provisioning_stage`` sagt, wo diese Position
-    # ist: **vor** der Ausführung (Ressource – die Komponente muss da sein, bevor verbaut wird)
-    # oder **danach** (Beschaffung/Verkauf – die Ware kommt an bzw. geht hinaus, nachdem der
-    # kaufmännische Vorgang durch ist). Die Deklaration liegt im Backend (``_STAGE_BEFORE``);
-    # das Frontend platziert nur, es entscheidet nicht.
-    provisionings: list[OrderDeviationInfo] = []
-    provisioning_stage: str = "after"     # before | after
-    # Abweichungen, die AN DIESEM SCHRITT gemeldet wurden (``orders.origin_step_id``) – sie
-    # gehören in den Ablauf an ihre Stelle, nicht als Karte über den Prozess.
-    deviations: list[OrderDeviationInfo] = []
+    # **Die Unter-Aufträge, die AUS DIESEM SCHRITT hervorgegangen sind** (``orders.
+    # origin_step_id``) – Abweichung, Nachschub und Bereitstellung in EINER Liste, weil sie
+    # dasselbe sind: ein eigener Auftrag, der an dieser Stelle in den Ablauf hineinragt. Wo
+    # genau, sagt jeder von ihnen selbst (``OrderDeviationInfo.stage``).
+    #
+    # Vorher waren es drei Felder für diese eine Aussage (``provisionings`` +
+    # ``provisioning_stage`` + ``deviations``, dazu das nie befüllte
+    # ``provisioning_order_object_ids``) – und das Frontend musste sie mit einer
+    # Fallunterscheidung wieder zusammensetzen.
+    sub_orders: list[OrderDeviationInfo] = []
 
     # Ausführungs-Embed des konkreten Schritts (nur das zum Typ passende ist gesetzt).
     # «Beschaffung» und «Verkauf» sind – wie jeder andere Schritttyp – GENAU EIN Schritt,

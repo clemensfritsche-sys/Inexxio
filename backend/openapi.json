@@ -12308,6 +12308,11 @@
               }
             ],
             "title": "Title"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "default": "before"
           }
         },
         "type": "object",
@@ -12316,7 +12321,7 @@
           "status"
         ],
         "title": "OrderDeviationInfo",
-        "description": "Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im\nEltern-Auftrag."
+        "description": "Kurzinfo eines Unter-Auftrags (Abweichung · Nachschub · Retoure · Bereitstellung) –\nfür die Sichtbarkeit im Eltern-Auftrag."
       },
       "OrderLineCreate": {
         "properties": {
@@ -12943,33 +12948,12 @@
             "title": "Resolutions",
             "default": []
           },
-          "provisioning_order_object_ids": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Provisioning Order Object Ids",
-            "default": []
-          },
-          "provisionings": {
+          "sub_orders": {
             "items": {
               "$ref": "#/components/schemas/OrderDeviationInfo"
             },
             "type": "array",
-            "title": "Provisionings",
-            "default": []
-          },
-          "provisioning_stage": {
-            "type": "string",
-            "title": "Provisioning Stage",
-            "default": "after"
-          },
-          "deviations": {
-            "items": {
-              "$ref": "#/components/schemas/OrderDeviationInfo"
-            },
-            "type": "array",
-            "title": "Deviations",
+            "title": "Sub Orders",
             "default": []
           },
           "purchase": {

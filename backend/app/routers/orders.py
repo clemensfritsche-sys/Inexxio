@@ -132,6 +132,7 @@ def _clear_derived_marker(order: Order) -> None:
     if order.reason in ("return", "deviation"):
         order.reason = None
         order.parent_order_id = None
+        order.origin_step_id = None
 
 
 # Die drei Antworten auf eine Unterdeckung – dieselben wie am laufenden Auftrag
@@ -150,6 +151,10 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     * **Der Eltern-Auftrag** ist der, der das Stück gerade in der Hand hat
       (``subject.holding_order``). Läuft keiner mehr (späte Reklamation an fertiger Ware),
       steht die Abweichung allein – das ist erlaubt und braucht keinen Eltern.
+    * **Die Stelle im Ablauf** ist der Schritt, an dem der Eltern gerade steht
+      (``deviation.interrupted_step_id``) – dieselbe eine Regel wie bei der systemseitigen
+      Anlage. Ohne sie stand die Abweichung im Fluss ganz vorne, also **vor** einem längst
+      abgeschlossenen Schritt (Testnotiz #377).
 
     **Und der Eltern merkt davon noch nichts** (Testnotiz #370). Ein Entwurf nimmt niemandem
     etwas weg: die Auswahl wird nur **vorgemerkt** (``reservation.claim``, ohne fremde
@@ -164,7 +169,9 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     holders = _holders_of(db, insts, order)
     # Eltern = wer das Stück hält. Mehrere Halter → der erste (die übrigen stehen über die
     # Instanz-Klammer ohnehin im Bild, ``deviation.deviations_touching``).
-    order.parent_order_id = holders[0].object_id if holders else None
+    parent = holders[0] if holders else None
+    order.parent_order_id = parent.object_id if parent else None
+    order.origin_step_id = deviation.interrupted_step_id(db, parent) if parent else None
 
 
 def _holders_of(db: Session, insts: list[Instance], order: Order | None) -> list[Order]:

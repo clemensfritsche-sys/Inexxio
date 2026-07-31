@@ -4219,8 +4219,8 @@ export interface components {
         };
         /**
          * OrderDeviationInfo
-         * @description Kurzinfo eines Unter-Auftrags (Abweichung ODER Nachschub) – für die Sichtbarkeit im
-         *     Eltern-Auftrag.
+         * @description Kurzinfo eines Unter-Auftrags (Abweichung · Nachschub · Retoure · Bereitstellung) –
+         *     für die Sichtbarkeit im Eltern-Auftrag.
          */
         OrderDeviationInfo: {
             /** Object Id */
@@ -4241,6 +4241,11 @@ export interface components {
             instance_object_ids: number[];
             /** Title */
             title?: string | null;
+            /**
+             * Stage
+             * @default before
+             */
+            stage: string;
         };
         /**
          * OrderLineCreate
@@ -4472,25 +4477,10 @@ export interface components {
              */
             resolutions: components["schemas"]["StepResolution"][];
             /**
-             * Provisioning Order Object Ids
+             * Sub Orders
              * @default []
              */
-            provisioning_order_object_ids: number[];
-            /**
-             * Provisionings
-             * @default []
-             */
-            provisionings: components["schemas"]["OrderDeviationInfo"][];
-            /**
-             * Provisioning Stage
-             * @default after
-             */
-            provisioning_stage: string;
-            /**
-             * Deviations
-             * @default []
-             */
-            deviations: components["schemas"]["OrderDeviationInfo"][];
+            sub_orders: components["schemas"]["OrderDeviationInfo"][];
             purchase?: components["schemas"]["PurchaseEmbed"] | null;
             /**
              * Purchases

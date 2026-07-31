@@ -678,6 +678,32 @@ def test_there_is_exactly_one_way_to_create_an_order():
     assert "parent_order_id=parent.object_id" in create and "record_link" in create
 
 
+def test_a_sub_order_knows_which_step_it_interrupted():
+    """**Beide Anlage-Wege vergeben dieselbe Position im Ablauf** (Testnotiz #377).
+
+    Ein Unter-Auftrag steht im Fluss an der Stelle, an der er entstanden ist
+    (``orders.origin_step_id``). Diese Zuordnung gibt es genau EINMAL
+    (``deviation.interrupted_step_id`` = der Schritt, an dem der Eltern gerade steht) –
+    und beide Wege benutzen sie: der systemseitige (``create_deviation``) UND der
+    menschliche über die Instanz-**Auswahl** (``_make_deviation``).
+
+    Genau der zweite vergab sie nicht, seit er der einzige menschliche Weg ist (Notiz #371):
+    ohne Position landete die Abweichung im Fluss ganz vorne – also **vor** einem längst
+    abgeschlossenen Schritt. Und wer die Auswahl zurücknimmt, verliert die Position wieder,
+    sonst behielte ein gewöhnlicher Auftrag die Stelle einer Abweichung, die er nicht mehr
+    ist."""
+    import inspect as _inspect
+
+    from app.routers import orders
+    from app.services import deviation
+
+    assert callable(deviation.interrupted_step_id)
+    for src in (_inspect.getsource(deviation.create_deviation),
+                _inspect.getsource(orders._make_deviation)):
+        assert "interrupted_step_id" in src
+    assert "order.origin_step_id = None" in _inspect.getsource(orders._clear_derived_marker)
+
+
 def test_failed_inspection_triggers_deviation():
     """Die Datenerfassung eröffnet bei Nichtbestehen automatisch eine Abweichung
     (vormals «interne Reklamation») – idempotent, auf den Durchfaller-Instanzen."""
@@ -2884,13 +2910,17 @@ def test_open_provisioning_holds_the_whole_order():
     assert "open_provisioning(db, order, step.id)" not in paused
     assert "is_paused(db, order)" in _inspect.getsource(process._step_blocked)
 
-    # Knoten-Daten je Schritt: alle Bereitstellungen + die Stufe (vor/nach).
+    # Knoten-Daten je Schritt: EINE Liste Unter-Aufträge, jeder mit seiner eigenen Stufe.
     si = OrderStepInfo(step_type="purchase", position=1, label="x", state="done")
-    assert si.provisionings == [] and si.provisioning_stage == "after"
-    fill = _inspect.getsource(orders_svc._fill_step_provisioning)
-    assert 'si.provisioning_stage = "before" if step.step_type in _STAGE_BEFORE else "after"' in fill
-    assert "sub_orders_for_step(db, order, step.id)" in fill
+    assert si.sub_orders == []
     assert provisioning._STAGE_BEFORE == ("resource",)
+    # Die Stufen-Regel steht im Backend, nicht im Frontend – und sie ist EINE Funktion.
+    assert orders_svc._sub_order_stage("provisioning", "purchase") == "after"
+    assert orders_svc._sub_order_stage("provisioning", "resource") == "before"
+    assert orders_svc._sub_order_stage("deviation", "purchase") == "before"
+    assert orders_svc._sub_order_stage("supply", "purchase") == "before"
+    fill = _inspect.getsource(orders_svc._fill_step_sub_orders)
+    assert "Order.origin_step_id == step.id" in fill
 
 
 def test_fixed_subject_sub_order_reserves_its_stock():
@@ -2926,16 +2956,15 @@ def test_sub_orders_know_where_they_came_from():
     from app.services import deviation, orders as orders_svc
 
     assert hasattr(Order, "origin_step_id") and not hasattr(Order, "provisioning_step_id")
-    assert "origin_step_id=_active_step_id(db, parent)" in _inspect.getsource(deviation.create_deviation)
+    assert "origin_step_id=interrupted_step_id(db, parent)" in _inspect.getsource(deviation.create_deviation)
     # Der Ursprungs-Schritt ist der, an dem der Eltern gerade steht.
-    act = _inspect.getsource(deviation._active_step_id)
+    act = _inspect.getsource(deviation.interrupted_step_id)
     assert '("active", "blocked", "failed")' in act
-    # … und er wird je Schritt mitgeliefert, damit der Ablauf sie an ihrer Stelle zeigen kann.
-    fill = _inspect.getsource(orders_svc._fill_step_provisioning)
+    # … und ALLE Arten werden je Schritt mitgeliefert – EINE Liste, kein Topf je Grund
+    # (Abweichung, Nachschub, Bereitstellung stehen alle an ihrer Stelle im Ablauf).
+    fill = _inspect.getsource(orders_svc._fill_step_sub_orders)
     assert "Order.origin_step_id == step.id" in fill
-    # Abweichung UND Nachschub – beide sind Unter-Aufträge eines Schritts und stehen an
-    # seiner Stelle im Ablauf (Testnotizen #259/#260).
-    assert 'Order.reason.in_(("deviation", "supply"))' in fill
+    assert "Order.reason" not in fill
     # Auch der Nachschub merkt sich, aus welchem Schritt sein Bedarf stammt.
     from app.services import supply as supply_svc
     assert "origin_step_id=process.blocked_step_for_article(db, order, art_id)" in _inspect.getsource(supply_svc)

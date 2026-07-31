@@ -2959,6 +2959,44 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_there_is_exactly_one_way_to_create_an_order`,
   `test_a_pick_claims_a_quantity_not_a_thing`.
 
+- **Testnotizen-Runde 27 (ein Unter-Auftrag steht an seiner Stelle, Notizen #375–#378)**:
+  (1) **Die Abweichung stand im Ablauf ganz vorne – vor einem längst erledigten Schritt**
+  (#377). Ein Unter-Auftrag bekommt seine Position aus `orders.origin_step_id`; vergeben
+  wurde sie aber nur auf dem **systemseitigen** Weg (`create_deviation`). Seit die
+  menschliche Anlage über die Instanz-**Auswahl** läuft (#371) war der einzige von Menschen
+  benutzte Weg der eine, der sie **nicht** vergab – ohne Position landet ein Unter-Auftrag
+  im «gehört dem Auftrag»-Topf und wird über dem Prozess gezeigt. Die Zuordnung gibt es
+  jetzt **einmal** (`deviation.interrupted_step_id` = der Schritt, an dem der Eltern gerade
+  steht), und **beide** Wege benutzen sie; wer die Auswahl zurücknimmt, verliert die
+  Position wieder (`_clear_derived_marker`).
+  **Im selben Zug ist die Darstellung eine Sache geworden:** `OrderStepInfo` trug für diese
+  eine Aussage **drei** Felder (`provisionings` + `provisioning_stage` + `deviations`, dazu
+  das nie befüllte `provisioning_order_object_ids`), und das Frontend setzte sie mit einer
+  Fallunterscheidung wieder zusammen. Jetzt ist es **eine Liste** `sub_orders`, und jeder
+  Unter-Auftrag trägt seine Position selbst (`stage` ∈ before | after, im Backend
+  abgeleitet: Hindernis → davor · Bereitstellung → nach ihrer deklarierten Stufe). Das
+  Frontend sortiert nur noch ein. Nebenbei erscheinen damit **Nachschub und Bereitstellung
+  ohne Ursprungsschritt** überhaupt zum ersten Mal (sie wurden nirgends gerendert), und ein
+  **zurückgenommener** Unter-Auftrag belastet den Ablauf nicht mehr – für alle drei Arten
+  dieselbe Regel.
+  (2) **Ruht der Auftrag, ruht der ganze Fluss** (#378): Das Backend lehnte jede Ausführung
+  schon immer mit 409 ab (`process.is_paused` → jeder Schritt `blocked`), die Oberfläche
+  zeigte den Schritt aber weiter in Modulfarbe und öffnete sein Panel – man konnte also
+  weiterarbeiten wollen und lief in eine Fehlermeldung. Jetzt tritt **jedes** Modul zurück
+  und keines lässt sich anwählen; farbig bleibt nur der Unter-Auftrag, der zu klären ist.
+  EINE Regel am Fluss (`OrderFlow paused`), keine Fallunterscheidung je Schritt. Damit ist
+  die Zeile «Bestand fehlt» am einzelnen Schritt entfallen – bei einem ruhenden Auftrag
+  stünde sie an **allen**, obwohl es nur einen Grund gibt; der steht beim Unter-Auftrag,
+  der die Menge bindet (#354). *Das revidiert die Ausnahme aus Runde 24 («ein blockierter
+  Schritt zeigt sein Panel weiterhin») ausdrücklich.*
+  (3) **Die Unterdeckungs-Frage ist eine Palette** (#375/#376): der Erklärabsatz ist
+  entfallen (der Titel sagt, worum es geht; WAS fehlt steht im Ablauf), und die drei
+  Antworten sind **Symbole, deren Name beim Hover aufklappt** – dieselbe Geste wie bei den
+  Prozessschritt-Modulen. Sie kommt jetzt aus EINER Implementierung (`fields.PaletteButton`),
+  die sich Modul-Palette, Erfassungsfeld-Palette und Unterdeckungs-Frage teilen.
+  Wächter: `test_a_sub_order_knows_which_step_it_interrupted`,
+  `test_sub_orders_know_where_they_came_from`, `test_open_provisioning_holds_the_whole_order`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

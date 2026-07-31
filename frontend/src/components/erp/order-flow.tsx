@@ -32,13 +32,17 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 // der hier hineinragt; ein Klick öffnet ihn.
 //
 // **Und die Reihenfolge sagt, in welchem Verhältnis er zum Schritt steht** (Notiz #372): was
-// den Schritt AUFHÄLT, steht VOR ihm (Abweichung, Nachschub – erst das hier, dann dieser
-// Schritt); was aus ihm FOLGT, danach (Bereitstellung: die Ware kommt an, nachdem bestellt
-// wurde). Vorher stand alles darunter – also nach einem Schritt, den man womöglich noch gar
-// nicht begonnen hatte, und das las sich als «danach passiert».
+// den Schritt AUFHÄLT, steht VOR ihm (erst das hier, dann dieser Schritt); was aus ihm FOLGT,
+// danach (die Ware kommt an, nachdem bestellt wurde). Das ist **eine Angabe am Unter-Auftrag**
+// (``stage``), abgeleitet im Backend – hier wird nur einsortiert, nicht entschieden.
 //
-// Ein Unter-Auftrag OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt
-// aktiv war) gehört keinem Schritt – er gehört dem Auftrag und steht am Anfang des Flusses.
+// Ein Unter-Auftrag OHNE Ursprungsschritt (an einer fremden Instanz gemeldet) gehört keinem
+// Schritt – er gehört dem Auftrag und steht am Anfang des Flusses.
+//
+// **Ruht der Auftrag, ruht der ganze Fluss** (Notiz #378): dann tritt JEDES Modul zurück und
+// keines lässt sich öffnen – der einzige farbige Knoten ist der Unter-Auftrag, der zu klären
+// ist. Das ist keine zweite Regel, sondern dieselbe wie im Backend (``process.is_paused`` →
+// jeder Schritt ist ``blocked``, jede Ausführung 409); sie war bisher nur nicht zu sehen.
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -46,14 +50,16 @@ function completionHint(s: OrderStep): string | undefined {
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
-export function OrderFlow({ steps, deviations = [], waitingFor = [], missing, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
+export function OrderFlow({ steps, subOrders = [], waitingFor = [], missing, paused = false, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
   steps: OrderStep[];
   /** Alle Unter-Aufträge des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
-  deviations?: OrderDeviationInfo[];
+  subOrders?: OrderDeviationInfo[];
   /** Unter-Aufträge, die die Fehlmenge des Auftrags gerade binden (``OrderResponse.waiting_for``). */
   waitingFor?: number[];
   /** Was dem Auftrag fehlt, als eine Zeile – steht beim Unter-Auftrag, der es bindet (#354). */
   missing?: string;
+  /** Ruht der Auftrag? Dann tritt der ganze Fluss zurück und nichts lässt sich öffnen (#378). */
+  paused?: boolean;
   selectedId?: string | null;
   onSelectStep: (stepId: string) => void;
   onOpenOrder: (objectId: number) => void;
@@ -68,12 +74,12 @@ export function OrderFlow({ steps, deviations = [], waitingFor = [], missing, se
   );
 
   // Was kein Schritt für sich beansprucht, gehört dem Auftrag – und steht am Anfang.
-  const claimed = new Set(steps.flatMap((s) => (s.deviations ?? []).map((d) => d.object_id)));
-  rows.push(...deviations.filter((x) => !claimed.has(x.object_id)).map(subCard));
+  const claimed = new Set(steps.flatMap((s) => (s.sub_orders ?? []).map((d) => d.object_id)));
+  rows.push(...subOrders.filter((x) => !claimed.has(x.object_id)).map(subCard));
 
   for (const s of steps) {
     const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
-    const selected = selectedId === String(s.id);
+    const selected = selectedId === String(s.id) && !paused;
     const card = (
       <FlowCard
         key={`step-${s.id}`}
@@ -86,26 +92,22 @@ export function OrderFlow({ steps, deviations = [], waitingFor = [], missing, se
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
-        onClick={() => onSelectStep(String(s.id))}
+        muted={paused}
+        onClick={paused ? undefined : () => onSelectStep(String(s.id))}
       >
         {selected && renderPanel?.(s)}
       </FlowCard>
     );
-    // **Was den Schritt AUFHÄLT, steht VOR ihm; was aus ihm FOLGT, danach** (Notiz #372).
-    //
-    // Eine Abweichung und ein Nachschub sind Hindernisse: solange sie offen sind, kann der
-    // Schritt nicht laufen – von oben nach unten gelesen heisst das «erst das hier, dann
-    // dieser Schritt». Vorher standen sie darunter, also nach einem Schritt, den man noch
-    // gar nicht begonnen hatte; das las sich als «danach passiert» und war schlicht falsch.
-    //
-    // Die **Bereitstellung** ist das Gegenstück: sie folgt aus dem Schritt (die Ware kommt
-    // an, nachdem bestellt wurde) – ausser bei der Ressource, wo das Material vorher da sein
-    // muss. Diese Regel steht im Backend (``provisioning._STAGE_BEFORE``); hier wird nur
-    // platziert.
-    const blocking = (s.deviations ?? []).map(subCard);
-    const prov = (s.provisionings ?? []).map(subCard);
-    if (s.provisioning_stage === 'before') rows.push(...prov, ...blocking, card);
-    else rows.push(...blocking, card, ...prov);
+    // **Jeder Unter-Auftrag trägt seine Position selbst** (``stage``, im Backend abgeleitet):
+    // «vorher» = er hält den Schritt auf (erst das hier, dann dieser Schritt), «nachher» = er
+    // folgt aus ihm. Hier wird nur einsortiert – ohne Fallunterscheidung, weil es dieselbe
+    // Sache ist: ein Unter-Auftrag an seiner Stelle im Ablauf.
+    const subs = s.sub_orders ?? [];
+    rows.push(
+      ...subs.filter((x) => x.stage === 'before').map(subCard),
+      card,
+      ...subs.filter((x) => x.stage === 'after').map(subCard),
+    );
   }
 
   return (
@@ -131,7 +133,7 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   failed:  { icon: X,           color: 'var(--danger)' },
 };
 
-function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], state, hint, selected, onClick, children }: {
+function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], state, hint, selected, muted: forced, onClick, children }: {
   type: StepType;
   label: string;
   icon: React.ElementType;
@@ -143,13 +145,16 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
   state: string;
   hint?: string;
   selected?: boolean;
-  onClick: () => void;
+  /** Ruht der ganze Auftrag? Dann tritt auch dieser Schritt zurück (Notiz #378). */
+  muted?: boolean;
+  /** Fehlt der Handler, ist die Karte nicht anwählbar – der Fluss ruht. */
+  onClick?: () => void;
   children?: React.ReactNode;
 }) {
   const kc = kindColor(type);
-  // «Nicht relevant» = erledigt oder noch nicht erreicht: die Karte tritt zurück (weisse
-  // Fläche, gedämpft). Nur was JETZT dran ist (aktiv/angehalten/Fehler), trägt seine Farbe.
-  const muted = state === 'done' || state === 'locked';
+  // «Nicht relevant» = erledigt, noch nicht erreicht – oder der ganze Auftrag ruht: die Karte
+  // tritt zurück (gedämpft). Nur was JETZT dran ist, trägt seine Farbe.
+  const muted = forced || state === 'done' || state === 'locked';
   const mark = STATE_MARK[state];
   const MarkIcon = mark?.icon;
   return (
@@ -167,7 +172,7 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
       }}
     >
       <div onClick={onClick} title={hint}
-        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', cursor: 'pointer' }}>
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', cursor: onClick ? 'pointer' : 'default' }}>
         <div style={{
           width: 38, height: 38, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
           color: kc.fg, border: `1px solid ${kc.border}`,
@@ -314,13 +319,12 @@ function stepBadge(s: OrderStep): React.ReactNode {
 }
 
 // Kurzzeile je Modul: WAS gerade Sache ist – nicht die Konfiguration (die steht am Artikel).
+//
+// Für «angehalten» steht hier bewusst NICHTS mehr: ruht der Auftrag, sind ALLE Schritte
+// blockiert – «Bestand fehlt» stünde dann an jedem einzelnen, obwohl es nur einen Grund gibt.
+// Der steht dort, wo er hingehört: beim Unter-Auftrag, der die Menge bindet (#354), bzw. in
+// der einen Notiz unter dem Fluss.
 function stepDetail(s: OrderStep): React.ReactNode {
-  if (s.state === 'blocked') {
-    // Zwei Gründe, warum ein Schritt hängt – und nur diese beiden: das Material ist noch
-    // unterwegs, oder es fehlt. WAS fehlt, steht einmal am Auftrag (nicht je Schritt).
-    if ((s.provisioning_order_object_ids ?? []).length > 0) return 'Material ist unterwegs';
-    return 'Bestand fehlt';
-  }
   if (s.state === 'failed') return 'Nicht bestanden – über die Abweichung klären';
   return undefined;
 }
