@@ -103,9 +103,10 @@ export function isStockOperation(stepTypes: StepType[]): boolean {
 // Bedeutungs-Vorrang: Verbleib (scrapped/sold/consumed) ≻ Verdikt (failed) ≻
 // am Lager (passed+in_stock) ≻ sonst «Im Prozess». Das Datenmodell bleibt getrennt;
 // nur die Darstellung fasst beides zu einem Status zusammen.
-// Reine Ampel (TONE): «Im Prozess»/«Reserviert» = GELB (läuft/gebunden), «Freigegeben»
-// = GRÜN (am Lager, frei). Terminal: «Verbaut»/«Verkauft» = GRÜN (positiv erfüllt),
-// «Gesperrt»/«Verschrottet» = ROT (Ampel auf «Stopp», nicht mehr verwendbar).
+// Reine Ampel (TONE): «Im Prozess»/«Reserviert»/«Gesperrt» = GELB (läuft, gebunden oder
+// ausgesetzt – jedenfalls **umkehrbar**), «Freigegeben» = GRÜN (am Lager, frei). Terminal:
+// «Verbaut»/«Verkauft» = GRÜN (positiv erfüllt), «Verschrottet» = ROT – der EINE endgültige
+// Zustand (Notiz #360: gesperrt lässt sich entsperren, verschrottet nie).
 const INSTANCE_STATUS: Record<string, StatusCfg> = {
   in_process: { label: 'Im Prozess',   ...TONE.pending, icon: Loader },
   in_stock:   { label: 'Freigegeben',  ...TONE.done,    icon: CheckCircle2 },

@@ -62,6 +62,9 @@ class CompanySettingsResponse(BaseModel):
     # Trägt echte Ortsangaben? Ohne Anschrift ist eine Gesellschaft gültig, aber logistisch
     # stumm (eine Bewegung dorthin bleibt innerbetrieblich statt Versand – ADR 005).
     has_address: bool = False
+    # Aktiv? Eine geschlossene Gesellschaft bleibt als Datensatz lesbar (Halter historischer
+    # Instanzen, Absender alter Belege), ist aber nicht mehr verwendbar – und **endgültig**.
+    is_active: bool = True
     company_name: str
     legal_form: str
     street: Optional[str]

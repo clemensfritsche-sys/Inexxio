@@ -407,7 +407,16 @@ export interface paths {
         get: operations["get_company_api_v1_admin_companies__object_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Deactivate Company
+         * @description Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).
+         *
+         *     Eine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues
+         *     HR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die
+         *     **letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen
+         *     fallen an den Betreiber zurück.
+         */
+        delete: operations["deactivate_company_api_v1_admin_companies__object_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -1090,10 +1099,13 @@ export interface paths {
          *     Konzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an
          *     (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
          *
-         *     ``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**
-         *     (er läuft normal weiter; das betroffene Stück ist nur aus seiner Deckung genommen und
-         *     erscheint als Fehlmenge) oder **abbrechen** (sofort und endgültig inaktiv; nur der
-         *     Abweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».
+         *     **Abkürzung, kein zweiter Weg**: dasselbe geschieht, wenn man einen Auftrag anlegt und
+         *     dort gebundene Instanzen auswählt (``_set_chosen_instances`` → ``classify_pick``). Der
+         *     Knopf an der Instanz nimmt einem nur die erste Auswahl ab.
+         *
+         *     Ohne Instanz-Auswahl sind ALLE Instanzen des Auftrags betroffen – dem Eltern bleibt dann
+         *     nichts, und «Auftragsmenge reduzieren» IST damit sein Abbruch (``recovery.confirm_quantity``).
+         *     Es braucht dafür keinen eigenen Schalter mehr; ``abort_parent`` ist entfallen (Notiz #366).
          *     Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
          */
         post: operations["open_deviation_api_v1_erp_orders__object_id__deviation_post"];
@@ -2987,6 +2999,11 @@ export interface components {
              * @default false
              */
             has_address: boolean;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
             /** Company Name */
             company_name: string;
             /** Legal Form */
@@ -4234,20 +4251,17 @@ export interface components {
          * @description «Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
          *     Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
          *
-         *     ``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»
-         *     ersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert
-         *     solange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der
-         *     Abweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist
-         *     eine Eigenschaft, kein zweiter Weg.
+         *     **Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach
+         *     weiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts
+         *     übrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage.
          */
         OrderDeviationCreate: {
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
-            /**
-             * Abort Parent
-             * @default false
-             */
-            abort_parent: boolean;
+            /** Instance Quantities */
+            instance_quantities?: {
+                [key: string]: number;
+            } | null;
             /** Shortfall Response */
             shortfall_response?: string | null;
         };
@@ -4319,6 +4333,10 @@ export interface components {
              * @default []
              */
             instance_object_ids: number[];
+            /** Instance Quantities */
+            instance_quantities?: {
+                [key: string]: number;
+            } | null;
         };
         /** OrderResponse */
         OrderResponse: {
@@ -4613,6 +4631,10 @@ export interface components {
             quantity?: number | null;
             /** Instance Object Ids */
             instance_object_ids?: number[] | null;
+            /** Instance Quantities */
+            instance_quantities?: {
+                [key: string]: number;
+            } | null;
             /** Shortfall Response */
             shortfall_response?: string | null;
             /** Desired Delivery Date */
@@ -6553,6 +6575,37 @@ export interface operations {
         };
     };
     get_company_api_v1_admin_companies__object_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_company_api_v1_admin_companies__object_id__delete: {
         parameters: {
             query?: never;
             header?: never;

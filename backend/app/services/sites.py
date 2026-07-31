@@ -122,10 +122,19 @@ def find_operator(db: Session) -> CompanySettings | None:
     DB, Migration 091 nicht gelaufen) – so führt eine ausstehende Migration nie zu «kein
     Betreiber», und Belege bekommen immer einen Absender. Committet nie – Pflicht überall,
     wo der Aufruf innerhalb einer fremden Transaktion läuft."""
-    chosen = db.query(CompanySettings).filter(CompanySettings.is_operator == True).first()
+    chosen = (
+        db.query(CompanySettings)
+        .filter(CompanySettings.is_operator == True, CompanySettings.is_active == True)
+        .first()
+    )
     if chosen is not None:
         return chosen
-    return db.query(CompanySettings).order_by(CompanySettings.id).first()
+    return (
+        db.query(CompanySettings)
+        .filter(CompanySettings.is_active == True)
+        .order_by(CompanySettings.id)
+        .first()
+    )
 
 
 def operator(db: Session) -> CompanySettings:
@@ -160,7 +169,12 @@ def all_companies(db: Session) -> list[CompanySettings]:
     Ruft ``operator`` vorab, damit auch eine frische DB mindestens eine Gesellschaft
     liefert (und der Betreiber garantiert eine Objektnummer hat)."""
     operator(db)
-    return db.query(CompanySettings).order_by(CompanySettings.id).all()
+    return (
+        db.query(CompanySettings)
+        .filter(CompanySettings.is_active == True)
+        .order_by(CompanySettings.id)
+        .all()
+    )
 
 
 def by_object_id(db: Session, object_id: int | None) -> CompanySettings | None:
@@ -199,6 +213,45 @@ def set_operator(db: Session, company: CompanySettings, actor_id: int | None) ->
         {CompanySettings.is_operator: False})
     company.is_operator = True
     log_audit(db, "company_settings", "is_operator", "true", actor_id, object_id=company.object_id)
+    db.commit()
+    db.refresh(company)
+    return company
+
+
+def deactivate(db: Session, company: CompanySettings, actor_id: int | None) -> CompanySettings:
+    """Ein Unternehmen **schliessen** – Soft-Delete, endgültig (Testnotiz #365).
+
+    Kein «Ersetzen» und **keine Reaktivierung**: der reale Vorgang ist eine Liquidation.
+    Wer am selben Ort wieder eröffnet, gründet eine neue Gesellschaft – mit neuer UID/EIN,
+    neuem Handelsregister-Datum und neuen Belegkreisen. Sie als dieselbe weiterzuführen
+    hiesse, auf ihren Belegen eine Rechtsperson zu nennen, die es so nicht mehr gab. Genau
+    wie ein inaktiver Artikel ist das damit endgültig; die Objektnummer bleibt auflösbar
+    (sie hält historische Instanzen und steht auf alten Belegen).
+
+    Zwei Dinge dürfen nicht passieren, beide werden geprüft:
+
+    * **Der Betreiber bleibt.** Er ist der Absender der einen Website (Impressum, Rechtstexte,
+      Systemkonfiguration) – ohne ihn hätte sie keine Rechtsperson. Erst den Titel weitergeben
+      (``set_operator``), dann schliessen.
+    * **Die letzte Gesellschaft bleibt.** Ein ERP ohne Unternehmen kennt keinen Absender.
+
+    Ihre **Gebiete** fallen zurück (die Zeilen werden gelöscht): jeder Fleck der Erde gehört
+    weiterhin jemandem – ohne Anspruch dem Betreiber (``company_for_country``). Committet."""
+    from ..models import CompanyTerritory
+    if company.is_operator:
+        raise HTTPException(
+            409, detail="Der Betreiber der Website kann nicht geschlossen werden – bitte zuerst "
+                        "eine andere Gesellschaft zum Betreiber machen.")
+    others = (
+        db.query(CompanySettings.id)
+        .filter(CompanySettings.id != company.id, CompanySettings.is_active == True)
+        .count()
+    )
+    if others == 0:
+        raise HTTPException(409, detail="Das letzte Unternehmen kann nicht geschlossen werden")
+    db.query(CompanyTerritory).filter(CompanyTerritory.company_id == company.id).delete()
+    company.is_active = False
+    log_audit(db, "company_settings", "is_active", "false", actor_id, object_id=company.object_id)
     db.commit()
     db.refresh(company)
     return company

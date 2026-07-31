@@ -894,6 +894,52 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Deactivate Company",
+        "description": "Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).\n\nEine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues\nHR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die\n**letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen\nfallen an den Betreiber zurück.",
+        "operationId": "deactivate_company_api_v1_admin_companies__object_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "object_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Object Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/admin/companies/{object_id}/operator": {
@@ -3109,7 +3155,7 @@
           "orders"
         ],
         "summary": "Open Deviation",
-        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n``abort_parent`` entscheidet, was mit dem Ursprungsauftrag geschieht – **weiterlaufen**\n(er läuft normal weiter; das betroffene Stück ist nur aus seiner Deckung genommen und\nerscheint als Fehlmenge) oder **abbrechen** (sofort und endgültig inaktiv; nur der\nAbweichungsauftrag lebt weiter). Das ersetzt den früheren zweiten Knopf «Abbrechen».\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
+        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n**Abkürzung, kein zweiter Weg**: dasselbe geschieht, wenn man einen Auftrag anlegt und\ndort gebundene Instanzen auswählt (``_set_chosen_instances`` → ``classify_pick``). Der\nKnopf an der Instanz nimmt einem nur die erste Auswahl ab.\n\nOhne Instanz-Auswahl sind ALLE Instanzen des Auftrags betroffen – dem Eltern bleibt dann\nnichts, und «Auftragsmenge reduzieren» IST damit sein Abbruch (``recovery.confirm_quantity``).\nEs braucht dafür keinen eigenen Schalter mehr; ``abort_parent`` ist entfallen (Notiz #366).\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
         "operationId": "open_deviation_api_v1_erp_orders__object_id__deviation_post",
         "security": [
           {
@@ -8799,6 +8845,11 @@
             "title": "Has Address",
             "default": false
           },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "default": true
+          },
           "company_name": {
             "type": "string",
             "title": "Company Name"
@@ -12273,10 +12324,19 @@
             ],
             "title": "Instance Object Ids"
           },
-          "abort_parent": {
-            "type": "boolean",
-            "title": "Abort Parent",
-            "default": false
+          "instance_quantities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Quantities"
           },
           "shortfall_response": {
             "anyOf": [
@@ -12292,7 +12352,7 @@
         },
         "type": "object",
         "title": "OrderDeviationCreate",
-        "description": "«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne\nAuswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).\n\n``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»\nersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert\nsolange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der\nAbweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist\neine Eigenschaft, kein zweiter Weg."
+        "description": "«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne\nAuswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).\n\n**Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach\nweiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts\nübrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage."
       },
       "OrderDeviationInfo": {
         "properties": {
@@ -12438,6 +12498,20 @@
             "type": "array",
             "title": "Instance Object Ids",
             "default": []
+          },
+          "instance_quantities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Quantities"
           }
         },
         "type": "object",
@@ -13321,6 +13395,20 @@
               }
             ],
             "title": "Instance Object Ids"
+          },
+          "instance_quantities": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Quantities"
           },
           "shortfall_response": {
             "anyOf": [

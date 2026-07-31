@@ -54,6 +54,17 @@ class CompanySettings(Base):
     # Betreiber» führt.
     is_operator: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False)
+    # **Aktiv?** – Soft-Delete wie überall. Ein geschlossener Standort/eine liquidierte
+    # Gesellschaft wird deaktiviert, nicht gelöscht: ihre Objektnummer bleibt als Halter
+    # historischer Instanzen und Belege auflösbar.
+    #
+    # **Endgültig, ohne Reaktivierung** – wie beim Artikel. Der reale Vorgang dahinter ist
+    # eine Liquidation: eine wiedereröffnete Gesellschaft bekommt eine NEUE UID/EIN, ein
+    # neues Handelsregister-Datum und neue Belegkreise. Sie ist damit nicht dieselbe
+    # Rechtsperson, und sie so zu behandeln wäre eine Fälschung im Beleg. Wer wieder
+    # eröffnet, legt ein neues Unternehmen an (Inhalte darf er abschreiben).
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False)
     # **Funktionswährung** der Gesellschaft (ISO-3, Default CHF). Wird aus dem Land
     # vorbelegt (``sites.currency_for_country``). Grundlage für «ein Preis, überall in
     # Landeswährung»: der Katalogpreis bleibt EIN kanonischer CHF-Betrag, Eingabe/Anzeige

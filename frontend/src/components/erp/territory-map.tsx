@@ -135,7 +135,10 @@ export function TerritoryMap({ highlight, embedded }: { highlight?: number | nul
           Namen UND die Gesellschaft, die sie fakturiert; ein Klick öffnet die Zuweisung
           direkt dort. Die frühere Liste unter der Karte sagte dasselbe ein zweites Mal –
           sie ist entfallen, samt der Ausnahmen-Sektion, die jetzt im selben Panel steckt. */}
-      <div style={{ position: 'relative', border: '1px solid var(--border-1)', overflow: 'hidden' }}>
+      {/* Runde Ecken wie bei jeder anderen Karte im ERP (Notiz #363) – `overflow:hidden`
+          beschneidet die SVG-Fläche mit. */}
+      <div style={{ position: 'relative', border: '1px solid var(--border-1)',
+        borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
         <WorldMap
           selected={selRegion?.code ?? null}
           onSelect={(code) => { setSelected(selected === code ? null : code); setAdding(false); }}

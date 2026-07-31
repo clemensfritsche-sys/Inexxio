@@ -202,6 +202,13 @@ class OrderLinePins(BaseModel):
     am Einzel-Artikel-Auftrag)."""
 
     instance_object_ids: list[int] = []
+    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
+    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
+    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
+    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
+    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
+    # Reservierungs-Map (``instances.reservations``).
+    instance_quantities: Optional[dict[str, float]] = None
 
 
 class OrderUpdate(BaseModel):
@@ -213,6 +220,13 @@ class OrderUpdate(BaseModel):
     # Instanzen → Retoure · gebundene (in Arbeit/reserviert/gesperrt) → **Abweichung** ·
     # freie → gewöhnlicher Auftrag. Ein Tag, kein zweiter Weg.
     instance_object_ids: Optional[list[int]] = None
+    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
+    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
+    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
+    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
+    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
+    # Reservierungs-Map (``instances.reservations``).
+    instance_quantities: Optional[dict[str, float]] = None
     # Nimmt die Auswahl einem LAUFENDEN Auftrag sein Stück weg, entsteht dort sofort eine
     # Unterdeckung – und die will beantwortet sein, bevor die Abweichung steht:
     # ``wait`` (offen lassen) · ``replace`` (ersetzen) · ``accept`` (ohne Ersatz weiter).
@@ -254,13 +268,17 @@ class OrderDeviationCreate(BaseModel):
     """«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
     Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
 
-    ``abort_parent`` ist die EINE Entscheidung, die den früheren zweiten Knopf «Abbrechen»
-    ersetzt: läuft der Ursprungsauftrag nach der Klärung weiter (Standard – er pausiert
-    solange), oder ist er mit dem Anlegen **abgebrochen** (sofort inaktiv, endgültig; nur der
-    Abweichungsauftrag lebt weiter)? Ein Vorgang, ein Wort, ein Symbol – der Unterschied ist
-    eine Eigenschaft, kein zweiter Weg."""
+    **Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach
+    weiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts
+    übrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage."""
     instance_object_ids: Optional[list[int]] = None
-    abort_parent: bool = False
+    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
+    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
+    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
+    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
+    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
+    # Reservierungs-Map (``instances.reservations``).
+    instance_quantities: Optional[dict[str, float]] = None
     # Wie es beim laufenden Auftrag weitergeht, dem diese Instanzen entzogen werden:
     # ``wait`` · ``replace`` · ``accept``. Dieselbe Frage wie bei der Instanz-Auswahl im
     # Auftrag – der Instanz-Knopf ist nur eine Abkürzung auf denselben Weg.

@@ -4,7 +4,7 @@ Eine **Abweichung** ist ein **Unter-Auftrag** (``orders.parent_order_id``), der 
 laufenden Eltern-Auftrag heraus entsteht und auf dessen Instanzen wirkt.
 
 **Sie hält den Eltern-Auftrag nicht an – sie nimmt ihr Stück heraus.** Was in Klärung ist,
-zählt für den Eltern nicht mehr als gesichert (``process.deviated_instance_ids``): der Rest
+zählt für den Eltern nicht mehr als gesichert (``process.deviated_quantities``): der Rest
 läuft weiter, und der Schritt, der das Subjekt braucht, meldet die Fehlmenge. Damit gibt es
 EINEN Mechanismus (Unterdeckung) statt Pause UND Unterdeckung; der Schutz vor Teil-Versand
 bleibt, weil Verkauf und Versand Subjekt-Schritte sind und bei einer Fehlmenge ohnehin
@@ -17,6 +17,8 @@ im selben Moment inaktiv (``abort_parent``) – endgültig, ohne Reaktivierung; 
 Abweichungsauftrag lebt weiter und hält die Instanzen.
 """
 
+from decimal import Decimal
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -26,7 +28,7 @@ from .events import emit
 from .inventory import is_blocked, is_in_stock
 from .objects import next_object_id
 from .quantity import qty_sum, to_qty
-from .reservation import release as release_reservation, reserve, reserved_for
+from .reservation import claim, release as release_reservation, reserve, reserved_for
 from .subject import order_active_instances, record_link
 
 
@@ -140,10 +142,14 @@ def _active_step_id(db: Session, parent: Order) -> int | None:
 
 
 def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] | None,
-                     actor_id: int | None, title_prefix: str = "Abweichung zu") -> Order:
+                     actor_id: int | None, title_prefix: str = "Abweichung zu",
+                     quantities: dict[int, Decimal] | None = None) -> Order:
     """Eine **Abweichung** (Unter-Auftrag) zu ``parent`` anlegen, die auf die betroffenen
     Instanzen wirkt (Instanz- oder Prozess-Ebene). Entwurf; der Nutzer definiert die
-    Auflösung (Schritte) und gibt frei. Committet NICHT (der Aufrufer schliesst ab)."""
+    Auflösung (Schritte) und gibt frei. Committet NICHT (der Aufrufer schliesst ab).
+
+    ``quantities`` = beanspruchte **Teilmenge** je Instanz-Objektnummer; ohne Angabe die
+    ganze Instanz. Von einer Charge à 500 ist meist genau EINE Schraube betroffen."""
     insts = _resolve_subjects(db, parent, instance_object_ids)
     if not insts:
         raise HTTPException(409, detail="Keine Instanzen für die Abweichung vorhanden")
@@ -164,7 +170,8 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         object_id=next_object_id(db, "order"), status="draft",
         # Menge = das, worauf die Abweichung tatsächlich wirkt (Summe der Instanz-Mengen),
         # NICHT die Zahl der Instanzen: eine Charge à 5 Stk ist EIN Subjekt, aber 5 Stück.
-        article_id=parent.article_id, quantity=qty_sum(i.quantity for i in insts),
+        article_id=parent.article_id,
+        quantity=qty_sum((quantities or {}).get(i.object_id, to_qty(i.quantity)) for i in insts),
         parent_order_id=parent.object_id, reason="deviation",
         origin_step_id=_active_step_id(db, parent),
         title=f"{title_prefix} {parent.object_id}",
@@ -183,8 +190,12 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
         # Auftrag es per FIFO wegnehmen. Der Verdacht selbst ist der Grund, es festzuhalten.
         # (Dieselbe Zuweisung wie bei der Freigabe – ``subject._bind_deviation_subjects`` –
         # und idempotent, weil beide über ``reserved_for`` prüfen.)
-        if is_in_stock(inst) and reserved_for(inst, devi.id) <= 0:
-            reserve(inst, devi.id, to_qty(inst.quantity))
+        # Der Anspruch trägt die betroffene MENGE. ``claim`` setzt sie und kürzt dabei den
+        # Anspruch des Auftrags, dem das Stück entzogen wird – genau daraus entsteht dort
+        # die Unterdeckung (keine zweite Buchführung).
+        want = (quantities or {}).get(inst.object_id, to_qty(inst.quantity))
+        if reserved_for(inst, devi.id) <= 0:
+            claim(inst, devi.id, want)
     log_audit(db, "orders", None, f"Abweichung zu {parent.object_id} angelegt", actor_id,
               object_id=devi.object_id)
     emit(db, "order.deviation_opened", object_type="order", object_id=devi.object_id,
@@ -193,7 +204,7 @@ def create_deviation(db: Session, parent: Order, instance_object_ids: list[int] 
     return devi
 
 
-def abort_parent(db: Session, parent: Order, devi: Order, actor_id: int | None) -> None:
+def abort_parent(db: Session, parent: Order, devi: Order | None, actor_id: int | None) -> None:
     """Den Ursprungsauftrag **sofort** abbrechen – der Abweichungsauftrag führt ihn fort.
 
     Früher war der Abbruch ein *Antrag*: das Original blieb «Abbruch ausstehend» und wurde erst
@@ -204,15 +215,17 @@ def abort_parent(db: Session, parent: Order, devi: Order, actor_id: int | None) 
     weiter – dort wird entschieden, was mit den Teilen geschieht.
 
     Die Instanzen bleiben erhalten (``keep_instances``): sie gehören jetzt dem
-    Abweichungsauftrag. ``abort_into_id`` bleibt als Zeiger «fortgeführt in …». Committet NICHT."""
+    Abweichungsauftrag. ``abort_into_id`` bleibt als Zeiger «fortgeführt in …» – ohne
+    Nachfolger (``devi=None``, z. B. wenn schlicht alles verschrottet wurde) bleibt er leer:
+    der Auftrag ist dann beendet, nicht fortgeführt. Committet NICHT."""
     from .deactivation import cancel_order_effects
-    parent.abort_into_id = devi.object_id
+    parent.abort_into_id = devi.object_id if devi is not None else None
     old = parent.status
     parent.status = "inactive"
     cancel_order_effects(db, parent, actor_id, keep_instances=True)
     log_audit(db, "orders", "status", "inactive", actor_id, object_id=parent.object_id, old_value=old)
     emit(db, "order.aborted", object_type="order", object_id=parent.object_id,
-         payload={"followup": devi.object_id}, actor_id=actor_id)
+         payload={"followup": devi.object_id if devi is not None else None}, actor_id=actor_id)
 
 
 def auto_deviation_from_inspection(db: Session, order: Order, actor_id: int | None) -> Order | None:
@@ -255,12 +268,20 @@ def detach_sub_order(db: Session, sub: Order, actor_id: int | None) -> Order | N
     for inst in db.query(Instance).filter(
         Instance.subject_of_order_id == sub.id, Instance.is_active == True
     ).all():
+        # Die Bindung des Unter-Auftrags endet hier – auch der Anspruch, den sie ab der
+        # Meldung gehalten hat. Idempotent: hatte er nie einen, ist das ein No-op.
+        freed = release_reservation(inst, sub.id)
+        # **Und was er dem Eltern entzogen hat, bekommt der zurück.** Beim Melden kürzt
+        # ``reservation.claim`` dessen Anspruch um genau diese Menge (so entsteht die
+        # Unterdeckung); ohne die Rückgabe gäbe «Zurücknehmen» die Ware zwar frei, aber
+        # nicht an den, dem sie gehörte – der Eltern behielte seine Fehlmenge für immer.
+        # Ein **Erzeugungs**-Auftrag ist ausgenommen: er hält seine Instanzen über
+        # ``Instance.order_id`` und hatte nie eine Reservierung.
+        if parent is not None and parent.status == "released" and inst.order_id != parent.id:
+            reserve(inst, parent.id, freed)
         inst.subject_of_order_id = (
             parent.id if parent is not None and reserved_for(inst, parent.id) > 0 else None
         )
-        # Die Bindung des Unter-Auftrags endet hier – auch die Reservierung, die sie ab der
-        # Meldung gehalten hat. Idempotent: hat er nie eine gehabt, ist das ein No-op.
-        release_reservation(inst, sub.id)
     for link in db.query(InstanceOrderLink).filter(
         InstanceOrderLink.order_id == sub.id, InstanceOrderLink.is_active == True
     ).all():

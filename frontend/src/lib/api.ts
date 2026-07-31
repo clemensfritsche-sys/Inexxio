@@ -299,6 +299,11 @@ class ApiClient {
     return this.post<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}/operator`, {}).then(mapSettingsFromBackend);
   }
 
+  /** Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung). */
+  deactivateCompany(objectId: number): Promise<CompanySettings> {
+    return this.delete<Record<string, unknown>>(`/api/v1/admin/companies/${objectId}`).then(mapSettingsFromBackend);
+  }
+
   // ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ─────────
   getTerritories(): Promise<TerritoryMap> {
     return this.get('/api/v1/admin/territories');
@@ -510,23 +515,27 @@ class ApiClient {
 
   // Verwerfen: setzt einen Unter-Auftrag bzw. einen Auftrag ohne Instanzen direkt inaktiv
   // (räumt die Bindungen zum Eltern auf). Ein laufender Auftrag MIT Instanzen wird nicht
-  // hierüber abgebrochen – dafür gibt es `createDeviation(..., { abortParent: true })`.
+  // hierüber abgebrochen – dort ist der Abbruch die Antwort «Auftragsmenge reduzieren» auf
+  // seine Unterdeckung, sobald ihm nichts mehr bleibt (Notiz #366).
   abortOrder(objectId: number): Promise<Order> {
     return this.post(`/api/v1/erp/orders/${objectId}/abort`, {});
   }
 
   // **Abweichungsauftrag** – die Abkürzung auf denselben Weg, den auch die Instanz-Auswahl
   // im Auftrag nimmt (dort ergibt sich das Tag aus der Wahl gebundener Instanzen).
-  // `abortParent` entscheidet, was mit dem Ursprungsauftrag geschieht: weiterlaufen (sein
-  // Stück fehlt ihm dann) oder sofort abgebrochen. `shortfallResponse` beantwortet die
-  // Unterdeckung, die dabei beim laufenden Auftrag entsteht – ohne sie antwortet der
-  // Server mit 409 und nennt die betroffenen Aufträge.
-  createDeviation(objectId: number, opts?: { instanceObjectIds?: number[]; abortParent?: boolean;
-                                          shortfallResponse?: 'wait' | 'replace' | 'accept' }): Promise<Order> {
+  // `shortfallResponse` beantwortet die Unterdeckung, die dabei beim laufenden Auftrag
+  // entsteht – ohne sie antwortet der Server mit 409 und nennt die betroffenen Aufträge.
+  // Bleibt dem Eltern nichts übrig, IST «Auftragsmenge reduzieren» sein Abbruch.
+  createDeviation(objectId: number, opts?: {
+    instanceObjectIds?: number[];
+    /** Beanspruchte Teilmenge je Instanz – fehlt sie, gilt die ganze Instanz (#361). */
+    instanceQuantities?: Record<string, number>;
+    shortfallResponse?: 'wait' | 'replace' | 'accept';
+  }): Promise<Order> {
     const ids = opts?.instanceObjectIds;
     return this.post(`/api/v1/erp/orders/${objectId}/deviation`, {
       ...(ids && ids.length ? { instance_object_ids: ids } : {}),
-      ...(opts?.abortParent ? { abort_parent: true } : {}),
+      ...(opts?.instanceQuantities ? { instance_quantities: opts.instanceQuantities } : {}),
       ...(opts?.shortfallResponse ? { shortfall_response: opts.shortfallResponse } : {}),
     });
   }
@@ -829,6 +838,7 @@ function mapSettingsFromBackend(s: Record<string, unknown>): CompanySettings {
     // Abgeleitete Rollen (kein Rang): ältestes Unternehmen = Betreiber der Website;
     // has_address = trägt echte Ortsangaben (sonst logistisch stumm, ADR 005).
     is_operator: (s.is_operator as boolean) ?? false,
+    is_active: (s.is_active as boolean) ?? true,
     has_address: (s.has_address as boolean) ?? false,
     company_name: (s.company_name as string) ?? '',
     legal_form: (s.legal_form as string | null) ?? null,
@@ -870,7 +880,7 @@ function mapSettingsToBackend(s: Partial<CompanySettings>): Record<string, unkno
   };
   // `website` ist abgeleitet (Deployment-Adresse, #309) – es zurückzuschicken hiesse,
   // eine zweite Wahrheit anzulegen; das Backend nähme es ohnehin nicht an.
-  const skip = new Set(['iban_masked', 'logo_url', 'website', 'is_operator', 'has_address']);
+  const skip = new Set(['iban_masked', 'logo_url', 'website', 'is_operator', 'has_address', 'is_active']);
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(s)) {
     if (skip.has(k)) continue;

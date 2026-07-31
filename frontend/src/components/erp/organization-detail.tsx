@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil } from 'lucide-react';
+import { Building2, Server, Sparkles, CreditCard, Coins, FolderOpen, Star, Pencil, Ban, CheckCircle2 } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CompanySettings, OperatingCosts } from '@/types';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { Card, DetailHeader } from '@/components/erp/fields';
+import { Card, ChoiceButton, DetailHeader, Dialog } from '@/components/erp/fields';
 import { AddressField, type Address, hasAddress, toIso2 } from '@/components/erp/address-field';
 import { useMapsApiKey } from '@/components/erp/use-maps-key';
 import { Field as AField } from '@/components/account/field';
@@ -202,6 +202,8 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
   const [tab, setTab] = useState<OrgTab>('stamm');
   const [opBusy, setOpBusy] = useState(false);
   const [opError, setOpError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [closeBusy, setCloseBusy] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
   const mapsKey = useMapsApiKey();
   const prevId = useRef<number | null | undefined>(undefined);
@@ -284,6 +286,21 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
     } finally { setOpBusy(false); }
   }
 
+  /** Diese Gesellschaft schliessen – endgültig (keine Reaktivierung, siehe Backend). */
+  async function closeCompany() {
+    if (record.object_id == null) return;
+    setCloseBusy(true); setOpError(null);
+    try {
+      const updated = await api.deactivateCompany(record.object_id);
+      setBase(updated);
+      onSaved(updated);
+      setClosing(false);
+    } catch (e) {
+      setOpError(e instanceof Error ? e.message : 'Unternehmen konnte nicht geschlossen werden');
+      setClosing(false);
+    } finally { setCloseBusy(false); }
+  }
+
   const address: Address = {
     street: [form.street, form.street_number].filter(Boolean).join(' '),
     zip: form.zip, city: form.city, country: form.country,
@@ -302,24 +319,46 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
         icon={Building2} iconBg="#F3E5DD" iconFg="#A65A3C"
         eyebrow="Unternehmen" title={form.company_name || null}
         objectId={record.object_id} onBack={onBack}
-        status={{ label: 'Unternehmen', color: 'var(--success)', bg: 'var(--success-bg)', icon: Building2 }}
+        // **Der Zustand, nicht der Typ** (Notiz #364): «Unternehmen» stand als Status da –
+        // das ist aber die Datensatzart und steht bereits als Eyebrow. Ein Unternehmen kennt
+        // dieselben zwei Zustände wie alles andere im System, also dieselben zwei Wörter:
+        // **Freigegeben** (gültig, verwendbar) und **Inaktiv** (geschlossen, endgültig).
+        status={record.is_active === false
+          ? { label: 'Inaktiv', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: Ban }
+          : { label: 'Freigegeben', color: 'var(--success)', bg: 'var(--success-bg)', icon: CheckCircle2 }}
         // **Betreiber der Website: ein Stern bei den Aktionen** (Testnotiz #339) statt eines
         // Knopfes mitten im Formular. Er ist keine Stammdaten-Angabe, sondern eine Rolle über
         // dem Datensatz – also gehört er zur Kopfzeile, wo die übrigen Datensatz-Aktionen
         // stehen. Gesetzt: leuchtender Stern (Tatsache, kein Knopf). Nicht gesetzt: derselbe
         // Stern als leiser Knopf, Erklärung im Hover.
-        actions={isOperator ? (
-          <span className="erp-idbtn erp-idbtn-flag" data-tip="Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration"
-            data-tip-pos="bottom" style={{ cursor: 'default' }}>
-            <Star size={14} fill="currentColor" />
-          </span>
-        ) : (
-          <button className="erp-idbtn" data-tip={opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
-            data-tip-pos="bottom" aria-label="Als Betreiber der Website festlegen"
-            onClick={makeOperator} disabled={opBusy}>
-            <Star size={14} />
-          </button>
-        )}
+        actions={<>
+          {isOperator ? (
+            <span className="erp-idbtn erp-idbtn-flag" data-tip="Betreiber der Website – nennt das Impressum und trägt die Systemkonfiguration"
+              data-tip-pos="bottom" style={{ cursor: 'default' }}>
+              <Star size={14} fill="currentColor" />
+            </span>
+          ) : (
+            <button className="erp-idbtn" data-tip={opBusy ? 'Wird gesetzt…' : 'Als Betreiber der Website festlegen'}
+              data-tip-pos="bottom" aria-label="Als Betreiber der Website festlegen"
+              onClick={makeOperator} disabled={opBusy}>
+              <Star size={14} />
+            </button>
+          )}
+          {/* **Schliessen** (Notiz #365) – wie das Deaktivieren am Artikel, und wie dort
+              **endgültig**: eine wiedereröffnete Gesellschaft ist rechtlich eine andere
+              (neue UID, neues HR-Datum), also wird sie neu angelegt statt wiederbelebt.
+              Ein «Ersetzen» gibt es bewusst nicht – zu heikel bei einer Rechtsperson.
+              Der Betreiber trägt den Knopf gar nicht erst: ohne ihn hätte die Website
+              keinen Absender (erst den Stern weitergeben, dann schliessen). */}
+          {!isOperator && record.is_active !== false && (
+            <button className="erp-idbtn erp-idbtn-danger"
+              data-tip="Unternehmen schliessen – endgültig, keine Reaktivierung"
+              data-tip-pos="bottom" aria-label="Unternehmen schliessen"
+              onClick={() => setClosing(true)} disabled={closeBusy}>
+              <Ban size={14} />
+            </button>
+          )}
+        </>}
       >
         <DetailTabs<OrgTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'stamm', label: 'Stammdaten', icon: Building2 },
@@ -329,6 +368,23 @@ export function OrganizationDetail({ record, onSaved, onBack }: {
           { key: 'docs', label: 'Dokumente', icon: FolderOpen },
         ]} />
       </DetailHeader>
+
+      {/* **Schliessen ist endgültig** – darum eine Frage, aber nur eine: der Klick auf den
+          Weg IST die Ausführung (wie im Deaktivieren-Dialog des Artikels, Notiz #152). */}
+      {closing && (
+        <Dialog icon={Ban} title="Unternehmen schliessen" tone="var(--danger)" width={460}
+          onClose={() => setClosing(false)}>
+          <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-2)', lineHeight: 1.55 }}>
+            «{form.company_name}» wird geschlossen. Der Datensatz bleibt lesbar (er hält
+            historische Instanzen und steht auf alten Belegen), seine Gebiete fallen an den
+            Betreiber zurück.
+          </span>
+          <ChoiceButton icon={Ban} tone="var(--danger)" disabled={closeBusy}
+            title="Endgültig schliessen"
+            text="Keine Reaktivierung – eine Wiedereröffnung ist rechtlich eine neue Gesellschaft (neue UID, neues HR-Datum) und wird neu angelegt."
+            onClick={closeCompany} />
+        </Dialog>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 40px', background: 'var(--bg-2)' }}>

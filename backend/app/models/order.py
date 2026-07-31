@@ -72,7 +72,7 @@ class Order(Base, TimestampMixin):
     #   'deviation'     – Reklamation/Fehler/Nacharbeit/Abbruch-Folgeauftrag: wirkt auf bereits
     #                     vorhandene Instanzen des Eltern-Auftrags. Sie **nimmt ihr Stück heraus**
     #                     statt den Eltern anzuhalten: was in Klärung ist, zählt nicht mehr als
-    #                     gesichert (``process.deviated_instance_ids``) und erscheint als
+    #                     gesichert (``process.deviated_quantities``) und erscheint als
     #                     Unterdeckung am Schritt, der es braucht.
     #   'supply'        – Nachschub: deckt einen Bedarf (Verkauf/Verbrauch) des Eltern, der nicht
     #                     aus dem Bestand gedeckt war. Produziert/beschafft die Fehlmenge und

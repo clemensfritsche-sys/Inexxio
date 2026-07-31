@@ -336,7 +336,7 @@ def sold_amounts_for_order(db: Session, order_object_id: int | None) -> dict[int
     return out
 
 
-def deviated_instance_ids(db: Session, order: Order) -> set[int]:
+def deviated_quantities(db: Session, order: Order) -> dict[int, Decimal]:
     """Instanzen dieses Auftrags, die gerade in einer **offenen Abweichung** stecken.
 
     **Eine Abweichung hat keinen eigenen Pause-Mechanismus – sie nimmt ihr Stück heraus.**
@@ -349,16 +349,22 @@ def deviated_instance_ids(db: Session, order: Order) -> set[int]:
     Genau das macht die Abweichung austauschbar mit jedem anderen Grund: eine Aussteuerung,
     ein Ausschuss oder eine weggenommene Reservierung erzeugen dieselbe Fehlmenge und damit
     dieselbe Pause – und werden mit denselben drei Antworten aufgelöst (pausieren · ersetzen ·
-    Menge reduzieren)."""
+    Menge reduzieren).
+
+    Geliefert wird **je Instanz die betroffene MENGE**, nicht bloss die Instanz: eine
+    Abweichung an EINER Schraube einer 500er-Charge nimmt dem Auftrag genau eine, nicht
+    fünfhundert. Die Menge steht dort, wo sie hingehört – im Anspruch der Abweichung
+    (``instances.reservations``); fehlt er (Altbestand), gilt die ganze Instanz."""
     from .subject import order_instances
     # **Massgeblich ist die Instanz, nicht der Eltern-Zeiger.** Eine Abweichung kann an der
     # Instanz gemeldet worden sein und dabei an einem GANZ ANDEREN Auftrag hängen (dem
     # Herkunftsauftrag). Für diesen Auftrag zählt allein: steckt eines seiner Stücke gerade
     # in einer offenen Abweichung? Vorher wurden nur die eigenen Kinder gezählt – ein an der
     # Instanz gemeldeter Fehler liess den Auftrag ungerührt weiterlaufen (Testnotiz #348).
+    from .reservation import reserved_for
     mine = [i for i in order_instances(db, order) if i.subject_of_order_id]
     if not mine:
-        return set()
+        return {}
     open_devs = {
         r[0] for r in db.query(Order.id).filter(
             Order.id.in_({i.subject_of_order_id for i in mine}),
@@ -370,7 +376,13 @@ def deviated_instance_ids(db: Session, order: Order) -> set[int]:
     # Abschluss nichts frei (die Statusänderung ist zum Zeitpunkt der Abfrage noch nicht
     # geflusht, die Datenbank sieht sie also weiterhin als offen).
     open_devs.discard(order.id)
-    return {i.id for i in mine if i.subject_of_order_id in open_devs}
+    out: dict[int, Decimal] = {}
+    for i in mine:
+        if i.subject_of_order_id not in open_devs:
+            continue
+        share = reserved_for(i, i.subject_of_order_id)
+        out[i.id] = share if share > 0 else to_qty(i.quantity)
+    return out
 
 
 def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
@@ -382,7 +394,7 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
       Bestands-Instanzen (FIFO ab Lager / gepinnt / gepeggter Nachschub) PLUS (b) **selbst
       erzeugte** gute Instanzen (Erzeugungsauftrag). Terminal verlorene (verschrottet/verkauft/
       verbaut), durchgefallene **oder in einer offenen Abweichung gebundene** zählen NICHT –
-      letztere sind in Klärung, also weder verloren noch verfügbar (``deviated_instance_ids``).
+      letztere sind in Klärung, also weder verloren noch verfügbar (``deviated_quantities``).
 
     So reagiert ein **Erzeugungsauftrag auf Ausschuss** identisch wie ein **Bestands-Auftrag**
     auf eine ausgesteuerte Reservierung – dieselbe Unterdeckung, dieselben Deckungs-Wege, kein
@@ -410,27 +422,33 @@ def _subject_shortfalls(db: Session, order: Order) -> dict[int, Decimal]:
         return {}
     # Gesichert je Artikel
     secured: dict[int, Decimal] = {}
-    in_clarification = deviated_instance_ids(db, order)
+    # **Was in Klärung steckt, zählt mengengenau** – nicht als ganze Instanz: eine
+    # Abweichung an EINER Schraube einer 500er-Charge nimmt dem Auftrag genau eine.
+    in_clarification = deviated_quantities(db, order)
     for inst in db.query(Instance).filter(
         Instance.reservations.has_key(str(order.id)), Instance.is_active == True  # noqa: W601
     ).all():
-        if inst.id in in_clarification:
-            continue
         # FIX: Durchgefallene zählen laut Kontrakt (Docstring) NICHT als «gesichert» – der
         # Filter fehlte aber: eine gesperrte reservierte Instanz deckte das Soll
         # scheinbar weiter, der Schritt blockierte nie und der Verkauf hätte still eine
         # durchgefallene Einheit unterschlagen (sell_order_subjects überspringt failed).
         if is_blocked(inst):
             continue
+        # Der Anspruch selbst ist schon gekürzt, wenn eine Abweichung ihn übernommen hat
+        # (``reservation.claim``) – hier bleibt nichts weiter abzuziehen.
         secured[inst.article_id] = secured.get(inst.article_id, ZERO) + reserved_for(inst, order.id)
     for inst in db.query(Instance).filter(
         Instance.order_id == order.id, Instance.is_active == True, *unblocked_clauses()
     ).all():
-        if (inst.disposition or "") in TERMINAL_DISPOSITIONS or inst.id in in_clarification:
+        if (inst.disposition or "") in TERMINAL_DISPOSITIONS:
             continue
         if (inst.reservations or {}).get(str(order.id)):
             continue   # schon über die Reservierung (oben) gezählt – nicht doppelt
-        secured[inst.article_id] = secured.get(inst.article_id, ZERO) + to_qty(inst.quantity)
+        # Selbst erzeugte Stücke tragen keine Reservierung des Auftrags – hier greift die
+        # Klärungs-Menge direkt: von 5 erzeugten ist bei einer Abweichung an 1 noch 4 gut.
+        rest = to_qty(inst.quantity) - in_clarification.get(inst.id, ZERO)
+        if rest > 0:
+            secured[inst.article_id] = secured.get(inst.article_id, ZERO) + rest
     # FIX: was DIESER Auftrag bereits **verkauft** hat, ist GELIEFERT – nicht «verloren».
     # Ohne diesen Anteil meldete ein bezahlter Verkauf (Reservierung verbraucht, Ware sold)
     # die volle Menge als Fehlmenge: nicht-gesperrte Folgeschritte blockierten dauerhaft und
@@ -546,7 +564,7 @@ def is_paused(db: Session, order: Order) -> bool:
 
     Das ist die eine Pause-Regel des Systems, und sie hat **keinen eigenen Mechanismus**:
     Was einen Auftrag anhält, ist immer dasselbe – ihm fehlt etwas (``_subject_shortfalls``).
-    Eine offene **Abweichung** nimmt ihr Stück heraus (``deviated_instance_ids``) und erzeugt
+    Eine offene **Abweichung** nimmt ihr Stück heraus (``deviated_quantities``) und erzeugt
     damit genau diese Fehlmenge; eine Aussteuerung, ein Ausschuss oder eine weggenommene
     Reservierung tun dasselbe. Es gibt darum kein «pausiert wegen Abweichung» neben
     «blockiert wegen Fehlmenge» – es ist EIN Zustand mit EINER Ursache.
@@ -667,7 +685,7 @@ def release_instances(db: Session, order: Order) -> None:
     zurück in den laufenden Prozess. «Zuletzt daran gearbeitet» heisst darum präzise: *es
     arbeitet kein anderer Auftrag mehr daran* (``_worked_on_by_a_running_order``)."""
     now = utcnow()
-    in_clarification = deviated_instance_ids(db, order)
+    in_clarification = deviated_quantities(db, order)
     rows = (
         db.query(Instance)
         .filter(
@@ -893,7 +911,7 @@ def _spawn_recurrence(db: Session, order: Order, subject_object_ids: list[int] |
 def recompute_completion(db: Session, order: Order) -> None:
     """Auftrag automatisch abschliessen, wenn alle Prozessschritte erledigt sind.
 
-    Eine offene **Abweichung** hält den Auftrag NICHT mehr an (``deviated_instance_ids``):
+    Eine offene **Abweichung** hält den Auftrag NICHT mehr an (``deviated_quantities``):
     ihr Stück ist aus dem Auftrag herausgenommen und erscheint als Unterdeckung. Was noch
     in Klärung ist, gibt dieser Auftrag darum auch nicht frei."""
     # Bereitstellung ableiten: Jeder Schritt, der dran ist oder gerade war, bekommt sein

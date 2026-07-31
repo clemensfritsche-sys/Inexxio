@@ -26,7 +26,7 @@ from . import inventory
 from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
-from .quantity import qty_sum, to_qty
+from .quantity import ZERO, qty_sum, to_qty
 from .reservation import free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
@@ -80,7 +80,7 @@ def is_return(order: Order) -> bool:
 PICK_NORMAL, PICK_RETURN, PICK_DEVIATION = None, "return", "deviation"
 
 
-def classify_pick(order: Order, insts: list) -> str | None:
+def classify_pick(order: Order, insts: list, wanted: dict | None = None) -> str | None:
     """**Die Auswahl bestimmt die Art des Auftrags** – EINE Regel, drei Ausgänge.
 
     Ein Auftrag und ein Abweichungsauftrag sind dasselbe; der Unterschied ist ein **Tag**,
@@ -94,22 +94,30 @@ def classify_pick(order: Order, insts: list) -> str | None:
     «Gebunden» heisst: die Instanz existiert, ist aber gerade nicht frei verfügbar – sie
     steckt in einem Prozess, ist für einen anderen Auftrag reserviert oder gesperrt. Auf so
     etwas zuzugreifen KANN nur eine Abweichung sein; darum ist das Tag keine Frage, sondern
-    die Folge. Rein (schreibt nicht)."""
+    die Folge.
+
+    ``wanted`` = beanspruchte Teilmenge je Instanz-Objektnummer (fehlt sie, die ganze
+    Instanz). Rein (schreibt nicht)."""
     if not insts:
         return PICK_NORMAL
     if any((i.disposition or "") == "sold" for i in insts):
         return PICK_RETURN
-    if any(is_bound(order, i) for i in insts):
+    if any(is_bound(order, i, (wanted or {}).get(i.object_id)) for i in insts):
         return PICK_DEVIATION
     return PICK_NORMAL
 
 
-def is_bound(order: Order, inst) -> bool:
+def is_bound(order: Order, inst, want=None) -> bool:
     """Ist dieses Stück **gebunden** – also für diesen Auftrag nicht frei verfügbar?
 
     Gebunden heisst: nicht (mehr) frei am Lager (in Arbeit, verbaut, gesperrt) ODER die
-    freie Menge deckt die Instanz nicht ganz (für einen FREMDEN Auftrag reserviert). Was
-    dieser Auftrag selbst reserviert hat, zählt als frei – er greift ja auf sein eigenes zu.
+    freie Menge deckt **die gewünschte Menge** nicht. Was dieser Auftrag selbst reserviert
+    hat, zählt als frei – er greift ja auf sein eigenes zu.
+
+    ``want`` ist die beanspruchte Teilmenge; ohne Angabe die GANZE Instanz (unverändertes
+    Verhalten). Die Menge gehört in die Frage, seit eine Auswahl Teilmengen tragen darf:
+    von einer 5er-Charge, bei der 2 fremdreserviert sind, ist ein Zugriff auf 3 Stück ein
+    ganz gewöhnlicher Bedarf – erst der Zugriff auf 4 ist eine Abweichung.
 
     EINE Stelle, zwei Nutzer: sie entscheidet, ob eine Auswahl eine Abweichung ist
     (``classify_pick``), und sie verhindert, dass freie und gebundene Stücke im selben
@@ -119,7 +127,8 @@ def is_bound(order: Order, inst) -> bool:
     from .reservation import free_qty, reserved_for
     if not is_in_stock(inst):
         return True
-    return free_qty(inst) + reserved_for(inst, order.id) < to_qty(inst.quantity)
+    need = to_qty(inst.quantity) if want is None else to_qty(want)
+    return free_qty(inst) + reserved_for(inst, order.id) < need
 
 
 def holding_order(db: Session, inst) -> Order | None:
@@ -294,6 +303,8 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
         raise HTTPException(409, detail="Für diesen Unter-Auftrag sind keine Instanzen gewählt")
     for inst in bound:
         record_link(db, inst.object_id, order.id)
+        # Steht der Anspruch schon (beim Auswählen/Melden gesetzt, ggf. als Teilmenge),
+        # bleibt er wie er ist – sonst gilt die ganze Instanz.
         if is_in_stock(inst) and reserved_for(inst, order.id) <= 0:
             reserve(inst, order.id, to_qty(inst.quantity))
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
@@ -310,17 +321,24 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
     Wiederverwendet vom Einzel-Artikel-Auftrag (``order.article_id``) UND – je Position –
     vom Mehrpositionen-Auftrag (``order_lines``)."""
     pinned = chosen_subjects(db, order, article_id=article_id)
-    for inst in pinned:                                    # fixierte: erst bei Freigabe „scharf"
+    claimed = ZERO
+    for inst in pinned:                                    # fixierte: beim Auswählen beansprucht
         if not inventory.is_in_stock(inst):
             raise HTTPException(
                 409, detail=f"Instanz {inst.object_id} ist nicht freigegeben/am Lager – Freigabe nicht möglich")
-        need = to_qty(inst.quantity) - reserved_for(inst, order.id)
-        if free_qty(inst) < need:                          # von einem anderen Auftrag belegt
-            raise HTTPException(
-                409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
-        reserve(inst, order.id, need)                      # ganze Pin-Instanz, OHNE Teilung
+        # **Der Anspruch steht schon** – er wurde beim Auswählen gesetzt und trägt die
+        # gewünschte (ggf. Teil-)Menge. Fehlt er (Altbestand/System-Pfad), gilt die ganze
+        # Instanz und wird jetzt reserviert.
+        want = reserved_for(inst, order.id)
+        if want <= 0:
+            want = to_qty(inst.quantity)
+            if free_qty(inst) < want:                      # von einem anderen Auftrag belegt
+                raise HTTPException(
+                    409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
+            reserve(inst, order.id, want)
+        claimed += want
         record_link(db, inst.object_id, order.id)
-    remaining = to_qty(quantity) - qty_sum(i.quantity for i in pinned)
+    remaining = to_qty(quantity) - claimed
     if remaining <= 0:
         return                                             # vollständig durch fixierte gedeckt
     cands = fifo_candidates(db, article_id, for_order_id=None, lock=True)   # freie Restmengen

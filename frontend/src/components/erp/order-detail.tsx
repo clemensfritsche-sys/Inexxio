@@ -55,6 +55,25 @@ type PinLine = {
   poolQty: number;
   // Frei verfügbar? Eine **gebundene** Instanz ist wählbar – daraus wird ein Abweichungsauftrag.
   free: (i: Instance) => boolean;
+  /** Sorte je Instanz: frei · gebunden (→ Abweichung) · verkauft (→ Retoure). */
+  kind: (i: Instance) => PinKind;
+  /** Beanspruchte Menge je gewählter Instanz-Objektnummer (Teilmenge einer Charge, #361). */
+  wanted: Record<number, number>;
+};
+
+/** Die drei Sorten, die eine Instanz-Auswahl haben kann – sie bestimmen die Art des Auftrags. */
+type PinKind = 'free' | 'bound' | 'sold';
+
+// Farbe + Erklärung je Sorte: EINE Tabelle statt verstreuter Bedingungen im Chip.
+const PIN_KIND: Record<PinKind, { tone: string; bg: string; hint: string; mix: string }> = {
+  free: { tone: 'var(--success)', bg: 'var(--success-bg)',
+    hint: 'Frei am Lager', mix: 'Es ist bereits eine freie Instanz gewählt' },
+  bound: { tone: 'var(--warning)', bg: 'var(--warning-bg)',
+    hint: 'In Arbeit, reserviert oder gesperrt – daraus wird ein Abweichungsauftrag',
+    mix: 'Es ist bereits eine gebundene Instanz gewählt (Abweichung)' },
+  sold: { tone: 'var(--accent)', bg: 'var(--accent-soft)',
+    hint: 'Verkauft – daraus wird eine Retoure/Erstattung',
+    mix: 'Es sind bereits verkaufte Instanzen gewählt (Retoure)' },
 };
 
 function seedFrom(record: Order | null): Form {
@@ -122,8 +141,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const [error, setError] = useState<string | null>(null);
   const [selStep, setSelStep] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('auftrag');
-  const [dialog, setDialog] = useState<'skip-provisioning' | 'deviation' | null>(null);
-  const [deviationBusy, setDeviationBusy] = useState(false);
+  const [dialog, setDialog] = useState<'skip-provisioning' | null>(null);
   const [supplyBusy, setSupplyBusy] = useState(false);
   const [recoverBusy, setRecoverBusy] = useState(false);
   const verRef = useRef<string | null>(record?.updated_at ?? null);   // Optimistic Locking
@@ -149,13 +167,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const demandEditable = isStaff && (isCreate || record?.status === 'draft');
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
-  // «Abweichung melden» auf **Auftragsebene**: nur am LAUFENDEN Auftrag (ein abgeschlossener
-  // Prozess ist durch). Eine bereits offene Abweichung sperrt das NICHT mehr – sie nimmt nur
-  // ihr Stück heraus, ein zweiter Befund an anderen Instanzen ist ein eigener Vorgang (das
-  // Backend lässt weiterhin höchstens EINE aktive Abweichung je Instanz zu). Eine spätere
-  // Reklamation eines fertigen Teils läuft über die Instanz, nicht über den fertigen Auftrag.
-  const canReportDeviation = isStaff && !isCreate && record != null
-    && record.status === 'released' && record.abort_into_id == null;
+  // **Kein «Abbrechen»-Knopf mehr im Kopf** (Notiz #366): einen Auftrag abzubrechen heisst,
+  // seine Teile in einen anderen zu überführen – und genau das tut man, indem man einen
+  // Auftrag anlegt und dessen Instanzen auswählt. Der Eltern meldet dann eine Unterdeckung,
+  // und bleibt ihm nichts übrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang,
+  // eine Frage, kein zweiter Weg. Ein Fehler an EINEM Stück wird ohnehin an der Instanz
+  // gemeldet (dort steht die Abkürzung).
   // Nur die **Bereitstellung** ist übergehbar: sie ist die einzige Unter-Auftragsart, die das
   // System selbst anlegt. Alles andere ist eine bewusste Entscheidung und wird durchgezogen.
   const canSkipProvisioning = isStaff && !isCreate && record != null
@@ -234,28 +251,43 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   const isFree = (i: Instance) =>
     i.quality === 'passed' && i.disposition === 'in_stock' &&
     (i.reserved_for_order_object_id == null || i.reserved_for_order_object_id === record?.object_id);
+  // **Drei Sorten, eine Auswahl** (Notiz #360) – und die Sorte bestimmt die Art des
+  // Auftrags (`classify_pick`): frei → gewöhnlicher Bedarf · gebunden → Abweichung ·
+  // verkauft → Retoure. Gemischt wird nie: das Backend weist es ab, die Oberfläche sperrt
+  // die jeweils andere Sorte, sobald die erste gewählt ist.
+  const kindOf = (i: Instance): PinKind =>
+    i.disposition === 'sold' ? 'sold' : isFree(i) ? 'free' : 'bound';
 
-  const pinnedByArticle = new Map<number, { ids: number[]; qty: number }>();
+  // Was der Auftrag beansprucht – je Artikel die Instanzen UND die **beanspruchte Menge**.
+  // Bei einer Teilmenge einer Charge liefert der Server sie als ``move_quantity`` (die für
+  // diesen Auftrag reservierte Menge); sonst ist es die ganze Instanz (#361).
+  const pinnedByArticle = new Map<number, { ids: number[]; qty: number; wanted: Record<number, number> }>();
   for (const i of record?.instances ?? []) {
     if (i.object_id == null) continue;
-    const cur = pinnedByArticle.get(i.article_id) ?? { ids: [], qty: 0 };
+    const cur = pinnedByArticle.get(i.article_id) ?? { ids: [], qty: 0, wanted: {} };
+    const share = i.move_quantity ?? i.quantity ?? 0;
     cur.ids.push(i.object_id);
-    cur.qty += i.quantity ?? 0;
+    cur.qty += share;
+    cur.wanted[i.object_id] = share;
     pinnedByArticle.set(i.article_id, cur);
   }
   function buildPinLine(lineId: number | null, articleId: number, unit: string, reqQty: number): PinLine {
     // **Jede noch existierende Instanz ist wählbar** – frei ODER gebunden (in Arbeit,
     // reserviert, gesperrt). Wer eine gebundene wählt, legt damit einen **Abweichungs-
     // auftrag** an: das Tag ist die Folge der Auswahl, kein zweiter Schalter (das Backend
-    // leitet es über ``subject.classify_pick`` ab). Verkauft läuft über ``soldPool``
-    // (Retoure), verschrottet ist raus – daran ist nichts mehr zu tun.
+    // leitet es über ``subject.classify_pick`` ab).
+    // **Verschrottet ist raus, alles andere ist drin** (Notiz #360): frei (grün), gebunden
+    // (gelb: in Arbeit / reserviert / gesperrt) UND **verkauft**. Für eine Rücksendung muss
+    // man ebenso genau sagen, WELCHES Stück zurückkommt – FIFO ergäbe dort keinen Sinn. Die
+    // Art des Auftrags folgt daraus (``classify_pick``): verkauft → Retoure · gebunden →
+    // Abweichung · frei → gewöhnlicher Bedarf. Verschrottet ist die eine rote Ausnahme:
+    // daran ist nichts mehr zu tun.
     const pool = pinPool.filter((i) =>
-      i.object_id != null && i.article_id === articleId &&
-      i.disposition !== 'sold' && i.disposition !== 'scrapped');
-    const pinned = pinnedByArticle.get(articleId) ?? { ids: [], qty: 0 };
+      i.object_id != null && i.article_id === articleId && i.disposition !== 'scrapped');
+    const pinned = pinnedByArticle.get(articleId) ?? { ids: [], qty: 0, wanted: {} };
     return {
       key: lineId != null ? `line-${lineId}` : 'anchor', lineId, articleId, unit, reqQty,
-      pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool,
+      pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool, kind: kindOf, wanted: pinned.wanted,
       // «Genug Bestand?» meint das FREI Verfügbare – gebundene Stück zählen dafür nicht.
       availableQty: pool.filter(isFree).reduce((s, i) => s + (i.quantity ?? 0), 0), free: isFree,
       // Was sich überhaupt auswählen liesse – frei UND gebunden. Reicht das nicht für die
@@ -279,11 +311,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Verlassen von «Instanz wählen» auf, damit «Aus Lager» wirklich reines FIFO ist).
   const pins = pinLines.flatMap((l) => l.pinnedIds);
   const [goalSel, setGoalSel] = useState<OrderGoal | null>(null);
-  // Verkaufte Instanzen des Artikels – unter «Instanz wählen» ebenfalls wählbar; ihre Auswahl
-  // macht den Auftrag automatisch zur Retoure/Erstattung (reason='return', Backend leitet ab).
-  const soldPool = pinPool.filter((i) =>
-    i.object_id != null && i.article_id === record?.article_id && i.disposition === 'sold');
-  const [refundIds, setRefundIds] = useState<number[]>([]);
   const goal: OrderGoal = pins.length > 0
     ? 'specific'
     : !canProduce
@@ -300,9 +327,13 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       }
     }
   }
-  function togglePin(line: PinLine, oid: number) {
-    const ids = line.pinnedIds.includes(oid) ? line.pinnedIds.filter((x) => x !== oid) : [...line.pinnedIds, oid];
-    setLinePins(line, ids);
+  function togglePin(line: PinLine, oid: number, qty: number, qtyOnly?: boolean) {
+    const has = line.pinnedIds.includes(oid);
+    const ids = qtyOnly ? line.pinnedIds : has ? line.pinnedIds.filter((x) => x !== oid) : [...line.pinnedIds, oid];
+    // Die beanspruchten Mengen wandern mit: was abgewählt wird, verliert seine Menge.
+    const wanted: Record<string, number> = {};
+    for (const id of ids) wanted[String(id)] = id === oid ? qty : (line.wanted[id] ?? 0);
+    setLinePins(line, ids, undefined, wanted);
   }
 
   // Mehrpositionen-Auftrag: JEDE Position entscheidet SELBST «Aus Lager (FIFO)» oder «Instanz
@@ -358,22 +389,26 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Greift die Auswahl auf Instanzen zu, die ein LAUFENDER Auftrag in der Hand hat, will
   // dessen Unterdeckung beantwortet sein, bevor die Abweichung steht. Das Backend fragt
   // danach (409); hier steht die Frage, bis sie beantwortet ist.
-  const [pendingPick, setPendingPick] = useState<{ line: PinLine; ids: number[]; text: string } | null>(null);
+  const [pendingPick, setPendingPick] = useState<
+    { line: PinLine; ids: number[]; text: string; quantities?: Record<string, number> } | null>(null);
 
-  async function setLinePins(line: PinLine, ids: number[], answer?: 'wait' | 'replace' | 'accept') {
+  async function setLinePins(line: PinLine, ids: number[], answer?: ShortfallAnswer,
+                             quantities?: Record<string, number>) {
     if (!record) return;
     try {
       const saved = line.lineId != null
-        ? await api.setOrderLinePins(record.object_id as number, line.lineId, { instance_object_ids: ids })
+        ? await api.setOrderLinePins(record.object_id as number, line.lineId,
+            { instance_object_ids: ids, instance_quantities: quantities })
         : await api.updateOrder(record.object_id as number, {
-            instance_object_ids: ids, shortfall_response: answer, expected_updated_at: verRef.current });
+            instance_object_ids: ids, instance_quantities: quantities,
+            shortfall_response: answer, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
       setPendingPick(null);
       onSaved(saved);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen';
       // Der Server nennt die betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
-      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingPick({ line, ids, text: msg });
+      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingPick({ line, ids, text: msg, quantities });
       else setError(msg);
     }
   }
@@ -385,18 +420,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     onSaved(saved);
   }
 
-  // «Verkaufte Ware zurücknehmen»: die gewählten VERKAUFTEN Instanzen als Subjekt fixieren – über
-  // denselben Pin-Pfad wie Lager-Instanzen (`instance_object_ids`). Das Backend erkennt verkaufte
-  // Instanzen und macht den Auftrag zur Retoure (reason='return' + parent = Original-Verkauf);
-  // danach zeigt sich der Ablauf-Editor (Bewegung + Gutschrift) wie bei jedem Unter-Auftrag.
-  async function bindRefund(ids: number[]) {
-    if (!record) return;
-    try {
-      const saved = await api.updateOrder(record.object_id as number, { instance_object_ids: ids, expected_updated_at: verRef.current });
-      verRef.current = saved.updated_at;
-      onSaved(saved);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Retoure konnte nicht angelegt werden'); }
-  }
 
   async function removePosition(lineId: number) {
     if (!record) return;
@@ -487,22 +510,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     setDialog(null);
   }
 
-  // «Abweichungsauftrag»: eröffnet einen Unterauftrag auf den Instanzen dieses Auftrags.
-  // ``abortParent`` ist die EINE Entscheidung dabei – läuft der Auftrag danach weiter
-  // (pausiert bis zur Klärung) oder ist er abgebrochen (sofort, endgültig)?
-  async function reportDeviation(abortParent: boolean) {
-    if (!record) return;
-    setDialog(null);
-    setDeviationBusy(true);
-    setError(null);
-    try {
-      onSaved(await api.createDeviation(record.object_id as number, { abortParent }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden');
-    } finally {
-      setDeviationBusy(false);
-    }
-  }
 
 
   // **Unterdeckung am laufenden Auftrag: EINE Frage, drei Antworten** – dieselben, die auch
@@ -575,12 +582,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               onClick={() => printObjectLabel(record.object_id as number, record.article_name ?? 'Auftrag', 'Auftrag')}>
               <QrCode size={15} />
             </button>
-            {canReportDeviation && (
-              <button className="erp-idbtn erp-idbtn-flag" data-tip="Abweichungsauftrag anlegen (Defekt / Nacharbeit / Reklamation / Abbruch)" data-tip-pos="bottom"
-                aria-label="Abweichungsauftrag anlegen" disabled={deviationBusy} onClick={() => setDialog('deviation')}>
-                {deviationBusy ? <Loader2 size={15} className="animate-spin" /> : <AlertTriangle size={15} />}
-              </button>
-            )}
             {/* Status-Aktion («Freigeben») bei den übrigen Objekt-Aktionen statt rechts
                 am Status: eine Aktion gehört zu den Aktionen, der Status zeigt nur an. */}
             {isStaff && !isCompleted && statusActions.length > 0 && (
@@ -667,7 +668,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                       source={line ? lineSource(line) : 'stock'}
                       onSource={(s) => line && setLineSource(line, s)}
                       onToggle={togglePin} pending={pendingPick}
-                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)}
+                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a, pendingPick.quantities)}
                       onCancel={() => setPendingPick(null)} />
                   );
                 })
@@ -680,7 +681,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   qty={form.quantity}
                   source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin}
                   pending={pendingPick}
-                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)}
+                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a, pendingPick.quantities)}
                   onCancel={() => setPendingPick(null)} />
               )}
 
@@ -688,12 +689,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                 <div style={{ fontSize: 12, color: 'var(--warning)', background: 'var(--warning-bg)', borderRadius: 8, padding: '8px 10px' }}>
                   Kein freigegebener Artikel vorhanden – nur freigegebene sind referenzierbar.
                 </div>
-              )}
-
-              {/* Verkaufte Ware wählen ⇒ der Auftrag wird zur Retoure/Erstattung. */}
-              {!isMultiPosition && goal === 'specific' && soldPool.length > 0 && (
-                <RefundSubjectPicker sold={soldPool} value={refundIds} onChange={setRefundIds}
-                  onConfirm={() => bindRefund(refundIds)} error={error} />
               )}
 
               {/* Weitere Position: erst möglich, sobald der Auftrag existiert. */}
@@ -909,9 +904,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           Flash im Kopf (SaveIndicator, war schon immer dort); das **Abbrechen** der Anlage
           als Aktion neben dem Status. */}
 
-      {dialog === 'deviation' && record && (
-        <DeviationDialog busy={deviationBusy} onChoose={reportDeviation} onClose={() => setDialog(null)} />
-      )}
 
       {dialog === 'skip-provisioning' && record && (
         <DeactivateDialog
@@ -937,39 +929,6 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
 // (Der Kopf kommt aus `fields.DetailHeader` – die lokalen Kopf-Stile sind entfallen, #242.)
 
 
-// ─── Abweichungsauftrag: EIN Vorgang, EINE Entscheidung ──────────────────────────
-//
-// Früher gab es zwei Knöpfe mit zwei Namen und zwei Dialogen für dieselbe Sache: «Abweichung
-// melden» und «Abbrechen» – letzteres legte ebenfalls einen Abweichungsauftrag an. Jetzt gibt
-// es einen Knopf, ein Wort und ein Symbol; der Unterschied ist eine Eigenschaft des Vorgangs:
-// läuft der Ursprungsauftrag danach weiter, oder ist er abgebrochen?
-function DeviationDialog({ busy, onChoose, onClose }: {
-  busy: boolean;
-  onChoose: (abortParent: boolean) => void;
-  onClose: () => void;
-}) {
-  return (
-    // Klick daneben schliesst – ein × wäre ein zweiter Weg für dasselbe (Notiz #129).
-    <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()}
-        style={{ background: '#fff', borderRadius: 'var(--r-lg)', width: 'min(520px, 100%)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-1)' }}>
-          <AlertTriangle size={18} style={{ color: 'var(--warning)' }} />
-          <span style={{ font: '800 15px var(--font-display)', color: 'var(--fg-1)' }}>Auftrag abbrechen</span>
-        </div>
-        {/* **Auf Auftragsebene gibt es nur einen Fall: den Abbruch** (Notiz #351). Die
-            frühere Option «Läuft weiter» war lediglich eine Vorauswahl «alle Instanzen» –
-            und wo genau ein Fehler auftritt, sagt man an der **Instanz**, nicht am Auftrag.
-            Ein Weg weniger, dieselbe Fähigkeit. */}
-        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ChoiceButton disabled={busy} onClick={() => onChoose(true)} icon={Ban} tone="var(--danger)"
-            title="Auftrag abbrechen" text="Endgültig – ein Abweichungsauftrag übernimmt die Teile." />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // **Unterdeckung: EINE Frage, drei Antworten – und ein Fenster dafür.**
 //
@@ -1130,10 +1089,10 @@ function PositionRow({
   qty: string;
   source: OrderGoal;
   onSource: (s: OrderGoal) => void;
-  onToggle: (line: PinLine, oid: number) => void;
+  onToggle: (line: PinLine, oid: number, qty: number, qtyOnly?: boolean) => void;
   onRemove?: () => void;
   /** Offene Unterdeckungs-Frage zu dieser Position (Auswahl greift auf gebundene Instanzen). */
-  pending?: { line: PinLine; ids: number[]; text: string } | null;
+  pending?: { line: PinLine; ids: number[]; text: string; quantities?: Record<string, number> } | null;
   onAnswer?: (a: ShortfallAnswer) => void;
   onCancel?: () => void;
   canProduce: boolean;
@@ -1220,51 +1179,6 @@ function PositionRow({
 }
 
 
-// Auswahl der zu erstattenden VERKAUFTEN Instanzen – macht den (normalen) Auftrag zur Retoure
-// (reason='return' + parent = Original-Verkauf). Danach folgt der gewohnte Ablauf-Editor.
-function RefundSubjectPicker({ sold, value, onChange, onConfirm, error }: {
-  sold: Instance[]; value: number[]; onChange: (ids: number[]) => void;
-  onConfirm: () => void; error: string | null;
-}) {
-  const [busy, setBusy] = useState(false);
-  function toggle(oid: number) {
-    onChange(value.includes(oid) ? value.filter((x) => x !== oid) : [...value, oid]);
-  }
-  async function confirm() { setBusy(true); try { await onConfirm(); } finally { setBusy(false); } }
-  return (
-    <div style={cardStyle}>
-      <div style={{ fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.5 }}>
-        Wähle die <strong style={{ color: 'var(--fg-1)' }}>verkauften Instanzen</strong>, die erstattet
-        werden. Danach definierst du wie gewohnt den Ablauf – in aller Regel <strong>Bewegung</strong>{' '}
-        (Ware zurück ins Lager) + <strong>Rückerstattung</strong> (Geld zurück).
-      </div>
-      {sold.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine verkauften Instanzen dieses Artikels.</div>
-      ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {sold.map((i) => {
-            const sel = value.includes(i.object_id!);
-            return (
-              <button key={i.object_id} type="button" onClick={() => toggle(i.object_id!)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                  padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                  border: `1px solid ${sel ? 'var(--danger)' : 'var(--border-1)'}`,
-                  background: sel ? 'var(--danger-bg)' : '#fff', color: sel ? 'var(--danger)' : 'var(--fg-3)',
-                }}>
-                {sel && <CheckCircle2 size={12} />}{fmtObjId(i.object_id)}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
-      <PrimaryButton icon={Undo2} onClick={confirm} disabled={busy || value.length === 0}>
-        {busy ? 'Wird übernommen…' : `Als Retoure übernehmen (${value.length})`}
-      </PrimaryButton>
-    </div>
-  );
-}
 
 /**
  * **Schieber** für die Quelle (Erzeugen · Ab Lager · Auswählen): EIN Gleis, ein Reiter,
@@ -1318,7 +1232,10 @@ function SourceSwitch({ value, onChange, options }: {
 // Mehrpositionen-Auftrag (dieselbe Optik). ``bare`` lässt den äusseren Karten-Rahmen weg
 // (die Position bringt ihn schon mit).
 function PinPicker({ line, onToggle, bare }: {
-  line: PinLine; onToggle: (line: PinLine, oid: number) => void; bare?: boolean;
+  line: PinLine;
+  /** Auswahl umschalten bzw. – mit ``qtyOnly`` – nur die beanspruchte Menge ändern. */
+  onToggle: (line: PinLine, oid: number, qty: number, qtyOnly?: boolean) => void;
+  bare?: boolean;
 }) {
   // Suche nach Instanznummer: bei ein paar Instanzen sucht das Auge, bei ein paar hundert
   // nicht mehr. Das Feld erscheint darum erst, wenn die Liste es rechtfertigt.
@@ -1328,10 +1245,9 @@ function PinPicker({ line, onToggle, bare }: {
   const pool = needle
     ? line.pool.filter((i) => String(i.object_id ?? '').includes(needle))
     : line.pool;
-  // Welche Sorte wird gerade gewählt? `true` = gebunden (Abweichung), `false` = frei,
-  // `null` = noch nichts gewählt, also beides offen. Aus der Auswahl abgeleitet, kein Schalter.
+  // Welche Sorte wird gerade gewählt? Aus der Auswahl abgeleitet, kein Schalter.
   const chosen = line.pool.filter((i) => line.pinnedIds.includes(i.object_id!));
-  const picking: boolean | null = chosen.length === 0 ? null : !line.free(chosen[0]);
+  const picking: PinKind | null = chosen.length === 0 ? null : line.kind(chosen[0]);
 
   const body = (
     <>
@@ -1354,39 +1270,56 @@ function PinPicker({ line, onToggle, bare }: {
       ) : pool.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--fg-4)' }}>Keine Instanz mit «{q}».</div>
       ) : (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 168, overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
           {pool.map((i) => {
-            const sel = line.pinnedIds.includes(i.object_id!);
-            const atLimit = !sel && line.pinnedQty + (i.quantity ?? 1) > line.reqQty;
-            // **Gebunden** = in Arbeit, für einen anderen Auftrag reserviert oder gesperrt.
-            // Wählbar – aber die Wahl macht daraus einen Abweichungsauftrag. Der Punkt sagt
-            // es, der Hover erklärt es; ein zweiter Schalter wäre eine zweite Wahrheit.
-            const busy = !line.free(i);
-            // **Kein Mischmasch** (Notiz #355): sobald die erste Instanz gewählt ist, steht
-            // die Art des Auftrags fest – gebunden ⇒ Abweichung, frei ⇒ gewöhnlicher Bedarf.
-            // Die jeweils andere Sorte ist dann gesperrt (das Backend weist sie ohnehin ab);
-            // der Hover sagt, warum. Dieselbe Regel wie verkauft ↔ Lager.
-            const wrongKind = !sel && picking != null && picking !== busy;
+            const oid = i.object_id!;
+            const kind = line.kind(i);
+            const cfg = PIN_KIND[kind];
+            const sel = line.pinnedIds.includes(oid);
+            const have = i.quantity ?? 1;
+            // **Wie viel von dieser Instanz?** (Notiz #361) Eine Charge ist eine MENGE, kein
+            // Ding: von 500 Schrauben will man oft genau EINE. Voreingestellt ist, was noch
+            // fehlt – höchstens aber, was die Instanz hergibt.
+            const want = sel ? (line.wanted[oid] ?? have) : Math.min(have, Math.max(line.reqQty - line.pinnedQty, 0));
+            // Sperren nur noch, wenn schon die volle Menge beisammen ist – eine zu grosse
+            // Charge ist kein Hindernis mehr, man nimmt eben eine Teilmenge daraus.
+            const atLimit = !sel && line.pinnedQty >= line.reqQty && line.reqQty > 0;
+            // **Kein Mischmasch** (Notiz #355): sobald die erste Instanz gewählt ist, steht die
+            // Art des Auftrags fest. Die anderen Sorten sind dann gesperrt (das Backend weist
+            // sie ohnehin ab); der Hover sagt, warum.
+            const wrongKind = !sel && picking != null && picking !== kind;
             const off = atLimit || wrongKind;
             return (
-              <button key={i.object_id} type="button" disabled={off}
-                onClick={() => onToggle(line, i.object_id!)}
-                title={wrongKind
-                  ? (picking
-                    ? 'Es ist bereits eine gebundene Instanz gewählt – ein Abweichungsauftrag nimmt keine freien dazu'
-                    : 'Es ist bereits eine freie Instanz gewählt – gebundene gehören in einen eigenen Abweichungsauftrag')
-                  : busy ? 'In Arbeit oder reserviert – daraus wird ein Abweichungsauftrag' : undefined}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                  padding: '4px 10px', borderRadius: 999, cursor: off ? 'not-allowed' : 'pointer',
-                  border: `1px solid ${sel ? 'var(--accent)' : busy ? 'var(--warning)' : 'var(--border-1)'}`,
-                  background: sel ? 'var(--accent-soft)' : '#fff', color: sel ? 'var(--accent-ink)' : 'var(--fg-3)',
-                  opacity: off ? 0.4 : 1,
-                }}>
-                {sel ? <CheckCircle2 size={12} />
-                     : busy && <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warning)' }} />}
-                {fmtObjId(i.object_id)}{(i.quantity ?? 1) > 1 ? ` ·${i.quantity}` : ''}
-              </button>
+              <span key={oid} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12,
+                fontFamily: 'var(--font-mono)', padding: '3px 4px 3px 10px', borderRadius: 999,
+                border: `1px solid ${sel ? cfg.tone : 'var(--border-1)'}`,
+                background: sel ? cfg.bg : '#fff', color: sel ? cfg.tone : 'var(--fg-3)',
+                opacity: off ? 0.4 : 1,
+              }}>
+                <button type="button" disabled={off} onClick={() => onToggle(line, oid, want)}
+                  title={wrongKind ? `${picking ? PIN_KIND[picking].mix : ''} – nicht mit anderen Sorten mischbar`
+                    : atLimit ? 'Die Menge ist bereits beisammen' : cfg.hint}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none',
+                    background: 'none', font: 'inherit', color: 'inherit', padding: 0,
+                    cursor: off ? 'not-allowed' : 'pointer' }}>
+                  {sel ? <CheckCircle2 size={12} />
+                       : <span style={{ width: 6, height: 6, borderRadius: 999, background: cfg.tone }} />}
+                  {fmtObjId(oid)}
+                </button>
+                {/* Die Menge steht IM Chip – gewählt als Feld, sonst als blosse Angabe.
+                    Bei einer Instanz mit Menge 1 gibt es nichts zu entscheiden. */}
+                {sel && have > 1 ? (
+                  <input value={String(line.wanted[oid] ?? have)}
+                    onChange={(e) => onToggle(line, oid, Number(numericOnly(e.target.value)) || 0, true)}
+                    {...numericInputProps} aria-label={`Menge von ${fmtObjId(oid)}`}
+                    style={{ width: 46, textAlign: 'center', border: `1px solid ${cfg.tone}`,
+                      borderRadius: 999, background: '#fff', color: cfg.tone, font: 'inherit',
+                      padding: '1px 4px', outline: 'none' }} />
+                ) : (
+                  <span style={{ paddingRight: 6, opacity: 0.75 }}>·{have}</span>
+                )}
+              </span>
             );
           })}
         </div>

@@ -177,6 +177,23 @@ async def set_company_operator(
     return _company_response(db, company)
 
 
+@router.delete("/companies/{object_id}", response_model=CompanySettingsResponse)
+async def deactivate_company(
+    object_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserProfile = Depends(require_admin),
+):
+    """Ein Unternehmen **schliessen** (Soft-Delete, endgültig – keine Reaktivierung).
+
+    Eine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues
+    HR-Datum) – sie wird darum neu angelegt, nicht wiederbelebt. Der **Betreiber** und die
+    **letzte** Gesellschaft lassen sich nicht schliessen; die Gebiete der geschlossenen
+    fallen an den Betreiber zurück."""
+    company = sites.require(db, object_id)
+    sites.deactivate(db, company, current_user.id)
+    return _company_response(db, company)
+
+
 # ─── Gebiete (Weltkarte: welche Gesellschaft fakturiert welche Region) ────────────
 
 def _territory_map_response(db: Session) -> TerritoryMapResponse:

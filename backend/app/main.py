@@ -70,6 +70,9 @@ _COLUMN_SAFETY_NET = (
     # ebenso – vom Wächter ``test_every_company_settings_column_is_in_the_lifespan_
     # safety_net`` gefunden, dieselbe Bombe, nur noch nicht gezündet.
     ("company_settings", "legal_documents", "JSONB"),
+    # Soft-Delete der Gesellschaft (Migration 095) – ohne sie liefe JEDE Abfrage auf
+    # ``company_settings`` ins Leere, sobald das Modell die Spalte kennt.
+    ("company_settings", "is_active", "BOOLEAN NOT NULL DEFAULT true"),
     ("articles", "landed_unit_cost", "NUMERIC(12,4)"),
     ("orders", "article_id", "BIGINT"),
     ("orders", "quantity", "NUMERIC(14,3)"),

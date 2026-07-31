@@ -799,14 +799,14 @@ def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
     assert "deviation" not in paused.split('"""')[-1]
     # Stattdessen: in Klärung gebundene Instanzen zählen nicht als gesichert …
     short = _inspect.getsource(process._subject_shortfalls)
-    assert "deviated_instance_ids" in short and "in_clarification" in short
-    dev = _inspect.getsource(process.deviated_instance_ids)
+    assert "deviated_quantities" in short and "in_clarification" in short
+    dev = _inspect.getsource(process.deviated_quantities)
     # Die Klammer ist die **Instanz**, nicht der Eltern-Zeiger: eine an der Instanz
     # gemeldete Abweichung hängt an einem ganz anderen Auftrag und muss trotzdem zählen.
     assert "order_instances" in dev and "subject_of_order_id" in dev
     assert '"deviation"' in dev
     # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben.
-    assert "deviated_instance_ids" in _inspect.getsource(process.release_instances)
+    assert "deviated_quantities" in _inspect.getsource(process.release_instances)
     # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
     rc = _inspect.getsource(process.recompute_completion)
     assert "parent_order_id" in rc and "recompute_completion(db, parent)" in rc
@@ -1759,17 +1759,17 @@ def test_abort_is_a_deed_not_a_request():
     inaktiv, wenn der Folgeauftrag freigegeben war; bis dahin liess sich der Abbruch
     zurücknehmen. Ein Auftrag, den man abbrechen kann und der danach weiterläuft, ist aber
     nicht abgebrochen. Jetzt ist er im selben Moment inaktiv – und der Weg dorthin ist
-    derselbe wie für jede Abweichung (EIN Endpunkt, ein Wort, ein Symbol; der Unterschied
-    ist das Flag ``abort_parent``)."""
+    derselbe wie für jede Abweichung – und **kein eigener Schalter mehr**: bleibt dem Eltern
+    nichts übrig, IST «Auftragsmenge reduzieren» der Abbruch (Testnotiz #366)."""
     import inspect as _inspect
     from app.routers import orders
-    from app.services import deviation, process
+    from app.services import deviation, process, recovery
     from app.schemas.order import OrderDeviationCreate
 
-    # EIN Weg: das Abbrechen ist eine Eigenschaft des Abweichungsauftrags.
-    assert OrderDeviationCreate().abort_parent is False
-    dev_src = _inspect.getsource(orders.open_deviation)
-    assert "deviation.abort_parent(db, parent, devi, current_user.id)" in dev_src
+    # Kein Flag mehr: der Abbruch ist die Konsequenz der Unterdeckungs-Antwort.
+    assert "abort_parent" not in OrderDeviationCreate.model_fields
+    cq = _inspect.getsource(recovery.confirm_quantity)
+    assert "abort_parent(db, order, into, actor_id)" in cq and "r <= 0 for r in" in cq
     # … und der Alt-Weg legt keinen Folgeauftrag mehr an.
     assert "create_abort_followup" not in _inspect.getsource(orders)
     assert not hasattr(deviation, "create_abort_followup")
@@ -3008,7 +3008,10 @@ def test_sample_size_comes_from_the_inspected_instances():
     assert "qty_sum(i.quantity for i in insts)" in src
     assert "inspected_quantity(db, order)" in _inspect.getsource(inspection.required_count)
     # Auch die Abweichung selbst deklariert die Menge, nicht die Zahl der Instanzen.
-    assert "quantity=qty_sum(i.quantity for i in insts)" in _inspect.getsource(deviation.create_deviation)
+    # Die Menge einer Abweichung ist die Summe der **beanspruchten Teilmengen** (ohne
+    # Angabe die ganze Instanz) – nie die ANZAHL der Instanzen.
+    dev_src = _inspect.getsource(deviation.create_deviation)
+    assert "quantity=qty_sum(" in dev_src and "len(insts)" not in dev_src
     assert "quantity=len(insts)" not in _inspect.getsource(deviation.create_deviation)
 
 
@@ -3229,6 +3232,61 @@ def test_step_status_semantics_live_in_the_registry():
     assert _fact_status("inspection", Fact(result="failed", resolved_by_order_id=7)) == "done"
 
 
+def test_a_pick_claims_a_quantity_not_a_thing():
+    """**Eine Auswahl beansprucht eine MENGE, kein Ding** (Testnotiz #361).
+
+    Von einer Charge à 500 will eine Abweichung oft genau EINE Schraube. Die Menge landet
+    dort, wo sie hingehört – in derselben Reservierungs-Map, in die auch die FIFO-Allokation
+    längst mengengenau schreibt (``reservation.claim`` setzt, ``reserve`` addiert). Damit
+    braucht es weder eine neue Spalte noch eine zweite Buchführung: nimmt die Auswahl mehr,
+    als frei ist, kürzt ``claim`` den fremden Anspruch – und **genau daraus** entsteht die
+    Unterdeckung beim Auftrag, dem das Stück entzogen wird."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.schemas.order import OrderDeviationCreate, OrderLinePins, OrderUpdate
+    from app.services import process, reservation, subject
+
+    for schema in (OrderUpdate, OrderLinePins, OrderDeviationCreate):
+        assert "instance_quantities" in schema.model_fields, schema.__name__
+    # ``claim`` setzt (statt zu addieren) und kürzt fremde Ansprüche auf die Instanz-Menge.
+    cl = _inspect.getsource(reservation.claim)
+    assert "m[str(order_id)] = want" in cl and "over" in cl
+    # Der Pin schreibt Bindung UND Anspruch.
+    pick = _inspect.getsource(orders._set_chosen_instances)
+    assert "claim(i, order.id, wanted[i.object_id])" in pick
+    assert "release_reservation(prev, order.id)" in pick
+    # Die Menge steckt in der Frage «ist das gebunden?» – 3 von 5 freien ist kein Sonderfall.
+    assert "want" in _inspect.getsource(subject.is_bound)
+    # Und die Klärungs-Menge ist eine Menge, kein Set.
+    assert "-> dict[int, Decimal]" in _inspect.getsource(process.deviated_quantities)
+
+
+def test_a_company_can_be_closed_but_never_reopened():
+    """**Ein Unternehmen ist schliessbar – endgültig** (Testnotiz #365).
+
+    Eine wiedereröffnete Gesellschaft ist rechtlich eine andere (neue UID/EIN, neues
+    HR-Datum, neue Belegkreise); sie als dieselbe weiterzuführen hiesse, auf ihren Belegen
+    eine Rechtsperson zu nennen, die es so nicht mehr gab. Darum gibt es kein «Reaktivieren»
+    und kein «Ersetzen» – wer wieder eröffnet, legt ein neues Unternehmen an.
+
+    Zwei Dinge bleiben geschützt: der **Betreiber** (Absender der einen Website) und die
+    **letzte** Gesellschaft."""
+    import inspect as _inspect
+    from app.models import CompanySettings
+    from app.services import sites
+
+    assert hasattr(CompanySettings, "is_active")
+    assert not hasattr(sites, "reactivate")
+    src = _inspect.getsource(sites.deactivate)
+    assert "company.is_operator" in src and "Betreiber" in src
+    assert "others == 0" in src
+    # Gebiete fallen zurück – jeder Fleck der Erde gehört weiterhin jemandem.
+    assert "CompanyTerritory.company_id == company.id" in src
+    # Die Auflösung sieht geschlossene Gesellschaften nicht mehr.
+    for fn in (sites.find_operator, sites.all_companies):
+        assert "CompanySettings.is_active == True" in _inspect.getsource(fn), fn.__name__
+
+
 def test_a_pick_never_mixes_free_and_bound_instances():
     """**Kein Mischmasch** (Testnotiz #355): freie und gebundene Stücke gehören nicht in
     denselben Auftrag – der freie Teil wäre ein gewöhnlicher Bedarf, der gebundene nimmt
@@ -3240,7 +3298,7 @@ def test_a_pick_never_mixes_free_and_bound_instances():
 
     assert hasattr(subject, "is_bound")
     src = _inspect.getsource(orders._set_chosen_instances)
-    assert "subject.is_bound(order, i)" in src and "nicht gemischt" in src
+    assert "subject.is_bound(order, i, wanted[i.object_id])" in src and "nicht gemischt" in src
 
 
 def test_a_refused_step_names_the_real_reason():
@@ -3334,7 +3392,7 @@ def test_a_reported_deviation_holds_its_instance_immediately():
     import inspect as _inspect
     from app.services.deviation import create_deviation, detach_sub_order
 
-    assert "reserve(" in _inspect.getsource(create_deviation)
+    assert "claim(inst, devi.id, want)" in _inspect.getsource(create_deviation)
     # Und die EINE Aufräum-Stelle gibt sie wieder her.
     assert "release_reservation" in _inspect.getsource(detach_sub_order)
 
@@ -3367,9 +3425,9 @@ def test_a_deviation_is_linked_by_the_instance_not_by_the_parent():
     import inspect as _inspect
     from app.services import orders
     from app.services.deviation import deviations_touching
-    from app.services.process import deviated_instance_ids
+    from app.services.process import deviated_quantities
 
-    short = _inspect.getsource(deviated_instance_ids)
+    short = _inspect.getsource(deviated_quantities)
     assert "order_instances" in short and "parent_order_id" not in short
     # Sich selbst zählt eine Abweichung nie – sonst gäbe sie beim Abschluss nichts frei.
     assert "discard(order.id)" in short
@@ -3382,16 +3440,21 @@ def test_a_deviation_is_linked_by_the_instance_not_by_the_parent():
 
 
 def test_the_order_level_deviation_is_the_abort():
-    """**Am Auftrag gibt es nur den Abbruch** (Testnotiz #351).
+    """**Am Auftrag gibt es nur den Abbruch** – aber ohne eigenen Weg dorthin (#351/#366).
 
-    Die frühere Option «läuft weiter» war nur eine Vorauswahl «alle Instanzen» – und WO ein
-    Fehler auftritt, sagt man an der Instanz. Ein Weg weniger, dieselbe Fähigkeit; Server
-    und Oberfläche sagen dasselbe."""
+    Ohne Instanz-Auswahl greift die Abweichung auf ALLE Instanzen; dem Eltern bleibt nichts,
+    und die Antwort «Auftragsmenge reduzieren» vollzieht damit seinen Abbruch. Es gibt weder
+    einen zweiten Endpunkt noch einen Schalter."""
     import inspect as _inspect
     from app.routers import orders
+    from app.services import recovery
 
     src = _inspect.getsource(orders.open_deviation)
-    assert "not data.abort_parent" in src and "an der Instanz" in src
+    assert "data.abort_parent" not in src
+    assert "subject.order_active_instances(db, parent)" in src
+    # Der Abbruch geschieht über die EINE Antwort, nicht über einen eigenen Aufruf.
+    assert "_apply_shortfall_answer(db, holders, data.shortfall_response, current_user.id, into=devi)" in src
+    assert "aborted" in _inspect.getsource(recovery.confirm_quantity)
 
 
 def test_an_order_and_a_deviation_order_are_the_same_thing():
@@ -3414,7 +3477,7 @@ def test_an_order_and_a_deviation_order_are_the_same_thing():
         assert hasattr(subject, name), name
 
     pick = _inspect.getsource(subject.classify_pick)
-    assert '"sold"' in pick and "is_bound(order, i)" in pick
+    assert '"sold"' in pick and "is_bound(order, i, " in pick
     bound = _inspect.getsource(subject.is_bound)
     assert "is_in_stock" in bound and "free_qty" in bound and "reserved_for" in bound
 

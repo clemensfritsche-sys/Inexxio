@@ -144,30 +144,46 @@ def cover_shortfall(db: Session, order: Order, actor_id: int,
     return {"covered": total, "supply_object_ids": [o.object_id for o in created]}
 
 
-def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
-    """**«Menge bestätigen»** – der Auftrag wird mit weniger fertig.
+def _remaining_quantities(db: Session, order: Order, short: dict) -> dict[int, Decimal]:
+    """Was von jeder Position übrig bliebe, wenn die Fehlmenge abgezogen wird
+    ({article_id: rest}) – der Rest kann 0 oder negativ sein."""
+    from .order_lines import lines_for
+    if order.article_id:
+        return {order.article_id: to_qty(order.quantity or 0) - short.get(order.article_id, ZERO)}
+    return {l.article_id: to_qty(l.quantity) - short.get(l.article_id, ZERO) for l in lines_for(db, order)}
+
+
+def confirm_quantity(db: Session, order: Order, actor_id: int, into: Order | None = None) -> dict:
+    """**«Auftragsmenge reduzieren»** – der Auftrag wird mit weniger fertig.
 
     Das Soll sinkt auf das **Gesicherte**: aus «5 bestellt, 1 in Klärung» wird «4 bestellt».
     Der blockierte Schritt ist damit frei und der Auftrag läuft normal zu Ende – ohne dass
     jemand Ersatz beschaffen muss, den niemand haben will. Die Kürzung wird je Position
     vorgenommen (Einzel-Artikel: ``order.quantity``; Mehrpositionen: die Positionsmenge).
 
+    **Bleibt NICHTS übrig, IST das der Abbruch.** Ein Auftrag, dem alles entzogen wurde, hat
+    kein Soll mehr – er auf 0 zu kürzen wäre die umständliche Schreibweise für «abgebrochen».
+    Darum gibt es dafür keinen vierten Knopf und keinen Sonder-Dialog mehr: dieselbe
+    Entscheidung, deren Konsequenz mit dem Rest skaliert (``deviation.abort_parent``, ``into``
+    = der Auftrag, der ihn fortführt). Das ersetzt den früheren «Abbrechen»-Knopf im
+    Auftragskopf – ein Weg weniger für dieselbe Sache (Testnotiz #366).
+
     **Nicht bei bezahlter Ware:** eine Position, deren Verkauf schon bezahlt ist, darf hier
     nicht stillschweigend schrumpfen – das wäre eine Kürzung ohne Gutschrift. Dafür ist die
     Retoure/Erstattung da (``sale``-Kredit-Modus, inkl. Stripe-Refund). Committet NICHT."""
+    from .deviation import abort_parent
     from .order_lines import lines_for
     short = process.subject_shortfalls(db, order)
     if not short:
-        raise HTTPException(409, detail="Keine Fehlmenge – es gibt nichts zu bestätigen")
+        raise HTTPException(409, detail="Keine Fehlmenge – es gibt nichts zu reduzieren")
     _assert_not_paid(db, order)
+    rest_by_article = _remaining_quantities(db, order, short)
+    if rest_by_article and all(r <= 0 for r in rest_by_article.values()):
+        abort_parent(db, order, into, actor_id)
+        return {"aborted": True, "continued_in": into.object_id if into is not None else None}
     changed: dict[int, Decimal] = {}
     if order.article_id:
-        gap = short.get(order.article_id, ZERO)
-        rest = to_qty(order.quantity or 0) - gap
-        if rest <= 0:
-            raise HTTPException(
-                409, detail="Der Auftrag hat gar nichts – «ohne Ersatz weiter» ergäbe eine "
-                            "Menge von 0. Hier hilft nur «Ersetzen» oder «Abbrechen».")
+        rest = rest_by_article[order.article_id]
         _record_at_step(db, order, order.article_id, "order.quantity_confirmed",
                         {"from": to_qty(order.quantity or 0), "to": rest}, actor_id)
         order.quantity = rest
@@ -177,11 +193,11 @@ def confirm_quantity(db: Session, order: Order, actor_id: int) -> dict:
             gap = short.get(line.article_id, ZERO)
             if gap <= 0:
                 continue
-            rest = to_qty(line.quantity) - gap
+            rest = rest_by_article[line.article_id]
             if rest <= 0:
                 raise HTTPException(
-                    409, detail="Diese Position hat gar nichts – «ohne Ersatz weiter» ergäbe eine "
-                                "Menge von 0. Hier hilft nur «Ersetzen» oder «Abbrechen».")
+                    409, detail="Diese Position hat gar nichts mehr – hier hilft nur «Ersetzen» "
+                                "oder die Position zu entfernen.")
             _record_at_step(db, order, line.article_id, "order.quantity_confirmed",
                             {"from": to_qty(line.quantity), "to": rest}, actor_id)
             line.quantity = rest

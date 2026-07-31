@@ -57,6 +57,36 @@ def reserve(inst: Instance, order_id: int, qty) -> None:
     _write(inst, m)
 
 
+def claim(inst: Instance, order_id: int, qty) -> Decimal:
+    """Den Anspruch eines Auftrags auf **genau** ``qty`` setzen – und fremde Ansprüche so
+    weit kürzen, dass die Summe die Instanz-Menge nie übersteigt. Liefert die gesetzte Menge.
+
+    Zwei Formen derselben Sache (wie ``in_stock_clauses``/``is_in_stock``): ``reserve``
+    **addiert** – so füllt FIFO auf, was es findet; ``claim`` **setzt** – so bestimmt der
+    Mensch, wie viel er von genau dieser Instanz will. Eine Charge ist eine MENGE: von 500
+    Schrauben beansprucht eine Abweichung oft genau EINE.
+
+    Das Kürzen ist dabei kein Nebeneffekt, sondern der Kern: nimmt eine Abweichung ein Stück
+    aus einer Charge, die ein laufender Auftrag gedeckt hatte, verliert **genau dieser**
+    Auftrag es – seine Reservierung schrumpft, und damit meldet er die Unterdeckung von
+    selbst. Es braucht dafür keine zweite Buchführung."""
+    want = min(to_qty(qty), to_qty(inst.quantity))
+    if want <= 0:
+        release(inst, order_id)
+        return ZERO
+    m = _load(inst)
+    m[str(order_id)] = want
+    over = qty_sum(m.values()) - to_qty(inst.quantity)
+    for key in [k for k in m if k != str(order_id)]:
+        if over <= 0:
+            break
+        cut = min(over, m[key])
+        m[key] -= cut
+        over -= cut
+    _write(inst, m)
+    return want
+
+
 def release(inst: Instance, order_id: int) -> Decimal:
     """Die Reservierung eines Auftrags vollständig lösen. Liefert die gelöste Menge."""
     m = _load(inst)

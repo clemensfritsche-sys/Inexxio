@@ -125,7 +125,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     setDevErr(null);
     try {
       const devi = await api.createDeviation(deviationParent.object_id, {
-        instanceObjectIds: [inst.object_id], shortfallResponse: answer });
+        instanceObjectIds: [inst.object_id], shortfallResponse: answer,
+        // Ganze Instanz – die Teilmenge einer Charge wählt man im Auftrag (Notiz #361);
+        // die Abkürzung hier meint immer das, worauf man gerade schaut.
+      });
       onChanged?.();
       if (devi.object_id != null) nav?.(devi.object_id);
     } catch (e) {

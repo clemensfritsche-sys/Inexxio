@@ -2867,6 +2867,50 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_a_pick_never_mixes_free_and_bound_instances`,
   `test_a_refused_step_names_the_real_reason`.
 
+- **Testnotizen-Runde 25 (eine Auswahl ist eine Menge, Notizen #360–#368, Migration `095`)**:
+  *(#367/#368 waren wortgleich #353/#354 – sie waren beim Testen nur noch nicht deployt.)*
+  (1) **Eine Auswahl beansprucht eine MENGE, kein Ding** (#361, `reservation.claim`): Von
+  einer Charge à 500 liess sich bisher nur die GANZE Instanz wählen – bei einer Abweichung
+  ist aber fast immer genau EIN Stück betroffen. Die Menge landet jetzt dort, wo sie
+  hingehört: in derselben Reservierungs-Map, in die die FIFO-Allokation längst mengengenau
+  schreibt. `reserve` **addiert** (FIFO füllt auf), `claim` **setzt** (der Mensch bestimmt)
+  – zwei Formen derselben Sache, keine neue Spalte. Das Kürzen fremder Ansprüche ist dabei
+  kein Nebeneffekt, sondern der Kern: nimmt eine Abweichung ein Stück aus einer Charge, die
+  ein laufender Auftrag gedeckt hatte, schrumpft **genau dessen** Reservierung – und damit
+  meldet er die Unterdeckung von selbst. `subject.is_bound` fragt seither nach der
+  **gewünschten** Menge (3 von 5 freien ist ein gewöhnlicher Bedarf, erst 4 eine Abweichung),
+  und `deviated_instance_ids` ist zu `deviated_quantities` geworden. Gegenstück:
+  `detach_sub_order` gibt den Anspruch zurück – ohne das behielte der Eltern seine Fehlmenge
+  für immer (im Praxistest gefunden).
+  (2) **Bleibt nichts übrig, IST das der Abbruch** (#366): Der «Abbrechen»-Knopf im
+  Auftragskopf ist entfallen. Einen Auftrag abzubrechen heisst, seine Teile in einen anderen
+  zu überführen – und genau das tut man, indem man einen Auftrag anlegt und dessen Instanzen
+  auswählt. Der Eltern meldet dann eine Unterdeckung, und wenn ihm **nichts** bleibt, ist
+  «Auftragsmenge reduzieren» sein Abbruch (`recovery.confirm_quantity` → `abort_parent`,
+  `into` = der fortführende Auftrag). Vorher lief genau dieser Fall in einen 409 («ergäbe
+  Menge 0») und der Auftrag stand ohne Ausweg. `OrderDeviationCreate.abort_parent` ist
+  entfallen – dieselbe Entscheidung, deren Konsequenz mit dem Rest skaliert.
+  (3) **Eine Auswahl, drei Sorten** (#360): frei (grün) · gebunden (gelb) · **verkauft**
+  liegen in DEMSELBEN Picker; die Sorte bestimmt die Art des Auftrags (`classify_pick`).
+  Der separate `RefundSubjectPicker` ist entfallen – auch eine Rücksendung muss genau sagen,
+  WELCHES Stück zurückkommt, FIFO ergäbe dort keinen Sinn. Verschrottet bleibt die eine rote
+  Ausnahme (daran ist nichts mehr zu tun); **«Gesperrt» ist gelb** – es lässt sich entsperren
+  (der Wert stand längst auf `TONE.pending`, nur der Kommentar behauptete noch Rot).
+  (4) **Ein Unternehmen ist schliessbar – endgültig** (#364/#365, `company_settings.is_active`):
+  Status war «Unternehmen» – das ist die Datensatzart und steht bereits als Eyebrow. Jetzt
+  dieselben zwei Wörter wie überall: **Freigegeben** / **Inaktiv**. Dazu ein Schliessen-Knopf
+  im Kopf. **Keine Reaktivierung** (bewusst entschieden): eine wiedereröffnete Gesellschaft
+  ist rechtlich eine andere – neue UID/EIN, neues HR-Datum, neue Belegkreise; sie als
+  dieselbe weiterzuführen hiesse, auf ihren Belegen eine Rechtsperson zu nennen, die es so
+  nicht mehr gab. Geschützt bleiben der **Betreiber** (Absender der einen Website) und die
+  **letzte** Gesellschaft; die Gebiete der geschlossenen fallen an den Betreiber zurück.
+  (5) **Weltkarte** (#362/#363): runde Ecken wie jede andere Karte; die Beschriftung
+  überlebt den Hover (auf der kräftig nachgezeichneten Fläche schreibt sie weiss – vorher
+  war Schriftfarbe == Füllfarbe).
+  Wächter: `test_a_pick_claims_a_quantity_not_a_thing`,
+  `test_a_company_can_be_closed_but_never_reopened`, `test_abort_is_a_deed_not_a_request`,
+  `test_the_order_level_deviation_is_the_abort`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

@@ -278,6 +278,8 @@ export interface OrderLineCreateInput {
 // Fixierte Instanzen EINER Position statt FIFO (PATCH .../lines/{line_id}).
 export interface OrderLinePinsInput {
   instance_object_ids: number[];
+  /** Beanspruchte Teilmenge je Instanz-Objektnummer – fehlt sie, gilt die ganze Instanz. */
+  instance_quantities?: Record<string, number>;
 }
 
 export interface OrderInput extends OrderRecurrenceInput {
@@ -294,6 +296,10 @@ export type OrderUpdateInput = OrderRecurrenceInput & {
   // bestimmt die Art des Auftrags**: verkauft → Retoure · gebunden (in Arbeit/reserviert/
   // gesperrt) → Abweichung · frei → gewöhnlicher Auftrag.
   instance_object_ids?: number[] | null;
+  // **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
+  // Charge ist eine MENGE: von 500 Schrauben lässt sich genau eine wählen. Fehlt der
+  // Eintrag, gilt die ganze Instanz.
+  instance_quantities?: Record<string, number>;
   // Antwort auf die Unterdeckung, die eine solche Auswahl beim laufenden Auftrag auslöst:
   // warten · ersetzen · ohne Ersatz weiter. Ohne sie antwortet der Server mit 409.
   shortfall_response?: 'wait' | 'replace' | 'accept';
@@ -514,6 +520,8 @@ export interface CompanySettings {
   // echte Ortsangaben (sonst logistisch stumm – eine Bewegung dorthin bleibt intern).
   is_operator?: boolean;
   has_address?: boolean;
+  /** Aktiv? Eine geschlossene Gesellschaft bleibt lesbar, ist aber endgültig (keine Reaktivierung). */
+  is_active?: boolean;
   company_name: string;
   legal_form: string | null;
   street: string;
