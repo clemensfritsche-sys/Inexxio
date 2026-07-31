@@ -95,18 +95,31 @@ def classify_pick(order: Order, insts: list) -> str | None:
     steckt in einem Prozess, ist für einen anderen Auftrag reserviert oder gesperrt. Auf so
     etwas zuzugreifen KANN nur eine Abweichung sein; darum ist das Tag keine Frage, sondern
     die Folge. Rein (schreibt nicht)."""
-    from .inventory import is_in_stock
-    from .quantity import to_qty
-    from .reservation import free_qty, reserved_for
     if not insts:
         return PICK_NORMAL
     if any((i.disposition or "") == "sold" for i in insts):
         return PICK_RETURN
-    for i in insts:
-        free = free_qty(i) + reserved_for(i, order.id)
-        if not is_in_stock(i) or free < to_qty(i.quantity):
-            return PICK_DEVIATION
+    if any(is_bound(order, i) for i in insts):
+        return PICK_DEVIATION
     return PICK_NORMAL
+
+
+def is_bound(order: Order, inst) -> bool:
+    """Ist dieses Stück **gebunden** – also für diesen Auftrag nicht frei verfügbar?
+
+    Gebunden heisst: nicht (mehr) frei am Lager (in Arbeit, verbaut, gesperrt) ODER die
+    freie Menge deckt die Instanz nicht ganz (für einen FREMDEN Auftrag reserviert). Was
+    dieser Auftrag selbst reserviert hat, zählt als frei – er greift ja auf sein eigenes zu.
+
+    EINE Stelle, zwei Nutzer: sie entscheidet, ob eine Auswahl eine Abweichung ist
+    (``classify_pick``), und sie verhindert, dass freie und gebundene Stücke im selben
+    Auftrag landen (``routers/orders``). Rein (schreibt nicht)."""
+    from .inventory import is_in_stock
+    from .quantity import to_qty
+    from .reservation import free_qty, reserved_for
+    if not is_in_stock(inst):
+        return True
+    return free_qty(inst) + reserved_for(inst, order.id) < to_qty(inst.quantity)
 
 
 def holding_order(db: Session, inst) -> Order | None:

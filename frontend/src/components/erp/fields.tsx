@@ -382,7 +382,11 @@ export function DetailHeader({
           <div style={DH.right}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {right}
-              {status && <StatusBadge cfg={status} />}
+              {/* Etwas grösser als im Feed (Notiz #359): im Kopf ist der Zustand eine der
+                  drei Hauptaussagen (Typ · Name · Zustand) und darf neben einem 22-px-Titel
+                  nicht wie eine Fussnote wirken. Weil ihn NUR diese eine Stelle rendert,
+                  gilt die Grösse für jeden Datensatztyp gleich. */}
+              {status && <StatusBadge cfg={status} size={11.5} />}
             </div>
           </div>
         )}

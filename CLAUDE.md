@@ -2800,6 +2800,73 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   Wächter: `test_an_order_and_a_deviation_order_are_the_same_thing`,
   `test_taking_a_busy_instance_forces_the_shortfall_decision`.
 
+- **Testnotizen-Runde 24 (die EINE Pause-Regel, Notizen #352–#359)**: Der rote Faden ist,
+  dass ein Auftrag genau EINEN Grund kennt, stillzustehen – und dass dieser Grund eine
+  **Entscheidung** ist, kein Nebeneffekt.
+  (1) **Ein Auftrag mit offener Fehlmenge ruht – ganz** (#354, `process.is_paused`). Die
+  Zwischenstufe «eine Fehlmenge hält nur auf, wer die Menge weitergibt» (Registry-Flag
+  `EventType.hands_over`, nur Verkauf und Ressource) ist zurückgenommen: solange eine
+  Abweichung offen ist, darf der Eltern-Prozess nicht weiterlaufen. Der Grund ist nicht
+  Vorsicht, sondern Reihenfolge – wer weiterarbeitet, während noch offen ist, ob ein Stück
+  ausgesteuert wird, arbeitet womöglich am falschen Bestand. **Trotzdem gibt es dafür
+  keinen eigenen Mechanismus:** die Abweichung nimmt ihr Stück heraus
+  (`deviated_instance_ids`), daraus wird eine Unterdeckung, und eine Unterdeckung hält den
+  Auftrag an. Ausschuss und weggenommene Reservierung erzeugen denselben Zustand über
+  denselben Weg – es gibt kein «pausiert wegen Abweichung» neben «es fehlt etwas».
+  Das ist unter dem Strich **eine Regel weniger**: `hands_over` und `SUBJECT_STEP_TYPES`
+  sind beide entfallen, und `step_shortfalls` fragt für JEDEN Schritttyp dasselbe –
+  die Fehlmenge des **Auftrags** plus den **eigenen** Material-Bedarf des Schritts
+  (`_component_shortfall`, nur die Ressource hat einen). Die Pause ist heute kein stiller
+  Nebeneffekt mehr, sondern die gewählte Antwort «Auftrag pausieren»; wer nicht warten
+  will, ersetzt oder reduziert und läuft im selben Moment weiter. Neu ist auch, dass ein
+  abgewiesener Schritt den **echten** Grund nennt (`process._not_now`): «Der Prozess ruht …
+  bitte zuerst entscheiden» statt «ist (noch) nicht an der Reihe».
+  (2) **Eine Frage, ein Fenster** (#352, `components/erp/shortfall-dialog.tsx`): Die drei
+  Antworten heissen jetzt, wie sie sich auswirken – **Auftrag pausieren · Instanz ersetzen ·
+  Auftragsmenge reduzieren** – und stehen in EINER kleinen Lightbox, die von beiden
+  Einstiegen benutzt wird (Auswahl gebundener Instanzen im Auftrag/an der Instanz sowie die
+  Unterdeckung am laufenden Auftrag). «Ersetzen» führt dort eine Ebene tiefer auf die
+  gewohnten zwei Wege der Herkunft (älteste zuerst ↔ bestimmte Instanzen) – keine zweite
+  Entscheidung, nur die Ausführung der ersten. Die drei früheren Eigenbau-Leisten
+  (`ProcessHoldNotice`, `PositionRow`, `instance-detail`) sind darin aufgegangen.
+  (3) **Unter-Aufträge stehen ZWISCHEN den Modulen** (#353, `SubOrderCard`): Abweichung,
+  Nachschub und Bereitstellung sind dasselbe Muster – ein eigener Auftrag, hervorgegangen
+  aus einem Schritt (`origin_step_id`) – und sehen darum gleich aus: ein eingerückter
+  Knoten an seiner Stelle im Fluss. Vorher waren es drei Darstellungen (Bereitstellung als
+  vollwertige Karte, Abweichung als Pille **seitlich** neben der Karte via `.erp-devbranch`,
+  Abweichung ohne Ursprungsschritt als Abzweig davor). Eine Pille am Rand liest sich als
+  Randnotiz – dabei ist eine offene Abweichung der Grund, warum alles ruht. Genau dort
+  steht jetzt auch das «Es fehlt …» (#354): bei dem Unter-Auftrag, der die Menge bindet,
+  statt zusätzlich als Kasten unter dem Fluss. Und: **ein blockierter Schritt zeigt sein
+  Panel weiterhin** – was darin schon erledigt wurde (eine eingeholte Offerte, erfasste
+  Werte), darf nicht verschwinden, nur weil der Prozess ruht.
+  (4) **Der Bedarf eines ENTWURFS ist bearbeitbar – bei jedem Auftrag** (#355): Der
+  Abkürzungs-Knopf an der Instanz nimmt einem die erste Auswahl ab, er soll sie nicht
+  festnageln; weitere Instanzen oder Positionen ergänzt man wie überall. Dazu **kein
+  Mischmasch**: freie und gebundene Stücke gehören nicht in denselben Auftrag (der freie
+  Teil wäre ein gewöhnlicher Bedarf, der gebundene nimmt einem laufenden Auftrag etwas
+  weg) – dieselbe Regel und dieselbe Form wie beim Verkauft/Lager-Mix. Beide Seiten lesen
+  dieselbe Definition (`subject.is_bound`, aus `classify_pick` herausgezogen): der Server
+  weist ab, die Oberfläche sperrt die jeweils andere Sorte, sobald die erste gewählt ist.
+  (5) **«Auswählen» braucht genug wählbaren Bestand** (#356): gemessen am GANZEN Pool
+  (frei + gebunden), nicht nur am freien – sonst wäre die Option eine Sackgasse, deren
+  Auswahl sich nie vervollständigen liesse. Gesperrt mit dem Grund im Hover.
+  (6) **Weltkarte** (#357): der Ausschnitt ist die **Bounding-Box der Landzellen** statt des
+  vollen 72×25-Rasters (links standen drei reine Wasser-Spalten) – abgeleitet, damit er bei
+  jeder Masken-Änderung stimmt; `regionAnchor` rechnet in denselben Koordinaten. Und die
+  Beschriftung überlebt den Hover: unter dem Cursor wird die Fläche mit dem **kräftigen**
+  Ton nachgezeichnet – genau der Ton, der auch die Schriftfarbe war –, also schreibt sie
+  dort weiss. (7) Betriebskosten ohne Erklärabsatz (#358 – die Badge «gemessen · fix ·
+  geschätzt» steht bereits an jeder Zeile); Status-Badge im gemeinsamen `DetailHeader` eine
+  Spur grösser (#359, 11.5 px) – weil nur diese eine Stelle sie rendert, gilt das für jeden
+  Datensatztyp gleich.
+  Wächter: `test_a_shortfall_pauses_the_whole_order`,
+  `test_the_pause_has_no_mechanism_of_its_own`,
+  `test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule`,
+  `test_the_subject_shortfall_is_type_agnostic`,
+  `test_a_pick_never_mixes_free_and_bound_instances`,
+  `test_a_refused_step_names_the_real_reason`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

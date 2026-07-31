@@ -24,16 +24,21 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 // zurück (ausgegraut), nur der aktive trägt seine Farbe. Dazu ein Symbol statt eines Wortes –
 // Haken (erledigt), Pause (angehalten), Kreuz (Fehler). Der Hover nennt Wer/Wann.
 //
-// **Abweichungen** (Notizen #85, #175, #178) gehören **an den Schritt, den sie unterbrochen
-// haben** – nicht davor, nicht danach und nicht IN ihm. Eine Abweichung ist kein Knoten in der
-// Reihenfolge (dann läse sie sich als «danach»), aber auch kein Teil des Moduls (sie ist das,
-// was das Modul unterbrochen hat). Sie hängt darum **seitlich an der Karte, auf deren Höhe** –
-// verbunden durch ein kurzes Aststück. Auf schmalen Schirmen rutscht sie unter die Karte
-// (`.erp-devbranch`), weil daneben kein Platz mehr ist.
+// **Unter-Aufträge stehen ZWISCHEN den Modulen** (Notiz #353) – an der Stelle, an der sie
+// entstanden sind (``origin_step_id``). Das gilt für alle drei Arten, und darum sehen sie auch
+// alle gleich aus (``SubOrderCard``): **Abweichung** (etwas ist schiefgegangen), **Nachschub**
+// (etwas fehlte) und **Bereitstellung** (etwas musste erst hergebracht werden). Sie sind
+// eingerückt – ein Unter-Auftrag ist kein Modul dieses Prozesses, sondern ein eigener Auftrag,
+// der hier hineinragt; ein Klick öffnet ihn.
 //
-// Eine Abweichung OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt aktiv
-// war) gehört keinem Schritt – sie gehört dem Auftrag und steht darum als eigener Abzweig
-// **vor** dem ersten Schritt, am Anfang des Flusses.
+// Vorher waren das drei Darstellungen für dieselbe Sache: die Bereitstellung als vollwertige
+// Karte im Fluss, die Abweichung als Pille SEITLICH neben der Karte (`.erp-devbranch`, auf
+// breiten Schirmen rechts, auf schmalen darunter) und die Abweichung ohne Ursprungsschritt als
+// eingerückter Abzweig davor. Eine Pille am Rand liest sich zudem als Randnotiz – dabei ist
+// eine offene Abweichung der Grund, warum der ganze Prozess ruht.
+//
+// Ein Unter-Auftrag OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt
+// aktiv war) gehört keinem Schritt – er gehört dem Auftrag und steht am Anfang des Flusses.
 
 function completionHint(s: OrderStep): string | undefined {
   if (s.state !== 'done' || !s.completed_at) return undefined;
@@ -41,10 +46,14 @@ function completionHint(s: OrderStep): string | undefined {
   return `${who} · ${new Date(s.completed_at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })}`;
 }
 
-export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, onOpenOrder, renderPanel }: {
+export function OrderFlow({ steps, deviations = [], waitingFor = [], missing, selectedId, onSelectStep, onOpenOrder, renderPanel }: {
   steps: OrderStep[];
-  /** Alle Abweichungen des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
+  /** Alle Unter-Aufträge des Auftrags – die ohne Ursprungsschritt stehen vor dem Fluss. */
   deviations?: OrderDeviationInfo[];
+  /** Unter-Aufträge, die die Fehlmenge des Auftrags gerade binden (``OrderResponse.waiting_for``). */
+  waitingFor?: number[];
+  /** Was dem Auftrag fehlt, als eine Zeile – steht beim Unter-Auftrag, der es bindet (#354). */
+  missing?: string;
   selectedId?: string | null;
   onSelectStep: (stepId: string) => void;
   onOpenOrder: (objectId: number) => void;
@@ -53,23 +62,14 @@ export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, on
   if (steps.length === 0) return null;
 
   const rows: React.ReactNode[] = [];
+  const subCard = (info: OrderDeviationInfo) => (
+    <SubOrderCard key={`sub-${info.object_id}`} info={info} onOpen={onOpenOrder}
+      missing={waitingFor.includes(info.object_id) ? missing : undefined} />
+  );
 
   // Was kein Schritt für sich beansprucht, gehört dem Auftrag – und steht am Anfang.
   const claimed = new Set(steps.flatMap((s) => (s.deviations ?? []).map((d) => d.object_id)));
-  for (const d of deviations.filter((x) => !claimed.has(x.object_id))) {
-    rows.push(<DeviationBranch key={`dev-order-${d.object_id}`} info={d} onOpen={onOpenOrder} />);
-  }
-  const provisioningCards = (s: OrderStep) => (s.provisionings ?? []).map((p) => (
-    <FlowCard
-      key={`prov-${p.object_id}`}
-      type="movement"
-      label="Bereitstellung"
-      icon={Truck}
-      detail={<>Material an seinen Ort bringen · <ObjId value={p.object_id} /></>}
-      state={p.status === 'completed' ? 'done' : 'blocked'}
-      onClick={() => onOpenOrder(p.object_id)}
-    />
-  ));
+  rows.push(...deviations.filter((x) => !claimed.has(x.object_id)).map(subCard));
 
   for (const s of steps) {
     const meta = STEP_META[s.step_type as StepType] ?? STEP_META.purchase;
@@ -86,8 +86,6 @@ export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, on
         state={s.state}
         hint={completionHint(s)}
         selected={selected}
-        deviations={s.deviations ?? []}
-        onOpenOrder={onOpenOrder}
         onClick={() => onSelectStep(String(s.id))}
       >
         {selected && renderPanel?.(s)}
@@ -95,8 +93,11 @@ export function OrderFlow({ steps, deviations = [], selectedId, onSelectStep, on
     );
     // Position der Bereitstellung: vor der Ausführung (Ressource) oder danach
     // (Beschaffung/Verkauf) – die Regel steht im Backend, hier wird nur platziert.
-    if (s.provisioning_stage === 'before') rows.push(...provisioningCards(s), card);
-    else rows.push(card, ...provisioningCards(s));
+    const prov = (s.provisionings ?? []).map(subCard);
+    if (s.provisioning_stage === 'before') rows.push(...prov, card);
+    else rows.push(card, ...prov);
+    // Was diesen Schritt unterbrochen hat bzw. seinen Bedarf deckt, steht direkt darunter.
+    rows.push(...(s.deviations ?? []).map(subCard));
   }
 
   return (
@@ -122,7 +123,7 @@ const STATE_MARK: Record<string, { icon: React.ElementType; color: string }> = {
   failed:  { icon: X,           color: 'var(--danger)' },
 };
 
-function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], state, hint, selected, deviations, onOpenOrder, onClick, children }: {
+function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], state, hint, selected, onClick, children }: {
   type: StepType;
   label: string;
   icon: React.ElementType;
@@ -134,8 +135,6 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
   state: string;
   hint?: string;
   selected?: boolean;
-  deviations?: OrderDeviationInfo[];
-  onOpenOrder?: (objectId: number) => void;
   onClick: () => void;
   children?: React.ReactNode;
 }) {
@@ -145,7 +144,6 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
   const muted = state === 'done' || state === 'locked';
   const mark = STATE_MARK[state];
   const MarkIcon = mark?.icon;
-  const branch = deviations ?? [];
   return (
     <div
       style={{
@@ -186,13 +184,6 @@ function FlowCard({ type, label, icon: Icon, detail, badge, resolutions = [], st
           {children}
         </div>
       )}
-
-      {/* Was diesen Schritt unterbrochen hat – NEBEN der Karte, auf ihrer Höhe (Notiz #178). */}
-      {branch.length > 0 && (
-        <div className="erp-devbranch">
-          {branch.map((d) => <DeviationPill key={d.object_id} info={d} onOpen={onOpenOrder} />)}
-        </div>
-      )}
     </div>
   );
 }
@@ -227,44 +218,73 @@ function ResolutionLine({ r }: { r: StepResolution }) {
   );
 }
 
-// Abweichung OHNE Ursprungsschritt: als **Abzweig** am Anfang des Flusses – eingerückt und
-// mit kurzem Aststück, sichtbar, ohne den Fluss zu verstellen.
-function DeviationBranch({ info, onOpen }: { info: OrderDeviationInfo; onOpen: (id: number) => void }) {
-  return (
-    <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', justifyContent: 'flex-start', paddingLeft: 26 }}>
-      <div style={{ display: 'flex', alignItems: 'stretch' }}>
-        <div style={{ width: 18, borderLeft: '2px solid var(--border-2)', borderBottom: '2px solid var(--border-2)', borderBottomLeftRadius: 8, marginBottom: 13 }} />
-        <span style={{ marginLeft: 8 }}><DeviationPill info={info} onOpen={onOpen} /></span>
-      </div>
-    </div>
-  );
-}
+// Die drei Arten von Unter-Auftrag – EIN Muster, drei Beschriftungen. Alle drei sind
+// eigenständige Aufträge, die aus einem Schritt hervorgegangen sind; sie unterscheiden sich
+// nur darin, WARUM (siehe ``orders.reason``).
+const SUB_META: Record<string, { label: string; icon: React.ElementType; open: string; done: string }> = {
+  deviation: {
+    label: 'Abweichung', icon: TriangleAlert,
+    open: 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist',
+    done: 'Geklärte Abweichung',
+  },
+  supply: {
+    label: 'Nachschub', icon: PackagePlus,
+    open: 'Nachschub läuft – der Schritt wird von selbst wieder aktiv',
+    done: 'Erledigter Nachschub',
+  },
+  provisioning: {
+    label: 'Bereitstellung', icon: Truck,
+    open: 'Material wird an seinen Ort gebracht',
+    done: 'Material ist an seinem Ort',
+  },
+};
 
 /**
- * Die EINE Darstellung eines Unter-Auftrags im Fluss – offen (gelb) oder erledigt (still).
+ * **Ein Unter-Auftrag als Knoten im Fluss** – zwischen den Modulen, an der Stelle, an der er
+ * entstanden ist (Notiz #353). Eingerückt, weil er kein Modul DIESES Prozesses ist, sondern
+ * ein eigener Auftrag, der hier hineinragt; ein Klick öffnet ihn.
  *
- * Abweichung **und** Nachschub sind dasselbe Muster: aus einem Schritt hervorgegangen, an
- * seiner Stelle sichtbar (Notizen #259/#260). Nur Symbol und Wort unterscheiden sie – die
- * Abweichung ist ein Problem (Warnzeichen), der Nachschub eine Beschaffung (Paket).
+ * Solange er offen ist, trägt er den Grund, warum der Prozess ruht – WAS fehlt, steht an
+ * dieser einen Stelle (Notiz #354) und nicht zusätzlich als Kasten unter dem Fluss.
  */
-function DeviationPill({ info, onOpen }: { info: OrderDeviationInfo; onOpen?: (id: number) => void }) {
+function SubOrderCard({ info, missing, onOpen }: {
+  info: OrderDeviationInfo; missing?: string; onOpen?: (id: number) => void;
+}) {
   const open = info.status === 'draft' || info.status === 'released';
-  const supply = info.reason === 'supply';
-  const Icon = supply ? PackagePlus : TriangleAlert;
+  const meta = SUB_META[info.reason ?? 'deviation'] ?? SUB_META.deviation;
+  const Icon = meta.icon;
+  const tone = open ? 'var(--warning)' : 'var(--border-1)';
   return (
-    <button type="button" onClick={() => onOpen?.(info.object_id)}
-      title={supply
-        ? (open ? 'Nachschub läuft – der Schritt wird von selbst wieder aktiv' : 'Erledigter Nachschub')
-        : (open ? 'Offene Abweichung – ihr Stück fehlt dem Auftrag, bis sie geklärt ist' : 'Geklärte Abweichung')}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-        padding: '5px 11px', borderRadius: 'var(--r-pill)', font: '600 12px var(--font-body)',
-        border: `1px solid ${open ? 'var(--warning)' : 'var(--border-1)'}`,
-        background: open ? 'var(--warning-bg)' : '#fff',
-        color: open ? 'var(--warning)' : 'var(--fg-4)',
-      }}>
-      <Icon size={13} /> {supply ? 'Nachschub' : 'Abweichung'} <ObjId value={info.object_id} />
-    </button>
+    <div style={{ width: '100%', maxWidth: STEP_MAXW, display: 'flex', paddingLeft: 30 }}>
+      <button type="button" onClick={() => onOpen?.(info.object_id)} title={open ? meta.open : meta.done}
+        style={{
+          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 11, textAlign: 'left',
+          padding: '11px 14px', borderRadius: 'var(--r-lg)', cursor: 'pointer',
+          border: `1px solid ${tone}`, background: open ? 'var(--warning-bg)' : '#fff',
+          opacity: open ? 1 : 0.6,
+        }}>
+        <span style={{
+          width: 30, height: 30, borderRadius: 'var(--r-sm)', flexShrink: 0, background: '#fff',
+          border: `1px solid ${tone}`, color: open ? 'var(--warning)' : 'var(--fg-4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={15} />
+        </span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ font: '700 13.5px var(--font-body)', color: 'var(--fg-1)' }}>{meta.label}</span>
+            <ObjId value={info.object_id} />
+          </span>
+          {missing && (
+            <span style={{ display: 'block', marginTop: 3, font: '500 12px var(--font-body)', color: 'var(--warning)' }}>
+              Es fehlt {missing}
+            </span>
+          )}
+        </span>
+        {open && <PauseCircle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />}
+        {!open && <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />}
+      </button>
+    </div>
   );
 }
 

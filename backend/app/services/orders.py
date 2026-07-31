@@ -459,6 +459,8 @@ def _fill_order_shortfall(db: Session, order: Order, resp: OrderResponse) -> Non
 
     subject_short = process.subject_shortfalls(db, order)
     everything = process.order_shortfalls(db, order)
+    # **Ruht der Prozess?** Dieselbe Regel wie im Ablauf – nicht hier nachgebaut.
+    resp.paused = process.is_paused(db, order)
     if not everything:
         return
     arts = {a.id: a for a in db.query(Article).filter(Article.id.in_(everything.keys())).all()}

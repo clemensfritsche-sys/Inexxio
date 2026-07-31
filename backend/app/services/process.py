@@ -253,12 +253,23 @@ def resolve_exec_step(db: Session, order: Order, step_type: str, step_id: int | 
         if not match or match["step"].step_type != step_type:
             raise HTTPException(404, detail="Prozessschritt nicht gefunden")
         if match["state"] != "active":
-            raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
+            raise HTTPException(409, detail=_not_now(db, order, label))
         return match["step"]
     active = next((s for s in steps if s["step_type"] == step_type and s["state"] == "active"), None)
     if not active:
-        raise HTTPException(409, detail=f"{label} ist (noch) nicht an der Reihe")
+        raise HTTPException(409, detail=_not_now(db, order, label))
     return active["step"]
+
+
+def _not_now(db: Session, order: Order, label: str) -> str:
+    """Warum geht dieser Schritt gerade nicht? – **den echten Grund** nennen.
+
+    «… ist (noch) nicht an der Reihe» stimmt zwar immer, hilft aber nicht, wenn der Auftrag
+    ruht: dann liegt es nicht an der Reihenfolge, sondern an einer offenen Entscheidung."""
+    if is_paused(db, order):
+        return ("Der Prozess ruht, weil dem Auftrag etwas fehlt. Bitte zuerst entscheiden: "
+                "Auftrag pausieren · Instanz ersetzen · Auftragsmenge reduzieren.")
+    return f"{label} ist (noch) nicht an der Reihe"
 
 
 def resolve_resource_step(db: Session, order: Order, step_id: int | None) -> ArticleProcessStep:
@@ -328,19 +339,17 @@ def sold_amounts_for_order(db: Session, order_object_id: int | None) -> dict[int
 def deviated_instance_ids(db: Session, order: Order) -> set[int]:
     """Instanzen dieses Auftrags, die gerade in einer **offenen Abweichung** stecken.
 
-    **Eine Abweichung hält den Auftrag nicht an – sie nimmt ihr Stück heraus.** Früher
-    pausierte JEDE offene Abweichung den GANZEN Eltern-Auftrag, unabhängig davon, wie viele
-    Instanzen betroffen waren: ein schlechtes von fünf Stück legte die anderen vier still.
-    Das war ein **zweiter** Mechanismus für etwas, wofür es längst eine präzise Sprache gibt –
-    die **Unterdeckung**. Ein Stück in Klärung ist für den Eltern-Auftrag weder verloren noch
-    gesichert, es ist schlicht **fehlend**: es zählt nicht mehr als gesichert, der Rest läuft
-    weiter, und der Schritt, der das Subjekt braucht, meldet «Es fehlt 1 Stk».
+    **Eine Abweichung hat keinen eigenen Pause-Mechanismus – sie nimmt ihr Stück heraus.**
+    Ein Stück in Klärung ist für den Eltern-Auftrag weder verloren noch gesichert, es ist
+    schlicht **fehlend**: es zählt nicht mehr als gesichert, und der Auftrag hat damit eine
+    Unterdeckung. Dass er darüber zum Stillstand kommt, ist die Folge der EINEN Pause-Regel
+    (``is_paused``) und nicht eines zweiten Zustands neben ihr – es gibt kein «pausiert wegen
+    Abweichung» getrennt von «es fehlt etwas», weil beides derselbe Sachverhalt ist.
 
-    Der Schutz, für den die Pause gedacht war – *eine Sendung darf nicht teil-versendet
-    werden, solange unklar ist, ob ein Stück ausgesteuert wird* – bleibt erhalten, aber
-    **abgeleitet statt deklariert**: Verkauf und Versand sind Subjekt-Schritte und sind bei
-    einer Fehlmenge ohnehin blockiert. Er greift damit genau dort, wo er nötig ist, statt
-    pauschal über den ganzen Auftrag."""
+    Genau das macht die Abweichung austauschbar mit jedem anderen Grund: eine Aussteuerung,
+    ein Ausschuss oder eine weggenommene Reservierung erzeugen dieselbe Fehlmenge und damit
+    dieselbe Pause – und werden mit denselben drei Antworten aufgelöst (pausieren · ersetzen ·
+    Menge reduzieren)."""
     from .subject import order_instances
     # **Massgeblich ist die Instanz, nicht der Eltern-Zeiger.** Eine Abweichung kann an der
     # Instanz gemeldet worden sein und dabei an einem GANZ ANDEREN Auftrag hängen (dem
@@ -476,51 +485,43 @@ def _component_needs(db: Session, order: Order) -> dict[int, Decimal]:
     return needs
 
 
-# Schritte, die das **Subjekt** (die Fertigware) des Auftrags anfassen. Sie MELDEN eine
-# Fehlmenge; ob sie daran auch hängenbleiben, entscheidet ``EventType.hands_over`` – siehe
-# ``_step_blocked``. Abgeleitet aus der Registry statt hier gepflegt.
-SUBJECT_STEP_TYPES = tuple(
-    k for k, et in event_types.REGISTRY.items()
-    if et.subject_role in (event_types.STOCK, event_types.INSTANCE)
-)
+def _component_shortfall(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, Decimal]:
+    """Der **eigene** Material-Bedarf dieses Schritts, soweit ungedeckt ({article_id: qty}).
+
+    Nur die Ressource hat einen: sie verbraucht Komponenten (need − verfügbar; verfügbar =
+    frei am Lager + für diesen Auftrag reserviert). Jeder andere Schritttyp arbeitet am
+    Subjekt des Auftrags und hat darum keinen eigenen."""
+    if step.step_type not in RESOURCE_STEP_TYPES:
+        return {}
+    from .order_lines import effective_quantity
+    out: dict[int, Decimal] = {}
+    qty = to_qty(effective_quantity(db, order))
+    for line in (step.resource_lines or []):
+        if (line.get("mode") or "consume") != "consume":
+            continue
+        aid = line["article_id"]
+        need = to_qty(line.get("quantity", 1)) * qty
+        have = available(db, aid, order.id)
+        if need > have:
+            out[aid] = out.get(aid, ZERO) + (need - have)
+    return out
 
 
 def step_shortfalls(db: Session, order: Order, step: ArticleProcessStep) -> dict[int, Decimal]:
-    """Fehlmengen, die genau diesen Schritt **blockieren** ({article_id: qty}); leer = frei.
+    """Woran hängt dieser Schritt? – die **Fehlmenge des Auftrags** (er ruht als Ganzes)
+    plus sein **eigener** Material-Bedarf ({article_id: qty}); leer = frei.
 
-    sale/movement/inspection/scrap → brauchen das **Subjekt** (Fertigware): fehlt es (z. B.
-    weil eine reservierte Instanz per Abweichung ausgesteuert wurde ODER ein Erzeugungsauftrag
-    Ausschuss hatte), blockiert der Schritt. **Auch «Verkauf»** ist ein Subjekt-Schritt – man
-    kann nicht verkaufen, was nicht (mehr) gesichert ist; sonst reagierte ein Verkaufsauftrag
-    nicht, wenn sein Bestand ausgesteuert wird.
-    resource(consume) → braucht seine **Komponenten** (need − verfügbar; verfügbar = frei am
-    Lager + für diesen Auftrag reserviert).
+    Die Aufteilung ist die Trennlinie zwischen den beiden Ebenen: **das Subjekt gehört dem
+    Auftrag** (fehlt es, ruht er – siehe ``is_paused``), **das Material gehört dem Schritt**
+    (fehlt es, wartet nur er). Welcher Schritttyp gerade dran ist, spielt dabei keine Rolle
+    mehr – die frühere Liste ``SUBJECT_STEP_TYPES`` und das Registry-Flag ``hands_over``
+    sind damit beide entfallen.
 
-    **Ausnahme – Begleit-Bewegungen** (Wareneingang ``mode='supplier'`` / Versand zum Kunden
-    ``mode='customer'``): sie sind **Begleiter** eines Verkaufs/einer Beschaffung, kein
-    eigenständiger Subjekt-Bedarf. Sie werden NICHT auf Fehlmengen geprüft – sonst würde der
-    Versand blockiert, sobald der Verkauf bezahlt ist (die Ware ist dann bereits «verkauft», also
-    aus Sicht des freien Bestands «weg» – der Versand bringt aber genau diese verkaufte Ware raus).
-
-    Die Erkennung hängt an der **Rolle** (``provisioning.is_companion``), nicht an einer
-    Sperre: der Schritt ist frei löschbar/verschiebbar, seine fachliche Rolle als Begleiter
-    bleibt davon unberührt. Neue Begleiter entstehen nicht mehr – physische Transporte sind
-    heute Bereitstellungs-Unter-Aufträge –, bestehende bleiben gültig."""
-    out: dict[int, Decimal] = {}
-    from .provisioning import is_companion
-    if step.step_type in SUBJECT_STEP_TYPES and not is_companion(step):
-        out.update(_subject_shortfalls(db, order))
-    elif step.step_type in RESOURCE_STEP_TYPES:
-        from .order_lines import effective_quantity
-        qty = to_qty(effective_quantity(db, order))
-        for line in (step.resource_lines or []):
-            if (line.get("mode") or "consume") != "consume":
-                continue
-            aid = line["article_id"]
-            need = to_qty(line.get("quantity", 1)) * qty
-            have = available(db, aid, order.id)
-            if need > have:
-                out[aid] = out.get(aid, ZERO) + (need - have)
+    Gebraucht wird die Zuordnung «welcher Schritt vermisst welchen Artikel» für die Spur
+    (``blocked_step_for_article`` → Nachschub-Ursprung, Deckungs-Entscheid am Schritt)."""
+    out = dict(_subject_shortfalls(db, order))
+    for aid, missing in _component_shortfall(db, order, step).items():
+        out[aid] = out.get(aid, ZERO) + missing
     return out
 
 
@@ -540,30 +541,41 @@ def blocked_step_for_article(db: Session, order: Order, article_id: int) -> int 
     return None
 
 
-def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
-    """Hält eine Fehlmenge diesen Schritt auf?
+def is_paused(db: Session, order: Order) -> bool:
+    """**Ruht dieser Auftrag?** – ihm fehlt sein Subjekt, also geht KEIN Schritt weiter.
 
-    **Eine Fehlmenge hindert nicht an der Arbeit – sie hindert am Weitergeben.** Aufgehalten
-    wird nur, wer die fehlende Menge sonst aus der Hand gäbe: der **Verkauf** (hinaus zum
-    Kunden) und die **Ressource** (hinein ins Produkt). Beides ist in der Registry deklariert
-    (``EventType.hands_over``), nicht hier aufgezählt.
+    Das ist die eine Pause-Regel des Systems, und sie hat **keinen eigenen Mechanismus**:
+    Was einen Auftrag anhält, ist immer dasselbe – ihm fehlt etwas (``_subject_shortfalls``).
+    Eine offene **Abweichung** nimmt ihr Stück heraus (``deviated_instance_ids``) und erzeugt
+    damit genau diese Fehlmenge; eine Aussteuerung, ein Ausschuss oder eine weggenommene
+    Reservierung tun dasselbe. Es gibt darum kein «pausiert wegen Abweichung» neben
+    «blockiert wegen Fehlmenge» – es ist EIN Zustand mit EINER Ursache.
 
-    Erfassen, Aussondern und Bewegen laufen weiter – sie arbeiten an dem, was **da ist**, und
-    gerade wenn etwas fehlt, will man sie tun. Vorher blockierten alle fünf Subjekt-Schritte:
-    eine Abweichung an EINEM von fünf Teilen legte damit die Prüfung der anderen vier stumm –
-    genau die Pause, die abgeschafft werden sollte, nur unter anderem Namen.
+    Zwischenzeitlich hielt eine Fehlmenge nur die Schritte auf, die die Menge **weitergeben**
+    (Verkauf/Ressource, Registry-Flag ``hands_over``) – erfassen/aussondern/bewegen liefen
+    weiter. Das ist zurückgenommen (Testnotiz #354): solange eine Abweichung offen ist, DARF
+    der Eltern-Prozess nicht weitergeführt werden. Der Grund ist nicht Vorsicht, sondern
+    Reihenfolge – wer weiterarbeitet, während noch offen ist, ob ein Stück ausgesteuert wird,
+    arbeitet womöglich am falschen Bestand. Und die Pause ist heute kein stiller Nebeneffekt
+    mehr: sie ist **die gewählte Antwort** «Auftrag pausieren» aus der Unterdeckungs-Frage –
+    wer nicht warten will, ersetzt oder reduziert die Menge und läuft sofort weiter.
 
-    Dass dabei nichts still unterliefert wird, sichert die andere Hälfte derselben Regel:
-    ein Auftrag mit offener Fehlmenge **schliesst nicht ab** (``recompute_completion``).
-
-    Dazu der zweite, unabhängige Grund: Material ist **unterwegs** (offene Bereitstellung).
-    Sie hält den ganzen Auftrag an – sie gehört zu dem Schritt, der sie ausgelöst hat, und
-    liegt im Ablauf VOR dem nächsten; sonst liefe der weiter, während die Ware noch reist."""
-    et = event_types.REGISTRY.get(step.step_type)
-    if et is not None and et.hands_over and step_shortfalls(db, order, step):
+    Zweiter, unabhängiger Grund: Material ist **unterwegs** (offene Bereitstellung) – es
+    existiert, liegt nur noch nicht hier. Dort gibt es nichts zu entscheiden."""
+    if _subject_shortfalls(db, order):
         return True
     from .provisioning import open_provisioning
     return bool(open_provisioning(db, order))
+
+
+def _step_blocked(db: Session, order: Order, step: ArticleProcessStep) -> bool:
+    """Hält eine Fehlmenge diesen Schritt auf? – zwei Ebenen, dieselbe Frage.
+
+    Der Auftrag ruht (``is_paused``) → jeder Schritt ruht mit. Sonst wartet ein Schritt nur
+    noch auf sein **eigenes** Material (Ressource). Dass dabei nichts still unterliefert
+    wird, sichert die andere Hälfte derselben Regel: ein Auftrag mit offener Fehlmenge
+    **schliesst nicht ab** (``recompute_completion``)."""
+    return is_paused(db, order) or bool(_component_shortfall(db, order, step))
 
 
 def is_stalled(db: Session, order: Order) -> bool:

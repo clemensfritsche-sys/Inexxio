@@ -4426,6 +4426,11 @@ export interface components {
              */
             shortfall: components["schemas"]["StepShortfall"][];
             /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
+            /**
              * Waiting For
              * @default []
              */

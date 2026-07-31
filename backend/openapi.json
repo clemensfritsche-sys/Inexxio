@@ -12767,6 +12767,11 @@
             "title": "Shortfall",
             "default": []
           },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused",
+            "default": false
+          },
           "waiting_for": {
             "items": {
               "type": "integer"

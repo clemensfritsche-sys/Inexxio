@@ -556,10 +556,8 @@ function CostOverview() {
           </div>
         )}
       </div>
-      <p style={{ font: '500 11.5px var(--font-body)', color: 'var(--fg-4)', lineHeight: 1.5, marginTop: 8 }}>
-        KI und Zahlungen sind <b>tatsächlich gemessen</b> (verbrauchte Tokens × Modell-Tarif bzw. Stripe-Gebühren
-        der bezahlten Verkäufe). Die Infrastruktur ist eine anteilige Schätzung der fixen Google-Cloud-Grundkosten.
-      </p>
+      {/* Kein Erklärabsatz (Notiz #358): woher eine Zahl stammt, steht bereits an ihrer
+          Zeile – die Badge «gemessen · fix · geschätzt» sagt es je Gruppe. */}
     </div>
   );
 }

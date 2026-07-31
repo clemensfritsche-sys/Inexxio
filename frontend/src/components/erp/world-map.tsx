@@ -75,8 +75,23 @@ const CELLS_BY_REGION: Record<string, MapCell[]> = (() => {
   return out;
 })();
 
-const COLS = 72;
-const ROWS = MASK.length;
+/**
+ * **Der Rahmen ist die Landmasse, nicht das Raster** (Testnotiz #357).
+ *
+ * Die Maske ist ein volles 72×25-Gitter, aber links stehen drei reine Wasser-Spalten (und je
+ * nach Maske oben/unten Leerzeilen). Als `viewBox` genommen, ergab das einen Streifen
+ * Hintergrund am Rand – die Karte «füllte den Container nicht aus». Statt das mit einem
+ * Zahlenwert nachzujustieren (der bei jeder Masken-Änderung wieder falsch wäre), wird der
+ * Ausschnitt aus den Zellen **abgeleitet**: die Bounding-Box aller Landzellen.
+ */
+const BOX = (() => {
+  const all = Object.values(CELLS_BY_REGION).flat();
+  const xs = all.map((c) => c.x);
+  const ys = all.map((c) => c.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) + 1 - x, h: Math.max(...ys) + 1 - y };
+})();
 
 /**
  * **Wo liegt der Schwerpunkt einer Region?** – in Prozent der Kartenfläche.
@@ -90,9 +105,11 @@ export function regionAnchor(region: string): { x: number; y: number } {
   const cells = CELLS_BY_REGION[region] ?? [];
   if (!cells.length) return { x: 50, y: 50 };
   const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
+  // Prozent **des gezeichneten Ausschnitts** (BOX), nicht des vollen Rasters – sonst
+  // liefen Beschriftung und Zuweisungs-Kärtchen gegenüber der Karte aus dem Ruder.
   return {
-    x: ((mid(cells.map((c) => c.x)) + 0.5) / COLS) * 100,
-    y: ((mid(cells.map((c) => c.y)) + 0.5) / ROWS) * 100,
+    x: ((mid(cells.map((c) => c.x)) + 0.5 - BOX.x) / BOX.w) * 100,
+    y: ((mid(cells.map((c) => c.y)) + 0.5 - BOX.y) / BOX.h) * 100,
   };
 }
 
@@ -118,7 +135,7 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
   const [hover, setHover] = useState<string | null>(null);
 
   return (
-    <svg viewBox={`0 0 ${COLS} ${ROWS}`} width="100%" role="img" aria-label="Weltkarte der Gebietsaufteilung"
+    <svg viewBox={`${BOX.x} ${BOX.y} ${BOX.w} ${BOX.h}`} width="100%" role="img" aria-label="Weltkarte der Gebietsaufteilung"
       style={{ display: 'block', background: 'var(--bg-3)' }}
       onMouseLeave={() => setHover(null)}>
       <defs>
@@ -163,12 +180,18 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
         const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)];
         const cx = mid(cells.map((c) => c.x)) + 0.5;
         const cy = mid(cells.map((c) => c.y)) + 0.5;
+        // **Die Schrift muss den Hover überleben** (Testnotiz #357): unter dem Cursor wird die
+        // Fläche mit dem KRÄFTIGEN Ton der Gesellschaft nachgezeichnet – und genau dieser Ton
+        // ist auch die Schriftfarbe, die Beschriftung verschwand also im eigenen Gebiet. Auf
+        // der kräftigen Fläche schreibt sie darum weiss. Kein zweiter Zustand, nur eine Farbe,
+        // die dem Untergrund folgt.
+        const ink = selected === region || hover === region ? '#fff' : l.ink;
         return (
           <g key={`l-${region}`} pointerEvents="none" textAnchor="middle">
-            <text x={cx} y={cy - 0.35} fill={l.ink} style={{ font: '700 1.5px var(--font-body)' }}>
+            <text x={cx} y={cy - 0.35} fill={ink} style={{ font: '700 1.5px var(--font-body)' }}>
               {l.title}
             </text>
-            <text x={cx} y={cy + 1.5} fill={l.ink} opacity={0.75} style={{ font: '500 1.35px var(--font-body)' }}>
+            <text x={cx} y={cy + 1.5} fill={ink} opacity={0.8} style={{ font: '500 1.35px var(--font-body)' }}>
               {l.sub}
             </text>
           </g>

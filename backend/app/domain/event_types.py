@@ -78,24 +78,19 @@ class EventType:
     status_field: str | None = None
     done: tuple = ()
     failed: tuple = ()
-    # **Gibt dieser Schritt die Menge WEITER?** – aus dem Auftrag hinaus (Verkauf → Kunde)
-    # oder in das Produkt hinein (Ressource → verbraucht). Nur solche Schritte hält eine
-    # Fehlmenge auf: man kann nicht verkaufen oder verbauen, was man nicht hat.
-    #
-    # Alle anderen arbeiten an dem, was **da ist** – erfassen, aussondern, bewegen. Sie
-    # dürfen bei einer Fehlmenge NIE blockieren; gerade dann braucht man sie. Vorher stand
-    # hier eine Liste ``SUBJECT_STEP_TYPES`` mit fünf Typen, die alle blockierten: eine
-    # Abweichung an EINEM von fünf Teilen legte damit auch die Prüfung der anderen vier
-    # still – genau die Pause, die abgeschafft werden sollte, nur unter anderem Namen.
-    hands_over: bool = False
+    # **Kein Flag dafür, wen eine Fehlmenge aufhält.** Hier stand kurzzeitig ``hands_over``
+    # («gibt dieser Schritt die Menge weiter?»), damit nur Verkauf und Ressource blockieren.
+    # Das ist zurückgenommen: eine Fehlmenge gehört dem **Auftrag**, nicht einem Schritt –
+    # fehlt sein Subjekt, ruht er als Ganzes (``process.is_paused``). Ein Schritt hat nur
+    # noch seinen **eigenen** Material-Bedarf (Ressource), und den kennt er aus seinen
+    # Zeilen. Damit braucht es hier weder ein Flag noch eine Typ-Liste.
 
 
 # Reihenfolge = natürliche Lese-/Anzeigereihenfolge.
 REGISTRY: dict[str, EventType] = {
     "purchase":   EventType("purchase",   "Beschaffen",     INCREASE, PRODUCE,  "PurchaseOrder", PROV_RECEIVING,
                             status_field="status", done=("received",), failed=("rejected",)),
-    "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT,
-                            hands_over=True),
+    "resource":   EventType("resource",   "Ressource",      INCREASE, PRODUCE,  "ResourceUsage", PROV_PRODUCT),
     "inspection": EventType("inspection", "Datenerfassung", NEUTRAL,  INSTANCE, "Inspection",    PROV_NONE,
                             status_field="result", done=("passed",), failed=("failed",)),
     "movement":   EventType("movement",   "Bewegung",       MOVE,     INSTANCE, "Movement",      PROV_NONE),
@@ -114,8 +109,7 @@ REGISTRY: dict[str, EventType] = {
     # aus dem Subjekt ABGELEITET, kein eigener Schritttyp. Der physische Rückfluss läuft über die
     # **Bewegung** (verkauft ↔ am Lager, je nach Ziel), die Geld-Seite über diesen Schritt.
     "sale":       EventType("sale",       "Verkauf",        DECREASE, STOCK,    "Sale",          PROV_CUSTOMER,
-                            status_field="status", done=("paid",), failed=("cancelled",),
-                            hands_over=True),
+                            status_field="status", done=("paid",), failed=("cancelled",)),
     # **Dokument**: der Auftrag erzeugt – wie jeder Erzeugungsauftrag – eine Instanz; das
     # Dokument (Fachtabelle ``Document``) hängt daran (Nummer = Instanz-Objektnummer, Datum =
     # Instanz-Freigabe). Keine Bestandswirkung (NEUTRAL); Subjekt-Rolle PRODUCE → der Auftrag

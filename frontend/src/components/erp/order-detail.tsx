@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Boxes, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, PackageMinus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Clock, Truck, Search, Building2 } from 'lucide-react';
+import { Ban, X, History as HistoryIcon, ClipboardList, ArrowLeft, Workflow, MapPin, CheckCircle2, Loader2, Repeat, ChevronDown, Factory, Warehouse, Target, AlertTriangle, PauseCircle, PackagePlus, Plus, Trash2, Undo2, FolderOpen, CalendarClock, Search, Building2 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderShortfall, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
+import type { Article, CompanySettings, Instance, Order, OrderDeviationInfo, OrderPurchase, OrderStep, OrderUpdateInput, UserProfile } from '@/types';
 import { orderStatusConfig } from '@/lib/order';
 import { unitLabel } from '@/lib/article';
 import { useAutosave } from '@/lib/use-autosave';
@@ -26,6 +26,7 @@ import { ScrapPanel } from '@/components/erp/scrap-panel';
 import { SalePanel } from '@/components/erp/sale-panel';
 import { DocumentPanel } from '@/components/erp/document-panel';
 import { ProcessSteps } from '@/components/erp/process-steps';
+import { ShortfallDialog, type ShortfallAnswer } from '@/components/erp/shortfall-dialog';
 import { ObjectDocuments } from '@/components/erp/object-documents';
 import { DetailTabs } from '@/components/erp/detail-tabs';
 import { localDate } from '@/lib/utils';
@@ -50,6 +51,8 @@ type Form = { article_id: string; quantity: string; desired_delivery_date: strin
 type PinLine = {
   key: string; lineId: number | null; articleId: number; unit: string; reqQty: number;
   pinnedIds: number[]; pinnedQty: number; pool: Instance[]; availableQty: number;
+  /** Menge über den GANZEN wählbaren Pool (frei + gebunden) – Grundlage für «Auswählen». */
+  poolQty: number;
   // Frei verfügbar? Eine **gebundene** Instanz ist wählbar – daraus wird ein Abweichungsauftrag.
   free: (i: Instance) => boolean;
 };
@@ -138,8 +141,12 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // Eine Retoure (reason='return') ist ein Unter-Auftrag eines abgeschlossenen Verkaufs auf
   // dessen verkaufte Instanzen (Rücknahme + Gutschrift); pausiert den Eltern ebenfalls nicht.
   const isReturn = record?.reason === 'return';
-  // Bedarf nur im Entwurf bearbeitbar (nach Freigabe read-only); bei einem Unter-Auftrag fix.
-  const demandEditable = isStaff && (isCreate || record?.status === 'draft') && !isSubOrder;
+  // **Der Bedarf eines ENTWURFS ist bearbeitbar – bei jedem Auftrag** (Notiz #355). Ein
+  // Unter-Auftrag ist kein Sonderfall: der Abkürzungs-Knopf an der Instanz nimmt einem nur
+  // die erste Auswahl ab, er soll sie nicht festnageln. Wer eine zweite betroffene Instanz
+  // oder eine weitere Position braucht, ergänzt sie hier wie überall. Nach der Freigabe ist
+  // der Bedarf read-only, ebenfalls wie überall.
+  const demandEditable = isStaff && (isCreate || record?.status === 'draft');
   const isCompleted = record?.status === 'completed';
   const hasPurchase = !!record?.purchase;
   // «Abweichung melden» auf **Auftragsebene**: nur am LAUFENDEN Auftrag (ein abgeschlossener
@@ -164,10 +171,20 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     ?? steps[steps.length - 1]?.id ?? null;
   const currentStepId = selStep ?? (activeStepId != null ? String(activeStepId) : null);
   const currentStep = steps.find((s) => String(s.id) === currentStepId) ?? null;
-  // Was dem Auftrag fehlt, steht am Auftrag – nicht an einem Schritt. «Material unterwegs»
-  // bleibt dagegen die Aussage eines konkreten Schritts (die Bereitstellung gehört ihm).
-  const hasShortfall = (record?.shortfall ?? []).length > 0;
-  const waitingOnMaterial = (currentStep?.provisioning_order_object_ids ?? []).length > 0;
+  // ── Was dem Auftrag fehlt ────────────────────────────────────────────────────────
+  // Die Fehlmenge gehört dem **Auftrag**, nicht einem Schritt – darum steht sie einmal.
+  // «Wartet» ist ein Zustand: bindet ein Unter-Auftrag die Menge bereits (Abweichung/
+  // Nachschub/Bereitstellung), ist die Entscheidung getroffen – dann steht die Angabe bei
+  // diesem Unter-Auftrag im Fluss (Notiz #354), und es wird nicht erneut gefragt.
+  const shortfall = record?.shortfall ?? [];
+  const waitingFor = record?.waiting_for ?? [];
+  const missingText = shortfall
+    .map((sf) => `${sf.quantity}× ${sf.article_name ?? 'Artikel'}`).join(' · ') || undefined;
+  const needsDecision = shortfall.length > 0 && waitingFor.length === 0;
+  // «Auftragsmenge reduzieren» gibt es nur für die **Fertigware**: einen fehlenden
+  // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
+  const hasSubjectShortfall = shortfall.some((sf) => (sf.kind ?? 'subject') === 'subject');
+  const shortfallCandidates = shortfall.flatMap((sf) => sf.available_instances ?? []);
 
   // Nur freigegebene Artikel sind referenzierbar
   const releasedArticles = articles.filter((a) => a.status === 'released');
@@ -207,10 +224,10 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   // für den Anker – dieselbe Ableitung bedient also Einzel- wie Mehrpositionen-Auftrag.
   const [pinPool, setPinPool] = useState<Instance[]>([]);
   useEffect(() => {
-    // Bei einem Unter-Auftrag (Abweichung/Nachschub) stehen die Instanzen fest – kein Lagerpool nötig.
-    if (!isDraftStaff || isSubOrder) { setPinPool([]); return; }
+    // Auch ein Unter-Auftrag im Entwurf braucht den Pool – seine Auswahl ist erweiterbar (#355).
+    if (!isDraftStaff) { setPinPool([]); return; }
     api.getInstances(500).then(setPinPool).catch(() => {});
-  }, [isDraftStaff, isSubOrder]);
+  }, [isDraftStaff]);
 
   // Frei verfügbar = freigegeben, am Lager und nicht für einen FREMDEN Auftrag reserviert.
   // Alles andere ist «gebunden» – wählbar, aber nur als Abweichung (siehe ``buildPinLine``).
@@ -241,6 +258,10 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       pinnedIds: pinned.ids, pinnedQty: pinned.qty, pool,
       // «Genug Bestand?» meint das FREI Verfügbare – gebundene Stück zählen dafür nicht.
       availableQty: pool.filter(isFree).reduce((s, i) => s + (i.quantity ?? 0), 0), free: isFree,
+      // Was sich überhaupt auswählen liesse – frei UND gebunden. Reicht das nicht für die
+      // Menge, ist «Auswählen» eine Sackgasse: die Auswahl liesse sich nie vervollständigen
+      // und die Freigabe bliebe gesperrt (Notiz #356).
+      poolQty: pool.reduce((s, i) => s + (i.quantity ?? 0), 0),
     };
   }
   const pinLines: PinLine[] = isMultiPosition
@@ -484,35 +505,25 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
   }
 
 
-  // **Unterdeckung: eine Frage, drei Antworten.** «Wartet» ist ein Zustand (das Backend
-  // sagt, worauf), hier stehen nur die beiden Antworten, die eine Handlung sind.
-
-  // «Ersetzen»: erst freier Lagerbestand (FIFO bzw. gezielt gewählte Instanzen), den Rest
-  // per Nachschub – EIN Weg. Woher der Ersatz kommt, ist eine Verfügbarkeitsfrage.
-  async function replaceShortfall(instanceObjectIds?: number[]) {
-    if (!record) return;
-    setRecoverBusy(true);
+  // **Unterdeckung am laufenden Auftrag: EINE Frage, drei Antworten** – dieselben, die auch
+  // beim Auswählen gebundener Instanzen gestellt werden (``ShortfallDialog``).
+  //
+  //   pausieren  – nichts tun: der Prozess ruht, bis die Menge wieder da ist
+  //   ersetzen   – freier Lagerbestand (FIFO oder gezielt), Rest per Nachschub
+  //   reduzieren – der Auftrag wird mit dem fertig, was gesichert ist
+  async function answerShortfall(answer: ShortfallAnswer, instanceObjectIds?: number[]) {
+    if (!record || answer === 'wait') return;   // «pausieren» = nichts tun, das IST die Pause
+    const replace = answer === 'replace';
+    (replace ? setRecoverBusy : setSupplyBusy)(true);
     setError(null);
     try {
-      onSaved(await api.coverShortfall(record.object_id as number, instanceObjectIds));
+      onSaved(replace
+        ? await api.coverShortfall(record.object_id as number, instanceObjectIds)
+        : await api.confirmQuantity(record.object_id as number));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ersetzen fehlgeschlagen');
+      setError(e instanceof Error ? e.message : (replace ? 'Ersetzen fehlgeschlagen' : 'Menge konnte nicht angepasst werden'));
     } finally {
-      setRecoverBusy(false);
-    }
-  }
-
-  // «Menge bestätigen»: der Auftrag wird mit dem fertig, was gesichert ist.
-  async function confirmQuantity() {
-    if (!record) return;
-    setSupplyBusy(true);
-    setError(null);
-    try {
-      onSaved(await api.confirmQuantity(record.object_id as number));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Menge konnte nicht bestätigt werden');
-    } finally {
-      setSupplyBusy(false);
+      (replace ? setRecoverBusy : setSupplyBusy)(false);
     }
   }
 
@@ -656,7 +667,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                       source={line ? lineSource(line) : 'stock'}
                       onSource={(s) => line && setLineSource(line, s)}
                       onToggle={togglePin} pending={pendingPick}
-                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)} />
+                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)}
+                      onCancel={() => setPendingPick(null)} />
                   );
                 })
               ) : (
@@ -668,7 +680,8 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   qty={form.quantity}
                   source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin}
                   pending={pendingPick}
-                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)} />
+                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a)}
+                  onCancel={() => setPendingPick(null)} />
               )}
 
               {isCreate && releasedArticles.length === 0 && (
@@ -799,9 +812,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
         {/* «Abweichung melden» sitzt jetzt als kleiner Flag-Knopf im Kopf (analog Instanz) –
             keine eigene Karte mehr im Detailfenster. */}
 
-        {/* Unter-Auftrag (Entwurf): Subjekt/Bedarf stehen fest (oben gelistet) – KEINE
-            Ziel-Karten/Instanzauswahl. Nur den Ablauf definieren, dann freigeben. Abweichung =
-            was mit den Instanzen geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
+        {/* Unter-Auftrag (Entwurf): der Bedarf steht oben (und ist erweiterbar, #355) – hier
+            wird der Ablauf definiert, dann freigegeben. Abweichung = was mit den Instanzen
+            geschieht; Nachschub = wie die Fehlmenge entsteht/beschafft wird. */}
         {isStaff && record?.status === 'draft' && isSubOrder && (
           <>
             {/* Gleiche Darstellung wie am Artikel: der Editor steht frei, ohne zweite Karte. */}
@@ -854,28 +867,28 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
               <OrderFlow
                 steps={steps}
                 deviations={record.deviations ?? []}
+                waitingFor={record.waiting_for ?? []}
+                missing={missingText}
                 selectedId={currentStepId}
                 onSelectStep={setSelStep}
                 onOpenOrder={(oid) => nav?.(oid)}
                 renderPanel={(step) => (
-                  // Ein blockierter Schritt zeigt seinen Grund bereits auf der Karte
-                  // («Bestand fehlt» / «Material ist unterwegs») – und was zu tun ist, steht
-                  // EINMAL unter dem Fluss, nicht je Schritt. Darum hier kein Panel.
-                  step.state === 'blocked' ? null : (
-                    <StepPanel key={String(step.id)} step={step} order={record as Order}
-                      viewerRole={viewerRole} company={company} onSaved={afterStep} />
-                  )
+                  // **Auch ein blockierter Schritt zeigt sein Panel** (Notiz #353): was
+                  // darin schon erledigt wurde (eine eingeholte Offerte, erfasste Werte),
+                  // darf nicht verschwinden, nur weil der Prozess gerade ruht. Ausführen
+                  // lässt sich trotzdem nichts – das Backend nennt beim Versuch den Grund.
+                  <StepPanel key={String(step.id)} step={step} order={record as Order}
+                    viewerRole={viewerRole} company={company} onSaved={afterStep} />
                 )}
               />
               {/* **Die Fehlmenge gehört dem Auftrag** – eine Frage, eine Stelle, drei
-                  Antworten. Sie hindert nicht an der Arbeit (erfassen/aussondern/bewegen
-                  laufen weiter), aber der Auftrag geht nicht «fertig», solange sie offen ist. */}
-              {(hasShortfall || waitingOnMaterial) && (
-                <ProcessHoldNotice record={record} step={currentStep} isStaff={isStaff}
-                  canAct={record.status === 'released'}
-                  busy={supplyBusy} recoverBusy={recoverBusy} error={error}
-                  onConfirmQuantity={confirmQuantity}
-                  onReplace={replaceShortfall} onOpen={(oid) => nav?.(oid)} />
+                  Antworten. Solange sie offen ist, ruht der Prozess. Wartet er bereits auf
+                  einen Unter-Auftrag, ist die Entscheidung getroffen: dann steht die Angabe
+                  bei diesem Unter-Auftrag im Fluss und hier gar nichts (Notiz #354). */}
+              {needsDecision && (
+                <ProcessHoldNotice missing={missingText} canAct={isStaff && record.status === 'released'}
+                  busy={supplyBusy || recoverBusy} error={error}
+                  onAnswer={answerShortfall} candidates={shortfallCandidates} canReduce={hasSubjectShortfall} />
               )}
             </div>
           </>
@@ -958,191 +971,50 @@ function DeviationDialog({ busy, onChoose, onClose }: {
   );
 }
 
-// Bedarf (Ressource) wird ausschliesslich über Nachschub gedeckt.
-// **Unterdeckung: eine Frage, drei Antworten.**
+// **Unterdeckung: EINE Frage, drei Antworten – und ein Fenster dafür.**
 //
-// Es gibt nur noch EINEN Grund, warum ein Schritt nicht läuft: ihm fehlt etwas. (Eine offene
-// Abweichung hält den Auftrag nicht mehr an – sie nimmt ihr Stück heraus, und genau das
-// erscheint hier als Fehlmenge.) Der Mensch beantwortet dann eine einzige Frage – *was soll
-// mit der Fehlmenge geschehen?*:
+// Es gibt nur EINEN Grund, warum ein Prozess ruht: dem Auftrag fehlt etwas. Eine offene
+// Abweichung nimmt ihr Stück heraus, ein Ausschuss verliert eines, eine weggenommene
+// Reservierung ebenso – für den Auftrag ist das derselbe Sachverhalt und darum dieselbe
+// Frage: *was soll mit der Fehlmenge geschehen?*
 //
-//   • **Wartet** – kein Knopf, sondern ein Zustand: ist die Menge bereits in einer offenen
-//     Abweichung oder einem laufenden Nachschub gebunden, ist die Entscheidung getroffen.
-//   • **Ersetzen** – EIN Weg: freier Lagerbestand (FIFO oder gezielt gewählte Instanz), was
-//     danach offen bleibt, deckt ein Nachschub. Woher der Ersatz kommt, ist eine
-//     Verfügbarkeitsfrage – keine zweite Entscheidung.
-//   • **Menge bestätigen** – der Auftrag wird mit weniger fertig. Fehlte diese Antwort, blieb
-//     nur «warten oder ersetzen»: bei einem schlechten von fünf Stück beides falsch.
-function ProcessHoldNotice({ record, step, isStaff, canAct, busy, recoverBusy, error, onReplace, onConfirmQuantity, onOpen }: {
-  record: { shortfall?: OrderShortfall[] | null; waiting_for?: number[] | null };
-  step: OrderStep | null;
-  isStaff: boolean;
+// Hier steht nur der Anlass; die Antworten stehen in einer kleinen Lightbox (Notiz #352,
+// ``ShortfallDialog``) – demselben Fenster, das auch beim Auswählen gebundener Instanzen
+// erscheint. Eine Frage, ein Fenster, egal von wo.
+//
+// Ist die Menge bereits in einem Unter-Auftrag gebunden, erscheint hier gar nichts: dann ist
+// die Entscheidung getroffen, und die Angabe steht bei diesem Unter-Auftrag im Fluss (#354).
+function ProcessHoldNotice({ missing, canAct, busy, error, candidates, canReduce, onAnswer }: {
+  missing?: string;
   canAct: boolean;
   busy: boolean;
-  recoverBusy: boolean;
   error: string | null;
-  onReplace: (instanceObjectIds?: number[]) => void;
-  onConfirmQuantity: () => void;
-  onOpen?: (objectId: number) => void;
+  candidates: { object_id: number; quantity: number }[];
+  canReduce: boolean;
+  onAnswer: (answer: ShortfallAnswer, instanceObjectIds?: number[]) => void;
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [picked, setPicked] = useState<number[]>([]);
-
-  // ── Angehalten, weil Material noch unterwegs ist ───────────────────────────────
-  // Anderer Grund als Unterdeckung: das Material EXISTIERT, es liegt bloss noch nicht hier.
-  // Es gibt nichts zu entscheiden – die Bereitstellung bringt es, dann läuft es weiter.
-  const staging = step?.provisioning_order_object_ids ?? [];
-  if (staging.length > 0) {
-    return (
-      <HoldFrame title="Material unterwegs">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {staging.map((oid) => (
-            <WaitLine key={oid} icon={Truck} objectId={oid} onOpen={onOpen} />
-          ))}
-        </div>
-        {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
-      </HoldFrame>
-    );
-  }
-
-  // ── Es fehlt etwas ─────────────────────────────────────────────────────────────
-  // **Die Fehlmenge gehört dem Auftrag**, nicht einem Schritt – darum steht sie hier einmal.
-  const waiting = record.waiting_for ?? [];
-  const shortfall = record.shortfall ?? [];
-  // «Ohne Ersatz weiter» gibt es nur für die **Fertigware**: einen fehlenden Komponenten-
-  // Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut. Welche Art
-  // vorliegt, sagt der Datensatz selbst (``kind``) statt einer Typ-Liste im Frontend.
-  const hasSubject = shortfall.some((sf) => (sf.kind ?? 'subject') === 'subject');
-  const availableInstances = shortfall.flatMap((sf) => sf.available_instances ?? []);
-  // «Menge bestätigen» gibt es nur für das **Subjekt** (Fertigware): einen fehlenden
-  // Komponenten-Bedarf kann man nicht wegbestätigen – ohne Material wird nichts gebaut.
-  const canAnswer = isStaff && canAct && waiting.length === 0;
-  const busyAny = busy || recoverBusy;
-
-  function togglePick(oid: number) {
-    setPicked((p) => (p.includes(oid) ? p.filter((x) => x !== oid) : [...p, oid]));
-  }
-
+  const [open, setOpen] = useState(false);
+  const text = `Es fehlt ${missing ?? 'etwas'} – der Prozess ruht, bis entschieden ist, wie es weitergeht.`;
   return (
-    // **Kurz und prägnant** (Notizen #257/#258): «Es fehlt» sagt alles, was der Titel
-    // sagen muss; WAS fehlt, steht als Zeile darunter.
-    <HoldFrame title="Es fehlt">
-      {shortfall.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {shortfall.map((sf, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', font: '500 13px var(--font-body)', color: 'var(--fg-1)' }}>
-              <PackageMinus size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-              <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{sf.quantity}×</span>
-              <span>{sf.article_name ?? 'Artikel'}</span>
-              {sf.article_object_id != null && <ObjId value={sf.article_object_id} />}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* **Wartet** – die Entscheidung ist getroffen, hier steht nur noch, worauf. */}
-      {waiting.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {waiting.map((oid) => <WaitLine key={oid} icon={Clock} objectId={oid} onOpen={onOpen} />)}
-        </div>
-      )}
-
-      {canAnswer && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <PrimaryButton icon={PackagePlus} onClick={() => onReplace()} disabled={busyAny}>
-            {recoverBusy ? 'Wird ersetzt…' : 'Ersetzen'}
-          </PrimaryButton>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {hasSubject && availableInstances.length > 0 && (
-              <SecondaryAction icon={Boxes} label="Bestimmte Instanz wählen" onClick={() => setPickerOpen((o) => !o)} disabled={busyAny} active={pickerOpen} />
-            )}
-            {/* «Menge bestätigen» sagte, was das System tut, nicht was der Mensch
-                entscheidet (Notiz #280). Der Gegensatz zu «Ersetzen» ist: gar nicht
-                ersetzen – der Auftrag wird mit dem fertig, was da ist. */}
-            {hasSubject && (
-              <SecondaryAction icon={CheckCircle2} label={busy ? 'Wird übernommen…' : 'Ohne Ersatz weiter'}
-                onClick={onConfirmQuantity} disabled={busyAny} />
-            )}
-          </div>
-          {pickerOpen && availableInstances.length > 0 && (
-            <div style={{ border: '1px solid var(--border-1)', borderRadius: 8, background: '#fff', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {availableInstances.map((ai) => {
-                  const sel = picked.includes(ai.object_id);
-                  return (
-                    <button key={ai.object_id} type="button" onClick={() => togglePick(ai.object_id)}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12,
-                        fontFamily: 'var(--font-mono)', padding: '4px 10px', borderRadius: 999, cursor: 'pointer',
-                        border: `1px solid ${sel ? 'var(--success)' : 'var(--border-1)'}`,
-                        background: sel ? 'var(--success-bg)' : '#fff', color: sel ? 'var(--success)' : 'var(--fg-2)',
-                      }}>
-                      {sel && <CheckCircle2 size={12} />}
-                      {fmtObjId(ai.object_id)}{ai.quantity > 1 ? ` ·${ai.quantity}` : ''}
-                    </button>
-                  );
-                })}
-              </div>
-              <PrimaryButton icon={CheckCircle2} onClick={() => { onReplace(picked); setPickerOpen(false); setPicked([]); }} disabled={busyAny || picked.length === 0}>
-                {recoverBusy ? 'Wird übernommen…' : 'Gewählte Instanzen übernehmen'}
-              </PrimaryButton>
-            </div>
-          )}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', font: '700 13.5px var(--font-body)', color: 'var(--warning)' }}>
+        <PauseCircle size={16} /> Es fehlt
+        {missing && <span style={{ font: '500 13px var(--font-body)', color: 'var(--fg-1)' }}>{missing}</span>}
+      </div>
+      {canAct && (
+        <PrimaryButton icon={PackagePlus} onClick={() => setOpen(true)} disabled={busy}>
+          {busy ? 'Wird übernommen…' : 'Entscheiden'}
+        </PrimaryButton>
       )}
       {error && <span style={{ fontSize: 12, color: 'var(--danger)' }}>{error}</span>}
-    </HoldFrame>
-  );
-}
-
-// «Wartet auf …» – eine Zeile, die den Unter-Auftrag nennt und ihn öffnet. Dieselbe Form für
-// beide Wartegründe (Abweichung/Nachschub bzw. Bereitstellung).
-function WaitLine({ icon: Icon, objectId, onOpen }: {
-  icon: React.ElementType; objectId: number; onOpen?: (objectId: number) => void;
-}) {
-  return (
-    <button type="button" onClick={() => onOpen?.(objectId)}
-      style={{ display: 'flex', alignItems: 'center', gap: 8, font: '600 13px var(--font-body)',
-        color: 'var(--fg-1)', background: 'transparent', border: 'none', padding: 0,
-        cursor: 'pointer', textAlign: 'left' }}>
-      <Icon size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-      <span style={{ color: 'var(--fg-3)' }}>Wartet auf</span>
-      <ObjId value={objectId} />
-    </button>
-  );
-}
-
-// Einheitlicher Rahmen für «Prozess angehalten» – gleiche Optik/Ikonografie wie die Pause-Leiste.
-// Die Notiz sitzt IM Modul des Flusses – also ohne eigenen Kasten, nur mit einer
-// Haarlinie unter dem Titel (Notiz #258). Tokens statt fixer Amber-Werte.
-function HoldFrame({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, font: '700 13.5px var(--font-body)', color: 'var(--warning)' }}>
-        <PauseCircle size={16} /> {title}
-      </div>
-      {children}
+      {open && (
+        <ShortfallDialog text={text} candidates={candidates} canReduce={canReduce} busy={busy} error={error}
+          onAnswer={(a, ids) => { setOpen(false); onAnswer(a, ids); }} onClose={() => setOpen(false)} />
+      )}
     </div>
   );
 }
 
-// Kleiner Sekundär-Knopf (nicht die grosse Hauptaktion) für die weiteren Deckungs-Wege.
-function SecondaryAction({ icon: Icon, label, onClick, disabled, active }: {
-  icon: React.ElementType; label: string; onClick: () => void; disabled?: boolean; active?: boolean;
-}) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-        padding: '7px 12px', borderRadius: 8, cursor: disabled ? 'default' : 'pointer',
-        border: `1px solid ${active ? '#7c3aed' : '#e2e8f0'}`,
-        background: active ? '#f5f3ff' : '#fff', color: active ? '#6d28d9' : '#475569',
-        opacity: disabled ? 0.5 : 1,
-      }}>
-      <Icon size={14} /> {label}
-    </button>
-  );
-}
 
 // Rendert das Panel des gewählten Prozessschritts. Der jeweilige Ausführungs-Embed
 // des konkreten Schritts wird auf die Top-Level-Felder gelegt, damit die Panels
@@ -1249,7 +1121,7 @@ export const linkBtn: React.CSSProperties = {
  */
 function PositionRow({
   line, unit, title, articleObjectId, qty, source, onSource, onToggle, onRemove,
-  canProduce, produceHint, articleSelect, qtyInput, pending, onAnswer,
+  canProduce, produceHint, articleSelect, qtyInput, pending, onAnswer, onCancel,
 }: {
   line?: PinLine;
   unit: string;
@@ -1262,7 +1134,8 @@ function PositionRow({
   onRemove?: () => void;
   /** Offene Unterdeckungs-Frage zu dieser Position (Auswahl greift auf gebundene Instanzen). */
   pending?: { line: PinLine; ids: number[]; text: string } | null;
-  onAnswer?: (a: 'wait' | 'replace' | 'accept') => void;
+  onAnswer?: (a: ShortfallAnswer) => void;
+  onCancel?: () => void;
   canProduce: boolean;
   produceHint?: string;
   /** Anker-Position (Einzel-Artikel): Artikel/Menge sind hier noch editierbar. */
@@ -1273,6 +1146,10 @@ function PositionRow({
   const req = line?.reqQty ?? (Number(qty) || 0);
   const enough = avail >= req && req > 0;
   const pinned = line?.pinnedQty ?? 0;
+  // «Auswählen» braucht genug **wählbaren** Bestand (frei + gebunden): sonst liesse sich die
+  // Auswahl nie vervollständigen und die Freigabe bliebe für immer gesperrt (Notiz #356).
+  const poolQty = line?.poolQty ?? 0;
+  const pickable = poolQty >= req && req > 0;
 
   // Ergebniszeile: EIN Satz, was die Freigabe bewirkt – statt eines Info-Banners.
   const outcome = source === 'produce'
@@ -1315,30 +1192,19 @@ function PositionRow({
                 hint: canProduce ? 'Neu herstellen oder beschaffen – der Artikel-Prozess läuft' : (produceHint ?? 'Bei mehreren Positionen nicht möglich – dafür je Artikel einen eigenen Auftrag') },
               { value: 'stock', icon: Warehouse, label: 'Ab Lager', disabled: !enough,
                 hint: enough ? 'Vorhandenes verwenden – automatisch die ältesten (FIFO)' : `Nur ${avail} ${unit} am Lager (${req} nötig)` },
-              { value: 'specific', icon: Target, label: 'Auswählen',
-                hint: 'Genau bestimmen, welche Instanzen – auch verkaufte (→ Retoure)' },
+              { value: 'specific', icon: Target, label: 'Auswählen', disabled: !pickable,
+                hint: pickable
+                  ? 'Genau bestimmen, welche Instanzen – auch gebundene (→ Abweichung)'
+                  : `Es gibt nur ${poolQty} ${unit} zum Auswählen (${req} nötig)` },
             ]}
           />
 
           {source === 'specific' && <PinPicker line={line} onToggle={onToggle} bare />}
           {pending?.line.key === line.key && (
             // **Die Frage kommt sofort** – nicht irgendwann später am Eltern-Auftrag: wer
-            // ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben
-            // Zug, wie es dort weitergeht. Dieselben drei Antworten wie am Auftrag.
-            <div style={{ border: '1px solid var(--warning)', background: 'var(--warning-bg)',
-              borderRadius: 'var(--r-md)', padding: 11, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              <span style={{ font: '500 12.5px var(--font-body)', color: 'var(--fg-1)' }}>{pending.text}</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                {([['wait', 'Warten'], ['replace', 'Ersetzen'], ['accept', 'Ohne Ersatz weiter']] as const).map(([k, l]) => (
-                  <button key={k} type="button" onClick={() => onAnswer?.(k)}
-                    style={{ padding: '5px 12px', borderRadius: 999, cursor: 'pointer',
-                      border: '1px solid var(--border-1)', background: '#fff',
-                      font: '600 12.5px var(--font-body)', color: 'var(--fg-1)' }}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-            </div>
+            // ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben Zug,
+            // wie es dort weitergeht. Dasselbe Fenster wie am laufenden Auftrag (#352).
+            <ShortfallDialog text={pending.text} onAnswer={(a) => onAnswer?.(a)} onClose={() => onCancel?.()} />
           )}
 
           {/* Ergebnis in einer Zeile – kein Banner, kein Absatz. */}
@@ -1462,6 +1328,10 @@ function PinPicker({ line, onToggle, bare }: {
   const pool = needle
     ? line.pool.filter((i) => String(i.object_id ?? '').includes(needle))
     : line.pool;
+  // Welche Sorte wird gerade gewählt? `true` = gebunden (Abweichung), `false` = frei,
+  // `null` = noch nichts gewählt, also beides offen. Aus der Auswahl abgeleitet, kein Schalter.
+  const chosen = line.pool.filter((i) => line.pinnedIds.includes(i.object_id!));
+  const picking: boolean | null = chosen.length === 0 ? null : !line.free(chosen[0]);
 
   const body = (
     <>
@@ -1492,16 +1362,26 @@ function PinPicker({ line, onToggle, bare }: {
             // Wählbar – aber die Wahl macht daraus einen Abweichungsauftrag. Der Punkt sagt
             // es, der Hover erklärt es; ein zweiter Schalter wäre eine zweite Wahrheit.
             const busy = !line.free(i);
+            // **Kein Mischmasch** (Notiz #355): sobald die erste Instanz gewählt ist, steht
+            // die Art des Auftrags fest – gebunden ⇒ Abweichung, frei ⇒ gewöhnlicher Bedarf.
+            // Die jeweils andere Sorte ist dann gesperrt (das Backend weist sie ohnehin ab);
+            // der Hover sagt, warum. Dieselbe Regel wie verkauft ↔ Lager.
+            const wrongKind = !sel && picking != null && picking !== busy;
+            const off = atLimit || wrongKind;
             return (
-              <button key={i.object_id} type="button" disabled={atLimit}
+              <button key={i.object_id} type="button" disabled={off}
                 onClick={() => onToggle(line, i.object_id!)}
-                title={busy ? 'In Arbeit oder reserviert – daraus wird ein Abweichungsauftrag' : undefined}
+                title={wrongKind
+                  ? (picking
+                    ? 'Es ist bereits eine gebundene Instanz gewählt – ein Abweichungsauftrag nimmt keine freien dazu'
+                    : 'Es ist bereits eine freie Instanz gewählt – gebundene gehören in einen eigenen Abweichungsauftrag')
+                  : busy ? 'In Arbeit oder reserviert – daraus wird ein Abweichungsauftrag' : undefined}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontFamily: 'monospace',
-                  padding: '4px 10px', borderRadius: 999, cursor: atLimit ? 'not-allowed' : 'pointer',
+                  padding: '4px 10px', borderRadius: 999, cursor: off ? 'not-allowed' : 'pointer',
                   border: `1px solid ${sel ? 'var(--accent)' : busy ? 'var(--warning)' : 'var(--border-1)'}`,
                   background: sel ? 'var(--accent-soft)' : '#fff', color: sel ? 'var(--accent-ink)' : 'var(--fg-3)',
-                  opacity: atLimit ? 0.4 : 1,
+                  opacity: off ? 0.4 : 1,
                 }}>
                 {sel ? <CheckCircle2 size={12} />
                      : busy && <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--warning)' }} />}

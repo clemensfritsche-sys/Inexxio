@@ -715,13 +715,19 @@ def test_only_one_open_deviation_per_instance():
 
 
 def test_order_response_exposes_sub_deviations():
-    """Der Eltern-Auftrag macht seine Unter-Aufträge sichtbar – und trägt KEINEN Pause-
-    Zustand mehr: eine Abweichung nimmt ihr Stück heraus (Unterdeckung), sie hält den
-    Auftrag nicht an."""
+    """Der Eltern-Auftrag macht seine Unter-Aufträge sichtbar – und sagt, ob er **ruht**.
+
+    ``paused`` ist dabei KEIN eigener Zustand neben der Fehlmenge, sondern deren
+    Projektion (``process.is_paused``) – es wird abgeleitet, nicht gespeichert."""
+    import inspect as _inspect
+
     from app.schemas.order import OrderDeviationInfo, OrderResponse
+    from app.services import orders as orders_svc
 
     assert "deviations" in OrderResponse.model_fields
-    assert "paused" not in OrderResponse.model_fields
+    assert "paused" in OrderResponse.model_fields
+    # Kein zweiter Nachbau im Response-Aufbau: es wird die EINE Regel gefragt.
+    assert "process.is_paused(db, order)" in _inspect.getsource(orders_svc._fill_order_shortfall)
     for f in ("object_id", "status", "instance_count", "instance_object_ids"):
         assert f in OrderDeviationInfo.model_fields
 
@@ -767,24 +773,30 @@ def test_no_order_level_deviation_on_completed_order():
     assert "not data.instance_object_ids" in src and '!= "released"' in src
 
 
-def test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order():
-    """**Eine Abweichung hält den Auftrag nicht an – sie nimmt ihr Stück heraus.**
+def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
+    """**Eine Abweichung hält den Auftrag an – aber über die Fehlmenge, nicht daneben.**
 
-    Früher pausierte JEDE offene Abweichung den GANZEN Eltern-Auftrag: ein schlechtes von
-    fünf Stück legte die anderen vier still. Das war ein zweiter Mechanismus für etwas,
-    wofür es längst eine Sprache gibt – die **Unterdeckung**. Ein Stück in Klärung zählt
-    nicht mehr als gesichert, der Rest läuft weiter, und der Schritt, der das Subjekt
-    braucht, meldet die Fehlmenge. Der Schutz vor Teil-Versand bleibt: Verkauf und Versand
-    sind Subjekt-Schritte und sind bei einer Fehlmenge ohnehin blockiert."""
+    Beides ist wahr und das ist der Kern: der Eltern-Prozess ruht, solange eine Abweichung
+    offen ist (Testnotiz #354) – und trotzdem gibt es dafür KEINEN eigenen Mechanismus.
+    Die Abweichung nimmt ihr Stück heraus (``deviated_instance_ids``), daraus entsteht eine
+    Unterdeckung, und ein Auftrag mit offener Fehlmenge ruht (``is_paused``). Ein Ausschuss
+    oder eine weggenommene Reservierung erzeugen denselben Zustand über denselben Weg.
+
+    Darum bleiben der frühere Sonder-Zustand (``_is_paused_by_deviation``) und sein Wächter
+    an den Ausführungs-Endpunkten (``_assert_not_paused``) abgeschafft."""
     import inspect as _inspect
 
     from app.routers import orders
     from app.services import process
 
-    # Die Pause gibt es nicht mehr – weder als Regel noch als Wächter.
+    # Kein zweiter Mechanismus – weder als Regel noch als Wächter.
     assert not hasattr(process, "_is_paused_by_deviation")
     assert not hasattr(orders, "_assert_not_paused")
     assert "_assert_not_paused" not in _inspect.getsource(orders)
+    # Die Pause fragt die Fehlmenge, sonst nichts.
+    paused = _inspect.getsource(process.is_paused)
+    assert "_subject_shortfalls(db, order)" in paused
+    assert "deviation" not in paused.split('"""')[-1]
     # Stattdessen: in Klärung gebundene Instanzen zählen nicht als gesichert …
     short = _inspect.getsource(process._subject_shortfalls)
     assert "deviated_instance_ids" in short and "in_clarification" in short
@@ -793,8 +805,7 @@ def test_a_deviation_takes_its_instances_out_instead_of_pausing_the_order():
     # gemeldete Abweichung hängt an einem ganz anderen Auftrag und muss trotzdem zählen.
     assert "order_instances" in dev and "subject_of_order_id" in dev
     assert '"deviation"' in dev
-    # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben (der Auftrag darf
-    # jetzt abschliessen, während die Klärung noch läuft).
+    # … und werden vom Eltern-Auftrag auch nicht ans Lager freigegeben.
     assert "deviated_instance_ids" in _inspect.getsource(process.release_instances)
     # Abweichungs-Abschluss bewertet den Eltern-Auftrag neu
     rc = _inspect.getsource(process.recompute_completion)
@@ -2281,34 +2292,37 @@ def test_step_shortfall_exposes_stock_availability_for_recovery():
     assert "available_instances" in _inspect.getsource(orders._fill_order_shortfall)
 
 
-def test_a_shortfall_blocks_only_the_step_that_needs_it():
-    """Kein Auftrag wird mehr pauschal angehalten: was fehlt, blockiert **nur den Schritt,
-    der es weitergäbe** (``_step_blocked`` über ``EventType.hands_over``) – und die
-    Ausführungs-Endpunkte tragen keinen Pause-Wächter mehr. Der Schutz vor Teil-Versand
-    bleibt: der Verkauf blockiert bei Unterdeckung, und der Auftrag schliesst nicht ab,
-    solange etwas fehlt."""
+def test_a_shortfall_pauses_the_whole_order():
+    """**Ein Auftrag mit offener Fehlmenge ruht** – und zwar ganz (Testnotiz #354).
+
+    Der Pause-Wächter an den Ausführungs-Endpunkten (``_assert_not_paused``) bleibt
+    abgeschafft: es gibt nur EINEN Weg, einen Schritt anzuhalten, und der ist die Fehlmenge.
+    Solange sie offen ist, ist der aktive Schritt ``blocked``; wer nicht warten will,
+    beantwortet die Unterdeckungs-Frage (ersetzen / Menge reduzieren) und läuft weiter."""
     import inspect as _inspect
     from app.routers import orders
     from app.services import process
 
     assert "_assert_not_paused" not in _inspect.getsource(orders)
     blocked = _inspect.getsource(process._step_blocked)
-    assert "step_shortfalls(db, order, step)" in blocked and "hands_over" in blocked
-    # Die Subjekt-Liste sagt nur noch, wer eine Fehlmenge MELDET – nicht, wer daran hängt.
-    for t in ("movement", "sale", "inspection", "scrap"):
-        assert t in process.SUBJECT_STEP_TYPES
+    assert "is_paused(db, order)" in blocked
+    paused = _inspect.getsource(process.is_paused)
+    assert "_subject_shortfalls(db, order)" in paused and "open_provisioning" in paused
 
 
-def test_sale_is_a_subject_step_that_blocks_on_shortfall():
-    """Regression: ein Verkaufsauftrag muss auf eine ausgesteuerte/fehlende Fertigware
-    REAGIEREN – «sale» ist ein Subjekt-Schritt und blockiert bei Unterdeckung (vorher fiel
-    er durch, weil er weder Subjekt- noch Komponenten-Zweig traf → keine Reaktion)."""
+def test_the_subject_shortfall_is_type_agnostic():
+    """Regression (Verkauf, aber nicht nur er): dass ein Schritt auf die Fertigware wartet,
+    hängt NICHT an seinem Typ. ``step_shortfalls`` beginnt für **jeden** Typ mit der
+    Fehlmenge des Auftrags und legt nur den **eigenen** Material-Bedarf obendrauf –
+    weder eine Typ-Liste noch ein Registry-Flag entscheidet mit."""
     import inspect as _inspect
     from app.services import process
 
-    assert "sale" in process.SUBJECT_STEP_TYPES
+    assert not hasattr(process, "SUBJECT_STEP_TYPES")
     src = _inspect.getsource(process.step_shortfalls)
-    assert "SUBJECT_STEP_TYPES" in src
+    assert "_subject_shortfalls(db, order)" in src and "_component_shortfall(db, order, step)" in src
+    for literal in ("'sale'", '"sale"', "'movement'", '"movement"'):
+        assert literal not in src, "Schritttypen gehören nicht in die Fehlmengen-Regel"
 
 
 def test_sale_price_refreshes_from_article_when_added_after_release():
@@ -2881,9 +2895,12 @@ def test_open_provisioning_holds_the_whole_order():
     from app.services import orders as orders_svc, process, provisioning
     from app.schemas.order import OrderStepInfo
 
-    blocked = _inspect.getsource(process._step_blocked)
-    assert "open_provisioning(db, order)" in blocked
-    assert "open_provisioning(db, order, step.id)" not in blocked
+    # Die Bereitstellung hängt seit der Pause-Regel am **Auftrag** (``is_paused``), nicht
+    # am einzelnen Schritt – dieselbe Aussage, nur eine Ebene höher.
+    paused = _inspect.getsource(process.is_paused)
+    assert "open_provisioning(db, order)" in paused
+    assert "open_provisioning(db, order, step.id)" not in paused
+    assert "is_paused(db, order)" in _inspect.getsource(process._step_blocked)
 
     # Knoten-Daten je Schritt: alle Bereitstellungen + die Stufe (vor/nach).
     si = OrderStepInfo(step_type="purchase", position=1, label="x", state="done")
@@ -3212,31 +3229,68 @@ def test_step_status_semantics_live_in_the_registry():
     assert _fact_status("inspection", Fact(result="failed", resolved_by_order_id=7)) == "done"
 
 
-def test_a_shortfall_stops_handover_not_work():
-    """**Eine Fehlmenge hindert nicht an der Arbeit – sie hindert am Weitergeben.**
+def test_a_pick_never_mixes_free_and_bound_instances():
+    """**Kein Mischmasch** (Testnotiz #355): freie und gebundene Stücke gehören nicht in
+    denselben Auftrag – der freie Teil wäre ein gewöhnlicher Bedarf, der gebundene nimmt
+    einem laufenden Auftrag etwas weg. Dieselbe Regel und dieselbe Form wie beim
+    Verkauft/Lager-Mix, und beide Seiten lesen dieselbe Definition (``subject.is_bound``)."""
+    import inspect as _inspect
+    from app.routers import orders
+    from app.services import subject
 
-    Vorher blockierte sie fünf Schritttypen (``SUBJECT_STEP_TYPES``): eine Abweichung an
-    EINEM von fünf Teilen legte damit auch die Prüfung der anderen vier still – genau die
-    Pause, die abgeschafft werden sollte, nur unter anderem Namen. Aufgehalten wird jetzt
-    nur, wer die fehlende Menge sonst aus der Hand gäbe: der **Verkauf** (hinaus zum Kunden)
-    und die **Ressource** (hinein ins Produkt). Beides ist **deklariert**
-    (``EventType.hands_over``), nicht aufgezählt."""
+    assert hasattr(subject, "is_bound")
+    src = _inspect.getsource(orders._set_chosen_instances)
+    assert "subject.is_bound(order, i)" in src and "nicht gemischt" in src
+
+
+def test_a_refused_step_names_the_real_reason():
+    """Ruht der Auftrag, liegt es nicht an der Reihenfolge – dann sagt der 409 das auch.
+
+    «… ist (noch) nicht an der Reihe» stimmt zwar immer, hilft aber nicht weiter: der
+    Ausweg ist die Unterdeckungs-Frage, und die muss in der Meldung stehen."""
+    import inspect as _inspect
+    from app.services import process
+
+    src = _inspect.getsource(process._not_now)
+    assert "is_paused(db, order)" in src
+    for word in ("pausieren", "ersetzen", "reduzieren"):
+        assert word in src, word
+    assert "_not_now(db, order, label)" in _inspect.getsource(process.resolve_exec_step)
+
+
+def test_the_pause_has_no_mechanism_of_its_own():
+    """**Was einen Auftrag anhält, ist immer dasselbe: ihm fehlt etwas.**
+
+    Es gibt keinen zweiten Zustand «pausiert wegen Abweichung» neben «es fehlt etwas» – eine
+    offene Abweichung nimmt ihr Stück heraus (``deviated_instance_ids``) und erzeugt damit
+    genau diese Fehlmenge. Darum darf in der Pause-Regel kein Schritttyp und kein Flag
+    stehen: sie fragt die Fehlmenge, sonst nichts.
+
+    Zwischenzeitlich stand hier ``EventType.hands_over`` (nur Verkauf/Ressource blockieren).
+    Das Feld ist entfallen – ein Flag, das nur eine Blockade steuerte, die es so nicht mehr
+    gibt, wäre eine zweite Wahrheit im Katalog."""
     import ast
     import inspect as _inspect
     from app.domain import event_types
-    from app.services.process import _step_blocked
+    from app.services.process import _step_blocked, is_paused
 
-    hands_over = {k for k, et in event_types.REGISTRY.items() if et.hands_over}
-    assert hands_over == {"sale", "resource"}, hands_over
-    for key in ("inspection", "movement", "scrap", "block", "purchase", "document"):
-        assert not event_types.REGISTRY[key].hands_over, key
+    assert not hasattr(event_types.EventType, "hands_over")
+    assert not any("hands_over" in str(et) for et in event_types.REGISTRY.values())
 
-    src = ast.unparse(ast.parse(_inspect.getsource(_step_blocked)))
-    assert "hands_over" in src
+    # Nur der CODE zählt, nicht der Text: die Docstrings dürfen die abgeschaffte Regel
+    # ruhig erwähnen (sie erklären, warum es sie nicht mehr gibt).
+    def code(fn) -> str:
+        tree = ast.parse(_inspect.getsource(fn))
+        fn_node = tree.body[0]
+        if isinstance(fn_node.body[0], ast.Expr) and isinstance(fn_node.body[0].value, ast.Constant):
+            fn_node.body = fn_node.body[1:]
+        return ast.unparse(tree)
+
+    src = code(_step_blocked) + code(is_paused)
+    assert "hands_over" not in src
     for literal in ("'inspection'", "'movement'", "'scrap'", "'sale'"):
         assert literal not in src, (
-            f"{literal} gehört in die Registry, nicht in die Blockade-Regel – sonst ist die "
-            "Liste wieder da, die den Auftrag stillgelegt hat")
+            f"{literal} gehört nicht in die Pause-Regel – sonst ist die Typ-Liste wieder da")
 
 
 def test_no_order_completes_while_something_is_missing():
@@ -3360,7 +3414,9 @@ def test_an_order_and_a_deviation_order_are_the_same_thing():
         assert hasattr(subject, name), name
 
     pick = _inspect.getsource(subject.classify_pick)
-    assert '"sold"' in pick and "is_in_stock" in pick and "free_qty" in pick
+    assert '"sold"' in pick and "is_bound(order, i)" in pick
+    bound = _inspect.getsource(subject.is_bound)
+    assert "is_in_stock" in bound and "free_qty" in bound and "reserved_for" in bound
 
     # Die Prüfung der Auswahl kennt kein Vorab-Flag mehr – sie lässt jede aktive Instanz zu.
     # Über den AST geprüft, damit ein Kommentar über die FRÜHERE Regel nicht mitzählt.

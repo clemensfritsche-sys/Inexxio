@@ -781,25 +781,6 @@
 .ix-noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .ix-noscrollbar::-webkit-scrollbar { width: 0; height: 0; }
 
-/* ── Abweichung: seitlicher Ast an der Modul-Karte ────────────────────────────
-   Sie gehört zum Schritt, den sie unterbrochen hat – also auf dessen Höhe, aber
-   AUSSERHALB des Moduls (Notiz #178). Rechts daneben, verbunden durch ein kurzes
-   Aststück; wird der Platz knapp, rutscht sie unter die Karte. */
-.erp-devbranch {
-  position: absolute; left: 100%; top: 16px; padding-left: 22px;
-  display: flex; flex-direction: column; gap: 6px; z-index: 1;
-}
-.erp-devbranch::before {
-  content: ''; position: absolute; left: 0; top: 13px; width: 16px; height: 2px;
-  background: var(--border-2);
-}
-@media (max-width: 1180px) {
-  .erp-devbranch {
-    position: static; padding: 8px 0 0 26px; flex-direction: row; flex-wrap: wrap;
-  }
-  .erp-devbranch::before { display: none; }
-}
-
 /* ── Lieferung unterwegs: der Lastwagen fährt auf dem Fortschrittsbalken ──────
    Eine kleine, schlichte Freude an einer Stelle, an der man ohnehin wartet
    (Notiz #251). Er FÄHRT nicht von selbst – seine Position ist der echte

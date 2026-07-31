@@ -230,6 +230,15 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
             # ist EINE Instanz und FÜNF Stück.
             order.quantity = qty_sum(i.quantity for i in insts)
     elif kind == subject.PICK_DEVIATION:
+        # **Kein Mischmasch** (Testnotiz #355): freie und gebundene Stücke in EINEM Auftrag
+        # wären zwei Vorgänge in einem – der freie Teil wäre ein gewöhnlicher Bedarf, der
+        # gebundene nimmt einem laufenden Auftrag etwas weg. Dieselbe Regel und dieselbe
+        # Form wie beim Verkauft/Lager-Mix darüber; das Frontend blendet die jeweils andere
+        # Sorte aus, sobald die erste gewählt ist.
+        if any(not subject.is_bound(order, i) for i in insts):
+            raise HTTPException(
+                400, detail="Bitte entweder gebundene Instanzen (Abweichung) ODER freie Lager-Instanzen "
+                            "wählen – nicht gemischt")
         _make_deviation(db, order, insts, response, actor_id)
     else:
         _clear_return_marker(order)

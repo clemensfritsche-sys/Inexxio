@@ -367,9 +367,13 @@ class OrderResponse(BaseModel):
     steps: list[OrderStepInfo] = []
     # **Was diesem Auftrag fehlt** – Fertigware (``kind='subject'``) und/oder Material eines
     # Ressourcen-Schritts (``kind='component'``). EINE Aussage über den Auftrag, an EINER
-    # Stelle: sie blockiert nur, was die Menge weitergäbe (Verkauf/Ressource), verhindert
-    # aber IMMER den Abschluss – kein Auftrag geht «fertig», solange ihm etwas fehlt.
+    # Stelle – und kein Auftrag geht «fertig», solange etwas offen ist.
     shortfall: list[StepShortfall] = []
+    # **Ruht der Prozess?** – abgeleitet aus derselben Fehlmenge (``process.is_paused``),
+    # kein zweiter Zustand daneben. Fehlt dem Auftrag sein Subjekt (z. B. weil eine offene
+    # Abweichung ein Stück in Klärung hält) oder ist Material noch unterwegs, läuft KEIN
+    # Schritt weiter. Aufgelöst wird das über die drei Antworten der Unterdeckung.
+    paused: bool = False
     # Worauf der Auftrag **wartet**: offene Unter-Aufträge, die diese Fehlmenge bereits
     # binden – eine **Abweichung** (das Stück ist in Klärung) oder ein laufender **Nachschub**.
     # Solange etwas hier steht, ist die Entscheidung getroffen: die Oberfläche zeigt nur noch
