@@ -365,11 +365,16 @@ def deviated_quantities(db: Session, order: Order) -> dict[int, Decimal]:
     mine = [i for i in order_instances(db, order) if i.subject_of_order_id]
     if not mine:
         return {}
+    # **Nur eine FREIGEGEBENE Abweichung nimmt etwas heraus** (Testnotiz #370): ein Entwurf
+    # ist noch im Entstehen – Artikel, Menge und Instanzen können sich ändern. Er merkt vor
+    # (``reservation.claim``: für FIFO ist das Stück gesprochen), aber er nimmt dem laufenden
+    # Auftrag nichts weg und hält ihn nicht an. Das geschieht mit der Freigabe, und dort wird
+    # auch gefragt, wie es beim anderen weitergeht.
     open_devs = {
         r[0] for r in db.query(Order.id).filter(
             Order.id.in_({i.subject_of_order_id for i in mine}),
             Order.reason == "deviation", Order.is_active == True,
-            Order.status.in_(("draft", "released"))).all()
+            Order.status == "released").all()
     }
     # **Sich selbst zählt eine Abweichung nie.** Fragt die Abweichung nach ihren eigenen
     # «in Klärung» steckenden Stücken, sind das nicht ihre eigenen – sonst gäbe sie beim

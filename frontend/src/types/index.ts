@@ -285,6 +285,9 @@ export interface OrderLinePinsInput {
 export interface OrderInput extends OrderRecurrenceInput {
   article_id?: number | null;
   quantity?: number | null;
+  /** **Vorauswahl**, keine Fixierung: der Abkürzungs-Knopf an einer Instanz trägt sie gleich
+   *  ein – danach frei änderbar wie jede andere Auswahl (Notiz #371). */
+  instance_object_ids?: number[] | null;
   desired_delivery_date?: string | null;
 }
 

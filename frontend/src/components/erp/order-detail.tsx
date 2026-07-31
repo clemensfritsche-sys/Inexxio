@@ -386,12 +386,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
       ? (isMultiPosition ? 'Erst für jede Position die passenden Instanzen wählen' : `Erst genau ${reqQty} Instanz(en) wählen`)
       : 'Erst Artikel und Menge speichern');
 
-  // Greift die Auswahl auf Instanzen zu, die ein LAUFENDER Auftrag in der Hand hat, will
-  // dessen Unterdeckung beantwortet sein, bevor die Abweichung steht. Das Backend fragt
-  // danach (409); hier steht die Frage, bis sie beantwortet ist.
-  const [pendingPick, setPendingPick] = useState<
-    { line: PinLine; ids: number[]; text: string; quantities?: Record<string, number> } | null>(null);
-
+  // **Die Auswahl fragt nichts mehr** (Notiz #370): ein Entwurf nimmt niemandem etwas weg –
+  // er merkt nur vor. Die Frage «was geschieht mit dem laufenden Auftrag?» steht bei der
+  // **Freigabe** (siehe ``changeStatus``), wo die Auswahl feststeht.
   async function setLinePins(line: PinLine, ids: number[], answer?: ShortfallAnswer,
                              quantities?: Record<string, number>) {
     if (!record) return;
@@ -403,13 +400,9 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
             instance_object_ids: ids, instance_quantities: quantities,
             shortfall_response: answer, expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
-      setPendingPick(null);
       onSaved(saved);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen';
-      // Der Server nennt die betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
-      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingPick({ line, ids, text: msg, quantities });
-      else setError(msg);
+      setError(e instanceof Error ? e.message : 'Fehler beim Festlegen der Instanzen');
     }
   }
 
@@ -480,22 +473,34 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
     if (next) setSelStep(String(next.id));
   }
 
-  async function changeStatus(target: string) {
+  async function changeStatus(target: string, answer?: ShortfallAnswer) {
     if (!record) return;
     setStatusBusy(true);
     setError(null);
     try {
       const saved = await api.updateOrder(record.object_id as number,
-        { status: target as Order['status'], expected_updated_at: verRef.current });
+        { status: target as Order['status'], shortfall_response: answer,
+          expected_updated_at: verRef.current });
       verRef.current = saved.updated_at;
+      setPendingRelease(null);
       onSaved(saved);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen');
-      if (isVersionConflict(e)) await resyncVersion();
+      const msg = e instanceof Error ? e.message : 'Statuswechsel fehlgeschlagen';
+      // **Die Frage kommt bei der Freigabe** (Notiz #370): Erst hier steht die Auswahl fest
+      // und nimmt einem laufenden Auftrag wirklich etwas weg. Der Server nennt die
+      // betroffenen Aufträge – die Frage stellen statt sie wegzuwerfen.
+      if (msg.includes('in Arbeit') && msg.includes('warten')) setPendingRelease({ target, text: msg });
+      else {
+        setError(msg);
+        if (isVersionConflict(e)) await resyncVersion();
+      }
     } finally {
       setStatusBusy(false);
     }
   }
+
+  // Offene Unterdeckungs-Frage zur **Freigabe** (nicht mehr zur Auswahl).
+  const [pendingRelease, setPendingRelease] = useState<{ target: string; text: string } | null>(null);
 
   function onStatusAction(target: string) {
     changeStatus(target);
@@ -667,9 +672,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                       onRemove={orderLines.length > 1 ? () => removePosition(l.id) : undefined}
                       source={line ? lineSource(line) : 'stock'}
                       onSource={(s) => line && setLineSource(line, s)}
-                      onToggle={togglePin} pending={pendingPick}
-                      onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a, pendingPick.quantities)}
-                      onCancel={() => setPendingPick(null)} />
+                      onToggle={togglePin} />
                   );
                 })
               ) : (
@@ -680,9 +683,7 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
                   qtyInput={<TextFieldUnit label="Menge" value={form.quantity} onChange={(v) => set('quantity', v)} unit={qtyUnit} required placeholder="z. B. 5" />}
                   qty={form.quantity}
                   source={goal} onSource={(s) => pickGoal(s)} onToggle={togglePin}
-                  pending={pendingPick}
-                  onAnswer={(a) => pendingPick && setLinePins(pendingPick.line, pendingPick.ids, a, pendingPick.quantities)}
-                  onCancel={() => setPendingPick(null)} />
+                  />
               )}
 
               {isCreate && releasedArticles.length === 0 && (
@@ -905,6 +906,14 @@ export function OrderDetail({ record, articles, viewerRole, company, suppliers =
           als Aktion neben dem Status. */}
 
 
+      {/* **Die Unterdeckungs-Frage zur Freigabe** (Notiz #370) – dasselbe Fenster wie am
+          laufenden Auftrag, nur zu dem Zeitpunkt, an dem die Auswahl feststeht. */}
+      {pendingRelease && (
+        <ShortfallDialog text={pendingRelease.text} busy={statusBusy}
+          onAnswer={(a) => changeStatus(pendingRelease.target, a)}
+          onClose={() => setPendingRelease(null)} />
+      )}
+
       {dialog === 'skip-provisioning' && record && (
         <DeactivateDialog
           mode="deactivate"
@@ -1080,7 +1089,7 @@ export const linkBtn: React.CSSProperties = {
  */
 function PositionRow({
   line, unit, title, articleObjectId, qty, source, onSource, onToggle, onRemove,
-  canProduce, produceHint, articleSelect, qtyInput, pending, onAnswer, onCancel,
+  canProduce, produceHint, articleSelect, qtyInput,
 }: {
   line?: PinLine;
   unit: string;
@@ -1091,10 +1100,6 @@ function PositionRow({
   onSource: (s: OrderGoal) => void;
   onToggle: (line: PinLine, oid: number, qty: number, qtyOnly?: boolean) => void;
   onRemove?: () => void;
-  /** Offene Unterdeckungs-Frage zu dieser Position (Auswahl greift auf gebundene Instanzen). */
-  pending?: { line: PinLine; ids: number[]; text: string; quantities?: Record<string, number> } | null;
-  onAnswer?: (a: ShortfallAnswer) => void;
-  onCancel?: () => void;
   canProduce: boolean;
   produceHint?: string;
   /** Anker-Position (Einzel-Artikel): Artikel/Menge sind hier noch editierbar. */
@@ -1159,12 +1164,6 @@ function PositionRow({
           />
 
           {source === 'specific' && <PinPicker line={line} onToggle={onToggle} bare />}
-          {pending?.line.key === line.key && (
-            // **Die Frage kommt sofort** – nicht irgendwann später am Eltern-Auftrag: wer
-            // ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben Zug,
-            // wie es dort weitergeht. Dasselbe Fenster wie am laufenden Auftrag (#352).
-            <ShortfallDialog text={pending.text} onAnswer={(a) => onAnswer?.(a)} onClose={() => onCancel?.()} />
-          )}
 
           {/* Ergebnis in einer Zeile – kein Banner, kein Absatz. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-3)' }}>
@@ -1231,6 +1230,38 @@ function SourceSwitch({ value, onChange, options }: {
 // Instanz-Auswahl (Chips) für EINE Position – geteilt von Einzel-Artikel- und
 // Mehrpositionen-Auftrag (dieselbe Optik). ``bare`` lässt den äusseren Karten-Rahmen weg
 // (die Position bringt ihn schon mit).
+/**
+ * Die beanspruchte **Menge** einer gewählten Instanz – im Chip, direkt neben der Nummer.
+ *
+ * Zwei Dinge, die vorher fehlten und zusammen eine unverständliche Fehlermeldung ergaben
+ * (Testnotiz #373): Getippt wird in ein Feld, das bereits eine Zahl enthält – wer in «2»
+ * hineinschreibt, erzeugt für einen Moment «21». Ging das direkt an den Server, antwortete
+ * er «Instanz … hat nur 2 – mehr lässt sich nicht wählen», obwohl niemand 21 wollte.
+ *
+ * Darum: die Eingabe lebt lokal, wird auf das **Machbare gekappt** und erst beim Verlassen
+ * (bzw. mit Enter) übernommen. Der Server prüft weiterhin – aber als Netz, nicht als
+ * Frühwarnung bei jedem Tastendruck.
+ */
+function QtyChip({ value, max, tone, label, onCommit }: {
+  value: number; max: number; tone: string; label: string; onCommit: (v: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? String(value);
+  function commit() {
+    const v = Math.min(max, Number(draft ?? shown) || 0);
+    setDraft(null);
+    if (v > 0 && v !== value) onCommit(v);
+  }
+  return (
+    <input value={shown} onChange={(e) => setDraft(numericOnly(e.target.value))}
+      onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      {...numericInputProps} aria-label={label}
+      style={{ width: 46, textAlign: 'center', border: `1px solid ${tone}`,
+        borderRadius: 999, background: '#fff', color: tone, font: 'inherit',
+        padding: '1px 4px', outline: 'none' }} />
+  );
+}
+
 function PinPicker({ line, onToggle, bare }: {
   line: PinLine;
   /** Auswahl umschalten bzw. – mit ``qtyOnly`` – nur die beanspruchte Menge ändern. */
@@ -1310,12 +1341,9 @@ function PinPicker({ line, onToggle, bare }: {
                 {/* Die Menge steht IM Chip – gewählt als Feld, sonst als blosse Angabe.
                     Bei einer Instanz mit Menge 1 gibt es nichts zu entscheiden. */}
                 {sel && have > 1 ? (
-                  <input value={String(line.wanted[oid] ?? have)}
-                    onChange={(e) => onToggle(line, oid, Number(numericOnly(e.target.value)) || 0, true)}
-                    {...numericInputProps} aria-label={`Menge von ${fmtObjId(oid)}`}
-                    style={{ width: 46, textAlign: 'center', border: `1px solid ${cfg.tone}`,
-                      borderRadius: 999, background: '#fff', color: cfg.tone, font: 'inherit',
-                      padding: '1px 4px', outline: 'none' }} />
+                  <QtyChip value={line.wanted[oid] ?? have} max={have} tone={cfg.tone}
+                    label={`Menge von ${fmtObjId(oid)}`}
+                    onCommit={(v) => onToggle(line, oid, v, true)} />
                 ) : (
                   <span style={{ paddingRight: 6, opacity: 0.75 }}>·{have}</span>
                 )}

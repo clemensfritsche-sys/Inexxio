@@ -31,11 +31,11 @@ import { Connector, FlowTerm, STEP_MAXW, kindColor } from '@/components/erp/proc
 // eingerückt – ein Unter-Auftrag ist kein Modul dieses Prozesses, sondern ein eigener Auftrag,
 // der hier hineinragt; ein Klick öffnet ihn.
 //
-// Vorher waren das drei Darstellungen für dieselbe Sache: die Bereitstellung als vollwertige
-// Karte im Fluss, die Abweichung als Pille SEITLICH neben der Karte (`.erp-devbranch`, auf
-// breiten Schirmen rechts, auf schmalen darunter) und die Abweichung ohne Ursprungsschritt als
-// eingerückter Abzweig davor. Eine Pille am Rand liest sich zudem als Randnotiz – dabei ist
-// eine offene Abweichung der Grund, warum der ganze Prozess ruht.
+// **Und die Reihenfolge sagt, in welchem Verhältnis er zum Schritt steht** (Notiz #372): was
+// den Schritt AUFHÄLT, steht VOR ihm (Abweichung, Nachschub – erst das hier, dann dieser
+// Schritt); was aus ihm FOLGT, danach (Bereitstellung: die Ware kommt an, nachdem bestellt
+// wurde). Vorher stand alles darunter – also nach einem Schritt, den man womöglich noch gar
+// nicht begonnen hatte, und das las sich als «danach passiert».
 //
 // Ein Unter-Auftrag OHNE Ursprungsschritt (an der Instanz gemeldet, oder bevor ein Schritt
 // aktiv war) gehört keinem Schritt – er gehört dem Auftrag und steht am Anfang des Flusses.
@@ -91,13 +91,21 @@ export function OrderFlow({ steps, deviations = [], waitingFor = [], missing, se
         {selected && renderPanel?.(s)}
       </FlowCard>
     );
-    // Position der Bereitstellung: vor der Ausführung (Ressource) oder danach
-    // (Beschaffung/Verkauf) – die Regel steht im Backend, hier wird nur platziert.
+    // **Was den Schritt AUFHÄLT, steht VOR ihm; was aus ihm FOLGT, danach** (Notiz #372).
+    //
+    // Eine Abweichung und ein Nachschub sind Hindernisse: solange sie offen sind, kann der
+    // Schritt nicht laufen – von oben nach unten gelesen heisst das «erst das hier, dann
+    // dieser Schritt». Vorher standen sie darunter, also nach einem Schritt, den man noch
+    // gar nicht begonnen hatte; das las sich als «danach passiert» und war schlicht falsch.
+    //
+    // Die **Bereitstellung** ist das Gegenstück: sie folgt aus dem Schritt (die Ware kommt
+    // an, nachdem bestellt wurde) – ausser bei der Ressource, wo das Material vorher da sein
+    // muss. Diese Regel steht im Backend (``provisioning._STAGE_BEFORE``); hier wird nur
+    // platziert.
+    const blocking = (s.deviations ?? []).map(subCard);
     const prov = (s.provisionings ?? []).map(subCard);
-    if (s.provisioning_stage === 'before') rows.push(...prov, card);
-    else rows.push(card, ...prov);
-    // Was diesen Schritt unterbrochen hat bzw. seinen Bedarf deckt, steht direkt darunter.
-    rows.push(...(s.deviations ?? []).map(subCard));
+    if (s.provisioning_stage === 'before') rows.push(...prov, ...blocking, card);
+    else rows.push(...blocking, card, ...prov);
   }
 
   return (

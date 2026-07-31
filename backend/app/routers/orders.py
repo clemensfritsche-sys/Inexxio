@@ -12,7 +12,7 @@ from ..schemas.inspection import InspectionUpdate
 from ..schemas.movement import MovementUpdate
 from ..schemas.shipment import ShipmentBuyRequest, ShipmentQuoteRequest, ShipmentUpdate
 from ..schemas.order import (
-    OrderCoverStock, OrderCreate, OrderDeviationCreate, OrderLineCreate, OrderLinePins,
+    OrderCoverStock, OrderCreate, OrderLineCreate, OrderLinePins,
     OrderResponse, OrderSummary, OrderUpdate,
 )
 from ..schemas.purchase_order import PurchaseOrderUpdate
@@ -120,9 +120,16 @@ def _wanted_quantities(insts: list[Instance], raw: dict[str, float] | None) -> d
     return out
 
 
-def _clear_return_marker(order: Order) -> None:
-    """Retoure-Markierung wieder aufheben (wenn die Auswahl auf Lager-Instanzen zurückgeht)."""
-    if order.reason == "return":
+def _clear_derived_marker(order: Order) -> None:
+    """Das aus der Auswahl **abgeleitete** Tag wieder aufheben.
+
+    Abweichung und Retoure sind keine Eigenschaften, die man setzt, sondern Folgen der
+    Auswahl – also müssen sie auch wieder verschwinden, wenn die Auswahl sich ändert. Wer
+    eine gebundene Instanz gegen eine freie tauscht, hat danach einen gewöhnlichen Auftrag.
+    Vorher galt das nur für die Retoure; das Abweichungs-Tag blieb kleben (Praxis-Durchlauf
+    zu Testnotiz #371). Systemseitige Gründe (Nachschub/Bereitstellung) bleiben unberührt –
+    sie stammen nicht aus einer Instanz-Auswahl."""
+    if order.reason in ("return", "deviation"):
         order.reason = None
         order.parent_order_id = None
 
@@ -133,29 +140,22 @@ SHORTFALL_ANSWERS = ("wait", "replace", "accept")
 
 
 def _make_deviation(db: Session, order: Order, insts: list[Instance],
-                    wanted: dict[int, Decimal], response: str | None,
-                    actor_id: int | None) -> None:
-    """Die Auswahl greift auf **gebundene** Instanzen zu – damit ist dieser Auftrag eine
-    **Abweichung**, und der Eltern-Auftrag wird sie los.
+                    wanted: dict[int, Decimal]) -> None:
+    """Die Auswahl greift auf **gebundene** Instanzen zu – damit trägt dieser Auftrag das
+    Tag «Abweichung». Mehr passiert hier nicht.
 
     Zwei Dinge werden **abgeleitet**, nicht eingegeben:
 
+    * **Das Tag** ``reason='deviation'`` – siehe ``subject.classify_pick``.
     * **Der Eltern-Auftrag** ist der, der das Stück gerade in der Hand hat
       (``subject.holding_order``). Läuft keiner mehr (späte Reklamation an fertiger Ware),
       steht die Abweichung allein – das ist erlaubt und braucht keinen Eltern.
-    * **Das Tag** ``reason='deviation'`` – siehe ``subject.classify_pick``.
 
-    **Und eine Frage MUSS jetzt beantwortet werden.** Nimmt die Abweichung einem LAUFENDEN
-    Auftrag sein Stück weg, entsteht dort im selben Moment eine Unterdeckung. Sie
-    stillschweigend offen zu lassen hiesse, den Eltern-Auftrag ohne Entscheidung hängen zu
-    lassen; darum wird hier gefragt – mit denselben drei Antworten wie am laufenden Auftrag:
-
-        wait     – warten: die Fehlmenge bleibt offen, der Eltern wird nicht fertig
-        replace  – ersetzen: freier Lagerbestand, für den Rest ein Nachschub
-        accept   – ohne Ersatz weiter: das Soll sinkt auf das Gesicherte
-
-    So gibt es keinen Zwischenzustand «Abweichung angelegt, aber niemand weiss, was mit dem
-    Eltern geschieht» – die Pause dauert genau so lange wie die Eingabe."""
+    **Und der Eltern merkt davon noch nichts** (Testnotiz #370). Ein Entwurf nimmt niemandem
+    etwas weg: die Auswahl wird nur **vorgemerkt** (``reservation.claim``, ohne fremde
+    Ansprüche anzutasten). Die Frage «was geschieht mit dem laufenden Auftrag?» stellt sich
+    erst bei der **Freigabe** – bis dahin lassen sich Artikel, Menge und Instanzen ja noch
+    ändern, und eine jetzt getroffene Entscheidung könnte gleich wieder falsch sein."""
     order.reason = "deviation"
     # Menge = das, worauf die Abweichung tatsächlich wirkt (Summe der beanspruchten
     # Teilmengen) – bei einem Stück aus einer 500er-Charge also 1, nicht 500.
@@ -165,31 +165,30 @@ def _make_deviation(db: Session, order: Order, insts: list[Instance],
     # Eltern = wer das Stück hält. Mehrere Halter → der erste (die übrigen stehen über die
     # Instanz-Klammer ohnehin im Bild, ``deviation.deviations_touching``).
     order.parent_order_id = holders[0].object_id if holders else None
-    if not holders:
-        return
-    _assert_answered(response, holders)
-    # Bindung UND Anspruch ZUERST setzen, damit die Unterdeckung des Eltern sichtbar ist,
-    # wenn die gewählte Antwort darauf reagiert: ``claim`` kürzt seine Reservierung um genau
-    # die entzogene Menge – daraus entsteht die Fehlmenge, ohne zweite Buchführung.
-    for i in insts:
-        i.subject_of_order_id = order.id
-        claim(i, order.id, wanted[i.object_id])
-    db.flush()
-    _apply_shortfall_answer(db, holders, response, actor_id, into=order)
 
 
 def _holders_of(db: Session, insts: list[Instance], order: Order | None) -> list[Order]:
-    """Die LAUFENDEN Aufträge, die diese Instanzen gerade in der Hand haben."""
+    """Die LAUFENDEN Aufträge, die diese Instanzen gerade in der Hand haben – **alle**,
+    nicht nur der erste je Instanz: eine Charge kann mehrere Auftraggeber haben, und jeder
+    von ihnen verliert bei der Freigabe etwas."""
     out: list[Order] = []
+    seen: set[int] = set()
     for i in insts:
-        h = subject.holding_order(db, i)
-        if h is not None and (order is None or h.id != order.id) and h.id not in {x.id for x in out}:
-            out.append(h)
+        for h in subject.holding_orders(db, i, exclude_id=order.id if order else None):
+            if h.id not in seen:
+                seen.add(h.id)
+                out.append(h)
     return out
 
 
 def _assert_answered(response: str | None, holders: list[Order]) -> None:
-    """Ohne Entscheid geht es nicht weiter – die Frage stellt sich JETZT, nicht später."""
+    """Ohne Entscheid geht es nicht weiter – gefragt wird bei der **Freigabe**.
+
+    Vorher stand die Frage schon beim Auswählen. Das war zu früh (Testnotiz #370): danach
+    definiert man den Auftrag ja erst fertig – Artikel, Menge und Instanzen können sich
+    noch ändern, und die Entscheidung über den anderen Auftrag wäre womöglich gleich wieder
+    falsch. Mit der Freigabe steht die Auswahl fest, und im selben Moment wird der Zugriff
+    scharf (``reservation.enforce``) – erst dort verliert der andere Auftrag wirklich etwas."""
     if response in SHORTFALL_ANSWERS:
         return
     raise HTTPException(
@@ -199,6 +198,32 @@ def _assert_answered(response: str | None, holders: list[Order]) -> None:
                + " verliert sie dadurch. Bitte entscheiden, wie es dort weitergeht: "
                  "warten · ersetzen · ohne Ersatz weiter.",
     )
+
+
+def _enforce_claims(db: Session, order: Order, response: str | None,
+                    actor_id: int | None) -> list[Order]:
+    """Die vorgemerkte Auswahl **scharf machen** – der Moment der Freigabe.
+
+    Bis hierhin hat der Entwurf nur beansprucht (``reservation.claim``), ohne jemandem etwas
+    wegzunehmen. Gleich setzt sich der Anspruch durch (``reservation.enforce``, in der
+    Freigabe selbst – damit auch die systemseitig angelegte Abweichung scharf wird): wer
+    dadurch zu viel hätte, verliert entsprechend, und **genau daraus** entsteht seine
+    Unterdeckung. Hier wird nur **gefragt**, solange sich noch etwas ändern liesse.
+
+    Vorher stand die Frage schon beim Auswählen; das war zu früh, weil sich Artikel, Menge
+    und Instanzen danach noch ändern konnten (Testnotiz #370). Liefert die betroffenen
+    laufenden Aufträge, damit die gewählte Antwort nach der Freigabe auf sie wirken kann."""
+    # **Erst schreiben lassen, dann lesen.** Die Session läuft mit ``autoflush=False``; kommen
+    # Auswahl und Freigabe in EINEM Aufruf, stünde die eben gesetzte Bindung sonst noch nicht
+    # in der Datenbank – die Abfrage fände nichts und die Frage bliebe still aus.
+    db.flush()
+    picked = subject.chosen_subjects(db, order)
+    if not picked:
+        return []
+    holders = _holders_of(db, picked, order)
+    if holders:
+        _assert_answered(response, holders)
+    return holders
 
 
 def _apply_shortfall_answer(db: Session, holders: list[Order], response: str | None,
@@ -250,7 +275,7 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
         prev.subject_of_order_id = None
         release_reservation(prev, order.id)
     if not object_ids:
-        _clear_return_marker(order)
+        _clear_derived_marker(order)
         return
     insts = _validate_pins(db, order, object_ids)
     wanted = _wanted_quantities(insts, quantities)
@@ -281,9 +306,9 @@ def _set_chosen_instances(db: Session, order: Order, object_ids: list[int],
             raise HTTPException(
                 400, detail="Bitte entweder gebundene Instanzen (Abweichung) ODER freie Lager-Instanzen "
                             "wählen – nicht gemischt")
-        _make_deviation(db, order, insts, wanted, response, actor_id)
+        _make_deviation(db, order, insts, wanted)
     else:
-        _clear_return_marker(order)
+        _clear_derived_marker(order)
         pinned_qty = qty_sum(wanted.values())
         if order.quantity and pinned_qty > order.quantity:
             raise HTTPException(
@@ -376,6 +401,12 @@ async def create_order(
     order.quantity = data.quantity
     db.add(order)
     db.flush()
+    # **Vorauswahl statt Fixierung** (Testnotiz #371): kommt der Auftrag über den Abkürzungs-
+    # Knopf einer Instanz, ist sie hier schon eingetragen – wie von Hand gewählt, danach frei
+    # änderbar. Es gibt damit EINEN Weg, einen Auftrag anzulegen; ob daraus eine Abweichung
+    # wird, sagt die Auswahl (``subject.classify_pick``), nicht der Einstieg.
+    if data.instance_object_ids:
+        _set_chosen_instances(db, order, data.instance_object_ids, None, current_user.id)
     log_audit(db, "orders", None, "Auftrag angelegt",
               current_user.id, object_id=order.object_id)
     db.commit()
@@ -666,6 +697,12 @@ async def update_order(
     #             (FIFO ab Lager, optional durch fixierte Instanzen ergänzt).
     if wants_release:
         _assert_releasable(db, order)
+        # **Jetzt – und erst jetzt – wird der Zugriff scharf** (Testnotiz #370). Bis hierhin
+        # war die Instanz-Auswahl eine Vormerkung, die niemandem etwas wegnahm; mit der
+        # Freigabe steht sie fest. Nimmt sie einem LAUFENDEN Auftrag sein Stück weg, will
+        # dessen Unterdeckung im selben Zug beantwortet sein – sonst bliebe er ohne
+        # Entscheidung hängen.
+        holders = _enforce_claims(db, order, answer, current_user.id)
         # Einheitliche Freigabe (setzt draft → released selbst): Subjekt herstellen (Fehlmenge ist
         # KEIN Fehler – der Schritt wird «blockiert» und über «Nachschub anlegen» gedeckt),
         # Beschaffung/Verkauf instanziieren, Komponenten reservieren, Abbruch-Folgeauftrag wirksam
@@ -673,6 +710,9 @@ async def update_order(
         release_order(db, order, current_user.id)
         log_audit(db, "orders", "status", "released", current_user.id,
                   object_id=order.object_id, old_value="draft")
+        # Die Antwort NACH der Freigabe anwenden: erst dort ist die Fehlmenge des anderen
+        # Auftrags real, und «ersetzen»/«Menge reduzieren» rechnen mit dem echten Stand.
+        _apply_shortfall_answer(db, holders, answer, current_user.id, into=order)
 
     # Ein freigegebener Auftrag wird NICHT direkt inaktiv gesetzt – der Abbruch läuft über
     # «Abbrechen» (POST /abort), das einen Folgeauftrag erzwingt (keine herrenlosen Teile).
@@ -786,59 +826,6 @@ async def revoke_followup(
     target = parent or followup
     db.refresh(target)
     return to_order_response(db, target)
-
-
-@router.post("/{object_id}/deviation", response_model=OrderResponse)
-async def open_deviation(
-    object_id: int,
-    data: OrderDeviationCreate,
-    db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_employee),
-):
-    """**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN
-    Konzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an
-    (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
-
-    **Abkürzung, kein zweiter Weg**: dasselbe geschieht, wenn man einen Auftrag anlegt und
-    dort gebundene Instanzen auswählt (``_set_chosen_instances`` → ``classify_pick``). Der
-    Knopf an der Instanz nimmt einem nur die erste Auswahl ab.
-
-    Ohne Instanz-Auswahl sind ALLE Instanzen des Auftrags betroffen – dem Eltern bleibt dann
-    nichts, und «Auftragsmenge reduzieren» IST damit sein Abbruch (``recovery.confirm_quantity``).
-    Es braucht dafür keinen eigenen Schalter mehr; ``abort_parent`` ist entfallen (Notiz #366).
-    Liefert die neue Abweichung zurück (man definiert dort die Auflösung)."""
-    parent = _get_staff_order(db, object_id)
-    if not data.instance_object_ids:
-        # Auf Auftragsebene wirkt sie auf alles – das geht nur, solange der Prozess läuft.
-        if parent.status != "released":
-            raise HTTPException(400, detail="Auf Auftragsebene lässt sich eine Abweichung nur an einem laufenden Auftrag melden")
-    elif parent.status not in ("released", "completed"):
-        # **Instanz-Ebene**: auch nach Abschluss möglich (z. B. spätere Reklamation eines Teils).
-        raise HTTPException(400, detail="Abweichungen lassen sich nur an einem laufenden/abgeschlossenen Auftrag eröffnen")
-    # **Derselbe Entscheid wie bei der Auswahl im Auftrag** (``_make_deviation``): nimmt die
-    # Abweichung einem laufenden Auftrag sein Stück weg, wird JETZT entschieden, wie es dort
-    # weitergeht – der Instanz-Knopf ist nur eine Abkürzung auf denselben Weg, keine
-    # zweite Regel. (Systemseitig angelegte Abweichungen – Auto-Abweichung nach
-    # Datenerfassung, Artikel-Deaktivierung – gehen direkt über den Service und lassen die
-    # Fehlmenge offen: dort entscheidet später ein Mensch am Auftrag.)
-    picked = (
-        db.query(Instance).filter(
-            Instance.object_id.in_(data.instance_object_ids), Instance.is_active == True).all()
-        if data.instance_object_ids
-        else subject.order_active_instances(db, parent)
-    )
-    wanted = _wanted_quantities(picked, data.instance_quantities)
-    # VOR dem Binden erfassen – danach hält die Abweichung die Stücke selbst.
-    holders = _holders_of(db, picked, None)
-    if holders:
-        _assert_answered(data.shortfall_response, holders)
-    devi = deviation.create_deviation(
-        db, parent, data.instance_object_ids, current_user.id, quantities=wanted)
-    db.flush()
-    _apply_shortfall_answer(db, holders, data.shortfall_response, current_user.id, into=devi)
-    db.commit()
-    db.refresh(devi)
-    return to_order_response(db, devi)
 
 
 @router.post("/{object_id}/cover", response_model=OrderResponse)

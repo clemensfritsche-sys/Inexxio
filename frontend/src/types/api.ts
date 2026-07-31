@@ -1084,37 +1084,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/erp/orders/{object_id}/deviation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Open Deviation
-         * @description **Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN
-         *     Konzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an
-         *     (Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).
-         *
-         *     **Abkürzung, kein zweiter Weg**: dasselbe geschieht, wenn man einen Auftrag anlegt und
-         *     dort gebundene Instanzen auswählt (``_set_chosen_instances`` → ``classify_pick``). Der
-         *     Knopf an der Instanz nimmt einem nur die erste Auswahl ab.
-         *
-         *     Ohne Instanz-Auswahl sind ALLE Instanzen des Auftrags betroffen – dem Eltern bleibt dann
-         *     nichts, und «Auftragsmenge reduzieren» IST damit sein Abbruch (``recovery.confirm_quantity``).
-         *     Es braucht dafür keinen eigenen Schalter mehr; ``abort_parent`` ist entfallen (Notiz #366).
-         *     Liefert die neue Abweichung zurück (man definiert dort die Auflösung).
-         */
-        post: operations["open_deviation_api_v1_erp_orders__object_id__deviation_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/erp/orders/{object_id}/cover": {
         parameters: {
             query?: never;
@@ -4235,6 +4204,8 @@ export interface components {
             article_id: number;
             /** Quantity */
             quantity: number;
+            /** Instance Object Ids */
+            instance_object_ids?: number[] | null;
             /** Desired Delivery Date */
             desired_delivery_date?: string | null;
             /** Recurrence Active */
@@ -4245,25 +4216,6 @@ export interface components {
             recurrence_lead_time_days?: number | null;
             /** Recurrence Anchor */
             recurrence_anchor?: string | null;
-        };
-        /**
-         * OrderDeviationCreate
-         * @description «Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
-         *     Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
-         *
-         *     **Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach
-         *     weiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts
-         *     übrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage.
-         */
-        OrderDeviationCreate: {
-            /** Instance Object Ids */
-            instance_object_ids?: number[] | null;
-            /** Instance Quantities */
-            instance_quantities?: {
-                [key: string]: number;
-            } | null;
-            /** Shortfall Response */
-            shortfall_response?: string | null;
         };
         /**
          * OrderDeviationInfo
@@ -8003,41 +7955,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OrderResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    open_deviation_api_v1_erp_orders__object_id__deviation_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                object_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OrderDeviationCreate"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {

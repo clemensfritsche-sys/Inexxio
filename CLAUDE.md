@@ -2911,6 +2911,54 @@ Phase: 1 | Deployment: develop → https://inexxio-dev.web.app
   `test_a_company_can_be_closed_but_never_reopened`, `test_abort_is_a_deed_not_a_request`,
   `test_the_order_level_deviation_is_the_abort`.
 
+- **Testnotizen-Runde 26 (der Entwurf nimmt niemandem etwas weg, Notizen #369–#373)**:
+  (1) **Ein Entwurf merkt vor, die Freigabe wird scharf** (#370, `reservation.claim` /
+  `enforce`): Die Unterdeckungs-Frage stand beim **Auswählen** – zu früh, denn danach
+  definiert man den Auftrag ja erst fertig (Artikel, Menge, Instanzen können sich noch
+  ändern), und die Entscheidung über den anderen Auftrag wäre womöglich gleich wieder
+  falsch. Jetzt sind es drei Formen derselben Sache, klar nach ihrem Moment getrennt:
+  `reserve` **addiert** (FIFO füllt auf) · `claim` **setzt** (der Mensch wählt, ohne
+  jemandem etwas wegzunehmen – die Summe darf die Instanz-Menge übersteigen, `free_qty`
+  fällt auf 0, für FIFO ist das Stück gesprochen) · `enforce` **setzt sich durch** (bei der
+  Freigabe: wer dadurch zu viel hätte, verliert entsprechend – **daraus** entsteht die
+  Unterdeckung). Gefragt wird dort, wo es weh tut: `_enforce_claims` an der Freigabe;
+  `enforce` selbst sitzt in `subject._bind_deviation_subjects`/`_allocate_stock_for`, damit
+  auch die **systemseitige** Abweichung (fehlgeschlagene Datenerfassung, Artikel-
+  Deaktivierung) scharf wird und nicht nur der Weg über den Router. Folgerichtig zählt für
+  `deviated_quantities` nur noch eine **freigegebene** Abweichung.
+  (2) **EIN Weg, einen Auftrag anzulegen** (#371): Der Sonder-Endpunkt
+  `POST /orders/{id}/deviation` samt `OrderDeviationCreate` ist entfallen. Der
+  Abkürzungs-Knopf an einer Instanz legt einen **ganz gewöhnlichen** Auftrag an und trägt
+  die Instanz nur **vor** (`OrderCreate.instance_object_ids`) – Eingabehilfe, keine
+  Fixierung: abwählen, ersetzen, ergänzen geht wie überall, und **das Tag folgt mit**
+  (`_clear_derived_marker` – vorher blieb «Abweichung» kleben, wenn man auf eine freie
+  Instanz wechselte). Damit ist auch der zweite Knopf «Abweichung melden» an der Instanz
+  entfallen: es gibt einen Knopf, und was daraus wird, sagt der Zustand der Instanz.
+  (3) **Was den Schritt AUFHÄLT, steht VOR ihm** (#372): Abweichung und Nachschub sind
+  Hindernisse – von oben nach unten gelesen «erst das hier, dann dieser Schritt». Vorher
+  standen sie **unter** einem Schritt, den man womöglich noch gar nicht begonnen hatte. Die
+  **Bereitstellung** ist das Gegenstück (sie folgt aus dem Schritt) und behält ihre
+  deklarierte Stufe (`_STAGE_BEFORE`).
+  (4) **Die Mengen-Eingabe kappt, statt zu meckern** (#373, `QtyChip`): Wer in ein Feld
+  tippt, das schon «2» enthält, erzeugt kurz «21» – ging das direkt an den Server, kam
+  «Instanz … hat nur 2». Jetzt lebt die Eingabe lokal, wird auf das Machbare gekappt und
+  erst beim Verlassen übernommen; die Server-Prüfung bleibt das Netz.
+  (5) **Weltkarte: 810 gefilterte Knoten → 7** (#369): jede 5°-Zelle war ein eigenes
+  `<rect>` unter einem SVG-Filter – und der Filter (Offscreen-Puffer + Weichzeichner +
+  Alpha-Schnitt) ist die teure Stelle, die beim Hereinscrollen zuschlug. Die Form ist
+  identisch, steht aber je Region in EINEM `<path>`; dazu eine eigene Rasterebene
+  (`willChange`/`contain: paint`), damit beim Scrollen nur noch zusammengesetzt wird.
+  **Zwei echte Fehler dabei gefunden** (Praxis-Durchlauf, beide behoben): `holding_order`
+  fand den Auftrag nicht mehr, der ein Stück über seine **Reservierung** hält, sobald ein
+  Entwurf die Subjekt-Bindung an sich gezogen hatte – die Freigabe fragte darum niemanden
+  (jetzt `subject.holding_orders`, alle drei Wege: Subjekt · Erzeuger · Anspruch). Und
+  `_enforce_claims` las, bevor geschrieben war (`autoflush=False`): kommen Auswahl und
+  Freigabe in EINEM Aufruf, stand die Bindung noch nicht in der Datenbank und die Frage
+  blieb still aus.
+  Wächter: `test_the_shortfall_question_comes_at_release_not_at_the_pick`,
+  `test_there_is_exactly_one_way_to_create_an_order`,
+  `test_a_pick_claims_a_quantity_not_a_thing`.
+
 Nächste Aufgabe: **KI aktivieren** – `VERTEX_PROJECT_ID` (+ `roles/aiplatform.user` für den Cloud-Run-
 Service-Account) setzen und Assistent/Schreibhilfe/Bild-KI in der Sandbox durchtesten (ADR 004);
 Publishable Key (`pk_test_…`) in Admin → Systemkonfiguration hinterlegen + die

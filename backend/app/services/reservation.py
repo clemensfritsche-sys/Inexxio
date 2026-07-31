@@ -32,8 +32,14 @@ def reserved_for(inst: Instance, order_id: int) -> Decimal:
 
 
 def free_qty(inst: Instance) -> Decimal:
-    """Frei verfügbare Restmenge (gesamt − reserviert)."""
-    return to_qty(inst.quantity) - to_qty(inst.reserved_quantity)
+    """Frei verfügbare Restmenge (gesamt − beansprucht), **nie negativ**.
+
+    Überbucht ist möglich, solange ein **Entwurf** nur vormerkt (``claim``): dann wollen
+    zwei Aufträge zusammen mehr, als die Instanz hergibt. Für FIFO heisst das schlicht
+    «nichts frei» – nicht «minus eins». Aufgelöst wird die Überbuchung erst bei der
+    Freigabe (``enforce``)."""
+    rest = to_qty(inst.quantity) - to_qty(inst.reserved_quantity)
+    return rest if rest > 0 else ZERO
 
 
 def _write(inst: Instance, m: dict) -> None:
@@ -58,33 +64,54 @@ def reserve(inst: Instance, order_id: int, qty) -> None:
 
 
 def claim(inst: Instance, order_id: int, qty) -> Decimal:
-    """Den Anspruch eines Auftrags auf **genau** ``qty`` setzen – und fremde Ansprüche so
-    weit kürzen, dass die Summe die Instanz-Menge nie übersteigt. Liefert die gesetzte Menge.
+    """**Vormerken**: den Anspruch eines Auftrags auf genau ``qty`` setzen – ohne fremde
+    Ansprüche anzutasten. Liefert die gesetzte Menge.
 
-    Zwei Formen derselben Sache (wie ``in_stock_clauses``/``is_in_stock``): ``reserve``
-    **addiert** – so füllt FIFO auf, was es findet; ``claim`` **setzt** – so bestimmt der
-    Mensch, wie viel er von genau dieser Instanz will. Eine Charge ist eine MENGE: von 500
-    Schrauben beansprucht eine Abweichung oft genau EINE.
+    Drei Formen derselben Sache, klar getrennt nach dem Moment, in dem sie gelten:
 
-    Das Kürzen ist dabei kein Nebeneffekt, sondern der Kern: nimmt eine Abweichung ein Stück
-    aus einer Charge, die ein laufender Auftrag gedeckt hatte, verliert **genau dieser**
-    Auftrag es – seine Reservierung schrumpft, und damit meldet er die Unterdeckung von
-    selbst. Es braucht dafür keine zweite Buchführung."""
+        reserve  – **addiert**   → FIFO füllt auf, was es findet (Freigabe)
+        claim    – **setzt**     → der Mensch wählt Instanz + Menge (Entwurf)
+        enforce  – **setzt sich durch** → der Anspruch wird scharf (Freigabe)
+
+    Ein Entwurf nimmt **niemandem etwas weg**: er merkt nur vor. Darum darf die Summe hier
+    die Instanz-Menge übersteigen – für FIFO ist das Stück damit gesprochen (``free_qty``
+    fällt auf 0), aber der laufende Auftrag, der es gedeckt hat, behält seine Reservierung
+    und merkt nichts. Das ist der ganze Punkt: solange man noch am Auswählen ist, soll beim
+    anderen Auftrag nichts passieren (Testnotiz #370)."""
     want = min(to_qty(qty), to_qty(inst.quantity))
     if want <= 0:
         release(inst, order_id)
         return ZERO
     m = _load(inst)
     m[str(order_id)] = want
+    _write(inst, m)
+    return want
+
+
+def enforce(inst: Instance, order_id: int) -> Decimal:
+    """**Scharf werden**: den vorgemerkten Anspruch durchsetzen – fremde Ansprüche werden so
+    weit gekürzt, dass die Summe die Instanz-Menge nicht mehr übersteigt. Liefert die
+    entzogene Menge.
+
+    Das ist der Moment der **Freigabe**, und genau hier entsteht die Unterdeckung: nimmt
+    eine Abweichung ein Stück aus einer Charge, die ein laufender Auftrag gedeckt hatte,
+    schrumpft **dessen** Reservierung – und damit meldet er die Fehlmenge von selbst. Es
+    braucht dafür keine zweite Buchführung, nur diesen einen Schnitt zum richtigen
+    Zeitpunkt."""
+    m = _load(inst)
     over = qty_sum(m.values()) - to_qty(inst.quantity)
+    if over <= 0:
+        return ZERO
+    taken = ZERO
     for key in [k for k in m if k != str(order_id)]:
         if over <= 0:
             break
         cut = min(over, m[key])
         m[key] -= cut
         over -= cut
+        taken += cut
     _write(inst, m)
-    return want
+    return taken
 
 
 def release(inst: Instance, order_id: int) -> Decimal:

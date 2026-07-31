@@ -84,6 +84,21 @@ const CELLS_BY_REGION: Record<string, MapCell[]> = (() => {
  * Zahlenwert nachzujustieren (der bei jeder Masken-Änderung wieder falsch wäre), wird der
  * Ausschnitt aus den Zellen **abgeleitet**: die Bounding-Box aller Landzellen.
  */
+/**
+ * **Eine Region = EIN Pfad** (Testnotiz #369).
+ *
+ * Vorher war jede 5°-Zelle ein eigenes ``<rect>``: rund 700 Knoten, alle unter je einem
+ * SVG-Filter. Der Filter ist das Teure – er legt pro Gruppe einen Offscreen-Puffer an,
+ * zeichnet weich und schneidet die Alpha-Kante zurück –, und je mehr Knoten darunter
+ * liegen, desto länger dauert das Rastern. Beim Scrollen wurde die Karte genau dann
+ * gerastert, wenn sie in den Blick kommt: das war das Stocken.
+ *
+ * Die Form bleibt haargenau dieselbe, sie steht nur in EINEM ``d``-Attribut statt in
+ * hundert Elementen – ein Rechteck je Zelle, minimal überlappend (damit der Weichzeichner
+ * sie zu einer Fläche zusammenzieht statt Perlen zu bilden), alle im selben Pfad.
+ */
+const PATH_BY_REGION: Record<string, string> = {};
+
 const BOX = (() => {
   const all = Object.values(CELLS_BY_REGION).flat();
   const xs = all.map((c) => c.x);
@@ -92,6 +107,12 @@ const BOX = (() => {
   const y = Math.min(...ys);
   return { x, y, w: Math.max(...xs) + 1 - x, h: Math.max(...ys) + 1 - y };
 })();
+
+for (const [region, cells] of Object.entries(CELLS_BY_REGION)) {
+  PATH_BY_REGION[region] = cells
+    .map((c) => `M${c.x - 0.02} ${c.y - 0.02}h1.04v1.04h-1.04z`)
+    .join('');
+}
 
 /**
  * **Wo liegt der Schwerpunkt einer Region?** – in Prozent der Kartenfläche.
@@ -136,7 +157,9 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
 
   return (
     <svg viewBox={`${BOX.x} ${BOX.y} ${BOX.w} ${BOX.h}`} width="100%" role="img" aria-label="Weltkarte der Gebietsaufteilung"
-      style={{ display: 'block', background: 'var(--bg-3)' }}
+      // Eigene Rasterebene: einmal gezeichnet, beim Scrollen nur noch zusammengesetzt
+      // statt neu gefiltert (der Filter ist die teure Stelle).
+      style={{ display: 'block', background: 'var(--bg-3)', willChange: 'transform', contain: 'paint' }}
       onMouseLeave={() => setHover(null)}>
       <defs>
         {/* **Ecken leicht abrunden** (Testnotiz #336) – ohne die Zellen zu Punkten zu
@@ -151,7 +174,7 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
             values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" />
         </filter>
       </defs>
-      {Object.entries(CELLS_BY_REGION).map(([region, cells]) => {
+      {Object.entries(PATH_BY_REGION).map(([region, d]) => {
         const ring = stroke(region);
         const marked = selected === region || hover === region;
         return (
@@ -160,13 +183,7 @@ export function WorldMap({ fill, stroke, selected, onSelect, title, label }: {
             filter="url(#ix-map-round)"
             style={{ cursor: onSelect ? 'pointer' : 'default' }}>
             {title && <title>{title(region)}</title>}
-            {cells.map((c) => (
-              // Zellen überlappen minimal, damit der Weichzeichner sie sauber zu einer
-              // Fläche zusammenzieht statt Perlen zu bilden.
-              <rect key={`${c.x}-${c.y}`} x={c.x - 0.02} y={c.y - 0.02} width={1.04} height={1.04}
-                fill={marked && ring ? ring : fill(region)}
-                stroke="none" strokeWidth={0} />
-            ))}
+            <path d={d} fill={marked && ring ? ring : fill(region)} stroke="none" />
           </g>
         );
       })}

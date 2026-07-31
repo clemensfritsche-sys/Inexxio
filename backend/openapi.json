@@ -3149,64 +3149,6 @@
         }
       }
     },
-    "/api/v1/erp/orders/{object_id}/deviation": {
-      "post": {
-        "tags": [
-          "orders"
-        ],
-        "summary": "Open Deviation",
-        "description": "**Abweichungsauftrag** zu einem Auftrag (Fehler/Reklamation/Nacharbeit/Abbruch – EIN\nKonzept, ein Wort): legt einen **Unter-Auftrag** auf die betroffenen Instanzen an\n(Instanz-Ebene mit Auswahl, sonst Prozess-Ebene über alle Instanzen).\n\n**Abkürzung, kein zweiter Weg**: dasselbe geschieht, wenn man einen Auftrag anlegt und\ndort gebundene Instanzen auswählt (``_set_chosen_instances`` → ``classify_pick``). Der\nKnopf an der Instanz nimmt einem nur die erste Auswahl ab.\n\nOhne Instanz-Auswahl sind ALLE Instanzen des Auftrags betroffen – dem Eltern bleibt dann\nnichts, und «Auftragsmenge reduzieren» IST damit sein Abbruch (``recovery.confirm_quantity``).\nEs braucht dafür keinen eigenen Schalter mehr; ``abort_parent`` ist entfallen (Notiz #366).\nLiefert die neue Abweichung zurück (man definiert dort die Auflösung).",
-        "operationId": "open_deviation_api_v1_erp_orders__object_id__deviation_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "object_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Object Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrderDeviationCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OrderResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/erp/orders/{object_id}/cover": {
       "post": {
         "tags": [
@@ -12242,6 +12184,20 @@
             "type": "number",
             "title": "Quantity"
           },
+          "instance_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Object Ids"
+          },
           "desired_delivery_date": {
             "anyOf": [
               {
@@ -12307,52 +12263,6 @@
         ],
         "title": "OrderCreate",
         "description": "Anlage eines Auftrags über '+'. Status startet als 'draft'.\n\nAnker ist IMMER **Artikel + Menge**. Was damit geschieht, ergibt sich aus dem Ablauf,\nder danach im Entwurf definiert wird: kein eigener Ablauf → Erzeugung (Artikel-Prozess);\neigener Ablauf → Operation auf ``quantity`` Instanzen des Artikels (FIFO ab Lager,\noptional durch fixierte Instanzen ergänzt). Die Subjektart wird also abgeleitet.\n\nWeitere Artikel lassen sich danach jederzeit über ``POST .../lines`` ergänzen (Mehr-\npositionen-Auftrag – „Aus Lager\"/„Instanz wählen\" über mehrere Artikel; „Herstellen\"\nist dann nicht mehr möglich, siehe ``services/order_lines.py``)."
-      },
-      "OrderDeviationCreate": {
-        "properties": {
-          "instance_object_ids": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "integer"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Object Ids"
-          },
-          "instance_quantities": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instance Quantities"
-          },
-          "shortfall_response": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shortfall Response"
-          }
-        },
-        "type": "object",
-        "title": "OrderDeviationCreate",
-        "description": "«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne\nAuswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).\n\n**Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach\nweiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts\nübrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage."
       },
       "OrderDeviationInfo": {
         "properties": {

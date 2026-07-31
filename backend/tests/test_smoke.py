@@ -652,36 +652,30 @@ def test_reclamation_is_a_deviation_order_not_a_separate_type():
             importlib.import_module(mod)
 
 
-def test_deviation_create_schema_is_minimal():
-    """Eine Abweichung wird über die vorhandenen Instanzen eröffnet (optional eine
-    Teilmenge) – keine eigene Richtungs-/Grund-Taxonomie mehr nötig."""
-    from app.schemas.order import OrderDeviationCreate
+def test_there_is_exactly_one_way_to_create_an_order():
+    """**Ein Auftrag und ein Abweichungsauftrag entstehen auf demselben Weg** (Notiz #371).
 
-    # Ohne Angabe → alle Instanzen des Eltern-Auftrags
-    assert OrderDeviationCreate().instance_object_ids is None
-    # Explizite Teilmenge wird übernommen
-    chosen = OrderDeviationCreate(instance_object_ids=[100_000_010, 100_000_011])
-    assert chosen.instance_object_ids == [100_000_010, 100_000_011]
+    Der frühere Sonder-Endpunkt ``POST /orders/{id}/deviation`` (samt eigenem Schema) ist
+    entfallen. Der Abkürzungs-Knopf an einer Instanz legt jetzt einen ganz gewöhnlichen
+    Auftrag an und trägt die Instanz nur **vor** – Eingabehilfe, keine Fixierung. Ob daraus
+    eine Abweichung wird, sagt weiterhin die Auswahl (``subject.classify_pick``).
 
-
-def test_deviation_endpoint_creates_sub_order():
-    """Der Endpoint ``POST /orders/{id}/deviation`` eröffnet einen Unterauftrag auf
-    den Instanzen des Eltern-Auftrags (gleiche Logik wie der Abbruch-Folgeauftrag)."""
+    Der Service ``deviation.create_deviation`` bleibt – aber nur noch für die Fälle, die das
+    SYSTEM selbst auslöst (fehlgeschlagene Datenerfassung, Artikel-Deaktivierung)."""
     import inspect as _inspect
-
+    import app.schemas.order as order_schemas
     from app.routers import orders
+    from app.schemas.order import OrderCreate
     from app.services import deviation
 
-    src = _inspect.getsource(orders.open_deviation)
-    assert "create_deviation" in src
+    assert not hasattr(orders, "open_deviation")
+    assert not hasattr(order_schemas, "OrderDeviationCreate")
+    # Die Anlage nimmt die Vorauswahl entgegen – über denselben Pfad wie jede Auswahl.
+    assert "instance_object_ids" in OrderCreate.model_fields
+    assert "_set_chosen_instances(db, order, data.instance_object_ids" in _inspect.getsource(orders.create_order)
+    # Der Service bleibt für die systemseitigen Auslöser.
     create = _inspect.getsource(deviation.create_deviation)
-    # Abweichung = Auftrag mit Eltern, übernimmt die Instanzen als Subjekt
-    assert "parent_order_id=parent.object_id" in create
-    assert "subject_of_order_id" in create
-    # Die Abweichung wird SOFORT dauerhaft in der Instanz-Historie festgehalten
-    # (InstanceOrderLink), damit sie ab Anlage unter «Aufträge» der Instanz erscheint –
-    # nicht erst bei Freigabe und unabhängig von der wandernden subject_of_order_id-Bindung.
-    assert "record_link" in create
+    assert "parent_order_id=parent.object_id" in create and "record_link" in create
 
 
 def test_failed_inspection_triggers_deviation():
@@ -759,18 +753,6 @@ def test_scrapped_instances_excluded_from_processing_and_completion():
     # Anzeige bleibt vollständig (to_order_response nutzt weiter die volle Liste)
     from app.services import orders as orders_svc
     assert "order_instances(db, order)" in _inspect.getsource(orders_svc.to_order_response)
-
-
-def test_no_order_level_deviation_on_completed_order():
-    """Auf Auftragsebene (alle Instanzen) lässt sich nur an einem LAUFENDEN Auftrag eine
-    Abweichung melden – ein abgeschlossener Prozess ist durch. Instanz-Ebene bleibt möglich."""
-    import inspect as _inspect
-
-    from app.routers import orders
-
-    src = _inspect.getsource(orders.open_deviation)
-    # Ohne explizite Instanzauswahl (Auftragsebene) → nur status 'released'
-    assert "not data.instance_object_ids" in src and '!= "released"' in src
 
 
 def test_a_deviation_pauses_the_order_through_the_shortfall_not_a_second_rule():
@@ -1764,10 +1746,10 @@ def test_abort_is_a_deed_not_a_request():
     import inspect as _inspect
     from app.routers import orders
     from app.services import deviation, process, recovery
-    from app.schemas.order import OrderDeviationCreate
 
-    # Kein Flag mehr: der Abbruch ist die Konsequenz der Unterdeckungs-Antwort.
-    assert "abort_parent" not in OrderDeviationCreate.model_fields
+    # Kein Flag und kein eigener Endpunkt mehr: der Abbruch ist die Konsequenz der
+    # Unterdeckungs-Antwort, gestellt bei der Freigabe.
+    assert not hasattr(orders, "open_deviation")
     cq = _inspect.getsource(recovery.confirm_quantity)
     assert "abort_parent(db, order, into, actor_id)" in cq and "r <= 0 for r in" in cq
     # … und der Alt-Weg legt keinen Folgeauftrag mehr an.
@@ -3243,14 +3225,14 @@ def test_a_pick_claims_a_quantity_not_a_thing():
     Unterdeckung beim Auftrag, dem das Stück entzogen wird."""
     import inspect as _inspect
     from app.routers import orders
-    from app.schemas.order import OrderDeviationCreate, OrderLinePins, OrderUpdate
+    from app.schemas.order import OrderLinePins, OrderUpdate
     from app.services import process, reservation, subject
 
-    for schema in (OrderUpdate, OrderLinePins, OrderDeviationCreate):
+    for schema in (OrderUpdate, OrderLinePins):
         assert "instance_quantities" in schema.model_fields, schema.__name__
-    # ``claim`` setzt (statt zu addieren) und kürzt fremde Ansprüche auf die Instanz-Menge.
+    # ``claim`` SETZT (statt zu addieren) – und tastet dabei niemanden an (Notiz #370).
     cl = _inspect.getsource(reservation.claim)
-    assert "m[str(order_id)] = want" in cl and "over" in cl
+    assert "m[str(order_id)] = want" in cl
     # Der Pin schreibt Bindung UND Anspruch.
     pick = _inspect.getsource(orders._set_chosen_instances)
     assert "claim(i, order.id, wanted[i.object_id])" in pick
@@ -3449,11 +3431,12 @@ def test_the_order_level_deviation_is_the_abort():
     from app.routers import orders
     from app.services import recovery
 
-    src = _inspect.getsource(orders.open_deviation)
-    assert "data.abort_parent" not in src
-    assert "subject.order_active_instances(db, parent)" in src
-    # Der Abbruch geschieht über die EINE Antwort, nicht über einen eigenen Aufruf.
-    assert "_apply_shortfall_answer(db, holders, data.shortfall_response, current_user.id, into=devi)" in src
+    # Es gibt keinen Abbruch-Weg mehr: man legt einen Auftrag an, wählt die Instanzen des
+    # laufenden – und bei der Freigabe entscheidet die Antwort, was mit ihm geschieht.
+    assert not hasattr(orders, "open_deviation")
+    src = _inspect.getsource(orders.update_order)
+    assert "_enforce_claims(db, order, answer, current_user.id)" in src
+    assert "_apply_shortfall_answer(db, holders, answer, current_user.id, into=order)" in src
     assert "aborted" in _inspect.getsource(recovery.confirm_quantity)
 
 
@@ -3493,26 +3476,35 @@ def test_an_order_and_a_deviation_order_are_the_same_thing():
     assert "holding_order" in make and "parent_order_id" in make
 
 
-def test_taking_a_busy_instance_forces_the_shortfall_decision():
-    """**Die Frage kommt sofort, nicht irgendwann** (eine Logik für alles).
+def test_the_shortfall_question_comes_at_release_not_at_the_pick():
+    """**Ein Entwurf nimmt niemandem etwas weg** (Testnotiz #370).
 
-    Wer ein Stück aus einem laufenden Auftrag herauszieht, entscheidet im selben Zug, wie es
-    dort weitergeht – mit denselben drei Antworten wie am laufenden Auftrag: warten ·
-    ersetzen · ohne Ersatz weiter. So gibt es keinen Zwischenzustand «Abweichung angelegt,
-    aber niemand weiss, was mit dem Eltern geschieht»; die Pause dauert genau so lange wie
-    die Eingabe. **Beide** menschlichen Einstiege (Instanz-Auswahl im Auftrag und der
-    Abkürzungs-Knopf an der Instanz) teilen sich dieselbe Prüfung."""
+    Die Frage «was geschieht mit dem laufenden Auftrag?» stand früher schon beim Auswählen.
+    Das war zu früh: danach definiert man den Auftrag ja erst fertig – Artikel, Menge und
+    Instanzen können sich noch ändern, und die Entscheidung wäre womöglich gleich wieder
+    falsch. Jetzt merkt die Auswahl nur vor (``claim``, ohne fremde Ansprüche anzutasten),
+    und erst die **Freigabe** macht sie scharf (``enforce``) – dort, wo der andere Auftrag
+    wirklich etwas verliert, steht auch die Frage."""
     import inspect as _inspect
     from app.routers import orders
-    from app.schemas.order import OrderDeviationCreate, OrderUpdate
+    from app.schemas.order import OrderUpdate
+    from app.services import reservation
 
     assert orders.SHORTFALL_ANSWERS == ("wait", "replace", "accept")
     assert "shortfall_response" in OrderUpdate.model_fields
-    assert "shortfall_response" in OrderDeviationCreate.model_fields
 
-    # EINE Prüfung, EINE Anwendung – von beiden Einstiegen benutzt.
-    for fn in (orders._make_deviation, orders.open_deviation):
-        src = _inspect.getsource(fn)
-        assert "_assert_answered" in src, fn.__name__
+    # Die Auswahl fragt NICHT mehr …
+    assert "_assert_answered" not in _inspect.getsource(orders._make_deviation)
+    # … die Freigabe schon.
+    assert "_assert_answered(response, holders)" in _inspect.getsource(orders._enforce_claims)
+    # Scharf wird der Anspruch in der Freigabe selbst – damit auch die systemseitig
+    # angelegte Abweichung (Datenerfassung/Deaktivierung) ihn durchsetzt, nicht nur der
+    # Weg über den Router.
+    from app.services import subject
+    assert "enforce(inst, order.id)" in _inspect.getsource(subject._bind_deviation_subjects)
+    assert "enforce(inst, order.id)" in _inspect.getsource(subject._allocate_stock_for)
+    # Vormerken tastet fremde Ansprüche nicht an, Durchsetzen schon.
+    assert "over" not in _inspect.getsource(reservation.claim)
+    assert "over" in _inspect.getsource(reservation.enforce)
     assert "recovery.cover_shortfall" in _inspect.getsource(orders._apply_shortfall_answer)
     assert "recovery.confirm_quantity" in _inspect.getsource(orders._apply_shortfall_answer)

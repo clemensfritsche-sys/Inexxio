@@ -16,7 +16,6 @@ import { ObjectReferences } from '@/components/erp/object-references';
 import { LocationPathCard } from '@/components/erp/location-path';
 import { DocumentView } from '@/components/erp/document-editor';
 import { DetailTabs } from '@/components/erp/detail-tabs';
-import { ShortfallDialog, type ShortfallAnswer } from '@/components/erp/shortfall-dialog';
 import { TileShell, TILE, DetailHeader, HeaderSep } from '@/components/erp/fields';
 import { fmtObjId } from '@/components/erp/user-detail';
 import { instanceName } from '@/lib/record-name';
@@ -45,7 +44,6 @@ export function InstanceDetail({ record, onBack, onChanged }: {
   const nav = useErpNav();
   const [orders, setOrders] = useState<InstanceOrderRef[] | null>(null);
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');   // Aufträge: neueste ↔ älteste zuerst
-  const [devBusy, setDevBusy] = useState(false);
   const [devErr, setDevErr] = useState<string | null>(null);
   const [orderBusy, setOrderBusy] = useState(false);
   const [tab, setTab] = useState<InstTab>('spec');
@@ -97,9 +95,8 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     : reserved > 0 ? `${reserved} reserviert`
     : 'Am Lager';
 
-  // Eine Abweichung an genau dieser Instanz läuft – wie jede Aktion – über einen Auftrag:
-  // einen Unter-Auftrag am (Herkunfts-)Auftrag, der freigegeben/abgeschlossen ist.
-  const deviationParent = (orders ?? []).find((o) => o.status === 'released' || o.status === 'completed') ?? null;
+  // Jede Aktion an dieser Instanz läuft über einen **Auftrag** – auch die Abweichung. Den
+  // legt der Shortcut unten an, mit dieser Instanz vorgewählt (Notiz #371).
 
   const [unblockBusy, setUnblockBusy] = useState(false);
   async function unblockInstance() {
@@ -114,38 +111,17 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     } finally { setUnblockBusy(false); }
   }
 
-  // Nimmt die Abweichung einem laufenden Auftrag sein Stück weg, will dessen Unterdeckung
-  // beantwortet sein, bevor sie steht – dieselben drei Wege wie im Auftrag (der Server
-  // fragt danach mit 409). Der Knopf hier ist nur eine Abkürzung auf denselben Weg.
-  const [devAsk, setDevAsk] = useState<string | null>(null);
-
-  async function reportDeviation(answer?: ShortfallAnswer) {
-    if (!deviationParent || inst.object_id == null) return;
-    setDevBusy(true);
-    setDevErr(null);
-    try {
-      const devi = await api.createDeviation(deviationParent.object_id, {
-        instanceObjectIds: [inst.object_id], shortfallResponse: answer,
-        // Ganze Instanz – die Teilmenge einer Charge wählt man im Auftrag (Notiz #361);
-        // die Abkürzung hier meint immer das, worauf man gerade schaut.
-      });
-      onChanged?.();
-      if (devi.object_id != null) nav?.(devi.object_id);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Abweichung konnte nicht eröffnet werden';
-      if (msg.includes('in Arbeit') && msg.includes('warten')) setDevAsk(msg);
-      else setDevErr(msg);
-    } finally {
-      setDevBusy(false);
-    }
-  }
-
-  // Shortcut «Auftrag»: aus dieser Instanz direkt einen Auftrag auslösen, der auf **genau
-  // sie** wirkt (bewegen, prüfen, verschrotten, verkaufen …). Sinnvoll, sobald sie am Lager
-  // freigegeben ist (in_stock) oder verkauft ist (→ Retoure). Der Auftrag entsteht als
-  // Entwurf mit der Instanz als fixiertem Subjekt; den Ablauf wählt der Nutzer dort.
-  const canOrderInstance = (inst.quality === 'passed' && inst.disposition === 'in_stock')
-    || inst.disposition === 'sold';
+  // **EIN Shortcut, kein Sonderweg** (Testnotiz #371): der Knopf legt einen ganz
+  // gewöhnlichen Auftrag an und trägt diese Instanz **vor** – als Eingabehilfe, nicht als
+  // Fixierung. Alles Weitere (Artikel, Menge, weitere Instanzen, Ablauf) definiert man dort
+  // wie bei jedem anderen Auftrag.
+  //
+  // Was daraus wird, sagt die Auswahl, nicht der Einstieg: eine **gebundene** Instanz (gelb –
+  // in Arbeit, reserviert, gesperrt) macht den Auftrag zur **Abweichung**, eine **verkaufte**
+  // zur **Retoure**, eine freie zu einem gewöhnlichen Bedarf. Darum gibt es hier auch keinen
+  // zweiten Knopf «Abweichung melden» mehr und keine Bedingung ausser der einen, die
+  // fachlich zählt: an verschrotteter Ware ist nichts mehr zu tun.
+  const canOrderInstance = inst.disposition !== 'scrapped';
 
   async function createOrderShortcut() {
     if (!canOrderInstance || inst.object_id == null || inst.article_id == null || orderBusy) return;
@@ -153,10 +129,9 @@ export function InstanceDetail({ record, onBack, onChanged }: {
     setDevErr(null);
     try {
       const qty = inst.quantity && inst.quantity > 0 ? inst.quantity : 1;
-      const order = await api.createOrder({ article_id: inst.article_id, quantity: qty });
+      const order = await api.createOrder({
+        article_id: inst.article_id, quantity: qty, instance_object_ids: [inst.object_id] });
       if (order.object_id != null) {
-        await api.updateOrder(order.object_id,
-          { instance_object_ids: [inst.object_id], expected_updated_at: order.updated_at });
         onChanged?.();
         nav?.(order.object_id);
       }
@@ -184,8 +159,10 @@ export function InstanceDetail({ record, onBack, onChanged }: {
           </button>
           {/* Shortcut «Auftrag»: direkt einen Auftrag auf diese Instanz auslösen. */}
           <button className="erp-idbtn erp-idbtn-act" data-tip-pos="bottom"
-            data-tip={canOrderInstance ? 'Auftrag auf diese Instanz anlegen' : 'Auftrag möglich, sobald die Instanz am Lager (freigegeben) oder verkauft ist'}
-            aria-label="Auftrag auf diese Instanz anlegen"
+            data-tip={canOrderInstance
+              ? 'Auftrag anlegen – diese Instanz ist darin vorgewählt (bewegen, prüfen, aussondern, verkaufen, Abweichung …)'
+              : 'An verschrotteter Ware ist nichts mehr zu tun'}
+            aria-label="Auftrag anlegen"
             disabled={!canOrderInstance || orderBusy}
             onClick={createOrderShortcut}>
             {orderBusy ? <Loader2 size={15} className="animate-spin" /> : <ClipboardPlus size={15} />}
@@ -201,21 +178,13 @@ export function InstanceDetail({ record, onBack, onChanged }: {
               {unblockBusy ? <Loader2 size={15} className="animate-spin" /> : <LockOpen size={15} />}
             </button>
           )}
-          <button className="erp-idbtn erp-idbtn-flag"
-            data-tip={deviationParent ? 'Abweichung melden (Defekt / Nacharbeit / Reklamation)' : 'Abweichung erst nach Freigabe eines Auftrags möglich'}
-            data-tip-pos="bottom" aria-label="Abweichung melden"
-            disabled={!deviationParent || devBusy} onClick={() => reportDeviation()}>
-            {devBusy ? <Loader2 size={15} className="animate-spin" /> : <TriangleAlert size={15} />}
-          </button>
+          {/* **Kein zweiter Knopf «Abweichung melden»** (Notiz #371): eine Abweichung ist ein
+              ganz gewöhnlicher Auftrag auf eine gebundene Instanz – und genau den legt der
+              Knopf darüber an. Was daraus wird, sagt der Zustand der Instanz, nicht der
+              Einstieg. */}
         </>}
       >
         {devErr && <div style={S.devErr}>{devErr}</div>}
-        {devAsk && (
-          // Dasselbe Fenster wie im Auftrag (Notiz #352) – eine Frage, ein Fenster, egal von wo.
-          <ShortfallDialog text={devAsk} busy={devBusy}
-            onAnswer={(a) => { setDevAsk(null); reportDeviation(a); }}
-            onClose={() => setDevAsk(null)} />
-        )}
         <DetailTabs<InstTab> style={{ marginTop: 16 }} active={tab} onChange={setTab} tabs={[
           { key: 'spec', label: 'Spezifikation', icon: FileText },
           { key: 'orders', label: 'Aufträge', icon: ClipboardList },

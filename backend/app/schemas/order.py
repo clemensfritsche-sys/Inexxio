@@ -165,6 +165,11 @@ class OrderCreate(BaseModel):
 
     article_id: int
     quantity: float   # ganze Stück ODER Bruchmenge (kg/m²/m³/l)
+    # **Vorauswahl**, keine Fixierung (Testnotiz #371): der Abkürzungs-Knopf an einer Instanz
+    # legt einen ganz gewöhnlichen Auftrag an und trägt die Instanz gleich ein – als
+    # Eingabehilfe. Änderbar wie jede andere Auswahl; was daraus folgt (Abweichung/Retoure/
+    # gewöhnlicher Bedarf), leitet ``subject.classify_pick`` ab.
+    instance_object_ids: Optional[list[int]] = None
     desired_delivery_date: Optional[date] = None
     # Wiederkehrend (direkt am Auftrag, kein eigenes Objekt)
     recurrence_active: Optional[bool] = None
@@ -262,27 +267,6 @@ class OrderUpdate(BaseModel):
     @classmethod
     def _date_future(cls, v: Optional[date]) -> Optional[date]:
         return _validate_future_date(v)
-
-
-class OrderDeviationCreate(BaseModel):
-    """«Abweichungsauftrag anlegen»: optional die betroffenen Instanzen (Instanz-Ebene); ohne
-    Auswahl wirkt die Abweichung auf alle Instanzen des Auftrags (Prozess-Ebene).
-
-    **Kein Abbruch-Schalter mehr** (Testnotiz #366): ob der Ursprungsauftrag danach
-    weiterläuft, entscheidet die Antwort auf seine Unterdeckung – und bleibt ihm nichts
-    übrig, IST «Auftragsmenge reduzieren» sein Abbruch. Ein Vorgang, eine Frage."""
-    instance_object_ids: Optional[list[int]] = None
-    # **Wie viel** von einer gewählten Instanz beansprucht wird ({objektnr: menge}) – eine
-    # Charge ist eine MENGE, kein Ding: von 500 Schrauben will eine Abweichung oft genau
-    # EINE. Fehlt ein Eintrag, gilt die ganze Instanz (unverändertes Verhalten). Das
-    # Gegenstück zur FIFO-Allokation, die längst mengengenau reserviert – hier bestimmt der
-    # Mensch die Instanz, dort der Bestand; die Menge wandert in beiden Fällen in dieselbe
-    # Reservierungs-Map (``instances.reservations``).
-    instance_quantities: Optional[dict[str, float]] = None
-    # Wie es beim laufenden Auftrag weitergeht, dem diese Instanzen entzogen werden:
-    # ``wait`` · ``replace`` · ``accept``. Dieselbe Frage wie bei der Instanz-Auswahl im
-    # Auftrag – der Instanz-Knopf ist nur eine Abkürzung auf denselben Weg.
-    shortfall_response: Optional[str] = None
 
 
 class OrderCoverStock(BaseModel):

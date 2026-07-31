@@ -27,7 +27,7 @@ from .inventory import allocate, fifo_candidates
 from .order_lines import lines_for
 from .processes import order_custom_steps
 from .quantity import ZERO, qty_sum, to_qty
-from .reservation import free_qty, reserve, reserved_for
+from .reservation import enforce, free_qty, reserve, reserved_for
 from .serialization import create_instances_for_order
 
 
@@ -131,21 +131,43 @@ def is_bound(order: Order, inst, want=None) -> bool:
     return free_qty(inst) + reserved_for(inst, order.id) < need
 
 
-def holding_order(db: Session, inst) -> Order | None:
-    """**Welcher laufende Auftrag hat dieses Stück gerade in der Hand?**
+def holding_orders(db: Session, inst, exclude_id: int | None = None) -> list[Order]:
+    """**Welche laufenden Aufträge haben dieses Stück gerade in der Hand?**
 
-    Die Klammer zwischen Auftrag und Abweichung ist die Instanz – also wird auch der
-    Eltern-Auftrag einer Abweichung daraus **abgeleitet** statt eingegeben: entweder der
-    Auftrag, der sie als Subjekt hält, oder der, der sie erzeugt hat. Läuft keiner mehr
-    (das Stück liegt fertig am Lager), gibt es keinen Eltern – eine Abweichung darf auch
-    allein stehen (späte Reklamation)."""
-    for oid in (inst.subject_of_order_id, inst.order_id):
-        if not oid:
-            continue
-        o = db.query(Order).filter(Order.id == oid, Order.is_active == True).first()
-        if o is not None and o.status == "released":
-            return o
-    return None
+    Drei Wege, es zu halten – und alle drei zählen:
+
+    * er hat es als **Subjekt** gebunden (``subject_of_order_id``),
+    * er hat es **erzeugt** (``order_id``),
+    * er hat einen **Anspruch** darauf (``instances.reservations``).
+
+    Der dritte ist der wichtigste und fehlte: sobald ein Entwurf die Subjekt-Bindung an sich
+    zieht, ist der Auftrag, der das Stück tatsächlich gedeckt hat, nur noch über seinen
+    Anspruch zu finden. Ohne ihn fand die Freigabe niemanden, dem sie etwas wegnimmt – und
+    fragte darum auch nicht (gefunden im Praxis-Durchlauf zu Testnotiz #370).
+
+    Rein (schreibt nicht); ``exclude_id`` blendet den fragenden Auftrag aus."""
+    ids: list[int] = []
+    for oid in (inst.subject_of_order_id, inst.order_id, *[int(k) for k in (inst.reservations or {})]):
+        if oid and oid != exclude_id and oid not in ids:
+            ids.append(oid)
+    if not ids:
+        return []
+    rows = {
+        o.id: o for o in db.query(Order).filter(
+            Order.id.in_(ids), Order.is_active == True, Order.status == "released").all()
+    }
+    return [rows[i] for i in ids if i in rows]
+
+
+def holding_order(db: Session, inst) -> Order | None:
+    """Der **erste** laufende Auftrag, der dieses Stück hält – oder ``None``.
+
+    Die Klammer zwischen Auftrag und Abweichung ist die Instanz; also wird auch der
+    Eltern-Auftrag einer Abweichung daraus **abgeleitet** statt eingegeben. Läuft keiner
+    mehr (das Stück liegt fertig am Lager), gibt es keinen Eltern – eine Abweichung darf
+    auch allein stehen (späte Reklamation)."""
+    found = holding_orders(db, inst)
+    return found[0] if found else None
 
 
 def is_provisioning(order: Order) -> bool:
@@ -297,7 +319,7 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
     Lager (in Arbeit, verkauft, gesperrt) → nichts zu reservieren, dort greift ohnehin kein
     FIFO. Beim Abschluss/Verwerfen löst ``release`` die Reservierung wieder."""
     from .inventory import is_in_stock
-    from .reservation import reserve, reserved_for
+    from .reservation import enforce, reserve, reserved_for
     bound = chosen_subjects(db, order)
     if not bound:
         raise HTTPException(409, detail="Für diesen Unter-Auftrag sind keine Instanzen gewählt")
@@ -307,6 +329,12 @@ def _bind_deviation_subjects(db: Session, order: Order, actor_id: int) -> None:
         # bleibt er wie er ist – sonst gilt die ganze Instanz.
         if is_in_stock(inst) and reserved_for(inst, order.id) <= 0:
             reserve(inst, order.id, to_qty(inst.quantity))
+        # **Und JETZT wird er scharf** (Testnotiz #370): bis zur Freigabe war es eine
+        # Vormerkung, die niemandem etwas wegnahm. Hier setzt sie sich durch – wer dadurch
+        # zu viel hätte, verliert entsprechend und meldet damit seine Unterdeckung.
+        # Die Stelle gilt für BEIDE Wege: die Auswahl im Auftrag ebenso wie die
+        # systemseitige Abweichung (fehlgeschlagene Datenerfassung, Artikel-Deaktivierung).
+        enforce(inst, order.id)
     log_audit(db, "instances", None, "Unter-Auftrag übernimmt Instanzen", actor_id, object_id=order.object_id)
 
 
@@ -336,6 +364,9 @@ def _allocate_stock_for(db: Session, order: Order, article_id: int, quantity) ->
                 raise HTTPException(
                     409, detail=f"Instanz {inst.object_id} ist bereits für einen anderen Auftrag reserviert")
             reserve(inst, order.id, want)
+        # Der Anspruch wird mit der Freigabe scharf – haben zwei Entwürfe dieselbe Instanz
+        # vorgemerkt, gewinnt der, der zuerst freigibt (``reservation.enforce``).
+        enforce(inst, order.id)
         claimed += want
         record_link(db, inst.object_id, order.id)
     remaining = to_qty(quantity) - claimed
